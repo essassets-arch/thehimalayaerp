@@ -1,0 +1,65 @@
+const fs = require('fs');
+const path = require('path');
+
+const frontendRoot = path.resolve(__dirname, '..');
+const navConfig = fs.readFileSync(path.join(frontendRoot, 'config/navigationConfig.js'), 'utf8');
+
+// Parse role sections from navigationConfig.js
+console.log('--- Analyzing Navigation Config Roles ---');
+
+const phase5Modules = {
+  Finance: [
+    { route: '/finance/dashboard', name: 'Finance Dashboard', file: 'modules/finance/pages/FinanceDashboard.jsx' },
+    { route: '/finance/invoices', name: 'Invoices & Billing', file: 'modules/finance/pages/InvoicesView.jsx' },
+    { route: '/finance/payments', name: 'Payment Collections & Verification', file: 'modules/finance/pages/PaymentsView.jsx' },
+    { route: '/finance/purchase-orders', name: 'Purchase Order Approval & Settlement', file: 'modules/finance/pages/PurchaseOrdersView.jsx' },
+    { route: '/finance/ledger', name: 'General Ledger & Accounts', file: 'modules/finance/pages/LedgerView.jsx' },
+    { route: '/finance/reports', name: 'Financial Reports & P&L', file: 'modules/finance/pages/FinancialReportsView.jsx' },
+    { route: '/finance/salary-disbursement', name: 'Salary Disbursement & Payroll Sign-off', file: 'modules/finance/pages/SalaryDisbursementView.jsx' },
+    { route: '/finance/brand-analysis', name: 'Brand Analysis Approvals', file: 'app/(dashboard)/finance/brand-analysis/page.tsx' }
+  ],
+  FinanceExecutive: [
+    { route: '/finance-executive/dashboard', name: 'Finance Executive Hub', file: 'modules/finance-executive/pages/FinanceExecutivePortal.jsx' },
+    { route: '/finance-executive/invoices', name: 'Invoice Processing', file: 'modules/finance-executive/pages/FinanceExecutivePortal.jsx' },
+    { route: '/finance-executive/payments', name: 'Payment Entries', file: 'modules/finance-executive/pages/FinanceExecutivePortal.jsx' },
+    { route: '/finance-executive/reports', name: 'Executive Summary Reports', file: 'modules/finance-executive/pages/FinanceExecutivePortal.jsx' }
+  ],
+  HR: [
+    { route: '/hr/dashboard', name: 'HR Command Center', file: 'modules/hr/pages/HRDashboard.jsx' },
+    { route: '/hr/employees', name: 'Employee Directory & Master', file: 'modules/hr/pages/EmployeeMasterView.jsx' },
+    { route: '/hr/attendance', name: 'Attendance & Biometrics', file: 'modules/hr/pages/AttendanceMasterView.jsx' },
+    { route: '/hr/leaves', name: 'Leave Requests & Approvals', file: 'modules/hr/pages/LeaveManagementView.jsx' },
+    { route: '/hr/recruitment', name: 'Recruitment & Job Openings', file: 'modules/hr/pages/RecruitmentView.jsx' },
+    { route: '/hr/salary', name: 'Salary Processing & Payslips', file: 'modules/salary/pages/SalaryPortal.jsx' },
+    { route: '/hr/roles', name: 'Role Management & RBAC Permissions', file: 'modules/hr/pages/RoleManagementView.jsx' }
+  ],
+  SuperAdmin: [
+    { route: '/super-admin/dashboard', name: 'Super Admin Executive Hub', file: 'modules/super-admin/pages/SuperAdminDashboard.jsx' },
+    { route: '/super-admin/users', name: 'User Access Control & RBAC', file: 'modules/super-admin/pages/UserManagementView.jsx' },
+    { route: '/super-admin/daily-reports', name: 'Enterprise Daily Reports Consolidation', file: 'modules/super-admin/pages/SuperAdminPortal.jsx' },
+    { route: '/super-admin/backoffice-report', name: 'Back Office Operations Report', file: 'modules/super-admin/pages/BackOfficeReportView.jsx' },
+    { route: '/super-admin/payroll-analysis', name: 'Payroll & Compensation Analysis', file: 'modules/super-admin/pages/PayrollAnalysisView.jsx' },
+    { route: '/super-admin/salary-approvals', name: 'Executive Salary Approval Board', file: 'modules/super-admin/pages/SalaryApprovalView.jsx' },
+    { route: '/super-admin/brand-analysis', name: 'Brand Analysis Central Audit', file: 'modules/super-admin/pages/SuperAdminBrandAnalysisView.jsx' },
+    { route: '/super-admin/finished-goods', name: 'Enterprise Finished Goods Ledger', file: 'modules/super-admin/pages/SuperAdminPortal.jsx' }
+  ],
+  AdminBackOfficeCRM: [
+    { route: '/admin/settings', name: 'System Settings & Audit Log', file: 'modules/admin/pages/AdminSettings.jsx' },
+    { route: '/back-office/dashboard', name: 'Back Office Dashboard', file: 'modules/back-office/pages/BackOfficeDashboard.jsx' },
+    { route: '/crm/leads', name: 'CRM Pipeline & Lead Tracker', file: 'modules/crm/pages/CRMLeadsView.jsx' },
+    { route: '/notifications', name: 'Notification Center & Alert Stream', file: 'modules/notifications/pages/NotificationCenter.jsx' },
+    { route: '/qc', name: 'QC Global Hub & Inward Inspection', file: 'app/(dashboard)/qc/page.tsx' }
+  ]
+};
+
+let totalViews = 0;
+Object.keys(phase5Modules).forEach(mod => {
+  totalViews += phase5Modules[mod].length;
+  console.log(`${mod}: ${phase5Modules[mod].length} views`);
+});
+console.log('Total Phase 5 target views:', totalViews);
+
+fs.writeFileSync(
+  path.join(frontendRoot, 'phase5-modules-summary.json'),
+  JSON.stringify(phase5Modules, null, 2)
+);

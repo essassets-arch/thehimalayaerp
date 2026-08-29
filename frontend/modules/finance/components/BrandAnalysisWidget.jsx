@@ -85,7 +85,7 @@ export default function BrandAnalysisWidget() {
         <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>Read-only notification ledger</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', padding: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '16px', padding: '20px' }}>
         <div style={{ background: '#fef3c7', padding: '16px', borderRadius: '8px', border: '1px solid #fde68a' }}>
           <div style={{ fontSize: '14px', color: '#92400e', fontWeight: '600' }}>Pending</div>
           <div style={{ fontSize: '24px', color: '#b45309', fontWeight: 'bold' }}>{summary.pending}</div>

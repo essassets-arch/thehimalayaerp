@@ -40,7 +40,7 @@ export default function DataTable({
   });
 
   return (
-    <div className={`crm-table-container ${scrollMode ? 'scroll-mode erp-table-responsive' : ''}`}>
+    <div className={`crm-table-container erp-table-responsive ${scrollMode ? 'scroll-mode' : ''}`}>
       <table className={`crm-table ${scrollMode ? 'erp-table-scroll' : 'responsive-table'} ${className}`}>
         <thead>
           <tr>

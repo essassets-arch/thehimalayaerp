@@ -129,7 +129,7 @@ export default function ProfitabilityAnalyticsPage() {
       </div>
 
       {/* Product & Customer Profitability Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '20px' }}>
         {/* Product Profitability */}
         <div style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #dfe6ee)', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 7px rgb(15 23 42 / 5%)' }}>
           <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 750, color: '#24345C' }}>Product Profitability Summary</h3>

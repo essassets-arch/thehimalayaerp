@@ -1861,7 +1861,7 @@ export default function ProductionPortal() {
         />
 
         {/* Observability & Decision grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
 
           {/* Machine OEE Monitor */}
           <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -3931,7 +3931,7 @@ export default function ProductionPortal() {
         </div>
 
         {/* Middle Row: Charts */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '24px', marginBottom: '32px' }}>
           <div style={{ background: 'var(--color-bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
             <h3 style={{ fontSize: '16px', marginBottom: '16px', color: 'var(--color-text-primary)' }}>Production Status Distribution</h3>
             <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -4442,7 +4442,7 @@ export default function ProductionPortal() {
       {/* ── Request Raw Materials Modal ── */}
       {showRequestModal && selectedWOForRequest && (
         <div className="modal-overlay active" onClick={() => setShowRequestModal(false)} style={{ zIndex: 10000 }}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '560px', maxWidth: 'calc(100vw - 24px)', padding: 0, overflow: 'hidden', borderRadius: '16px', border: '1px solid #DCE5F0' }}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 'min(94vw, 560px)', maxHeight: '90vh', padding: 0, overflowY: 'auto', borderRadius: '16px', border: '1px solid #DCE5F0' }}>
             <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#24345C', margin: 0 }}>Material Request for: {selectedWOForRequest.id}</h3>
@@ -4559,8 +4559,8 @@ export default function ProductionPortal() {
 
       {/* ── Add Machine Modal ── */}
       {showAddMachineModal && (
-        <div className="modal-overlay active" style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)' }}>
-          <div className="modal-box" style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '440px', boxShadow: '0 24px 60px rgba(15,23,42,0.22)', overflow: 'hidden' }}>
+        <div className="modal-overlay active" style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)', padding: '16px' }}>
+          <div className="modal-box" style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: 'min(94vw, 440px)', maxHeight: '90vh', boxShadow: '0 24px 60px rgba(15,23,42,0.22)', overflowY: 'auto' }}>
             <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#24345C' }}>⚙️ Add New Machine</h3>
               <button type="button" onClick={() => setShowAddMachineModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8893A7' }}><X size={18} /></button>

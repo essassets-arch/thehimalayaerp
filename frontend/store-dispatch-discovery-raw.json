@@ -1,0 +1,373 @@
+{
+  "files": [
+    "modules\\store\\components\\BrandAnalysisRequests.jsx",
+    "modules\\store\\components\\IndentHistory.jsx",
+    "modules\\store\\components\\MaterialRejections.jsx",
+    "modules\\store\\components\\POReport.jsx",
+    "modules\\store\\components\\ProcurementForm.jsx",
+    "modules\\store\\pages\\StoreDashboard.jsx",
+    "modules\\store\\pages\\StorePortal.jsx",
+    "modules\\store\\pages\\StoreSummaryReport.jsx",
+    "modules\\dispatch\\hooks\\useDispatch.ts",
+    "modules\\dispatch\\pages\\DispatchPortal.jsx",
+    "modules\\dispatch\\pages\\ReturnsPortal.jsx",
+    "app\\(dashboard)\\store\\reports\\page.tsx",
+    "app\\(dashboard)\\store\\vendor-master\\page.tsx",
+    "app\\(dashboard)\\store\\[[...slug]]\\page.tsx",
+    "app\\(dashboard)\\dispatch\\components\\ActionButtons.tsx",
+    "app\\(dashboard)\\dispatch\\components\\CreateDispatchForm.tsx",
+    "app\\(dashboard)\\dispatch\\components\\DispatchActionButton.tsx",
+    "app\\(dashboard)\\dispatch\\components\\DispatchBadges.tsx",
+    "app\\(dashboard)\\dispatch\\components\\DispatchNavigationTabs.tsx",
+    "app\\(dashboard)\\dispatch\\components\\DispatchPageHeader.tsx",
+    "app\\(dashboard)\\dispatch\\components\\DispatchPageShell.tsx",
+    "app\\(dashboard)\\dispatch\\components\\DispatchStates.tsx",
+    "app\\(dashboard)\\dispatch\\components\\DispatchTableCard.tsx",
+    "app\\(dashboard)\\dispatch\\components\\DispatchToolbar.tsx",
+    "app\\(dashboard)\\dispatch\\components\\index.ts",
+    "app\\(dashboard)\\dispatch\\create\\page.tsx",
+    "app\\(dashboard)\\dispatch\\create-dispatch\\create-dispatch.module.css",
+    "app\\(dashboard)\\dispatch\\create-dispatch\\page.tsx",
+    "app\\(dashboard)\\dispatch\\daily-report\\[[...slug]]\\page.tsx",
+    "app\\(dashboard)\\dispatch\\dashboard\\page.tsx",
+    "app\\(dashboard)\\dispatch\\delivery\\delivery.module.css",
+    "app\\(dashboard)\\dispatch\\delivery\\page.tsx",
+    "app\\(dashboard)\\dispatch\\dispatch-responsive.module.css",
+    "app\\(dashboard)\\dispatch\\finished-goods\\page.tsx",
+    "app\\(dashboard)\\dispatch\\history\\page.tsx",
+    "app\\(dashboard)\\dispatch\\in-transit\\page.tsx",
+    "app\\(dashboard)\\dispatch\\orders\\dispatch-orders.module.css",
+    "app\\(dashboard)\\dispatch\\orders\\orders.module.css",
+    "app\\(dashboard)\\dispatch\\orders\\page.tsx",
+    "app\\(dashboard)\\dispatch\\page.tsx",
+    "app\\(dashboard)\\dispatch\\profile\\page.tsx",
+    "app\\(dashboard)\\dispatch\\replacements\\page.tsx",
+    "app\\(dashboard)\\dispatch\\returns\\page.tsx",
+    "app\\(dashboard)\\dispatch\\sample-dispatch\\create\\[id]\\create-sample.module.css",
+    "app\\(dashboard)\\dispatch\\sample-dispatch\\create\\[id]\\page.tsx",
+    "app\\(dashboard)\\dispatch\\sample-dispatch\\page.tsx",
+    "app\\(dashboard)\\dispatch\\sample-dispatch\\sample-dispatch.module.css",
+    "app\\(dashboard)\\dispatch\\[...slug]\\page.tsx",
+    "app\\(dashboard)\\dispatch\\[id]\\dispatch-detail.module.css",
+    "app\\(dashboard)\\dispatch\\[id]\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\create\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\create-dispatch\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\daily-report\\[[...slug]]\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\dashboard\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\delivery\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\finished-goods\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\history\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\in-transit\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\orders\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\replacements\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\reports\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\returns\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\sample-dispatch\\page.tsx",
+    "app\\(dashboard)\\dispatch-2\\[...slug]\\page.tsx",
+    "components\\material-workflow\\PlantHeadMaterialApprovalView.jsx",
+    "components\\material-workflow\\ProductionMaterialConsumptionView.jsx",
+    "components\\material-workflow\\ProductionMaterialCreateView.jsx",
+    "components\\material-workflow\\ProductionMaterialReceiptsView.jsx",
+    "components\\material-workflow\\ProductionMaterialRequestsView.jsx",
+    "components\\material-workflow\\ProductionMaterialReturnsView.jsx",
+    "components\\material-workflow\\ProductionStoreReleasesView.jsx",
+    "components\\material-workflow\\StoreMaterialIssueView.jsx",
+    "components\\material-workflow\\StoreMaterialReturnVerificationView.jsx",
+    "components\\material-workflow\\StoreReleasesView.css",
+    "components\\material-workflow\\StoreReleasesView.jsx"
+  ],
+  "risks": {
+    "modules\\store\\components\\IndentHistory.jsx": [
+      {
+        "line": 120,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "grid-template-columns: repeat(5, 1fr);",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 243,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '650px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "modules\\store\\components\\MaterialRejections.jsx": [
+      {
+        "line": 125,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"material-rejections-page\" style={{ padding: '24px', maxWidth: '1440px', margin: '0 auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 165,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 237,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ background: '#fff', padding: '24px', borderRadius: '12px', width: '500px', maxWidth: '90%' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "modules\\store\\pages\\StoreDashboard.jsx": [
+      {
+        "line": 1265,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 1359,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(4, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 1427,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\store\\pages\\StorePortal.jsx": [
+      {
+        "line": 1781,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ background: '#ffffff', padding: '24px', borderRadius: 'var(--radius-xl)', border: '1px solid var(--color-border)', width: '500px', maxWidth: '90%', boxShadow: 'var(--shadow-premium)', display: 'flex', flexDirection: 'column', gap: '16px' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 1816,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '520px', maxWidth: '90%', background: '#ffffff', boxShadow: '-10px 0 35px rgba(0,0,0,0.1)', zIndex: 1050, padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 3512,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px', alignItems: 'stretch' }}>",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      },
+      {
+        "line": 3953,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid var(--color-border)', padding: '24px', maxWidth: '800px', margin: '0 auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 4017,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid var(--color-border)', padding: '24px', maxWidth: '800px', margin: '0 auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "modules\\store\\pages\\StoreSummaryReport.jsx": [
+      {
+        "line": 747,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 839,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 906,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 1005,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '750px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 1087,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 1246,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "modules\\dispatch\\pages\\DispatchPortal.jsx": [
+      {
+        "line": 2098,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"app-card\" style={{ maxWidth: '960px', margin: '0 auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 2119,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<form onSubmit={handleDispatchSubmit} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '20px' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 2373,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"app-card\" style={{ maxWidth: '960px', margin: '0 auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 2378,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<form onSubmit={handleRetrievalSubmit} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '20px' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 2403,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"app-card\" style={{ maxWidth: '960px', margin: '0 auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 2419,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<form onSubmit={handleSampleDispatchFormSubmit} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '20px' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 2459,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"app-card\" style={{ maxWidth: '960px', margin: '0 auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 2475,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<form onSubmit={handleSampleDeliveryFormSubmit} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '20px' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 2533,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"app-card\" style={{ maxWidth: '850px', margin: '0 auto', padding: '24px', border: '2px solid var(--color-primary)', borderRadius: '16px' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 3773,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "width: '480px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 3996,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "width: '480px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "app\\(dashboard)\\dispatch\\create-dispatch\\create-dispatch.module.css": [
+      {
+        "line": 296,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "grid-template-columns: repeat(3, 1fr);",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "components\\material-workflow\\PlantHeadMaterialApprovalView.jsx": [
+      {
+        "line": 233,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px', fontSize: '13px', background: '#F5FAFE', padding: '14px', borderRadius: '12px' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 249,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "components\\material-workflow\\ProductionMaterialConsumptionView.jsx": [
+      {
+        "line": 143,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ background: '#fff', borderRadius: '20px', width: '700px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', padding: '28px', border: '1px solid #DCE5F0', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "components\\material-workflow\\ProductionMaterialReceiptsView.jsx": [
+      {
+        "line": 129,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ background: '#fff', borderRadius: '20px', width: '700px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', padding: '28px', border: '1px solid #DCE5F0', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "components\\material-workflow\\ProductionMaterialRequestsView.jsx": [
+      {
+        "line": 930,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ background: '#fff', borderRadius: '20px', width: '680px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', padding: '28px', border: '1px solid #DCE5F0', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "components\\material-workflow\\ProductionMaterialReturnsView.jsx": [
+      {
+        "line": 215,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ background: '#fff', borderRadius: '20px', width: '700px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', padding: '28px', border: '1px solid #DCE5F0', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "components\\material-workflow\\StoreMaterialReturnVerificationView.jsx": [
+      {
+        "line": 199,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ background: '#fff', borderRadius: '20px', width: '700px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', padding: '28px', border: '1px solid #DCE5F0', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ]
+  }
+}

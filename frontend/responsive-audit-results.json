@@ -1,0 +1,5581 @@
+[
+  {
+    "panel": "Sales",
+    "route": "/sales/dashboard",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/daily-task",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/leads",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/samples",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/quotations",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/orders",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/production-status",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/payment-followup",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/payment-history",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/customers",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/customer-complaints",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/reports",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/profile",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/dashboard",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/daily-task",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/leads",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/samples",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/quotations",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/orders",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/production-status",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/payment-followup",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/payment-history",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/customers",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/customer-complaints",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/dashboard",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/incoming-orders",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/work-orders",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/floor",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/daily-report",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/completed",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/all-stock",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/finished-goods",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/material-requests",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/material-requests",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/material-requests?tab=history",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/store-releases",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/qc-failed",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/testing",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/machines",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/reports",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/qc-pending",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/qc-history",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/profile",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/dashboard",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/daily-summary",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/incoming-orders",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/planning",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/products",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/categories",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/finished-goods",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/material-approvals",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/indent-approvals",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/purchase-approvals",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/replacements",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/returns",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/production-analytics",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/production-analytics",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/dispatch-analytics",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/material-analytics",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/raw-inventory",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/qc-failures",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/testing",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/profile",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/recruitment-request",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/daily-reports",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/leave-approvals",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/attendance",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/dashboard",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/raw-inventory",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/low-stock-alerts",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/analysis-requests",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/material-requests",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/store-releases",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/issued-history",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/purchase",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/purchase?tab=Create Request",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/purchase?tab=Delivery History",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/purchase?tab=GRN History",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/purchase?tab=Material Rejections",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/purchase?tab=Replacement Deliveries",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/purchase?tab=Indent History",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/reports",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/reports",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/profile",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/dashboard",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/finished-goods",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/orders",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/orders",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/create-dispatch",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/in-transit",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/delivery",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/sample-dispatch",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/sample-dispatch?status=pending",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/sample-dispatch/create/new",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/sample-dispatch?status=in-transit",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/sample-dispatch?status=delivered",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/sample-dispatch?status=all",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/replacements",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/replacements?status=pending",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/replacements?status=in-transit",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/replacements?status=delivered",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/returns",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/returns?status=pending",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/returns?status=in-transit",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/returns?status=delivered",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/daily-report",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/remaining",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/history",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/profile",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/dashboard",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/finished-goods",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/orders",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/orders",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/create-dispatch",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/in-transit",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/delivery",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/sample-dispatch",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/sample-dispatch?status=pending",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/sample-dispatch/create/new",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/sample-dispatch?status=in-transit",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/sample-dispatch?status=delivered",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/sample-dispatch?status=all",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/replacements",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/replacements?status=pending",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/replacements?status=in-transit",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/replacements?status=delivered",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/returns",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/returns?status=pending",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/returns?status=in-transit",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/returns?status=delivered",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/daily-report",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/remaining",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/history",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch 2",
+    "route": "/dispatch-2/profile",
+    "pageFile": "app/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Finance Executive",
+    "route": "/finance-executive/dashboard",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false,
+    "hasChart": true,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Finance Executive",
+    "route": "/finance-executive/daily-tasks",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false,
+    "hasChart": true,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Finance Executive",
+    "route": "/finance-executive/payment-verification",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false,
+    "hasChart": true,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Finance Executive",
+    "route": "/finance-executive/payment-verification",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false,
+    "hasChart": true,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Finance Executive",
+    "route": "/finance-executive/receipts",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false,
+    "hasChart": true,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Finance Executive",
+    "route": "/finance-executive/outstanding",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false,
+    "hasChart": true,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Finance Executive",
+    "route": "/finance-executive/customers",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false,
+    "hasChart": true,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Finance Executive",
+    "route": "/finance-executive/reports",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false,
+    "hasChart": true,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Finance Executive",
+    "route": "/finance-executive/profile",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false,
+    "hasChart": true,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/dashboard",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/daily-tasks",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/brand-analysis",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/payment-verification",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/payment-verification",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/receipts",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/outstanding",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/customers",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/po-requests",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/po-requests?tab=Pending Requests",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/po-requests?tab=Create PO",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/po-requests?tab=Draft POs",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/po-requests?tab=Pending Approval",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/po-requests?tab=Approved POs",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/po-requests?tab=Delivery Audit",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/po-requests?tab=Closed POs",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/po-requests?tab=History",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/rejection-management",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/salary/pending",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/salary/pending",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/salary/processing",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/salary/paid",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/salary/history",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/reports",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/profile",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/dashboard",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/employees",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/register-staff",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/users",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/recruitment",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/attendance",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/leaves",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/exit-clearance",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/salary/prepare",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/salary/prepare",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/salary/status",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/salary/history",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/notifications",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/profile",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/expense-management",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/leave-approvals",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "HR",
+    "route": "/hr/attendance-requests",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Back Office",
+    "route": "/back-office/daily-report",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "TABLE_RESPONSIVE",
+        "severity": "P1",
+        "details": "Large data table lacks an explicit responsive scroll container (`overflow-x-auto`), causing wide tables to clip or expand page width on mobile viewports.",
+        "fix": "Enclose table in a container with `overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;` and apply mobile card reflow for primary columns where appropriate."
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Back Office",
+    "route": "/back-office/profile",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "TABLE_RESPONSIVE",
+        "severity": "P1",
+        "details": "Large data table lacks an explicit responsive scroll container (`overflow-x-auto`), causing wide tables to clip or expand page width on mobile viewports.",
+        "fix": "Enclose table in a container with `overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;` and apply mobile card reflow for primary columns where appropriate."
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "BACK_OFFICE",
+    "route": "/back-office/daily-report",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "TABLE_RESPONSIVE",
+        "severity": "P1",
+        "details": "Large data table lacks an explicit responsive scroll container (`overflow-x-auto`), causing wide tables to clip or expand page width on mobile viewports.",
+        "fix": "Enclose table in a container with `overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;` and apply mobile card reflow for primary columns where appropriate."
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "BACK_OFFICE",
+    "route": "/back-office/profile",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "TABLE_RESPONSIVE",
+        "severity": "P1",
+        "details": "Large data table lacks an explicit responsive scroll container (`overflow-x-auto`), causing wide tables to clip or expand page width on mobile viewports.",
+        "fix": "Enclose table in a container with `overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;` and apply mobile card reflow for primary columns where appropriate."
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/dashboard",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/reports",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/backoffice-report",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/daily-reports",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/brand-analysis",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/purchase-indents",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/salary-approval",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/exit-clearance",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/attendance",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/customer-complaints",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/users",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/employees",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/sales-target",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/production-target",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/products",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/categories",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/finished-goods",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/map",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/analytics/sales",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/analytics/finance",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/analytics/production",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/analytics/inventory",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/analytics/hr",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/analytics/dispatch",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/reports",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/notifications",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/expense-management",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/leave-approvals",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Shared / Standalone",
+    "route": "/",
+    "pageFile": "app/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 15 instances of fixed min-width >= 400px (e.g., min-width:1050px, min-width: 980px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Admin",
+    "route": "/admin/[[...slug]]",
+    "pageFile": "app/(dashboard)/admin/[[...slug]]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Back Office",
+    "route": "/back-office/daily-report/create",
+    "pageFile": "app/(dashboard)/back-office/daily-report/create/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "TABLE_RESPONSIVE",
+        "severity": "P1",
+        "details": "Large data table lacks an explicit responsive scroll container (`overflow-x-auto`), causing wide tables to clip or expand page width on mobile viewports.",
+        "fix": "Enclose table in a container with `overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;` and apply mobile card reflow for primary columns where appropriate."
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Back Office",
+    "route": "/back-office/daily-report/edit/[id]",
+    "pageFile": "app/(dashboard)/back-office/daily-report/edit/[id]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "TABLE_RESPONSIVE",
+        "severity": "P1",
+        "details": "Large data table lacks an explicit responsive scroll container (`overflow-x-auto`), causing wide tables to clip or expand page width on mobile viewports.",
+        "fix": "Enclose table in a container with `overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;` and apply mobile card reflow for primary columns where appropriate."
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "CRM",
+    "route": "/crm/leads",
+    "pageFile": "app/(dashboard)/crm/leads/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "CRM",
+    "route": "/crm/leads/[id]",
+    "pageFile": "app/(dashboard)/crm/leads/[id]/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "CRM",
+    "route": "/crm/quotations",
+    "pageFile": "app/(dashboard)/crm/quotations/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "CRM",
+    "route": "/crm/quotations/[id]",
+    "pageFile": "app/(dashboard)/crm/quotations/[id]/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch",
+    "pageFile": "app/(dashboard)/dispatch/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/create",
+    "pageFile": "app/(dashboard)/dispatch/create/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/daily-report/[[...slug]]",
+    "pageFile": "app/(dashboard)/dispatch/daily-report/[[...slug]]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/sample-dispatch/create/[id]",
+    "pageFile": "app/(dashboard)/dispatch/sample-dispatch/create/[id]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/[...slug]",
+    "pageFile": "app/(dashboard)/dispatch/[...slug]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch/[id]",
+    "pageFile": "app/(dashboard)/dispatch/[id]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch-2/create",
+    "pageFile": "app/(dashboard)/dispatch-2/create/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch-2/daily-report/[[...slug]]",
+    "pageFile": "app/(dashboard)/dispatch-2/daily-report/[[...slug]]/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch-2/reports",
+    "pageFile": "app/(dashboard)/dispatch-2/reports/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Dispatch",
+    "route": "/dispatch-2/[...slug]",
+    "pageFile": "app/(dashboard)/dispatch-2/[...slug]/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Employee",
+    "route": "/employee/payslips",
+    "pageFile": "app/(dashboard)/employee/payslips/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Employee",
+    "route": "/employee/salary-slips",
+    "pageFile": "app/(dashboard)/employee/salary-slips/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Employee",
+    "route": "/employee/salary-slips/[id]",
+    "pageFile": "app/(dashboard)/employee/salary-slips/[id]/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/invoices",
+    "pageFile": "app/(dashboard)/finance/invoices/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/invoices/[id]",
+    "pageFile": "app/(dashboard)/finance/invoices/[id]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/ledger",
+    "pageFile": "app/(dashboard)/finance/ledger/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/payments",
+    "pageFile": "app/(dashboard)/finance/payments/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/payments/create",
+    "pageFile": "app/(dashboard)/finance/payments/create/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/payments/[id]",
+    "pageFile": "app/(dashboard)/finance/payments/[id]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/purchase-orders",
+    "pageFile": "app/(dashboard)/finance/purchase-orders/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/purchase-orders/[id]/close",
+    "pageFile": "app/(dashboard)/finance/purchase-orders/[id]/close/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/salary/history/[payrollId]/salary-slip",
+    "pageFile": "app/(dashboard)/finance/salary/history/[payrollId]/salary-slip/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/salary-disbursement",
+    "pageFile": "app/(dashboard)/finance/salary-disbursement/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/salary-history",
+    "pageFile": "app/(dashboard)/finance/salary-history/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/salary-verification",
+    "pageFile": "app/(dashboard)/finance/salary-verification/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/sales",
+    "pageFile": "app/(dashboard)/finance/sales/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance/[[...slug]]",
+    "pageFile": "app/(dashboard)/finance/[[...slug]]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '800px, width: 800px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Finance",
+    "route": "/finance-executive/[[...slug]]",
+    "pageFile": "app/(dashboard)/finance-executive/[[...slug]]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false,
+    "hasChart": true,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Human Resources",
+    "route": "/hr/roles",
+    "pageFile": "app/(dashboard)/hr/roles/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Human Resources",
+    "route": "/hr/salary",
+    "pageFile": "app/(dashboard)/hr/salary/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Human Resources",
+    "route": "/hr/salary/payslips",
+    "pageFile": "app/(dashboard)/hr/salary/payslips/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Human Resources",
+    "route": "/hr/salary/prepare/create",
+    "pageFile": "app/(dashboard)/hr/salary/prepare/create/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Human Resources",
+    "route": "/hr/salary/prepare/edit/[id]",
+    "pageFile": "app/(dashboard)/hr/salary/prepare/edit/[id]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Human Resources",
+    "route": "/hr/salary/prepare/view/[id]",
+    "pageFile": "app/(dashboard)/hr/salary/prepare/view/[id]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Human Resources",
+    "route": "/hr/salary-structure",
+    "pageFile": "app/(dashboard)/hr/salary-structure/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Human Resources",
+    "route": "/hr/[[...slug]]",
+    "pageFile": "app/(dashboard)/hr/[[...slug]]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 1 instances of fixed min-width >= 400px (e.g., min-width:1050px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: '900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Orders",
+    "route": "/orders/[orderId]",
+    "pageFile": "app/(dashboard)/orders/[orderId]/page.tsx",
+    "hasTable": true,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "TABLE_RESPONSIVE",
+        "severity": "P1",
+        "details": "Large data table lacks an explicit responsive scroll container (`overflow-x-auto`), causing wide tables to clip or expand page width on mobile viewports.",
+        "fix": "Enclose table in a container with `overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;` and apply mobile card reflow for primary columns where appropriate."
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Plant Head",
+    "route": "/plant-head/[[...slug]]",
+    "pageFile": "app/(dashboard)/plant-head/[[...slug]]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 2 instances of fixed min-width >= 400px (e.g., min-width: 980px, min-width: 780px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 980px, width: 900px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/active",
+    "pageFile": "app/(dashboard)/production/active/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/daily-report/[[...slug]]",
+    "pageFile": "app/(dashboard)/production/daily-report/[[...slug]]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/machine-log",
+    "pageFile": "app/(dashboard)/production/machine-log/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/plans",
+    "pageFile": "app/(dashboard)/production/plans/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/plans/create",
+    "pageFile": "app/(dashboard)/production/plans/create/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/plans/[id]",
+    "pageFile": "app/(dashboard)/production/plans/[id]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/work-orders/[id]",
+    "pageFile": "app/(dashboard)/production/work-orders/[id]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Production",
+    "route": "/production/[[...slug]]",
+    "pageFile": "app/(dashboard)/production/[[...slug]]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: '650px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Quality Control",
+    "route": "/qc",
+    "pageFile": "app/(dashboard)/qc/page.tsx",
+    "hasTable": true,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "TABLE_RESPONSIVE",
+        "severity": "P1",
+        "details": "Large data table lacks an explicit responsive scroll container (`overflow-x-auto`), causing wide tables to clip or expand page width on mobile viewports.",
+        "fix": "Enclose table in a container with `overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;` and apply mobile card reflow for primary columns where appropriate."
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Quality Control",
+    "route": "/qc/[...slug]",
+    "pageFile": "app/(dashboard)/qc/[...slug]/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Quality Control",
+    "route": "/qc/[id]",
+    "pageFile": "app/(dashboard)/qc/[id]/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/create-payment",
+    "pageFile": "app/(dashboard)/sales/create-payment/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/customers/[id]",
+    "pageFile": "app/(dashboard)/sales/customers/[id]/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/leads/create",
+    "pageFile": "app/(dashboard)/sales/leads/create/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/leads/[id]/edit",
+    "pageFile": "app/(dashboard)/sales/leads/[id]/edit/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/orders/create",
+    "pageFile": "app/(dashboard)/sales/orders/create/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/orders/[id]",
+    "pageFile": "app/(dashboard)/sales/orders/[id]/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/quotations/create",
+    "pageFile": "app/(dashboard)/sales/quotations/create/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Sales",
+    "route": "/sales/[[...slug]]",
+    "pageFile": "app/(dashboard)/sales/[[...slug]]/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": false,
+    "issues": [
+      {
+        "type": "GRID_RESPONSIVE",
+        "severity": "P2",
+        "details": "Grid layout defines 1 multi-column structures without responsive collapse for screen widths below 640px.",
+        "fix": "Use `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3` or `@media(max-width: 640px) { grid-template-columns: 1fr; }`."
+      }
+    ],
+    "severity": "WARNING (P2)",
+    "status": "WARNING"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/vendor-master",
+    "pageFile": "app/(dashboard)/store/vendor-master/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Store",
+    "route": "/store/[[...slug]]",
+    "pageFile": "app/(dashboard)/store/[[...slug]]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 768px, width: 640px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/brandanalysis",
+    "pageFile": "app/(dashboard)/super-admin/brandanalysis/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/payroll-analysis",
+    "pageFile": "app/(dashboard)/super-admin/payroll-analysis/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/salary-approvals",
+    "pageFile": "app/(dashboard)/super-admin/salary-approvals/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "Super Admin",
+    "route": "/super-admin/[[...slug]]",
+    "pageFile": "app/(dashboard)/super-admin/[[...slug]]/page.tsx",
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true,
+    "hasChart": true,
+    "issues": [
+      {
+        "type": "OVERFLOW_RISK",
+        "severity": "P1",
+        "details": "Contains 10 instances of fixed min-width >= 400px (e.g., min-width: 800px, min-width: 700px) causing mobile viewport horizontal overflow.",
+        "fix": "Replace fixed min-width with responsive min-w-0, w-full, or wrap inside an overflow-x-auto container."
+      },
+      {
+        "type": "MODAL_RESPONSIVE",
+        "severity": "P1",
+        "details": "Modal/dialog component uses fixed desktop width (e.g. width: 1100px, width: 620px), causing overflow on screens <= 412px.",
+        "fix": "Set `width: min(92vw, [desktopWidth]px); max-height: 90vh; overflow-y: auto; margin: auto;`"
+      }
+    ],
+    "severity": "FAIL (P1)",
+    "status": "FAIL"
+  },
+  {
+    "panel": "SuperSales",
+    "route": "/supersales/[[...slug]]",
+    "pageFile": "app/(dashboard)/supersales/[[...slug]]/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Shared / Standalone",
+    "route": "/login",
+    "pageFile": "app/login/page.tsx",
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  },
+  {
+    "panel": "Shared / Standalone",
+    "route": "/salary-slip/shared/[token]",
+    "pageFile": "app/salary-slip/shared/[token]/page.tsx",
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false,
+    "hasChart": false,
+    "issues": [],
+    "severity": "PASS",
+    "status": "PASS"
+  }
+]

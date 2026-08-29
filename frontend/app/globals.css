@@ -3367,7 +3367,7 @@ textarea {
   transition: opacity 0.25s ease;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .sidebar-drawer-backdrop {
     display: block;
   }

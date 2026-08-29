@@ -266,7 +266,7 @@ export default function DailyReportPrintView({ reportId, onBack, title, isDispat
         {/* BOTTOM TOTALS SUMMARY BLOCK */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))',
           gap: '12px',
           border: '2px solid #0f172a',
           borderRadius: '6px',
@@ -286,7 +286,7 @@ export default function DailyReportPrintView({ reportId, onBack, title, isDispat
         {/* SIGNATURE BLOCK */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))',
           gap: '24px',
           marginTop: '60px',
           textAlign: 'center',

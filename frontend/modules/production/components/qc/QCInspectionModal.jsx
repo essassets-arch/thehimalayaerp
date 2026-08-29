@@ -111,8 +111,8 @@ export default function QCInspectionModal({ selectedOrder, onClose }) {
   };
 
   return (
-    <div className="modal-overlay active" onClick={onClose} style={{ zIndex: 10000 }}>
-      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ width: '650px', maxWidth: 'calc(100vw - 32px)', padding: 0, overflow: 'hidden', borderRadius: '16px' }}>
+    <div className="modal-overlay active" onClick={onClose} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 'min(94vw, 650px)', maxHeight: '90vh', padding: 0, overflowY: 'auto', borderRadius: '16px' }}>
         
         {/* Header */}
         <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
@@ -137,7 +137,7 @@ export default function QCInspectionModal({ selectedOrder, onClose }) {
 
             {/* Order info strip */}
             <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: '10px', padding: '12px 16px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px', color: '#581c87' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '8px', fontSize: '12px', color: '#581c87' }}>
                 <div>Product: <strong>{selectedOrder.products || selectedOrder.productName || selectedOrder.detailedItems?.[0]?.productName || '—'}</strong></div>
                 <div>Batch: <strong>{selectedOrder.batchNumberFinal || selectedOrder.batchNumber || selectedOrder.production?.batchNumber || '—'}</strong></div>
                 <div>Ordered Qty: <strong>{selectedOrder.orderedQuantity || selectedOrder.quantity || selectedOrder.estimatedQuantity || 0}</strong></div>
@@ -147,14 +147,14 @@ export default function QCInspectionModal({ selectedOrder, onClose }) {
 
             {/* Quantities & Disposition */}
             <div style={{ padding: '16px', background: '#F5FAFE', border: '1px solid #DCE5F0', borderRadius: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                 <label className="form-label" style={{ fontWeight: '800', margin: 0, color: '#1e293b' }}>Inspection Quantities</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button type="button" className="btn-small" style={{ fontSize: '10px', padding: '4px 8px', background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '4px', cursor: 'pointer' }} onClick={() => setQuickDecision('Batch Passed')}>All Passed</button>
                   <button type="button" className="btn-small" style={{ fontSize: '10px', padding: '4px 8px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer' }} onClick={() => setQuickDecision('Full Reject')}>All Rejected</button>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))', gap: '12px' }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label" style={{ fontSize: '11px', color: '#5E6B82' }}>Inspected Qty</label>
                   <input type="number" min="0" className="form-input" style={{ fontWeight: 'bold' }} value={inspectedQty} onChange={e => {
@@ -191,7 +191,7 @@ export default function QCInspectionModal({ selectedOrder, onClose }) {
             </div>
 
             {/* Test results */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: '14px' }}>
               {[
                 { label: 'Compressive Strength', val: strength, set: setStrength },
                 { label: 'Dimensional Accuracy', val: dimensions, set: setDimensions },
@@ -207,7 +207,7 @@ export default function QCInspectionModal({ selectedOrder, onClose }) {
             {/* Defects */}
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Defect Flags {Number(rejectedQty) > 0 && <span style={{color: 'red'}}>*</span>}</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #DCE5F0' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '8px', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #DCE5F0' }}>
                 {Object.entries(defects).map(([k, v]) => (
                   <label key={k} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
                     <input type="checkbox" checked={v} onChange={e => setDefects({ ...defects, [k]: e.target.checked })} />

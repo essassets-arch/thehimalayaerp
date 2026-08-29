@@ -64,7 +64,7 @@ export default function FinishedGoodsView() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
       {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '16px' }}>
         {[
           { label: 'Total Finished', value: totalFinished, icon: Package, color: '#3b82f6', bg: '#eff6ff' },
           { label: 'Ready for Dispatch', value: readyForDispatch, icon: Truck, color: '#10b981', bg: '#ecfdf5' },

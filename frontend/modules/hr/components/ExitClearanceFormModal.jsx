@@ -822,7 +822,7 @@ export default function ExitClearanceFormModal({ isOpen, onClose, onSubmit, empl
               Company Assets
             </h3>
             <div className="print-asset-grid" style={{ border: '1px solid #cbd5e1', borderRadius: '6px', padding: '12px', background: '#fafafa' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '13px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '10px', fontSize: '13px' }}>
                 <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input type="checkbox" checked={assets.laptopPc} onChange={(e) => setAssets({ ...assets, laptopPc: e.target.checked })} />
                   <span>Laptop / PC</span>

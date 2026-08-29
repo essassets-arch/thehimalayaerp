@@ -127,10 +127,12 @@ export default function TabulatorTable({
     <div style={{ width: '100%', position: 'relative' }}>
       <div 
         ref={tableRef} 
-        className="tabulator-custom-theme" 
+        className="tabulator-custom-theme erp-table-responsive" 
         style={{
           borderRadius: '12px',
-          overflow: 'hidden',
+          overflowX: 'auto',
+          maxWidth: '100%',
+          width: '100%',
           border: '1px solid rgba(255, 255, 255, 0.1)',
           background: '#0F172A',
           boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)'

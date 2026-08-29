@@ -1350,7 +1350,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
         </div>
 
         {/* 2 Column Performance & Status Distribution Section */}
-        <div className="dispatch-two-col-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+        <div className="dispatch-two-col-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
           {/* Today's Dispatch Performance */}
           <div className="dispatch-dashboard-card" style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
             <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1652,7 +1652,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
         </div>
 
         {/* 2 Column Pending POD & Recent Activities Widgets */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
           {/* Pending POD */}
           <div className="app-card" style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', boxShadow: '0 4px 14px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0' }}>
             <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', margin: '0 0 14px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>

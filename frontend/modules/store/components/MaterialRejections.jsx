@@ -125,7 +125,7 @@ export default function MaterialRejections() {
     <div className="material-rejections-page" style={{ padding: '24px', maxWidth: '1440px', margin: '0 auto' }}>
       <style>{`
         .material-rejections-modal-overlay { padding: 16px; }
-        .material-rejections-modal { width: 640px; }
+        .material-rejections-modal { width: 100%; max-width: min(94vw, 640px); }
         .material-rejections-form { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
         @media (max-width: 760px) {
           .material-rejections-page { padding: 14px !important; }

@@ -117,7 +117,7 @@ export default function IndentHistory({ hideHeader = false } = {}) {
       <style>{`
         .indent-kpi-grid {
           display: grid;
-          grid-template-columns: repeat(5, 1fr);
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
           gap: 12px;
           margin-bottom: 20px;
         }
@@ -135,7 +135,7 @@ export default function IndentHistory({ hideHeader = false } = {}) {
 
         @media (max-width: 768px) {
           .indent-kpi-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr)) !important;
             gap: 8px !important;
             margin-bottom: 14px !important;
           }

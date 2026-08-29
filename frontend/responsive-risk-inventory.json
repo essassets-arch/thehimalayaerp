@@ -1,0 +1,2362 @@
+{
+  "fixed_large_width_px": [
+    {
+      "file": "app/(dashboard)/dispatch/create-dispatch/create-dispatch.module.css",
+      "count": 5,
+      "sample": [
+        "width: 1600px",
+        "width: 400px",
+        "width: 1024px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/delivery/delivery.module.css",
+      "count": 3,
+      "sample": [
+        "width: 760px",
+        "width: 1180px",
+        "width: 640px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/dispatch-responsive.module.css",
+      "count": 2,
+      "sample": [
+        "width: 768px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/orders/dispatch-orders.module.css",
+      "count": 4,
+      "sample": [
+        "width: 680px",
+        "width: 980px",
+        "width: 760px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/orders/orders.module.css",
+      "count": 4,
+      "sample": [
+        "width: 680px",
+        "width: 960px",
+        "width: 1024px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/sample-dispatch/create/[id]/create-sample.module.css",
+      "count": 6,
+      "sample": [
+        "width: 900px",
+        "width: 768px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/sample-dispatch/sample-dispatch.module.css",
+      "count": 4,
+      "sample": [
+        "width: 640px",
+        "width: 1024px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/[id]/dispatch-detail.module.css",
+      "count": 16,
+      "sample": [
+        "width: 640px",
+        "width: 1024px",
+        "width: 1400px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/plant-head/recruitment-request/recruitment.module.css",
+      "count": 2,
+      "sample": [
+        "width: 768px",
+        "width: 480px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/plant-head/testing/page.tsx",
+      "count": 1,
+      "sample": [
+        "width: 500px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/plant-head/testing/testing.module.css",
+      "count": 4,
+      "sample": [
+        "width: 480px",
+        "width: 1024px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/all-stock/all-stock.module.css",
+      "count": 3,
+      "sample": [
+        "width: 1000px",
+        "width: 900px",
+        "width: 600px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/completed/completed.module.css",
+      "count": 4,
+      "sample": [
+        "width: 1000px",
+        "width: 1024px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/finished-goods/finished-goods.module.css",
+      "count": 5,
+      "sample": [
+        "width: 1050px",
+        "width: 580px",
+        "width: 1024px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/floor/floor.module.css",
+      "count": 2,
+      "sample": [
+        "width: 992px",
+        "width: 640px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/qc-failed/qc-failed.module.css",
+      "count": 3,
+      "sample": [
+        "width: 980px",
+        "width: 992px",
+        "width: 640px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/qc-pending/qc-pending.module.css",
+      "count": 3,
+      "sample": [
+        "width: 1080px",
+        "width: 992px",
+        "width: 640px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/testing/page.tsx",
+      "count": 1,
+      "sample": [
+        "width: 480px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/testing/testing.module.css",
+      "count": 4,
+      "sample": [
+        "width: 580px",
+        "width: 1024px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/work-orders/work-orders.module.css",
+      "count": 4,
+      "sample": [
+        "width: 980px",
+        "width: 1024px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/super-admin/[[...slug]]/dashboard.css",
+      "count": 9,
+      "sample": [
+        "width: 1100px",
+        "width: 620px",
+        "width: 560px"
+      ]
+    },
+    {
+      "file": "app/globals.css",
+      "count": 140,
+      "sample": [
+        "width: 450px",
+        "width: 420px",
+        "width: 420px"
+      ]
+    },
+    {
+      "file": "app/login/page.tsx",
+      "count": 6,
+      "sample": [
+        "width: 450px",
+        "width: 400px",
+        "width: 980px"
+      ]
+    },
+    {
+      "file": "components/BackOfficeResponsive.css",
+      "count": 5,
+      "sample": [
+        "width: 860px",
+        "width: 640px",
+        "width: 720px"
+      ]
+    },
+    {
+      "file": "components/CreateLead.jsx",
+      "count": 1,
+      "sample": [
+        "width: 500px"
+      ]
+    },
+    {
+      "file": "components/CreateQuotation.jsx",
+      "count": 1,
+      "sample": [
+        "width: 1024px"
+      ]
+    },
+    {
+      "file": "components/CustomerComplaintManagement.jsx",
+      "count": 1,
+      "sample": [
+        "width: 1024px"
+      ]
+    },
+    {
+      "file": "components/CustomerComplaints.css",
+      "count": 4,
+      "sample": [
+        "width: 1600px",
+        "width: 1000px",
+        "width: 1024px"
+      ]
+    },
+    {
+      "file": "components/CustomersView.jsx",
+      "count": 1,
+      "sample": [
+        "width: 1024px"
+      ]
+    },
+    {
+      "file": "components/DailyAgendaCalendar.jsx",
+      "count": 1,
+      "sample": [
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "components/DailyTaskView.jsx",
+      "count": 4,
+      "sample": [
+        "width: 480px",
+        "width: 1024px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "components/DashboardView.jsx",
+      "count": 1,
+      "sample": [
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "components/erp/BrandAnalysisCreateModal.css",
+      "count": 1,
+      "sample": [
+        "width: 640px"
+      ]
+    },
+    {
+      "file": "components/erp/BrandAnalysisDetailModal.css",
+      "count": 1,
+      "sample": [
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "components/erp-premium-ui.css",
+      "count": 7,
+      "sample": [
+        "width: 768px",
+        "width: 640px",
+        "width: 640px"
+      ]
+    },
+    {
+      "file": "components/HeroBanner.jsx",
+      "count": 4,
+      "sample": [
+        "width: 768px",
+        "width: 500px",
+        "width: 500px"
+      ]
+    },
+    {
+      "file": "components/LeadsView.jsx",
+      "count": 2,
+      "sample": [
+        "width: 768px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "components/material-workflow/StoreReleasesView.css",
+      "count": 2,
+      "sample": [
+        "width: 1100px",
+        "width: 767px"
+      ]
+    },
+    {
+      "file": "components/OrdersView.jsx",
+      "count": 1,
+      "sample": [
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "components/OrdersView.module.css",
+      "count": 2,
+      "sample": [
+        "width: 1280px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "components/PaymentFollowupERPView.jsx",
+      "count": 1,
+      "sample": [
+        "width: 1024px"
+      ]
+    },
+    {
+      "file": "components/PaymentHistoryView.jsx",
+      "count": 1,
+      "sample": [
+        "width: 1024px"
+      ]
+    },
+    {
+      "file": "components/payroll/CreateSalaryWorkstation.css",
+      "count": 10,
+      "sample": [
+        "width: 960px",
+        "width: 520px",
+        "width: 1160px"
+      ]
+    },
+    {
+      "file": "components/payroll/PayrollWorkflowView.css",
+      "count": 3,
+      "sample": [
+        "width: 800px",
+        "width: 1024px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "components/payroll/SalaryModuleResponsive.css",
+      "count": 16,
+      "sample": [
+        "width: 640px",
+        "width: 750px",
+        "width: 1200px"
+      ]
+    },
+    {
+      "file": "components/payroll/SalarySlipDocument.css",
+      "count": 2,
+      "sample": [
+        "width: 900px",
+        "width: 920px"
+      ]
+    },
+    {
+      "file": "components/PlantHeadCommandDashboard.css",
+      "count": 3,
+      "sample": [
+        "width:900px",
+        "width:640px",
+        "width:420px"
+      ]
+    },
+    {
+      "file": "components/PlantHeadDashboardTheme.css",
+      "count": 4,
+      "sample": [
+        "width: 900px",
+        "width: 1200px",
+        "width: 900px"
+      ]
+    },
+    {
+      "file": "components/PlantHeadProductPie.css",
+      "count": 2,
+      "sample": [
+        "width: 1100px",
+        "width: 640px"
+      ]
+    },
+    {
+      "file": "components/ProductionOperationsDashboard.css",
+      "count": 3,
+      "sample": [
+        "width:1200px",
+        "width:800px",
+        "width:520px"
+      ]
+    },
+    {
+      "file": "components/QuotationsView.jsx",
+      "count": 6,
+      "sample": [
+        "width: 768px",
+        "width: 840px",
+        "width: 794px"
+      ]
+    },
+    {
+      "file": "components/SalesDashboardResponsive.css",
+      "count": 4,
+      "sample": [
+        "width: 1280px",
+        "width: 1100px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/dispatch/pages/DispatchPortal.jsx",
+      "count": 1,
+      "sample": [
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/finance/pages/FinancePortal.jsx",
+      "count": 1,
+      "sample": [
+        "width: 800px"
+      ]
+    },
+    {
+      "file": "modules/hr/components/ExitClearanceFormModal.jsx",
+      "count": 2,
+      "sample": [
+        "width: 768px",
+        "width: 480px"
+      ]
+    },
+    {
+      "file": "modules/hr/components/HRDashboardView.jsx",
+      "count": 7,
+      "sample": [
+        "width: 768px",
+        "width: 480px",
+        "width: 1280px"
+      ]
+    },
+    {
+      "file": "modules/hr/employee/components/EmployeeDetails.module.css",
+      "count": 4,
+      "sample": [
+        "width: 1180px",
+        "width: 680px",
+        "width: 780px"
+      ]
+    },
+    {
+      "file": "modules/hr/employee/components/EmployeeRegistrationForm.tsx",
+      "count": 3,
+      "sample": [
+        "width: 900px",
+        "width: 640px",
+        "width: 480px"
+      ]
+    },
+    {
+      "file": "modules/hr/pages/employeeDirectory.module.css",
+      "count": 2,
+      "sample": [
+        "width:1050px",
+        "width:720px"
+      ]
+    },
+    {
+      "file": "modules/plant-head/pages/ReplacementsView.module.css",
+      "count": 5,
+      "sample": [
+        "width: 980px",
+        "width: 900px",
+        "width: 640px"
+      ]
+    },
+    {
+      "file": "modules/plant-head/pages/ReturnsView.module.css",
+      "count": 1,
+      "sample": [
+        "width: 640px"
+      ]
+    },
+    {
+      "file": "modules/procurement/finance/DeliveryAudit.jsx",
+      "count": 1,
+      "sample": [
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/procurement/finance/RejectionManagement.jsx",
+      "count": 2,
+      "sample": [
+        "width:780px",
+        "width:760px"
+      ]
+    },
+    {
+      "file": "modules/procurement/store/CreateMaterialIndent.jsx",
+      "count": 1,
+      "sample": [
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/procurement/store/ReceiveReplacement.jsx",
+      "count": 2,
+      "sample": [
+        "width: 768px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/procurement/store/VerifyPODelivery.jsx",
+      "count": 2,
+      "sample": [
+        "width: 768px",
+        "width: 480px"
+      ]
+    },
+    {
+      "file": "modules/production/pages/ProductionPortal.jsx",
+      "count": 1,
+      "sample": [
+        "width: 500px"
+      ]
+    },
+    {
+      "file": "modules/purchase/pages/GoodsReceiptNote.jsx",
+      "count": 1,
+      "sample": [
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/salary/styles/salary.css",
+      "count": 3,
+      "sample": [
+        "width: 850px",
+        "width: 1100px",
+        "width: 640px"
+      ]
+    },
+    {
+      "file": "modules/store/components/IndentHistory.jsx",
+      "count": 1,
+      "sample": [
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/store/components/MaterialRejections.jsx",
+      "count": 2,
+      "sample": [
+        "width: 640px",
+        "width: 760px"
+      ]
+    },
+    {
+      "file": "modules/store/components/POReport.jsx",
+      "count": 2,
+      "sample": [
+        "width: 768px",
+        "width: 480px"
+      ]
+    },
+    {
+      "file": "modules/store/pages/StoreDashboard.jsx",
+      "count": 2,
+      "sample": [
+        "width: 768px",
+        "width: 480px"
+      ]
+    },
+    {
+      "file": "modules/store/pages/StorePortal.jsx",
+      "count": 1,
+      "sample": [
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/store/pages/StoreSummaryReport.jsx",
+      "count": 2,
+      "sample": [
+        "width: 768px",
+        "width: 480px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/components/dashboard.css",
+      "count": 24,
+      "sample": [
+        "width: 1100px",
+        "width: 620px",
+        "width: 560px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/departments/SalesDept.jsx",
+      "count": 2,
+      "sample": [
+        "width: 900px",
+        "width: 600px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/BackOfficeReportsAdminView.jsx",
+      "count": 1,
+      "sample": [
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/BusinessReportsPage.jsx",
+      "count": 3,
+      "sample": [
+        "width: 1600px",
+        "width: 768px",
+        "width: 480px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/DispatchAnalyticsPage.css",
+      "count": 11,
+      "sample": [
+        "width: 1024px",
+        "width: 1025px",
+        "width: 640px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/FinanceAnalyticsPage.css",
+      "count": 2,
+      "sample": [
+        "width: 1024px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/HRAnalyticsPage.css",
+      "count": 4,
+      "sample": [
+        "width: 1024px",
+        "width: 1200px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/InventoryAnalyticsPage.css",
+      "count": 3,
+      "sample": [
+        "width: 1600px",
+        "width: 768px",
+        "width: 768px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/ProductionAnalyticsPage.css",
+      "count": 4,
+      "sample": [
+        "width: 1200px",
+        "width: 768px",
+        "width: 1024px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/PurchaseIndentsView.jsx",
+      "count": 2,
+      "sample": [
+        "width: 768px",
+        "width: 480px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/PurchaseIndentsView.module.css",
+      "count": 2,
+      "sample": [
+        "width: 768px",
+        "width: 420px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/SalesAnalyticsPage.css",
+      "count": 6,
+      "sample": [
+        "width: 800px",
+        "width: 768px",
+        "width: 1024px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/SuperAdminPortal.jsx",
+      "count": 1,
+      "sample": [
+        "width: 800px"
+      ]
+    }
+  ],
+  "fixed_min_width_px": [
+    {
+      "file": "app/(dashboard)/dispatch/create-dispatch/create-dispatch.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 400px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/delivery/delivery.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 760px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/orders/dispatch-orders.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 980px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/orders/orders.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 960px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/sample-dispatch/create/[id]/create-sample.module.css",
+      "count": 4,
+      "sample": [
+        "min-width: 768px",
+        "min-width: 768px",
+        "min-width: 768px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/sample-dispatch/sample-dispatch.module.css",
+      "count": 3,
+      "sample": [
+        "min-width: 640px",
+        "min-width: 1024px",
+        "min-width: 768px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/[id]/dispatch-detail.module.css",
+      "count": 13,
+      "sample": [
+        "min-width: 640px",
+        "min-width: 1024px",
+        "min-width: 640px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/all-stock/all-stock.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 1000px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/completed/completed.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 1000px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/finished-goods/finished-goods.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 1050px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/qc-failed/qc-failed.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 980px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/qc-pending/qc-pending.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 1080px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/testing/testing.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 580px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/work-orders/work-orders.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 980px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/super-admin/[[...slug]]/dashboard.css",
+      "count": 2,
+      "sample": [
+        "min-width: 800px",
+        "min-width: 1600px"
+      ]
+    },
+    {
+      "file": "app/globals.css",
+      "count": 14,
+      "sample": [
+        "min-width: 1480px",
+        "min-width: 1180px",
+        "min-width: 769px"
+      ]
+    },
+    {
+      "file": "components/CustomerComplaints.css",
+      "count": 1,
+      "sample": [
+        "min-width: 1000px"
+      ]
+    },
+    {
+      "file": "components/OrdersView.module.css",
+      "count": 1,
+      "sample": [
+        "min-width: 1280px"
+      ]
+    },
+    {
+      "file": "components/payroll/CreateSalaryWorkstation.css",
+      "count": 1,
+      "sample": [
+        "min-width: 750px"
+      ]
+    },
+    {
+      "file": "components/payroll/PayrollWorkflowView.css",
+      "count": 1,
+      "sample": [
+        "min-width: 800px"
+      ]
+    },
+    {
+      "file": "components/payroll/SalaryModuleResponsive.css",
+      "count": 1,
+      "sample": [
+        "min-width: 960px"
+      ]
+    },
+    {
+      "file": "components/PlantHeadCommandDashboard.css",
+      "count": 1,
+      "sample": [
+        "min-width:900px"
+      ]
+    },
+    {
+      "file": "components/PlantHeadDashboardTheme.css",
+      "count": 1,
+      "sample": [
+        "min-width: 900px"
+      ]
+    },
+    {
+      "file": "components/QuotationsView.jsx",
+      "count": 1,
+      "sample": [
+        "min-width: 794px"
+      ]
+    },
+    {
+      "file": "modules/hr/pages/employeeDirectory.module.css",
+      "count": 1,
+      "sample": [
+        "min-width:1050px"
+      ]
+    },
+    {
+      "file": "modules/plant-head/pages/ReplacementsView.module.css",
+      "count": 2,
+      "sample": [
+        "min-width: 980px",
+        "min-width: 780px"
+      ]
+    },
+    {
+      "file": "modules/procurement/finance/RejectionManagement.jsx",
+      "count": 1,
+      "sample": [
+        "min-width:780px"
+      ]
+    },
+    {
+      "file": "modules/salary/styles/salary.css",
+      "count": 1,
+      "sample": [
+        "min-width: 850px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/components/dashboard.css",
+      "count": 7,
+      "sample": [
+        "min-width: 800px",
+        "min-width: 700px",
+        "min-width: 650px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/DispatchAnalyticsPage.css",
+      "count": 1,
+      "sample": [
+        "min-width: 1025px"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/SalesAnalyticsPage.css",
+      "count": 2,
+      "sample": [
+        "min-width: 768px",
+        "min-width: 1024px"
+      ]
+    }
+  ],
+  "fixed_tailwind_w": [
+    {
+      "file": "app/(dashboard)/dispatch/create/page.tsx",
+      "count": 1,
+      "sample": [
+        "w-[1200px]"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/dashboard/page.tsx",
+      "count": 1,
+      "sample": [
+        "w-[1600px]"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/replacements/page.tsx",
+      "count": 1,
+      "sample": [
+        "w-[1600px]"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/[...slug]/page.tsx",
+      "count": 1,
+      "sample": [
+        "w-[1600px]"
+      ]
+    },
+    {
+      "file": "components/erp/dialogs/ConfirmActionDialog.tsx",
+      "count": 1,
+      "sample": [
+        "w-[425px]"
+      ]
+    },
+    {
+      "file": "components/erp/workflow/WorkflowActionDialog.tsx",
+      "count": 1,
+      "sample": [
+        "w-[425px]"
+      ]
+    },
+    {
+      "file": "components/SharedPaymentTable.jsx",
+      "count": 1,
+      "sample": [
+        "w-[1300px]"
+      ]
+    }
+  ],
+  "fixed_tailwind_min_w": [
+    {
+      "file": "components/SharedPaymentTable.jsx",
+      "count": 1,
+      "sample": [
+        "min-w-[1300px]"
+      ]
+    }
+  ],
+  "whitespace_nowrap": [
+    {
+      "file": "app/(dashboard)/dispatch/components/DispatchBadges.tsx",
+      "count": 4,
+      "sample": [
+        "whitespace-nowrap",
+        "whitespace-nowrap",
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/create-dispatch/create-dispatch.module.css",
+      "count": 5,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/delivery/delivery.module.css",
+      "count": 4,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/in-transit/page.tsx",
+      "count": 16,
+      "sample": [
+        "whitespace-nowrap",
+        "whitespace-nowrap",
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/orders/dispatch-orders.module.css",
+      "count": 2,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/orders/orders.module.css",
+      "count": 2,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/orders/page.tsx",
+      "count": 12,
+      "sample": [
+        "whitespace-nowrap",
+        "whitespace-nowrap",
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/page.tsx",
+      "count": 2,
+      "sample": [
+        "whitespace-nowrap",
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/sample-dispatch/sample-dispatch.module.css",
+      "count": 2,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/[id]/dispatch-detail.module.css",
+      "count": 8,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/plant-head/recruitment-request/recruitment.module.css",
+      "count": 2,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/plant-head/testing/testing.module.css",
+      "count": 5,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/all-stock/all-stock.module.css",
+      "count": 2,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/completed/completed.module.css",
+      "count": 3,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/finished-goods/finished-goods.module.css",
+      "count": 5,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/floor/floor.module.css",
+      "count": 2,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/qc-failed/qc-failed.module.css",
+      "count": 4,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/qc-pending/qc-pending.module.css",
+      "count": 6,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/testing/testing.module.css",
+      "count": 9,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/work-orders/work-orders.module.css",
+      "count": 7,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/super-admin/[[...slug]]/dashboard.css",
+      "count": 9,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/globals.css",
+      "count": 51,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "app/login/page.tsx",
+      "count": 4,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/BackOfficeResponsive.css",
+      "count": 1,
+      "sample": [
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/CreateLead.jsx",
+      "count": 1,
+      "sample": [
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/CustomerComplaints.css",
+      "count": 2,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/DailyTaskView.jsx",
+      "count": 2,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/erp/BrandAnalysisCreateModal.css",
+      "count": 1,
+      "sample": [
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/erp/BrandAnalysisDetailModal.css",
+      "count": 1,
+      "sample": [
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/erp/common/StatusBadge.tsx",
+      "count": 1,
+      "sample": [
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "components/erp/data-table/DataTable.tsx",
+      "count": 2,
+      "sample": [
+        "whitespace-nowrap",
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "components/erp/notifications/NotificationBell.tsx",
+      "count": 1,
+      "sample": [
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "components/erp/workflow/WorkflowTimeline.tsx",
+      "count": 1,
+      "sample": [
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "components/erp-premium-ui.css",
+      "count": 4,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/HeroBanner.jsx",
+      "count": 2,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/material-workflow/StoreReleasesView.css",
+      "count": 2,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/payroll/CreateSalaryWorkstation.css",
+      "count": 6,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/payroll/PayrollWorkflowView.css",
+      "count": 3,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/payroll/SalaryModuleResponsive.css",
+      "count": 13,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/payroll/SalarySlipDocument.css",
+      "count": 1,
+      "sample": [
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "components/PlantHeadCommandDashboard.css",
+      "count": 1,
+      "sample": [
+        "white-space:nowrap"
+      ]
+    },
+    {
+      "file": "components/ProductionOperationsDashboard.css",
+      "count": 1,
+      "sample": [
+        "white-space:nowrap"
+      ]
+    },
+    {
+      "file": "components/ui/badge.tsx",
+      "count": 1,
+      "sample": [
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "components/ui/button.tsx",
+      "count": 1,
+      "sample": [
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "components/ui/select.tsx",
+      "count": 2,
+      "sample": [
+        "whitespace-nowrap",
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "components/ui/table.tsx",
+      "count": 2,
+      "sample": [
+        "whitespace-nowrap",
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "components/ui/tabs.tsx",
+      "count": 1,
+      "sample": [
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "modules/hr/employee/components/EmployeeDetails.module.css",
+      "count": 1,
+      "sample": [
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "modules/hr/pages/employeeDirectory.module.css",
+      "count": 1,
+      "sample": [
+        "white-space:nowrap"
+      ]
+    },
+    {
+      "file": "modules/plant-head/pages/ReplacementsView.module.css",
+      "count": 3,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "modules/plant-head/pages/ReturnsView.module.css",
+      "count": 1,
+      "sample": [
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "modules/procurement/components/MaterialManifestTable.jsx",
+      "count": 6,
+      "sample": [
+        "whitespace-nowrap",
+        "whitespace-nowrap",
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "modules/procurement/components/ProcurementAuditTimeline.jsx",
+      "count": 1,
+      "sample": [
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "modules/procurement/components/ProcurementTabs.jsx",
+      "count": 1,
+      "sample": [
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "modules/procurement/finance/CreatePurchaseOrder.jsx",
+      "count": 6,
+      "sample": [
+        "whitespace-nowrap",
+        "whitespace-nowrap",
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "modules/procurement/finance/DeliveryAudit.jsx",
+      "count": 3,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "modules/procurement/finance/VendorInvoiceWorkspace.jsx",
+      "count": 17,
+      "sample": [
+        "whitespace-nowrap",
+        "whitespace-nowrap",
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "modules/procurement/super-admin/PurchaseOrderApproval.jsx",
+      "count": 11,
+      "sample": [
+        "whitespace-nowrap",
+        "whitespace-nowrap",
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "modules/salary/components/SalaryTabs.tsx",
+      "count": 1,
+      "sample": [
+        "whitespace-nowrap"
+      ]
+    },
+    {
+      "file": "modules/salary/styles/salary.css",
+      "count": 1,
+      "sample": [
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "modules/super-admin/components/dashboard.css",
+      "count": 12,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/BusinessReportsPage.jsx",
+      "count": 1,
+      "sample": [
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/InventoryAnalyticsPage.css",
+      "count": 2,
+      "sample": [
+        "white-space: nowrap",
+        "white-space: nowrap"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/PurchaseIndentsView.module.css",
+      "count": 1,
+      "sample": [
+        "white-space: nowrap"
+      ]
+    }
+  ],
+  "overflow_hidden_clipping": [
+    {
+      "file": "app/(dashboard)/crm/quotations/page.tsx",
+      "count": 1,
+      "sample": [
+        "overflow-hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/components/DispatchBadges.tsx",
+      "count": 1,
+      "sample": [
+        "overflow-hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/components/DispatchTableCard.tsx",
+      "count": 1,
+      "sample": [
+        "overflow:hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/create-dispatch/create-dispatch.module.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/delivery/delivery.module.css",
+      "count": 5,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/dispatch-responsive.module.css",
+      "count": 2,
+      "sample": [
+        "overflow-x: hidden",
+        "overflow-x: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/orders/dispatch-orders.module.css",
+      "count": 2,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/orders/orders.module.css",
+      "count": 3,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/sample-dispatch/create/[id]/create-sample.module.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/sample-dispatch/sample-dispatch.module.css",
+      "count": 3,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/[id]/dispatch-detail.module.css",
+      "count": 3,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/hr/roles/page.tsx",
+      "count": 1,
+      "sample": [
+        "overflow-hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/plant-head/recruitment-request/recruitment.module.css",
+      "count": 2,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/plant-head/testing/page.tsx",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/plant-head/testing/testing.module.css",
+      "count": 2,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/all-stock/all-stock.module.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/finished-goods/finished-goods.module.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/floor/floor.module.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/qc-failed/qc-failed.module.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/qc-pending/qc-pending.module.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/testing/testing.module.css",
+      "count": 4,
+      "sample": [
+        "overflow-x: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/work-orders/work-orders.module.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/super-admin/[[...slug]]/dashboard.css",
+      "count": 7,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "app/globals.css",
+      "count": 55,
+      "sample": [
+        "overflow-x: hidden",
+        "overflow: hidden",
+        "overflow-x: hidden"
+      ]
+    },
+    {
+      "file": "app/login/page.tsx",
+      "count": 6,
+      "sample": [
+        "overflow-x: hidden",
+        "overflow-x: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/BackOfficeResponsive.css",
+      "count": 1,
+      "sample": [
+        "overflow-x: hidden"
+      ]
+    },
+    {
+      "file": "components/CustomerComplaints.css",
+      "count": 3,
+      "sample": [
+        "overflow-x: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/erp/BrandAnalysisCreateModal.css",
+      "count": 2,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/erp/BrandAnalysisDetailModal.css",
+      "count": 3,
+      "sample": [
+        "overflow: hidden",
+        "overflow-x: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/erp/common/EntitySummaryCard.tsx",
+      "count": 1,
+      "sample": [
+        "overflow-hidden"
+      ]
+    },
+    {
+      "file": "components/erp/communication/AttachmentUploader.tsx",
+      "count": 1,
+      "sample": [
+        "overflow-hidden"
+      ]
+    },
+    {
+      "file": "components/erp-premium-ui.css",
+      "count": 2,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/HeroBanner.jsx",
+      "count": 6,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/material-workflow/StoreReleasesView.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/payroll/CreateSalaryWorkstation.css",
+      "count": 5,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/payroll/PayrollWorkflowView.css",
+      "count": 3,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/payroll/SalaryModuleResponsive.css",
+      "count": 2,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/payroll/SalarySlipDocument.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/QuotationsView.jsx",
+      "count": 2,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/SalesDashboardResponsive.css",
+      "count": 4,
+      "sample": [
+        "overflow-x: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/SamplesView.jsx",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "components/SharedPaymentTable.jsx",
+      "count": 2,
+      "sample": [
+        "overflow-hidden",
+        "overflow-hidden"
+      ]
+    },
+    {
+      "file": "components/ui/avatar.tsx",
+      "count": 1,
+      "sample": [
+        "overflow-hidden"
+      ]
+    },
+    {
+      "file": "components/ui/badge.tsx",
+      "count": 1,
+      "sample": [
+        "overflow-hidden"
+      ]
+    },
+    {
+      "file": "components/ui/card.tsx",
+      "count": 1,
+      "sample": [
+        "overflow-hidden"
+      ]
+    },
+    {
+      "file": "components/ui/modal.tsx",
+      "count": 1,
+      "sample": [
+        "overflow-hidden"
+      ]
+    },
+    {
+      "file": "modules/hr/employee/components/EmployeeDetails.module.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "modules/hr/pages/employeeDirectory.module.css",
+      "count": 2,
+      "sample": [
+        "overflow:hidden",
+        "overflow:hidden"
+      ]
+    },
+    {
+      "file": "modules/plant-head/pages/ReplacementsView.module.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "modules/procurement/finance/DeliveryAudit.jsx",
+      "count": 2,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "modules/procurement/finance/RejectionManagement.jsx",
+      "count": 1,
+      "sample": [
+        "overflow:hidden"
+      ]
+    },
+    {
+      "file": "modules/salary/styles/salary.css",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "modules/store/pages/StoreDashboard.jsx",
+      "count": 2,
+      "sample": [
+        "overflow-x: hidden",
+        "overflow-x: hidden"
+      ]
+    },
+    {
+      "file": "modules/store/pages/StoreSummaryReport.jsx",
+      "count": 2,
+      "sample": [
+        "overflow-x: hidden",
+        "overflow-x: hidden"
+      ]
+    },
+    {
+      "file": "modules/super-admin/components/dashboard.css",
+      "count": 9,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/BusinessReportsPage.jsx",
+      "count": 1,
+      "sample": [
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/HRAnalyticsPage.css",
+      "count": 2,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/ProductionAnalyticsPage.css",
+      "count": 4,
+      "sample": [
+        "overflow: hidden",
+        "overflow: hidden",
+        "overflow: hidden"
+      ]
+    }
+  ],
+  "fixed_grid_columns": [
+    {
+      "file": "app/(dashboard)/dispatch/create-dispatch/create-dispatch.module.css",
+      "count": 2,
+      "sample": [
+        "grid-template-columns: 280px",
+        "grid-template-columns: 240px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/dispatch/sample-dispatch/create/[id]/create-sample.module.css",
+      "count": 2,
+      "sample": [
+        "grid-template-columns: 240px",
+        "grid-template-columns: 240px"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/plant-head/testing/testing.module.css",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/production/finished-goods/finished-goods.module.css",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/super-admin/[[...slug]]/dashboard.css",
+      "count": 2,
+      "sample": [
+        "grid-template-columns: repeat(6",
+        "grid-template-columns: 18px"
+      ]
+    },
+    {
+      "file": "app/globals.css",
+      "count": 12,
+      "sample": [
+        "grid-template-columns: repeat(4",
+        "grid-template-columns: repeat(7",
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "app/login/page.tsx",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: 390px"
+      ]
+    },
+    {
+      "file": "components/CustomerComplaints.css",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "components/DailyTaskView.jsx",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "components/material-workflow/StoreReleasesView.css",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "components/PaymentFollowupERPView.jsx",
+      "count": 1,
+      "sample": [
+        "grid-template-columns:110px"
+      ]
+    },
+    {
+      "file": "components/payroll/CreateSalaryWorkstation.css",
+      "count": 3,
+      "sample": [
+        "grid-template-columns: repeat(4",
+        "grid-template-columns: repeat(4",
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "components/payroll/PayrollWorkflowView.css",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "components/payroll/SalaryModuleResponsive.css",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(5"
+      ]
+    },
+    {
+      "file": "components/PlantHeadCommandDashboard.css",
+      "count": 1,
+      "sample": [
+        "grid-template-columns:repeat(4"
+      ]
+    },
+    {
+      "file": "components/PlantHeadDashboardTheme.css",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "components/SalesDashboardResponsive.css",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(5"
+      ]
+    },
+    {
+      "file": "modules/hr/components/HRDashboardView.jsx",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(6"
+      ]
+    },
+    {
+      "file": "modules/salary/styles/salary.css",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "modules/sales/pages/SalesPortal.jsx",
+      "count": 2,
+      "sample": [
+        "grid-template-columns:110px",
+        "grid-template-columns:110px"
+      ]
+    },
+    {
+      "file": "modules/store/components/IndentHistory.jsx",
+      "count": 1,
+      "sample": [
+        "grid-template-columns: repeat(5"
+      ]
+    },
+    {
+      "file": "modules/super-admin/components/dashboard.css",
+      "count": 6,
+      "sample": [
+        "grid-template-columns: repeat(6",
+        "grid-template-columns: 18px",
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/DispatchAnalyticsPage.css",
+      "count": 2,
+      "sample": [
+        "grid-template-columns: repeat(6",
+        "grid-template-columns: repeat(4"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/ProductionAnalyticsPage.css",
+      "count": 2,
+      "sample": [
+        "grid-template-columns: repeat(4",
+        "grid-template-columns: repeat(5"
+      ]
+    }
+  ],
+  "vw_units_inside_container": [
+    {
+      "file": "app/(dashboard)/plant-head/recruitment-request/page.tsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "app/(dashboard)/plant-head/testing/page.tsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "app/globals.css",
+      "count": 19,
+      "sample": [
+        "100vw",
+        "100vw",
+        "100vw"
+      ]
+    },
+    {
+      "file": "components/GlobalUIComponents.tsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "components/HeroBanner.jsx",
+      "count": 2,
+      "sample": [
+        "100vw",
+        "100vw"
+      ]
+    },
+    {
+      "file": "components/material-workflow/PlantHeadMaterialApprovalView.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "components/PaymentsView.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "components/QuotationsView.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/dispatch/pages/DispatchPortal.jsx",
+      "count": 2,
+      "sample": [
+        "100vw",
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/finance/pages/FinancePortal.jsx",
+      "count": 2,
+      "sample": [
+        "100vw",
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/hr/components/ExitClearanceFormModal.jsx",
+      "count": 4,
+      "sample": [
+        "100vw",
+        "100vw",
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/hr/employee/components/EmployeeDetails.module.css",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/plant-head/pages/PlantHeadDailySummary.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/plant-head/pages/PlantHeadPortal.jsx",
+      "count": 3,
+      "sample": [
+        "100vw",
+        "100vw",
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/plant-head/pages/PurchaseApproval.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/production/components/DailyReportHistoryView.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/production/components/qc/QCInspectionDetailsModal.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/production/components/qc/QCInspectionModal.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/production/pages/ProductionPortal.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/store/pages/StoreDashboard.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/store/pages/StorePortal.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/HRAnalyticsPage.css",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "modules/super-admin/pages/SuperAdminPortal.jsx",
+      "count": 4,
+      "sample": [
+        "100vw",
+        "100vw",
+        "100vw"
+      ]
+    },
+    {
+      "file": "shared/components/ProductMasterUI.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    },
+    {
+      "file": "layouts/AuthLayout.jsx",
+      "count": 1,
+      "sample": [
+        "100vw"
+      ]
+    }
+  ]
+}

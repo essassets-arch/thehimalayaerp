@@ -1,0 +1,595 @@
+{
+  "prismaModelsCount": 140,
+  "prismaModels": [
+    "DocumentSequence",
+    "IdSequence",
+    "Company",
+    "Branch",
+    "Role",
+    "Permission",
+    "RolePermission",
+    "User",
+    "RefreshSession",
+    "Customer",
+    "Lead",
+    "AuditLog",
+    "IdempotencyRecord",
+    "Product",
+    "Warehouse",
+    "InventoryTransaction",
+    "Supplier",
+    "MaterialRequest",
+    "MaterialRequestItem",
+    "PurchaseIndent",
+    "PurchaseIndentItem",
+    "PurchaseIndentStatusHistory",
+    "Department",
+    "WorkLocation",
+    "Employee",
+    "EmployeeDraft",
+    "EmployeeDocument",
+    "PayrollPeriod",
+    "EmployeeSalaryStructure",
+    "EmployeeMonthlyAttendanceSummary",
+    "PayrollRecord",
+    "PayrollAdjustment",
+    "SalaryPayment",
+    "SalarySlip",
+    "SalarySlipShare",
+    "PayrollStatusHistory",
+    "Quotation",
+    "QuotationItem",
+    "QuotationTermMaster",
+    "QuotationTerm",
+    "SalesOrder",
+    "SalesOrderItem",
+    "SalesOrderCreditReview",
+    "SalesOrderAllocation",
+    "CustomerComplaint",
+    "SalesReturn",
+    "SalesReturnItem",
+    "ReturnQcInspection",
+    "ReturnQcInspectionItem",
+    "ReplacementRequest",
+    "ReplacementRequestItem",
+    "ReplacementOrder",
+    "ReplacementOrderItem",
+    "SalesOrderHistory",
+    "SalesInvoice",
+    "CustomerPaymentAllocation",
+    "ReturnGateEntry",
+    "CreditNote",
+    "ReplacementOrderHistory",
+    "LegacyMigrationReference",
+    "SampleRequest",
+    "SampleItem",
+    "SampleHistory",
+    "PurchaseOrder",
+    "PurchaseOrderItem",
+    "PurchaseOrderStatusHistory",
+    "GoodsReceiptNote",
+    "GoodsReceiptNoteItem",
+    "GRNStatusHistory",
+    "ProcurementDelivery",
+    "ProcurementDeliveryItem",
+    "MaterialRejection",
+    "MaterialRejectionItem",
+    "ProcurementReplacementRequest",
+    "ProcurementReplacementItem",
+    "ProductSupplier",
+    "VendorInvoice",
+    "VendorInvoiceItem",
+    "VendorPayment",
+    "VendorPaymentAllocation",
+    "VendorReturn",
+    "VendorReturnItem",
+    "SupplierPayable",
+    "WorkflowDefinition",
+    "WorkflowState",
+    "WorkflowTransition",
+    "WorkflowHistory",
+    "WorkflowHistoryLegacy",
+    "LeadActivity",
+    "FollowUp",
+    "ProductionPlan",
+    "WorkOrder",
+    "ProductionStatusHistory",
+    "ProductionBatch",
+    "QCInspection",
+    "Dispatch",
+    "DispatchItem",
+    "InvoiceItem",
+    "CustomerPayment",
+    "PaymentAllocation",
+    "CustomerLedger",
+    "OrderAmendment",
+    "Approval",
+    "Attachment",
+    "Comment",
+    "Notification",
+    "FcmDeviceToken",
+    "RecruitmentRequest",
+    "RecruitmentCandidate",
+    "RecruitmentInterview",
+    "RecruitmentRequestTimeline",
+    "BrandAnalysisRequest",
+    "BrandAnalysisHistory",
+    "SalesTarget",
+    "ProductionTestingRecord",
+    "ProductionShiftEntry",
+    "ProductionScrapEntry",
+    "FinishedGoods",
+    "ElevationSession",
+    "InventoryItem",
+    "Machine",
+    "MachineDailyStatus",
+    "ProductionTarget",
+    "Expense",
+    "LeaveRequest",
+    "LeaveApproval",
+    "ManualAttendanceRequest",
+    "RawMaterial",
+    "ProductionDailyReport",
+    "ProductionDailyReportItem",
+    "DispatchDailyReport",
+    "DispatchDailyReportItem",
+    "AttendancePunch",
+    "ShiftPolicy",
+    "Attendance",
+    "StockHistory",
+    "DeviceSession",
+    "LatestUserLocation",
+    "UserLocationHistory",
+    "BackOfficeDailyReport"
+  ],
+  "backendModulesCount": 46,
+  "backendModules": [
+    {
+      "name": "attachments",
+      "controllers": [
+        "attachments.controller.ts"
+      ],
+      "services": [
+        "attachments.service.ts"
+      ]
+    },
+    {
+      "name": "attendance",
+      "controllers": [
+        "attendance.controller.ts"
+      ],
+      "services": [
+        "attendance.service.ts"
+      ]
+    },
+    {
+      "name": "attendance-request",
+      "controllers": [
+        "attendance-request.controller.ts"
+      ],
+      "services": [
+        "attendance-request.service.ts"
+      ]
+    },
+    {
+      "name": "audit",
+      "controllers": [
+        "audit.controller.ts"
+      ],
+      "services": [
+        "audit.service.ts"
+      ]
+    },
+    {
+      "name": "auth",
+      "controllers": [
+        "auth.controller.ts"
+      ],
+      "services": [
+        "auth.service.ts"
+      ]
+    },
+    {
+      "name": "back-office",
+      "controllers": [
+        "back-office.controller.ts"
+      ],
+      "services": [
+        "back-office.service.ts"
+      ]
+    },
+    {
+      "name": "brand-analysis",
+      "controllers": [
+        "brand-analysis-upload.controller.ts",
+        "brand-analysis.controller.ts"
+      ],
+      "services": [
+        "brand-analysis.service.ts"
+      ]
+    },
+    {
+      "name": "comments",
+      "controllers": [
+        "comments.controller.ts"
+      ],
+      "services": [
+        "comments.service.ts"
+      ]
+    },
+    {
+      "name": "crm",
+      "controllers": [
+        "crm-insights.controller.ts",
+        "leads.controller.ts",
+        "sales-reminders.controller.ts"
+      ],
+      "services": [
+        "crm-insights.service.ts",
+        "leads.service.ts"
+      ]
+    },
+    {
+      "name": "customer-complaints",
+      "controllers": [
+        "customer-complaints.controller.ts"
+      ],
+      "services": [
+        "customer-complaints.service.ts"
+      ]
+    },
+    {
+      "name": "customers",
+      "controllers": [
+        "customers.controller.ts"
+      ],
+      "services": [
+        "customers.service.ts"
+      ]
+    },
+    {
+      "name": "dispatch",
+      "controllers": [
+        "dispatch-daily-report.controller.ts",
+        "dispatch.controller.ts"
+      ],
+      "services": [
+        "dispatch-daily-report.service.ts",
+        "dispatch.service.ts"
+      ]
+    },
+    {
+      "name": "employees",
+      "controllers": [
+        "employees.controller.ts"
+      ],
+      "services": [
+        "employee-files.service.ts",
+        "employees.service.ts"
+      ]
+    },
+    {
+      "name": "expense",
+      "controllers": [
+        "expense.controller.ts"
+      ],
+      "services": [
+        "expense.service.ts"
+      ]
+    },
+    {
+      "name": "files",
+      "controllers": [
+        "files.controller.ts"
+      ],
+      "services": [
+        "files.service.ts"
+      ]
+    },
+    {
+      "name": "finance",
+      "controllers": [
+        "finance-sales-analytics.controller.ts",
+        "invoices.controller.ts",
+        "ledger.controller.ts",
+        "payments.controller.ts"
+      ],
+      "services": [
+        "credit.service.ts",
+        "finance-sales-analytics-metric.service.ts",
+        "finance-sales-analytics.service.ts",
+        "invoices.service.ts",
+        "ledger.service.ts",
+        "payment-followup-engine.service.ts",
+        "payments.service.ts"
+      ]
+    },
+    {
+      "name": "health",
+      "controllers": [
+        "health.controller.ts"
+      ],
+      "services": []
+    },
+    {
+      "name": "inventory",
+      "controllers": [
+        "inventory.controller.ts"
+      ],
+      "services": [
+        "inventory.service.ts"
+      ]
+    },
+    {
+      "name": "leave",
+      "controllers": [
+        "leave.controller.ts"
+      ],
+      "services": [
+        "leave.service.ts"
+      ]
+    },
+    {
+      "name": "location",
+      "controllers": [
+        "location.controller.ts"
+      ],
+      "services": [
+        "location.service.ts"
+      ]
+    },
+    {
+      "name": "material-requests",
+      "controllers": [
+        "material-requests.controller.ts"
+      ],
+      "services": [
+        "material-requests.service.ts"
+      ]
+    },
+    {
+      "name": "notifications",
+      "controllers": [
+        "notifications.controller.ts"
+      ],
+      "services": [
+        "firebase-push.service.ts",
+        "notifications.service.ts"
+      ]
+    },
+    {
+      "name": "payroll",
+      "controllers": [
+        "payroll.controller.ts"
+      ],
+      "services": [
+        "payroll.service.ts"
+      ]
+    },
+    {
+      "name": "plant-head",
+      "controllers": [
+        "plant-head.controller.ts"
+      ],
+      "services": [
+        "plant-head.service.ts"
+      ]
+    },
+    {
+      "name": "procurement",
+      "controllers": [
+        "procurement.controller.ts"
+      ],
+      "services": [
+        "material-rejection.service.ts",
+        "po-report.service.ts",
+        "procurement-closure.service.ts",
+        "procurement.service.ts"
+      ]
+    },
+    {
+      "name": "production",
+      "controllers": [
+        "machine-status.controller.ts",
+        "machine.controller.ts",
+        "production-daily-report.controller.ts",
+        "production-testing.controller.ts",
+        "production-workflow.controller.ts",
+        "production.controller.ts"
+      ],
+      "services": [
+        "finished-goods-stock.service.ts",
+        "machine-status.service.ts",
+        "machine.service.ts",
+        "production-daily-report.service.ts",
+        "production-testing.service.ts",
+        "production-workflow.service.ts",
+        "production.service.ts"
+      ]
+    },
+    {
+      "name": "production-target",
+      "controllers": [
+        "production-target.controller.ts"
+      ],
+      "services": [
+        "production-target.service.ts"
+      ]
+    },
+    {
+      "name": "products",
+      "controllers": [
+        "products.controller.ts"
+      ],
+      "services": [
+        "products.service.ts"
+      ]
+    },
+    {
+      "name": "profile",
+      "controllers": [
+        "profile.controller.ts"
+      ],
+      "services": [
+        "profile.service.ts"
+      ]
+    },
+    {
+      "name": "qc",
+      "controllers": [
+        "qc.controller.ts"
+      ],
+      "services": [
+        "qc.service.ts"
+      ]
+    },
+    {
+      "name": "quotations",
+      "controllers": [
+        "quotations.controller.ts"
+      ],
+      "services": [
+        "quotations.service.ts"
+      ]
+    },
+    {
+      "name": "recruitment",
+      "controllers": [
+        "recruitment.controller.ts"
+      ],
+      "services": [
+        "recruitment.service.ts"
+      ]
+    },
+    {
+      "name": "replacements",
+      "controllers": [
+        "replacements.controller.ts"
+      ],
+      "services": [
+        "replacements.service.ts"
+      ]
+    },
+    {
+      "name": "sales",
+      "controllers": [
+        "sales.controller.ts"
+      ],
+      "services": [
+        "sales.service.ts"
+      ]
+    },
+    {
+      "name": "sales-reports",
+      "controllers": [
+        "sales-reports.controller.ts"
+      ],
+      "services": [
+        "sales-reports.service.ts"
+      ]
+    },
+    {
+      "name": "sales-returns",
+      "controllers": [
+        "sales-returns.controller.ts"
+      ],
+      "services": [
+        "sales-returns.service.ts"
+      ]
+    },
+    {
+      "name": "sales-target",
+      "controllers": [
+        "sales-target.controller.ts"
+      ],
+      "services": [
+        "sales-target.service.ts"
+      ]
+    },
+    {
+      "name": "samples",
+      "controllers": [
+        "samples.controller.ts"
+      ],
+      "services": [
+        "samples.service.ts"
+      ]
+    },
+    {
+      "name": "search",
+      "controllers": [
+        "search.controller.ts"
+      ],
+      "services": [
+        "search.service.ts"
+      ]
+    },
+    {
+      "name": "store-reports",
+      "controllers": [
+        "store-reports.controller.ts"
+      ],
+      "services": [
+        "store-reports.service.ts"
+      ]
+    },
+    {
+      "name": "super-admin",
+      "controllers": [
+        "super-admin.controller.ts"
+      ],
+      "services": [
+        "super-admin.service.ts"
+      ]
+    },
+    {
+      "name": "suppliers",
+      "controllers": [
+        "suppliers.controller.ts"
+      ],
+      "services": [
+        "suppliers.service.ts"
+      ]
+    },
+    {
+      "name": "users",
+      "controllers": [
+        "users.controller.ts"
+      ],
+      "services": [
+        "users.service.ts"
+      ]
+    },
+    {
+      "name": "warehouses",
+      "controllers": [
+        "warehouses.controller.ts"
+      ],
+      "services": [
+        "warehouses.service.ts"
+      ]
+    },
+    {
+      "name": "work-orders",
+      "controllers": [
+        "work-orders.controller.ts"
+      ],
+      "services": [
+        "work-orders.service.ts"
+      ]
+    },
+    {
+      "name": "workflow",
+      "controllers": [
+        "workflow.controller.ts"
+      ],
+      "services": [
+        "workflow.service.ts"
+      ]
+    }
+  ],
+  "totalControllers": 58,
+  "totalServices": 64,
+  "guardedControllers": 56,
+  "publicControllers": 3
+}

@@ -152,28 +152,21 @@ export default function LoginPage() {
       const res = await fetch('/api/backend/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail.toLowerCase().trim(), password: loginPass }),
+        body: JSON.stringify({ email: loginEmail, identifier: loginEmail, password: loginPass }),
       });
 
-      let json: any = {};
-      try {
-        json = await res.json();
-      } catch (_) {}
+      const json = await res.json().catch(() => null);
 
       if (!res.ok) {
-        if (res.status === 401) {
-          throw new Error('Invalid email or password.');
-        }
-        if (res.status === 403) {
-          throw new Error('Your account has been disabled. Please contact your administrator.');
-        }
         if (res.status === 504 || res.status === 503) {
           throw new Error('Backend service is unavailable. Please try again shortly.');
         }
         throw new Error(json?.message || 'Login failed. Please try again.');
       }
 
-      const { accessToken, user } = json.data || {};
+      const data = json?.data || json || {};
+      const accessToken = data.accessToken;
+      const user = data.user;
       if (!accessToken || !user) {
         throw new Error('Unexpected response from server. Missing access token.');
       }
@@ -228,6 +221,7 @@ export default function LoginPage() {
           width: 100%;
           min-height: 100%;
           overflow-x: hidden;
+          background: #EFF6FF;
         }
 
         .login-root {
@@ -237,14 +231,15 @@ export default function LoginPage() {
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: center;
+          justify-content: flex-start;
           background: linear-gradient(145deg, #EFF6FF 0%, #F0F9FF 40%, #E0F2FE 70%, #EEF2FF 100%);
-          padding: 32px 16px;
+          padding: 24px 16px 40px;
           font-family: 'Outfit', sans-serif;
           position: relative;
           overflow-y: auto;
           overflow-x: hidden;
           -webkit-overflow-scrolling: touch;
+          box-sizing: border-box;
         }
 
         .login-root::before {
@@ -282,12 +277,27 @@ export default function LoginPage() {
           position: relative;
           z-index: 1;
           margin: auto 0;
+          box-sizing: border-box;
         }
 
         @media (max-width: 880px) {
+          .login-root {
+            padding: 16px 12px 36px;
+            justify-content: flex-start;
+          }
           .login-main-container {
-            grid-template-columns: 1fr;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
             max-width: 440px;
+            margin: 0 auto;
+            gap: 16px;
+            box-sizing: border-box;
+          }
+          .login-card, .quick-card {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
           }
         }
 
@@ -304,11 +314,12 @@ export default function LoginPage() {
           display: flex;
           flex-direction: column;
           gap: 18px;
+          box-sizing: border-box;
         }
 
         .quick-card {
           width: 100%;
-          background: rgba(255, 255, 255, 0.92);
+          background: rgba(255, 255, 255, 0.94);
           backdrop-filter: blur(12px);
           border-radius: 20px;
           padding: 24px 22px;
@@ -319,6 +330,7 @@ export default function LoginPage() {
           display: flex;
           flex-direction: column;
           gap: 16px;
+          box-sizing: border-box;
         }
 
         .brand-wrapper {
@@ -327,6 +339,7 @@ export default function LoginPage() {
           align-items: center;
           gap: 8px;
           text-align: center;
+          width: 100%;
         }
 
         .logo-box {
@@ -360,6 +373,7 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           width: 100%;
+          box-sizing: border-box;
         }
 
         .login-icon {
@@ -367,10 +381,9 @@ export default function LoginPage() {
           left: 14px;
           top: 50%;
           transform: translateY(-50%);
-          color: #94A3B8;
+          color: #8191AA;
           pointer-events: none;
-          transition: color 0.2s;
-          z-index: 2;
+          z-index: 10;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -380,46 +393,48 @@ export default function LoginPage() {
 
         .login-input {
           width: 100% !important;
-          padding: 12px 14px 12px 44px !important;
-          background: #F8FAFD;
-          border: 1.5px solid #E2E8F0;
-          border-radius: 12px;
-          color: #1E293B;
-          font-size: 13.5px;
-          font-family: 'Outfit', sans-serif;
-          outline: none;
-          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+          height: 48px !important;
+          min-height: 48px !important;
           box-sizing: border-box !important;
-          min-height: 46px;
+          padding-left: 46px !important;
+          padding-right: 16px !important;
+          background: #F8FAFD !important;
+          border: 1.5px solid #E2E8F0 !important;
+          border-radius: 12px !important;
+          color: #1E293B !important;
+          font-size: 14px !important;
+          font-family: 'Outfit', sans-serif !important;
+          outline: none !important;
+          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
         }
-        .login-input::placeholder { color: #CBD5E1; }
+        .login-input::placeholder { color: #94A3B8 !important; }
         .login-input:focus {
-          background: #FFFFFF;
-          border-color: #3BAEEB;
-          box-shadow: 0 0 0 3px rgba(59,174,235,0.12);
+          background: #FFFFFF !important;
+          border-color: #3BAEEB !important;
+          box-shadow: 0 0 0 3px rgba(59,174,235,0.12) !important;
         }
         .login-input-wrap:focus-within .login-icon {
           color: #3BAEEB;
         }
 
-        .login-input-pr {
-          padding-right: 44px !important;
+        .login-input-pass {
+          padding-right: 46px !important;
         }
 
         .pass-toggle {
           position: absolute;
-          right: 12px;
+          right: 14px;
           top: 50%;
           transform: translateY(-50%);
           background: none;
           border: none;
           cursor: pointer;
-          color: #94A3B8;
+          color: #8191AA;
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 4px;
-          z-index: 2;
+          z-index: 10;
           transition: color 0.2s;
         }
         .pass-toggle:hover { color: #3BAEEB; }
@@ -503,12 +518,13 @@ export default function LoginPage() {
           display: flex;
           gap: 6px;
           overflow-x: auto;
-          padding-bottom: 4px;
+          padding: 2px 2px 6px;
           scrollbar-width: thin;
+          -webkit-overflow-scrolling: touch;
         }
 
         .pill-btn {
-          padding: 4px 10px;
+          padding: 5px 12px;
           border-radius: 20px;
           font-size: 11.5px;
           font-weight: 600;
@@ -518,6 +534,7 @@ export default function LoginPage() {
           background: #F8FAFC;
           color: #64748B;
           transition: all 0.15s;
+          flex-shrink: 0;
         }
         .pill-btn:hover {
           background: #EEF2F6;
@@ -535,60 +552,74 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           width: 100%;
+          box-sizing: border-box;
+        }
+
+        .quick-search-icon {
+          position: absolute;
+          left: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #94A3B8;
+          pointer-events: none;
+          z-index: 2;
         }
 
         .quick-search-input {
-          width: 100%;
-          padding: 8px 12px 8px 34px;
-          border-radius: 10px;
-          border: 1px solid #CBD5E1;
-          font-size: 12.5px;
-          background: #ffffff;
-          outline: none;
-          color: #1E293B;
+          width: 100% !important;
+          padding: 10px 12px 10px 38px !important;
+          background: #F8FAFC !important;
+          border: 1.5px solid #E2E8F0 !important;
+          border-radius: 10px !important;
+          font-size: 12.5px !important;
+          color: #1E293B !important;
+          font-family: 'Outfit', sans-serif !important;
+          outline: none !important;
+          box-sizing: border-box !important;
+          min-height: 40px !important;
         }
         .quick-search-input:focus {
-          border-color: #3BAEEB;
-          box-shadow: 0 0 0 2px rgba(59,174,235,0.15);
+          border-color: #3BAEEB !important;
+          background: #FFFFFF !important;
         }
 
         .accounts-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-          gap: 10px;
-          max-height: 420px;
+          grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+          gap: 8px;
+          max-height: 380px;
           overflow-y: auto;
           padding-right: 4px;
-          scrollbar-width: thin;
+          -webkit-overflow-scrolling: touch;
         }
 
         .account-card {
           background: #ffffff;
           border: 1px solid #E2E8F0;
-          border-radius: 12px;
+          border-radius: 10px;
           padding: 10px 12px;
           display: flex;
           flex-direction: column;
           gap: 8px;
-          transition: all 0.15s ease;
-          position: relative;
+          transition: all 0.15s;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+          box-sizing: border-box;
         }
         .account-card:hover {
-          border-color: #93C5FD;
-          background: #F8FBFF;
+          border-color: #BFDBFE;
+          box-shadow: 0 4px 12px rgba(37,99,235,0.08);
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(37,99,235,0.06);
         }
 
         .acc-info {
           display: flex;
-          align-items: flex-start;
-          gap: 8px;
+          align-items: center;
+          gap: 9px;
         }
 
         .acc-avatar {
-          width: 28px;
-          height: 28px;
+          width: 32px;
+          height: 32px;
           border-radius: 8px;
           display: flex;
           align-items: center;
@@ -640,7 +671,7 @@ export default function LoginPage() {
 
         .btn-fill {
           flex: 1;
-          padding: 4px 8px;
+          padding: 5px 8px;
           border-radius: 6px;
           font-size: 11px;
           font-weight: 600;
@@ -657,7 +688,7 @@ export default function LoginPage() {
 
         .btn-quick-login {
           flex: 1.2;
-          padding: 4px 8px;
+          padding: 5px 8px;
           border-radius: 6px;
           font-size: 11px;
           font-weight: 700;
@@ -677,10 +708,12 @@ export default function LoginPage() {
         }
 
         @media (max-width: 480px) {
-          .login-root { padding: 16px 12px; }
-          .login-card { padding: 22px 18px; border-radius: 16px; }
-          .quick-card { padding: 18px 14px; border-radius: 16px; }
-          .accounts-grid { grid-template-columns: 1fr; max-height: 320px; }
+          .login-root { padding: 12px 10px 32px; }
+          .login-card { padding: 18px 14px; border-radius: 16px; width: 100%; box-sizing: border-box; }
+          .quick-card { padding: 16px 12px; border-radius: 16px; width: 100%; box-sizing: border-box; }
+          .accounts-grid { grid-template-columns: 1fr; max-height: 260px; }
+          .logo-box { padding: 6px 14px; }
+          .portal-title { font-size: 12px; }
         }
       `}</style>
 
@@ -698,7 +731,7 @@ export default function LoginPage() {
                   alt="Himalaya"
                   width={240}
                   height={80}
-                  style={{ width: '140px', height: 'auto', objectFit: 'contain' }}
+                  style={{ width: '130px', height: 'auto', objectFit: 'contain' }}
                   priority
                 />
               </div>
@@ -716,14 +749,29 @@ export default function LoginPage() {
               {/* Email */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <label className="login-label">Email Address</label>
-                <div className="login-input-wrap">
-                  <Mail size={16} className="login-icon" />
+                <div className="input-wrapper" style={{ position: 'relative', width: '100%' }}>
+                  <span className="left-icon" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', zIndex: 5, color: '#8191AA', pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Mail size={18} />
+                  </span>
                   <input
                     type="email"
                     id="login-email"
                     data-testid="login-email"
                     className="login-input"
                     placeholder="name@himalayaerp.com"
+                    style={{
+                      width: '100%',
+                      height: '48px',
+                      boxSizing: 'border-box',
+                      paddingLeft: '44px',
+                      paddingRight: '16px',
+                      border: '1px solid #d6e2f2',
+                      borderRadius: '10px',
+                      background: '#e8f0fc',
+                      fontSize: '15px',
+                      color: '#111827',
+                      outline: 'none',
+                    }}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={loading}
@@ -736,29 +784,44 @@ export default function LoginPage() {
               {/* Password */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <label className="login-label">Password</label>
-                <div className="login-input-wrap">
-                  <KeyRound size={16} className="login-icon" />
+                <div className="input-wrapper" style={{ position: 'relative', width: '100%' }}>
+                  <span className="left-icon" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', zIndex: 5, color: '#8191AA', pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <KeyRound size={18} />
+                  </span>
                   <input
                     type={showPass ? 'text' : 'password'}
                     id="login-password"
                     data-testid="login-password"
-                    className="login-input login-input-pr"
+                    className="login-input login-input-pass"
                     placeholder="Enter password"
+                    style={{
+                      width: '100%',
+                      height: '48px',
+                      boxSizing: 'border-box',
+                      paddingLeft: '44px',
+                      paddingRight: '44px',
+                      border: '1px solid #d6e2f2',
+                      borderRadius: '10px',
+                      background: '#e8f0fc',
+                      fontSize: '15px',
+                      color: '#111827',
+                      outline: 'none',
+                    }}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={loading}
                     autoComplete="current-password"
                     required
                   />
-                  <button
-                    type="button"
-                    className="pass-toggle"
+                  <span
+                    className="right-icon pass-toggle"
                     onClick={() => setShowPass(p => !p)}
+                    style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', zIndex: 5, color: '#8191AA', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     tabIndex={-1}
                     aria-label={showPass ? 'Hide password' : 'Show password'}
                   >
-                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
+                    {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </span>
                 </div>
               </div>
 
@@ -791,7 +854,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowQuickLogin(s => !s)}
-                style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
               >
                 {showQuickLogin ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
               </button>
@@ -801,11 +864,12 @@ export default function LoginPage() {
               <>
                 {/* Search Box */}
                 <div className="quick-search-box">
-                  <Search size={14} style={{ position: 'absolute', left: '10px', color: '#94A3B8', pointerEvents: 'none' }} />
+                  <Search size={14} className="quick-search-icon" />
                   <input
                     type="text"
                     className="quick-search-input"
                     placeholder="Search by role, name, or email..."
+                    style={{ paddingLeft: '38px' }}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />

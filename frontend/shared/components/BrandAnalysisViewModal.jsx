@@ -8,27 +8,27 @@ export default function BrandAnalysisViewModal({ request, onClose }) {
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
       background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, padding: '24px'
+      zIndex: 1000, padding: 'clamp(8px, 3vw, 24px)', boxSizing: 'border-box'
     }}>
       <div style={{
-        background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '600px',
-        maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+        background: '#fff', borderRadius: '12px', width: 'min(94vw, 600px)', maxWidth: '600px',
+        maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', boxSizing: 'border-box'
       }}>
         <div style={{
-          padding: '20px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex',
+          padding: '16px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex',
           justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 10
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', color: '#111827' }}>Request Details</h2>
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#6b7280' }}>{request.requestNumber}</p>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#111827' }}>Request Details</h2>
+            <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6b7280' }}>{request.requestNumber}</p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#6b7280' }}>
-            <X size={24} />
+            <X size={22} />
           </button>
         </div>
 
-        <div style={{ padding: '24px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '20px' }}>
             <div>
               <div style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase', fontWeight: '600', marginBottom: '4px' }}>Product Name</div>
               <div style={{ fontSize: '15px', color: '#111827', fontWeight: '500' }}>{request.productName}</div>

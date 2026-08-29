@@ -235,7 +235,7 @@ export default function ProductionStoreReleasesView() {
                       </div>
 
                       {/* Quantities breakdown */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 80px), 1fr))', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
                         <div>
                           <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#8893a7', fontWeight: '800' }}>
                             Approved

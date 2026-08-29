@@ -199,7 +199,7 @@ export default function FinanceSalespersonDetailView({ salespersonId, onBack }) 
       </div>
 
       {/* Two Column Layout: Timeline vs Customers */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '24px' }}>
         {/* Activity Timeline */}
         <div style={{
           background: '#FFFFFF',

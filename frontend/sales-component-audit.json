@@ -1,0 +1,353 @@
+[
+  {
+    "file": "components/CreateQuotation.jsx",
+    "sizeBytes": 77413,
+    "fixedWidthsCount": 1,
+    "fixedWidthsSample": [
+      "width: 1024px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 2,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false
+  },
+  {
+    "file": "components/QuotationsView.jsx",
+    "sizeBytes": 89089,
+    "fixedWidthsCount": 7,
+    "fixedWidthsSample": [
+      "width: 768px",
+      "width: 840px",
+      "width: 794px"
+    ],
+    "minWidthsCount": 1,
+    "minWidthsSample": [
+      "min-width: 794px"
+    ],
+    "fixedGridsCount": 0,
+    "nowrapCount": 13,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true
+  },
+  {
+    "file": "components/CreateLead.jsx",
+    "sizeBytes": 58033,
+    "fixedWidthsCount": 1,
+    "fixedWidthsSample": [
+      "width: 500px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 1,
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": false
+  },
+  {
+    "file": "components/LeadsView.jsx",
+    "sizeBytes": 84392,
+    "fixedWidthsCount": 2,
+    "fixedWidthsSample": [
+      "width: 768px",
+      "width: 768px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 18,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true
+  },
+  {
+    "file": "components/CreateOrder.jsx",
+    "sizeBytes": 16395,
+    "fixedWidthsCount": 0,
+    "fixedWidthsSample": [],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 0,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false
+  },
+  {
+    "file": "components/OrdersView.jsx",
+    "sizeBytes": 81700,
+    "fixedWidthsCount": 1,
+    "fixedWidthsSample": [
+      "width: 768px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 11,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true
+  },
+  {
+    "file": "components/CustomersView.jsx",
+    "sizeBytes": 19926,
+    "fixedWidthsCount": 2,
+    "fixedWidthsSample": [
+      "width: 1024px",
+      "width: '560px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 1,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true
+  },
+  {
+    "file": "components/CreateSample.jsx",
+    "sizeBytes": 21438,
+    "fixedWidthsCount": 0,
+    "fixedWidthsSample": [],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 0,
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": false
+  },
+  {
+    "file": "components/EditSample.jsx",
+    "sizeBytes": 17016,
+    "fixedWidthsCount": 0,
+    "fixedWidthsSample": [],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 0,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false
+  },
+  {
+    "file": "components/SamplesView.jsx",
+    "sizeBytes": 105535,
+    "fixedWidthsCount": 2,
+    "fixedWidthsSample": [
+      "width: '800px",
+      "width: '500px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 8,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true
+  },
+  {
+    "file": "components/PaymentFollowupERPView.jsx",
+    "sizeBytes": 57085,
+    "fixedWidthsCount": 1,
+    "fixedWidthsSample": [
+      "width: 1024px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 3,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false
+  },
+  {
+    "file": "components/PaymentHistoryView.jsx",
+    "sizeBytes": 39892,
+    "fixedWidthsCount": 3,
+    "fixedWidthsSample": [
+      "width: 1024px",
+      "width: '560px",
+      "width: '680px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 0,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true
+  },
+  {
+    "file": "components/PaymentsView.jsx",
+    "sizeBytes": 51232,
+    "fixedWidthsCount": 1,
+    "fixedWidthsSample": [
+      "width: '700px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 0,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true
+  },
+  {
+    "file": "components/CustomerComplaintManagement.jsx",
+    "sizeBytes": 47725,
+    "fixedWidthsCount": 1,
+    "fixedWidthsSample": [
+      "width: 1024px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 3,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": true
+  },
+  {
+    "file": "components/DashboardView.jsx",
+    "sizeBytes": 65416,
+    "fixedWidthsCount": 1,
+    "fixedWidthsSample": [
+      "width: 768px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 7,
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": false
+  },
+  {
+    "file": "components/DailyTaskView.jsx",
+    "sizeBytes": 36112,
+    "fixedWidthsCount": 5,
+    "fixedWidthsSample": [
+      "width: 480px",
+      "width: 1024px",
+      "width: 768px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 1,
+    "nowrapCount": 2,
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true
+  },
+  {
+    "file": "components/SalesProductionStatusView.jsx",
+    "sizeBytes": 11547,
+    "fixedWidthsCount": 0,
+    "fixedWidthsSample": [],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 1,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false
+  },
+  {
+    "file": "components/ReportsView.jsx",
+    "sizeBytes": 64880,
+    "fixedWidthsCount": 0,
+    "fixedWidthsSample": [],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 4,
+    "hasTable": true,
+    "hasForm": true,
+    "hasModal": false
+  },
+  {
+    "file": "modules/sales/pages/SalesPortal.jsx",
+    "sizeBytes": 61556,
+    "fixedWidthsCount": 0,
+    "fixedWidthsSample": [],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 1,
+    "nowrapCount": 0,
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": false
+  },
+  {
+    "file": "modules/sales/pages/SalesOrdersView.jsx",
+    "sizeBytes": 15282,
+    "fixedWidthsCount": 0,
+    "fixedWidthsSample": [],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 0,
+    "nowrapCount": 1,
+    "hasTable": false,
+    "hasForm": true,
+    "hasModal": true
+  },
+  {
+    "file": "components/SalesDashboardResponsive.css",
+    "sizeBytes": 4383,
+    "fixedWidthsCount": 4,
+    "fixedWidthsSample": [
+      "width: 1280px",
+      "width: 1100px",
+      "width: 768px"
+    ],
+    "minWidthsCount": 0,
+    "minWidthsSample": [],
+    "fixedGridsCount": 3,
+    "nowrapCount": 0,
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false
+  },
+  {
+    "file": "components/CustomerComplaints.css",
+    "sizeBytes": 9350,
+    "fixedWidthsCount": 4,
+    "fixedWidthsSample": [
+      "width: 1600px",
+      "width: 1000px",
+      "width: 1024px"
+    ],
+    "minWidthsCount": 1,
+    "minWidthsSample": [
+      "min-width: 1000px"
+    ],
+    "fixedGridsCount": 1,
+    "nowrapCount": 2,
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": true
+  },
+  {
+    "file": "components/OrdersView.module.css",
+    "sizeBytes": 772,
+    "fixedWidthsCount": 2,
+    "fixedWidthsSample": [
+      "width: 1280px",
+      "width: 768px"
+    ],
+    "minWidthsCount": 1,
+    "minWidthsSample": [
+      "min-width: 1280px"
+    ],
+    "fixedGridsCount": 0,
+    "nowrapCount": 0,
+    "hasTable": false,
+    "hasForm": false,
+    "hasModal": false
+  }
+]

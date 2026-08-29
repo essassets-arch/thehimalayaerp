@@ -805,7 +805,7 @@ export default function FinanceSalesConfirmationView() {
                   </div>
 
                   {/* 3 Metric Columns */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', padding: '12px 0', borderTop: '1px solid #F1F5F9', borderBottom: '1px solid #F1F5F9' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px', padding: '12px 0', borderTop: '1px solid #F1F5F9', borderBottom: '1px solid #F1F5F9' }}>
                     <div>
                       <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600, display: 'block' }}>Amount</span>
                       <span style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>{formatINR(r.orderTotal)}</span>

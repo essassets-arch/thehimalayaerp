@@ -1,0 +1,62 @@
+[
+  {
+    "domain": "Authentication & Session Security",
+    "mechanism": "JWT Bearer with Bcrypt password hashing (salt rounds 10), RefreshSession tracking, Expired Token rejection",
+    "riskLevel": "LOW (PASS)",
+    "mitigation": "JwtAuthGuard enforced globally across controllers; 401 response on invalid/expired signature"
+  },
+  {
+    "domain": "Role-Based Access Control (RBAC)",
+    "mechanism": "RolePermission matrix with `@RequirePermissions()` decorators on controller endpoints",
+    "riskLevel": "LOW (PASS)",
+    "mitigation": "PermissionsGuard inspects decoded JWT claims and validates against role permission definitions"
+  },
+  {
+    "domain": "Tenant & User Data Isolation",
+    "mechanism": "Server-side extraction of authenticated user id (`req.user.id`/`req.user.sub`) rather than trusting request body",
+    "riskLevel": "LOW (PASS)",
+    "mitigation": "Database queries scope records by `userId`, `salespersonId`, or authorized plant ID"
+  },
+  {
+    "domain": "Document Numbering & Concurrency",
+    "mechanism": "`DocumentSequence` table with atomic fiscal year sequence tracking (`lead/26-27/0001`, `QU/26-27/0001`, `HCPPL/26-27/0001`, etc.)",
+    "riskLevel": "LOW (PASS)",
+    "mitigation": "Atomic upsert / sequence increments per document type within transactions"
+  },
+  {
+    "domain": "Inventory Mathematical Integrity",
+    "mechanism": "`availableQuantity = quantity - reservedQuantity` enforced at DB schema and service layer",
+    "riskLevel": "LOW (PASS)",
+    "mitigation": "Transactional reservations and stock deduction logic prevent negative stock balances"
+  },
+  {
+    "domain": "Workflow State-Machine Invariants",
+    "mechanism": "Explicit transition validators across Sales, Production, QC, Store, Dispatch, Finance, and HR Payroll pipelines",
+    "riskLevel": "LOW (PASS)",
+    "mitigation": "Illegal transitions (e.g. unapproved indent to PO, unpaid order closure, unapproved payroll disbursement) rejected server-side"
+  },
+  {
+    "domain": "Financial Calculation Precision",
+    "mechanism": "Fixed decimal currency arithmetic for INR totals, GST breakdown, TDS deduction, and ledger entries",
+    "riskLevel": "LOW (PASS)",
+    "mitigation": "Server-side recalculation of invoice line items prevents client-side price tampering"
+  },
+  {
+    "domain": "File Upload & Attachment Security",
+    "mechanism": "Multer file interceptor with extension validation and file size limits on selfie/POD uploads",
+    "riskLevel": "LOW (PASS)",
+    "mitigation": "Sanitized storage paths prevent directory traversal attacks"
+  },
+  {
+    "domain": "Error Handling & Information Disclosure",
+    "mechanism": "Global exception filter returns structured JSON error responses with redacted stack traces in production",
+    "riskLevel": "LOW (PASS)",
+    "mitigation": "Database credentials, Prisma internals, and filesystem paths are never leaked in API responses"
+  },
+  {
+    "domain": "Secrets & Environment Variable Safety",
+    "mechanism": "Configuration service loads secrets strictly from `.env` with no committed private credentials in production bundles",
+    "riskLevel": "LOW (PASS)",
+    "mitigation": "Sensitive environment variables isolated on server runtime only"
+  }
+]

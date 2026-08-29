@@ -1417,81 +1417,81 @@ export default function OrdersView({
 
         {selectedDeliveryModal && (
           <div className="sheet-backdrop" onClick={() => setSelectedDeliveryModal(null)}>
-            <div className="sheet-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px', padding: '28px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+            <div className="sheet-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 'min(94vw, 640px)', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(14px, 4vw, 24px)', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                 <div>
-                  <h3 style={{ fontSize: '20px', fontWeight: '900', color: '#1e293b', margin: 0 }}>Delivery Details & Status</h3>
-                  <p style={{ fontSize: '13px', color: '#5E6B82', margin: '2px 0 0 0' }}>Order #{selectedDeliveryModal.orderNo || selectedDeliveryModal.id}</p>
+                  <h3 style={{ fontSize: '18px', fontWeight: '900', color: '#1e293b', margin: 0 }}>Delivery Details & Status</h3>
+                  <p style={{ fontSize: '12.5px', color: '#5E6B82', margin: '2px 0 0 0' }}>Order #{selectedDeliveryModal.orderNo || selectedDeliveryModal.id}</p>
                 </div>
                 <StatusBadge status="Delivered" />
               </div>
 
-              <div style={{ background: '#F5FAFE', border: '1px solid #DCE5F0', borderRadius: '14px', padding: '18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+              <div style={{ background: '#F5FAFE', border: '1px solid #DCE5F0', borderRadius: '14px', padding: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '20px' }}>
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase' }}>Dispatch ID</span>
-                  <div style={{ fontSize: '14px', fontWeight: '800', color: '#334155', fontFamily: 'monospace', marginTop: '2px' }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#334155', fontFamily: 'monospace', marginTop: '2px' }}>
                     {selectedDeliveryModal.dispatchId || `DSP-${String(selectedDeliveryModal.orderNo || selectedDeliveryModal.id || '').replace(/^ORD-/i, '').replace(/^WO-/i, '')}`}
                   </div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase' }}>Vehicle Number</span>
-                  <div style={{ fontSize: '14px', fontWeight: '800', color: '#1d4ed8', fontFamily: 'monospace', marginTop: '2px' }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#1d4ed8', fontFamily: 'monospace', marginTop: '2px' }}>
                     {selectedDeliveryModal.vehicleNumber || 'UK07AB1234'}
                   </div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase' }}>Driver Details</span>
-                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>
                     {selectedDeliveryModal.driverName || 'Raj Kumar'} ({selectedDeliveryModal.driverPhone || '9876543210'})
                   </div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase' }}>Delivered Date</span>
-                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>
                     {selectedDeliveryModal.actualDeliveryDate || (selectedDeliveryModal.deliveredAt ? String(selectedDeliveryModal.deliveredAt).slice(0, 10) : '16 Jul 2026')}
                   </div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase' }}>Received By</span>
-                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>
                     {selectedDeliveryModal.receivedBy || 'Project Engineer - Mr. Sharma'}
                   </div>
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase' }}>Delivery Documents</span>
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#059669', marginTop: '2px' }}>
+                  <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#059669', marginTop: '2px' }}>
                     Signed Challan, POD Stamped ✓
                   </div>
                 </div>
               </div>
 
-              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#1e40af', textTransform: 'uppercase' }}>Payment Status</span>
-                  <div style={{ fontSize: '15px', fontWeight: '800', color: '#1e3a8a', marginTop: '2px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: '800', color: '#1e3a8a', marginTop: '2px' }}>
                     {selectedDeliveryModal.paymentStatus === 'paid' ? 'Full Payment Completed ✓' : (selectedDeliveryModal.paymentStatus === 'submitted_for_verification' ? 'Submitted for Finance Verification' : 'Awaiting Payment')}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <span style={{ fontSize: '11px', fontWeight: '700', color: '#1e40af', textTransform: 'uppercase' }}>Outstanding Amount</span>
-                  <div style={{ fontSize: '18px', fontWeight: '900', color: '#dc2626', marginTop: '2px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: '900', color: '#dc2626', marginTop: '2px' }}>
                     {formatINR(selectedDeliveryModal.outstandingAmount !== undefined ? selectedDeliveryModal.outstandingAmount : (selectedDeliveryModal.totalAmount || selectedDeliveryModal.totalValue || 207000))}
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   onClick={() => setSelectedDeliveryModal(null)}
-                  style={{ padding: '10px 20px', background: '#f1f5f9', border: '1px solid #D6E2F0', borderRadius: '10px', fontWeight: '700', color: '#475569', cursor: 'pointer' }}
+                  style={{ padding: '9px 18px', background: '#f1f5f9', border: '1px solid #D6E2F0', borderRadius: '10px', fontWeight: '700', color: '#475569', cursor: 'pointer' }}
                 >
                   Close
                 </button>
                 <button
                   type="button"
                   onClick={() => { setSelectedDeliveryModal(null); navigate.push('/sales/payment-followup'); }}
-                  style={{ padding: '10px 20px', background: '#2563eb', border: 'none', borderRadius: '10px', fontWeight: '800', color: '#ffffff', cursor: 'pointer' }}
+                  style={{ padding: '9px 18px', background: '#2563eb', border: 'none', borderRadius: '10px', fontWeight: '800', color: '#ffffff', cursor: 'pointer' }}
                 >
                   Proceed to Payment Follow-up →
                 </button>

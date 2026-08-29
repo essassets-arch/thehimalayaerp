@@ -5,8 +5,8 @@ export default function QCInspectionDetailsModal({ inspection, onClose }) {
   if (!inspection) return null;
 
   return (
-    <div className="modal-overlay active" onClick={onClose} style={{ zIndex: 10000 }}>
-      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ width: '580px', maxWidth: 'calc(100vw - 32px)', padding: 0, overflow: 'hidden', borderRadius: '16px' }}>
+    <div className="modal-overlay active" onClick={onClose} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 'min(94vw, 580px)', maxHeight: '90vh', padding: 0, overflowY: 'auto', borderRadius: '16px' }}>
         
         {/* Header */}
         <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
@@ -29,7 +29,7 @@ export default function QCInspectionDetailsModal({ inspection, onClose }) {
         <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '450px', overflowY: 'auto' }}>
           
           <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: '10px', padding: '12px 16px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px', color: '#581c87' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '8px', fontSize: '12px', color: '#581c87' }}>
               <div>Result: <strong>{inspection.result}</strong></div>
               <div>Inspector: <strong>{inspection.inspectorName}</strong></div>
               <div>Date: <strong>{new Date(inspection.inspectedAt).toLocaleString()}</strong></div>
@@ -37,7 +37,7 @@ export default function QCInspectionDetailsModal({ inspection, onClose }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))', gap: '10px' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label" style={{ fontSize: '11px' }}>Approved Qty</label>
               <div className="form-input" style={{ background: '#f0fdf4', color: '#16a34a', fontWeight: 'bold' }}>{inspection.approvedQuantity}</div>
@@ -52,7 +52,7 @@ export default function QCInspectionDetailsModal({ inspection, onClose }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '14px' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Compressive Strength</label>
               <div className="form-input" style={{ background: '#F5FAFE' }}>{inspection.parameters?.strength || '—'}</div>

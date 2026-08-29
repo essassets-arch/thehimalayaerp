@@ -215,41 +215,43 @@ export default function StoreMaterialReturnVerificationView() {
               Verify Physical Quantity Accepted Back Into Store Godown
             </h3>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left', marginBottom: '24px' }}>
-              <thead>
-                <tr style={{ background: '#f1f5f9', color: '#475569', textTransform: 'uppercase', fontSize: '11px' }}>
-                  <th style={{ padding: '10px 14px' }}>Material Item</th>
-                  <th style={{ padding: '10px 14px', width: '110px' }}>Received</th>
-                  <th style={{ padding: '10px 14px', width: '110px' }}>Consumed</th>
-                  <th style={{ padding: '10px 14px', width: '150px' }}>Returned Qty</th>
-                  <th style={{ padding: '10px 14px', width: '60px' }}>Unit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {editingItems.map((item, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '12px 14px', fontWeight: '700', color: '#24345C' }}>{item.material}</td>
-                    <td style={{ padding: '12px 14px', color: '#0284c7' }}>{item.receivedQty}</td>
-                    <td style={{ padding: '12px 14px', color: '#7c3aed' }}>{item.consumedQty}</td>
-                    <td style={{ padding: '12px 14px' }}>
-                      {selectedReq.status === 'Return Pending' ? (
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.1"
-                          value={item.returnedQty}
-                          onChange={(e) => handleQtyChange(idx, Number(e.target.value))}
-                          style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: '1px solid #0369a1', fontWeight: '800', color: '#0369a1', fontSize: '14px' }}
-                        />
-                      ) : (
-                        <span style={{ fontWeight: '800', color: '#0369a1' }}>{item.returnedQty}</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px 14px', color: '#5E6B82' }}>{item.unit}</td>
+            <div style={{ overflowX: 'auto', marginBottom: '24px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left', minWidth: '460px' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', color: '#475569', textTransform: 'uppercase', fontSize: '11px' }}>
+                    <th style={{ padding: '10px 14px' }}>Material Item</th>
+                    <th style={{ padding: '10px 14px', width: '110px' }}>Received</th>
+                    <th style={{ padding: '10px 14px', width: '110px' }}>Consumed</th>
+                    <th style={{ padding: '10px 14px', width: '150px' }}>Returned Qty</th>
+                    <th style={{ padding: '10px 14px', width: '60px' }}>Unit</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {editingItems.map((item, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '12px 14px', fontWeight: '700', color: '#24345C' }}>{item.material}</td>
+                      <td style={{ padding: '12px 14px', color: '#0284c7' }}>{item.receivedQty}</td>
+                      <td style={{ padding: '12px 14px', color: '#7c3aed' }}>{item.consumedQty}</td>
+                      <td style={{ padding: '12px 14px' }}>
+                        {selectedReq.status === 'Return Pending' ? (
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={item.returnedQty}
+                            onChange={(e) => handleQtyChange(idx, Number(e.target.value))}
+                            style={{ width: '100%', height: '36px', padding: '0 10px', borderRadius: '6px', border: '1px solid #0369a1', fontWeight: '800', color: '#0369a1', fontSize: '14px' }}
+                          />
+                        ) : (
+                          <span style={{ fontWeight: '800', color: '#0369a1' }}>{item.returnedQty}</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 14px', color: '#5E6B82' }}>{item.unit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {selectedReq.status === 'Return Pending' ? (
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>

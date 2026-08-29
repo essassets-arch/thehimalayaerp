@@ -1356,7 +1356,7 @@ export const StoreDashboard = () => {
               {/* 4-Metric Grid */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
                 background: '#f8fafc',
                 border: '1px solid #f1f5f9',
                 borderRadius: '8px',

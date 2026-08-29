@@ -1,0 +1,930 @@
+{
+  "files": [
+    "app\\(dashboard)\\finance\\brand-analysis\\page.tsx",
+    "app\\(dashboard)\\finance\\invoices\\components\\ActionButtons.tsx",
+    "app\\(dashboard)\\finance\\invoices\\page.tsx",
+    "app\\(dashboard)\\finance\\invoices\\[id]\\page.tsx",
+    "app\\(dashboard)\\finance\\ledger\\page.tsx",
+    "app\\(dashboard)\\finance\\payment-verification\\page.tsx",
+    "app\\(dashboard)\\finance\\payments\\components\\ActionButtons.tsx",
+    "app\\(dashboard)\\finance\\payments\\components\\CreatePaymentForm.tsx",
+    "app\\(dashboard)\\finance\\payments\\create\\page.tsx",
+    "app\\(dashboard)\\finance\\payments\\page.tsx",
+    "app\\(dashboard)\\finance\\payments\\[id]\\page.tsx",
+    "app\\(dashboard)\\finance\\purchase-orders\\page.tsx",
+    "app\\(dashboard)\\finance\\purchase-orders\\[id]\\close\\page.tsx",
+    "app\\(dashboard)\\finance\\reports\\page.tsx",
+    "app\\(dashboard)\\finance\\salary\\history\\page.tsx",
+    "app\\(dashboard)\\finance\\salary\\history\\[payrollId]\\salary-slip\\page.tsx",
+    "app\\(dashboard)\\finance\\salary\\paid\\page.tsx",
+    "app\\(dashboard)\\finance\\salary\\pending\\page.tsx",
+    "app\\(dashboard)\\finance\\salary\\processing\\page.tsx",
+    "app\\(dashboard)\\finance\\salary-disbursement\\page.tsx",
+    "app\\(dashboard)\\finance\\salary-history\\page.tsx",
+    "app\\(dashboard)\\finance\\salary-verification\\page.tsx",
+    "app\\(dashboard)\\finance\\sales\\page.tsx",
+    "app\\(dashboard)\\finance\\[[...slug]]\\page.tsx",
+    "app\\(dashboard)\\finance-executive\\[[...slug]]\\page.tsx",
+    "app\\(dashboard)\\hr\\recruitment\\page.tsx",
+    "app\\(dashboard)\\hr\\roles\\page.tsx",
+    "app\\(dashboard)\\hr\\salary\\history\\page.tsx",
+    "app\\(dashboard)\\hr\\salary\\page.tsx",
+    "app\\(dashboard)\\hr\\salary\\payslips\\page.tsx",
+    "app\\(dashboard)\\hr\\salary\\prepare\\create\\page.tsx",
+    "app\\(dashboard)\\hr\\salary\\prepare\\edit\\[id]\\page.tsx",
+    "app\\(dashboard)\\hr\\salary\\prepare\\page.tsx",
+    "app\\(dashboard)\\hr\\salary\\prepare\\view\\[id]\\page.tsx",
+    "app\\(dashboard)\\hr\\salary\\status\\page.tsx",
+    "app\\(dashboard)\\hr\\salary-structure\\page.tsx",
+    "app\\(dashboard)\\hr\\[[...slug]]\\page.tsx",
+    "app\\(dashboard)\\employee\\payslips\\page.tsx",
+    "app\\(dashboard)\\employee\\salary-slips\\page.tsx",
+    "app\\(dashboard)\\employee\\salary-slips\\[id]\\page.tsx",
+    "app\\(dashboard)\\super-admin\\backoffice-report\\page.tsx",
+    "app\\(dashboard)\\super-admin\\brand-analysis\\page.tsx",
+    "app\\(dashboard)\\super-admin\\brandanalysis\\page.tsx",
+    "app\\(dashboard)\\super-admin\\daily-reports\\page.tsx",
+    "app\\(dashboard)\\super-admin\\finished-goods\\page.tsx",
+    "app\\(dashboard)\\super-admin\\payroll-analysis\\page.tsx",
+    "app\\(dashboard)\\super-admin\\salary-approval\\page.tsx",
+    "app\\(dashboard)\\super-admin\\salary-approvals\\page.tsx",
+    "app\\(dashboard)\\super-admin\\[[...slug]]\\dashboard.css",
+    "app\\(dashboard)\\super-admin\\[[...slug]]\\page.tsx",
+    "app\\(dashboard)\\admin\\[[...slug]]\\page.tsx",
+    "app\\(dashboard)\\back-office\\daily-report\\create\\page.tsx",
+    "app\\(dashboard)\\back-office\\daily-report\\edit\\[id]\\page.tsx",
+    "app\\(dashboard)\\back-office\\daily-report\\page.tsx",
+    "app\\(dashboard)\\back-office\\profile\\page.tsx",
+    "app\\(dashboard)\\crm\\leads\\components\\KanbanBoard.tsx",
+    "app\\(dashboard)\\crm\\leads\\page.tsx",
+    "app\\(dashboard)\\crm\\leads\\[id]\\page.tsx",
+    "app\\(dashboard)\\crm\\quotations\\components\\QuotationKanbanBoard.tsx",
+    "app\\(dashboard)\\crm\\quotations\\page.tsx",
+    "app\\(dashboard)\\crm\\quotations\\[id]\\page.tsx",
+    "app\\(dashboard)\\qc\\components\\ActionButtons.tsx",
+    "app\\(dashboard)\\qc\\page.tsx",
+    "app\\(dashboard)\\qc\\[...slug]\\page.tsx",
+    "app\\(dashboard)\\qc\\[id]\\page.tsx",
+    "app\\(dashboard)\\orders\\[orderId]\\page.tsx",
+    "modules\\finance\\components\\BrandAnalysisWidget.jsx",
+    "modules\\finance\\components\\FinanceManagerDashboardView.jsx",
+    "modules\\finance\\components\\FinanceSalaryDisbursementView.jsx",
+    "modules\\finance\\components\\SalesAnalyticsKpiGrid.jsx",
+    "modules\\finance\\components\\SalesAnalyticsSummaryCard.jsx",
+    "modules\\finance\\components\\SalespersonPerformancePreview.jsx",
+    "modules\\finance\\hooks\\useFinance.ts",
+    "modules\\finance\\pages\\FinanceBrandAnalysis.jsx",
+    "modules\\finance\\pages\\FinancePortal.jsx",
+    "modules\\finance\\pages\\FinanceSalesAnalyticsView.jsx",
+    "modules\\finance\\pages\\FinanceSalesConfirmationView.jsx",
+    "modules\\finance\\pages\\FinanceSalespersonDetailView.jsx",
+    "modules\\finance-executive\\Customers\\CustomersView.jsx",
+    "modules\\finance-executive\\Dashboard\\DashboardView.jsx",
+    "modules\\finance-executive\\Invoices\\InvoicesView.jsx",
+    "modules\\finance-executive\\Outstanding\\OutstandingView.jsx",
+    "modules\\finance-executive\\PaymentHistory\\PaymentHistoryView.jsx",
+    "modules\\finance-executive\\PaymentVerification\\PaymentVerificationView.jsx",
+    "modules\\finance-executive\\Receipts\\ReceiptsView.jsx",
+    "modules\\finance-executive\\Reports\\ReportsView.jsx",
+    "modules\\hr\\components\\ExitClearanceFormModal.jsx",
+    "modules\\hr\\components\\HRDashboardView.jsx",
+    "modules\\hr\\components\\HRNotificationsView.jsx",
+    "modules\\hr\\components\\UsersManagementView.jsx",
+    "modules\\hr\\employee\\components\\EmployeeAttendanceSummary.tsx",
+    "modules\\hr\\employee\\components\\EmployeeDetails.module.css",
+    "modules\\hr\\employee\\components\\EmployeeDetails.tsx",
+    "modules\\hr\\employee\\components\\EmployeeRegistrationForm.tsx",
+    "modules\\hr\\employee\\employee.db.ts",
+    "modules\\hr\\employee\\employee.repository.ts",
+    "modules\\hr\\employee\\employee.schema.ts",
+    "modules\\hr\\employee\\employee.selectors.ts",
+    "modules\\hr\\employee\\employee.service.ts",
+    "modules\\hr\\employee\\employee.types.ts",
+    "modules\\hr\\employee\\employee.utils.ts",
+    "modules\\hr\\pages\\components\\HRSalaryPreparationView.jsx",
+    "modules\\hr\\pages\\employeeDirectory.module.css",
+    "modules\\hr\\pages\\HRPortal.jsx",
+    "modules\\salary\\components\\SalaryPageLayout.tsx",
+    "modules\\salary\\components\\SalaryTable.tsx",
+    "modules\\salary\\components\\SalaryTabs.tsx",
+    "modules\\salary\\styles\\salary.css",
+    "modules\\super-admin\\components\\dashboard.css",
+    "modules\\super-admin\\components\\DashboardView.jsx",
+    "modules\\super-admin\\components\\DepartmentHeader.jsx",
+    "modules\\super-admin\\components\\DepartmentKPI.jsx",
+    "modules\\super-admin\\components\\EmployeeDetail.jsx",
+    "modules\\super-admin\\components\\EmployeeTable.jsx",
+    "modules\\super-admin\\components\\KPICard.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\analytics\\ExecutiveKPIs.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\analytics\\HeatMap.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\analytics\\Leaderboards.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\analytics\\LeadFunnel.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\analytics\\OrderAnalytics.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\analytics\\PaymentAnalytics.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\analytics\\ProductAnalytics.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\analytics\\RegionalAnalytics.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\analytics\\RevenueCharts.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\drawers\\EntityDrawer.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\explorer\\DataExplorer.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\explorer\\DataTable.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\layout\\SalesAnalyticsFilters.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\layout\\SalesAnalyticsHeader.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\layout\\SalesAnalyticsTabs.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\shared\\ChartCard.jsx",
+    "modules\\super-admin\\components\\sales-analytics\\shared\\KPI.jsx",
+    "modules\\super-admin\\components\\SuperAdminAnalyticsFilter.jsx",
+    "modules\\super-admin\\config\\tableColumns.jsx",
+    "modules\\super-admin\\context\\SuperAdminFilterContext.jsx",
+    "modules\\super-admin\\departments\\DispatchDept.jsx",
+    "modules\\super-admin\\departments\\FinanceDept.jsx",
+    "modules\\super-admin\\departments\\HRDept.jsx",
+    "modules\\super-admin\\departments\\PlantDept.jsx",
+    "modules\\super-admin\\departments\\ProductionDept.jsx",
+    "modules\\super-admin\\departments\\QCDept.jsx",
+    "modules\\super-admin\\departments\\SalesDept.jsx",
+    "modules\\super-admin\\departments\\StoreDept.jsx",
+    "modules\\super-admin\\hooks\\useCommandCenter.js",
+    "modules\\super-admin\\hooks\\useSalesAnalytics.js",
+    "modules\\super-admin\\hooks\\useSalesExport.js",
+    "modules\\super-admin\\hooks\\useSalesFilters.js",
+    "modules\\super-admin\\hooks\\useSuperAdminData.js",
+    "modules\\super-admin\\pages\\AnalyticsTab.jsx",
+    "modules\\super-admin\\pages\\BackOfficeReportsAdminView.jsx",
+    "modules\\super-admin\\pages\\BrandAnalysisPage.jsx",
+    "modules\\super-admin\\pages\\BusinessReportsPage.jsx",
+    "modules\\super-admin\\pages\\DispatchAnalyticsPage.css",
+    "modules\\super-admin\\pages\\DispatchAnalyticsPage.jsx",
+    "modules\\super-admin\\pages\\DispatchCostAnalyticsPage.jsx",
+    "modules\\super-admin\\pages\\FinanceAnalyticsPage.css",
+    "modules\\super-admin\\pages\\FinanceAnalyticsPage.jsx",
+    "modules\\super-admin\\pages\\HRAnalyticsPage.css",
+    "modules\\super-admin\\pages\\HRAnalyticsPage.jsx",
+    "modules\\super-admin\\pages\\InventoryAnalyticsPage.css",
+    "modules\\super-admin\\pages\\InventoryAnalyticsPage.jsx",
+    "modules\\super-admin\\pages\\InventoryCostAnalyticsPage.jsx",
+    "modules\\super-admin\\pages\\ProductionAnalyticsPage.css",
+    "modules\\super-admin\\pages\\ProductionAnalyticsPage.jsx",
+    "modules\\super-admin\\pages\\ProfitabilityAnalyticsPage.jsx",
+    "modules\\super-admin\\pages\\PurchaseIndentsView.jsx",
+    "modules\\super-admin\\pages\\PurchaseIndentsView.module.css",
+    "modules\\super-admin\\pages\\SalesAnalyticsPage.css",
+    "modules\\super-admin\\pages\\SalesAnalyticsPage.jsx",
+    "modules\\super-admin\\pages\\SuperAdminLiveMapPage.jsx",
+    "modules\\super-admin\\pages\\SuperAdminPortal.jsx",
+    "modules\\super-admin\\services\\salesAnalytics.service.js",
+    "modules\\super-admin\\utils\\export.js",
+    "modules\\super-admin\\utils\\financialCalculations.js",
+    "modules\\admin\\components\\SuperAdminSalaryApprovalView.jsx",
+    "modules\\admin\\pages\\AdminNewLead.jsx",
+    "modules\\admin\\pages\\AdminNewQuotation.jsx",
+    "modules\\admin\\pages\\AdminOpsPortal.jsx",
+    "modules\\admin\\pages\\AdminPortal.jsx",
+    "modules\\back-office\\components\\BackOfficeDailyReportFormView.jsx",
+    "modules\\back-office\\components\\BackOfficeDailyReportView.jsx",
+    "modules\\purchase\\pages\\GoodsReceiptNote.jsx",
+    "modules\\purchase\\pages\\PurchaseOrderForm.jsx",
+    "modules\\purchase\\pages\\PurchaseOrderList.jsx",
+    "modules\\purchase\\pages\\VendorManagement.jsx",
+    "modules\\purchase\\services\\purchase.service.js",
+    "modules\\notifications\\pages\\NotificationCenter.jsx",
+    "modules\\sales-admin\\components\\ActivityLogsPanel.jsx",
+    "modules\\sales-admin\\components\\AlertsCenter.jsx",
+    "modules\\sales-admin\\components\\AnalyticsPanel.jsx",
+    "modules\\sales-admin\\components\\DashboardControlTower.jsx",
+    "modules\\sales-admin\\components\\LeadsIntelligence.jsx",
+    "modules\\sales-admin\\components\\OrderPipelineControl.jsx",
+    "modules\\sales-admin\\components\\PaymentsVisibility.jsx",
+    "modules\\sales-admin\\components\\SalesAdminSettings.jsx",
+    "modules\\sales-admin\\components\\TargetsManagement.jsx",
+    "modules\\sales-admin\\components\\TeamPerformance.jsx",
+    "modules\\sales-admin\\components\\UsersManagement.jsx",
+    "modules\\sales-admin\\pages\\SalesAdminPortal.jsx",
+    "modules\\sales-admin\\services\\alertService.js",
+    "modules\\sales-admin\\services\\analyticsService.js"
+  ],
+  "risks": {
+    "app\\(dashboard)\\finance\\purchase-orders\\page.tsx": [
+      {
+        "line": 103,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ maxWidth: '1100px', margin: '0 auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 136,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "app\\(dashboard)\\finance\\purchase-orders\\[id]\\close\\page.tsx": [
+      {
+        "line": 160,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ maxWidth: '840px', margin: '0 auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "modules\\finance\\components\\BrandAnalysisWidget.jsx": [
+      {
+        "line": 88,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', padding: '20px' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\finance\\components\\SalespersonPerformancePreview.jsx": [
+      {
+        "line": 80,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "minWidth: '850px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 80,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "minWidth: '850px',",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "modules\\finance\\pages\\FinancePortal.jsx": [
+      {
+        "line": 1955,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ maxWidth: '850px', margin: '0 auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 3202,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<form onSubmit={(e) => { e.preventDefault(); showToast('GST rates successfully updated.'); }} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '450px' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 3220,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '500px' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 3749,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', textAlign: 'left' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "modules\\finance\\pages\\FinanceSalesAnalyticsView.jsx": [
+      {
+        "line": 434,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '800px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 487,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '900px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 557,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "modules\\finance\\pages\\FinanceSalesConfirmationView.jsx": [
+      {
+        "line": 808,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', padding: '12px 0', borderTop: '1px solid #F1F5F9', borderBottom: '1px solid #F1F5F9' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 929,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "maxWidth: '512px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 1305,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "maxWidth: '768px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "modules\\finance\\pages\\FinanceSalespersonDetailView.jsx": [
+      {
+        "line": 202,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      }
+    ],
+    "modules\\finance-executive\\PaymentHistory\\PaymentHistoryView.jsx": [
+      {
+        "line": 62,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "width: '640px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "modules\\finance-executive\\PaymentVerification\\PaymentVerificationView.jsx": [
+      {
+        "line": 446,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "width: '640px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "modules\\hr\\components\\ExitClearanceFormModal.jsx": [
+      {
+        "line": 323,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "grid-template-columns: repeat(3, 1fr) !important;",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 389,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "width: '900px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 825,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '13px' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\hr\\components\\HRDashboardView.jsx": [
+      {
+        "line": 244,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "grid-template-columns: repeat(6, 1fr);",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 316,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "grid-template-columns: repeat(3, 1fr);",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\hr\\employee\\components\\EmployeeAttendanceSummary.tsx": [
+      {
+        "line": 177,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "modules\\hr\\employee\\components\\EmployeeRegistrationForm.tsx": [
+      {
+        "line": 884,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"reg-form-wrapper\" style={{ maxWidth: '1080px', margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 1084,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<div className=\"reg-grid-4\" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\super-admin\\components\\DashboardView.jsx": [
+      {
+        "line": 1459,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "maxWidth: '560px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "modules\\super-admin\\components\\sales-analytics\\drawers\\EntityDrawer.jsx": [
+      {
+        "line": 20,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "width: '500px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "modules\\super-admin\\departments\\FinanceDept.jsx": [
+      {
+        "line": 76,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '24px' }}>",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      }
+    ],
+    "modules\\super-admin\\departments\\HRDept.jsx": [
+      {
+        "line": 427,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '24px' }}>",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      }
+    ],
+    "modules\\super-admin\\departments\\StoreDept.jsx": [
+      {
+        "line": 131,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '24px' }}>",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      }
+    ],
+    "modules\\super-admin\\pages\\BusinessReportsPage.jsx": [
+      {
+        "line": 227,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      }
+    ],
+    "modules\\super-admin\\pages\\DispatchAnalyticsPage.css": [
+      {
+        "line": 226,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "grid-template-columns: repeat(3, 1fr);",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 279,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "grid-template-columns: repeat(6, 1fr);",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 286,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "grid-template-columns: repeat(3, 1fr);",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 455,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "grid-template-columns: repeat(3, 1fr);",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 467,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "grid-template-columns: repeat(4, 1fr);",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\super-admin\\pages\\FinanceAnalyticsPage.jsx": [
+      {
+        "line": 333,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 452,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 545,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 692,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\super-admin\\pages\\HRAnalyticsPage.jsx": [
+      {
+        "line": 238,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 372,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(4, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 598,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\super-admin\\pages\\InventoryAnalyticsPage.css": [
+      {
+        "line": 121,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      }
+    ],
+    "modules\\super-admin\\pages\\InventoryAnalyticsPage.jsx": [
+      {
+        "line": 501,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 603,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\super-admin\\pages\\ProductionAnalyticsPage.jsx": [
+      {
+        "line": 456,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(4, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 595,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 984,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(4, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 1111,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\super-admin\\pages\\ProfitabilityAnalyticsPage.jsx": [
+      {
+        "line": 132,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '20px' }}>",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      }
+    ],
+    "modules\\super-admin\\pages\\PurchaseIndentsView.jsx": [
+      {
+        "line": 322,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "grid-template-columns: repeat(3, 1fr);",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\super-admin\\pages\\SalesAnalyticsPage.css": [
+      {
+        "line": 677,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      }
+    ],
+    "modules\\super-admin\\pages\\SalesAnalyticsPage.jsx": [
+      {
+        "line": 462,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 499,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 538,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\super-admin\\pages\\SuperAdminPortal.jsx": [
+      {
+        "line": 3374,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"modal-box\" onClick={(e) => e.stopPropagation()} style={{ width: '450px' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 4001,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 4071,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "maxWidth: '500px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 4228,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "maxWidth: '800px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 4322,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "maxWidth: '520px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 4675,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 4752,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "maxWidth: '520px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 5159,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 5673,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table className=\"crm-table\" style={{ width: '100%', minWidth: '750px', fontSize: '13px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 6898,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "gridTemplateColumns: 'repeat(3, 1fr)',",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      },
+      {
+        "line": 7730,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"modal-box\" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 8108,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', textAlign: 'left' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 8215,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "maxWidth: '800px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "modules\\purchase\\pages\\GoodsReceiptNote.jsx": [
+      {
+        "line": 464,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"app-card\" style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "modules\\notifications\\pages\\NotificationCenter.jsx": [
+      {
+        "line": 230,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "maxWidth: '1200px',",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ],
+    "modules\\sales-admin\\components\\ActivityLogsPanel.jsx": [
+      {
+        "line": 63,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "modules\\sales-admin\\components\\AnalyticsPanel.jsx": [
+      {
+        "line": 68,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      },
+      {
+        "line": 240,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      },
+      {
+        "line": 340,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      }
+    ],
+    "modules\\sales-admin\\components\\DashboardControlTower.jsx": [
+      {
+        "line": 231,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "<div className=\"dashboard-grid\" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      },
+      {
+        "line": 587,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      }
+    ],
+    "modules\\sales-admin\\components\\LeadsIntelligence.jsx": [
+      {
+        "line": 203,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "modules\\sales-admin\\components\\OrderPipelineControl.jsx": [
+      {
+        "line": 75,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '950px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "modules\\sales-admin\\components\\PaymentsVisibility.jsx": [
+      {
+        "line": 113,
+        "type": "RIGID_GRID_MINMAX",
+        "code": "<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>",
+        "severity": "P1",
+        "reason": "Large fixed minmax in grid causes horizontal page blowout on mobile."
+      }
+    ],
+    "modules\\sales-admin\\components\\SalesAdminSettings.jsx": [
+      {
+        "line": 519,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "modules\\sales-admin\\components\\TargetsManagement.jsx": [
+      {
+        "line": 129,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      }
+    ],
+    "modules\\sales-admin\\components\\TeamPerformance.jsx": [
+      {
+        "line": 246,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '950px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 480,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"modal-box\" onClick={(e) => e.stopPropagation()} style={{ width: '450px', background: 'var(--bg-elevated)', border: '1px solid var(--border-soft)', color: 'var(--text-primary)', borderRadius: '18px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15)' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 610,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"modal-box\" onClick={(e) => e.stopPropagation()} style={{ width: '650px', background: 'var(--bg-elevated)', border: '1px solid var(--border-soft)', color: 'var(--text-primary)', borderRadius: '18px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15)', maxHeight: '92vh', overflowY: 'auto' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 723,
+        "type": "FIXED_MULTI_COLUMN_GRID",
+        "code": "<div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: '16px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', textAlign: 'center', marginBottom: '16px' }}>",
+        "severity": "P1",
+        "reason": "Fixed multi-column grid (> 2 cols) causes child element compression on mobile viewports."
+      }
+    ],
+    "modules\\sales-admin\\components\\UsersManagement.jsx": [
+      {
+        "line": 226,
+        "type": "WIDE_TABLE_MIN_WIDTH",
+        "code": "<table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>",
+        "severity": "P1",
+        "reason": "Wide table requires explicit .erp-table-responsive container to prevent body scroll."
+      },
+      {
+        "line": 341,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"modal-box\" onClick={(e) => e.stopPropagation()} style={{ width: '450px', background: 'var(--bg-elevated)', border: '1px solid var(--border-soft)', color: 'var(--text-primary)', borderRadius: '18px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15)' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      },
+      {
+        "line": 451,
+        "type": "HARDCODED_MODAL_OR_CONTAINER_WIDTH",
+        "code": "<div className=\"modal-box\" onClick={(e) => e.stopPropagation()} style={{ width: '450px', background: 'var(--bg-elevated)', border: '1px solid var(--border-soft)', color: 'var(--text-primary)', borderRadius: '18px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15)' }}>",
+        "severity": "P1",
+        "reason": "Hardcoded pixel width > 450px on modal/card causes mobile viewport clipping."
+      }
+    ]
+  }
+}

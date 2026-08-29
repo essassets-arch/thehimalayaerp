@@ -1647,7 +1647,7 @@ export default function PlantHeadPortal() {
         {/* ── VISUAL OPERATIONAL CHARTS ── */}
         <div className="plant-head-legacy-dashboard" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
           {/* QC Status Distribution Pie Chart */}
-          <div className="app-card" style={{ display: 'flex', flexDirection: 'column', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+          <div className="app-card" style={{ display: 'flex', flexDirection: 'column', maxWidth: 'min(94vw, 600px)', margin: '0 auto', width: '100%' }}>
             <h3 className="card-heading">QC Inspection Quality Distribution</h3>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', flex: 1, flexWrap: 'wrap', gap: '20px', marginTop: '16px' }}>
               <div style={{ width: '200px', height: '200px' }}>
@@ -1792,7 +1792,7 @@ export default function PlantHeadPortal() {
 
 
         {/* Charts Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '24px' }}>
 
           {/* Trend Chart */}
           <div className="app-card">
@@ -1945,7 +1945,7 @@ export default function PlantHeadPortal() {
         </div>
 
         {/* Visual Wastage Comparison & Consumption Pie Chart */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '24px' }}>
 
           {/* Wastage Bar Chart */}
           <div className="app-card">
@@ -2006,7 +2006,7 @@ export default function PlantHeadPortal() {
         </div>
 
         {/* Main Consumption & Monthly Trend */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '24px' }}>
 
           {/* Table */}
           <div className="app-card">
@@ -2244,7 +2244,7 @@ export default function PlantHeadPortal() {
         </div>
 
         {/* Visual Pipeline Bar Chart & 3-Column Summary Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '24px' }}>
 
           {/* Pipeline Bar Chart */}
           <div className="app-card">
@@ -2305,7 +2305,7 @@ export default function PlantHeadPortal() {
         </div>
 
         {/* 3-Column Summary Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '24px' }}>
 
           {/* Store Summary */}
           <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', opacity: matchesBottleneckFilter('Store') ? 1 : 0.35 }}>

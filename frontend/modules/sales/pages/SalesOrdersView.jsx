@@ -166,7 +166,7 @@ function AfterSalesRequestModal({ type, order, onClose, onSuccess }) {
           </select>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           <div className="form-group">
             <label className="form-label">{isReplacement ? 'Replacement' : 'Return'} quantity</label>
             <input
@@ -220,7 +220,7 @@ function AfterSalesRequestModal({ type, order, onClose, onSuccess }) {
         </div>
 
         {!isReplacement && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
             <div className="form-group">
               <label className="form-label">Pickup address</label>
               <input name="pickupAddress" className="form-input" value={pickupAddress} onChange={(event) => setPickupAddress(event.target.value)} required />

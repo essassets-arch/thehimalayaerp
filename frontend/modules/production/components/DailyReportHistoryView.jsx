@@ -905,7 +905,7 @@ export default function DailyReportHistoryView({
                   {/* 4-Metric Strip: Covers, Frames, Sets, Total Weight */}
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
                     background: '#f8fafc',
                     border: '1px solid #f1f5f9',
                     borderRadius: '8px',

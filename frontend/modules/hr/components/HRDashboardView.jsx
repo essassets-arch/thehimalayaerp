@@ -241,7 +241,7 @@ export default function HRDashboardView({
 
         .hr-kpi-grid {
           display: grid;
-          grid-template-columns: repeat(6, 1fr);
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
           gap: 16px;
           width: 100%;
         }

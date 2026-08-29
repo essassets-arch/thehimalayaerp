@@ -836,7 +836,7 @@ export const StoreSummaryReport = () => {
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
                     background: '#f8fafc',
                     border: '1px solid #f1f5f9',
                     borderRadius: '8px',

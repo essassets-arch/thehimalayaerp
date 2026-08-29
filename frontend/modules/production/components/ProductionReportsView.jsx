@@ -693,7 +693,7 @@ export default function ProductionReportsView() {
       </div>
 
       {/* ── SECTION 4: INTERACTIVE VISUAL ANALYTICS CHARTS ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
         
         {/* Chart 1: Daily Production Output Trend */}
         <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>

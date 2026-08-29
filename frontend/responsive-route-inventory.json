@@ -1,0 +1,3313 @@
+{
+  "navPanels": {
+    "Sales": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "path": "/sales/dashboard",
+        "group": null
+      },
+      {
+        "id": "daily-task",
+        "label": "Daily Tasks",
+        "path": "/sales/daily-task",
+        "group": null
+      },
+      {
+        "id": "leads",
+        "label": "Leads Directory",
+        "path": "/sales/leads",
+        "group": "CRM"
+      },
+      {
+        "id": "samples",
+        "label": "Sample Management",
+        "path": "/sales/samples",
+        "group": "CRM"
+      },
+      {
+        "id": "quotations",
+        "label": "Quotations",
+        "path": "/sales/quotations",
+        "group": "Sales"
+      },
+      {
+        "id": "orders",
+        "label": "Orders",
+        "path": "/sales/orders",
+        "group": "Sales"
+      },
+      {
+        "id": "production-status",
+        "label": "Production Status",
+        "path": "/sales/production-status",
+        "group": "Sales"
+      },
+      {
+        "id": "payment-followup",
+        "label": "Payment Follow-up",
+        "path": "/sales/payment-followup",
+        "group": "Sales"
+      },
+      {
+        "id": "payment-history",
+        "label": "Payment History",
+        "path": "/sales/payment-history",
+        "group": "Sales"
+      },
+      {
+        "id": "customers",
+        "label": "Customers",
+        "path": "/sales/customers",
+        "group": "Sales"
+      },
+      {
+        "id": "customer-complaints",
+        "label": "Customer Complaints",
+        "path": "/sales/customer-complaints",
+        "group": "Sales"
+      },
+      {
+        "id": "reports",
+        "label": "Reports",
+        "path": "/sales/reports",
+        "group": null
+      },
+      {
+        "id": "profile",
+        "label": "My Profile",
+        "path": "/sales/profile",
+        "group": null
+      }
+    ],
+    "SuperSales": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "path": "/supersales/dashboard",
+        "group": null
+      },
+      {
+        "id": "daily-task",
+        "label": "Daily Tasks",
+        "path": "/supersales/daily-task",
+        "group": null
+      },
+      {
+        "id": "leads",
+        "label": "Leads Directory",
+        "path": "/supersales/leads",
+        "group": "CRM"
+      },
+      {
+        "id": "samples",
+        "label": "Sample Management",
+        "path": "/supersales/samples",
+        "group": "CRM"
+      },
+      {
+        "id": "quotations",
+        "label": "Quotations",
+        "path": "/supersales/quotations",
+        "group": "SuperSales"
+      },
+      {
+        "id": "orders",
+        "label": "Orders",
+        "path": "/supersales/orders",
+        "group": "SuperSales"
+      },
+      {
+        "id": "production-status",
+        "label": "Production Status",
+        "path": "/supersales/production-status",
+        "group": "SuperSales"
+      },
+      {
+        "id": "payment-followup",
+        "label": "Payment Follow-up",
+        "path": "/supersales/payment-followup",
+        "group": "SuperSales"
+      },
+      {
+        "id": "payment-history",
+        "label": "Payment History",
+        "path": "/supersales/payment-history",
+        "group": "SuperSales"
+      },
+      {
+        "id": "customers",
+        "label": "Customers",
+        "path": "/supersales/customers",
+        "group": "SuperSales"
+      },
+      {
+        "id": "customer-complaints",
+        "label": "Customer Complaints",
+        "path": "/supersales/customer-complaints",
+        "group": "SuperSales"
+      }
+    ],
+    "Production": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "path": "/production/dashboard",
+        "group": null
+      },
+      {
+        "id": "incoming-orders",
+        "label": "Incoming Orders",
+        "path": "/production/incoming-orders",
+        "group": null
+      },
+      {
+        "id": "work-orders",
+        "label": "Work Orders",
+        "path": "/production/work-orders",
+        "group": null
+      },
+      {
+        "id": "floor",
+        "label": "Production Floor",
+        "path": "/production/floor",
+        "group": null
+      },
+      {
+        "id": "daily-report",
+        "label": "Daily Production Report",
+        "path": "/production/daily-report",
+        "group": null
+      },
+      {
+        "id": "completed",
+        "label": "Completed",
+        "path": "/production/completed",
+        "group": null
+      },
+      {
+        "id": "all-stock",
+        "label": "All Stock",
+        "path": "/production/all-stock",
+        "group": null
+      },
+      {
+        "id": "finished-goods",
+        "label": "Finished Goods",
+        "path": "/production/finished-goods",
+        "group": null
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/production/material-requests",
+        "group": null
+      },
+      {
+        "id": "material-requests",
+        "label": "Material Requests",
+        "path": "/production/material-requests",
+        "group": null
+      },
+      {
+        "id": "material-request-history",
+        "label": "Material Request History",
+        "path": "/production/material-requests?tab=history",
+        "group": null
+      },
+      {
+        "id": "store-releases",
+        "label": "Store Releases",
+        "path": "/production/store-releases",
+        "group": null
+      },
+      {
+        "id": "qc-failed",
+        "label": "QC Failed & Reproduction",
+        "path": "/production/qc-failed",
+        "group": null
+      },
+      {
+        "id": "testing",
+        "label": "Testing",
+        "path": "/production/testing",
+        "group": null
+      },
+      {
+        "id": "machines",
+        "label": "Machine Performance",
+        "path": "/production/machines",
+        "group": null
+      },
+      {
+        "id": "reports",
+        "label": "Reports",
+        "path": "/production/reports",
+        "group": null
+      },
+      {
+        "id": "qc-pending",
+        "label": "Pending Inspections",
+        "path": "/production/qc-pending",
+        "group": null
+      },
+      {
+        "id": "qc-history",
+        "label": "Inspected History",
+        "path": "/production/qc-history",
+        "group": null
+      },
+      {
+        "id": "profile",
+        "label": "My Profile",
+        "path": "/production/profile",
+        "group": null
+      }
+    ],
+    "Plant Head": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "path": "/plant-head/dashboard",
+        "group": null
+      },
+      {
+        "id": "daily-summary",
+        "label": "Daily Summary",
+        "path": "/plant-head/daily-summary",
+        "group": null
+      },
+      {
+        "id": "incoming-orders",
+        "label": "Incoming Orders",
+        "path": "/plant-head/incoming-orders",
+        "group": "Planning Board"
+      },
+      {
+        "id": "planning",
+        "label": "Planning",
+        "path": "/plant-head/planning",
+        "group": "Planning Board"
+      },
+      {
+        "id": "products",
+        "label": "Products",
+        "path": "/plant-head/products",
+        "group": "Catalog Management"
+      },
+      {
+        "id": "categories",
+        "label": "Categories",
+        "path": "/plant-head/categories",
+        "group": "Catalog Management"
+      },
+      {
+        "id": "finished-goods",
+        "label": "Finished Goods Inventory",
+        "path": "/plant-head/finished-goods",
+        "group": "Planning Board"
+      },
+      {
+        "id": "material-approvals",
+        "label": "Material Approvals",
+        "path": "/plant-head/material-approvals",
+        "group": null
+      },
+      {
+        "id": "indent-approvals",
+        "label": "Indent Approvals",
+        "path": "/plant-head/indent-approvals",
+        "group": null
+      },
+      {
+        "id": "purchase-approvals",
+        "label": "Purchase Approvals",
+        "path": "/plant-head/purchase-approvals",
+        "group": null
+      },
+      {
+        "id": "replacements",
+        "label": "Replacement Requests",
+        "path": "/plant-head/replacements",
+        "group": null
+      },
+      {
+        "id": "returns",
+        "label": "Return Requests",
+        "path": "/plant-head/returns",
+        "group": null
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/plant-head/production-analytics",
+        "group": null
+      },
+      {
+        "id": "production-analytics",
+        "label": "Production Analytics",
+        "path": "/plant-head/production-analytics",
+        "group": null
+      },
+      {
+        "id": "dispatch-analytics",
+        "label": "Dispatch Analytics",
+        "path": "/plant-head/dispatch-analytics",
+        "group": null
+      },
+      {
+        "id": "material-analytics",
+        "label": "Store Analytics",
+        "path": "/plant-head/material-analytics",
+        "group": null
+      },
+      {
+        "id": "raw-inventory",
+        "label": "Raw Inventory",
+        "path": "/plant-head/raw-inventory",
+        "group": null
+      },
+      {
+        "id": "qc-failures",
+        "label": "QC Failures",
+        "path": "/plant-head/qc-failures",
+        "group": null
+      },
+      {
+        "id": "testing",
+        "label": "Production Testing",
+        "path": "/plant-head/testing",
+        "group": null
+      },
+      {
+        "id": "profile",
+        "label": "My Profile",
+        "path": "/plant-head/profile",
+        "group": null
+      },
+      {
+        "id": "recruitment-request",
+        "label": "Recruitment Request",
+        "path": "/plant-head/recruitment-request",
+        "group": "Planning Board"
+      },
+      {
+        "id": "daily-reports",
+        "label": "Daily Reports",
+        "path": "/plant-head/daily-reports",
+        "group": null
+      },
+      {
+        "id": "leave-approvals",
+        "label": "Leave Approvals",
+        "path": "/plant-head/leave-approvals",
+        "group": null
+      },
+      {
+        "id": "attendance",
+        "label": "Attendance Data",
+        "path": "/plant-head/attendance",
+        "group": null
+      }
+    ],
+    "Store": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "path": "/store/dashboard",
+        "group": null
+      },
+      {
+        "id": "raw-inventory",
+        "label": "Raw Inventory",
+        "path": "/store/raw-inventory",
+        "group": null
+      },
+      {
+        "id": "low-stock-alerts",
+        "label": "Low Stock Alerts",
+        "path": "/store/low-stock-alerts",
+        "group": null
+      },
+      {
+        "id": "analysis-requests",
+        "label": "Product & Brand Analysis",
+        "path": "/store/analysis-requests",
+        "group": "Inward Quality & Returns"
+      },
+      {
+        "id": "material-requests",
+        "label": "Material Requests",
+        "path": "/store/material-requests",
+        "group": null
+      },
+      {
+        "id": "store-releases",
+        "label": "Store Releases",
+        "path": "/store/store-releases",
+        "group": null
+      },
+      {
+        "id": "issued-history",
+        "label": "Material Issued History",
+        "path": "/store/issued-history",
+        "group": null
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/store/purchase",
+        "group": null
+      },
+      {
+        "id": "create-request",
+        "label": "Create Request",
+        "path": "/store/purchase?tab=Create Request",
+        "group": null
+      },
+      {
+        "id": "verify-delivery",
+        "label": "Verify Delivery",
+        "path": "",
+        "group": null
+      },
+      {
+        "id": "delivery-history",
+        "label": "Delivery History",
+        "path": "/store/purchase?tab=Delivery History",
+        "group": null
+      },
+      {
+        "id": "grn-history",
+        "label": "GRN History",
+        "path": "/store/purchase?tab=GRN History",
+        "group": null
+      },
+      {
+        "id": "material-rejections",
+        "label": "Material Rejections",
+        "path": "/store/purchase?tab=Material Rejections",
+        "group": null
+      },
+      {
+        "id": "replacement-deliveries",
+        "label": "Replacement Deliveries",
+        "path": "/store/purchase?tab=Replacement Deliveries",
+        "group": null
+      },
+      {
+        "id": "indent-history",
+        "label": "Indent History",
+        "path": "/store/purchase?tab=Indent History",
+        "group": null
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/store/reports",
+        "group": null
+      },
+      {
+        "id": "summary-report",
+        "label": "Store Summary Report",
+        "path": "/store/reports",
+        "group": null
+      },
+      {
+        "id": "profile",
+        "label": "My Profile",
+        "path": "/store/profile",
+        "group": null
+      }
+    ],
+    "Dispatch": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "path": "/dispatch/dashboard",
+        "group": null
+      },
+      {
+        "id": "finished-goods",
+        "label": "Finished Goods",
+        "path": "/dispatch/finished-goods",
+        "group": "Logistics"
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/dispatch/orders",
+        "group": null
+      },
+      {
+        "id": "pending-dispatch",
+        "label": "Pending Dispatch",
+        "path": "/dispatch/orders",
+        "group": null
+      },
+      {
+        "id": "new-dispatch",
+        "label": "Create Dispatch",
+        "path": "/dispatch/create-dispatch",
+        "group": null
+      },
+      {
+        "id": "in-transit",
+        "label": "In Transit",
+        "path": "/dispatch/in-transit",
+        "group": null
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered",
+        "path": "/dispatch/delivery",
+        "group": null
+      },
+      {
+        "id": "sample-dispatch",
+        "label": "Sample Dispatch",
+        "path": "/dispatch/sample-dispatch",
+        "group": "Logistics"
+      },
+      {
+        "id": "sample-pending",
+        "label": "Pending Dispatch",
+        "path": "/dispatch/sample-dispatch?status=pending",
+        "group": null
+      },
+      {
+        "id": "sample-create",
+        "label": "Create Sample Dispatch",
+        "path": "/dispatch/sample-dispatch/create/new",
+        "group": null
+      },
+      {
+        "id": "sample-transit",
+        "label": "In Transit",
+        "path": "/dispatch/sample-dispatch?status=in-transit",
+        "group": null
+      },
+      {
+        "id": "sample-delivered",
+        "label": "Delivered",
+        "path": "/dispatch/sample-dispatch?status=delivered",
+        "group": null
+      },
+      {
+        "id": "sample-all",
+        "label": "All",
+        "path": "/dispatch/sample-dispatch?status=all",
+        "group": null
+      },
+      {
+        "id": "replacements",
+        "label": "Replacement Dispatch",
+        "path": "/dispatch/replacements",
+        "group": "Logistics"
+      },
+      {
+        "id": "replacement-pending",
+        "label": "Pending Dispatch",
+        "path": "/dispatch/replacements?status=pending",
+        "group": null
+      },
+      {
+        "id": "replacement-transit",
+        "label": "In Transit",
+        "path": "/dispatch/replacements?status=in-transit",
+        "group": null
+      },
+      {
+        "id": "replacement-delivered",
+        "label": "Delivered",
+        "path": "/dispatch/replacements?status=delivered",
+        "group": null
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/dispatch/returns",
+        "group": null
+      },
+      {
+        "id": "return-pending",
+        "label": "Pending Dispatch",
+        "path": "/dispatch/returns?status=pending",
+        "group": null
+      },
+      {
+        "id": "return-transit",
+        "label": "In Transit",
+        "path": "/dispatch/returns?status=in-transit",
+        "group": null
+      },
+      {
+        "id": "return-delivered",
+        "label": "Delivered",
+        "path": "/dispatch/returns?status=delivered",
+        "group": null
+      },
+      {
+        "id": "daily-report",
+        "label": "Daily Dispatch Report",
+        "path": "/dispatch/daily-report",
+        "group": "Logistics"
+      },
+      {
+        "id": "remaining",
+        "label": "Remaining Dispatch",
+        "path": "/dispatch/remaining",
+        "group": null
+      },
+      {
+        "id": "history",
+        "label": "Dispatch History",
+        "path": "/dispatch/history",
+        "group": null
+      },
+      {
+        "id": "profile",
+        "label": "My Profile",
+        "path": "/dispatch/profile",
+        "group": null
+      }
+    ],
+    "Dispatch 2": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "path": "/dispatch-2/dashboard",
+        "group": null
+      },
+      {
+        "id": "finished-goods",
+        "label": "Finished Goods",
+        "path": "/dispatch-2/finished-goods",
+        "group": "Logistics"
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/dispatch-2/orders",
+        "group": null
+      },
+      {
+        "id": "pending-dispatch",
+        "label": "Pending Dispatch",
+        "path": "/dispatch-2/orders",
+        "group": null
+      },
+      {
+        "id": "new-dispatch",
+        "label": "Create Dispatch",
+        "path": "/dispatch-2/create-dispatch",
+        "group": null
+      },
+      {
+        "id": "in-transit",
+        "label": "In Transit",
+        "path": "/dispatch-2/in-transit",
+        "group": null
+      },
+      {
+        "id": "delivered",
+        "label": "Delivered",
+        "path": "/dispatch-2/delivery",
+        "group": null
+      },
+      {
+        "id": "sample-dispatch",
+        "label": "Sample Dispatch",
+        "path": "/dispatch-2/sample-dispatch",
+        "group": "Logistics"
+      },
+      {
+        "id": "sample-pending",
+        "label": "Pending Dispatch",
+        "path": "/dispatch-2/sample-dispatch?status=pending",
+        "group": null
+      },
+      {
+        "id": "sample-create",
+        "label": "Create Sample Dispatch",
+        "path": "/dispatch-2/sample-dispatch/create/new",
+        "group": null
+      },
+      {
+        "id": "sample-transit",
+        "label": "In Transit",
+        "path": "/dispatch-2/sample-dispatch?status=in-transit",
+        "group": null
+      },
+      {
+        "id": "sample-delivered",
+        "label": "Delivered",
+        "path": "/dispatch-2/sample-dispatch?status=delivered",
+        "group": null
+      },
+      {
+        "id": "sample-all",
+        "label": "All",
+        "path": "/dispatch-2/sample-dispatch?status=all",
+        "group": null
+      },
+      {
+        "id": "replacements",
+        "label": "Replacement Dispatch",
+        "path": "/dispatch-2/replacements",
+        "group": "Logistics"
+      },
+      {
+        "id": "replacement-pending",
+        "label": "Pending Dispatch",
+        "path": "/dispatch-2/replacements?status=pending",
+        "group": null
+      },
+      {
+        "id": "replacement-transit",
+        "label": "In Transit",
+        "path": "/dispatch-2/replacements?status=in-transit",
+        "group": null
+      },
+      {
+        "id": "replacement-delivered",
+        "label": "Delivered",
+        "path": "/dispatch-2/replacements?status=delivered",
+        "group": null
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/dispatch-2/returns",
+        "group": null
+      },
+      {
+        "id": "return-pending",
+        "label": "Pending Dispatch",
+        "path": "/dispatch-2/returns?status=pending",
+        "group": null
+      },
+      {
+        "id": "return-transit",
+        "label": "In Transit",
+        "path": "/dispatch-2/returns?status=in-transit",
+        "group": null
+      },
+      {
+        "id": "return-delivered",
+        "label": "Delivered",
+        "path": "/dispatch-2/returns?status=delivered",
+        "group": null
+      },
+      {
+        "id": "daily-report",
+        "label": "Daily Dispatch Report",
+        "path": "/dispatch-2/daily-report",
+        "group": "Logistics"
+      },
+      {
+        "id": "remaining",
+        "label": "Remaining Dispatch",
+        "path": "/dispatch-2/remaining",
+        "group": null
+      },
+      {
+        "id": "history",
+        "label": "Dispatch History",
+        "path": "/dispatch-2/history",
+        "group": null
+      },
+      {
+        "id": "profile",
+        "label": "My Profile",
+        "path": "/dispatch-2/profile",
+        "group": null
+      }
+    ],
+    "Finance Executive": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "path": "/finance-executive/dashboard",
+        "group": null
+      },
+      {
+        "id": "daily-tasks",
+        "label": "Tasks",
+        "path": "/finance-executive/daily-tasks",
+        "group": null
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/finance-executive/payment-verification",
+        "group": null
+      },
+      {
+        "id": "payment-verification-queue",
+        "label": "Payment Verification Queue",
+        "path": "/finance-executive/payment-verification",
+        "group": null
+      },
+      {
+        "id": "payment-receipts",
+        "label": "Payment Receipts",
+        "path": "/finance-executive/receipts",
+        "group": null
+      },
+      {
+        "id": "outstanding-payments",
+        "label": "Outstanding Payments",
+        "path": "/finance-executive/outstanding",
+        "group": null
+      },
+      {
+        "id": "customers",
+        "label": "Customers",
+        "path": "/finance-executive/customers",
+        "group": null
+      },
+      {
+        "id": "reports",
+        "label": "Reports",
+        "path": "/finance-executive/reports",
+        "group": null
+      },
+      {
+        "id": "profile",
+        "label": "My Profile",
+        "path": "/finance-executive/profile",
+        "group": null
+      }
+    ],
+    "Finance": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "path": "/finance/dashboard",
+        "group": null
+      },
+      {
+        "id": "daily-tasks",
+        "label": "Daily Tasks",
+        "path": "/finance/daily-tasks",
+        "group": null
+      },
+      {
+        "id": "brand-analysis",
+        "label": "Brand Analysis",
+        "path": "/finance/brand-analysis",
+        "group": null
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/finance/payment-verification",
+        "group": null
+      },
+      {
+        "id": "payment-verification",
+        "label": "Payment Verification Queue",
+        "path": "/finance/payment-verification",
+        "group": null
+      },
+      {
+        "id": "payment-receipts",
+        "label": "Payment Receipts",
+        "path": "/finance/receipts",
+        "group": null
+      },
+      {
+        "id": "outstanding-payments",
+        "label": "Outstanding Payments",
+        "path": "/finance/outstanding",
+        "group": null
+      },
+      {
+        "id": "customers",
+        "label": "Customers",
+        "path": "/finance/customers",
+        "group": null
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/finance/po-requests",
+        "group": null
+      },
+      {
+        "id": "pending-requests",
+        "label": "Pending Requests",
+        "path": "/finance/po-requests?tab=Pending Requests",
+        "group": null
+      },
+      {
+        "id": "create-po",
+        "label": "Create PO",
+        "path": "/finance/po-requests?tab=Create PO",
+        "group": null
+      },
+      {
+        "id": "draft-pos",
+        "label": "Draft POs",
+        "path": "/finance/po-requests?tab=Draft POs",
+        "group": null
+      },
+      {
+        "id": "pending-approval",
+        "label": "Pending Approval",
+        "path": "/finance/po-requests?tab=Pending Approval",
+        "group": null
+      },
+      {
+        "id": "approved-pos",
+        "label": "Approved POs",
+        "path": "/finance/po-requests?tab=Approved POs",
+        "group": null
+      },
+      {
+        "id": "delivery-audit",
+        "label": "Delivery Audit",
+        "path": "/finance/po-requests?tab=Delivery Audit",
+        "group": null
+      },
+      {
+        "id": "closed-pos",
+        "label": "Closed POs",
+        "path": "/finance/po-requests?tab=Closed POs",
+        "group": null
+      },
+      {
+        "id": "history",
+        "label": "History",
+        "path": "/finance/po-requests?tab=History",
+        "group": null
+      },
+      {
+        "id": "rejection-management",
+        "label": "Material Rejections",
+        "path": "/finance/rejection-management",
+        "group": null
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/finance/salary/pending",
+        "group": null
+      },
+      {
+        "id": "pending-salary",
+        "label": "Pending Salary Payments",
+        "path": "/finance/salary/pending",
+        "group": null
+      },
+      {
+        "id": "processing-salary",
+        "label": "Processing",
+        "path": "/finance/salary/processing",
+        "group": null
+      },
+      {
+        "id": "paid-salary",
+        "label": "Paid Salaries",
+        "path": "/finance/salary/paid",
+        "group": null
+      },
+      {
+        "id": "salary-history",
+        "label": "Salary History",
+        "path": "/finance/salary/history",
+        "group": null
+      },
+      {
+        "id": "reports",
+        "label": "Reports",
+        "path": "/finance/reports",
+        "group": null
+      },
+      {
+        "id": "profile",
+        "label": "My Profile",
+        "path": "/finance/profile",
+        "group": null
+      }
+    ],
+    "HR": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "path": "/hr/dashboard",
+        "group": null
+      },
+      {
+        "id": "employees",
+        "label": "Staff Directory",
+        "path": "/hr/employees",
+        "group": null
+      },
+      {
+        "id": "register-staff",
+        "label": "Register Staff",
+        "path": "/hr/register-staff",
+        "group": null
+      },
+      {
+        "id": "users",
+        "label": "User Management",
+        "path": "/hr/users",
+        "group": null
+      },
+      {
+        "id": "recruitment",
+        "label": "Recruitment Requisitions",
+        "path": "/hr/recruitment",
+        "group": null
+      },
+      {
+        "id": "attendance",
+        "label": "Attendance & Clock",
+        "path": "/hr/attendance",
+        "group": null
+      },
+      {
+        "id": "leaves",
+        "label": "Leave Workflows",
+        "path": "/hr/leaves",
+        "group": null
+      },
+      {
+        "id": "exit-clearance",
+        "label": "Exit Clearance",
+        "path": "/hr/exit-clearance",
+        "group": null
+      },
+      {
+        "id": "",
+        "label": "",
+        "path": "/hr/salary/prepare",
+        "group": null
+      },
+      {
+        "id": "prepare-salary",
+        "label": "Prepare Salary",
+        "path": "/hr/salary/prepare",
+        "group": null
+      },
+      {
+        "id": "salary-status",
+        "label": "Salary Approval Status",
+        "path": "/hr/salary/status",
+        "group": null
+      },
+      {
+        "id": "salary-history",
+        "label": "Salary History",
+        "path": "/hr/salary/history",
+        "group": null
+      },
+      {
+        "id": "notifications",
+        "label": "HR Notifications",
+        "path": "/hr/notifications",
+        "group": null
+      },
+      {
+        "id": "profile",
+        "label": "My Profile",
+        "path": "/hr/profile",
+        "group": null
+      },
+      {
+        "id": "expense-management",
+        "label": "Expense Management",
+        "path": "/hr/expense-management",
+        "group": null
+      },
+      {
+        "id": "leave-approvals",
+        "label": "Leave Approvals",
+        "path": "/hr/leave-approvals",
+        "group": null
+      },
+      {
+        "id": "attendance-requests",
+        "label": "Attendance Requests",
+        "path": "/hr/attendance-requests",
+        "group": null
+      }
+    ],
+    "Back Office": [
+      {
+        "id": "daily-report",
+        "label": "Daily Report",
+        "path": "/back-office/daily-report",
+        "group": null
+      },
+      {
+        "id": "profile",
+        "label": "My Profile",
+        "path": "/back-office/profile",
+        "group": null
+      }
+    ],
+    "BACK_OFFICE": [
+      {
+        "id": "daily-report",
+        "label": "Daily Report",
+        "path": "/back-office/daily-report",
+        "group": null
+      },
+      {
+        "id": "profile",
+        "label": "My Profile",
+        "path": "/back-office/profile",
+        "group": null
+      }
+    ],
+    "Super Admin": [
+      {
+        "id": "dashboard",
+        "label": "Dashboard",
+        "path": "/super-admin/dashboard",
+        "group": null
+      },
+      {
+        "id": "business-reports",
+        "label": "Business Reports",
+        "path": "/super-admin/reports",
+        "group": null
+      },
+      {
+        "id": "backoffice-report",
+        "label": "Back Office Reports",
+        "path": "/super-admin/backoffice-report",
+        "group": null
+      },
+      {
+        "id": "daily-reports",
+        "label": "Daily Production Reports",
+        "path": "/super-admin/daily-reports",
+        "group": null
+      },
+      {
+        "id": "brand-analysis",
+        "label": "Brand Analysis Requests",
+        "path": "/super-admin/brand-analysis",
+        "group": null
+      },
+      {
+        "id": "purchase-indents",
+        "label": "Purchase Order Approvals",
+        "path": "/super-admin/purchase-indents",
+        "group": null
+      },
+      {
+        "id": "salary-approval",
+        "label": "Salary Approvals",
+        "path": "/super-admin/salary-approval",
+        "group": null
+      },
+      {
+        "id": "exit-clearance",
+        "label": "Exit Clearance (Read-Only)",
+        "path": "/super-admin/exit-clearance",
+        "group": null
+      },
+      {
+        "id": "attendance",
+        "label": "Attendance Data",
+        "path": "/super-admin/attendance",
+        "group": null
+      },
+      {
+        "id": "customer-complaints",
+        "label": "Customer Complaints",
+        "path": "/super-admin/customer-complaints",
+        "group": null
+      },
+      {
+        "id": "users",
+        "label": "Users & Roles",
+        "path": "/super-admin/users",
+        "group": null
+      },
+      {
+        "id": "employees",
+        "label": "Employees",
+        "path": "/super-admin/employees",
+        "group": null
+      },
+      {
+        "id": "sales-target",
+        "label": "Sales Targets",
+        "path": "/super-admin/sales-target",
+        "group": null
+      },
+      {
+        "id": "production-target",
+        "label": "Production Targets",
+        "path": "/super-admin/production-target",
+        "group": null
+      },
+      {
+        "id": "products",
+        "label": "Products",
+        "path": "/super-admin/products",
+        "group": null
+      },
+      {
+        "id": "categories",
+        "label": "Categories",
+        "path": "/super-admin/categories",
+        "group": null
+      },
+      {
+        "id": "finished-goods",
+        "label": "Finished Goods Inventory",
+        "path": "/super-admin/finished-goods",
+        "group": null
+      },
+      {
+        "id": "map",
+        "label": "Live User Map",
+        "path": "/super-admin/map",
+        "group": null
+      },
+      {
+        "id": "analytics-sales",
+        "label": "Sales Analytics",
+        "path": "/super-admin/analytics/sales",
+        "group": null
+      },
+      {
+        "id": "analytics-finance",
+        "label": "Finance Analytics",
+        "path": "/super-admin/analytics/finance",
+        "group": null
+      },
+      {
+        "id": "analytics-production",
+        "label": "Production Analytics",
+        "path": "/super-admin/analytics/production",
+        "group": null
+      },
+      {
+        "id": "analytics-inventory",
+        "label": "Inventory Analytics",
+        "path": "/super-admin/analytics/inventory",
+        "group": null
+      },
+      {
+        "id": "analytics-hr",
+        "label": "HR Analytics",
+        "path": "/super-admin/analytics/hr",
+        "group": null
+      },
+      {
+        "id": "analytics-dispatch",
+        "label": "Dispatch Analytics",
+        "path": "/super-admin/analytics/dispatch",
+        "group": null
+      },
+      {
+        "id": "reports",
+        "label": "Reports",
+        "path": "/super-admin/reports",
+        "group": null
+      },
+      {
+        "id": "notifications",
+        "label": "Notification Management",
+        "path": "/super-admin/notifications",
+        "group": null
+      },
+      {
+        "id": "expense-management",
+        "label": "Expense Management",
+        "path": "/super-admin/expense-management",
+        "group": null
+      },
+      {
+        "id": "leave-approvals",
+        "label": "Leave Approvals",
+        "path": "/super-admin/leave-approvals",
+        "group": null
+      }
+    ]
+  },
+  "fsRoutes": [
+    {
+      "route": "/",
+      "rawRoute": "/",
+      "pageFile": "app/page.tsx",
+      "layoutFile": "app/layout.tsx",
+      "dir": "app"
+    },
+    {
+      "route": "/admin/[[...slug]]",
+      "rawRoute": "/(dashboard)/admin/[[...slug]]",
+      "pageFile": "app/(dashboard)/admin/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/admin/[[...slug]]"
+    },
+    {
+      "route": "/back-office/daily-report",
+      "rawRoute": "/(dashboard)/back-office/daily-report",
+      "pageFile": "app/(dashboard)/back-office/daily-report/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/back-office/daily-report"
+    },
+    {
+      "route": "/back-office/daily-report/create",
+      "rawRoute": "/(dashboard)/back-office/daily-report/create",
+      "pageFile": "app/(dashboard)/back-office/daily-report/create/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/back-office/daily-report/create"
+    },
+    {
+      "route": "/back-office/daily-report/edit/[id]",
+      "rawRoute": "/(dashboard)/back-office/daily-report/edit/[id]",
+      "pageFile": "app/(dashboard)/back-office/daily-report/edit/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/back-office/daily-report/edit/[id]"
+    },
+    {
+      "route": "/back-office/profile",
+      "rawRoute": "/(dashboard)/back-office/profile",
+      "pageFile": "app/(dashboard)/back-office/profile/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/back-office/profile"
+    },
+    {
+      "route": "/crm/leads",
+      "rawRoute": "/(dashboard)/crm/leads",
+      "pageFile": "app/(dashboard)/crm/leads/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/crm/leads"
+    },
+    {
+      "route": "/crm/leads/[id]",
+      "rawRoute": "/(dashboard)/crm/leads/[id]",
+      "pageFile": "app/(dashboard)/crm/leads/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/crm/leads/[id]"
+    },
+    {
+      "route": "/crm/quotations",
+      "rawRoute": "/(dashboard)/crm/quotations",
+      "pageFile": "app/(dashboard)/crm/quotations/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/crm/quotations"
+    },
+    {
+      "route": "/crm/quotations/[id]",
+      "rawRoute": "/(dashboard)/crm/quotations/[id]",
+      "pageFile": "app/(dashboard)/crm/quotations/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/crm/quotations/[id]"
+    },
+    {
+      "route": "/dispatch",
+      "rawRoute": "/(dashboard)/dispatch",
+      "pageFile": "app/(dashboard)/dispatch/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch"
+    },
+    {
+      "route": "/dispatch/create",
+      "rawRoute": "/(dashboard)/dispatch/create",
+      "pageFile": "app/(dashboard)/dispatch/create/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/create"
+    },
+    {
+      "route": "/dispatch/create-dispatch",
+      "rawRoute": "/(dashboard)/dispatch/create-dispatch",
+      "pageFile": "app/(dashboard)/dispatch/create-dispatch/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/create-dispatch"
+    },
+    {
+      "route": "/dispatch/daily-report/[[...slug]]",
+      "rawRoute": "/(dashboard)/dispatch/daily-report/[[...slug]]",
+      "pageFile": "app/(dashboard)/dispatch/daily-report/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/daily-report/[[...slug]]"
+    },
+    {
+      "route": "/dispatch/dashboard",
+      "rawRoute": "/(dashboard)/dispatch/dashboard",
+      "pageFile": "app/(dashboard)/dispatch/dashboard/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/dashboard"
+    },
+    {
+      "route": "/dispatch/delivery",
+      "rawRoute": "/(dashboard)/dispatch/delivery",
+      "pageFile": "app/(dashboard)/dispatch/delivery/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/delivery"
+    },
+    {
+      "route": "/dispatch/finished-goods",
+      "rawRoute": "/(dashboard)/dispatch/finished-goods",
+      "pageFile": "app/(dashboard)/dispatch/finished-goods/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/finished-goods"
+    },
+    {
+      "route": "/dispatch/history",
+      "rawRoute": "/(dashboard)/dispatch/history",
+      "pageFile": "app/(dashboard)/dispatch/history/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/history"
+    },
+    {
+      "route": "/dispatch/in-transit",
+      "rawRoute": "/(dashboard)/dispatch/in-transit",
+      "pageFile": "app/(dashboard)/dispatch/in-transit/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/in-transit"
+    },
+    {
+      "route": "/dispatch/orders",
+      "rawRoute": "/(dashboard)/dispatch/orders",
+      "pageFile": "app/(dashboard)/dispatch/orders/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/orders"
+    },
+    {
+      "route": "/dispatch/profile",
+      "rawRoute": "/(dashboard)/dispatch/profile",
+      "pageFile": "app/(dashboard)/dispatch/profile/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/profile"
+    },
+    {
+      "route": "/dispatch/replacements",
+      "rawRoute": "/(dashboard)/dispatch/replacements",
+      "pageFile": "app/(dashboard)/dispatch/replacements/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/replacements"
+    },
+    {
+      "route": "/dispatch/returns",
+      "rawRoute": "/(dashboard)/dispatch/returns",
+      "pageFile": "app/(dashboard)/dispatch/returns/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/returns"
+    },
+    {
+      "route": "/dispatch/sample-dispatch",
+      "rawRoute": "/(dashboard)/dispatch/sample-dispatch",
+      "pageFile": "app/(dashboard)/dispatch/sample-dispatch/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/sample-dispatch"
+    },
+    {
+      "route": "/dispatch/sample-dispatch/create/[id]",
+      "rawRoute": "/(dashboard)/dispatch/sample-dispatch/create/[id]",
+      "pageFile": "app/(dashboard)/dispatch/sample-dispatch/create/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/sample-dispatch/create/[id]"
+    },
+    {
+      "route": "/dispatch/[...slug]",
+      "rawRoute": "/(dashboard)/dispatch/[...slug]",
+      "pageFile": "app/(dashboard)/dispatch/[...slug]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/[...slug]"
+    },
+    {
+      "route": "/dispatch/[id]",
+      "rawRoute": "/(dashboard)/dispatch/[id]",
+      "pageFile": "app/(dashboard)/dispatch/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch/[id]"
+    },
+    {
+      "route": "/dispatch-2/create",
+      "rawRoute": "/(dashboard)/dispatch-2/create",
+      "pageFile": "app/(dashboard)/dispatch-2/create/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/create"
+    },
+    {
+      "route": "/dispatch-2/create-dispatch",
+      "rawRoute": "/(dashboard)/dispatch-2/create-dispatch",
+      "pageFile": "app/(dashboard)/dispatch-2/create-dispatch/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/create-dispatch"
+    },
+    {
+      "route": "/dispatch-2/daily-report/[[...slug]]",
+      "rawRoute": "/(dashboard)/dispatch-2/daily-report/[[...slug]]",
+      "pageFile": "app/(dashboard)/dispatch-2/daily-report/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/daily-report/[[...slug]]"
+    },
+    {
+      "route": "/dispatch-2/dashboard",
+      "rawRoute": "/(dashboard)/dispatch-2/dashboard",
+      "pageFile": "app/(dashboard)/dispatch-2/dashboard/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/dashboard"
+    },
+    {
+      "route": "/dispatch-2/delivery",
+      "rawRoute": "/(dashboard)/dispatch-2/delivery",
+      "pageFile": "app/(dashboard)/dispatch-2/delivery/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/delivery"
+    },
+    {
+      "route": "/dispatch-2/finished-goods",
+      "rawRoute": "/(dashboard)/dispatch-2/finished-goods",
+      "pageFile": "app/(dashboard)/dispatch-2/finished-goods/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/finished-goods"
+    },
+    {
+      "route": "/dispatch-2/history",
+      "rawRoute": "/(dashboard)/dispatch-2/history",
+      "pageFile": "app/(dashboard)/dispatch-2/history/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/history"
+    },
+    {
+      "route": "/dispatch-2/in-transit",
+      "rawRoute": "/(dashboard)/dispatch-2/in-transit",
+      "pageFile": "app/(dashboard)/dispatch-2/in-transit/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/in-transit"
+    },
+    {
+      "route": "/dispatch-2/orders",
+      "rawRoute": "/(dashboard)/dispatch-2/orders",
+      "pageFile": "app/(dashboard)/dispatch-2/orders/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/orders"
+    },
+    {
+      "route": "/dispatch-2/replacements",
+      "rawRoute": "/(dashboard)/dispatch-2/replacements",
+      "pageFile": "app/(dashboard)/dispatch-2/replacements/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/replacements"
+    },
+    {
+      "route": "/dispatch-2/reports",
+      "rawRoute": "/(dashboard)/dispatch-2/reports",
+      "pageFile": "app/(dashboard)/dispatch-2/reports/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/reports"
+    },
+    {
+      "route": "/dispatch-2/returns",
+      "rawRoute": "/(dashboard)/dispatch-2/returns",
+      "pageFile": "app/(dashboard)/dispatch-2/returns/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/returns"
+    },
+    {
+      "route": "/dispatch-2/sample-dispatch",
+      "rawRoute": "/(dashboard)/dispatch-2/sample-dispatch",
+      "pageFile": "app/(dashboard)/dispatch-2/sample-dispatch/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/sample-dispatch"
+    },
+    {
+      "route": "/dispatch-2/[...slug]",
+      "rawRoute": "/(dashboard)/dispatch-2/[...slug]",
+      "pageFile": "app/(dashboard)/dispatch-2/[...slug]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/dispatch-2/[...slug]"
+    },
+    {
+      "route": "/employee/payslips",
+      "rawRoute": "/(dashboard)/employee/payslips",
+      "pageFile": "app/(dashboard)/employee/payslips/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/employee/payslips"
+    },
+    {
+      "route": "/employee/salary-slips",
+      "rawRoute": "/(dashboard)/employee/salary-slips",
+      "pageFile": "app/(dashboard)/employee/salary-slips/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/employee/salary-slips"
+    },
+    {
+      "route": "/employee/salary-slips/[id]",
+      "rawRoute": "/(dashboard)/employee/salary-slips/[id]",
+      "pageFile": "app/(dashboard)/employee/salary-slips/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/employee/salary-slips/[id]"
+    },
+    {
+      "route": "/finance/brand-analysis",
+      "rawRoute": "/(dashboard)/finance/brand-analysis",
+      "pageFile": "app/(dashboard)/finance/brand-analysis/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/brand-analysis"
+    },
+    {
+      "route": "/finance/invoices",
+      "rawRoute": "/(dashboard)/finance/invoices",
+      "pageFile": "app/(dashboard)/finance/invoices/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/invoices"
+    },
+    {
+      "route": "/finance/invoices/[id]",
+      "rawRoute": "/(dashboard)/finance/invoices/[id]",
+      "pageFile": "app/(dashboard)/finance/invoices/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/invoices/[id]"
+    },
+    {
+      "route": "/finance/ledger",
+      "rawRoute": "/(dashboard)/finance/ledger",
+      "pageFile": "app/(dashboard)/finance/ledger/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/ledger"
+    },
+    {
+      "route": "/finance/payment-verification",
+      "rawRoute": "/(dashboard)/finance/payment-verification",
+      "pageFile": "app/(dashboard)/finance/payment-verification/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/payment-verification"
+    },
+    {
+      "route": "/finance/payments",
+      "rawRoute": "/(dashboard)/finance/payments",
+      "pageFile": "app/(dashboard)/finance/payments/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/payments"
+    },
+    {
+      "route": "/finance/payments/create",
+      "rawRoute": "/(dashboard)/finance/payments/create",
+      "pageFile": "app/(dashboard)/finance/payments/create/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/payments/create"
+    },
+    {
+      "route": "/finance/payments/[id]",
+      "rawRoute": "/(dashboard)/finance/payments/[id]",
+      "pageFile": "app/(dashboard)/finance/payments/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/payments/[id]"
+    },
+    {
+      "route": "/finance/purchase-orders",
+      "rawRoute": "/(dashboard)/finance/purchase-orders",
+      "pageFile": "app/(dashboard)/finance/purchase-orders/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/purchase-orders"
+    },
+    {
+      "route": "/finance/purchase-orders/[id]/close",
+      "rawRoute": "/(dashboard)/finance/purchase-orders/[id]/close",
+      "pageFile": "app/(dashboard)/finance/purchase-orders/[id]/close/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/purchase-orders/[id]/close"
+    },
+    {
+      "route": "/finance/reports",
+      "rawRoute": "/(dashboard)/finance/reports",
+      "pageFile": "app/(dashboard)/finance/reports/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/reports"
+    },
+    {
+      "route": "/finance/salary/history",
+      "rawRoute": "/(dashboard)/finance/salary/history",
+      "pageFile": "app/(dashboard)/finance/salary/history/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/salary/history"
+    },
+    {
+      "route": "/finance/salary/history/[payrollId]/salary-slip",
+      "rawRoute": "/(dashboard)/finance/salary/history/[payrollId]/salary-slip",
+      "pageFile": "app/(dashboard)/finance/salary/history/[payrollId]/salary-slip/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/salary/history/[payrollId]/salary-slip"
+    },
+    {
+      "route": "/finance/salary/paid",
+      "rawRoute": "/(dashboard)/finance/salary/paid",
+      "pageFile": "app/(dashboard)/finance/salary/paid/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/salary/paid"
+    },
+    {
+      "route": "/finance/salary/pending",
+      "rawRoute": "/(dashboard)/finance/salary/pending",
+      "pageFile": "app/(dashboard)/finance/salary/pending/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/salary/pending"
+    },
+    {
+      "route": "/finance/salary/processing",
+      "rawRoute": "/(dashboard)/finance/salary/processing",
+      "pageFile": "app/(dashboard)/finance/salary/processing/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/salary/processing"
+    },
+    {
+      "route": "/finance/salary-disbursement",
+      "rawRoute": "/(dashboard)/finance/salary-disbursement",
+      "pageFile": "app/(dashboard)/finance/salary-disbursement/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/salary-disbursement"
+    },
+    {
+      "route": "/finance/salary-history",
+      "rawRoute": "/(dashboard)/finance/salary-history",
+      "pageFile": "app/(dashboard)/finance/salary-history/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/salary-history"
+    },
+    {
+      "route": "/finance/salary-verification",
+      "rawRoute": "/(dashboard)/finance/salary-verification",
+      "pageFile": "app/(dashboard)/finance/salary-verification/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/salary-verification"
+    },
+    {
+      "route": "/finance/sales",
+      "rawRoute": "/(dashboard)/finance/sales",
+      "pageFile": "app/(dashboard)/finance/sales/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/sales"
+    },
+    {
+      "route": "/finance/[[...slug]]",
+      "rawRoute": "/(dashboard)/finance/[[...slug]]",
+      "pageFile": "app/(dashboard)/finance/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance/[[...slug]]"
+    },
+    {
+      "route": "/finance-executive/[[...slug]]",
+      "rawRoute": "/(dashboard)/finance-executive/[[...slug]]",
+      "pageFile": "app/(dashboard)/finance-executive/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/finance-executive/[[...slug]]"
+    },
+    {
+      "route": "/hr/recruitment",
+      "rawRoute": "/(dashboard)/hr/recruitment",
+      "pageFile": "app/(dashboard)/hr/recruitment/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/recruitment"
+    },
+    {
+      "route": "/hr/roles",
+      "rawRoute": "/(dashboard)/hr/roles",
+      "pageFile": "app/(dashboard)/hr/roles/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/roles"
+    },
+    {
+      "route": "/hr/salary",
+      "rawRoute": "/(dashboard)/hr/salary",
+      "pageFile": "app/(dashboard)/hr/salary/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/salary"
+    },
+    {
+      "route": "/hr/salary/history",
+      "rawRoute": "/(dashboard)/hr/salary/history",
+      "pageFile": "app/(dashboard)/hr/salary/history/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/salary/history"
+    },
+    {
+      "route": "/hr/salary/payslips",
+      "rawRoute": "/(dashboard)/hr/salary/payslips",
+      "pageFile": "app/(dashboard)/hr/salary/payslips/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/salary/payslips"
+    },
+    {
+      "route": "/hr/salary/prepare",
+      "rawRoute": "/(dashboard)/hr/salary/prepare",
+      "pageFile": "app/(dashboard)/hr/salary/prepare/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/salary/prepare"
+    },
+    {
+      "route": "/hr/salary/prepare/create",
+      "rawRoute": "/(dashboard)/hr/salary/prepare/create",
+      "pageFile": "app/(dashboard)/hr/salary/prepare/create/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/salary/prepare/create"
+    },
+    {
+      "route": "/hr/salary/prepare/edit/[id]",
+      "rawRoute": "/(dashboard)/hr/salary/prepare/edit/[id]",
+      "pageFile": "app/(dashboard)/hr/salary/prepare/edit/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/salary/prepare/edit/[id]"
+    },
+    {
+      "route": "/hr/salary/prepare/view/[id]",
+      "rawRoute": "/(dashboard)/hr/salary/prepare/view/[id]",
+      "pageFile": "app/(dashboard)/hr/salary/prepare/view/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/salary/prepare/view/[id]"
+    },
+    {
+      "route": "/hr/salary/status",
+      "rawRoute": "/(dashboard)/hr/salary/status",
+      "pageFile": "app/(dashboard)/hr/salary/status/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/salary/status"
+    },
+    {
+      "route": "/hr/salary-structure",
+      "rawRoute": "/(dashboard)/hr/salary-structure",
+      "pageFile": "app/(dashboard)/hr/salary-structure/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/salary-structure"
+    },
+    {
+      "route": "/hr/[[...slug]]",
+      "rawRoute": "/(dashboard)/hr/[[...slug]]",
+      "pageFile": "app/(dashboard)/hr/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/hr/[[...slug]]"
+    },
+    {
+      "route": "/orders/[orderId]",
+      "rawRoute": "/(dashboard)/orders/[orderId]",
+      "pageFile": "app/(dashboard)/orders/[orderId]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/orders/[orderId]"
+    },
+    {
+      "route": "/plant-head/categories",
+      "rawRoute": "/(dashboard)/plant-head/categories",
+      "pageFile": "app/(dashboard)/plant-head/categories/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/plant-head/categories"
+    },
+    {
+      "route": "/plant-head/daily-reports",
+      "rawRoute": "/(dashboard)/plant-head/daily-reports",
+      "pageFile": "app/(dashboard)/plant-head/daily-reports/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/plant-head/daily-reports"
+    },
+    {
+      "route": "/plant-head/finished-goods",
+      "rawRoute": "/(dashboard)/plant-head/finished-goods",
+      "pageFile": "app/(dashboard)/plant-head/finished-goods/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/plant-head/finished-goods"
+    },
+    {
+      "route": "/plant-head/products",
+      "rawRoute": "/(dashboard)/plant-head/products",
+      "pageFile": "app/(dashboard)/plant-head/products/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/plant-head/products"
+    },
+    {
+      "route": "/plant-head/qc-failures",
+      "rawRoute": "/(dashboard)/plant-head/qc-failures",
+      "pageFile": "app/(dashboard)/plant-head/qc-failures/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/plant-head/qc-failures"
+    },
+    {
+      "route": "/plant-head/recruitment-request",
+      "rawRoute": "/(dashboard)/plant-head/recruitment-request",
+      "pageFile": "app/(dashboard)/plant-head/recruitment-request/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/plant-head/recruitment-request"
+    },
+    {
+      "route": "/plant-head/testing",
+      "rawRoute": "/(dashboard)/plant-head/testing",
+      "pageFile": "app/(dashboard)/plant-head/testing/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/plant-head/testing"
+    },
+    {
+      "route": "/plant-head/[[...slug]]",
+      "rawRoute": "/(dashboard)/plant-head/[[...slug]]",
+      "pageFile": "app/(dashboard)/plant-head/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/plant-head/[[...slug]]"
+    },
+    {
+      "route": "/production/active",
+      "rawRoute": "/(dashboard)/production/active",
+      "pageFile": "app/(dashboard)/production/active/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/active"
+    },
+    {
+      "route": "/production/all-stock",
+      "rawRoute": "/(dashboard)/production/all-stock",
+      "pageFile": "app/(dashboard)/production/all-stock/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/all-stock"
+    },
+    {
+      "route": "/production/completed",
+      "rawRoute": "/(dashboard)/production/completed",
+      "pageFile": "app/(dashboard)/production/completed/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/completed"
+    },
+    {
+      "route": "/production/daily-report/[[...slug]]",
+      "rawRoute": "/(dashboard)/production/daily-report/[[...slug]]",
+      "pageFile": "app/(dashboard)/production/daily-report/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/daily-report/[[...slug]]"
+    },
+    {
+      "route": "/production/finished-goods",
+      "rawRoute": "/(dashboard)/production/finished-goods",
+      "pageFile": "app/(dashboard)/production/finished-goods/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/finished-goods"
+    },
+    {
+      "route": "/production/floor",
+      "rawRoute": "/(dashboard)/production/floor",
+      "pageFile": "app/(dashboard)/production/floor/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/floor"
+    },
+    {
+      "route": "/production/machine-log",
+      "rawRoute": "/(dashboard)/production/machine-log",
+      "pageFile": "app/(dashboard)/production/machine-log/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/machine-log"
+    },
+    {
+      "route": "/production/plans",
+      "rawRoute": "/(dashboard)/production/plans",
+      "pageFile": "app/(dashboard)/production/plans/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/plans"
+    },
+    {
+      "route": "/production/plans/create",
+      "rawRoute": "/(dashboard)/production/plans/create",
+      "pageFile": "app/(dashboard)/production/plans/create/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/plans/create"
+    },
+    {
+      "route": "/production/plans/[id]",
+      "rawRoute": "/(dashboard)/production/plans/[id]",
+      "pageFile": "app/(dashboard)/production/plans/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/plans/[id]"
+    },
+    {
+      "route": "/production/qc-failed",
+      "rawRoute": "/(dashboard)/production/qc-failed",
+      "pageFile": "app/(dashboard)/production/qc-failed/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/qc-failed"
+    },
+    {
+      "route": "/production/qc-pending",
+      "rawRoute": "/(dashboard)/production/qc-pending",
+      "pageFile": "app/(dashboard)/production/qc-pending/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/qc-pending"
+    },
+    {
+      "route": "/production/reports",
+      "rawRoute": "/(dashboard)/production/reports",
+      "pageFile": "app/(dashboard)/production/reports/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/reports"
+    },
+    {
+      "route": "/production/testing",
+      "rawRoute": "/(dashboard)/production/testing",
+      "pageFile": "app/(dashboard)/production/testing/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/testing"
+    },
+    {
+      "route": "/production/work-orders",
+      "rawRoute": "/(dashboard)/production/work-orders",
+      "pageFile": "app/(dashboard)/production/work-orders/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/work-orders"
+    },
+    {
+      "route": "/production/work-orders/[id]",
+      "rawRoute": "/(dashboard)/production/work-orders/[id]",
+      "pageFile": "app/(dashboard)/production/work-orders/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/work-orders/[id]"
+    },
+    {
+      "route": "/production/[[...slug]]",
+      "rawRoute": "/(dashboard)/production/[[...slug]]",
+      "pageFile": "app/(dashboard)/production/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/production/[[...slug]]"
+    },
+    {
+      "route": "/qc",
+      "rawRoute": "/(dashboard)/qc",
+      "pageFile": "app/(dashboard)/qc/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/qc"
+    },
+    {
+      "route": "/qc/[...slug]",
+      "rawRoute": "/(dashboard)/qc/[...slug]",
+      "pageFile": "app/(dashboard)/qc/[...slug]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/qc/[...slug]"
+    },
+    {
+      "route": "/qc/[id]",
+      "rawRoute": "/(dashboard)/qc/[id]",
+      "pageFile": "app/(dashboard)/qc/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/qc/[id]"
+    },
+    {
+      "route": "/sales/create-payment",
+      "rawRoute": "/(dashboard)/sales/create-payment",
+      "pageFile": "app/(dashboard)/sales/create-payment/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/sales/create-payment"
+    },
+    {
+      "route": "/sales/customers/[id]",
+      "rawRoute": "/(dashboard)/sales/customers/[id]",
+      "pageFile": "app/(dashboard)/sales/customers/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/sales/customers/[id]"
+    },
+    {
+      "route": "/sales/leads/create",
+      "rawRoute": "/(dashboard)/sales/leads/create",
+      "pageFile": "app/(dashboard)/sales/leads/create/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/sales/leads/create"
+    },
+    {
+      "route": "/sales/leads/[id]/edit",
+      "rawRoute": "/(dashboard)/sales/leads/[id]/edit",
+      "pageFile": "app/(dashboard)/sales/leads/[id]/edit/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/sales/leads/[id]/edit"
+    },
+    {
+      "route": "/sales/orders/create",
+      "rawRoute": "/(dashboard)/sales/orders/create",
+      "pageFile": "app/(dashboard)/sales/orders/create/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/sales/orders/create"
+    },
+    {
+      "route": "/sales/orders/[id]",
+      "rawRoute": "/(dashboard)/sales/orders/[id]",
+      "pageFile": "app/(dashboard)/sales/orders/[id]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/sales/orders/[id]"
+    },
+    {
+      "route": "/sales/payment-followup",
+      "rawRoute": "/(dashboard)/sales/payment-followup",
+      "pageFile": "app/(dashboard)/sales/payment-followup/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/sales/payment-followup"
+    },
+    {
+      "route": "/sales/payment-history",
+      "rawRoute": "/(dashboard)/sales/payment-history",
+      "pageFile": "app/(dashboard)/sales/payment-history/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/sales/payment-history"
+    },
+    {
+      "route": "/sales/quotations/create",
+      "rawRoute": "/(dashboard)/sales/quotations/create",
+      "pageFile": "app/(dashboard)/sales/quotations/create/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/sales/quotations/create"
+    },
+    {
+      "route": "/sales/[[...slug]]",
+      "rawRoute": "/(dashboard)/sales/[[...slug]]",
+      "pageFile": "app/(dashboard)/sales/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/sales/[[...slug]]"
+    },
+    {
+      "route": "/store/reports",
+      "rawRoute": "/(dashboard)/store/reports",
+      "pageFile": "app/(dashboard)/store/reports/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/store/reports"
+    },
+    {
+      "route": "/store/vendor-master",
+      "rawRoute": "/(dashboard)/store/vendor-master",
+      "pageFile": "app/(dashboard)/store/vendor-master/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/store/vendor-master"
+    },
+    {
+      "route": "/store/[[...slug]]",
+      "rawRoute": "/(dashboard)/store/[[...slug]]",
+      "pageFile": "app/(dashboard)/store/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/store/[[...slug]]"
+    },
+    {
+      "route": "/super-admin/backoffice-report",
+      "rawRoute": "/(dashboard)/super-admin/backoffice-report",
+      "pageFile": "app/(dashboard)/super-admin/backoffice-report/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/super-admin/backoffice-report"
+    },
+    {
+      "route": "/super-admin/brand-analysis",
+      "rawRoute": "/(dashboard)/super-admin/brand-analysis",
+      "pageFile": "app/(dashboard)/super-admin/brand-analysis/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/super-admin/brand-analysis"
+    },
+    {
+      "route": "/super-admin/brandanalysis",
+      "rawRoute": "/(dashboard)/super-admin/brandanalysis",
+      "pageFile": "app/(dashboard)/super-admin/brandanalysis/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/super-admin/brandanalysis"
+    },
+    {
+      "route": "/super-admin/daily-reports",
+      "rawRoute": "/(dashboard)/super-admin/daily-reports",
+      "pageFile": "app/(dashboard)/super-admin/daily-reports/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/super-admin/daily-reports"
+    },
+    {
+      "route": "/super-admin/finished-goods",
+      "rawRoute": "/(dashboard)/super-admin/finished-goods",
+      "pageFile": "app/(dashboard)/super-admin/finished-goods/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/super-admin/finished-goods"
+    },
+    {
+      "route": "/super-admin/payroll-analysis",
+      "rawRoute": "/(dashboard)/super-admin/payroll-analysis",
+      "pageFile": "app/(dashboard)/super-admin/payroll-analysis/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/super-admin/payroll-analysis"
+    },
+    {
+      "route": "/super-admin/salary-approval",
+      "rawRoute": "/(dashboard)/super-admin/salary-approval",
+      "pageFile": "app/(dashboard)/super-admin/salary-approval/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/super-admin/salary-approval"
+    },
+    {
+      "route": "/super-admin/salary-approvals",
+      "rawRoute": "/(dashboard)/super-admin/salary-approvals",
+      "pageFile": "app/(dashboard)/super-admin/salary-approvals/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/super-admin/salary-approvals"
+    },
+    {
+      "route": "/super-admin/[[...slug]]",
+      "rawRoute": "/(dashboard)/super-admin/[[...slug]]",
+      "pageFile": "app/(dashboard)/super-admin/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/super-admin/[[...slug]]"
+    },
+    {
+      "route": "/supersales/payment-history",
+      "rawRoute": "/(dashboard)/supersales/payment-history",
+      "pageFile": "app/(dashboard)/supersales/payment-history/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/supersales/payment-history"
+    },
+    {
+      "route": "/supersales/[[...slug]]",
+      "rawRoute": "/(dashboard)/supersales/[[...slug]]",
+      "pageFile": "app/(dashboard)/supersales/[[...slug]]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/(dashboard)/supersales/[[...slug]]"
+    },
+    {
+      "route": "/login",
+      "rawRoute": "/login",
+      "pageFile": "app/login/page.tsx",
+      "layoutFile": null,
+      "dir": "app/login"
+    },
+    {
+      "route": "/salary-slip/shared/[token]",
+      "rawRoute": "/salary-slip/shared/[token]",
+      "pageFile": "app/salary-slip/shared/[token]/page.tsx",
+      "layoutFile": null,
+      "dir": "app/salary-slip/shared/[token]"
+    }
+  ],
+  "sharedComps": [
+    {
+      "name": "AccessDenied",
+      "path": "components/AccessDenied.tsx",
+      "sizeBytes": 3510,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "AddMemberModal",
+      "path": "components/AddMemberModal.jsx",
+      "sizeBytes": 2109,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "AttendanceChart",
+      "path": "components/AttendanceChart.jsx",
+      "sizeBytes": 2072,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "AxiosAuthBridge",
+      "path": "components/AxiosAuthBridge.tsx",
+      "sizeBytes": 707,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "CountdownCard",
+      "path": "components/CountdownCard.jsx",
+      "sizeBytes": 760,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "CreateLead",
+      "path": "components/CreateLead.jsx",
+      "sizeBytes": 58033,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "CreateOrder",
+      "path": "components/CreateOrder.jsx",
+      "sizeBytes": 16395,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "CreatePayment",
+      "path": "components/CreatePayment.jsx",
+      "sizeBytes": 9272,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "CreateQuotation",
+      "path": "components/CreateQuotation.jsx",
+      "sizeBytes": 77413,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "CreateSample",
+      "path": "components/CreateSample.jsx",
+      "sizeBytes": 21438,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "CustomerComplaintManagement",
+      "path": "components/CustomerComplaintManagement.jsx",
+      "sizeBytes": 47725,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "CustomersView",
+      "path": "components/CustomersView.jsx",
+      "sizeBytes": 19926,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "DailyAgendaCalendar",
+      "path": "components/DailyAgendaCalendar.jsx",
+      "sizeBytes": 24884,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "DailyTaskView",
+      "path": "components/DailyTaskView.jsx",
+      "sizeBytes": 36112,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "DashboardView",
+      "path": "components/DashboardView.jsx",
+      "sizeBytes": 65416,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": true,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "DispatchView",
+      "path": "components/DispatchView.jsx",
+      "sizeBytes": 13216,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "EditSample",
+      "path": "components/EditSample.jsx",
+      "sizeBytes": 17016,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "FinishedGoodsStockView",
+      "path": "components/FinishedGoodsStockView.tsx",
+      "sizeBytes": 68486,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "GlobalUIComponents",
+      "path": "components/GlobalUIComponents.tsx",
+      "sizeBytes": 19204,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "GrowthChart",
+      "path": "components/GrowthChart.jsx",
+      "sizeBytes": 2430,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "HeroBanner",
+      "path": "components/HeroBanner.jsx",
+      "sizeBytes": 102533,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "LeadsView",
+      "path": "components/LeadsView.jsx",
+      "sizeBytes": 84392,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "MockDataSeeder",
+      "path": "components/MockDataSeeder.tsx",
+      "sizeBytes": 23420,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "OrdersView",
+      "path": "components/OrdersView.jsx",
+      "sizeBytes": 81700,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "OrderTimeline",
+      "path": "components/OrderTimeline.jsx",
+      "sizeBytes": 23135,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "PaymentFollowupERPView",
+      "path": "components/PaymentFollowupERPView.jsx",
+      "sizeBytes": 57085,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "PaymentHistoryView",
+      "path": "components/PaymentHistoryView.jsx",
+      "sizeBytes": 39892,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "PaymentsView",
+      "path": "components/PaymentsView.jsx",
+      "sizeBytes": 51232,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "PlantHeadCommandDashboard",
+      "path": "components/PlantHeadCommandDashboard.jsx",
+      "sizeBytes": 15736,
+      "hasTable": true,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": true,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ProductionOperationsDashboard",
+      "path": "components/ProductionOperationsDashboard.jsx",
+      "sizeBytes": 24724,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": true,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ProductionView",
+      "path": "components/ProductionView.jsx",
+      "sizeBytes": 14715,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "QuotationsView",
+      "path": "components/QuotationsView.jsx",
+      "sizeBytes": 89089,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "ReportsView",
+      "path": "components/ReportsView.jsx",
+      "sizeBytes": 64880,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": true,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "SalesFunnel",
+      "path": "components/SalesFunnel.jsx",
+      "sizeBytes": 1070,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "SalesGraph",
+      "path": "components/SalesGraph.jsx",
+      "sizeBytes": 2112,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "SalesOwnerBadge",
+      "path": "components/SalesOwnerBadge.jsx",
+      "sizeBytes": 1474,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "SalesProductionStatusView",
+      "path": "components/SalesProductionStatusView.jsx",
+      "sizeBytes": 11547,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "SamplesView",
+      "path": "components/SamplesView.jsx",
+      "sizeBytes": 105535,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "SharedPaymentTable",
+      "path": "components/SharedPaymentTable.jsx",
+      "sizeBytes": 26013,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "SharedPaymentTable",
+      "path": "components/SharedPaymentTable.tsx",
+      "sizeBytes": 33571,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "Sidebar",
+      "path": "components/Sidebar.jsx",
+      "sizeBytes": 14200,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "SuccessRate",
+      "path": "components/SuccessRate.jsx",
+      "sizeBytes": 2014,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ToastContainer",
+      "path": "components/ToastContainer.jsx",
+      "sizeBytes": 8201,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "TopTeachers",
+      "path": "components/TopTeachers.jsx",
+      "sizeBytes": 1766,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "UpcomingEvents",
+      "path": "components/UpcomingEvents.jsx",
+      "sizeBytes": 1772,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ApprovalHistory",
+      "path": "shared/components/ApprovalHistory.jsx",
+      "sizeBytes": 3747,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "AttendanceView",
+      "path": "shared/components/AttendanceView.jsx",
+      "sizeBytes": 83557,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "AuthGuard",
+      "path": "shared/components/AuthGuard.tsx",
+      "sizeBytes": 11141,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "BrandAnalysisViewModal",
+      "path": "shared/components/BrandAnalysisViewModal.jsx",
+      "sizeBytes": 6292,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "CategoryMasterUI",
+      "path": "shared/components/CategoryMasterUI.jsx",
+      "sizeBytes": 21922,
+      "hasTable": true,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "DataTable",
+      "path": "shared/components/DataTable.jsx",
+      "sizeBytes": 4778,
+      "hasTable": true,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "DispatchBillModal",
+      "path": "shared/components/DispatchBillModal.jsx",
+      "sizeBytes": 16047,
+      "hasTable": true,
+      "hasForm": false,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "EnterpriseAlerts",
+      "path": "shared/components/EnterpriseAlerts.jsx",
+      "sizeBytes": 13134,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "EnterpriseKPIDashboard",
+      "path": "shared/components/EnterpriseKPIDashboard.jsx",
+      "sizeBytes": 20750,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": true,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ExpenseManagementView",
+      "path": "shared/components/ExpenseManagementView.jsx",
+      "sizeBytes": 33061,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "FilePreview",
+      "path": "shared/components/FilePreview.jsx",
+      "sizeBytes": 5056,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "GlobalOrderTracker",
+      "path": "shared/components/GlobalOrderTracker.jsx",
+      "sizeBytes": 40721,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "HRAttendanceRequestsView",
+      "path": "shared/components/HRAttendanceRequestsView.jsx",
+      "sizeBytes": 23476,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "LeaveApprovalView",
+      "path": "shared/components/LeaveApprovalView.jsx",
+      "sizeBytes": 19621,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "MyProfileView",
+      "path": "shared/components/MyProfileView.jsx",
+      "sizeBytes": 58174,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "O2PWorkflowBanner",
+      "path": "shared/components/O2PWorkflowBanner.tsx",
+      "sizeBytes": 167,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "OrderDetailsModal",
+      "path": "shared/components/OrderDetailsModal.jsx",
+      "sizeBytes": 12212,
+      "hasTable": true,
+      "hasForm": false,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "PermissionGuard",
+      "path": "shared/components/PermissionGuard.jsx",
+      "sizeBytes": 703,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ProductMasterUI",
+      "path": "shared/components/ProductMasterUI.jsx",
+      "sizeBytes": 71167,
+      "hasTable": true,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ProductPicker",
+      "path": "shared/components/ProductPicker.jsx",
+      "sizeBytes": 13787,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ReceivableFilters",
+      "path": "shared/components/ReceivableFilters.jsx",
+      "sizeBytes": 11844,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ReminderModal",
+      "path": "shared/components/ReminderModal.jsx",
+      "sizeBytes": 3648,
+      "hasTable": false,
+      "hasForm": true,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ResponsiveChart",
+      "path": "shared/components/ResponsiveChart.jsx",
+      "sizeBytes": 7121,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": true,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ResponsiveChartWrapper",
+      "path": "shared/components/ResponsiveChartWrapper.jsx",
+      "sizeBytes": 399,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "SecureImage",
+      "path": "shared/components/SecureImage.jsx",
+      "sizeBytes": 6168,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "StatusBadge",
+      "path": "shared/components/StatusBadge.jsx",
+      "sizeBytes": 4524,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "TabulatorTable",
+      "path": "shared/components/TabulatorTable.jsx",
+      "sizeBytes": 8393,
+      "hasTable": true,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "Timeline",
+      "path": "shared/components/Timeline.jsx",
+      "sizeBytes": 19114,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "WorkflowHistory",
+      "path": "shared/components/WorkflowHistory.tsx",
+      "sizeBytes": 2156,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "avatar",
+      "path": "components/ui/avatar.tsx",
+      "sizeBytes": 2216,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "badge",
+      "path": "components/ui/badge.tsx",
+      "sizeBytes": 1925,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "button",
+      "path": "components/ui/button.tsx",
+      "sizeBytes": 3240,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "card",
+      "path": "components/ui/card.tsx",
+      "sizeBytes": 2630,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "ConfirmDialog",
+      "path": "components/ui/ConfirmDialog.jsx",
+      "sizeBytes": 6572,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "data-table",
+      "path": "components/ui/data-table.tsx",
+      "sizeBytes": 1363,
+      "hasTable": true,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "dialog",
+      "path": "components/ui/dialog.tsx",
+      "sizeBytes": 4075,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "ErrorBoundary",
+      "path": "components/ui/ErrorBoundary.jsx",
+      "sizeBytes": 3434,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "input",
+      "path": "components/ui/input.tsx",
+      "sizeBytes": 1040,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "label",
+      "path": "components/ui/label.tsx",
+      "sizeBytes": 518,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "line-charts-9-demo",
+      "path": "components/ui/line-charts-9-demo.tsx",
+      "sizeBytes": 9879,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": true,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "line-charts-9",
+      "path": "components/ui/line-charts-9.tsx",
+      "sizeBytes": 9581,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": true,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "LoadingOverlay",
+      "path": "components/ui/LoadingOverlay.jsx",
+      "sizeBytes": 688,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "LoadingSkeleton",
+      "path": "components/ui/LoadingSkeleton.jsx",
+      "sizeBytes": 1487,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "LoadingSpinner",
+      "path": "components/ui/LoadingSpinner.jsx",
+      "sizeBytes": 678,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "modal",
+      "path": "components/ui/modal.tsx",
+      "sizeBytes": 2481,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": true,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "page-container",
+      "path": "components/ui/page-container.tsx",
+      "sizeBytes": 316,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "page-header",
+      "path": "components/ui/page-header.tsx",
+      "sizeBytes": 688,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "pie-chart-demo",
+      "path": "components/ui/pie-chart-demo.tsx",
+      "sizeBytes": 2691,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": true,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "pie-chart",
+      "path": "components/ui/pie-chart.tsx",
+      "sizeBytes": 10027,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": true,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "popover",
+      "path": "components/ui/popover.tsx",
+      "sizeBytes": 2574,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "scroll-area",
+      "path": "components/ui/scroll-area.tsx",
+      "sizeBytes": 1624,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "select",
+      "path": "components/ui/select.tsx",
+      "sizeBytes": 6655,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "separator",
+      "path": "components/ui/separator.tsx",
+      "sizeBytes": 545,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "stat-card",
+      "path": "components/ui/stat-card.tsx",
+      "sizeBytes": 1355,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "table",
+      "path": "components/ui/table.tsx",
+      "sizeBytes": 2402,
+      "hasTable": true,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "tabs",
+      "path": "components/ui/tabs.tsx",
+      "sizeBytes": 3497,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "textarea",
+      "path": "components/ui/textarea.tsx",
+      "sizeBytes": 842,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": true
+    },
+    {
+      "name": "Toast",
+      "path": "components/ui/Toast.jsx",
+      "sizeBytes": 5977,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    },
+    {
+      "name": "tooltip",
+      "path": "components/ui/tooltip.tsx",
+      "sizeBytes": 2846,
+      "hasTable": false,
+      "hasForm": false,
+      "hasModal": false,
+      "hasChart": false,
+      "hasMediaQueries": false
+    }
+  ]
+}

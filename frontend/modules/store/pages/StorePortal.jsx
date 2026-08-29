@@ -3509,7 +3509,7 @@ export default function StorePortal() {
             </div>
 
             {/* Unified Material Manifest & Physical Quantity Inspection Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px', alignItems: 'stretch' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '24px', alignItems: 'stretch' }}>
               
               {/* Left Box: Ordered Materials & Grade Verification */}
               <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #D6E2F0', padding: '20px 24px', display: 'flex', flexDirection: 'column', justifyItems: 'space-between', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>

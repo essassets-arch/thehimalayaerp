@@ -21,9 +21,17 @@ export async function POST(request: NextRequest) {
     // Given .env.local has http://localhost:4000/api/v1
     const backendUrl = `${BACKEND_API_URL}/auth/login`;
 
+    const email = (body?.email || body?.identifier || '').trim();
+    const password = body?.password || '';
+
+    const backendPayload = {
+      email,
+      password,
+    };
+
     console.log('[Backend login bridge]', {
       backendUrl,
-      email: body?.email,
+      email,
     });
 
     const response = await fetch(backendUrl, {
@@ -31,7 +39,7 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(backendPayload),
       cache: 'no-store',
       signal: AbortSignal.timeout(10_000),
     });

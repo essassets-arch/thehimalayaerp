@@ -9,6 +9,7 @@ import '../components/PlantHeadDashboardTheme.css'
 import '../components/ProductionOperationsDashboard.css'
 import '../components/payroll/PayrollWorkflowView.css'
 import '../components/BackOfficeResponsive.css'
+import '../components/erp-premium-ui.css'
 import { cn } from "@/lib/utils";
 import Providers from './providers';
 
