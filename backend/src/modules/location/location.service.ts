@@ -422,6 +422,7 @@ export class LocationService {
         return {
           sessionId: ds.sessionId,
           deviceId: ds.deviceId,
+          userId: u.id,
           deviceType: ds.deviceType,
           deviceModel: ds.deviceModel,
           operatingSystem: ds.operatingSystem,
@@ -584,6 +585,8 @@ export class LocationService {
     fromQuery?: string,
     toQuery?: string,
   ): Promise<any> {
+    const cleanUserId = userId && userId !== 'undefined' && userId !== 'null' ? userId : undefined;
+
     let session = deviceSessionId
       ? await this.prisma.deviceSession.findUnique({
           where: { sessionId: deviceSessionId },
@@ -596,9 +599,9 @@ export class LocationService {
       });
     }
 
-    if (!session && userId) {
+    if (!session && cleanUserId) {
       session = await this.prisma.deviceSession.findFirst({
-        where: { userId },
+        where: { userId: cleanUserId },
         orderBy: { lastSeenAt: 'desc' },
       });
     }
@@ -607,7 +610,7 @@ export class LocationService {
       throw new ForbiddenException('Session access denied or invalid association.');
     }
 
-    if (userId && session.userId !== userId) {
+    if (cleanUserId && session.userId !== cleanUserId) {
       throw new ForbiddenException('Session access denied or invalid association.');
     }
 

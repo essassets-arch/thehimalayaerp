@@ -402,17 +402,45 @@ export default function SuperAdminLiveMapPage() {
       if (!data || !Array.isArray(data)) {
         data = await backendFetch('/location/live-users');
       }
-      setUsersData(data || []);
+      const rawUsers = data || [];
+      const normalizedUsers = rawUsers.map((u) => {
+        const uId = u.userId || u.id;
+        return {
+          ...u,
+          userId: uId,
+          sessions: (u.sessions || []).map((s) => ({
+            ...s,
+            userId: s.userId || uId,
+            userName: u.name,
+            userRole: u.role,
+          })),
+        };
+      });
+      setUsersData(normalizedUsers);
       setLastRestSync(new Date().toLocaleTimeString());
       setLoading(false);
-      return data || [];
+      return normalizedUsers;
     } catch (err) {
       try {
         const data = await backendFetch('/location/live-users');
-        setUsersData(data || []);
+        const rawUsers = data || [];
+        const normalizedUsers = rawUsers.map((u) => {
+          const uId = u.userId || u.id;
+          return {
+            ...u,
+            userId: uId,
+            sessions: (u.sessions || []).map((s) => ({
+              ...s,
+              userId: s.userId || uId,
+              userName: u.name,
+              userRole: u.role,
+            })),
+          };
+        });
+        setUsersData(normalizedUsers);
         setLastRestSync(new Date().toLocaleTimeString());
         setLoading(false);
-        return data || [];
+        return normalizedUsers;
       } catch (fallbackErr) {
         console.error('Error fetching live users snapshot:', fallbackErr);
         setLoading(false);
@@ -848,6 +876,7 @@ export default function SuperAdminLiveMapPage() {
         btn.onclick = () => {
           const sid = btn.getAttribute('data-session-id');
           let foundSession = null;
+          let uId = '';
           let uName = '';
           let uRole = '';
           
@@ -855,6 +884,7 @@ export default function SuperAdminLiveMapPage() {
             u.sessions.forEach((s) => {
               if (s.sessionId === sid) {
                 foundSession = s;
+                uId = u.userId || u.id;
                 uName = u.name;
                 uRole = u.role;
               }
@@ -862,7 +892,7 @@ export default function SuperAdminLiveMapPage() {
           });
 
           if (foundSession) {
-            enterHistoryMode(foundSession, uName, uRole);
+            enterHistoryMode(foundSession, uName, uRole, uId || foundSession.userId);
           }
         };
       }
@@ -894,10 +924,11 @@ export default function SuperAdminLiveMapPage() {
     setHistoryMetadata(null);
   };
 
-  const enterHistoryMode = (session, userName, userRole) => {
+  const enterHistoryMode = (session, userName, userRole, userId) => {
     setMode('HISTORY');
+    const resolvedUserId = userId || session?.userId;
     const sessionInfo = {
-      userId: session.userId,
+      userId: resolvedUserId,
       userName,
       userRole,
       sessionId: session.sessionId,
@@ -919,7 +950,8 @@ export default function SuperAdminLiveMapPage() {
     clearHistoryOverlays();
 
     try {
-      let url = `/super-admin/live-users/${sessionInfo.userId}/location-history?deviceSessionId=${sessionInfo.sessionId}`;
+      const targetUserId = sessionInfo.userId || 'me';
+      let url = `/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${sessionInfo.sessionId}`;
       if (dateOption === 'custom') {
         if (!customFrom || !customTo) {
           throw new Error('Please select both From and To dates.');
@@ -2249,7 +2281,7 @@ export default function SuperAdminLiveMapPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                enterHistoryMode(sessionWithLocation, staff.name, staff.role);
+                                enterHistoryMode(sessionWithLocation, staff.name, staff.role, staff.userId);
                               }}
                               style={{
                                 flex: 1,
