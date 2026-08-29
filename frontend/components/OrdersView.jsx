@@ -222,17 +222,15 @@ export default function OrdersView({
     if (items.length === 0) {
       const singleName = order?.productName || order?.name || '';
       const singleCat = order?.category || order?.brand || '';
-      if (['COVERBLOCK', 'RCC PIPE', 'FRC COVER'].includes(singleCat.toUpperCase())) return true;
-      if (singleName.toLowerCase().includes('wcb') || singleName.toLowerCase().includes('coverblock')) return true;
+      if (['RCC PIPE', 'FRC COVER'].includes(singleCat.toUpperCase())) return true;
       return false;
     }
     return items.every((item) => {
       const type = (item.productType || item.product?.productType || '').toUpperCase();
       const cat = (item.category || item.product?.category || item.brand || '').toUpperCase();
-      const name = (item.productNameSnapshot || item.productName || item.name || '').toLowerCase();
       if (type === 'TRADING') return true;
-      if (['COVERBLOCK', 'RCC PIPE', 'FRC COVER'].includes(cat)) return true;
-      if (name.includes('wcb') || name.includes('coverblock')) return true;
+      if (type === 'MANUFACTURING') return false;
+      if (['RCC PIPE', 'FRC COVER'].includes(cat)) return true;
       return false;
     });
   };

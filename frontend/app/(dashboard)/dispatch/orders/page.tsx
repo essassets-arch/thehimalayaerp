@@ -132,8 +132,8 @@ function isTradingProduct(item: any, productsMap?: Map<string, any>): boolean {
   }
 
   if (type === "TRADING") return true;
-  if (["COVERBLOCK", "RCC PIPE", "FRC COVER"].includes(cat)) return true;
-  if (name.includes("wcb") || name.includes("coverblock")) return true;
+  if (type === "MANUFACTURING") return false;
+  if (["RCC PIPE", "FRC COVER"].includes(cat)) return true;
   return false;
 }
 

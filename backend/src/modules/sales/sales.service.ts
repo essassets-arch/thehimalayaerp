@@ -504,12 +504,16 @@ export class SalesService {
         const productIds = order.items.map((i) => i.productId).filter(Boolean);
         const orderProducts = await tx.product.findMany({
           where: { id: { in: productIds } },
-          select: { id: true, category: true },
+          select: { id: true, category: true, productType: true },
         });
 
         const hasManufacturingProduct = orderProducts.some(
           (p) =>
-            ['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING'].includes((p.category || '').toUpperCase()),
+            p.productType === 'MANUFACTURING' ||
+            (p.productType !== 'TRADING' &&
+              ['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING', 'COVERBLOCK'].includes(
+                (p.category || '').toUpperCase(),
+              )),
         );
 
         if (hasManufacturingProduct) {

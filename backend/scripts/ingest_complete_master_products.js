@@ -18,35 +18,47 @@ function generateSku(name) {
 
 const MASTER_PRODUCT_CATALOG = [
   // ---------------------------------------------------------------------------
-  // SECTION 1: COVER BLOCK D2 (Concrete / Plastic Spacers)
-  // Category: COVERBLOCK, SubCategory: Cover Block, DispatchCategory: D2, ProductType: TRADING, Unit: PCS
+  // SECTION 1: COVER BLOCK (Concrete / Plastic Spacers)
+  // Category: COVERBLOCK, SubCategory: Cover Block, DispatchCategory: D1, ProductType: MANUFACTURING, Unit: PCS
   // ---------------------------------------------------------------------------
-  { name: 'WCB 20MM', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Wire 20mm' },
-  { name: 'WCB 25MM', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Wire 25mm' },
-  { name: 'WCB 30MM', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Wire 30mm' },
-  { name: 'WCB 40MM', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Wire 40mm' },
-  { name: 'WCB 50MM', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Wire 50mm' },
+  { name: 'WCB 20MM', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Wire 20mm' },
+  { name: 'WCB 25MM', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Wire 25mm' },
+  { name: 'WCB 30MM', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Wire 30mm' },
+  { name: 'WCB 40MM', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Wire 40mm' },
+  { name: 'WCB 50MM', category: 'COVERBLOCK', subCategory: 'Wire Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Wire 50mm' },
   
-  { name: 'PCB 40 MM', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Pilling 40mm' },
-  { name: 'PCB 50 MM', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Pilling 50mm' },
-  { name: 'PCB 75MM', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Pilling 75mm' },
+  { name: 'PCB 40 MM', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Pilling 40mm' },
+  { name: 'PCB 50 MM', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Pilling 50mm' },
+  { name: 'PCB 75MM', category: 'COVERBLOCK', subCategory: 'Pilling Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Pilling 75mm' },
   
-  { name: 'HTCB 40 MM', category: 'COVERBLOCK', subCategory: 'Heavy Tower Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Heavy Tower 40mm' },
-  { name: 'HTCB 50 MM', category: 'COVERBLOCK', subCategory: 'Heavy Tower Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Heavy Tower 50mm' },
-  { name: 'HTCB 75 MM', category: 'COVERBLOCK', subCategory: 'Heavy Tower Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Heavy Tower 75mm' },
+  { name: 'HTCB 40 MM', category: 'COVERBLOCK', subCategory: 'Heavy Tower Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Heavy Tower 40mm' },
+  { name: 'HTCB 50 MM', category: 'COVERBLOCK', subCategory: 'Heavy Tower Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Heavy Tower 50mm' },
+  { name: 'HTCB 75 MM', category: 'COVERBLOCK', subCategory: 'Heavy Tower Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Heavy Tower 75mm' },
   
-  { name: 'DTCB 20MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Double Tower 20mm' },
-  { name: 'DTCB 25MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Double Tower 25mm' },
-  { name: 'DTCB 30MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Double Tower 30mm' },
-  { name: 'DTCB 40MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Double Tower 40mm' },
-  { name: 'DTCB 50MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Double Tower 50mm' },
-  { name: 'DTCB 60MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Double Tower 60mm' },
-  { name: 'DTCB 75MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Double Tower 75mm' },
-  { name: 'DTCB 100MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Cover Block Double Tower 100mm' },
+  { name: 'DTCB 20MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Double Tower 20mm' },
+  { name: 'DTCB 25MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Double Tower 25mm' },
+  { name: 'DTCB 30MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Double Tower 30mm' },
+  { name: 'DTCB 40MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Double Tower 40mm' },
+  { name: 'DTCB 50MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Double Tower 50mm' },
+  { name: 'DTCB 60MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Double Tower 60mm' },
+  { name: 'DTCB 75MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Double Tower 75mm' },
+  { name: 'DTCB 100MM', category: 'COVERBLOCK', subCategory: 'Double Tower Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Cover Block Double Tower 100mm' },
   
-  { name: 'MCB 30X40MM', category: 'COVERBLOCK', subCategory: 'Multi Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Multi Cover Block 30x40mm' },
-  { name: 'MCB 35X40X45MM', category: 'COVERBLOCK', subCategory: 'Multi Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Multi Cover Block 35x40x45mm' },
-  { name: 'MCB 20X25X40X50MM', category: 'COVERBLOCK', subCategory: 'Multi Coverblock', dispatchCategory: 'D2', unit: 'PCS', productType: 'TRADING', description: 'Multi Cover Block 20x25x40x50mm' },
+  { name: 'MCB 30X40MM', category: 'COVERBLOCK', subCategory: 'Multi Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Multi Cover Block 30x40mm' },
+  { name: 'MCB 35X40X45MM', category: 'COVERBLOCK', subCategory: 'Multi Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Multi Cover Block 35x40x45mm' },
+  { name: 'MCB 20X25X40X50MM', category: 'COVERBLOCK', subCategory: 'Multi Coverblock', dispatchCategory: 'D1', unit: 'PCS', productType: 'MANUFACTURING', description: 'Multi Cover Block 20x25x40x50mm' },
+
+  // ---------------------------------------------------------------------------
+  // SECTION 1B: TRADING GRATINGS & PIPES (D2 TRADING)
+  // ---------------------------------------------------------------------------
+  { name: 'FRP MOULDED GRATING 25MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', dispatchCategory: 'D2', productType: 'TRADING', description: 'FRP Moulded Grating 25mm thickness' },
+  { name: 'FRP MOULDED GRATING 30MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', dispatchCategory: 'D2', productType: 'TRADING', description: 'FRP Moulded Grating 30mm thickness' },
+  { name: 'FRP MOULDED GRATING 38MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', dispatchCategory: 'D2', productType: 'TRADING', description: 'FRP Moulded Grating 38mm thickness' },
+  { name: 'FRP MOULDED FRATINGS 50MM', brand: 'HIMALAYA', category: 'FRP GRATINGS', subCategory: 'Moulded Grating', hsnCode: '39259090', unit: 'SQM', dispatchCategory: 'D2', productType: 'TRADING', description: 'FRP Moulded Grating 50mm thickness' },
+
+  { name: 'RCC HUME PIPE NP2 CLASS', brand: 'HIMALAYA', category: 'RCC PIPE', subCategory: 'Hume Pipe', hsnCode: '68109100', unit: 'MTR', dispatchCategory: 'D2', productType: 'TRADING', description: 'RCC Hume Pipe NP2 Class - Standard Quality' },
+  { name: 'RCC HUME PIPE NP3 CLASS', brand: 'HIMALAYA', category: 'RCC PIPE', subCategory: 'Hume Pipe', hsnCode: '68109100', unit: 'MTR', dispatchCategory: 'D2', productType: 'TRADING', description: 'RCC Hume Pipe NP3 Class - Medium Quality' },
+  { name: 'RCC HUME PIPE NP4 CLASS', brand: 'HIMALAYA', category: 'RCC PIPE', subCategory: 'Hume Pipe', hsnCode: '68109100', unit: 'MTR', dispatchCategory: 'D2', productType: 'TRADING', description: 'RCC Hume Pipe NP4 Class - Heavy Quality' },
 
   // ---------------------------------------------------------------------------
   // SECTION 2: FRP COVERS D1 (FRP Manhole Covers - Basic Short Codes)
