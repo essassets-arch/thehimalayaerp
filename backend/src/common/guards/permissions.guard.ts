@@ -66,7 +66,7 @@ export class PermissionsGuard implements CanActivate {
       normalizedRole = 'SALES_EXECUTIVE';
     }
 
-    if (['SUPER_ADMIN', 'ADMIN', 'HR', 'HR_MANAGER', 'HR_EXECUTIVE', 'PLANT_HEAD', 'PLANTHEAD', 'STORE_MANAGER', 'STORE', 'FINANCE_MANAGER', 'FINANCE', 'FINANCE_EXECUTIVE', 'SALES_MANAGER', 'SALES_EXECUTIVE', 'SALES', 'SUPER_SALES', 'SUPERSALES', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER', 'PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH', 'QC_INSPECTOR'].includes(normalizedRole)) {
+    if (['SUPER_ADMIN', 'ADMIN'].includes(normalizedRole)) {
       return true;
     }
 
@@ -123,7 +123,7 @@ export class PermissionsGuard implements CanActivate {
           dbRoleCode = 'SALES_EXECUTIVE';
         }
 
-        if (['SUPER_ADMIN', 'ADMIN', 'HR', 'HR_MANAGER', 'HR_EXECUTIVE', 'PLANT_HEAD', 'PLANTHEAD', 'STORE_MANAGER', 'STORE', 'FINANCE_MANAGER', 'FINANCE', 'SALES_MANAGER', 'SALES_EXECUTIVE', 'SUPER_SALES', 'SUPERSALES', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER', 'PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH', 'QC_INSPECTOR'].includes(dbRoleCode)) {
+        if (['SUPER_ADMIN', 'ADMIN'].includes(dbRoleCode)) {
           return true;
         }
         for (const rp of dbRole.rolePermissions || []) {

@@ -115,33 +115,6 @@ export class BackOfficeService implements OnApplicationBootstrap {
         });
       }
     }
-
-    const email = 'backoffice@himalayaerp.com';
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-
-    let user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      user = await this.prisma.user.create({
-        data: {
-          publicId: 'USR-BACKOFFICE-01',
-          email,
-          password: hashedPassword,
-          name: 'Back Office Executive',
-          roleId: role.id,
-          companyId: company.id,
-          isActive: true,
-        },
-      });
-    } else {
-      user = await this.prisma.user.update({
-        where: { id: user.id },
-        data: {
-          roleId: role.id,
-          password: hashedPassword,
-          isActive: true,
-        },
-      });
-    }
   }
 
   /**

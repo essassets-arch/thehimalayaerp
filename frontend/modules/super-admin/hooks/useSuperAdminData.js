@@ -24,21 +24,25 @@ export function useSuperAdminData() {
         companiesRes,
         rolesRes
       ] = await Promise.all([
-        apiClient.get('/backend/users').catch(() => ({ data: [] })),
+        apiClient.get('/admin/users').catch(() => ({ data: [] })),
         apiClient.get('/admin/employees').catch(() => ({ data: [] })),
-        apiClient.get('/admin/modules'),
-        apiClient.get('/admin/audit-logs'),
-        apiClient.get('/admin/companies'),
-        apiClient.get('/admin/roles')
+        apiClient.get('/admin/modules').catch(() => ({ data: [] })),
+        apiClient.get('/admin/audit-logs').catch(() => ({ data: [] })),
+        apiClient.get('/admin/companies').catch(() => ({ data: [] })),
+        apiClient.get('/admin/roles').catch(() => ({ data: [] }))
       ]);
 
+      const rawUsers = usersRes.data?.data || usersRes.data || [];
+      const rawEmployees = employeesRes.data?.data?.items || employeesRes.data?.items || employeesRes.data?.data || employeesRes.data || [];
+      const rawRoles = rolesRes.data?.data || rolesRes.data || [];
+
       setData({
-        users: Array.isArray(usersRes.data?.data) ? usersRes.data.data : (Array.isArray(usersRes.data) ? usersRes.data : []),
-        employees: Array.isArray(employeesRes.data?.items) ? employeesRes.data.items : (Array.isArray(employeesRes.data) ? employeesRes.data : []),
-        modules: modulesRes.data || [],
-        auditLogs: auditLogsRes.data || [],
-        companies: companiesRes.data || [],
-        roles: rolesRes.data || []
+        users: Array.isArray(rawUsers) ? rawUsers : [],
+        employees: Array.isArray(rawEmployees) ? rawEmployees : [],
+        modules: Array.isArray(modulesRes.data) ? modulesRes.data : [],
+        auditLogs: Array.isArray(auditLogsRes.data) ? auditLogsRes.data : [],
+        companies: Array.isArray(companiesRes.data) ? companiesRes.data : [],
+        roles: Array.isArray(rawRoles) ? rawRoles : []
       });
     } catch (err) {
       console.error('Failed to load Super Admin data from backend:', err);

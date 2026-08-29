@@ -86,23 +86,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       ? await request.formData()
       : await request.json().catch(() => undefined);
 
-  if (backendPath.startsWith('/hr/employees/')) {
-    if (finalMethod === 'PATCH' || finalMethod === 'PUT') {
-      const parts = backendPath.split('/');
-      const empId = parts[parts.length - 1];
-      
-      const dbEmp = await prisma.employee.findUnique({ where: { id: empId } });
-      if (dbEmp) {
-        body = {
-          ...body,
-          version: dbEmp.version,
-          // map fields
-          phoneNumber: body.phone || body.phoneNumber,
-          jobTitle: body.designation || body.role || body.jobTitle,
-        };
-      }
-    }
-  }
+
 
   // Intercept all requests to the sample dispatch
   if (requestedPath.startsWith('/logistics/dispatches/sample-dispatch-detail')) {

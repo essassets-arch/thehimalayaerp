@@ -237,6 +237,86 @@ export default function OrdersView({
     });
   };
 
+  const renderOrderProducts = (order) => {
+    const rawItems = (Array.isArray(order?.items) && order.items.length > 0)
+      ? order.items
+      : (Array.isArray(order?.orderItems) && order.orderItems.length > 0)
+        ? order.orderItems
+        : (Array.isArray(order?.detailedItems) && order.detailedItems.length > 0)
+          ? order.detailedItems
+          : (Array.isArray(order?.quotation?.items) && order.quotation.items.length > 0)
+            ? order.quotation.items
+            : null;
+
+    if (rawItems && rawItems.length > 0) {
+      const first = rawItems[0];
+      const prodName = first.productName || first.productNameSnapshot || first.name || first.product?.name || first.description || 'Item';
+      const sizeCap = [first.size, first.capacity].filter(Boolean).join(' ');
+      const mainLabel = sizeCap ? `${prodName} ${sizeCap}` : prodName;
+      const qty = Number(first.quantity ?? first.orderedQuantity ?? first.qty ?? 1);
+      const unit = first.unit || 'Qty';
+      const qtyStr = qty > 0 ? `(${qty} ${unit})` : '';
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+            <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap' }}>
+              {mainLabel} {qtyStr}
+            </span>
+            {rawItems.length > 1 && (
+              <span
+                title={rawItems.map(i => `${i.productName || i.productNameSnapshot || i.name || i.product?.name || 'Item'} (${i.quantity ?? i.orderedQuantity ?? 1} ${i.unit || 'Qty'})`).join('\n')}
+                style={{
+                  fontSize: '10.5px',
+                  fontWeight: '800',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  background: '#e0e7ff',
+                  color: '#4338ca',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                +{rawItems.length - 1} more
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (typeof order?.products === 'string' && order.products.trim()) {
+      const parts = order.products.split(',').map(p => p.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap' }}>
+                {parts[0]}
+              </span>
+              <span
+                title={parts.join('\n')}
+                style={{
+                  fontSize: '10.5px',
+                  fontWeight: '800',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  background: '#e0e7ff',
+                  color: '#4338ca',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                +{parts.length - 1} more
+              </span>
+            </div>
+          </div>
+        );
+      }
+      return <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>{order.products}</span>;
+    }
+
+    return <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>;
+  };
+
   const getOrderStatusLabel = (order) => {
     if (!order) return 'Pending';
     if (order.commercialStatus === 'ORDER_CLOSED') return 'Closed';
@@ -711,7 +791,7 @@ export default function OrdersView({
                       {o.customerName || o.customer?.name || o.customer?.companyName || '—'}
                     </td>
                     <td data-label="Products / Items">
-                      {o.products || (Array.isArray(o.items) && o.items.length > 0 ? o.items.map(i => `${i.productName || i.name || i.product?.name || i.productNameSnapshot || 'Item'} (${i.quantity ?? i.orderedQuantity ?? 1} Qty)`).join(', ') : '') || (Array.isArray(o.detailedItems) && o.detailedItems.length > 0 ? o.detailedItems.map(i => `${i.productName || i.name || 'Item'} (${i.quantity || 1} Qty)`).join(', ') : '') || '—'}
+                      {renderOrderProducts(o)}
                     </td>
                     {!isProductionUser && (
                       <td data-label="Total Value" style={{ fontWeight: '700' }}>
@@ -938,7 +1018,7 @@ export default function OrdersView({
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Products / Items</div>
-                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#4b5563' }}>{itemsList}</div>
+                    {renderOrderProducts(o)}
                   </div>
                   <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px' }}>Status</div>

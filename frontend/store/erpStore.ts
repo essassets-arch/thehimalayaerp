@@ -2239,21 +2239,22 @@ export const useERPStore = create((set: any, get: any) => ({
     const store: any = (useERPStore as any).getState();
     return store.salesActions.updateQuotationStatus(quotationId, 'QUOTATION_SENT', actorName);
   },
-  createOrResumeQuotationFromLead: (leadId: string) => {
+  createOrResumeQuotationFromLead: (leadId: string, leadObj?: any) => {
     const state = get();
     const leads = state.state?.sales?.leads || [];
-    const lead = leads.find((item: any) => item.id === leadId || item.leadId === leadId);
+    const lead = leadObj || leads.find((item: any) => item.id === leadId || item.leadId === leadId || item.leadNumber === leadId);
     if (!lead) return { success: false, message: 'Lead not found.' };
 
     const quotations = state.state?.sales?.quotations || [];
     const existingQuotation = quotations.find(
-      (item: any) => item.leadId === leadId && item.status !== 'CANCELLED' && item.status !== 'DELETED'
+      (item: any) => (item.leadId === leadId || item.sourceId === leadId) && item.status !== 'CANCELLED' && item.status !== 'DELETED'
     );
 
     if (existingQuotation) {
       return { success: true, resumed: true, quotationId: existingQuotation.id || existingQuotation.quotationId };
     }
 
+    const leadItems = Array.isArray(lead.detailedItems) ? lead.detailedItems : (Array.isArray(lead.items) ? lead.items : []);
     const quotationId = get().generateEntityId('quotation');
     const quotationDraft = {
       id: quotationId,
@@ -2261,10 +2262,27 @@ export const useERPStore = create((set: any, get: any) => ({
       leadId,
       companyName: lead.companyName || lead.customerName || lead.projectName || '',
       customerName: lead.companyName || lead.customerName || lead.projectName || '',
+      groupName: lead.groupName || lead.companyName || '',
+      gstName: lead.gstName || lead.companyName || lead.customerName || '',
+      gstNumber: lead.gstNumber || '',
+      isGstRegistered: lead.gstNumber ? 'YES' : 'YES',
       contactPerson: lead.contactPerson || lead.siteInchargeName || '',
       phone: lead.phone || lead.mobile || lead.siteInchargeMobile || '',
       email: lead.email || '',
-      items: [],
+      notes: lead.remarks || lead.notes || '',
+      items: leadItems.length > 0 ? leadItems.map((item: any, index: number) => ({
+        id: item.id || `item-${index + 1}`,
+        productId: item.productId || item.productCode || `PRD-${index + 1}`,
+        productName: item.productName || item.product || item.name || '',
+        name: item.productName || item.product || item.name || '',
+        specification: item.specification || item.productDetails || item.description || '',
+        description: item.specification || item.productDetails || item.description || '',
+        quantity: Number(item.quantity) || 1,
+        qty: Number(item.quantity) || 1,
+        unitPrice: Number(item.unitPrice) || 0,
+        discount: Number(item.discount) || 0,
+        tax: item.tax !== undefined ? Number(item.tax) : (item.gstRate !== undefined ? Number(item.gstRate) : 18),
+      })) : [],
       status: 'DRAFT',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

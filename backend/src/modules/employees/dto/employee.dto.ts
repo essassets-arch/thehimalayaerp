@@ -67,6 +67,14 @@ export class CreateEmployeeDto {
   @IsString()
   confirmAccountNumber?: string;
   @Transform(upper) @Matches(/^[A-Z]{4}0[A-Z0-9]{6}$/) ifscCode!: string;
+  @IsOptional()
+  @Type(() => Number)
+  baseSalary?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  salary?: number;
+
   @IsOptional() @IsString() branchName?: string;
   @IsOptional() @IsString() draftId?: string;
 }
@@ -137,7 +145,7 @@ export class EmployeeQueryDto {
 
   @IsOptional()
   @Matches(/^(asc|desc)$/i)
-  sortOrder?: 'asc' | 'desc' = 'desc';
+  sortOrder?: 'asc' | 'desc' = 'asc';
 }
 
 export class UpdateEmployeeDto {

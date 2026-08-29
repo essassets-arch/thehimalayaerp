@@ -9,11 +9,12 @@ import {
   Upload, Trash2, Eye, RefreshCw, Plus, Check, X, Camera, PenTool,
   ChevronDown, ChevronUp, Save, UserPlus, ArrowLeft, Shield, CheckCircle2, ChevronRight
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useNotificationStore } from '@/store/notificationStore';
-import { employeeRegistrationSchema } from '../employee.schema';
+import { employeeRegistrationSchema, employeeEditSchema } from '../employee.schema';
 import { employeesService } from '@/services/hr/employeesService';
 import { clearFilesByPrefix, getFile, saveFile } from '../employee.db';
+import { getBackendAssetUrl } from '@/lib/assetUrl';
 
 // ── Constants ──────────────────────────────────────────────────
 const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Intern', 'Temporary', 'Consultant'] as const;
@@ -202,19 +203,58 @@ function DocUploadBox({
   );
 }
 
-export default function EmployeeRegistrationForm() {
+const employmentTypeReverseMap: Record<string, string> = {
+  PERMANENT: 'Full-time',
+  FULL_TIME: 'Full-time',
+  'FULL-TIME': 'Full-time',
+  PART_TIME: 'Part-time',
+  'PART-TIME': 'Part-time',
+  CONTRACT: 'Contract',
+  INTERN: 'Intern',
+  TEMPORARY: 'Temporary',
+  CONSULTANT: 'Consultant',
+  PROBATION: 'Full-time',
+  ON_PROBATION: 'Full-time',
+};
+
+const genderMap: Record<string, 'Male' | 'Female' | 'Other' | 'Prefer not to say'> = {
+  MALE: 'Male',
+  FEMALE: 'Female',
+  OTHER: 'Other',
+  PREFER_NOT_TO_SAY: 'Prefer not to say',
+  Male: 'Male',
+  Female: 'Female',
+  Other: 'Other',
+};
+
+const accountTypeMap: Record<string, 'Savings' | 'Current' | 'Salary'> = {
+  SAVINGS: 'Savings',
+  CURRENT: 'Current',
+  SALARY: 'Salary',
+  Savings: 'Savings',
+  Current: 'Current',
+  Salary: 'Salary',
+};
+
+export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmployeeId?: string }) {
   const navigate = useRouter();
+  const searchParams = useSearchParams();
+  const editId = editEmployeeId || searchParams?.get('edit') || searchParams?.get('id');
+  const isEditMode = !!editId;
+
   const showToast = useNotificationStore((s: any) => s.showToast);
   const [departments, setDepartments] = useState<any[]>([]);
   const [workLocations, setWorkLocations] = useState<any[]>([]);
   const [eligibleManagers, setEligibleManagers] = useState<any[]>([]);
+  const [existingEmployee, setExistingEmployee] = useState<any>(null);
+  const [isLoadingExisting, setIsLoadingExisting] = useState(false);
 
   // Form setup
   const {
     register, control, handleSubmit, watch, getValues, setValue, reset, setError,
     formState: { errors },
   } = useForm<any>({
-    resolver: zodResolver(employeeRegistrationSchema),
+    resolver: zodResolver(isEditMode ? employeeEditSchema : employeeRegistrationSchema),
     mode: 'onBlur',
     defaultValues: {
       additionalDocuments: [],
@@ -252,7 +292,107 @@ export default function EmployeeRegistrationForm() {
   const [deptOpen, setDeptOpen] = useState(false);
   const watchedDept = watch('department');
 
+  // Load existing employee if in edit mode
   useEffect(() => {
+    if (!editId) return;
+    setIsLoadingExisting(true);
+    employeesService.getEmployee(editId)
+      .then((emp) => {
+        setExistingEmployee(emp);
+        const mappedGender = genderMap[emp.gender] || 'Male';
+        const mappedEmploymentType = employmentTypeReverseMap[emp.employmentType] || 'Full-time';
+        const mappedAccountType = accountTypeMap[emp.bankAccountType] || 'Savings';
+
+        reset({
+          employeeCode: emp.employeeCode || '',
+          firstName: emp.firstName || '',
+          lastName: emp.lastName || '',
+          name: emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+          dob: emp.dateOfBirth ? new Date(emp.dateOfBirth).toISOString().split('T')[0] : '',
+          gender: mappedGender,
+          designation: emp.jobTitle || '',
+          department: emp.departmentId || emp.department?.id || '',
+          workLocation: emp.workLocationId || emp.workLocation?.id || '',
+          managerId: emp.reportingManagerId || emp.reportingManager?.id || '',
+          employmentType: mappedEmploymentType,
+          joiningDate: emp.joiningDate ? new Date(emp.joiningDate).toISOString().split('T')[0] : '',
+          probationEndDate: emp.probationEndDate ? new Date(emp.probationEndDate).toISOString().split('T')[0] : '',
+          salary: emp.baseSalary !== undefined && emp.baseSalary !== null ? Number(emp.baseSalary) : 0,
+          baseSalary: emp.baseSalary !== undefined && emp.baseSalary !== null ? Number(emp.baseSalary) : 0,
+          branchName: emp.branchName || '',
+          email: emp.workEmail || '',
+          personalEmail: emp.personalEmail || '',
+          phone: emp.phoneNumber || '',
+          companyPhone: emp.companyPhoneNumber || '',
+          residentialAddress: emp.residentialAddress || '',
+          permanentAddress: emp.permanentAddress || emp.residentialAddress || '',
+          sameAsPresentAddress: !!(emp.residentialAddress && emp.permanentAddress && emp.residentialAddress === emp.permanentAddress),
+          emergencyName: emp.emergencyContactName || '',
+          emergencyPhone: emp.emergencyContactPhone || '',
+          emergencyRelationship: emp.emergencyRelationship || 'Parent',
+          pan: emp.panNumber || '',
+          aadhaar: emp.aadhaarLastFour ? `XXXX-XXXX-${emp.aadhaarLastFour}` : '',
+          uan: emp.uanNumber || '',
+          esic: emp.esicNumber || '',
+          bankName: emp.bankName || '',
+          bankAccountHolder: emp.accountHolderName || '',
+          accountType: mappedAccountType,
+          bankAccount: emp.bankAccountLastFour ? `XXXXXXXX${emp.bankAccountLastFour}` : '',
+          confirmBankAccount: emp.bankAccountLastFour ? `XXXXXXXX${emp.bankAccountLastFour}` : '',
+          ifscCode: emp.ifscCode || '',
+        });
+
+        if (emp.selfieUrl) {
+          setPhotoPreview(getBackendAssetUrl(emp.selfieUrl));
+        }
+        if (emp.signatureUrl) {
+          setSigPreview(getBackendAssetUrl(emp.signatureUrl));
+        }
+
+        if (emp.documents && emp.documents.length > 0) {
+          const addls: AdditionalDoc[] = [];
+          emp.documents.forEach((doc: any) => {
+            const previewUrl = `/api/backend/uploads/employees/${doc.storageKey}`;
+            const meta = {
+              id: doc.id,
+              fileName: doc.documentName || doc.originalFileName || doc.documentType,
+              mimeType: doc.mimeType || 'application/pdf',
+              size: doc.fileSize || 0,
+              category: doc.documentType,
+              title: doc.documentName || doc.documentType,
+              storageKey: doc.storageKey,
+              uploadedAt: doc.createdAt || new Date().toISOString(),
+            };
+            if (doc.documentType === 'AADHAAR_CARD') {
+              setAadhaarDoc({ meta, previewUrl, blob: null });
+            } else if (doc.documentType === 'PAN_CARD') {
+              setPanDoc({ meta, previewUrl, blob: null });
+            } else if (doc.documentType === 'BANK_PASSBOOK') {
+              setBankDoc({ meta, previewUrl, blob: null });
+            } else {
+              addls.push({
+                rowId: doc.id,
+                docType: doc.documentType?.replace(/_/g, ' ') || 'Other',
+                customTitle: doc.documentName || '',
+                meta,
+                previewUrl,
+                blob: null,
+              });
+            }
+          });
+          if (addls.length > 0) setAdditionalDocs(addls);
+        }
+        setIsDraftReady(true);
+      })
+      .catch((err) => {
+        console.error('Failed to load employee for editing:', err);
+        Swal.fire('Error', 'Failed to load employee details.', 'error');
+      })
+      .finally(() => setIsLoadingExisting(false));
+  }, [editId, reset]);
+
+  useEffect(() => {
+    if (isEditMode) return;
     const restore = async () => {
     try {
       const stored = sessionStorage.getItem(REGISTRATION_DRAFT_KEY);
@@ -305,27 +445,29 @@ export default function EmployeeRegistrationForm() {
     }
     };
     void restore();
-  }, [reset, showToast]);
+  }, [reset, showToast, isEditMode]);
 
   useEffect(() => {
     Promise.all([
       employeesService.listDepartments(),
       employeesService.listWorkLocations(),
       employeesService.listReportingManagers(),
-      employeesService.listDrafts(),
+      isEditMode ? Promise.resolve([]) : employeesService.listDrafts(),
     ]).then(([departmentRows, locations, managers, drafts]) => {
       setDepartments(departmentRows);
       setWorkLocations(locations);
       setEligibleManagers(managers);
-      const latest = drafts[0];
-      if (!hasSessionDraft.current && latest?.employeeData) {
-        reset(latest.employeeData);
-        setDraftId(latest.id);
-        setDraftRestored(true);
-        showToast('Employee registration draft restored.');
+      if (!isEditMode) {
+        const latest = drafts[0];
+        if (!hasSessionDraft.current && latest?.employeeData) {
+          reset(latest.employeeData);
+          setDraftId(latest.id);
+          setDraftRestored(true);
+          showToast('Employee registration draft restored.');
+        }
       }
     }).catch((error) => console.warn('HR data load fallback:', error.message));
-  }, [reset, showToast]);
+  }, [reset, showToast, isEditMode]);
 
   useEffect(() => {
     employeesService.getNextEmployeeCode()
@@ -500,6 +642,109 @@ export default function EmployeeRegistrationForm() {
     data.bankProofDoc = bankDoc.meta;
     data.additionalDocuments = additionalDocs.map(d => d.meta).filter(Boolean);
 
+    if (isEditMode && editId) {
+      setIsRegistering(true);
+      try {
+        const employmentTypes: Record<string, string> = {
+          'Full-time': 'PERMANENT', 'Part-time': 'PART_TIME', Contract: 'CONTRACT',
+          Intern: 'INTERN', Temporary: 'TEMPORARY', Consultant: 'CONSULTANT',
+        };
+        const genders: Record<string, string> = {
+          Male: 'MALE', Female: 'FEMALE', Other: 'OTHER', 'Prefer not to say': 'PREFER_NOT_TO_SAY',
+        };
+        const updatePayload: any = {
+          version: existingEmployee?.version,
+          firstName: data.firstName ? data.firstName.trim() : undefined,
+          lastName: data.lastName ? data.lastName.trim() : undefined,
+          fullName: (data.firstName || data.lastName)
+            ? `${(data.firstName || '').trim()} ${(data.lastName || '').trim()}`.trim()
+            : (data.name ? data.name.trim() : undefined),
+          dateOfBirth: data.dob ? data.dob : undefined,
+          gender: data.gender ? (genders[data.gender] || data.gender.toUpperCase()) : undefined,
+          jobTitle: data.designation ? data.designation.trim() : undefined,
+          departmentId: data.department || undefined,
+          workLocationId: data.workLocation || undefined,
+          reportingManagerId: data.managerId || null,
+          employmentType: data.employmentType ? (employmentTypes[data.employmentType] || data.employmentType.toUpperCase()) : undefined,
+          joiningDate: data.joiningDate ? data.joiningDate : undefined,
+          probationEndDate: data.probationEndDate || null,
+          workEmail: data.email ? data.email.trim().toLowerCase() : undefined,
+          personalEmail: data.personalEmail ? data.personalEmail.trim().toLowerCase() : null,
+          phoneNumber: data.phone ? normalizeIndianPhone(data.phone) : undefined,
+          companyPhoneNumber: data.companyPhone ? normalizeIndianPhone(data.companyPhone) : null,
+          residentialAddress: data.residentialAddress ? data.residentialAddress.trim() : undefined,
+          permanentAddress: (data.sameAsPresentAddress ? (data.residentialAddress || '') : (data.permanentAddress || data.residentialAddress || '')).trim(),
+          emergencyContactName: data.emergencyName ? data.emergencyName.trim() : undefined,
+          emergencyContactPhone: data.emergencyPhone ? normalizeIndianPhone(data.emergencyPhone) : undefined,
+          emergencyRelationship: data.emergencyRelationship || undefined,
+          panNumber: data.pan ? data.pan.trim().toUpperCase() : undefined,
+          uanNumber: data.uan ? data.uan.trim() : null,
+          esicNumber: data.esic ? data.esic.trim() : null,
+          bankName: data.bankName ? data.bankName.trim() : undefined,
+          accountHolderName: data.bankAccountHolder ? data.bankAccountHolder.trim() : undefined,
+          bankAccountType: data.accountType ? data.accountType.toUpperCase() : undefined,
+          ifscCode: data.ifscCode ? data.ifscCode.trim().toUpperCase() : undefined,
+          branchName: data.branchName ? data.branchName.trim() : null,
+          baseSalary: (data.baseSalary !== undefined && data.baseSalary !== null && String(data.baseSalary).trim() !== '') ? Number(data.baseSalary) : (data.salary ? Number(data.salary) : 0),
+        };
+
+        if (data.aadhaar && !data.aadhaar.includes('X') && data.aadhaar.replace(/\D/g, '').length >= 4) {
+          updatePayload.aadhaarNumber = data.aadhaar.replace(/\D/g, '');
+        }
+        if (data.bankAccount && !data.bankAccount.includes('X') && data.bankAccount.replace(/\D/g, '').length >= 4) {
+          updatePayload.bankAccountNumber = data.bankAccount.replace(/\D/g, '');
+        }
+
+        if (aadhaarDoc.blob) {
+          const fd = new FormData();
+          fd.append('document', aadhaarDoc.blob);
+          fd.append('category', 'AADHAAR_CARD');
+          await employeesService.uploadEmployeeDocument(editId, fd).catch(() => {});
+        }
+        if (panDoc.blob) {
+          const fd = new FormData();
+          fd.append('document', panDoc.blob);
+          fd.append('category', 'PAN_CARD');
+          await employeesService.uploadEmployeeDocument(editId, fd).catch(() => {});
+        }
+        if (bankDoc.blob) {
+          const fd = new FormData();
+          fd.append('document', bankDoc.blob);
+          fd.append('category', 'BANK_PASSBOOK');
+          await employeesService.uploadEmployeeDocument(editId, fd).catch(() => {});
+        }
+        for (const doc of additionalDocs) {
+          if (doc.blob) {
+            const fd = new FormData();
+            fd.append('document', doc.blob);
+            fd.append('category', doc.docType.toUpperCase().replaceAll(' ', '_'));
+            await employeesService.uploadEmployeeDocument(editId, fd).catch(() => {});
+          }
+        }
+
+        const employee = await employeesService.updateEmployee(editId, updatePayload);
+        await Swal.fire({
+          icon: 'success',
+          title: 'Employee File Updated!',
+          html: `<b>${employee.fullName}</b> profile and registration records have been saved successfully.<br/><small>Employee ID: <strong>${employee.employeeCode}</strong></small>`,
+          confirmButtonText: 'View Roster Directory',
+          confirmButtonColor: '#0f172a',
+        });
+        navigate.push('/hr/employees');
+      } catch (err: any) {
+        const msg = err?.data?.message || err?.message || 'Update failed.';
+        Swal.fire({
+          icon: 'error',
+          title: 'Update Failed',
+          html: `<p>${msg}</p>`,
+          confirmButtonColor: '#ef4444',
+        });
+      } finally {
+        setIsRegistering(false);
+      }
+      return;
+    }
+
     setIsRegistering(true);
     try {
       const employmentTypes: Record<string, string> = {
@@ -542,6 +787,7 @@ export default function EmployeeRegistrationForm() {
         confirmAccountNumber: data.confirmBankAccount,
         ifscCode: data.ifscCode,
         branchName: data.branchName || undefined,
+        baseSalary: (data.baseSalary !== undefined && data.baseSalary !== null && String(data.baseSalary).trim() !== '') ? Number(data.baseSalary) : (data.salary ? Number(data.salary) : 0),
         draftId,
         additionalDocuments: additionalDocs.map((doc) => ({
           documentType: doc.docType.toUpperCase().replaceAll(' ', '_'),
@@ -763,20 +1009,24 @@ export default function EmployeeRegistrationForm() {
               HR Administration Portal
             </div>
             <h1 style={{ fontSize: '22px', fontWeight: '900', margin: 0, letterSpacing: '-0.3px' }}>
-              Register New Staff
+              {isEditMode ? `Edit Employee File: ${existingEmployee?.fullName || 'Loading…'}` : 'Register New Staff'}
             </h1>
             <p style={{ margin: '4px 0 0', color: '#cbd5e1', fontSize: '13px' }}>
-              Create employee profile, employment, statutory and banking records
+              {isEditMode ? `Employee Code: ${existingEmployee?.employeeCode || '...'} • Update personal, statutory, banking and department profile` : 'Create employee profile, employment, statutory and banking records'}
             </p>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {draftRestored && (
+          {isEditMode ? (
+            <span style={{ background: 'rgba(37, 99, 235, 0.4)', border: '1px solid rgba(147, 197, 253, 0.4)', borderRadius: '20px', padding: '6px 14px', fontSize: '12px', fontWeight: '700' }}>
+              ⚡ Editing Mode
+            </span>
+          ) : draftRestored ? (
             <span style={{ background: 'rgba(255, 255, 255, 0.15)', border: '1px solid rgba(255, 255, 255, 0.2)', borderRadius: '20px', padding: '6px 14px', fontSize: '12px', fontWeight: '700' }}>
               ✏️ Draft Auto-Restored
             </span>
-          )}
+          ) : null}
           <span style={{ fontSize: '12px', fontWeight: '700', color: '#bae6fd' }}>Employee Master</span>
         </div>
       </div>
@@ -994,13 +1244,26 @@ export default function EmployeeRegistrationForm() {
                 </FormField>
               </div>
 
-              {/* Dates */}
-              <div className="reg-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              {/* Dates & Compensation */}
+              <div className="reg-grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                 <FormField label="Date of Joining" required error={errors.joiningDate?.message as string}>
                   <input type="date" {...register('joiningDate')} style={inputStyle(!!errors.joiningDate)} />
                 </FormField>
-                <FormField label="Probation End Date" error={errors.probationEndDate?.message as string} hint="Optional — leave blank if no probation">
+                <FormField label="Probation End Date" error={errors.probationEndDate?.message as string} hint="Optional — leave blank if none">
                   <input type="date" {...register('probationEndDate')} style={inputStyle(!!errors.probationEndDate)} />
+                </FormField>
+                <FormField label="Gross Salary (₹ / Month)" error={errors.baseSalary?.message as string} hint="Monthly gross compensation">
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <span style={{ position: 'absolute', left: '12px', color: '#64748b', fontWeight: '800', fontSize: '14px', zIndex: 2 }}>₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="100"
+                      placeholder="e.g. 45000"
+                      {...register('baseSalary')}
+                      style={{ ...inputStyle(!!errors.baseSalary), paddingLeft: '28px', fontWeight: '700', color: '#0f172a' }}
+                    />
+                  </div>
                 </FormField>
               </div>
 
@@ -1252,42 +1515,66 @@ export default function EmployeeRegistrationForm() {
           zIndex: 20
         }}>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button type="button" onClick={handleClearDraft} style={{ padding: '9px 14px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Trash2 size={14} /> Clear Draft
-            </button>
-            <button type="button" onClick={handleSaveDraft} style={{ padding: '9px 14px', background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} disabled={isSaving}>
-              <Save size={14} /> {isSaving ? 'Saving…' : 'Save Draft'}
-            </button>
+            {!isEditMode && (
+              <>
+                <button type="button" onClick={handleClearDraft} style={{ padding: '9px 14px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Trash2 size={14} /> Clear Draft
+                </button>
+                <button type="button" onClick={handleSaveDraft} style={{ padding: '9px 14px', background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} disabled={isSaving}>
+                  <Save size={14} /> {isSaving ? 'Saving…' : 'Save Draft'}
+                </button>
+              </>
+            )}
+            {isEditMode && (
+              <button
+                type="button"
+                onClick={() => navigate.push(`/hr/employees/${editId}`)}
+                style={{ padding: '9px 14px', background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Eye size={14} /> View Current Profile
+              </button>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '10px' }}>
-            {true && (
-              <button
-                type="button"
-                onClick={() => navigate.push('/hr/employees')}
-                style={{ padding: '10px 18px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <ArrowLeft size={14} /> Cancel
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => navigate.push('/hr/employees')}
+              style={{ padding: '10px 18px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <ArrowLeft size={14} /> Cancel
+            </button>
 
-            {false ? (
-              <button
-                type="button"
-                onClick={() => undefined}
-                style={{ padding: '10px 22px', background: '#0f172a', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                Next Step <ChevronRight size={14} />
-              </button>
-            ) : (
-              <button
-                type="submit"
-                style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)' }}
-                disabled={isRegistering}
-              >
-                <UserPlus size={16} /> {isRegistering ? 'Registering…' : 'Complete Employee Registration'}
-              </button>
-            )}
+            <button
+              type="submit"
+              style={{
+                padding: '10px 24px',
+                background: isEditMode
+                  ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+                  : 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: isEditMode ? '0 4px 12px rgba(2, 132, 199, 0.3)' : '0 4px 12px rgba(22, 163, 74, 0.3)'
+              }}
+              disabled={isRegistering}
+            >
+              {isEditMode ? (
+                <>
+                  <Save size={16} /> {isRegistering ? 'Saving Changes…' : 'Save Employee Changes'}
+                </>
+              ) : (
+                <>
+                  <UserPlus size={16} /> {isRegistering ? 'Registering…' : 'Complete Employee Registration'}
+                </>
+              )}
+            </button>
           </div>
         </div>
       </form>

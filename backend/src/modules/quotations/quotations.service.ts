@@ -260,15 +260,7 @@ export class QuotationsService {
     const totals = this.calculate(resolvedItems);
     if (!totals.processedItems.length)
       throw new BadRequestException('At least one quotation item is required');
-    const year = new Date().getFullYear();
-    const yy = String(year).substring(2);
-    const ny = String(year + 1).substring(2);
-    const prefix = `HCCL/${yy}${ny}/`;
-    const quotationNumber = await this.sequenceService.generateNext(
-      'quotation_number',
-      prefix,
-      4,
-    );
+    const quotationNumber = await this.sequenceService.generateQuotationNumber();
 
     const isManager = canAssignSalesOwner(role);
     const resolvedSalesExecutiveId = isManager
@@ -855,16 +847,9 @@ export class QuotationsService {
         where: { workflow: { code: 'SALES_ORDER' }, isInitial: true },
       });
 
-      const count = await tx.salesOrder.count();
-      const year = new Date().getFullYear();
-      const yy = String(year).substring(2);
-      const ny = String(year + 1).substring(2);
-      const prefix = `HCCL/${yy}${ny}/`;
-      const orderNumber = await this.sequenceService.generateNextWithTx(
+      const orderNumber = await this.sequenceService.generateSalesOrderNumber(
+        new Date(),
         tx,
-        'sales_order_number',
-        prefix,
-        4,
       );
       const products = await tx.product.findMany({
         where: { id: { in: quotation.items.map((item) => item.productId) } },

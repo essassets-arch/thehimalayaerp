@@ -607,9 +607,9 @@ export default function SuperAdminPortal() {
 
   const loadLiveUsers = useCallback(async () => {
     try {
-      const res = await backendFetch('/api/backend/users', { cacheTtlMs: 0 });
-      if (Array.isArray(res)) setBackendUsers(res);
-      else if (Array.isArray(res?.data)) setBackendUsers(res.data);
+      const res = await apiClient.get('/admin/users');
+      const raw = res.data?.data || res.data || [];
+      if (Array.isArray(raw)) setBackendUsers(raw);
     } catch (e) {
       console.error('Failed to load live backend users:', e);
     }
@@ -627,17 +627,7 @@ export default function SuperAdminPortal() {
   const auditLogs = Array.isArray(adminData?.auditLogs) ? adminData.auditLogs : (state.auditLogs || []);
   const directOrders = isAdminPortal ? (state.adminDirectOrders || []) : (state.directOrders || []);
 
-  const seededTargetOrders = useMemo(() => [
-    // Rahul Patel
-    { id: 'ORD-TGT-001', salespersonId: 'rahul-patel', grandTotal: 2000000, confirmedAt: '2026-07-05', orderLifecycleStatus: 'ORDER_CONFIRMED', cust: 'ABC Infrastructure Ltd', prod: 'FRP Manhole Covers (Heavy Duty)' },
-    { id: 'ORD-TGT-005', salespersonId: 'rahul-patel', grandTotal: 3500000, confirmedAt: '2026-07-12', orderLifecycleStatus: 'ORDER_CONFIRMED', cust: 'Smart City Dev Group', prod: 'FRP Manhole Covers (Medium)' },
-    { id: 'ORD-TGT-010', salespersonId: 'rahul-patel', grandTotal: 3000000, confirmedAt: '2026-07-20', orderLifecycleStatus: 'ORDER_CONFIRMED', cust: 'Metro Projects India', prod: 'FRP Chambers (Telecom Spec)' },
-    // Amit Shah
-    { id: 'ORD-TGT-002', salespersonId: 'amit-shah', grandTotal: 2100000, confirmedAt: '2026-07-08', orderLifecycleStatus: 'ORDER_CONFIRMED', cust: 'Urban Construction Corp', prod: 'RCC Hume Pipes (NP3 Class)' },
-    // Neha Patel
-    { id: 'ORD-TGT-003', salespersonId: 'neha-patel', grandTotal: 1800000, confirmedAt: '2026-07-03', orderLifecycleStatus: 'ORDER_CONFIRMED', cust: 'Metro Projects India', prod: 'FRP Chambers (Telecom Spec)' },
-    { id: 'ORD-TGT-006', salespersonId: 'neha-patel', grandTotal: 6400000, confirmedAt: '2026-07-15', orderLifecycleStatus: 'ORDER_CONFIRMED', cust: 'Smart City Dev Group', prod: 'FRP Manhole Covers (Heavy Duty)' }
-  ], []);
+  const seededTargetOrders = useMemo(() => [], []);
 
   const getOrderSalespersonId = useCallback((order) => {
     if (order.salespersonId) return order.salespersonId;
@@ -2496,14 +2486,14 @@ export default function SuperAdminPortal() {
     ];
 
     const deptHealthData = [
-      { name: "Sales", manager: "Alex Carter", status: "Nominal", transactions: filteredLeads.length + quotationsData.length || 24, health: 95 },
-      { name: "Production", manager: "Rajesh Sharma", status: filteredOrders.some(o => o.productionStatus === 'QC Failed') ? "Warning" : "Nominal", transactions: filteredOrders.length || 18, health: filteredOrders.some(o => o.productionStatus === 'QC Failed') ? 84 : 92 },
-      { name: "Plant Head", manager: "Dr. Vivek Joshi", status: "Nominal", transactions: state.purchaseOrders?.length || 12, health: 96 },
-      { name: "Store", manager: "Sunita Patel", status: state.rawInventory?.some(i => i.stock < 50) ? "Warning" : "Nominal", transactions: state.materialRequests?.length || 15, health: state.rawInventory?.some(i => i.stock < 50) ? 82 : 95 },
-      { name: "Dispatch", manager: "Amit Singh", status: "Nominal", transactions: filteredOrders.filter(o => o.dispatchStatus === 'Delivered').length || 10, health: 90 },
-      { name: "Finance", manager: "Divya Rao", status: filteredPayments.some(p => p.status === 'Outstanding') ? "Warning" : "Nominal", transactions: filteredPayments.length || 20, health: 88 },
-      { name: "HR", manager: "Neha Gupta", status: "Nominal", transactions: employees.length || 14, health: 97 },
-      { name: "QC", manager: "Elena QA", status: "Nominal", transactions: filteredOrders.filter(o => o.productionStatus === 'QC Passed' || o.productionStatus === 'QC Failed').length || 8, health: 99 }
+      { name: "Sales", manager: employees.find(e => e.department === 'Sales')?.name || "Sales Lead", status: "Nominal", transactions: filteredLeads.length + quotationsData.length || 0, health: 95 },
+      { name: "Production", manager: employees.find(e => e.department === 'Production')?.name || "Production Head", status: filteredOrders.some(o => o.productionStatus === 'QC Failed') ? "Warning" : "Nominal", transactions: filteredOrders.length || 0, health: filteredOrders.some(o => o.productionStatus === 'QC Failed') ? 84 : 92 },
+      { name: "Plant Head", manager: employees.find(e => e.department === 'Operations' || e.role?.includes('Plant'))?.name || "Plant Head", status: "Nominal", transactions: state.purchaseOrders?.length || 0, health: 96 },
+      { name: "Store", manager: employees.find(e => e.department === 'Store')?.name || "Store Manager", status: state.rawInventory?.some(i => i.stock < 50) ? "Warning" : "Nominal", transactions: state.materialRequests?.length || 0, health: state.rawInventory?.some(i => i.stock < 50) ? 82 : 95 },
+      { name: "Dispatch", manager: employees.find(e => e.department === 'Dispatch')?.name || "Dispatch Officer", status: "Nominal", transactions: filteredOrders.filter(o => o.dispatchStatus === 'Delivered').length || 0, health: 90 },
+      { name: "Finance", manager: employees.find(e => e.department === 'Finance')?.name || "Finance Lead", status: filteredPayments.some(p => p.status === 'Outstanding') ? "Warning" : "Nominal", transactions: filteredPayments.length || 0, health: 88 },
+      { name: "HR", manager: employees.find(e => e.department?.includes('HR'))?.name || "HR Manager", status: "Nominal", transactions: employees.length || 0, health: 97 },
+      { name: "QC", manager: employees.find(e => e.department === 'QC')?.name || "QC Inspector", status: "Nominal", transactions: filteredOrders.filter(o => o.productionStatus === 'QC Passed' || o.productionStatus === 'QC Failed').length || 0, health: 99 }
     ];
 
     // Filter audit logs dynamically based on selected department node
@@ -3497,14 +3487,17 @@ export default function SuperAdminPortal() {
         <div className="app-card">
           <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <h2 className="card-heading">Global ERP Login Accounts</h2>
-              <span style={{ fontSize: '11px', color: '#475569' }}>Roster of credentials and permissions mapping for all nodes</span>
+              <h2 className="card-heading">Global ERP Login Accounts (Read-Only)</h2>
+              <span style={{ fontSize: '11px', color: '#475569' }}>Roster of system credentials and access roles managed by HR Department</span>
             </div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', background: '#f1f5f9', color: '#475569', padding: '6px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Shield size={14} color="#0284c7" /> Managed Exclusively by HR
+              </span>
               <select
                 value={userRoleFilter}
                 onChange={(e) => setUserRoleFilter(e.target.value)}
-                style={{ background: 'var(--color-card)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 12px' }}
+                style={{ background: 'var(--color-card)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 12px', fontSize: '12px' }}
               >
                 <option value="All">All Roles</option>
                 <option value="Super Admin">Super Admin</option>
@@ -3517,17 +3510,6 @@ export default function SuperAdminPortal() {
                 <option value="Finance">Finance</option>
                 <option value="Dispatch">Dispatch</option>
               </select>
-              <button
-                className="action-btn"
-                style={{ background: 'var(--color-primary)', border: 'none', padding: '8px 16px', borderRadius: '6px', color: '#000', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
-                onClick={() => {
-                  setUserForm({ id: '', name: '', email: '', password: '', role: 'Dispatch', subRole: 'DISPATCH_EXECUTIVE', dispatchCategory: 'D1', phone: '', department: 'Dispatch', permissions: [] });
-                  setUserModalMode('create');
-                  setShowUserModal(true);
-                }}
-              >
-                <UserPlus size={16} /> Add User Account
-              </button>
             </div>
           </div>
 
@@ -3535,11 +3517,44 @@ export default function SuperAdminPortal() {
           <div className="desktop-only">
             <DataTable
               columns={[
-                { header: 'Employee ID', accessor: 'publicId', render: (row) => <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#0284c7' }}>{row.publicId}</span> },
-                { header: 'Employee Name', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
+                { header: 'User ID', accessor: 'publicId', render: (row) => <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#0284c7', fontWeight: 600 }}>{row.publicId}</span> },
+                { header: 'Full Name', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
                 { header: 'Login Email', accessor: 'email', render: (row) => <span style={{ color: '#475569' }}>{row.email}</span> },
-                { header: 'Department', accessor: 'department', render: (row) => (typeof row.department === 'object' ? (row.department?.name || row.department?.code || 'Executive') : (row.department || 'Executive')) },
-                { header: 'Last Login', accessor: 'updatedAt', render: (row) => (row.updatedAt ? new Date(row.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Active Session') }
+                { 
+                  header: 'Role', 
+                  accessor: 'role', 
+                  render: (row) => (
+                    <span style={{ 
+                      padding: '3px 9px', 
+                      borderRadius: '12px', 
+                      fontSize: '11px', 
+                      fontWeight: 700, 
+                      background: '#e0f2fe', 
+                      color: '#0369a1',
+                      border: '1px solid #bae6fd'
+                    }}>
+                      {typeof row.role === 'object' ? (row.role?.name || row.role?.code) : (row.role || 'Staff')}
+                    </span>
+                  ) 
+                },
+                { header: 'Department', accessor: 'department', render: (row) => (typeof row.department === 'object' ? (row.department?.name || row.department?.code || 'General') : (row.department || 'General')) },
+                { 
+                  header: 'Status', 
+                  accessor: 'status', 
+                  render: (row) => (
+                    <span style={{ 
+                      padding: '3px 9px', 
+                      borderRadius: '12px', 
+                      fontSize: '11px', 
+                      fontWeight: 700, 
+                      background: row.isActive ? '#dcfce7' : '#fee2e2', 
+                      color: row.isActive ? '#15803d' : '#b91c1c',
+                      border: `1px solid ${row.isActive ? '#bbf7d0' : '#fecaca'}`
+                    }}>
+                      {row.status || (row.isActive ? 'Active' : 'Inactive')}
+                    </span>
+                  ) 
+                }
               ]}
               data={filteredUsers}
               searchQuery={globalSearch}
@@ -3574,9 +3589,14 @@ export default function SuperAdminPortal() {
                       <strong style={{ fontSize: '14px', color: '#0f172a' }}>{user.name}</strong>
                       <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{user.email}</div>
                     </div>
-                    <span style={{ fontSize: '11px', fontWeight: 800, background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
-                      {typeof user.department === 'object' ? (user.department?.name || user.department?.code || 'Executive') : (user.department || user.role || 'Executive')}
-                    </span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: '12px', border: '1px solid #bfdbfe' }}>
+                        {typeof user.role === 'object' ? (user.role?.name || user.role?.code) : (user.role || 'Staff')}
+                      </span>
+                      <span style={{ fontSize: '11px', fontWeight: 700, background: user.isActive ? '#dcfce7' : '#fee2e2', color: user.isActive ? '#15803d' : '#b91c1c', padding: '2px 8px', borderRadius: '12px' }}>
+                        {user.status || (user.isActive ? 'Active' : 'Inactive')}
+                      </span>
+                    </div>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9', fontSize: '11.5px' }}>
@@ -3584,8 +3604,9 @@ export default function SuperAdminPortal() {
                       <span style={{ color: '#64748b', fontWeight: 600 }}>ID: </span>
                       <code style={{ color: '#0284c7', fontWeight: 700 }}>{user.publicId}</code>
                     </div>
-                    <div style={{ color: '#64748b' }}>
-                      {user.updatedAt ? new Date(user.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Active'}
+                    <div>
+                      <span style={{ color: '#64748b' }}>Dept: </span>
+                      <strong style={{ color: '#334155' }}>{typeof user.department === 'object' ? (user.department?.name || 'General') : (user.department || 'General')}</strong>
                     </div>
                   </div>
                 </div>
@@ -3593,156 +3614,6 @@ export default function SuperAdminPortal() {
             )}
           </div>
         </div>
-
-        {/* User Modal */}
-        {showUserModal && (
-          <div className="modal-overlay active" onClick={() => setShowUserModal(false)} style={{ zIndex: 10000 }}>
-            <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '480px' }}>
-              <div className="modal-header-row">
-                <h3 className="modal-title-text">{userModalMode === 'create' ? 'Create User Account' : 'Edit User details'}</h3>
-                <button className="modal-close-btn" onClick={() => setShowUserModal(false)}>✕</button>
-              </div>
-              <form onSubmit={handleUserSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>User Full Name</label>
-                  <input
-                    type="text" required value={userForm.name}
-                    onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
-                    className="form-input" placeholder="e.g. Raman Patel"
-                  />
-                </div>
-
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>Login E-mail</label>
-                  <input
-                    type="email" required value={userForm.email} disabled={userModalMode === 'edit'}
-                    onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                    className="form-input" placeholder="name@company.com"
-                  />
-                </div>
-
-                {userModalMode === 'create' && (
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ color: '#8893A7' }}>Security Password</label>
-                    <input
-                      type="password" required value={userForm.password}
-                      onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                      className="form-input" placeholder="••••••••"
-                    />
-                  </div>
-                )}
-
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>Department / Node Type</label>
-                  <select
-                    value={userForm.role || 'Dispatch'}
-                    onChange={(e) => {
-                      const r = e.target.value;
-                      let dept = r;
-                      let subRole = r;
-                      let dCat = null;
-                      if (r === 'Dispatch') {
-                        subRole = 'DISPATCH_EXECUTIVE';
-                        dCat = 'D1';
-                      } else if (r === 'Sales') {
-                        subRole = 'SALES_EXECUTIVE';
-                      } else if (r === 'Finance') {
-                        subRole = 'FINANCE_MANAGER';
-                      } else if (r === 'Production') {
-                        subRole = 'PLANT_HEAD';
-                      }
-                      setUserForm({ ...userForm, role: r, subRole, dispatchCategory: dCat, department: dept });
-                    }}
-                    className="form-select"
-                  >
-                    <option value="Dispatch">Dispatch Department</option>
-                    <option value="Sales">Sales Department</option>
-                    <option value="Finance">Finance Department</option>
-                    <option value="Production">Production Department</option>
-                    <option value="Store">Store Department</option>
-                    <option value="QC">QC Department</option>
-                    <option value="HR">HR Department</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Super Admin">Super Admin</option>
-                  </select>
-                </div>
-
-                {/* Sub-role / Category Options dynamically based on Department */}
-                {(userForm.role === 'Dispatch' || userForm.role?.includes('Dispatch') || userForm.subRole === 'DISPATCH_EXECUTIVE') && (
-                  <div className="form-group" style={{ margin: 0, background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <label className="form-label" style={{ color: '#0284c7', fontWeight: '800' }}>Dispatch Category / Executive Assignment</label>
-                    <select
-                      value={userForm.dispatchCategory || 'D1'}
-                      onChange={(e) => setUserForm({ ...userForm, dispatchCategory: e.target.value, subRole: 'DISPATCH_EXECUTIVE' })}
-                      className="form-select"
-                    >
-                      <option value="D1">Dispatch 1 (D1) — Ravikant Tiwari Queue</option>
-                      <option value="D2">Dispatch 2 (D2) — Sahad Mansuri Queue</option>
-                    </select>
-                  </div>
-                )}
-
-                {userForm.role === 'Sales' && (
-                  <div className="form-group" style={{ margin: 0, background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <label className="form-label" style={{ color: '#0284c7', fontWeight: '800' }}>Sales Role Type</label>
-                    <select
-                      value={userForm.subRole || 'SALES_EXECUTIVE'}
-                      onChange={(e) => setUserForm({ ...userForm, subRole: e.target.value })}
-                      className="form-select"
-                    >
-                      <option value="SUPER_SALES">SuperSales (Full Sales Scoping)</option>
-                      <option value="SALES_EXECUTIVE">Sales Executive (Individual Scoping)</option>
-                      <option value="SALES_MANAGER">Sales Manager</option>
-                    </select>
-                  </div>
-                )}
-
-                {userForm.role === 'Finance' && (
-                  <div className="form-group" style={{ margin: 0, background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <label className="form-label" style={{ color: '#0284c7', fontWeight: '800' }}>Finance Role Type</label>
-                    <select
-                      value={userForm.subRole || 'FINANCE_MANAGER'}
-                      onChange={(e) => setUserForm({ ...userForm, subRole: e.target.value })}
-                      className="form-select"
-                    >
-                      <option value="FINANCE_MANAGER">Finance Manager</option>
-                      <option value="FINANCE_EXECUTIVE">Finance Executive</option>
-                    </select>
-                  </div>
-                )}
-
-                {userForm.role === 'Production' && (
-                  <div className="form-group" style={{ margin: 0, background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <label className="form-label" style={{ color: '#0284c7', fontWeight: '800' }}>Production Role Type</label>
-                    <select
-                      value={userForm.subRole || 'PLANT_HEAD'}
-                      onChange={(e) => setUserForm({ ...userForm, subRole: e.target.value })}
-                      className="form-select"
-                    >
-                      <option value="PLANT_HEAD">Plant Head</option>
-                      <option value="PRODUCTION_PLANNER">Production Planner</option>
-                      <option value="PRODUCTION_OPERATOR">Production Operator</option>
-                    </select>
-                  </div>
-                )}
-
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>Phone Contact</label>
-                  <input
-                    type="text" value={userForm.phone}
-                    onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
-                    className="form-input" placeholder="+91 99999 88888"
-                  />
-                </div>
-
-                <button type="submit" className="form-submit-btn" style={{ background: 'var(--color-primary)', color: '#000', fontWeight: 'bold', cursor: 'pointer', padding: '10px', borderRadius: '6px', border: 'none', marginTop: '10px' }}>
-                  {userModalMode === 'create' ? 'Create User Account' : 'Save Details'}
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-
       </div>
     );
   };
@@ -4984,21 +4855,13 @@ export default function SuperAdminPortal() {
         <div className="app-card">
           <div className="card-top-bar" style={{ flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <h2 className="card-heading">Corporate Staff Registry</h2>
-              <span style={{ fontSize: '11px', color: '#475569' }}>Roster of personnel, department allocation, and designations</span>
+              <h2 className="card-heading">Corporate Staff Registry (Read-Only)</h2>
+              <span style={{ fontSize: '11px', color: '#475569' }}>Synchronized live from HR Department roster & onboarding registry</span>
             </div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <button
-                className="action-btn"
-                style={{ background: 'var(--color-primary)', border: 'none', padding: '8px 16px', borderRadius: '6px', color: '#000', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
-                onClick={() => {
-                  setEmployeeForm({ id: '', name: '', email: '', phone: '', department: 'Sales', role: 'Sales Lead', salary: 30000, active: true, joiningDate: new Date().toISOString().split('T')[0] });
-                  setSelectedEmployee(null);
-                  setShowEmployeeModal(true);
-                }}
-              >
-                <UserPlus size={16} /> Register New Staff
-              </button>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', background: '#f1f5f9', color: '#475569', padding: '6px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Shield size={14} color="#0284c7" /> Managed Exclusively by HR
+              </span>
             </div>
           </div>
 
@@ -5006,60 +4869,18 @@ export default function SuperAdminPortal() {
           <div className="desktop-only">
             <DataTable
               columns={[
-                { header: 'Employee Code', accessor: 'id', render: (row) => <span style={{ fontFamily: 'monospace' }}>{safeText(row.id || row.employeeCode)}</span> },
-                { header: 'Full Name', accessor: 'name', render: (row) => <strong>{safeText(row.name || row.fullName)}</strong> },
-                { header: 'Login Email', accessor: 'email', render: (row) => safeText(row.email) },
-                { header: 'Department', accessor: 'department', render: (row) => safeText(row.department, 'Sales') },
+                { header: 'Employee Code', accessor: 'id', render: (row) => <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#0284c7' }}>{safeText(row.employeeCode || row.id)}</span> },
+                { header: 'Full Name', accessor: 'name', render: (row) => <strong>{safeText(row.fullName || row.name)}</strong> },
+                { header: 'Work Email', accessor: 'email', render: (row) => safeText(row.email || row.workEmail) },
+                { header: 'Department', accessor: 'department', render: (row) => (typeof row.department === 'object' ? (row.department?.name || 'General') : safeText(row.department, 'General')) },
                 { header: 'Designation / Role', accessor: 'role', render: (row) => safeText(row.role || row.designation || row.jobTitle, 'Staff') },
-                { header: 'Monthly Salary', accessor: 'salary', render: (row) => `₹${(Number(row.salary) || 30000).toLocaleString('en-IN')}` },
-                { header: 'Status', accessor: 'status', render: (row) => <span style={{ color: safeText(row.status) === 'Active' ? '#10b981' : '#f43f5e', fontWeight: 'bold' }}>{safeText(row.status, 'Active')}</span> }
+                { header: 'Monthly Salary', accessor: 'salary', render: (row) => `₹${(Number(row.salary) || 0).toLocaleString('en-IN')}` },
+                { header: 'Status', accessor: 'status', render: (row) => <span style={{ color: safeText(row.status) === 'Active' ? '#10b981' : '#f43f5e', background: safeText(row.status) === 'Active' ? '#dcfce7' : '#fee2e2', padding: '3px 9px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>{safeText(row.status, 'Active')}</span> }
               ]}
               data={employees}
               searchQuery={globalSearch}
               searchField="name"
-              emptyMessage="No staff profiles registered."
-              actions={(row) => (
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => {
-                      setSelectedEmployee(row);
-                      setEmployeeForm({
-                        id: row.id,
-                        name: row.name,
-                        email: row.email,
-                        phone: row.phone || '',
-                        department: row.department || 'Sales',
-                        role: row.role || row.designation || 'Sales Lead',
-                        salary: row.salary || 30000,
-                        active: row.status === 'Active',
-                        joiningDate: row.joiningDate || ''
-                      });
-                      setShowEmployeeModal(true);
-                    }}
-                    className="action-btn"
-                    style={{ background: 'rgba(59, 130, 246, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#3b82f6', cursor: 'pointer' }}
-                    title="Edit Profile"
-                  >
-                    <Edit2 size={12} />
-                  </button>
-                  <button
-                    onClick={() => toggleEmployeeStatus(row)}
-                    className="action-btn"
-                    style={{ background: 'rgba(245, 158, 11, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#f59e0b', cursor: 'pointer' }}
-                    title="Toggle Active Status"
-                  >
-                    <RefreshCw size={12} />
-                  </button>
-                  <button
-                    onClick={() => deleteEmployee(row.id, row.name)}
-                    className="action-btn"
-                    style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', padding: '6px', borderRadius: '4px', color: '#ef4444', cursor: 'pointer' }}
-                    title="Remove Profile"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              )}
+              emptyMessage="No staff profiles registered by HR."
             />
           </div>
 
@@ -5067,12 +4888,12 @@ export default function SuperAdminPortal() {
           <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {employees.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '24px 16px', color: '#64748b', fontSize: '13px' }}>
-                No staff profiles registered.
+                No staff profiles registered by HR.
               </div>
             ) : (
               employees.map((row) => (
                 <div
-                  key={row.id}
+                  key={row.id || row.employeeCode}
                   style={{
                     background: '#ffffff',
                     border: '1px solid #e2e8f0',
@@ -5091,7 +4912,7 @@ export default function SuperAdminPortal() {
                         <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px', border: '1px solid #e2e8f0', color: '#0284c7', fontWeight: 700 }}>
                           {safeText(row.id || row.employeeCode)}
                         </code>
-                        <span style={{ fontSize: '11.5px', color: '#64748b' }}>• {safeText(row.department, 'Sales')}</span>
+                        <span style={{ fontSize: '11.5px', color: '#64748b' }}>• {typeof row.department === 'object' ? (row.department?.name || 'General') : safeText(row.department, 'General')}</span>
                       </div>
                     </div>
                     <span style={{ color: safeText(row.status) === 'Active' ? '#10b981' : '#f43f5e', background: safeText(row.status) === 'Active' ? '#dcfce7' : '#fee2e2', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>
@@ -5106,131 +4927,14 @@ export default function SuperAdminPortal() {
                     </div>
                     <div>
                       <span style={{ color: '#64748b' }}>Salary: </span>
-                      <strong style={{ color: '#059669' }}>₹{(Number(row.salary) || 30000).toLocaleString('en-IN')}</strong>
+                      <strong style={{ color: '#059669' }}>₹{(Number(row.salary) || 0).toLocaleString('en-IN')}</strong>
                     </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={() => {
-                        setSelectedEmployee(row);
-                        setEmployeeForm({
-                          id: row.id,
-                          name: row.name,
-                          email: row.email,
-                          phone: row.phone || '',
-                          department: row.department || 'Sales',
-                          role: row.role || row.designation || 'Sales Lead',
-                          salary: row.salary || 30000,
-                          active: row.status === 'Active',
-                          joiningDate: row.joiningDate || ''
-                        });
-                        setShowEmployeeModal(true);
-                      }}
-                      style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '12px', fontWeight: 700, color: '#334155', cursor: 'pointer' }}
-                    >
-                      Edit Profile
-                    </button>
-                    <button
-                      onClick={() => toggleEmployeeStatus(row)}
-                      style={{ padding: '7px 12px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', fontSize: '12px', fontWeight: 700, color: '#b45309', cursor: 'pointer' }}
-                    >
-                      Toggle Status
-                    </button>
                   </div>
                 </div>
               ))
             )}
           </div>
         </div>
-
-        {/* Employee Modal */}
-        {showEmployeeModal && (
-          <div className="modal-overlay active" onClick={() => setShowEmployeeModal(false)} style={{ zIndex: 10000 }}>
-            <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: '450px' }}>
-              <div className="modal-header-row">
-                <h3 className="modal-title-text">{selectedEmployee ? 'Edit Staff details' : 'Register New Staff'}</h3>
-                <button className="modal-close-btn" onClick={() => setShowEmployeeModal(false)}>✕</button>
-              </div>
-              <form onSubmit={handleEmployeeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>Full Name</label>
-                  <input
-                    type="text" required value={employeeForm.name}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })}
-                    className="form-input" placeholder="e.g. David Brown"
-                  />
-                </div>
-
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>E-mail</label>
-                  <input
-                    type="email" required value={employeeForm.email}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
-                    className="form-input" placeholder="name@company.com"
-                  />
-                </div>
-
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>Phone Contact</label>
-                  <input
-                    type="text" value={employeeForm.phone}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, phone: e.target.value })}
-                    className="form-input" placeholder="+91 99999 88888"
-                  />
-                </div>
-
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>Department</label>
-                  <select
-                    value={employeeForm.department}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })}
-                    className="form-select"
-                  >
-                    <option value="Sales">Sales</option>
-                    <option value="Production">Production</option>
-                    <option value="Store">Store</option>
-                    <option value="QC">QC</option>
-                    <option value="Dispatch">Dispatch</option>
-                    <option value="Finance">Finance</option>
-                    <option value="HR">HR</option>
-                  </select>
-                </div>
-
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>Designation / Role</label>
-                  <input
-                    type="text" required value={employeeForm.role}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, role: e.target.value })}
-                    className="form-input" placeholder="e.g. QC Manager"
-                  />
-                </div>
-
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>Monthly Salary (₹)</label>
-                  <input
-                    type="number" required value={employeeForm.salary}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, salary: Number(e.target.value) })}
-                    className="form-input" placeholder="30000"
-                  />
-                </div>
-
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ color: '#8893A7' }}>Joining Date</label>
-                  <input
-                    type="date" required value={employeeForm.joiningDate}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, joiningDate: e.target.value })}
-                    className="form-input"
-                  />
-                </div>
-
-                <button type="submit" className="form-submit-btn" style={{ background: 'var(--color-primary)', color: '#000', fontWeight: 'bold', cursor: 'pointer', padding: '10px', borderRadius: '6px', border: 'none', marginTop: '10px' }}>
-                  {selectedEmployee ? 'Save Changes' : 'Register Staff'}
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     );
   };

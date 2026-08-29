@@ -35,6 +35,9 @@ const ROUTE_ROLE_MAP: Record<string, string[]> = {
   'finance':        ['Finance', 'Finance Manager', 'Finance Lead', 'FINANCE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
   'hr':             ['HR', 'Super Admin', 'ADMIN', 'SUPER_ADMIN'],
   'back-office':    ['Back Office', 'BACK_OFFICE', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
+  'crm':            ['Sales', 'Sales Admin', 'Sales Executive', 'Sales Manager', 'SuperSales', 'SuperSales 1', 'SuperSales 2', 'SUPER_SALES', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
+  'orders':         ['Sales', 'Sales Admin', 'Sales Executive', 'Sales Manager', 'SuperSales', 'SuperSales 1', 'SuperSales 2', 'SUPER_SALES', 'Plant Head', 'PLANT_HEAD', 'Production', 'PRODUCTION', 'Dispatch', 'DISPATCH_EXECUTIVE', 'DISPATCH_2', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
+  'employee':       ['HR', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN', 'Employee', 'EMPLOYEE'],
 };
 
 interface AuthGuardProps {

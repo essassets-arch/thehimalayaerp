@@ -207,21 +207,20 @@ export default function DashboardView({
       dailySalesOrders: bk.dailySalesOrders ?? clientFin.dailySalesOrders,
       pendingOrdersCount: bk.pendingOrdersCount ?? clientFin.pendingOrdersCount,
       urgentOrdersCount: bk.urgentOrdersCount ?? clientFin.urgentOrdersCount,
-      lowStockCount: bk.lowStockCount ?? clientFin.lowStockCount,
-      criticalStockCount: bk.criticalStockCount ?? clientFin.criticalStockCount,
-      monthlyPerformance: backendStats.monthlyPerformance?.length > 0 ? backendStats.monthlyPerformance : clientFin.monthlyPerformance,
-      expenseBreakdown: backendStats.expenseBreakdown?.length > 0 ? backendStats.expenseBreakdown : clientFin.expenseBreakdown,
-      departmentCosts: backendStats.departmentCosts?.length > 0 ? backendStats.departmentCosts : clientFin.departmentCosts,
-      orderProfitability: backendStats.orderProfitability?.length > 0 ? backendStats.orderProfitability : clientFin.orderProfitability,
-      executiveAlerts: backendStats.executiveAlerts?.length > 0 ? backendStats.executiveAlerts : clientFin.executiveAlerts,
-      productionData: backendStats.productionData?.length > 0 ? backendStats.productionData : clientFin.productionData,
-      salesDispatchTrendData: backendStats.salesDispatchTrendData?.length > 0 ? backendStats.salesDispatchTrendData : clientFin.salesDispatchTrendData,
-      monthlyRevenueData: backendStats.monthlyRevenueData?.length > 0 ? backendStats.monthlyRevenueData : clientFin.monthlyRevenueData,
-      monthlyProductionData: backendStats.monthlyProductionData?.length > 0 ? backendStats.monthlyProductionData : clientFin.monthlyProductionData,
-      topProductsData: backendStats.topProductsData?.length > 0 ? backendStats.topProductsData : clientFin.topProductsData,
-      ageingData: backendStats.ageingData?.length > 0 ? backendStats.ageingData : clientFin.ageingData,
-      topCustomers: backendStats.topCustomers?.length > 0 ? backendStats.topCustomers : clientFin.topCustomers,
-      recentOrders: backendStats.recentOrders?.length > 0 ? backendStats.recentOrders : clientFin.recentOrders
+      lowStockAlertList: backendStats?.lowStockAlertList || [],
+      monthlyPerformance: backendStats?.monthlyPerformance?.length > 0 ? backendStats.monthlyPerformance : clientFin.monthlyPerformance,
+      expenseBreakdown: backendStats?.expenseBreakdown?.length > 0 ? backendStats.expenseBreakdown : clientFin.expenseBreakdown,
+      departmentCosts: backendStats?.departmentCosts?.length > 0 ? backendStats.departmentCosts : clientFin.departmentCosts,
+      orderProfitability: backendStats?.orderProfitability?.length > 0 ? backendStats.orderProfitability : clientFin.orderProfitability,
+      executiveAlerts: backendStats?.executiveAlerts?.length > 0 ? backendStats.executiveAlerts : clientFin.executiveAlerts,
+      productionData: backendStats?.productionData?.length > 0 ? backendStats.productionData : clientFin.productionData,
+      salesDispatchTrendData: backendStats?.salesDispatchTrendData?.length > 0 ? backendStats.salesDispatchTrendData : clientFin.salesDispatchTrendData,
+      monthlyRevenueData: backendStats?.monthlyRevenueData?.length > 0 ? backendStats.monthlyRevenueData : clientFin.monthlyRevenueData,
+      monthlyProductionData: backendStats?.monthlyProductionData?.length > 0 ? backendStats.monthlyProductionData : clientFin.monthlyProductionData,
+      topProductsData: backendStats?.topProductsData?.length > 0 ? backendStats.topProductsData : clientFin.topProductsData,
+      ageingData: backendStats?.ageingData?.length > 0 ? backendStats.ageingData : clientFin.ageingData,
+      topCustomers: backendStats?.topCustomers?.length > 0 ? backendStats.topCustomers : clientFin.topCustomers,
+      recentOrders: backendStats?.recentOrders?.length > 0 ? backendStats.recentOrders : clientFin.recentOrders
     };
   }, [backendStats, clientFin]);
 
@@ -229,21 +228,7 @@ export default function DashboardView({
   const [selectedOrderStage, setSelectedOrderStage] = useState('All');
   const [profitabilityTab, setProfitabilityTab] = useState('All');
   const [orderSearch, setOrderSearch] = useState('');
-
-  // Interactive tasks with local state toggling
-  const [tasks, setTasks] = useState([
-    { id: 1, title: 'Approve 4 Purchase Orders', dept: 'Purchase', priority: 'High', time: '10:00 AM', completed: false },
-    { id: 2, title: 'Review 3 Rejected Indents', dept: 'Store', priority: 'Medium', time: '11:30 AM', completed: false },
-    { id: 3, title: 'Verify 6 Pending Payments', dept: 'Finance', priority: 'High', time: '01:00 PM', completed: false },
-    { id: 4, title: 'Review 2 Low Stock Requests', dept: 'Store', priority: 'Medium', time: '02:00 PM', completed: false },
-    { id: 5, title: 'Check 5 Delayed Orders', dept: 'Production', priority: 'High', time: '03:00 PM', completed: false },
-  ]);
-
   const [selectedSpecOrder, setSelectedSpecOrder] = useState(null);
-
-  const toggleTask = (id) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  };
 
   const getProductSpecs = (productName, orderObj = null) => {
     // 1. Dynamic extraction from state product catalog if matching item exists
@@ -412,7 +397,11 @@ export default function DashboardView({
           </div>
           <div className="sa-card-subtext">{fin.totalOrdersCount} Confirmed Invoiced Orders</div>
           <div className="sa-card-footer">
-            <span className="kpi-success">↑ 14% vs Previous Period</span>
+            <span className={fin.salesGrowthPercent !== null && fin.salesGrowthPercent !== undefined && fin.salesGrowthPercent < 0 ? "kpi-danger" : "kpi-success"}>
+              {fin.salesGrowthPercent !== null && fin.salesGrowthPercent !== undefined
+                ? `${fin.salesGrowthPercent >= 0 ? '↑ +' : '↓ '}${fin.salesGrowthPercent}% vs Previous Period`
+                : 'Real-time telemetry'}
+            </span>
           </div>
         </div>
 
@@ -509,12 +498,12 @@ export default function DashboardView({
       </div>
       <section className="dashboard-kpis">
         {[
-          { title: 'Daily Production', icon: Lucide.Factory, val: formatNumber(fin.dailyProductionVal), suffix: 'Units', target: `${formatNumber(fin.dailyProductionTarget)} Units Target`, progress: fin.dailyProductionProgress, accent: '#2563eb', footerText: `★ ${fin.dailyProductionProgress}% Achievement`, footerClass: 'kpi-success' },
-          { title: 'Daily Dispatch', icon: Lucide.Truck, val: formatNumber(fin.dailyDispatchCount), suffix: 'Dispatches', target: `${formatNumber(fin.dailyUnitsDispatched)} Units Dispatched`, progress: 85, accent: '#10b981', footerText: `${fin.dailyDispatchPending} Orders Pending`, footerClass: 'kpi-warning' },
-          { title: 'Daily Sales', icon: Lucide.IndianRupee, val: formatCurrency(fin.dailySalesVal), suffix: '', target: `${fin.dailySalesOrders} Orders Confirmed`, progress: 100, accent: '#9333ea', footerText: '↑ +14% vs Yesterday', footerClass: 'kpi-success' },
-          { title: 'Pending Orders', icon: Lucide.ClipboardList, val: formatNumber(fin.pendingOrdersCount), suffix: 'Orders', target: 'Across All Departments', progress: 70, accent: '#f59e0b', footerText: `⚡ ${fin.urgentOrdersCount} Urgent Priority`, footerClass: 'kpi-danger' },
-          { title: 'Pending Payments', icon: Lucide.FileText, val: formatCurrency(fin.outstandingReceivables), suffix: '', target: `${fin.activeCustomersCount} Active Customers`, progress: 60, accent: '#ef4444', footerText: `⚠️ ${formatCurrency(fin.overdueAmount)} Overdue`, footerClass: 'kpi-danger' },
-          { title: 'Low Stock Alert', icon: Lucide.AlertTriangle, val: formatNumber(fin.lowStockCount), suffix: 'Items', target: `${fin.criticalStockCount} Out of Stock Critical`, progress: 30, accent: '#ea580c', footerText: 'Inspect Inventory →', footerClass: 'kpi-warning' },
+          { title: 'Daily Production', icon: Lucide.Factory, val: formatNumber(fin.dailyProductionVal), suffix: 'Units', target: `${formatNumber(fin.dailyProductionTarget)} Units Target`, progress: fin.dailyProductionProgress, accent: '#2563eb', footerText: `★ ${fin.dailyProductionProgress}% Achievement`, footerClass: fin.dailyProductionProgress >= 80 ? 'kpi-success' : 'kpi-warning' },
+          { title: 'Daily Dispatch', icon: Lucide.Truck, val: formatNumber(fin.dailyDispatchCount), suffix: 'Dispatches', target: `${formatNumber(fin.dailyUnitsDispatched)} Units Dispatched`, progress: Math.min(100, (fin.dailyDispatchCount || 0) * 20), accent: '#10b981', footerText: `${fin.dailyDispatchPending} Orders Pending`, footerClass: fin.dailyDispatchPending > 0 ? 'kpi-warning' : 'kpi-success' },
+          { title: 'Daily Sales', icon: Lucide.IndianRupee, val: formatCurrency(fin.dailySalesVal), suffix: '', target: `${fin.dailySalesOrders} Orders Confirmed`, progress: Math.min(100, (fin.dailySalesOrders || 0) * 25), accent: '#9333ea', footerText: fin.dailySalesGrowth !== null && fin.dailySalesGrowth !== undefined ? `${fin.dailySalesGrowth >= 0 ? '↑ +' : '↓ '}${fin.dailySalesGrowth}% vs Yesterday` : `${fin.dailySalesOrders} Orders Today`, footerClass: fin.dailySalesGrowth !== null && fin.dailySalesGrowth < 0 ? 'kpi-danger' : 'kpi-success' },
+          { title: 'Pending Orders', icon: Lucide.ClipboardList, val: formatNumber(fin.pendingOrdersCount), suffix: 'Orders', target: 'Across All Departments', progress: Math.min(100, (fin.pendingOrdersCount || 0) * 10), accent: '#f59e0b', footerText: `⚡ ${fin.urgentOrdersCount} Urgent Priority`, footerClass: fin.urgentOrdersCount > 0 ? 'kpi-danger' : 'kpi-success' },
+          { title: 'Pending Payments', icon: Lucide.FileText, val: formatCurrency(fin.outstandingReceivables), suffix: '', target: `${fin.activeCustomersCount} Active Customers`, progress: fin.totalSalesVal > 0 ? Math.min(100, Math.round((fin.revenueCollected / fin.totalSalesVal) * 100)) : 0, accent: '#ef4444', footerText: fin.overdueAmount > 0 ? `⚠️ ${formatCurrency(fin.overdueAmount)} Overdue` : 'No Overdue Invoices', footerClass: fin.overdueAmount > 0 ? 'kpi-danger' : 'kpi-success' },
+          { title: 'Low Stock Alert', icon: Lucide.AlertTriangle, val: formatNumber(fin.lowStockCount), suffix: 'Items', target: `${fin.criticalStockCount} Out of Stock Critical`, progress: Math.min(100, (fin.lowStockCount || 0) * 15), accent: '#ea580c', footerText: 'Inspect Inventory →', footerClass: fin.lowStockCount > 0 ? 'kpi-warning' : 'kpi-success' },
         ].map((kpi, idx) => (
           <div key={idx} className="dashboard-card kpi-card" style={{ '--kpi-accent': kpi.accent, '--progress': `${kpi.progress}%` }}>
             <div className="kpi-card-header">
@@ -861,7 +850,7 @@ export default function DashboardView({
                 <h3>Daily Production vs Target</h3>
                 <p>Telemetry vs plant quota ({formatNumber(fin.dailyProductionTarget)} Units)</p>
               </div>
-              <span className="analytics-positive-badge">+12% vs avg</span>
+              <span className="analytics-positive-badge">{fin.dailyProductionProgress}% of target</span>
             </div>
 
             <div className="production-analytics-body">
@@ -948,7 +937,7 @@ export default function DashboardView({
                 <h3 className="analytics-card__title">Monthly Revenue Overview</h3>
                 <p className="analytics-card__subtitle">Gross revenue vs realized collection vs outstanding balances across fiscal year</p>
               </div>
-              <span className="dashboard-badge badge-success">Year-on-Year ↑ +18%</span>
+              <span className="dashboard-badge badge-success">Fiscal Flow Telemetry</span>
             </div>
 
             <div className="analytics-card__legend">
@@ -996,9 +985,9 @@ export default function DashboardView({
               { label: 'Production Target', value: `${formatNumber(fin.dailyProductionTarget)} Units`, color: '#24345C' },
               { label: 'Production Completed', value: `${formatNumber(fin.dailyProductionVal)} Units`, color: '#10b981' },
               { label: 'Pending Production', value: `${formatNumber(Math.max(0, fin.dailyProductionTarget - fin.dailyProductionVal))} Units`, color: '#f59e0b' },
-              { label: 'QC Pending', value: `${Math.max(1, Math.round(18 * (fin.totalOrdersCount / 28)))} Batches`, color: '#6366f1' },
+              { label: 'QC Pending', value: `${(state?.qcInspections || []).filter(q => q.status === 'PENDING').length || (state?.sales?.orders || []).filter(o => o.status === 'QC_PENDING').length} Batches`, color: '#6366f1' },
               { label: 'Dispatch Pending', value: `${fin.dailyDispatchPending} Orders`, color: '#06b6d4' },
-              { label: 'Rejection Rate', value: '1.8%', color: '#ef4444' },
+              { label: 'Rejection Rate', value: '0.0%', color: '#ef4444' },
             ].map((stat, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '10px', borderBottom: i === 5 ? 'none' : '1px solid #edf1f5' }}>
                 <span style={{ fontSize: '13px', fontWeight: 650, color: '#475569' }}>{stat.label}</span>
@@ -1012,9 +1001,9 @@ export default function DashboardView({
           <div className="card-header">
             <div className="card-heading">
               <h3 className="card-title">Monthly Production Breakdown</h3>
-              <p className="card-subtitle">Weekly target vs produced vs rejected</p>
+              <p className="card-subtitle">Target vs produced across months</p>
             </div>
-            <span className="dashboard-badge badge-success">Avg 96% Yield</span>
+            <span className="dashboard-badge badge-success">Yield Telemetry</span>
           </div>
 
           <div className="card-body">
@@ -1042,84 +1031,96 @@ export default function DashboardView({
           <div className="card-header">
             <div className="card-heading">
               <h3 className="card-title">Low Stock Alerts</h3>
-              <p className="card-subtitle">12 critical raw materials</p>
+              <p className="card-subtitle">{fin.lowStockCount} items below threshold</p>
             </div>
-            <span className="dashboard-badge badge-danger">3 Out of Stock</span>
+            <span className={`dashboard-badge ${fin.criticalStockCount > 0 ? 'badge-danger' : 'badge-success'}`}>
+              {fin.criticalStockCount > 0 ? `${fin.criticalStockCount} Out of Stock` : 'Stock Healthy'}
+            </span>
           </div>
 
           <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {/* Desktop Table View */}
-            <div className="desktop-only dashboard-table-wrapper">
-              <table className="dashboard-table" style={{ width: '100%' }}>
-                <thead>
-                  <tr>
-                    <th>Material</th>
-                    <th>Current</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { name: 'River Sand (Critical)', qty: '12 Tons', min: '25 Tons', status: 'Critical', badge: 'badge-danger' },
-                    { name: 'Cement OPC 53', qty: '45 Bags', min: '100 Bags', status: 'Low', badge: 'badge-warning' },
-                    { name: 'Steel Reinforcement', qty: '0 Tons', min: '15 Tons', status: 'Stock-out', badge: 'badge-danger' },
-                    { name: 'Polyester Resin', qty: '120 Kg', min: '300 Kg', status: 'Low', badge: 'badge-warning' },
-                  ].map((row, i) => (
-                    <tr key={i}>
-                      <td style={{ fontWeight: 650, color: '#24345C' }}>{row.name}</td>
-                      <td style={{ fontWeight: 700, color: '#475569' }}>{row.qty}</td>
-                      <td><span className={`dashboard-badge ${row.badge}`}>{row.status}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Horizontal List View */}
-            <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {[
-                { name: 'River Sand (Critical)', qty: '12 Tons', min: '25 Tons', status: 'Critical', badge: 'badge-danger' },
-                { name: 'Cement OPC 53', qty: '45 Bags', min: '100 Bags', status: 'Low', badge: 'badge-warning' },
-                { name: 'Steel Reinforcement', qty: '0 Tons', min: '15 Tons', status: 'Stock-out', badge: 'badge-danger' },
-                { name: 'Polyester Resin', qty: '120 Kg', min: '300 Kg', status: 'Low', badge: 'badge-warning' },
-              ].map((row, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    background: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '10px',
-                    padding: '10px 12px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                    gap: '10px'
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 750, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {row.name}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>
-                      Min: {row.min}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', flexShrink: 0 }}>
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: row.status === 'Stock-out' ? '#dc2626' : '#24345C' }}>
-                      {row.qty}
-                    </span>
-                    <span className={`dashboard-badge ${row.badge}`} style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '6px' }}>
-                      {row.status}
-                    </span>
-                  </div>
+            {(fin.lowStockAlertList || []).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b', fontSize: '13px' }}>
+                All inventory items & raw materials are within normal stock levels.
+              </div>
+            ) : (
+              <>
+                {/* Desktop Table View */}
+                <div className="desktop-only dashboard-table-wrapper">
+                  <table className="dashboard-table" style={{ width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th>Material</th>
+                        <th>Current</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fin.lowStockAlertList.slice(0, 5).map((row, i) => (
+                        <tr key={i}>
+                          <td style={{ fontWeight: 650, color: '#24345C' }}>{row.name}</td>
+                          <td style={{ fontWeight: 700, color: '#475569' }}>{row.qty}</td>
+                          <td><span className={`dashboard-badge ${row.badge}`}>{row.status}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
-            </div>
+
+                {/* Mobile Horizontal List View */}
+                <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {fin.lowStockAlertList.slice(0, 5).map((row, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '10px',
+                        padding: '10px 12px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                        gap: '10px'
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 750, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {row.name}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>
+                          Min: {row.min}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', flexShrink: 0 }}>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: row.status === 'Stock-out' ? '#dc2626' : '#24345C' }}>
+                          {row.qty}
+                        </span>
+                        <span className={`dashboard-badge ${row.badge}`} style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '6px' }}>
+                          {row.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
-              <button className="task-action" style={{ flex: 1, height: '34px', fontSize: '12px' }}>View Inventory</button>
-              <button className="task-action" style={{ flex: 1, height: '34px', fontSize: '12px', background: '#2563eb', color: '#fff', border: 'none' }}>Create Indent</button>
+              <button 
+                className="task-action" 
+                onClick={() => onNavigateView ? onNavigateView('inventory', 'list') : window.location.assign('/inventory')}
+                style={{ flex: 1, height: '34px', fontSize: '12px' }}
+              >
+                View Inventory
+              </button>
+              <button 
+                className="task-action" 
+                onClick={() => onNavigateView ? onNavigateView('procurement', 'indents') : window.location.assign('/procurement/indents')}
+                style={{ flex: 1, height: '34px', fontSize: '12px', background: '#2563eb', color: '#fff', border: 'none' }}
+              >
+                Create Indent
+              </button>
             </div>
           </div>
         </div>

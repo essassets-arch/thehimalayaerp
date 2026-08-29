@@ -41,6 +41,8 @@ export const employeeRegistrationSchema = z
     ),
     joiningDate: z.string().min(1, 'Date of Joining is mandatory'),
     probationEndDate: z.string().optional().nullable(),
+    salary: z.preprocess((val) => val === '' || val === undefined || val === null ? 0 : Number(val), z.number().min(0, 'Salary must be 0 or greater').optional().default(0)),
+    baseSalary: z.preprocess((val) => val === '' || val === undefined || val === null ? 0 : Number(val), z.number().min(0, 'Salary must be 0 or greater').optional().default(0)),
 
     // Contact
     email: z.string().min(1, 'Work Email is mandatory').email('Invalid Work Email format'),
@@ -209,3 +211,86 @@ export const employeeDraftSchema = z.object({
 });
 
 export type EmployeeDraftValues = z.infer<typeof employeeDraftSchema>;
+
+// ────────────────────────────────────────────────────────────────
+// 3. EDIT EMPLOYEE SCHEMA (Allows keeping existing masked sensitive docs/fields)
+// ────────────────────────────────────────────────────────────────
+export const employeeEditSchema = z.object({
+  employeeCode: z.string().optional(),
+  firstName: z.string().min(1, 'First Name is mandatory').trim(),
+  lastName: z.string().min(1, 'Last Name is mandatory').trim(),
+  name: z.string().min(1, 'Full Name is mandatory').trim(),
+
+  // Employment
+  designation: z.string().min(1, 'Job Title is mandatory').trim(),
+  department: z.string().min(1, 'Department is mandatory'),
+  managerId: z.string().optional().nullable(),
+  workLocation: z.string().min(1, 'Work Location is mandatory'),
+  employmentType: z.string().optional().default('Full-time'),
+  joiningDate: z.string().min(1, 'Date of Joining is mandatory'),
+  probationEndDate: z.string().optional().nullable(),
+  salary: z.preprocess((val) => val === '' || val === undefined || val === null ? 0 : Number(val), z.number().min(0, 'Salary must be 0 or greater').optional().default(0)),
+  baseSalary: z.preprocess((val) => val === '' || val === undefined || val === null ? 0 : Number(val), z.number().min(0, 'Salary must be 0 or greater').optional().default(0)),
+
+  // Contact
+  email: z.string().min(1, 'Work Email is mandatory').email('Invalid Work Email format'),
+  personalEmail: z.string().optional().nullable(),
+  phone: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.replace(/\D/g, '') : ''))
+    .refine((v) => !v || (v.length >= 10 && v.length <= 12), 'Phone must be 10–12 digits'),
+  companyPhone: z
+    .string()
+    .optional()
+    .nullable(),
+  dob: z.string().optional().nullable(),
+  gender: z.string().optional().default('Male'),
+  residentialAddress: z.string().optional().default(''),
+  sameAsPresentAddress: z.boolean().optional().default(false),
+  permanentAddress: z.string().optional().default(''),
+
+  // Emergency Contact
+  emergencyName: z.string().optional().default(''),
+  emergencyPhone: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.replace(/\D/g, '') : ''))
+    .refine((v) => !v || (v.length >= 10 && v.length <= 12), 'Emergency Phone must be 10–12 digits'),
+  emergencyRelationship: z.string().optional().default(''),
+
+  // Statutory
+  pan: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.toUpperCase().replace(/\s/g, '') : ''))
+    .refine((v) => !v || panRegex.test(v), 'Invalid PAN format (e.g. ABCDE1234F)'),
+  aadhaar: z.string().optional(),
+  uan: z.string().optional(),
+  esic: z.string().optional(),
+
+  // Bank
+  bankName: z.string().optional().default(''),
+  bankAccountHolder: z.string().optional().default(''),
+  bankAccount: z.string().optional(),
+  confirmBankAccount: z.string().optional(),
+  ifscCode: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.toUpperCase().replace(/\s/g, '') : ''))
+    .refine((v) => !v || ifscRegex.test(v), 'Invalid IFSC (e.g. SBIN0001234)'),
+  branchName: z.string().optional(),
+  accountType: z.string().optional().default('Savings'),
+
+  // Media (Base64)
+  photograph: z.string().optional(),
+  signature: z.string().optional(),
+
+  // Documents
+  aadhaarCardDoc: z.any().optional(),
+  panCardDoc: z.any().optional(),
+  bankProofDoc: z.any().optional(),
+  additionalDocuments: z.array(z.any()).optional().default([]),
+});
+
+export type EmployeeEditValues = z.infer<typeof employeeEditSchema>;

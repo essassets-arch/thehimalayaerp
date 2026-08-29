@@ -1050,9 +1050,20 @@ async function proxyRequest(method, path, body = null) {
     }
   }
 
+  let companyId = null;
+  if (typeof window !== 'undefined') {
+    try {
+      const userStr = window.localStorage.getItem('himalaya_user') || window.sessionStorage.getItem('himalaya_user') || window.localStorage.getItem('user');
+      if (userStr) {
+        const u = JSON.parse(userStr);
+        companyId = u?.companyId || u?.company_id;
+      }
+    } catch (_) {}
+  }
+
   const headers = {
     'Content-Type': 'application/json',
-    'x-company-id': 'd039cfa4-e78b-4138-adfc-1b0f14cffa91', // Real company ID from local DB
+    ...(companyId ? { 'x-company-id': companyId } : {}),
     ...(token && { 'Authorization': `Bearer ${token}` })
   };
 

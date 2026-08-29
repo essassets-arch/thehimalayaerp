@@ -255,4 +255,9 @@ export class SuperAdminController {
   async getRoles() {
     return this.superAdminService.getRoles();
   }
+
+  @Get('employees')
+  async getEmployees() {
+    return this.superAdminService.getEmployees();
+  }
 }

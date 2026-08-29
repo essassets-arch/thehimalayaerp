@@ -134,7 +134,8 @@ export class SuperAdminService {
       departments,
       salesReturns,
       replacementOrders,
-      branches
+      branches,
+      rawMaterials
     ] = await (Promise.all([
       this.prisma.salesOrder.findMany({
         where: {
@@ -231,6 +232,9 @@ export class SuperAdminService {
       this.prisma.branch.findMany({
         where: { deletedAt: null },
         select: { id: true, name: true }
+      }).catch(() => []),
+      this.prisma.rawMaterial.findMany({
+        where: { isActive: true }
       }).catch(() => [])
     ]) as any) as [any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[]];
 
@@ -283,13 +287,42 @@ export class SuperAdminService {
 
     let lowStockItems = 0;
     let outOfStockItems = 0;
+    const lowStockAlertList: any[] = [];
     products.forEach((p: any) => {
       const stock = p.FinishedGoods ? toNumber(p.FinishedGoods.availableQuantity) : 0;
       const minStock = toNumber(p.minimumStock);
       if (stock <= 0 && minStock > 0) {
         outOfStockItems++;
+        lowStockAlertList.push({
+          name: p.name,
+          qty: `0 ${p.unit || 'Units'}`,
+          min: `${minStock} ${p.unit || 'Units'}`,
+          status: 'Stock-out',
+          badge: 'badge-danger'
+        });
       } else if (stock > 0 && stock <= minStock) {
         lowStockItems++;
+        lowStockAlertList.push({
+          name: p.name,
+          qty: `${stock} ${p.unit || 'Units'}`,
+          min: `${minStock} ${p.unit || 'Units'}`,
+          status: 'Low',
+          badge: 'badge-warning'
+        });
+      }
+    });
+
+    rawMaterials.forEach((rm: any) => {
+      const minStock = toNumber(rm.minimumStock);
+      if (minStock > 0) {
+        lowStockAlertList.push({
+          name: `${rm.name} (Raw Material)`,
+          qty: `0 ${rm.unit || 'Kg'}`,
+          min: `${minStock} ${rm.unit || 'Kg'}`,
+          status: 'Stock-out',
+          badge: 'badge-danger'
+        });
+        outOfStockItems++;
       }
     });
 
@@ -464,7 +497,26 @@ export class SuperAdminService {
         time: 'Real-time'
       });
     }
-
+    if (outOfStockItems > 0) {
+      executiveAlerts.push({
+        id: 2,
+        type: 'danger',
+        icon: 'AlertTriangle',
+        title: 'Low Stock Alert',
+        message: `${outOfStockItems} items are at zero / critical reorder thresholds.`,
+        time: 'Real-time'
+      });
+    }
+    if (urgentOrders > 0) {
+      executiveAlerts.push({
+        id: 3,
+        type: 'warning',
+        icon: 'ShoppingBag',
+        title: 'Urgent Sales Orders Pending',
+        message: `${urgentOrders} customer orders marked as Urgent require immediate production / dispatch attention.`,
+        time: 'Real-time'
+      });
+    }
 
     // 11. Top Products (Real Order Items)
     const productSalesMap = new Map<string, number>();
@@ -596,6 +648,7 @@ export class SuperAdminService {
       expenseBreakdown,
       departmentCosts,
       orderProfitability,
+      lowStockAlertList,
       productionData: [
         { name: "Target", value: productionTarget, fill: "#D6E2F0" },
         { name: "Produced", value: dailyProduction, fill: "#10b981" }
@@ -631,58 +684,29 @@ export class SuperAdminService {
           trendList.push({
             name: label,
             sales: Number((daySalesVal / 100000).toFixed(2)),
-            dispatch: dayDispatchQty || (dayOrders.length > 0 ? Math.round(dayOrders.length * 150) : 0),
+            dispatch: dayDispatchQty,
             orders: dayOrders.length
           });
         }
-
-        const hasTrendData = trendList.some(item => item.sales > 0 || item.dispatch > 0 || item.orders > 0);
-        if (!hasTrendData) {
-          trendList.length = 0;
-          for (let i = trendDays - 1; i >= 0; i--) {
-            const d = new Date(trendEndDate);
-            d.setDate(trendEndDate.getDate() - i);
-            const label = `${d.getDate()} ${monthNamesShort[d.getMonth()]}`;
-            trendList.push({
-              name: label,
-              sales: Number((Math.max(12000, Math.sin(i / 2) * 45000 + 65000) / 100000).toFixed(2)),
-              dispatch: Math.round(Math.max(40, Math.cos(i / 2) * 180 + 320)),
-              orders: Math.round(Math.max(1, Math.sin(i / 3) * 3 + 5))
-            });
-          }
-        }
         return trendList;
       })(),
-      monthlyPerformance: (() => {
-        const hasMonthlyData = monthlyPerformance.some(m => m.revenue > 0 || m.collected > 0);
-        if (!hasMonthlyData) {
-          monthlyPerformance.length = 0;
-          past4Months.forEach((m, idx) => {
-            const revVal = Number((Math.max(200000, 450000 + idx * 120000) / 100000).toFixed(2));
-            const collVal = Number((revVal * 0.88).toFixed(2));
-            const expVal = Number((revVal * 0.42).toFixed(2));
-            const gpVal = Number((revVal - expVal).toFixed(2));
-            const netVal = Number((revVal - collVal - expVal).toFixed(2));
-            
-            monthlyPerformance.push({
-              month: m.month,
-              revenue: revVal,
-              collected: collVal,
-              expense: expVal,
-              grossProfit: gpVal,
-              estimatedProfit: netVal
-            });
-          });
-        }
-        return monthlyPerformance;
-      })(),
+      monthlyPerformance: monthlyPerformance,
       monthlyRevenueData: monthlyPerformance.map(m => ({
         name: m.month,
         revenue: m.revenue,
         collection: m.collected,
         outstanding: Math.max(0, Number((m.revenue - m.collected).toFixed(2)))
       })),
-      monthlyProductionData: [],
+      monthlyProductionData: past4Months.map(m => {
+        const mReports = todayProductionReports.filter((r: any) => new Date(r.reportDate) >= m.startDate && new Date(r.reportDate) <= m.endDate);
+        const mProduced = mReports.reduce((sum: number, r: any) => sum + (r.totalSets || r.totalCovers || 0), 0);
+        return {
+          name: m.month,
+          target: productionTarget,
+          produced: mProduced,
+          rejected: 0
+        };
+      }),
       topProductsData,
       ageingData,
       topCustomers,
@@ -804,6 +828,70 @@ export class SuperAdminService {
       isSystemType: true,
       isActive: true,
       createdAt: r.createdAt
+    }));
+  }
+
+  async getEmployees() {
+    const items = await this.prisma.employee.findMany({
+      include: {
+        department: true,
+        user: {
+          include: { role: true }
+        },
+        workLocation: true
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const getNum = (code?: string | null) => {
+      const m = (code || '').match(/(\d+)/);
+      return m ? parseInt(m[1], 10) : 999999;
+    };
+    items.sort((a, b) => getNum(a.employeeCode) - getNum(b.employeeCode));
+
+    return {
+      items: items.map(e => ({
+        id: e.id,
+        employeeCode: e.employeeCode,
+        name: e.fullName,
+        fullName: e.fullName,
+        email: e.user?.email || e.workEmail,
+        department: e.department?.name || 'Operations',
+        role: e.user?.role?.name || e.jobTitle || 'Staff',
+        designation: e.jobTitle,
+        salary: Number(e.baseSalary || 0),
+        status: e.status === 'ACTIVE' ? 'Active' : 'Inactive',
+        phone: e.phoneNumber,
+        joiningDate: e.joiningDate ? e.joiningDate.toISOString().slice(0, 10) : ''
+      })),
+      total: items.length
+    };
+  }
+
+  async getUsers() {
+    const users = await this.prisma.user.findMany({
+      include: {
+        role: true,
+        employee: {
+          include: { department: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    return users.map(u => ({
+      id: u.id,
+      publicId: u.publicId,
+      name: u.name,
+      email: u.email,
+      role: u.role?.name || 'Staff',
+      roleCode: u.role?.code,
+      roleId: u.roleId,
+      department: u.employee?.department?.name || u.role?.name || 'General',
+      dispatchCategory: u.dispatchCategory,
+      isActive: u.isActive,
+      status: u.isActive ? 'Active' : 'Disabled',
+      createdAt: u.createdAt,
+      updatedAt: u.updatedAt
     }));
   }
 

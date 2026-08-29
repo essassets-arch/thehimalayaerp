@@ -3,6 +3,34 @@ import { PrismaService } from '../../database/prisma.service';
 import { hash } from 'bcrypt';
 import { randomUUID } from 'crypto';
 
+const KNOWN_USER_PASSWORDS: Record<string, string> = {
+  'super.admin@himalayaerp.com': 'SuperAdmin@hcppl',
+  'nahin.v@himalayaerp.com': 'HR@hcppl',
+  'superadmin@himalayaerp.com': 'SuperAdmin@hcppl',
+  'abbas.b@himalayaerp.com': 'dataAnalyst#2101',
+  'supersales1@himalayaerp.com': 'supersales123',
+  'supersales2@himalayaerp.com': 'supersales124',
+  'sales1@himalayaerp.com': 'Himalaya@2026',
+  'sales2@himalayaerp.com': 'Himalaya@2026',
+  'sales3@himalayaerp.com': 'Himalaya@2026',
+  'sales4@himalayaerp.com': 'Himalaya@2026',
+  'sales5@himalayaerp.com': 'Himalaya@2026',
+  'sales6@himalayaerp.com': 'Himalaya@2026',
+  'sales7@himalayaerp.com': 'Himalaya@2026',
+  'sales11@himalayaerp.com': 'Himalayacc@2025',
+  'sales12@himalayaerp.com': 'Jyoti@2258',
+  'sales13@himalayaerp.com': 'Himalaya@2026',
+  'sales14@himalayaerp.com': 'ARHIMALAYA12',
+  'sahad.m@himalayaerp.com': 'Hcppl@5253',
+  'trushna.g@himalayaerp.com': 'Himalaya@3252',
+  'ravikant.t@himalayaerp.com': 'Logistics@hcppl',
+  'sahad.dispatch@himalayaerp.com': 'Sahad@5253',
+  'sana.r@himalayaerp.com': 'Himalaya@1234',
+  'moksha.n@himalayaerp.com': 'Production@hcppl',
+  'hussain.t@himalayaerp.com': 'Rnd@hcppl',
+  'makhdum@himalayaerp.com': 'Store@hcppl',
+};
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -42,11 +70,60 @@ export class UsersService {
   }
 
   async findAll() {
-    return this.prisma.user.findMany({
-      include: {
-        role: true,
-      },
+    const [users, allEmployees] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { deletedAt: null },
+        include: {
+          role: true,
+          employee: {
+            include: { department: true }
+          }
+        },
+      }),
+      this.prisma.employee.findMany({
+        select: { id: true, employeeCode: true, workEmail: true, userId: true, department: { select: { name: true } } }
+      })
+    ]);
+
+    const empByUserId = new Map();
+    const empByEmail = new Map();
+    for (const emp of allEmployees) {
+      if (emp.userId) empByUserId.set(emp.userId, emp);
+      if (emp.workEmail) empByEmail.set(emp.workEmail.toLowerCase(), emp);
+    }
+
+    const mapped = users.map(u => {
+      const linkedEmp = u.employee || empByUserId.get(u.id) || empByEmail.get(u.email.toLowerCase());
+      const empCode = linkedEmp?.employeeCode || u.publicId;
+      const normalizedEmail = (u.email || '').toLowerCase().trim();
+      return {
+        id: u.id,
+        publicId: empCode,
+        employeeCode: empCode,
+        employeeId: linkedEmp?.id || null,
+        name: u.name,
+        email: u.email,
+        password: KNOWN_USER_PASSWORDS[normalizedEmail] || 'Himalaya@2026',
+        role: u.role?.name || 'Staff',
+        roleCode: u.role?.code || 'STAFF',
+        roleId: u.roleId,
+        department: linkedEmp?.department?.name || u.employee?.department?.name || u.role?.name || 'Super Admin',
+        dispatchCategory: u.dispatchCategory,
+        isActive: u.isActive,
+        status: u.isActive ? 'Active' : 'Inactive',
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt
+      };
     });
+
+    const getNum = (code: string | null | undefined) => {
+      if (!code) return 999999;
+      const match = String(code).match(/(\d+)/);
+      return match ? parseInt(match[1], 10) : 999999;
+    };
+
+    mapped.sort((a, b) => getNum(a.employeeCode) - getNum(b.employeeCode));
+    return mapped;
   }
 
   async create(data: any) {
@@ -88,25 +165,39 @@ export class UsersService {
     }
 
     if (existing) {
+      const updateData: any = {
+        roleId: role.id,
+        name: data.name || existing.name,
+      };
+      if (data.password) {
+        const hashAsync = hash as unknown as (
+          data: string,
+          saltOrRounds: number,
+        ) => Promise<string>;
+        updateData.password = await hashAsync(data.password, 12);
+        KNOWN_USER_PASSWORDS[email.toLowerCase()] = data.password;
+      }
+
       // Update existing user role and link to employee
       const updatedUser = await this.prisma.user.update({
         where: { id: existing.id },
-        data: {
-          roleId: role.id,
-          name: data.name || existing.name,
-        },
+        data: updateData,
         include: { role: true },
       });
 
       if (employeeToLink) {
         await this.prisma.employee.update({
           where: { id: employeeToLink.id },
-          data: { userId: existing.id },
+          data: { userId: existing.id, workEmail: email },
         });
       }
 
-      const result = { ...updatedUser, employeeId: employeeToLink?.id || null };
-      delete (result as { password?: string }).password;
+      const result = { 
+        ...updatedUser, 
+        employeeId: employeeToLink?.id || null,
+        employeeCode: employeeToLink?.employeeCode || updatedUser.publicId,
+        password: data.password || KNOWN_USER_PASSWORDS[email.toLowerCase()] || 'Himalaya@2026'
+      };
       return result;
     }
 
@@ -136,7 +227,7 @@ export class UsersService {
 
     const user = await this.prisma.user.create({
       data: {
-        publicId: randomUUID(),
+        publicId: employeeToLink?.employeeCode || randomUUID(),
         email,
         password: hashedPassword,
         name,
@@ -153,20 +244,23 @@ export class UsersService {
     if (employeeToLink) {
       await this.prisma.employee.update({
         where: { id: employeeToLink.id },
-        data: { userId: user.id },
+        data: { userId: user.id, workEmail: email },
       });
     }
 
-    if (employeeToLink) {
-      await this.prisma.employee.update({
-        where: { id: employeeToLink.id },
-        data: { userId: user.id },
-      });
-    }
+    KNOWN_USER_PASSWORDS[email.toLowerCase()] = data.password || 'admin123';
+    return {
+      ...user,
+      employeeId: employeeToLink?.id || null,
+      employeeCode: employeeToLink?.employeeCode || user.publicId,
+      password: data.password || 'admin123'
+    };
+  }
 
-    const result = { ...user, employeeId: employeeToLink?.id || null };
-    delete (result as { password?: string }).password;
-    return result;
+  async getRoles() {
+    return this.prisma.role.findMany({
+      orderBy: { name: 'asc' },
+    });
   }
 
   async update(id: string, data: any) {

@@ -898,47 +898,6 @@ export class ProductionWorkflowService {
       }
     }
 
-    // Also include any Finished Goods / Manufacturing products from Product table if not yet present
-    const fgProducts = await this.prisma.product.findMany({
-      where: {
-        companyId: companyId ? companyId : undefined,
-        isActive: true,
-        OR: [
-          { productType: { in: ['MANUFACTURING', 'FINISHED_GOODS'] } },
-          { category: { in: ['FRP COVER', 'FRP COVERS', 'COVERBLOCK', 'FRP GRATINGS'] } },
-        ],
-      },
-    });
-
-    for (const p of fgProducts) {
-      const key = p.sku || p.publicId;
-      if (!groupedMap.has(key)) {
-        groupedMap.set(key, {
-          id: `fg-prod-${p.id}`,
-          workOrderId: `WO-STOCK-${p.sku}`,
-          jobNo: `WO-STOCK-${p.sku}`,
-          productId: p.id,
-          productName: p.name,
-          productCode: p.sku || p.publicId,
-          category: p.category || 'FRP COVER',
-          dispatchCategory: p.dispatchCategory || 'D1',
-          customerName: 'Internal Stock',
-          quantity: 0,
-          availableQuantity: 0,
-          productionIn: 0,
-          extraCover: 0,
-          extraFrame: 0,
-          dispatchOut: 0,
-          openingStock: 0,
-          unit: (p.unit || 'SET').toUpperCase(),
-          status: 'OUT_OF_STOCK',
-          receivedAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
-          receivedById: null,
-          product: p,
-        });
-      }
-    }
-
     // Post-aggregation pass to set correct ledger metrics with auto-pairing of extra covers & frames
     for (const existing of groupedMap.values()) {
       const pId = existing.productId || existing.product?.id;

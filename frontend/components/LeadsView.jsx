@@ -290,41 +290,61 @@ export default function LeadsView({
 
   const handleGenerateQuotationClick = (lead) => {
     const leadId = lead.id || lead.leadId;
-    const leadItems = Array.isArray(lead.detailedItems) ? lead.detailedItems : [];
+    const leadItems = Array.isArray(lead.detailedItems) ? lead.detailedItems : (Array.isArray(lead.items) ? lead.items : []);
 
-    // Database-backed leads are not present in the legacy Zustand sales
-    // collection, so create the UI draft directly from the selected record.
-    erpStore.setQuotationDraft({
+    const mappedItems = leadItems.length > 0 ? leadItems.map((item, index) => ({
+      id: item.id || `item-${index + 1}`,
+      productId: item.productId || item.productCode || `PRD-${index + 1}`,
+      productName: item.productName || item.product || item.name || '',
+      name: item.productName || item.product || item.name || '',
+      specification: item.specification || item.productDetails || item.description || '',
+      description: item.specification || item.productDetails || item.description || '',
+      productDetails: item.specification || item.productDetails || item.description || '',
+      quantity: Number(item.quantity) || 1,
+      qty: Number(item.quantity) || 1,
+      unitPrice: Number(item.unitPrice) || 0,
+      discount: Number(item.discount) || 0,
+      tax: item.tax !== undefined ? Number(item.tax) : (item.gstRate !== undefined ? Number(item.gstRate) : 18),
+    })) : (lead.productInterest || lead.product ? [{
+      id: 'item-1',
+      productId: 'PRD-1',
+      productName: lead.productInterest || lead.product,
+      name: lead.productInterest || lead.product,
+      specification: 'Standard Specification',
+      description: 'Standard Specification',
+      productDetails: 'Standard Specification',
+      quantity: Number(lead.estimatedQuantity) || 1,
+      qty: Number(lead.estimatedQuantity) || 1,
+      unitPrice: 100,
+      discount: 0,
+      tax: 18,
+    }] : []);
+
+    const quotationDraftPayload = {
       source: 'LEAD',
       sourceId: leadId,
       leadId,
-      customer: lead.companyName || lead.customerName || '',
-      company: lead.companyName || lead.customerName || '',
-      groupName: lead.groupName || '',
+      customer: lead.companyName || lead.customerName || lead.projectName || '',
+      company: lead.companyName || lead.customerName || lead.projectName || '',
+      customerName: lead.companyName || lead.customerName || lead.projectName || '',
+      groupName: lead.groupName || lead.companyName || '',
       gstName: lead.gstName || lead.companyName || lead.customerName || '',
       gstNumber: lead.gstNumber || '',
+      isGstRegistered: lead.gstNumber ? 'YES' : 'YES',
       contactPerson: lead.contactPerson || lead.siteInchargeName || '',
+      phone: lead.phone || lead.mobile || lead.siteInchargeMobile || '',
+      email: lead.email || '',
       notes: lead.remarks || lead.notes || '',
-      items: leadItems.length > 0 ? leadItems.map((item, index) => ({
-        productId: item.productId || item.productCode || `PRD-${index + 1}`,
-        name: item.productName || item.name || '',
-        description: item.specification || item.description || '',
-        qty: Number(item.quantity) || 1,
-        unitPrice: Number(item.unitPrice) || 0,
-        discount: Number(item.discount) || 0,
-        tax: item.tax !== undefined ? Number(item.tax) : 18,
-      })) : (lead.productInterest || lead.product ? [{
-        productId: 'FG-RMC-M30',
-        name: lead.productInterest || lead.product,
-        description: 'Standard Specification',
-        qty: 1,
-        unitPrice: 100,
-        discount: 0,
-        tax: 18,
-      }] : []),
-    });
+      items: mappedItems,
+      detailedItems: mappedItems,
+    };
 
-    router.push(`/sales/create-quotation?leadId=${encodeURIComponent(String(leadId))}`);
+    erpStore.setQuotationDraft(quotationDraftPayload);
+    erpStore.createOrResumeQuotationFromLead(leadId, lead);
+
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const navBasePath = currentPath.startsWith('/supersales') ? '/supersales' : '/sales';
+    router.push(`${navBasePath}/create-quotation?leadId=${encodeURIComponent(String(leadId))}`);
   };
 
   const handleGenerateSampleClick = (lead) => {
@@ -552,6 +572,65 @@ export default function LeadsView({
     if (typeof addr === 'string') return addr;
     const parts = [addr.line1, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean);
     return parts.join(', ') || 'Not specified';
+  };
+
+  const renderLeadSpecification = (lead) => {
+    const rawItems = Array.isArray(lead.detailedItems) && lead.detailedItems.length > 0
+      ? lead.detailedItems
+      : (Array.isArray(lead.items) && lead.items.length > 0 ? lead.items : null);
+
+    if (rawItems && rawItems.length > 0) {
+      const first = rawItems[0];
+      const prodName = first.product || first.productName || first.name || 'Product';
+      const sizeCap = [first.size, first.capacity].filter(Boolean).join(' ');
+      const mainLabel = sizeCap ? `${prodName} ${sizeCap}` : prodName;
+      const subInfo = [
+        first.quantity ? `Qty: ${first.quantity}` : null,
+        first.color ? `Color: ${first.color}` : null
+      ].filter(Boolean).join(' · ');
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+            <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap' }}>
+              {mainLabel}
+            </span>
+            {rawItems.length > 1 && (
+              <span
+                title={`${rawItems.length} items in this lead`}
+                style={{
+                  fontSize: '10.5px',
+                  fontWeight: '800',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  background: '#e0e7ff',
+                  color: '#4338ca',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                +{rawItems.length - 1} more
+              </span>
+            )}
+          </div>
+          {subInfo && (
+            <span style={{ fontSize: '11.5px', color: '#64748b', whiteSpace: 'nowrap' }}>
+              {subInfo}
+            </span>
+          )}
+        </div>
+      );
+    }
+
+    if (lead.productInterest || lead.productInterested || lead.specification) {
+      const txt = lead.productInterest || lead.productInterested || lead.specification;
+      return (
+        <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#334155' }}>
+          {txt}
+        </span>
+      );
+    }
+
+    return <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>;
   };
 
   const handleAddFollowupSubmit = (e) => {
@@ -897,6 +976,7 @@ export default function LeadsView({
                 <th>Lead ID</th>
                 <th>Date</th>
                 <th>Company Name</th>
+                <th>Specification</th>
                 <th>Phone / Email</th>
                 <th>Status</th>
                 <th>Next Reminder</th>
@@ -906,7 +986,7 @@ export default function LeadsView({
             <tbody>
               {filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
                     <strong>{search.trim() ? `No leads found for "${search.trim()}"` : 'No leads available'}</strong>
                     <div style={{ marginTop: 6, fontSize: 13, fontWeight: 500 }}>
                       {search.trim() ? 'Try a different search term or clear active filters.' : 'Create your first lead to begin the sales workflow.'}
@@ -923,6 +1003,7 @@ export default function LeadsView({
                       <td data-label="Lead ID" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.leadNumber || displayEntityId(lead.id)}</td>
                       <td data-label="Date" style={{ fontSize: '13px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{leadDateStr}</td>
                       <td data-label="Company Name" style={{ fontWeight: '700', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>{lead.companyName || lead.customerName || lead.projectName || 'N/A'}</td>
+                      <td data-label="Specification" style={{ minWidth: '180px' }}>{renderLeadSpecification(lead)}</td>
                       <td data-label="Phone / Email">
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>{lead.phone || lead.mobile || lead.siteInchargeMobile || 'N/A'}</span>
@@ -1440,9 +1521,52 @@ export default function LeadsView({
               </div>
               <div className="details-row">
                 <span className="details-label">Assigned Salesperson</span>
-                <span className="details-value">{currentDetailsLead.salesperson}</span>
+                <span className="details-value">{currentDetailsLead.salesperson || currentDetailsLead.salesExecutive?.name || 'SuperSales'}</span>
               </div>
             </div>
+
+            {/* Product Specifications Table */}
+            {Array.isArray(currentDetailsLead.detailedItems) && currentDetailsLead.detailedItems.length > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                  <Clipboard size={14} /> Product Specifications ({currentDetailsLead.detailedItems.length} {currentDetailsLead.detailedItems.length === 1 ? 'item' : 'items'})
+                </h4>
+                <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', background: '#ffffff' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#475569' }}>
+                        <th style={{ padding: '8px 10px', fontWeight: '700' }}>#</th>
+                        <th style={{ padding: '8px 10px', fontWeight: '700' }}>Product</th>
+                        <th style={{ padding: '8px 10px', fontWeight: '700' }}>Size</th>
+                        <th style={{ padding: '8px 10px', fontWeight: '700' }}>Capacity</th>
+                        <th style={{ padding: '8px 10px', fontWeight: '700' }}>Color</th>
+                        <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Qty</th>
+                        <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Rate (₹)</th>
+                        <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>GST</th>
+                        <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Grand Total (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentDetailsLead.detailedItems.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: idx < currentDetailsLead.detailedItems.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                          <td style={{ padding: '8px 10px', color: '#94a3b8', fontWeight: '600' }}>{idx + 1}</td>
+                          <td style={{ padding: '8px 10px', fontWeight: '700', color: '#0f172a' }}>{item.product || item.productName || '—'}</td>
+                          <td style={{ padding: '8px 10px', color: '#334155' }}>{item.size || '—'}</td>
+                          <td style={{ padding: '8px 10px', color: '#334155' }}>{item.capacity || '—'}</td>
+                          <td style={{ padding: '8px 10px', color: '#334155' }}>{item.color || '—'}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>{item.quantity || 1}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', color: '#334155' }}>{item.unitPrice ? `₹${Number(item.unitPrice).toLocaleString('en-IN')}` : '—'}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', color: '#64748b' }}>{item.gst || item.gstRate ? `${item.gst || item.gstRate}%` : '18%'}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '800', color: '#16a34a' }}>
+                            {item.grandTotal ? `₹${Number(item.grandTotal).toLocaleString('en-IN')}` : (item.subTotal ? `₹${Number(item.subTotal).toLocaleString('en-IN')}` : '—')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             <hr style={{ margin: '20px 0', borderColor: '#eaeaea' }} />
 

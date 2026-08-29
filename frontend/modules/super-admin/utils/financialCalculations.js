@@ -229,6 +229,7 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
   const rawPurchaseOrders = Array.isArray(state.purchaseOrders) ? state.purchaseOrders : [];
   const rawCustomers = Array.isArray(state.customers) ? state.customers : [];
   const rawExpenses = Array.isArray(state.expenses) ? state.expenses : [];
+  const dispatchesList = Array.isArray(state.dispatches) ? state.dispatches : [];
 
   // Filter raw state if present
   const filteredOrders = rawOrders.filter(o => {
@@ -413,26 +414,58 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
   const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const trendEndDate = new Date();
 
-  // Generate dynamic sales & dispatch trend (14 Days Live)
+  // Generate dynamic sales & dispatch trend (14 Days Live) from real orders & dispatches
   for (let i = 13; i >= 0; i--) {
     const d = new Date(trendEndDate);
     d.setDate(trendEndDate.getDate() - i);
+    d.setHours(0, 0, 0, 0);
+    const nextDay = new Date(d);
+    nextDay.setDate(d.getDate() + 1);
     const label = `${d.getDate()} ${monthNamesShort[d.getMonth()]}`;
+
+    const dayOrders = filteredOrders.filter(o => {
+      const oDate = new Date(o.createdAt || o.date || o.orderDate || 0);
+      return oDate >= d && oDate < nextDay;
+    });
+    const daySales = dayOrders.reduce((sum, o) => sum + (Number(o.totalValue || o.amount || o.totalAmount) || 0), 0);
+
+    const dayDispatches = dispatchesList.filter(dp => {
+      const dpDate = new Date(dp.createdAt || dp.date || 0);
+      return dpDate >= d && dpDate < nextDay;
+    });
+    const dayDispatchUnits = dayDispatches.reduce((sum, dp) => sum + (Number(dp.quantity || dp.units) || 0), 0);
+
     salesDispatchTrendData.push({
       name: label,
-      sales: Number((Math.max(12000, Math.sin(i / 2) * 45000 + 65000) * scale / 100000).toFixed(2)),
-      dispatch: Math.round(Math.max(40, (Math.cos(i / 2) * 180 + 320) * scale)),
-      orders: Math.round(Math.max(1, (Math.sin(i / 3) * 3 + 5) * scale))
+      sales: Number((daySales / 100000).toFixed(2)),
+      dispatch: dayDispatchUnits,
+      orders: dayOrders.length
     });
   }
 
-  // Generate dynamic monthly revenue data (Past 4 Months P&L)
+  // Generate dynamic monthly revenue data (Past 4 Months P&L) from real orders & payments
   for (let i = 3; i >= 0; i--) {
     const d = new Date(trendEndDate.getFullYear(), trendEndDate.getMonth() - i, 1);
+    const monthStart = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
     const mName = monthNamesShort[d.getMonth()];
-    const revVal = Number((Math.max(200000, (450000 + (3 - i) * 120000) * scale) / 100000).toFixed(2));
-    const collVal = Number((revVal * 0.88).toFixed(2));
-    const outVal = Number((revVal - collVal).toFixed(2));
+
+    const mOrders = filteredOrders.filter(o => {
+      const oDate = new Date(o.createdAt || o.date || o.orderDate || 0);
+      return oDate >= monthStart && oDate <= monthEnd;
+    });
+    const mSales = mOrders.reduce((sum, o) => sum + (Number(o.totalValue || o.amount || o.totalAmount) || 0), 0);
+
+    const mPayments = rawPayments.filter(p => {
+      const pDate = new Date(p.receivedAt || p.createdAt || p.date || 0);
+      return pDate >= monthStart && pDate <= monthEnd;
+    });
+    const mCollected = mPayments.reduce((sum, p) => sum + (Number(p.paidAmount || p.totalAmount || p.amount) || 0), 0);
+
+    const revVal = Number((mSales / 100000).toFixed(2));
+    const collVal = Number((mCollected / 100000).toFixed(2));
+    const outVal = Number(Math.max(0, revVal - collVal).toFixed(2));
+
     monthlyRevenueData.push({
       name: mName,
       revenue: revVal,
@@ -441,15 +474,26 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
     });
   }
 
-  // Generate dynamic monthly production data (Past 4 Months)
+  // Generate dynamic monthly production data (Past 4 Months) from real work orders
   const monthlyProductionData = [];
   for (let i = 3; i >= 0; i--) {
     const d = new Date(trendEndDate.getFullYear(), trendEndDate.getMonth() - i, 1);
+    const monthStart = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
     const mName = monthNamesShort[d.getMonth()];
+
+    const mWorkOrders = rawWorkOrders.filter(w => {
+      const wDate = new Date(w.createdAt || w.date || 0);
+      return wDate >= monthStart && wDate <= monthEnd;
+    });
+    const target = mWorkOrders.reduce((sum, w) => sum + (Number(w.targetQty || w.plannedQty || w.quantity) || 0), 0);
+    const produced = mWorkOrders.reduce((sum, w) => sum + (Number(w.completedQty || w.producedQty || w.quantity) || 0), 0);
+
     monthlyProductionData.push({
       name: mName,
-      target: Math.round(55500 * scale),
-      produced: Math.round(Math.max(30000, (50000 - i * 4000) * scale))
+      target: target || (dailyProductionTarget > 0 ? dailyProductionTarget : 0),
+      produced: produced || (dailyProductionVal > 0 ? dailyProductionVal : 0),
+      rejected: 0
     });
   }
 
@@ -460,7 +504,6 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
   const executiveAlerts = [];
 
   // Dispatch Variance Analytics - 100% Dynamic calculation from live state
-  const dispatchesList = Array.isArray(state.dispatches) ? state.dispatches : [];
   const dispatchedOrdersList = rawOrders.filter(o => o.status === 'Dispatched' || o.status === 'Delivered' || o.status === 'In Transit');
   
   const totalDispatchesCountVal = dispatchesList.length || dispatchedOrdersList.length || totalDispatchesCount;
@@ -513,21 +556,13 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
     });
   }
 
-  let computedRouteCostList = Array.from(routeGroupMap.values()).map(r => ({
+  const computedRouteCostList = Array.from(routeGroupMap.values()).map(r => ({
     ...r,
     variance: Math.max(0, r.actualCost - r.expectedCost)
   }));
 
-  if (computedRouteCostList.length === 0) {
-    computedRouteCostList = [
-      { route: 'Haridwar -> NCR Site', dispatches: Math.round(18 * scale), actualCost: Math.round(120000 * scale), expectedCost: Math.round(102000 * scale), variance: Math.round(18000 * scale) },
-      { route: 'Dehradun -> Punjab Industrial', dispatches: Math.round(14 * scale), actualCost: Math.round(95000 * scale), expectedCost: Math.round(82000 * scale), variance: Math.round(13000 * scale) },
-      { route: 'Roorkee -> Local Direct', dispatches: Math.round(10 * scale), actualCost: Math.round(65000 * scale), expectedCost: Math.round(58000 * scale), variance: Math.round(7000 * scale) }
-    ];
-  }
-
   const deliveredOnTimeCount = dispatchedOrdersList.filter(o => o.status === 'Delivered' || o.status === 'Dispatched').length;
-  const computedOnTimeDeliveryRate = totalDispatchesCountVal > 0 ? `${((deliveredOnTimeCount / totalDispatchesCountVal) * 100).toFixed(1)}%` : '96.2%';
+  const computedOnTimeDeliveryRate = totalDispatchesCountVal > 0 ? `${((deliveredOnTimeCount / totalDispatchesCountVal) * 100).toFixed(1)}%` : '100.0%';
 
   const dispatchVarianceAnalytics = {
     thisMonthTransportCost: actualTransportCostVal,
@@ -546,17 +581,13 @@ export function computeFinancialData(state = {}, period = 'This Month', customSt
     routeCostList: computedRouteCostList
   };
 
-  // Procurement Price Variance Analytics
+  // Procurement Price Variance Analytics from real purchase orders
   const purchaseAnalytics = {
     totalPOValue: poCommitmentVal,
-    posIssuedThisMonth: Math.max(1, Math.round(14 * scale)),
-    amountPaidToVendors: Math.round(poCommitmentVal * 0.77),
-    outstandingVendorPayments: Math.round(poCommitmentVal * 0.23),
-    priceVarianceItems: [
-      { material: 'Cement OPC 53', prevPrice: 380, currPrice: 410, unit: 'Bag', changePercent: 7.9, impact: 'High' },
-      { material: 'Steel Reinforcement (TMT)', prevPrice: 58000, currPrice: 61500, unit: 'Ton', changePercent: 6.0, impact: 'High' },
-      { material: 'Polyester Resin', prevPrice: 165, currPrice: 172, unit: 'Kg', changePercent: 4.2, impact: 'Medium' }
-    ]
+    posIssuedThisMonth: rawPurchaseOrders.length,
+    amountPaidToVendors: 0,
+    outstandingVendorPayments: poCommitmentVal,
+    priceVarianceItems: []
   };
 
   const customerProfitability = (Array.isArray(rawCustomers) ? rawCustomers : []).map(c => ({

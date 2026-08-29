@@ -178,10 +178,11 @@ export const useERP = () => {
             vendorPayments = Array.isArray(paymentsRes) ? paymentsRes : (paymentsRes?.data || []);
           }
           
-          const authUserLog = useAuthStore.getState().user;
-          const isBackOffice = authUserLog?.role === 'Back Office' || authUserLog?.role === 'BACK_OFFICE';
+          const canReadOperationsCatalog = [
+            'Super Admin', 'Admin', 'Store', 'Production', 'Plant Head', 'Sales', 'SuperSales', 'Finance', 'Procurement'
+          ].some(r => role.toLowerCase().includes(r.toLowerCase())) && !isBackOffice;
 
-          if (!isBackOffice) {
+          if (canReadOperationsCatalog) {
             // Use backendFetch — auto-injects Authorization header from authStore
             const productsRaw = await backendFetch('/api/backend/products').catch(() => []);
             products = Array.isArray(productsRaw) ? productsRaw : (productsRaw?.data || []);
@@ -215,8 +216,8 @@ export const useERP = () => {
           }
           // Note: we'll merge this with the existing state logic below.
 
-          let itemsList = SEEDED_INVENTORY_ITEMS;
-          if (!isBackOffice) {
+          let itemsList = [];
+          if (canReadOperationsCatalog) {
             const inventoryItemsRaw = await backendFetch('/api/backend/inventory/items').catch(() => []);
             itemsList = Array.isArray(inventoryItemsRaw) && inventoryItemsRaw.length > 0
               ? inventoryItemsRaw

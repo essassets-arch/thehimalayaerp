@@ -87,6 +87,15 @@ export default function CreateQuotation({
   const router = useRouter();
   const isCompact = useMediaQuery('(max-width: 1024px)');
 
+  const matchedLeadFromProps = useMemo(() => {
+    if (!targetLeadId) return null;
+    return leads?.find(l => 
+      String(l.id) === String(targetLeadId) || 
+      String(l.leadId) === String(targetLeadId) || 
+      String(l.leadNumber) === String(targetLeadId)
+    ) || null;
+  }, [leads, targetLeadId]);
+
   useEffect(() => {
     if (targetLeadId && !targetQuotationId) {
       const draftLeadId = legacyQuotationDraft?.leadId || legacyQuotationDraft?.sourceId;
@@ -110,7 +119,7 @@ export default function CreateQuotation({
             confirmButtonColor: '#0369a1'
           }).then(() => {
             if (onCancel) onCancel();
-            else router.push('/sales/quotations');
+            else router.push(`${basePath}/quotations`);
           });
         });
         return;
@@ -118,15 +127,15 @@ export default function CreateQuotation({
 
       const draft = leadQuotations.find(q => q.status === 'DRAFT');
       if (draft) {
-        router.replace(`/sales/create-quotation?quotationId=${draft.id || draft.quotationId}&leadId=${targetLeadId}`);
+        router.replace(`${basePath}/create-quotation?quotationId=${draft.id || draft.quotationId}&leadId=${targetLeadId}`);
       } else {
-        const res = erpStore.createOrResumeQuotationFromLead(targetLeadId);
+        const res = erpStore.createOrResumeQuotationFromLead(targetLeadId, matchedLeadFromProps);
         if (res.success && res.quotationId) {
-          router.replace(`/sales/create-quotation?quotationId=${res.quotationId}&leadId=${targetLeadId}`);
+          router.replace(`${basePath}/create-quotation?quotationId=${res.quotationId}&leadId=${targetLeadId}`);
         }
       }
     }
-  }, [targetLeadId, targetQuotationId, legacyQuotationDraft, erpState, router, erpStore, onCancel]);
+  }, [targetLeadId, targetQuotationId, legacyQuotationDraft, erpState, router, erpStore, onCancel, basePath, matchedLeadFromProps]);
   
   const rawQuotationDraft = editingQuotation || (targetQuotationId
     ? erpState?.sales?.quotations?.find((q) => q.id === targetQuotationId || q.quotationId === targetQuotationId)
@@ -161,33 +170,41 @@ export default function CreateQuotation({
   };
 
   const getInitialItems = () => {
+    const leadItems = matchedLeadFromProps
+      ? (Array.isArray(matchedLeadFromProps.detailedItems) && matchedLeadFromProps.detailedItems.length > 0
+          ? matchedLeadFromProps.detailedItems
+          : (Array.isArray(matchedLeadFromProps.items) && matchedLeadFromProps.items.length > 0
+              ? matchedLeadFromProps.items
+              : null))
+      : null;
+
     const sourceItems = quotationDraft
       ? (Array.isArray(quotationDraft.detailedItems) && quotationDraft.detailedItems.length > 0
           ? quotationDraft.detailedItems
           : (Array.isArray(quotationDraft.items) && quotationDraft.items.length > 0
               ? quotationDraft.items
               : null))
-      : null;
+      : leadItems;
 
     if (sourceItems && sourceItems.length > 0) {
       return sourceItems.map((item, idx) => {
         const qty = Number(item.quantity !== undefined ? item.quantity : (item.qty !== undefined ? item.qty : 1));
-        const price = Number(item.unitPrice !== undefined ? item.unitPrice : (item.price !== undefined ? item.price : item.rate || 100));
+        const price = Number(item.unitPrice !== undefined ? item.unitPrice : (item.price !== undefined ? item.price : item.rate || 0));
         const gross = qty * price;
         
         let discountPct = Number(item.discount ?? item.discountPercent ?? 0);
         if (discountPct > 100) discountPct = 0;
 
-        let taxPct = item.tax !== undefined ? Number(item.tax) : (item.taxPercent !== undefined ? Number(item.taxPercent) : 18);
+        let taxPct = item.tax !== undefined ? Number(item.tax) : (item.gstRate !== undefined ? Number(item.gstRate) : (item.taxPercent !== undefined ? Number(item.taxPercent) : 18));
         if (taxPct > 100) taxPct = 18;
 
         const spec = item.specification ?? item.productDetails ?? item.description ?? item.product?.description ?? '';
-        const productName = item.productName ?? item.product?.name ?? item.name ?? item.description ?? '';
+        const productName = item.productName ?? item.product?.name ?? item.product ?? item.name ?? item.description ?? '';
         const code = item.product?.sku ?? item.productCode ?? item.code ?? item.productId ?? '';
         const productId = item.productId ?? item.product?.id ?? code;
 
         return {
-          id: item.id || `item-${idx + 1}`,
+          id: item.id || `lead-item-${idx + 1}`,
           productName,
           productDetails: spec,
           specification: spec,
@@ -200,6 +217,22 @@ export default function CreateQuotation({
         };
       });
     }
+
+    if (matchedLeadFromProps && (matchedLeadFromProps.productInterest || matchedLeadFromProps.product)) {
+      return [{
+        id: 1,
+        productName: matchedLeadFromProps.productInterest || matchedLeadFromProps.product,
+        productDetails: 'Standard Specification',
+        specification: 'Standard Specification',
+        quantity: Number(matchedLeadFromProps.estimatedQuantity) || 1,
+        unitPrice: 100,
+        discount: 0,
+        tax: 18,
+        productId: 'PRD-1',
+        code: 'PRD-1'
+      }];
+    }
+
     return [
       { 
         id: 1, 
@@ -258,16 +291,16 @@ export default function CreateQuotation({
   };
 
   const emptyQuotationForm = {
-    customerName: quotationDraft?.customerName || prefilledCustomer || '',
-    groupName: quotationDraft?.groupName || '',
-    isGstRegistered: quotationDraft ? (quotationDraft.isGstRegistered || (quotationDraft.gstNumber ? 'YES' : 'NO')) : 'YES',
-    gstNumber: quotationDraft?.gstNumber || '',
-    gstName: quotationDraft?.gstName || quotationDraft?.customerName || prefilledCustomer || '',
+    customerName: quotationDraft?.customerName || matchedLeadFromProps?.companyName || matchedLeadFromProps?.projectName || prefilledCustomer || '',
+    groupName: quotationDraft?.groupName || matchedLeadFromProps?.groupName || matchedLeadFromProps?.companyName || '',
+    isGstRegistered: quotationDraft ? (quotationDraft.isGstRegistered || (quotationDraft.gstNumber ? 'YES' : 'NO')) : (matchedLeadFromProps?.gstNumber ? 'YES' : 'YES'),
+    gstNumber: quotationDraft?.gstNumber || matchedLeadFromProps?.gstNumber || '',
+    gstName: quotationDraft?.gstName || matchedLeadFromProps?.gstName || matchedLeadFromProps?.companyName || quotationDraft?.customerName || prefilledCustomer || '',
     validTill: formatInputDate(quotationDraft?.validTill || quotationDraft?.validUntil) || defaultValidTill(),
     paymentTerms: resolvePaymentTerms(quotationDraft),
     items: getInitialItems(),
     transportCharge: resolveTransportCost(quotationDraft),
-    notes: quotationDraft?.notes || quotationDraft?.remarks || '',
+    notes: quotationDraft?.notes || quotationDraft?.remarks || matchedLeadFromProps?.remarks || matchedLeadFromProps?.notes || '',
     selectedTermIds: getInitialSelectedTermIds()
   };
 
@@ -297,6 +330,72 @@ export default function CreateQuotation({
       });
     }
   }, [editingQuotation?.id]);
+
+  const hasPrefilledRef = useRef(false);
+
+  useEffect(() => {
+    if (editingQuotation || hasPrefilledRef.current) return;
+    const sourceLead = matchedLeadFromProps || (legacyQuotationDraft?.source === 'LEAD' ? legacyQuotationDraft : null);
+    if (sourceLead && (sourceLead.companyName || sourceLead.customerName || sourceLead.projectName || sourceLead.customer)) {
+      hasPrefilledRef.current = true;
+      const sourceItems = Array.isArray(sourceLead.detailedItems) && sourceLead.detailedItems.length > 0
+        ? sourceLead.detailedItems
+        : (Array.isArray(sourceLead.items) && sourceLead.items.length > 0 ? sourceLead.items : null);
+
+      const parsedItems = sourceItems && sourceItems.length > 0
+        ? sourceItems.map((item, idx) => {
+            const qty = item.quantity !== undefined ? item.quantity : (item.qty !== undefined ? item.qty : 1);
+            const price = item.unitPrice !== undefined ? item.unitPrice : (item.price !== undefined ? item.price : item.rate || 0);
+            const discountPct = item.discount ?? item.discountPercent ?? 0;
+            const taxPct = item.tax !== undefined ? item.tax : (item.gstRate !== undefined ? item.gstRate : 18);
+            const spec = item.specification ?? item.productDetails ?? item.description ?? '';
+            const productName = item.productName ?? item.product ?? item.name ?? '';
+            const code = item.productCode ?? item.code ?? item.productId ?? '';
+            const productId = item.productId ?? code;
+
+            return {
+              id: item.id || `lead-item-${idx + 1}`,
+              productName,
+              productDetails: spec,
+              specification: spec,
+              quantity: qty === '' ? '' : Number(qty),
+              unitPrice: price === '' ? '' : Number(price),
+              discount: discountPct === '' ? 0 : Number(discountPct),
+              tax: taxPct === '' ? 18 : Number(taxPct),
+              productId,
+              code,
+            };
+          })
+        : (sourceLead.productInterest || sourceLead.product ? [{
+            id: 'lead-item-1',
+            productName: sourceLead.productInterest || sourceLead.product,
+            productDetails: 'Standard Specification',
+            specification: 'Standard Specification',
+            quantity: sourceLead.estimatedQuantity ? Number(sourceLead.estimatedQuantity) : 1,
+            unitPrice: 100,
+            discount: 0,
+            tax: 18,
+            productId: 'PRD-1',
+            code: 'PRD-1',
+          }] : null);
+
+      const targetCust = sourceLead.companyName || sourceLead.customerName || sourceLead.projectName || sourceLead.customer || '';
+      const targetGroup = sourceLead.groupName || sourceLead.companyName || targetCust || '';
+      const targetGstName = sourceLead.gstName || sourceLead.companyName || sourceLead.customerName || targetCust || '';
+      const targetGstNum = sourceLead.gstNumber || '';
+
+      setFormData(prev => ({
+        ...prev,
+        customerName: targetCust || prev.customerName,
+        groupName: targetGroup || prev.groupName,
+        gstName: targetGstName || prev.gstName,
+        gstNumber: targetGstNum || prev.gstNumber,
+        isGstRegistered: targetGstNum ? 'YES' : (prev.isGstRegistered || 'YES'),
+        notes: sourceLead.remarks || sourceLead.notes || prev.notes || '',
+        items: (parsedItems && parsedItems.length > 0) ? parsedItems : prev.items
+      }));
+    }
+  }, [matchedLeadFromProps, legacyQuotationDraft, editingQuotation]);
 
   const {
     customerName, groupName, isGstRegistered, gstNumber, gstName, validTill, paymentTerms,
@@ -405,11 +504,11 @@ export default function CreateQuotation({
       .slice(0, 8);
   }, [customerOptions, customerName]);
   const shouldRequireExistingCustomer = !isSampleSource && customerOptions.length > 0 && !editingQuotation;
-  const canCreateQuotationForCustomer = !shouldRequireExistingCustomer || Boolean(selectedCustomerRecord) || Boolean(editingQuotation);
+  const canCreateQuotationForCustomer = !shouldRequireExistingCustomer || Boolean(selectedCustomerRecord) || Boolean(editingQuotation) || Boolean(matchedLeadFromProps);
 
   const selectCustomerOption = (option) => {
     setCustomerName(option.name);
-    setGroupName(option.groupName || '');
+    setGroupName(option.groupName || option.name);
     setGstName(option.gstName || option.name);
     if (option.gstNumber) {
       setGstNumber(option.gstNumber);
@@ -421,81 +520,6 @@ export default function CreateQuotation({
     setCustomerSearchOpen(false);
   };
 
-  useEffect(() => {
-    // CRITICAL: Disable automatic Lead/Customer lookups when editing an existing Quotation!
-    // The persisted Quotation record is the sole source of truth in edit mode.
-    if (editingQuotation) return;
-
-    if (!customerName.trim()) {
-      if (gstNumber !== '') setGstNumber('');
-      if (gstName !== '') setGstName('');
-      return;
-    }
-
-    const trimmedCust = customerName.trim();
-    if (!gstName.trim() || gstName === (quotationDraft?.customer || quotationDraft?.company || '')) {
-      if (gstName !== trimmedCust) {
-        setGstName(trimmedCust);
-      }
-    }
-    
-    // Maintain pre-filled GST if we are loading the original draft customer
-    if (quotationDraft && quotationDraft.gstNumber && customerName === (quotationDraft.customer || quotationDraft.company)) {
-      if (gstNumber !== quotationDraft.gstNumber) {
-        setGstNumber(quotationDraft.gstNumber);
-      }
-      return;
-    }
-
-    const matchedLead = leads.find(l => 
-      l.companyName?.toLowerCase() === customerName.trim().toLowerCase() ||
-      l.projectName?.toLowerCase() === customerName.trim().toLowerCase()
-    );
-    if (matchedLead) {
-      const leadGroup = matchedLead.groupName || matchedLead.group_name || '';
-      if (!groupName.trim() && leadGroup) {
-        setGroupName(leadGroup);
-      }
-      if (matchedLead.gstNumber && gstNumber !== matchedLead.gstNumber) {
-        setGstNumber(matchedLead.gstNumber);
-      }
-
-      // Auto-fetch product from lead
-      if (matchedLead.requiredProducts) {
-        setItems(prevItems => {
-          // Only auto-fill if the user hasn't explicitly added items yet
-          if (prevItems.length === 1 && !prevItems[0].productName.trim()) {
-            const prodName = matchedLead.requiredProducts;
-            const matchedProduct = productCatalog.find(p => p.name === prodName);
-            
-            return [{
-              ...prevItems[0],
-              productName: prodName,
-              quantity: matchedLead.expectedQuantities ? parseInt(matchedLead.expectedQuantities) || 1 : 1,
-              productId: matchedProduct ? (matchedProduct.dbId || matchedProduct.id) : undefined,
-              code: matchedProduct ? (matchedProduct.id || matchedProduct.product_code) : undefined,
-              productDetails: matchedProduct?.description || '',
-              unitPrice: matchedProduct?.price ? Number(matchedProduct.price) : 100
-            }];
-          }
-          return prevItems;
-        });
-      }
-
-      if (matchedLead.gstNumber) return;
-    }
-
-    const matchedCustomer = customers.find(c => 
-      c.name?.toLowerCase() === customerName.trim().toLowerCase()
-    );
-    if (matchedCustomer && (matchedCustomer.gst || matchedCustomer.gstNumber)) {
-      const custGst = matchedCustomer.gst || matchedCustomer.gstNumber;
-      if (gstNumber !== custGst) {
-        setGstNumber(custGst);
-      }
-    }
-  }, [customerName, groupName, leads, customers, quotationDraft, productCatalog, gstNumber, gstName]);
-  
   const formatINR = (value) => {
     if (value >= 100000) {
       return `₹${(value / 100000).toFixed(2)} L`;
@@ -841,13 +865,8 @@ export default function CreateQuotation({
                 placeholder="Search existing lead or customer"
                 value={customerName}
                 onChange={e => {
-                  const nextValue = e.target.value;
-                  const nextMatch = customerOptions.find(option => normalizeText(option.name) === normalizeText(nextValue));
-                  setCustomerName(nextValue);
+                  setCustomerName(e.target.value);
                   setCustomerSearchOpen(true);
-                  if (!nextMatch) {
-                    setGroupName('');
-                  }
                 }}
                 onFocus={() => setCustomerSearchOpen(true)}
                 onBlur={() => setTimeout(() => setCustomerSearchOpen(false), 180)}
@@ -1108,8 +1127,8 @@ export default function CreateQuotation({
                           type="number"
                           className="form-input"
                           min="1"
-                          value={item.quantity}
-                          onChange={e => handleRowChange(item.id, 'quantity', Number(e.target.value))}
+                          value={item.quantity === '' ? '' : item.quantity}
+                          onChange={e => handleRowChange(item.id, 'quantity', e.target.value === '' ? '' : Number(e.target.value))}
                           required
                           style={{ padding: '9px 10px', width: '100%', textAlign: 'center', border: '1.5px solid #93c5fd', background: '#eff6ff', borderRadius: '8px', fontWeight: 700, color: '#1e293b' }}
                         />
@@ -1125,8 +1144,8 @@ export default function CreateQuotation({
                           className="form-input"
                           min="0.01"
                           step="0.01"
-                          value={item.unitPrice}
-                          onChange={e => handleRowChange(item.id, 'unitPrice', Number(e.target.value))}
+                          value={item.unitPrice === '' ? '' : item.unitPrice}
+                          onChange={e => handleRowChange(item.id, 'unitPrice', e.target.value === '' ? '' : Number(e.target.value))}
                           required
                           style={{ padding: '9px 10px', width: '100%', textAlign: 'center', border: '1.5px solid #86efac', background: '#f0fdf4', borderRadius: '8px', fontWeight: 700, color: '#1e293b' }}
                         />
@@ -1142,8 +1161,8 @@ export default function CreateQuotation({
                           className="form-input"
                           min="0"
                           max="100"
-                          value={item.discount || 0}
-                          onChange={e => handleRowChange(item.id, 'discount', Number(e.target.value))}
+                          value={item.discount === '' ? '' : (item.discount ?? 0)}
+                          onChange={e => handleRowChange(item.id, 'discount', e.target.value === '' ? '' : Number(e.target.value))}
                           style={{ padding: '9px 10px', width: '100%', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 600, color: '#1e293b' }}
                         />
                       </div>
@@ -1158,8 +1177,8 @@ export default function CreateQuotation({
                           className="form-input"
                           min="0"
                           max="100"
-                          value={item.tax !== undefined ? item.tax : 18}
-                          onChange={e => handleRowChange(item.id, 'tax', Number(e.target.value))}
+                          value={item.tax === '' ? '' : (item.tax !== undefined ? item.tax : 18)}
+                          onChange={e => handleRowChange(item.id, 'tax', e.target.value === '' ? '' : Number(e.target.value))}
                           style={{ padding: '9px 10px', width: '100%', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: 600, color: '#1e293b' }}
                         />
                       </div>
@@ -1277,8 +1296,8 @@ export default function CreateQuotation({
                           type="number" 
                           className="form-input" 
                           min="1" 
-                          value={item.quantity} 
-                          onChange={e => handleRowChange(item.id, 'quantity', Number(e.target.value))}
+                          value={item.quantity === '' ? '' : item.quantity} 
+                          onChange={e => handleRowChange(item.id, 'quantity', e.target.value === '' ? '' : Number(e.target.value))}
                           required
                           style={{ padding: '8px 10px', width: '100%', maxWidth: '80px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
                         />
@@ -1289,8 +1308,8 @@ export default function CreateQuotation({
                           className="form-input" 
                           min="0.01" 
                           step="0.01" 
-                          value={item.unitPrice} 
-                          onChange={e => handleRowChange(item.id, 'unitPrice', Number(e.target.value))}
+                          value={item.unitPrice === '' ? '' : item.unitPrice} 
+                          onChange={e => handleRowChange(item.id, 'unitPrice', e.target.value === '' ? '' : Number(e.target.value))}
                           required
                           style={{ padding: '8px 10px', width: '100%', maxWidth: '120px', border: '1px solid #cbd5e1', borderRadius: '8px' }}
                         />
@@ -1301,8 +1320,8 @@ export default function CreateQuotation({
                           className="form-input" 
                           min="0" 
                           max="100" 
-                          value={item.discount || 0} 
-                          onChange={e => handleRowChange(item.id, 'discount', Number(e.target.value))}
+                          value={item.discount === '' ? '' : (item.discount ?? 0)} 
+                          onChange={e => handleRowChange(item.id, 'discount', e.target.value === '' ? '' : Number(e.target.value))}
                           style={{ padding: '8px 10px', width: '100%', maxWidth: '85px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
                         />
                       </td>
@@ -1312,8 +1331,8 @@ export default function CreateQuotation({
                           className="form-input" 
                           min="0" 
                           max="100" 
-                          value={item.tax !== undefined ? item.tax : 18} 
-                          onChange={e => handleRowChange(item.id, 'tax', Number(e.target.value))}
+                          value={item.tax === '' ? '' : (item.tax !== undefined ? item.tax : 18)} 
+                          onChange={e => handleRowChange(item.id, 'tax', e.target.value === '' ? '' : Number(e.target.value))}
                           style={{ padding: '8px 10px', width: '100%', maxWidth: '85px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
                         />
                       </td>

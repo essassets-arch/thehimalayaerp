@@ -137,12 +137,13 @@ export class EmployeesService {
       'createdAt',
     ]);
     const sortBy = (query.sortBy && allowedSort.has(query.sortBy)) ? query.sortBy : 'createdAt';
+    const sortOrder = (query.sortOrder && query.sortOrder.toLowerCase() === 'desc') ? 'desc' : 'asc';
     const [items, total] = await this.prisma.$transaction([
       this.prisma.employee.findMany({
         where,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        orderBy: { [sortBy]: query.sortOrder || 'desc' },
+        orderBy: { [sortBy]: sortOrder },
         include: {
           department: true,
           workLocation: true,
@@ -154,8 +155,23 @@ export class EmployeesService {
       }),
       this.prisma.employee.count({ where }),
     ]);
+
+    // Natural sort by employeeCode number if default sort by createdAt/employeeCode
+    const mapped = items.map(mapEmployee);
+    if (!query.sortBy || query.sortBy === 'employeeCode' || query.sortBy === 'createdAt') {
+      const getNum = (code: string) => {
+        const m = (code || '').match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : 999999;
+      };
+      if (sortOrder === 'asc') {
+        mapped.sort((a, b) => getNum(a.employeeCode) - getNum(b.employeeCode));
+      } else {
+        mapped.sort((a, b) => getNum(b.employeeCode) - getNum(a.employeeCode));
+      }
+    }
+
     return {
-      items: items.map(mapEmployee),
+      items: mapped,
       pagination: {
         page,
         pageSize,
@@ -498,6 +514,7 @@ export class EmployeesService {
             bankAccountHash: this.hash(bankAccount),
             ifscCode: dto.ifscCode.toUpperCase(),
             branchName: dto.branchName || null,
+            baseSalary: (dto.baseSalary !== undefined && dto.baseSalary !== null && String(dto.baseSalary).trim() !== '') ? Number(dto.baseSalary) : (dto.salary !== undefined && dto.salary !== null && String(dto.salary).trim() !== '') ? Number(dto.salary) : 0,
             createdById: user.sub,
           },
         });
@@ -594,51 +611,114 @@ export class EmployeesService {
 
   async update(id: string, payload: any, user: any, requestId?: string) {
     const current = await this.get(id, user);
-    if (payload.version !== current.version)
-      this.error(
-        409,
-        'VERSION_CONFLICT',
-        'Employee was updated by another user.',
-        'version',
-      );
-    if (payload.reportingManagerId === id)
+    if (payload.version !== undefined && payload.version !== null && payload.version !== current.version) {
+      console.warn(`[EmployeeUpdate] Version difference on ${id}: payload ${payload.version} vs current ${current.version}`);
+    }
+    if (payload.reportingManagerId === id) {
       this.error(
         400,
         'INVALID_REPORTING_MANAGER',
         'Employee cannot report to themselves.',
         'reportingManagerId',
       );
-    const allowed = [
-      'jobTitle',
-      'departmentId',
-      'reportingManagerId',
-      'workLocationId',
-      'employmentType',
-      'probationEndDate',
-      'personalEmail',
-      'phoneNumber',
-      'companyPhoneNumber',
-      'residentialAddress',
-      'permanentAddress',
-      'emergencyContactName',
-      'emergencyContactPhone',
-      'emergencyRelationship',
-      'branchName',
-    ];
-    const data = Object.fromEntries(
-      allowed
-        .filter((key) => payload[key] !== undefined)
-        .map((key) => [key, payload[key]]),
-    );
+    }
+
+    const data: any = {};
+
+    // 1. Identity & Name
+    if (payload.firstName !== undefined) data.firstName = payload.firstName?.trim() || '';
+    if (payload.lastName !== undefined) data.lastName = payload.lastName?.trim() || '';
+    if (payload.firstName !== undefined || payload.lastName !== undefined) {
+      const f = payload.firstName !== undefined ? payload.firstName.trim() : (current.firstName || '');
+      const l = payload.lastName !== undefined ? payload.lastName.trim() : (current.lastName || '');
+      data.fullName = `${f} ${l}`.trim() || current.fullName;
+    } else if (payload.fullName !== undefined) {
+      data.fullName = payload.fullName?.trim();
+    }
+    if (payload.dateOfBirth !== undefined) {
+      data.dateOfBirth = payload.dateOfBirth ? new Date(payload.dateOfBirth) : current.dateOfBirth;
+    }
+    if (payload.gender !== undefined) data.gender = payload.gender;
+
+    // 2. Employment
+    if (payload.jobTitle !== undefined) data.jobTitle = payload.jobTitle?.trim();
+    if (payload.departmentId !== undefined) data.departmentId = payload.departmentId || null;
+    if (payload.reportingManagerId !== undefined) data.reportingManagerId = payload.reportingManagerId || null;
+    if (payload.workLocationId !== undefined) data.workLocationId = payload.workLocationId || null;
+    if (payload.employmentType !== undefined) data.employmentType = payload.employmentType;
+    if (payload.joiningDate !== undefined) {
+      data.joiningDate = payload.joiningDate ? new Date(payload.joiningDate) : current.joiningDate;
+    }
+    if (payload.probationEndDate !== undefined) {
+      data.probationEndDate = payload.probationEndDate ? new Date(payload.probationEndDate) : null;
+    }
+    if (payload.status !== undefined) data.status = payload.status;
+    if (payload.branchName !== undefined) data.branchName = payload.branchName || null;
+    if (payload.baseSalary !== undefined || payload.salary !== undefined) {
+      const sal = payload.baseSalary !== undefined ? payload.baseSalary : payload.salary;
+      data.baseSalary = Number(sal) || 0;
+    }
+
+    // 3. Contact Details
+    if (payload.workEmail !== undefined) data.workEmail = payload.workEmail?.trim().toLowerCase();
+    if (payload.personalEmail !== undefined) data.personalEmail = payload.personalEmail?.trim().toLowerCase() || null;
+    if (payload.phoneNumber !== undefined) data.phoneNumber = payload.phoneNumber?.trim();
+    if (payload.companyPhoneNumber !== undefined) data.companyPhoneNumber = payload.companyPhoneNumber?.trim() || null;
+    if (payload.residentialAddress !== undefined) data.residentialAddress = payload.residentialAddress?.trim();
+    if (payload.permanentAddress !== undefined) data.permanentAddress = payload.permanentAddress?.trim();
+
+    // 4. Emergency Contact
+    if (payload.emergencyContactName !== undefined) data.emergencyContactName = payload.emergencyContactName?.trim();
+    if (payload.emergencyContactPhone !== undefined) data.emergencyContactPhone = payload.emergencyContactPhone?.trim();
+    if (payload.emergencyRelationship !== undefined) data.emergencyRelationship = payload.emergencyRelationship?.trim();
+
+    // 5. Statutory & Bank
+    if (payload.panNumber !== undefined) data.panNumber = payload.panNumber?.trim().toUpperCase();
+    if (payload.uanNumber !== undefined) data.uanNumber = payload.uanNumber?.trim() || null;
+    if (payload.esicNumber !== undefined) data.esicNumber = payload.esicNumber?.trim() || null;
+    if (payload.bankName !== undefined) data.bankName = payload.bankName?.trim();
+    if (payload.accountHolderName !== undefined) data.accountHolderName = payload.accountHolderName?.trim();
+    if (payload.bankAccountType !== undefined) data.bankAccountType = payload.bankAccountType;
+    if (payload.ifscCode !== undefined) data.ifscCode = payload.ifscCode?.trim().toUpperCase();
+
+    if (payload.aadhaarNumber && !payload.aadhaarNumber.includes('X')) {
+      const aadhaar = payload.aadhaarNumber.replace(/\D/g, '');
+      if (aadhaar.length >= 4) {
+        data.aadhaarNumberEncrypted = this.encrypt(aadhaar);
+        data.aadhaarLastFour = aadhaar.slice(-4);
+        data.aadhaarHash = this.hash(aadhaar);
+      }
+    }
+
+    if (payload.bankAccountNumber && !payload.bankAccountNumber.includes('X')) {
+      const bankAccount = payload.bankAccountNumber.replace(/\D/g, '');
+      if (bankAccount.length >= 4) {
+        data.bankAccountEncrypted = this.encrypt(bankAccount);
+        data.bankAccountLastFour = bankAccount.slice(-4);
+        data.bankAccountHash = this.hash(bankAccount);
+      }
+    }
+
+    if (payload.selfieUrl !== undefined) data.selfieUrl = payload.selfieUrl;
+    if (payload.signatureUrl !== undefined) data.signatureUrl = payload.signatureUrl;
+
     let userId = current.userId || null;
-    if (!userId && current.workEmail) {
+    const targetEmail = data.workEmail || current.workEmail;
+    if (targetEmail) {
       const matchedUser = await this.prisma.user.findUnique({
-        where: { email: current.workEmail },
+        where: { email: targetEmail },
       });
       if (matchedUser) {
         userId = matchedUser.id;
+        if (data.fullName) {
+          await this.prisma.user.update({
+            where: { id: matchedUser.id },
+            data: { name: data.fullName }
+          }).catch(() => {});
+        }
       }
     }
+
     const updated = await this.prisma.employee.update({
       where: { id },
       data: { ...data, userId, version: { increment: 1 }, updatedById: user.sub },
@@ -721,10 +801,11 @@ export class EmployeesService {
       select: { employeeCode: true },
     });
     const highest = rows.reduce((max, { employeeCode }) => {
-      const match = employeeCode.trim().match(/^\d+$/);
-      return match ? Math.max(max, Number.parseInt(match[0], 10)) : max;
+      const trimmed = (employeeCode || '').trim();
+      const match = trimmed.match(/^EMP-(\d+)$/i) || trimmed.match(/^(\d+)$/);
+      return match ? Math.max(max, Number.parseInt(match[1], 10)) : max;
     }, 0);
-    return { employeeCode: String(highest + 1).padStart(3, '0') };
+    return { employeeCode: `EMP-${highest + 1}` };
   }
 
   async addDocument(id: string, file: any, body: any, user: any) {

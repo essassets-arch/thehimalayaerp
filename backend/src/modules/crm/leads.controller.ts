@@ -23,13 +23,12 @@ export class LeadsController {
   @Get()
   // @RequirePermissions('sales.leads.read')
   async listLeads(@Req() req: any, @Query('search') search?: string) {
+    const resolvedCompanyId = req.user?.companyId || req.headers['x-company-id'];
     return this.leadsService.listLeads(
-      req.headers['x-company-id'] ||
-        req.user?.companyId ||
-        'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
+      resolvedCompanyId,
       search,
-      req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867',
-      req.user?.role || 'admin',
+      req.user?.sub || req.user?.id,
+      req.user?.role,
     );
   }
 
@@ -37,13 +36,12 @@ export class LeadsController {
   @Get(':id')
   // @RequirePermissions('sales.leads.read')
   async getLead(@Param('id') id: string, @Req() req: any) {
+    const resolvedCompanyId = req.user?.companyId || req.headers['x-company-id'];
     return this.leadsService.getLead(
       id,
-      req.headers['x-company-id'] ||
-        req.user?.companyId ||
-        'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
-      req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867',
-      req.user?.role || 'admin',
+      resolvedCompanyId,
+      req.user?.sub || req.user?.id,
+      req.user?.role,
     );
   }
 
@@ -53,8 +51,8 @@ export class LeadsController {
   async createLead(@Body() dto: any, @Req() req: any) {
     return this.leadsService.createLead(
       dto,
-      req.user?.id || req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867',
-      req.headers['x-company-id'] || req.user?.companyId,
+      req.user?.id || req.user?.sub,
+      req.user?.companyId || req.headers['x-company-id'],
       req.user?.role,
     );
   }
@@ -66,11 +64,9 @@ export class LeadsController {
     return this.leadsService.updateLead(
       id,
       dto,
-      req.user?.sub || 'a6605e65-beca-40f2-a19f-8e451e270867',
-      req.headers['x-company-id'] ||
-        req.user?.companyId ||
-        'd039cfa4-e78b-4138-adfc-1b0f14cffa91',
-      req.user?.role || 'admin',
+      req.user?.sub || req.user?.id,
+      req.user?.companyId || req.headers['x-company-id'],
+      req.user?.role,
     );
   }
 

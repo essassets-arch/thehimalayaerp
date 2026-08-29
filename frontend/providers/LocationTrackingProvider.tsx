@@ -253,12 +253,12 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     if (typeof window !== 'undefined') {
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       if (isLocalhost) {
-        socketUrl = socketUrl || `${window.location.protocol}//${window.location.hostname}:4000`;
+        socketUrl = socketUrl || `${window.location.protocol}//${window.location.hostname}:4001`;
       } else {
         socketUrl = window.location.origin;
       }
     } else {
-      socketUrl = socketUrl || 'http://localhost:4000';
+      socketUrl = socketUrl || 'http://localhost:4001';
     }
 
     const socket = io(socketUrl, {

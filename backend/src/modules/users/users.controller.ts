@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
-@Controller('users')
+@Controller(['users', 'admin/users', 'backend/admin/users', 'backend/users'])
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -14,6 +14,12 @@ export class UsersController {
   async findAll(@Req() req: any) {
     // Standardize to use req.user for audit logging if needed, or row-level ownership checks
     return this.usersService.findAll();
+  }
+
+  @Get('roles')
+  @RequirePermissions('user.read', 'admin.read', 'hr.read', 'super-admin.read', 'finance.read', 'sales.orders.read')
+  async getRoles() {
+    return this.usersService.getRoles();
   }
 
   @Post()

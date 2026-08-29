@@ -280,8 +280,12 @@ export default function HRPortal() {
 
   // 2. EMPLOYEES DIRECTORY
   const renderEmployees = () => {
-    if (params?.slug?.[1]) return <EmployeeDetails id={params.slug[1]} />;
-    const activeStaffData = directoryEmployees.length > 0 ? directoryEmployees : dbEmployees;
+    const rawStaffData = directoryEmployees.length > 0 ? directoryEmployees : dbEmployees;
+    const parseEmpNum = (code) => {
+      const m = String(code || '').match(/(\d+)/);
+      return m ? parseInt(m[1], 10) : 999999;
+    };
+    const activeStaffData = [...rawStaffData].sort((a, b) => parseEmpNum(a.employeeCode) - parseEmpNum(b.employeeCode));
 
     return (
       <div className="app-card">
@@ -323,11 +327,24 @@ export default function HRPortal() {
               )
             },
             { header: 'Department', accessor: 'department', render: (row) => typeof row.department === 'object' ? (row.department?.name || 'Operations') : (row.department || 'Operations') },
-            { header: 'Role / Designation', accessor: 'jobTitle', render: (row) => row.jobTitle || row.designation || row.role || 'Staff Member' },
-            { header: 'Working Days', accessor: 'payroll', render: (row) => row.payroll?.standardWorkingDays || '25' },
-            { header: 'Paid Days', accessor: 'payroll', render: (row) => row.payroll?.payableDays || '25' },
-            { header: 'Unpaid Days', accessor: 'payroll', render: (row) => row.payroll?.unpaidLeaveDays || '0' },
-            { header: 'Gross Salary', accessor: 'payroll', render: (row) => row.payroll ? `₹${Number(row.payroll.grossEarnings).toLocaleString('en-IN')}` : `₹${Number(row.baseSalary || row.salary || 25000).toLocaleString('en-IN')}` },
+            { 
+              header: 'Gross Salary', 
+              accessor: 'baseSalary', 
+              render: (row) => {
+                const amount = row.baseSalary !== undefined && row.baseSalary !== null && row.baseSalary !== ''
+                  ? Number(row.baseSalary)
+                  : (row.salary !== undefined && row.salary !== null && row.salary !== ''
+                    ? Number(row.salary)
+                    : (row.payroll?.grossEarnings !== undefined && row.payroll?.grossEarnings !== null
+                      ? Number(row.payroll.grossEarnings)
+                      : 0));
+                return (
+                  <span style={{ fontWeight: '700', color: amount > 0 ? '#0f172a' : '#64748b', fontFamily: 'monospace', fontSize: '13px' }}>
+                    ₹{amount.toLocaleString('en-IN')}
+                  </span>
+                );
+              } 
+            },
             { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status || row.payroll?.status || 'ACTIVE'} /> }
           ]}
           data={activeStaffData}
@@ -336,12 +353,20 @@ export default function HRPortal() {
           actions={(row) => (
             <div style={{ display: 'flex', gap: '8px' }}>
               <button 
-                title="View Employee Profile"
+                title="View Full Profile"
                 className="action-btn"
                 style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', padding: '6px 12px', borderRadius: '6px', color: '#0284C7', cursor: 'pointer', fontWeight: '700', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
                 onClick={() => navigate.push(`/hr/employees/${row.id}`)}
               >
                 <Eye size={14} /> Inspect
+              </button>
+              <button 
+                title="Edit Employee Information"
+                className="action-btn"
+                style={{ background: '#FEF3C7', border: '1px solid #FDE68A', padding: '6px 12px', borderRadius: '6px', color: '#B45309', cursor: 'pointer', fontWeight: '700', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                onClick={() => navigate.push(`/hr/register-staff?edit=${row.id}`)}
+              >
+                <Edit3 size={14} /> Edit
               </button>
             </div>
           )}

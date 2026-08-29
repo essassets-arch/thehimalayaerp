@@ -1798,103 +1798,154 @@ async function main() {
     }
   }
 
-  // ── 5. Users (one per role) ─────────────────────────────────────────────────
-  console.log('👤 Seeding users...');
-  const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'admin123';
-  const hashedPassword = await bcrypt.hash(adminPassword, 12);
-  const allRoles = await prisma.role.findMany();
+  // ── 5. Users and Employee Master Records ────────────────────────────────────
+  console.log('👤 Seeding users and employee master records...');
+  const accountsToSeed = [
+    { email: 'sales11@himalayaerp.com', rawPassword: 'Himalayacc@2025', name: 'Sales Eleven', firstName: 'Sales', lastName: 'Eleven', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
+    { email: 'trushna.g@himalayaerp.com', rawPassword: 'Himalaya@3252', name: 'Trushna G', firstName: 'Trushna', lastName: 'G', roleCode: 'FINANCE_EXECUTIVE', deptName: 'Finance Department', jobTitle: 'Finance Executive' },
+    { email: 'sahad.m@himalayaerp.com', rawPassword: 'Hcppl@5253', name: 'Sahad M', firstName: 'Sahad', lastName: 'M', roleCode: 'FINANCE_MANAGER', deptName: 'Finance Department', jobTitle: 'Finance Manager' },
+    { email: 'sahad.dispatch@himalayaerp.com', rawPassword: 'Sahad@5253', name: 'Sahad Dispatch', firstName: 'Sahad', lastName: 'Dispatch', roleCode: 'DISPATCH_2', deptName: 'Dispatch Department', jobTitle: 'Dispatch Executive 2', dispatchCategory: 'Category 2' },
+    { email: 'sales12@himalayaerp.com', rawPassword: 'Jyoti@2258', name: 'Jyoti Sales 12', firstName: 'Jyoti', lastName: 'Sales 12', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
+    { email: 'sales14@himalayaerp.com', rawPassword: 'ARHIMALAYA12', name: 'Sales Fourteen', firstName: 'Sales', lastName: 'Fourteen', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
+    { email: 'sales13@himalayaerp.com', rawPassword: 'Himalaya@2026', name: 'Sales Thirteen', firstName: 'Sales', lastName: 'Thirteen', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
+    { email: 'abbas.b@himalayaerp.com', rawPassword: 'dataAnalyst#2101', name: 'Abbas B', firstName: 'Abbas', lastName: 'B', roleCode: 'ADMIN', deptName: 'Super Admin Department', jobTitle: 'Data Analyst & Back Office Lead' },
+    { email: 'moksha.n@himalayaerp.com', rawPassword: 'Production@hcppl', name: 'Moksha N', firstName: 'Moksha', lastName: 'N', roleCode: 'PRODUCTION_PLANNER', deptName: 'Production Department', jobTitle: 'Production Planner' },
+    { email: 'ravikant.t@himalayaerp.com', rawPassword: 'Logistics@hcppl', name: 'Ravikant T', firstName: 'Ravikant', lastName: 'T', roleCode: 'DISPATCH_EXECUTIVE', deptName: 'Dispatch Department', jobTitle: 'Dispatch Logistics Lead 1', dispatchCategory: 'Category 1' },
+    { email: 'makhdum@himalayaerp.com', rawPassword: 'Store@hcppl', name: 'Makhdum', firstName: 'Makhdum', lastName: 'Store', roleCode: 'STORE_MANAGER', deptName: 'Store Department', jobTitle: 'Store Manager' },
+    { email: 'hussain.t@himalayaerp.com', rawPassword: 'Rnd@hcppl', name: 'Hussain T', firstName: 'Hussain', lastName: 'T', roleCode: 'PRODUCTION_PLANNER', deptName: 'Production Department', jobTitle: 'R&D & Production Specialist' },
+    { email: 'sana.r@himalayaerp.com', rawPassword: 'Himalaya@1234', name: 'Sana R', firstName: 'Sana', lastName: 'R', roleCode: 'PLANT_HEAD', deptName: 'Production Department', jobTitle: 'Plant Head' },
+    { email: 'sales1@himalayaerp.com', rawPassword: 'Himalaya@2026', name: 'Sales One', firstName: 'Sales', lastName: 'One', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
+    { email: 'sales2@himalayaerp.com', rawPassword: 'Himalaya@2026', name: 'Sales Two', firstName: 'Sales', lastName: 'Two', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
+    { email: 'sales3@himalayaerp.com', rawPassword: 'Himalaya@2026', name: 'Sales Three', firstName: 'Sales', lastName: 'Three', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
+    { email: 'sales4@himalayaerp.com', rawPassword: 'Himalaya@2026', name: 'Sales Four', firstName: 'Sales', lastName: 'Four', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
+    { email: 'sales5@himalayaerp.com', rawPassword: 'Himalaya@2026', name: 'Sales Five', firstName: 'Sales', lastName: 'Five', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
+    { email: 'sales6@himalayaerp.com', rawPassword: 'Himalaya@2026', name: 'Sales Six', firstName: 'Sales', lastName: 'Six', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
+    { email: 'sales7@himalayaerp.com', rawPassword: 'Himalaya@2026', name: 'Sales Seven', firstName: 'Sales', lastName: 'Seven', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
+    { email: 'supersales1@himalayaerp.com', rawPassword: 'supersales123', name: 'SuperSales One', firstName: 'SuperSales', lastName: 'One', roleCode: 'SUPER_SALES', deptName: 'Sales Department', jobTitle: 'SuperSales Lead' },
+    { email: 'supersales2@himalayaerp.com', rawPassword: 'supersales124', name: 'SuperSales Two', firstName: 'SuperSales', lastName: 'Two', roleCode: 'SUPER_SALES', deptName: 'Sales Department', jobTitle: 'SuperSales Lead' },
+    { email: 'nahin.v@himalayaerp.com', rawPassword: 'HR@hcppl', name: 'Nahin V', firstName: 'Nahin', lastName: 'V', roleCode: 'HR', deptName: 'HR Department', jobTitle: 'HR Manager' },
+    { email: 'super.admin@himalayaerp.com', rawPassword: 'SuperAdmin@hcppl', name: 'Super Admin', firstName: 'Super', lastName: 'Admin', roleCode: 'SUPER_ADMIN', deptName: 'Super Admin Department', jobTitle: 'Chief Executive Officer / Super Admin' },
+  ];
 
-  for (const role of allRoles) {
-    const emailSlug = role.code.toLowerCase().replace(/_/g, '.');
-    let email = (role.code === 'SUPER_ADMIN' && process.env.INITIAL_ADMIN_EMAIL)
-      ? process.env.INITIAL_ADMIN_EMAIL
-      : `${emailSlug}@himalayaerp.com`;
-    if (role.code === 'DISPATCH_2') email = 'dispatch2@himalayaerp.com';
+  let empSeedSeq = 1001;
+  let seedIdx = 0;
+  for (const acc of accountsToSeed) {
+    seedIdx++;
+    const roleObj = await prisma.role.findFirst({ where: { code: acc.roleCode } });
+    if (!roleObj) continue;
 
-    await prisma.user.upsert({
-      where: { email },
+    let deptObj = await prisma.department.findFirst({ where: { name: acc.deptName, companyId: company.id } });
+    if (!deptObj) {
+      deptObj = await prisma.department.create({
+        data: {
+          name: acc.deptName,
+          code: `DEPT_${acc.deptName.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`,
+          companyId: company.id,
+          isActive: true,
+        },
+      });
+    }
+
+    let workLocObj = await prisma.workLocation.findFirst({ where: { companyId: company.id } });
+    if (!workLocObj) {
+      workLocObj = await prisma.workLocation.create({
+        data: {
+          code: 'LOC-HQ',
+          name: 'Ahmedabad Head Office',
+          companyId: company.id,
+          isActive: true,
+        },
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(acc.rawPassword, 12);
+    const user = await prisma.user.upsert({
+      where: { email: acc.email },
       update: {
         password: hashedPassword,
-        roleId: role.id,
-        name: role.name,
-        isActive: true,
-        deletedAt: null,
-      },
-      create: {
-        publicId: uid('USR'),
-        email,
-        password: hashedPassword,
-        name: role.name,
-        roleId: role.id,
-        companyId: company.id,
-      },
-    });
-  }
-
-  // Seeding requested Finance Manager account (Sahad Accounts)
-  const sahadPassword = await bcrypt.hash('Hcpp1@5253', 12);
-  const finManagerRole = allRoles.find((r) => r.code === 'FINANCE_MANAGER');
-  if (finManagerRole) {
-    await prisma.user.upsert({
-      where: { email: 'sahad.accounts@himalayaerp.com' },
-      update: {
-        password: sahadPassword,
-        roleId: finManagerRole.id,
-        isActive: true,
-      },
-      create: {
-        publicId: uid('USR'),
-        email: 'sahad.accounts@himalayaerp.com',
-        password: sahadPassword,
-        name: 'Sahad Accounts',
-        roleId: finManagerRole.id,
-        companyId: company.id,
-        isActive: true,
-      },
-    });
-  }
-
-  const dispatch2RoleAlias = allRoles.find((r) => r.code === 'DISPATCH_2');
-  if (dispatch2RoleAlias) {
-    await prisma.user.upsert({
-      where: { email: 'dispatch.2@himalayaerp.com' },
-      update: {
-        password: hashedPassword,
-        roleId: dispatch2RoleAlias.id,
-        isActive: true,
-      },
-      create: {
-        publicId: uid('USR'),
-        email: 'dispatch.2@himalayaerp.com',
-        password: hashedPassword,
-        name: 'Dispatch 2',
-        roleId: dispatch2RoleAlias.id,
-        companyId: company.id,
-        isActive: true,
-      },
-    });
-  }
-
-  const hrRoleAlias = allRoles.find((r) => r.code === 'HR');
-  if (hrRoleAlias) {
-    const hrPassword = await bcrypt.hash('admin123', 12);
-    await prisma.user.upsert({
-      where: { email: 'hr@himalayaerp.com' },
-      update: {
-        password: hrPassword,
-        roleId: hrRoleAlias.id,
+        roleId: roleObj.id,
+        name: acc.name,
+        dispatchCategory: acc.dispatchCategory || null,
         isActive: true,
       },
       create: {
         publicId: uid('USR'),
-        email: 'hr@himalayaerp.com',
-        password: hrPassword,
-        name: 'HR',
-        roleId: hrRoleAlias.id,
+        email: acc.email,
+        password: hashedPassword,
+        name: acc.name,
+        roleId: roleObj.id,
         companyId: company.id,
+        dispatchCategory: acc.dispatchCategory || null,
         isActive: true,
       },
     });
+
+    const uniquePan = `ABCDE${String(1000 + seedIdx)}F`;
+    const uniqueAadhaarLastFour = String(1000 + seedIdx).slice(-4);
+    const uniqueAadhaarHash = `hash_aadhaar_${seedIdx}_${Date.now()}`;
+    const uniqueBankLastFour = String(5000 + seedIdx).slice(-4);
+    const uniqueBankHash = `hash_bank_${seedIdx}_${Date.now()}`;
+
+    const existingEmp = await prisma.employee.findFirst({
+      where: { OR: [{ userId: user.id }, { workEmail: acc.email }] },
+    });
+
+    if (existingEmp) {
+      await prisma.employee.update({
+        where: { id: existingEmp.id },
+        data: {
+          userId: user.id,
+          firstName: acc.firstName,
+          lastName: acc.lastName,
+          fullName: acc.name,
+          workEmail: acc.email,
+          jobTitle: acc.jobTitle,
+          departmentId: deptObj.id,
+          workLocationId: workLocObj.id,
+          employmentType: 'PERMANENT',
+          status: 'ACTIVE',
+        },
+      });
+    } else {
+      await prisma.employee.create({
+        data: {
+          publicId: `EMP-${seedIdx}`,
+          employeeCode: `EMP-${seedIdx}`,
+          companyId: company.id,
+          userId: user.id,
+          firstName: acc.firstName,
+          lastName: acc.lastName,
+          fullName: acc.name,
+          workEmail: acc.email,
+          jobTitle: acc.jobTitle,
+          departmentId: deptObj.id,
+          workLocationId: workLocObj.id,
+          employmentType: 'PERMANENT',
+          status: 'ACTIVE',
+          joiningDate: new Date('2024-01-01'),
+          dateOfBirth: new Date('1995-01-01'),
+          gender: 'MALE',
+          phoneNumber: `98765${String(10000 + seedIdx).slice(-5)}`,
+          residentialAddress: 'Ahmedabad, Gujarat',
+          permanentAddress: 'Ahmedabad, Gujarat',
+          emergencyContactName: 'Emergency Contact',
+          emergencyContactPhone: '9876543219',
+          emergencyRelationship: 'Family',
+          panNumber: uniquePan,
+          aadhaarNumberEncrypted: `enc_aadhaar_${seedIdx}`,
+          aadhaarLastFour: uniqueAadhaarLastFour,
+          aadhaarHash: uniqueAadhaarHash,
+          bankName: 'HDFC Bank',
+          accountHolderName: acc.name,
+          bankAccountType: 'SAVINGS',
+          bankAccountEncrypted: `enc_bank_${seedIdx}`,
+          bankAccountLastFour: uniqueBankLastFour,
+          bankAccountHash: uniqueBankHash,
+          ifscCode: 'HDFC0001234',
+          baseSalary: 45000,
+        },
+      });
+    }
   }
 
   // ── 6. Document Sequences ───────────────────────────────────────────────────

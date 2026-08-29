@@ -123,6 +123,91 @@ export default function QuotationsView({
   const [editCustomerSearchOpen, setEditCustomerSearchOpen] = useState(false);
 
   const normalizeText = (value) => String(value || '').trim().toLowerCase();
+  const renderQuotationProducts = (quotation) => {
+    const rawItems = (Array.isArray(quotation?.items) && quotation.items.length > 0)
+      ? quotation.items
+      : (Array.isArray(quotation?.detailedItems) && quotation.detailedItems.length > 0)
+        ? quotation.detailedItems
+        : (Array.isArray(quotation?.lead?.detailedItems) && quotation.lead.detailedItems.length > 0)
+          ? quotation.lead.detailedItems
+          : (Array.isArray(quotation?.lead?.items) && quotation.lead.items.length > 0)
+            ? quotation.lead.items
+            : null;
+
+    if (rawItems && rawItems.length > 0) {
+      const first = rawItems[0];
+      const prodName = first.productName || first.product || first.name || first.description || 'Product';
+      const sizeCap = [first.size, first.capacity].filter(Boolean).join(' ');
+      const mainLabel = sizeCap ? `${prodName} ${sizeCap}` : prodName;
+      const qty = Number(first.quantity ?? first.qty ?? 0);
+      const unit = first.unit || 'Qty';
+      const qtyStr = qty > 0 ? `(${qty} ${unit})` : '';
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+            <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap' }}>
+              {mainLabel} {qtyStr}
+            </span>
+            {rawItems.length > 1 && (
+              <span
+                title={rawItems.map(i => `${i.productName || i.product || i.name || 'Item'} (${i.quantity || i.qty || 1} ${i.unit || 'Qty'})`).join('\n')}
+                style={{
+                  fontSize: '10.5px',
+                  fontWeight: '800',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  background: '#e0e7ff',
+                  color: '#4338ca',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                +{rawItems.length - 1} more
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (typeof quotation?.items === 'string' && quotation.items.trim()) {
+      const parts = quotation.items.split(',').map(p => p.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap' }}>
+                {parts[0]}
+              </span>
+              <span
+                title={parts.join('\n')}
+                style={{
+                  fontSize: '10.5px',
+                  fontWeight: '800',
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  background: '#e0e7ff',
+                  color: '#4338ca',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                +{parts.length - 1} more
+              </span>
+            </div>
+          </div>
+        );
+      }
+      return <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>{quotation.items}</span>;
+    }
+
+    if (quotation?.productInterest || quotation?.productInterested || quotation?.lead?.productInterest) {
+      const txt = quotation.productInterest || quotation.productInterested || quotation.lead?.productInterest;
+      return <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#334155' }}>{txt}</span>;
+    }
+
+    return <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>;
+  };
+
   const quotationItemsText = (quotation) => {
     const source = (Array.isArray(quotation?.items) && quotation.items.length > 0)
       ? quotation.items
@@ -211,7 +296,7 @@ export default function QuotationsView({
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr)) {
         return `QTN-${idStr.slice(0, 8).toUpperCase()}`;
       }
-      if (idStr.startsWith('QT-') || idStr.startsWith('QTN-') || idStr.startsWith('HCCL/')) {
+      if (idStr.startsWith('QT-') || idStr.startsWith('QTN-') || idStr.startsWith('QU/') || idStr.startsWith('HCCL/')) {
         return idStr;
       }
       return `QTN-${idStr}`;
@@ -673,12 +758,11 @@ export default function QuotationsView({
         ) : (
           <table className="crm-table responsive-table flat-table">
             <colgroup>
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '18%' }} />
+              <col style={{ width: '14%' }} />
               <col style={{ width: '22%' }} />
+              <col style={{ width: '28%' }} />
               <col style={{ width: '12%' }} />
               <col style={{ width: '10%' }} />
-              <col style={{ width: '12%' }} />
               <col style={{ width: '14%' }} />
             </colgroup>
             <thead>
@@ -687,7 +771,6 @@ export default function QuotationsView({
                 <th>Customer Name</th>
                 <th>Product / Items</th>
                 <th>Total Value</th>
-                <th>Status</th>
                 <th>Reminder</th>
                 <th>Actions</th>
               </tr>
@@ -695,7 +778,7 @@ export default function QuotationsView({
             <tbody>
               {filteredQuotations.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
                     No quotations cataloged.
                   </td>
                 </tr>
@@ -704,13 +787,8 @@ export default function QuotationsView({
                   <tr key={q.id}>
                     <td data-label="Quotation ID" style={{ fontWeight: '700' }}>#{resolveQuotationNumber(q).replace(/^#/, '')}</td>
                     <td data-label="Customer Name" style={{ fontWeight: '600' }}>{resolveQuotationCustomerName(q)}</td>
-                    <td data-label="Product / Items">{quotationItemsText(q)}</td>
+                    <td data-label="Product / Items">{renderQuotationProducts(q)}</td>
                     <td data-label="Total Value" style={{ fontWeight: '700' }}>{formatINR(quotationTotal(q))}</td>
-                    <td data-label="Status">
-                      <span className={`badge badge-${(q.status || '').toLowerCase()}`}>
-                        {q.status || ''}
-                      </span>
-                    </td>
                     <td data-label="Reminder">{renderQuotationReminder(q)}</td>
                     <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <div className="action-btn-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
@@ -868,10 +946,10 @@ export default function QuotationsView({
                     {q.customerName}
                   </div>
                   
-                  {/* Body Row 2: Items, Total, Status */}
+                  {/* Body Row 2: Items, Total */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ fontSize: '13px', color: '#475569', fontWeight: '500', flex: 1, paddingRight: '8px' }}>
-                      {quotationItemsText(q)}
+                      {renderQuotationProducts(q)}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span style={{ fontSize: '14px', fontWeight: '800', color: '#1e293b' }}>
