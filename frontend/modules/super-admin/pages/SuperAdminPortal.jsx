@@ -6,7 +6,6 @@ import { useSearchStore } from '@/store/searchStore';
 import { useRouter, usePathname, useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useERP, useERPStore } from '../../../shared/context/ERPContext';
-import MyProfileView from '../../../shared/components/MyProfileView';
 import ExpenseManagementView from '../../../shared/components/ExpenseManagementView';
 import LeaveApprovalView from '../../../shared/components/LeaveApprovalView';
 import { useAuth } from '../../../shared/context/AuthContext';
@@ -108,6 +107,12 @@ export default function SuperAdminPortal() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (view === 'profile') {
+      navigate.replace('/super-admin/dashboard');
+    }
+  }, [view, navigate]);
 
   const {
     state,
@@ -7699,7 +7704,7 @@ export default function SuperAdminPortal() {
       case 'attendance':
         return <AttendanceView />;
       case 'profile':
-        return <MyProfileView />;
+        return null;
       case 'expense-management':
         return <ExpenseManagementView />;
       case 'leave-approvals':

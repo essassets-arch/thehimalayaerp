@@ -241,6 +241,12 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
   // ── UI-only state ──────────────────────────────────────────────────────────
   const [prefillQuotationData, setPrefillQuotationData] = useState(null);
 
+  useEffect(() => {
+    if (isSuperSalesPortal && (currentView === 'profile' || pathname?.includes('/supersales/profile'))) {
+      navigate.replace('/supersales/dashboard');
+    }
+  }, [isSuperSalesPortal, currentView, pathname, navigate]);
+
   // ── Domain hooks ───────────────────────────────────────────────────────────
   const {
     leads,
@@ -958,6 +964,9 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
   switch (currentView) {
     case 'profile':
+      if (isSuperSalesPortal) {
+        return null;
+      }
       return (
         <div data-testid="sales-profile-page" className="sales-portal-view">
           <MyProfileView />

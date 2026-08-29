@@ -146,6 +146,17 @@ function getUserRoleName(rawRole: any): string {
   useEffect(() => {
     if (status !== 'allowed' || !pathname) return;
 
+    // Explicitly block removed profile routes for Super Admin and Super Sales
+    const normalizedPath = pathname.toLowerCase().replace(/\/+$/, '');
+    if (normalizedPath === '/super-admin/profile' || normalizedPath.startsWith('/super-admin/profile/')) {
+      router.replace('/super-admin/dashboard');
+      return;
+    }
+    if (normalizedPath === '/supersales/profile' || normalizedPath.startsWith('/supersales/profile/')) {
+      router.replace('/supersales/dashboard');
+      return;
+    }
+
     const pathSegment = pathname.split('/').filter(Boolean)[0];
     const allowedRoles = ROUTE_ROLE_MAP[pathSegment];
 
@@ -199,6 +210,10 @@ function getUserRoleName(rawRole: any): string {
   }
 
   if (status === 'denied') return null;
+
+  const normalizedPath = pathname?.toLowerCase().replace(/\/+$/, '');
+  const isBlockedProfileRoute = normalizedPath === '/super-admin/profile' || normalizedPath?.startsWith('/super-admin/profile/') || normalizedPath === '/supersales/profile' || normalizedPath?.startsWith('/supersales/profile/');
+  if (isBlockedProfileRoute) return null;
 
   return <>{children}</>;
 }

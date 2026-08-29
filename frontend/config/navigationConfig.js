@@ -39,8 +39,7 @@ export const navigationConfig = {
     { id: 'payment-followup', label: 'Payment Follow-up', icon: CreditCard, path: '/supersales/payment-followup', group: 'SuperSales' },
     { id: 'payment-history', label: 'Payment History', icon: History, path: '/supersales/payment-history', group: 'SuperSales' },
     { id: 'customers', label: 'Customers', icon: UserCheck, path: '/supersales/customers', group: 'SuperSales' },
-    { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/supersales/customer-complaints', group: 'SuperSales' },
-    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/supersales/profile' }
+    { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/supersales/customer-complaints', group: 'SuperSales' }
   ],
 
   'Production': [
@@ -397,7 +396,6 @@ export const navigationConfig = {
     { id: 'analytics-dispatch', label: 'Dispatch Analytics', icon: Truck, path: '/super-admin/analytics/dispatch' },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/super-admin/reports' },
     { id: 'notifications', label: 'Notification Management', icon: Bell, path: '/super-admin/notifications' },
-    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/super-admin/profile' },
     { id: 'expense-management', label: 'Expense Management', icon: CreditCard, path: '/super-admin/expense-management' },
     { id: 'leave-approvals', label: 'Leave Approvals', icon: Calendar, path: '/super-admin/leave-approvals' }
   ]

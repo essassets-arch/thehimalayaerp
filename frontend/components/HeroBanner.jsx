@@ -38,6 +38,21 @@ const formatRelativeTime = (dateStr) => {
   return `${Math.floor(diffHr / 24)}d ago`;
 };
 
+const isPunchDisabledForRoleOrRoute = (userRole, pathname) => {
+  const roleName = typeof userRole === 'object' && userRole !== null
+    ? (userRole.name || userRole.code || '')
+    : String(userRole || '');
+  const normalized = roleName.trim().toUpperCase().replace(/[\s_-]+/g, '');
+
+  if (['SUPERADMIN', 'SUPERSALES', 'SUPERSALES1', 'SUPERSALES2'].includes(normalized)) {
+    return true;
+  }
+  if (pathname && (pathname.startsWith('/super-admin') || pathname.startsWith('/supersales'))) {
+    return true;
+  }
+  return false;
+};
+
 const BiometricPunchIcon = ({ size = 18, color = "#ffffff" }) => (
   <svg
     width={size}
@@ -82,6 +97,7 @@ export default function HeroBanner({
   const searchInputRef = useRef(null);
   const navigate = useRouter();
   const location = { pathname: usePathname(), search: "" };
+  const isPunchDisabled = isPunchDisabledForRoleOrRoute(user?.role, location.pathname);
   // Treat root-level paths (e.g. "/", "/sales", "/admin") as dashboard — show full banner + stats
   const isDashboard = propIsDashboard ?? /^\/[^/]*$/.test(location.pathname);
 
@@ -121,7 +137,7 @@ export default function HeroBanner({
   const punchSyncErrors = useRef(0);
 
   const syncPunchStatusFromDB = async () => {
-    if (!user || punchSyncErrors.current >= 4) return;
+    if (isPunchDisabled || !user || punchSyncErrors.current >= 4) return;
     try {
       const response = await apiClient.get('/attendance/me/today');
       if (response && response.success !== false) {
@@ -209,6 +225,7 @@ export default function HeroBanner({
   };
 
   useEffect(() => {
+    if (isPunchDisabled) return;
     if (user) {
       syncPunchStatusFromDB();
 
@@ -226,7 +243,7 @@ export default function HeroBanner({
         document.removeEventListener('visibilitychange', handleFocusSync);
       };
     }
-  }, [user, showPunchModal]);
+  }, [user, showPunchModal, isPunchDisabled]);
 
   const savePunchStatus = (updated) => {
     setPunchStatus(updated);
@@ -911,30 +928,32 @@ export default function HeroBanner({
         </div>
         
         <div className="hero-actions" style={{ position: 'relative' }} ref={dropdownRef}>
-          {/* ── PUNCH IN / PUNCH OUT CAMERA BUTTON ── */}
-          <button 
-            className="hero-action-btn" 
-            title={punchStatus.isPunchedIn ? `Punched In at ${punchStatus.punchInTime || ''} - Click to Punch Out` : "Punch In with Camera Selfie"} 
-            onClick={() => {
-              setShowPunchModal(true);
-              setShowNotifications(false);
-            }}
-            style={{ position: 'relative' }}
-          >
-            <BiometricPunchIcon size={20} color={punchStatus.isPunchedIn ? "#22c55e" : "#ffffff"} />
-            {punchStatus.isPunchedIn && (
-              <span style={{
-                position: 'absolute',
-                top: '-2px',
-                right: '-2px',
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: '#22c55e',
-                boxShadow: '0 0 8px #22c55e'
-              }} />
-            )}
-          </button>
+          {/* ── PUNCH IN / PUNCH OUT CAMERA BUTTON (Hidden for Super Admin & Super Sales) ── */}
+          {!isPunchDisabled && (
+            <button 
+              className="hero-action-btn" 
+              title={punchStatus.isPunchedIn ? `Punched In at ${punchStatus.punchInTime || ''} - Click to Punch Out` : "Punch In with Camera Selfie"} 
+              onClick={() => {
+                setShowPunchModal(true);
+                setShowNotifications(false);
+              }}
+              style={{ position: 'relative' }}
+            >
+              <BiometricPunchIcon size={20} color={punchStatus.isPunchedIn ? "#22c55e" : "#ffffff"} />
+              {punchStatus.isPunchedIn && (
+                <span style={{
+                  position: 'absolute',
+                  top: '-2px',
+                  right: '-2px',
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: '#22c55e',
+                  boxShadow: '0 0 8px #22c55e'
+                }} />
+              )}
+            </button>
+          )}
           
           {/* ── NOTIFICATION BELL BUTTON ── */}
           <button 
@@ -1259,7 +1278,7 @@ export default function HeroBanner({
 
       {/* Punch In / Punch Out Camera Selfie Modal — Light Theme Redesign */}
       {/* Punch In / Punch Out Camera Selfie Modal — Light Theme with Dedicated Mobile Responsive Structure */}
-      {showPunchModal && typeof window !== 'undefined' && createPortal(
+      {!isPunchDisabled && showPunchModal && typeof window !== 'undefined' && createPortal(
         <div
           onClick={() => setShowPunchModal(false)}
           className="attendance-punch-overlay"
