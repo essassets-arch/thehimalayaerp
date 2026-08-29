@@ -58,5 +58,7 @@ playwright-report/
 .setup.txt
 
 # Firebase credentials
+*firebase-service-account*.json
+firebase-service-account.json
 backend/firebase-service-account.json
-frontend/public/firebase-messaging-sw.js
+frontend/public/firebase-messaging-sw.js

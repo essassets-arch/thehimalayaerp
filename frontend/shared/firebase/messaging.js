@@ -2,7 +2,7 @@ import { getToken, onMessage, isSupported, getMessaging } from 'firebase/messagi
 import { app } from './firebase';
 import { useNotificationStore } from '@/store/notificationStore';
 
-const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || 'BDO2LpNii_w92F7_aA8Czfp9Xx82IWI-mPhi4Xt3DLC0CF6gRU7Knkg2W8oiv-lGvbiUjlh5xF2D6cijH55dgns';
 
 const getAuthToken = () => {
   if (typeof window === 'undefined') return null;
