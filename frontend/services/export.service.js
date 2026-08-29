@@ -134,7 +134,7 @@ export const exportToExcel = (data, filename = 'report.xls') => {
   const headers = Object.keys(data[0]);
   let xml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
   xml += '<head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Report</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--><meta http-equiv="content-type" content="text/plain; charset=UTF-8"/></head><body><table>';
-  
+
   // Header
   xml += '<thead><tr style="background-color: #2563eb; color: #ffffff; font-weight: bold;">';
   headers.forEach(h => {
@@ -1014,7 +1014,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
   doc.text('PLOT NO.25&26, SURVEY NO.35(OLD-27-A), EVOKE INDUSTRIAL PARK,', margin, y);
   y += 3.5;
   doc.text('BAREJA KHEDA ROAD, MALARPURA, KHEDA, GUJARAT', margin, y);
-  
+
   y += 4;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 41, 59);
@@ -1085,7 +1085,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
   let detailText = '';
   if (clientAddress) detailText += clientAddress;
   if (clientGST) detailText += (detailText ? '  |  ' : '') + `GST: ${clientGST}`;
-  
+
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
@@ -1201,7 +1201,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
     autoTable(doc, {
       startY: y,
       theme: 'grid',
-      head: [[ { content: 'TERMS AND CONDITIONS :-', colSpan: 2 } ]],
+      head: [[{ content: 'TERMS AND CONDITIONS :-', colSpan: 2 }]],
       headStyles: { fillColor: [0, 46, 93], textColor: [255, 255, 255], fontStyle: 'bold' },
       body: termsList.map((term, i) => [String(i + 1), term.text || term.label]),
       columnStyles: {
@@ -1225,7 +1225,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
     theme: 'grid',
     head: [['VALUABLE CLIENTS']],
     headStyles: { fillColor: [0, 46, 93], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 9.5 },
-    body: [[' ']], 
+    body: [[' ']],
     bodyStyles: { minCellHeight: 12 }
   });
 
@@ -1296,7 +1296,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
   const pageHeight = doc.internal.pageSize.getHeight();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    
+
     // Draw wave footer background
     doc.setFillColor(59, 130, 246); // Light blue
     doc.rect(0, pageHeight - 14, pageWidth, 14, 'F');
@@ -1308,7 +1308,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
     doc.text('+91 98795 22226  |  info@himalayacomposites.com  |  www.himalayacomposites.com', pageWidth / 2, pageHeight - 4.5, { align: 'center' });
-    
+
     // Page numbering right-aligned
     doc.setFontSize(8.5);
     doc.setTextColor(255, 255, 255);
@@ -1628,7 +1628,7 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
       await navigator.share(shareData);
       return { success: true };
     }
-    
+
     return { success: false, file, blob, dataUrl };
   } finally {
     if (wrapper && wrapper.parentNode) {

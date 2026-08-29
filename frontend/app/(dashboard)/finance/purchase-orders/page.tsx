@@ -96,28 +96,48 @@ export default function ClosureBoardPage() {
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #F5FAFE 0%, #f1f5f9 100%)',
-      padding: '32px 24px',
+      padding: 'clamp(14px, 2.5vw, 32px)',
       fontFamily: "var(--font-main, 'Plus Jakarta Sans'), sans-serif",
       color: '#24345C',
+      boxSizing: 'border-box',
+      width: '100%',
+      maxWidth: '100%',
+      overflowX: 'hidden'
     }}>
-      <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+      <style>{`
+        .po-closure-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+          margin-bottom: 24px;
+        }
+        @media (max-width: 768px) {
+          .po-closure-stats-grid {
+            grid-template-columns: 1fr;
+          }
+          .po-closure-search {
+            width: 100% !important;
+          }
+        }
+      `}</style>
+      <div style={{ maxWidth: '1100px', margin: '0 auto', width: '100%', minWidth: 0 }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
               <div style={{ width: 42, height: 42, borderRadius: '10px', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #D6E2F0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
                 <Archive size={20} color="#5E6B82" />
               </div>
               <div>
-                <h1 style={{ fontSize: '20px', fontWeight: 900, color: '#24345C', margin: 0, letterSpacing: '-0.02em' }}>Closure Board</h1>
+                <h1 style={{ fontSize: 'clamp(18px, 2.5vw, 22px)', fontWeight: 900, color: '#24345C', margin: 0, letterSpacing: '-0.02em' }}>Closure Board</h1>
                 <div style={{ fontSize: '12px', color: '#5E6B82', marginTop: '2px' }}>Order Administration · Step 12 of O2P</div>
               </div>
             </div>
           </div>
 
           {/* Search */}
-          <div style={{ position: 'relative' }}>
+          <div className="po-closure-search" style={{ position: 'relative', width: '260px' }}>
             <Search size={14} color="#5E6B82" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               value={search}
@@ -126,14 +146,15 @@ export default function ClosureBoardPage() {
               style={{
                 background: '#ffffff', border: '1px solid #D6E2F0',
                 borderRadius: '8px', padding: '8px 12px 8px 32px',
-                color: '#24345C', fontSize: '13px', width: '260px', outline: 'none',
+                color: '#24345C', fontSize: '13px', width: '100%', outline: 'none',
+                boxSizing: 'border-box'
               }}
             />
           </div>
         </div>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
+        <div className="po-closure-stats-grid">
           {[
             { icon: Clock, label: 'Pending Closure', value: filterRows(closeable).length, color: '#f59e0b' },
             { icon: CheckCircle2, label: 'Closed Orders', value: filterRows(closed).length, color: '#22c55e' },

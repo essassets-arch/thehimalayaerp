@@ -179,16 +179,177 @@ export default function FinanceSalesConfirmationView() {
   };
 
   return (
-    <div className="finance-verification-page w-full" style={{ width: '100%', maxWidth: '100%', padding: '24px', boxSizing: 'border-box' }}>
+    <div className="finance-verification-page">
+      <style>{`
+        .finance-verification-page {
+          width: 100%;
+          max-width: 100%;
+          padding: clamp(12px, 2.5vw, 24px);
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .finance-verification-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 12px;
+          background: #FFFFFF;
+          border: 1px solid #E2E8F0;
+          border-radius: 16px;
+          padding: clamp(14px, 2.5vw, 20px);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+
+        .finance-kpi-grid {
+          display: grid;
+          grid-template-columns: repeat(6, 1fr);
+          gap: 12px;
+          width: 100%;
+        }
+
+        @media (max-width: 1200px) {
+          .finance-kpi-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+
+        @media (max-width: 640px) {
+          .finance-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+          }
+        }
+
+        .finance-kpi-card {
+          background: #FFFFFF;
+          border-radius: 14px;
+          padding: 14px 16px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .finance-verification-tabs {
+          padding: 10px 14px;
+          background: #F8FAFC;
+          border-bottom: 1px solid #E2E8F0;
+          display: flex;
+          gap: 8px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          flex-wrap: nowrap;
+        }
+        .finance-verification-tabs::-webkit-scrollbar {
+          display: none;
+        }
+
+        .finance-verification-tab-btn {
+          flex-shrink: 0;
+          padding: 7px 14px;
+          border-radius: 20px;
+          font-size: 12.5px;
+          font-weight: 700;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.15s ease;
+        }
+
+        .finance-verification-toolbar {
+          padding: 12px 16px;
+          border-bottom: 1px solid #F1F5F9;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 12px;
+          background: #FFFFFF;
+        }
+
+        @media (max-width: 768px) {
+          .finance-verification-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .finance-verification-toolbar > div {
+            max-width: 100% !important;
+            width: 100% !important;
+          }
+        }
+
+        .finance-filters-group {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        @media (max-width: 480px) {
+          .finance-filters-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            width: 100%;
+          }
+          .finance-filters-group > div {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start !important;
+            gap: 4px !important;
+          }
+          .finance-filters-group select {
+            width: 100%;
+          }
+        }
+
+        .finance-verification-table-wrap {
+          display: block;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .payment-verification-mobile-cards {
+          display: none;
+        }
+
+        @media (max-width: 992px) {
+          .finance-verification-table-wrap {
+            display: none !important;
+          }
+          .payment-verification-mobile-cards {
+            display: flex !important;
+            flex-direction: column;
+            gap: 12px;
+            padding: 12px;
+          }
+        }
+
+        .payment-mobile-card {
+          background: #FFFFFF;
+          border: 1px solid #E2E8F0;
+          border-radius: 14px;
+          padding: 14px;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+      `}</style>
       
       {/* ── Page Header ────────────────────────────────────────────────────── */}
-      <div className="finance-verification-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <DollarSign className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-200" />
+      <div className="finance-verification-header">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <h1 style={{ margin: 0, fontSize: 'clamp(18px, 3vw, 22px)', fontWeight: 800, color: '#002E5D', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '-0.02em' }}>
+            <DollarSign className="w-7 h-7 text-blue-600 bg-blue-50 p-1.5 rounded-xl border border-blue-200" style={{ flexShrink: 0 }} />
             Finance Payment Verification & Follow-Up Engine
           </h1>
-          <p className="text-gray-500 mt-1 text-sm">
+          <p style={{ margin: 0, color: '#64748B', fontSize: '12.5px', fontWeight: 500 }}>
             Authoritative source of truth for payment verification, credit terms tracking, overdue follow-up, and real-time ledger settlement.
           </p>
         </div>
@@ -199,156 +360,97 @@ export default function FinanceSalesConfirmationView() {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
-            padding: '8px 16px',
+            padding: '8px 14px',
             borderRadius: '10px',
             border: '1px solid #CBD5E1',
             background: '#FFFFFF',
-            fontSize: '13px',
+            fontSize: '12.5px',
             fontWeight: 700,
-            color: '#334155',
+            color: '#002E5D',
             cursor: isLoading ? 'not-allowed' : 'pointer',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
           }}
         >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh Live Data
         </button>
       </div>
 
       {/* ── Top Summary KPI Cards (Section 13) ──────────────────────────────── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '16px',
-        marginBottom: '24px'
-      }}>
+      <div className="finance-kpi-grid">
         {/* Pending Verification */}
-        <div className="finance-kpi-card" style={{
-          background: '#FFFFFF',
-          border: '1px solid #FDE68A',
-          borderRadius: '14px',
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '14px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-        }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706' }}>
-            <Clock className="w-6 h-6" />
+        <div className="finance-kpi-card" style={{ border: '1px solid #FDE68A', background: '#FFFDF5' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706', flexShrink: 0 }}>
+            <Clock className="w-5 h-5" />
           </div>
-          <div>
-            <div style={{ fontSize: '12px', color: '#B45309', fontWeight: 600 }}>Pending Verification</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: '#92400E', marginTop: '2px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '11px', color: '#B45309', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Pending Verification</div>
+            <div style={{ fontSize: '20px', fontWeight: 900, color: '#92400E', marginTop: '1px', lineHeight: 1.1 }}>
               {summary.pendingVerificationCount || 0}
             </div>
           </div>
         </div>
 
         {/* Due Soon */}
-        <div className="finance-kpi-card" style={{
-          background: '#FFFFFF',
-          border: '1px solid #E2E8F0',
-          borderRadius: '14px',
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '14px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-        }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
-            <Calendar className="w-6 h-6" />
+        <div className="finance-kpi-card" style={{ border: '1px solid #E2E8F0' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', flexShrink: 0 }}>
+            <Calendar className="w-5 h-5" />
           </div>
-          <div>
-            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>Due Soon</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Due Soon</div>
+            <div style={{ fontSize: '20px', fontWeight: 900, color: '#1E293B', marginTop: '1px', lineHeight: 1.1 }}>
               {summary.dueSoonCount || 0}
             </div>
           </div>
         </div>
 
         {/* Due Today */}
-        <div className="finance-kpi-card" style={{
-          background: '#FFFFFF',
-          border: '1px solid #FED7AA',
-          borderRadius: '14px',
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '14px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-        }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#FFEDD5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EA580C' }}>
-            <AlertTriangle className="w-6 h-6" />
+        <div className="finance-kpi-card" style={{ border: '1px solid #FED7AA', background: '#FFFDFB' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#FFEDD5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EA580C', flexShrink: 0 }}>
+            <AlertTriangle className="w-5 h-5" />
           </div>
-          <div>
-            <div style={{ fontSize: '12px', color: '#C2410C', fontWeight: 600 }}>Due Today</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: '#9A3412', marginTop: '2px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '11px', color: '#C2410C', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Due Today</div>
+            <div style={{ fontSize: '20px', fontWeight: 900, color: '#9A3412', marginTop: '1px', lineHeight: 1.1 }}>
               {summary.dueTodayCount || 0}
             </div>
           </div>
         </div>
 
         {/* Overdue */}
-        <div className="finance-kpi-card" style={{
-          background: '#FFFFFF',
-          border: '1px solid #FECACA',
-          borderRadius: '14px',
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '14px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-        }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626' }}>
-            <AlertCircle className="w-6 h-6" />
+        <div className="finance-kpi-card" style={{ border: '1px solid #FECACA', background: '#FEF9F9' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626', flexShrink: 0 }}>
+            <AlertCircle className="w-5 h-5" />
           </div>
-          <div>
-            <div style={{ fontSize: '12px', color: '#B91C1C', fontWeight: 600 }}>Overdue Orders</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: '#991B1B', marginTop: '2px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '11px', color: '#B91C1C', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Overdue Orders</div>
+            <div style={{ fontSize: '20px', fontWeight: 900, color: '#991B1B', marginTop: '1px', lineHeight: 1.1 }}>
               {summary.overdueCount || 0}
             </div>
           </div>
         </div>
 
         {/* Partially Paid */}
-        <div className="finance-kpi-card" style={{
-          background: '#FFFFFF',
-          border: '1px solid #BFDBFE',
-          borderRadius: '14px',
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '14px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-        }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
-            <TrendingDown className="w-6 h-6" />
+        <div className="finance-kpi-card" style={{ border: '1px solid #BFDBFE', background: '#F8FAFF' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB', flexShrink: 0 }}>
+            <TrendingDown className="w-5 h-5" />
           </div>
-          <div>
-            <div style={{ fontSize: '12px', color: '#1D4ED8', fontWeight: 600 }}>Partially Paid</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: '#1E40AF', marginTop: '2px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '11px', color: '#1D4ED8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Partially Paid</div>
+            <div style={{ fontSize: '20px', fontWeight: 900, color: '#1E40AF', marginTop: '1px', lineHeight: 1.1 }}>
               {summary.partiallyPaidCount || 0}
             </div>
           </div>
         </div>
 
         {/* Total Outstanding */}
-        <div className="finance-kpi-card" style={{
-          background: '#FFFFFF',
-          border: '1px solid #E2E8F0',
-          borderRadius: '14px',
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '14px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-        }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F172A' }}>
-            <DollarSign className="w-6 h-6" />
+        <div className="finance-kpi-card" style={{ border: '1px solid #E2E8F0' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F172A', flexShrink: 0 }}>
+            <DollarSign className="w-5 h-5" />
           </div>
-          <div>
-            <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>Total Outstanding</div>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Total Outstanding</div>
+            <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F172A', marginTop: '1px', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {formatINR(summary.totalOutstanding)}
             </div>
           </div>
@@ -356,10 +458,10 @@ export default function FinanceSalesConfirmationView() {
       </div>
 
       {/* ── Main Content Card ──────────────────────────────────────────────── */}
-      <div className="payment-verification-table-card w-full" style={{ width: '100%', maxWidth: '100%', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+      <div className="payment-verification-table-card w-full" style={{ width: '100%', maxWidth: '100%', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
         
         {/* Tabs (Section 11 & 12) */}
-        <div className="finance-verification-tabs" style={{ padding: '12px 16px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <div className="finance-verification-tabs">
           {[
             { id: 'All', label: 'All' },
             { id: 'Pending Verification', label: `Pending Verification (${summary.pendingVerificationCount || 0})` },
@@ -373,17 +475,11 @@ export default function FinanceSalesConfirmationView() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`finance-verification-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+              className="finance-verification-tab-btn"
               style={{
-                padding: '8px 16px',
-                borderRadius: '20px',
-                fontSize: '13px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                border: activeTab === tab.id ? '1px solid #2563EB' : '1px solid #E2E8F0',
-                background: activeTab === tab.id ? '#2563EB' : '#FFFFFF',
+                border: activeTab === tab.id ? '1px solid #002E5D' : '1px solid #E2E8F0',
+                background: activeTab === tab.id ? '#002E5D' : '#FFFFFF',
                 color: activeTab === tab.id ? '#FFFFFF' : '#475569',
-                transition: 'all 0.15s ease',
               }}
             >
               {tab.label}
@@ -392,42 +488,38 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Toolbar & Filters (Section 14 & 15) */}
-        <div className="finance-verification-toolbar" style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div className="finance-verification-toolbar">
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 320px', maxWidth: '400px' }}>
-            <div style={{ position: 'relative', width: '100%' }}>
-              <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: '#94A3B8' }} />
-              <input
-                type="text"
-                placeholder="Search Order No, Customer, Salesperson, Ref..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  paddingLeft: '38px',
-                  paddingRight: '16px',
-                  paddingTop: '8px',
-                  paddingBottom: '8px',
-                  border: '1px solid #CBD5E1',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  fontSize: '13.5px',
-                  background: '#FFFFFF',
-                  color: '#1E293B',
-                }}
-              />
-            </div>
+          <div style={{ position: 'relative', flex: '1 1 280px', maxWidth: '380px' }}>
+            <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '15px', height: '15px', color: '#94A3B8' }} />
+            <input
+              type="text"
+              placeholder="Search Order, Customer, Salesperson..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px 8px 36px',
+                border: '1.5px solid #CBD5E1',
+                borderRadius: '8px',
+                outline: 'none',
+                fontSize: '13px',
+                background: '#FFFFFF',
+                color: '#1E293B',
+                boxSizing: 'border-box'
+              }}
+            />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="finance-filters-group">
             {/* Payment Terms Filter */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Terms:</label>
+              <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Terms:</label>
               <select
                 value={paymentTermsFilter}
                 onChange={(e) => setPaymentTermsFilter(e.target.value)}
                 className="finance-verification-select"
-                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12.5px', background: '#FFFFFF', fontWeight: 600 }}
+                style={{ padding: '6px 10px', borderRadius: '8px', border: '1.5px solid #CBD5E1', fontSize: '12.5px', background: '#FFFFFF', fontWeight: 600, color: '#1E293B', outline: 'none' }}
               >
                 <option value="All">All Terms</option>
                 <option value="7 Days">7 Days</option>
@@ -442,12 +534,12 @@ export default function FinanceSalesConfirmationView() {
 
             {/* Due State Filter */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Due State:</label>
+              <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Due State:</label>
               <select
                 value={dueStateFilter}
                 onChange={(e) => setDueStateFilter(e.target.value)}
                 className="finance-verification-select"
-                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12.5px', background: '#FFFFFF', fontWeight: 600 }}
+                style={{ padding: '6px 10px', borderRadius: '8px', border: '1.5px solid #CBD5E1', fontSize: '12.5px', background: '#FFFFFF', fontWeight: 600, color: '#1E293B', outline: 'none' }}
               >
                 <option value="All">All Due States</option>
                 <option value="Upcoming">Upcoming</option>
@@ -461,7 +553,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* ── Payment Table (Section 13 & 14) ────────────────────────────────── */}
-        <div className="finance-verification-table-wrap" style={{ overflowX: 'auto' }}>
+        <div className="finance-verification-table-wrap">
           <table className="payment-verification-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontWeight: 700 }}>
@@ -733,11 +825,11 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* ── Mobile Cards List View (Section 13) ── */}
-        <div className="payment-verification-mobile-cards" style={{ display: 'none', padding: '14px', flexDirection: 'column', gap: '14px' }}>
+        <div className="payment-verification-mobile-cards">
           {isLoading ? (
             <div style={{ textAlign: 'center', padding: '36px', color: '#64748B' }}>
               <RefreshCw className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
-              <span>Loading payment records...</span>
+              <span style={{ fontWeight: 600, fontSize: '13.5px' }}>Loading payment records...</span>
             </div>
           ) : rows.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 16px', color: '#94A3B8' }}>
@@ -750,6 +842,7 @@ export default function FinanceSalesConfirmationView() {
               const firstPending = r.pendingPayments?.[0];
               const remDays = r.daysRemaining;
               const formattedDate = r.orderDate ? new Date(r.orderDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+              const isAdv = String(r.paymentTerms || '').toLowerCase().includes('advance');
 
               return (
                 <div 
@@ -758,87 +851,88 @@ export default function FinanceSalesConfirmationView() {
                   style={{
                     background: '#FFFFFF',
                     border: '1px solid #E2E8F0',
-                    borderLeft: hasPending ? '4px solid #F59E0B' : (r.dueState === 'OVERDUE' ? '4px solid #DC2626' : '4px solid #3B82F6'),
-                    borderRadius: '14px',
-                    padding: '16px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px'
+                    borderLeft: hasPending ? '4px solid #F59E0B' : (r.dueState === 'OVERDUE' ? '4px solid #DC2626' : '4px solid #0284C7'),
                   }}
                 >
                   {/* Header Row: Calendar + Date + Days Pill + Status Badge */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#F8FAFC', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
-                        <Calendar className="w-5 h-5" />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#F8FAFC', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#002E5D', flexShrink: 0 }}>
+                        <Calendar className="w-4 h-4" />
                       </div>
                       <div>
-                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>{formattedDate}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                          <span style={{ fontSize: '11px', background: '#EEF2FF', color: '#4F46E5', padding: '2px 7px', borderRadius: '6px', fontWeight: 700 }}>
-                            🌙 In {remDays || 8}d
+                        <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0F172A' }}>{formattedDate}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
+                          <span style={{ fontSize: '10.5px', background: '#EFF6FF', color: '#0284C7', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                            {isAdv ? '⚡ Advance' : r.dueState === 'OVERDUE' ? `🔴 Overdue ${r.daysOverdue}d` : `🌙 In ${remDays || 0}d`}
+                          </span>
+                          <span style={{ fontSize: '10.5px', background: '#F1F5F9', color: '#475569', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                            {r.paymentTerms || '15 Days'}
                           </span>
                         </div>
                       </div>
                     </div>
 
                     <span style={{
-                      padding: '4px 10px',
+                      padding: '3px 8px',
                       borderRadius: '6px',
-                      fontSize: '11px',
+                      fontSize: '10.5px',
                       fontWeight: 800,
-                      background: '#FEF3C7',
-                      color: '#92400E',
-                      border: '1px solid #FDE68A'
+                      background: r.paymentStatus === 'PAID' ? '#D1FAE5' : r.paymentStatus === 'PARTIALLY_PAID' ? '#DBEAFE' : r.paymentStatus === 'OVERDUE' ? '#FEE2E2' : '#FEF3C7',
+                      color: r.paymentStatus === 'PAID' ? '#065F46' : r.paymentStatus === 'PARTIALLY_PAID' ? '#1E40AF' : r.paymentStatus === 'OVERDUE' ? '#991B1B' : '#92400E',
+                      border: '1px solid rgba(0,0,0,0.05)',
+                      textTransform: 'uppercase',
+                      flexShrink: 0
                     }}>
                       {r.paymentStatus || 'PENDING'}
                     </span>
                   </div>
 
                   {/* Customer / Order Info */}
-                  <div style={{ fontSize: '13px', color: '#475569' }}>
-                    <strong style={{ color: '#0F172A' }}>{r.customerName}</strong>
-                    <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px' }}>
-                      Order: <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#1E3A8A' }}>{r.orderNumber}</span> • {r.salespersonName || 'Sales'}
+                  <div style={{ fontSize: '12.5px', color: '#475569', background: '#F8FAFC', padding: '8px 10px', borderRadius: '8px', border: '1px solid #F1F5F9' }}>
+                    <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '13px' }}>{r.customerName}</div>
+                    <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>Order: <strong style={{ fontFamily: 'monospace', color: '#002E5D' }}>{r.orderNumber}</strong></span>
+                      <span>•</span>
+                      <span>{r.salespersonName || 'Sales'}</span>
                     </div>
                   </div>
 
                   {/* 3 Metric Columns */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px', padding: '12px 0', borderTop: '1px solid #F1F5F9', borderBottom: '1px solid #F1F5F9' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '6px', padding: '8px 0', borderTop: '1px solid #F1F5F9', borderBottom: '1px solid #F1F5F9' }}>
                     <div>
-                      <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600, display: 'block' }}>Amount</span>
-                      <span style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>{formatINR(r.orderTotal)}</span>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Order Total</span>
+                      <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#0F172A' }}>{formatINR(r.orderTotal)}</span>
                     </div>
                     <div>
-                      <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600, display: 'block' }}>Paid</span>
-                      <span style={{ fontSize: '15px', fontWeight: 800, color: '#16A34A' }}>{formatINR(r.verifiedPaidAmount)}</span>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Paid</span>
+                      <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#16A34A' }}>{formatINR(r.verifiedPaidAmount)}</span>
                     </div>
                     <div>
-                      <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600, display: 'block' }}>Outstanding</span>
-                      <span style={{ fontSize: '15px', fontWeight: 800, color: '#DC2626' }}>{formatINR(r.outstandingAmount)}</span>
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Outstanding</span>
+                      <span style={{ fontSize: '13.5px', fontWeight: 900, color: r.outstandingAmount > 0 ? '#DC2626' : '#16A34A' }}>{formatINR(r.outstandingAmount)}</span>
                     </div>
                   </div>
 
                   {/* Pending verification info */}
                   {hasPending && firstPending && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#92400E' }}>
-                      <span>⏳ {formatINR(firstPending?.amount)} ({r.pendingPayments.length})</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 800, color: '#92400E', background: '#FEF3C7', padding: '6px 10px', borderRadius: '6px' }}>
+                      <span>⏳ Pending Verification: {formatINR(firstPending?.amount)} ({r.pendingPayments.length})</span>
                     </div>
                   )}
 
                   {/* 3 Action Buttons Row */}
-                  <div style={{ display: 'grid', gridTemplateColumns: hasPending ? '1fr 1fr 1fr' : '1fr', gap: '8px', marginTop: '4px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: hasPending ? '1fr 1fr 1fr' : '1fr', gap: '6px', marginTop: '2px' }}>
                     <button
                       type="button"
                       style={{
                         background: '#FFFFFF',
                         border: '1px solid #CBD5E1',
                         borderRadius: '8px',
-                        padding: '9px 8px',
-                        fontSize: '12px',
+                        padding: '8px 6px',
+                        fontSize: '11.5px',
                         fontWeight: 700,
-                        color: '#334155',
+                        color: '#002E5D',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -847,7 +941,7 @@ export default function FinanceSalesConfirmationView() {
                       }}
                       onClick={() => setHistoryModal({ orderId: r.orderId, orderNumber: r.orderNumber })}
                     >
-                      <Eye className="w-3.5 h-3.5" /> History
+                      <Eye className="w-3.5 h-3.5" color="#0284C7" /> History
                     </button>
 
                     {hasPending && firstPending && (
@@ -858,8 +952,8 @@ export default function FinanceSalesConfirmationView() {
                             background: '#16A34A',
                             border: 'none',
                             borderRadius: '8px',
-                            padding: '9px 8px',
-                            fontSize: '12px',
+                            padding: '8px 6px',
+                            fontSize: '11.5px',
                             fontWeight: 700,
                             color: '#FFFFFF',
                             display: 'flex',
@@ -882,8 +976,8 @@ export default function FinanceSalesConfirmationView() {
                             background: '#DC2626',
                             border: 'none',
                             borderRadius: '8px',
-                            padding: '9px 8px',
-                            fontSize: '12px',
+                            padding: '8px 6px',
+                            fontSize: '11.5px',
                             fontWeight: 700,
                             color: '#FFFFFF',
                             display: 'flex',

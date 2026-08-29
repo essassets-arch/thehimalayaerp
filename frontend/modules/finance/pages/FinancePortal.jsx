@@ -2899,39 +2899,34 @@ export default function FinancePortal({ initialView, forceView }) {
   const renderFinancePOWorkspace = () => {
     const tabs = ["Pending Requests", "Create PO", "Draft POs", "Pending Approval", "Approved POs", "Delivery Audit", "Closed POs", "History"];
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', gap: '8px', paddingBottom: '4px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
-          {tabs.map(tab => {
-            const isActive = activeTab === tab;
-            return (
-              <button
-                key={tab}
-                onClick={() => handleTabChange(tab)}
-                style={{
-                  padding: '10px 20px',
-                  background: isActive ? 'var(--color-primary, #2F4375)' : 'transparent',
-                  color: isActive ? '#ffffff' : '#5E6B82',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: isActive ? '700' : '600',
-                  cursor: 'pointer',
-                  flexShrink: 0
-                }}
-              >
-                {tab}
-              </button>
-            );
-          })}
+      <div className="po-page" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className="po-tabs-wrapper">
+          <div className="po-tabs">
+            {tabs.map(tab => {
+              const isActive = activeTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => handleTabChange(tab)}
+                  className={`po-tab ${isActive ? 'active' : ''}`}
+                >
+                  {tab}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {activeTab === "Pending Requests" && renderPendingRequestsTab()}
-        {activeTab === "Create PO" && renderCreatePOTab()}
-        {activeTab === "Draft POs" && renderDraftPOsTab()}
-        {activeTab === "Pending Approval" && renderAllPOsTab('PENDING_APPROVAL')}
-        {activeTab === "Approved POs" && renderApprovedPOsTab()}
-        {activeTab === "Delivery Audit" && <DeliveryAudit />}
-        {activeTab === "Closed POs" && renderAllPOsTab('CLOSED')}
-        {activeTab === "History" && renderAllPOsTab('HISTORY')}
+        <div className="po-content">
+          {activeTab === "Pending Requests" && renderPendingRequestsTab()}
+          {activeTab === "Create PO" && renderCreatePOTab()}
+          {activeTab === "Draft POs" && renderDraftPOsTab()}
+          {activeTab === "Pending Approval" && renderAllPOsTab('PENDING_APPROVAL')}
+          {activeTab === "Approved POs" && renderApprovedPOsTab()}
+          {activeTab === "Delivery Audit" && <DeliveryAudit />}
+          {activeTab === "Closed POs" && renderAllPOsTab('CLOSED')}
+          {activeTab === "History" && renderAllPOsTab('HISTORY')}
+        </div>
       </div>
     );
   };
