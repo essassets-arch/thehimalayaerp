@@ -18,7 +18,15 @@ import { MaterialRequestsService } from './material-requests.service';
 export class MaterialRequestsController {
   constructor(private readonly service: MaterialRequestsService) {}
 
-  @RequirePermissions('admin.materialrequests.read')
+  @RequirePermissions(
+    'admin.materialrequests.read',
+    'materialrequests.read',
+    'production.materialrequests.read',
+    'production.materialrequest.read',
+    'store.materialrequests.read',
+    'production.productionworkflow.read',
+    'production.workorder.read',
+  )
   @Get()
   findAll(@Req() req: any) {
     return this.service.findAll(
@@ -28,7 +36,15 @@ export class MaterialRequestsController {
     );
   }
 
-  @RequirePermissions('admin.materialrequests.create')
+  @RequirePermissions(
+    'admin.materialrequests.create',
+    'materialrequests.create',
+    'production.materialrequests.create',
+    'production.materialrequest.create',
+    'store.materialrequests.create',
+    'production.floor.create',
+    'production.work_orders.manage',
+  )
   @Post()
   create(@Body() dto: any, @Req() req: any) {
     return this.service.create(

@@ -154,12 +154,12 @@ export default function FinishedGoodsPage() {
 
     setDispatchSendingMap((prev) => ({ ...prev, [rowKey]: true }));
     try {
-      const woId = row.workOrder?.id || row.workOrderId || row.id;
-      if (!woId) throw new Error("Work Order ID missing");
+      const woId = row.workOrder?.id || row.workOrderId || row.salesOrderId || row.salesOrder?.id || row.id;
+      if (!woId) throw new Error("Order identifier missing");
       await backendFetch(`/api/backend/production/work-orders/${woId}/send-to-dispatch`, {
         method: "POST",
       });
-      toast.success("Work Order sent to Dispatch successfully!");
+      toast.success("Order sent to Dispatch successfully!");
       queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
       queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
       queryClient.invalidateQueries({ queryKey: ["dispatch-orders"] });

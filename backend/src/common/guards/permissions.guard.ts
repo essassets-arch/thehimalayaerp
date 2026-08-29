@@ -141,6 +141,8 @@ export class PermissionsGuard implements CanActivate {
       [
         'admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read',
         'admin.planthead.create', 'planthead.create', 'plant-head.create',
+        'admin.materialrequests.read', 'admin.materialrequests.create', 'admin.materialrequests.approve', 'admin.materialrequests.reject',
+        'materialrequests.read', 'materialrequests.create', 'materialrequests.approve', 'store.materialrequests.read',
         'production.plan.read', 'production.plans.read', 'production.plan.create', 'production.plan.approve', 'production.plan.release',
         'production.workorder.read', 'production.workorders.read', 'production.work_orders.manage', 'production.workorder.manage',
         'production.workorder.start', 'production.workorder.complete', 'production.workorder.update',
@@ -151,13 +153,15 @@ export class PermissionsGuard implements CanActivate {
       ].forEach(p => userPermSet.add(p));
     }
 
-    if (normalizedRole === 'PRODUCTION' || normalizedRole.includes('PRODUCTION') || normalizedRole === 'PRODUCTION_MANAGER') {
+    if (normalizedRole === 'PRODUCTION' || normalizedRole.includes('PRODUCTION') || normalizedRole === 'PRODUCTION_MANAGER' || normalizedRole === 'PRODUCTION_PLANNER' || normalizedRole === 'PRODUCTION_SUPERVISOR') {
       [
         'production.plan.read', 'production.plans.read', 'production.plan.create', 'production.plan.approve', 'production.plan.release',
         'production.workorder.read', 'production.workorders.read', 'production.work_orders.manage', 'production.workorder.manage',
         'production.workorder.start', 'production.workorder.complete', 'production.workorder.update',
         'production.floor.read', 'production.floor.create', 'production.floor.update', 'production.floor.start', 'production.floor.complete',
         'production.productionworkflow.read', 'production.finishedgoods.read', 'production.qc.read', 'qc.inspections.read',
+        'admin.materialrequests.read', 'admin.materialrequests.create', 'materialrequests.read', 'materialrequests.create',
+        'production.materialrequests.read', 'production.materialrequests.create', 'production.materialrequest.read', 'production.materialrequest.create',
         'inventory.stock.read', 'inventory.inventory.read', 'inventory.warehouses.read', 'procurement.suppliers.read',
         'sales.orders.read', 'sales.orders.update', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'user.read',
       ].forEach(p => userPermSet.add(p));
@@ -221,13 +225,13 @@ export class PermissionsGuard implements CanActivate {
       'sales.complaints.read': ['sales.customercomplaints.read', 'sales.complaints.read'],
       'sales.customercomplaints.create': ['sales.customercomplaints.create', 'sales.complaints.create'],
       'sales.complaints.create': ['sales.customercomplaints.create', 'sales.complaints.create'],
-      'admin.materialrequests.read': ['admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'material_requests.read', 'inventory.stock.read', 'inventory.inventory.read'],
-      'materialrequests.read': ['admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'material_requests.read', 'inventory.stock.read', 'inventory.inventory.read'],
-      'inventory.materialrequests.read': ['admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'material_requests.read', 'inventory.stock.read', 'inventory.inventory.read'],
-      'production.materialrequests.read': ['admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'material_requests.read', 'inventory.stock.read', 'inventory.inventory.read'],
-      'admin.materialrequests.create': ['admin.materialrequests.create', 'materialrequests.create', 'inventory.materialrequests.create', 'production.materialrequests.create', 'material_requests.create', 'admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read'],
-      'admin.materialrequests.approve': ['admin.materialrequests.approve', 'materialrequests.approve', 'inventory.materialrequests.approve', 'production.materialrequests.approve', 'material_requests.approve', 'admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read'],
-      'admin.materialrequests.reject': ['admin.materialrequests.reject', 'materialrequests.reject', 'inventory.materialrequests.reject', 'production.materialrequests.reject', 'material_requests.reject', 'admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read'],
+      'admin.materialrequests.read': ['admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'production.materialrequest.read', 'store.materialrequests.read', 'material_requests.read', 'inventory.stock.read', 'inventory.inventory.read', 'production.productionworkflow.read', 'production.workorder.read', 'production.work_orders.manage'],
+      'materialrequests.read': ['admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'production.materialrequest.read', 'store.materialrequests.read', 'material_requests.read', 'inventory.stock.read', 'inventory.inventory.read', 'production.productionworkflow.read', 'production.workorder.read', 'production.work_orders.manage'],
+      'inventory.materialrequests.read': ['admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'production.materialrequest.read', 'store.materialrequests.read', 'material_requests.read', 'inventory.stock.read', 'inventory.inventory.read', 'production.productionworkflow.read', 'production.workorder.read', 'production.work_orders.manage'],
+      'production.materialrequests.read': ['admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'production.materialrequest.read', 'store.materialrequests.read', 'material_requests.read', 'inventory.stock.read', 'inventory.inventory.read', 'production.productionworkflow.read', 'production.workorder.read', 'production.work_orders.manage'],
+      'admin.materialrequests.create': ['admin.materialrequests.create', 'materialrequests.create', 'inventory.materialrequests.create', 'production.materialrequests.create', 'production.materialrequest.create', 'store.materialrequests.create', 'material_requests.create', 'admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'production.floor.create', 'production.work_orders.manage'],
+      'admin.materialrequests.approve': ['admin.materialrequests.approve', 'materialrequests.approve', 'inventory.materialrequests.approve', 'production.materialrequests.approve', 'store.materialrequests.approve', 'material_requests.approve', 'admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'admin.planthead.read', 'planthead.read'],
+      'admin.materialrequests.reject': ['admin.materialrequests.reject', 'materialrequests.reject', 'inventory.materialrequests.reject', 'production.materialrequests.reject', 'store.materialrequests.reject', 'material_requests.reject', 'admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'admin.planthead.read', 'planthead.read'],
       'admin.materialrequests.update': ['admin.materialrequests.update', 'materialrequests.update', 'inventory.materialrequests.update', 'production.materialrequests.update', 'material_requests.update', 'admin.materialrequests.approve', 'materialrequests.approve', 'admin.materialrequests.read', 'materialrequests.read', 'inventory.materialrequests.read', 'production.materialrequests.read', 'inventory.stock.read', 'inventory.inventory.read'],
       'sales.orders.read': ['sales.orders.read', 'sales.order.read', 'sales.read', 'admin.read', 'super-admin.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'dispatch.shipments.read'],
       'sales.orders.create': ['sales.orders.create', 'sales.order.create'],

@@ -270,55 +270,193 @@ export class WorkOrdersService {
   }
 
   async sendToDispatch(id: string, userId: string) {
-    const wo = await this.prisma.workOrder.findUnique({ where: { id } });
-    if (!wo) throw new NotFoundException('WorkOrder not found');
-    if (
-      wo.status !== 'QC_APPROVED' &&
-      wo.productionStatus !== 'READY_FOR_DISPATCH'
-    ) {
-      throw new BadRequestException(
-        'WorkOrder must be QC_APPROVED or READY_FOR_DISPATCH to send to dispatch',
-      );
-    }
+    const rawId = String(id || '').trim();
+    const cleanId = rawId.replace(/^fg-wo-/, '').replace(/^fg-so-/, '').split('-')[0] || rawId;
 
-    await this.prisma.finishedGoods.updateMany({
-      where: { workOrderId: id },
-      data: { status: 'READY_FOR_DISPATCH' },
+    // 1. Try finding WorkOrder by direct ID, cleanId, or workOrderNumber
+    const wo = await this.prisma.workOrder.findFirst({
+      where: {
+        OR: [
+          { id: rawId },
+          { id: cleanId },
+          { workOrderNumber: rawId },
+          { workOrderNumber: cleanId },
+          { productionPlan: { salesOrderId: rawId } },
+          { productionPlan: { salesOrderId: cleanId } },
+          { salesOrderItem: { salesOrderId: rawId } },
+          { salesOrderItem: { salesOrderId: cleanId } },
+        ],
+      },
     });
 
-    return this.prisma.workOrder.update({
-      where: { id },
-      data: {
+    if (wo) {
+      await this.prisma.finishedGoods.updateMany({
+        where: { workOrderId: wo.id },
+        data: { status: 'READY_FOR_DISPATCH' },
+      });
+
+      return this.prisma.workOrder.update({
+        where: { id: wo.id },
+        data: {
+          status: 'READY_FOR_DISPATCH',
+          productionStatus: 'READY_FOR_DISPATCH',
+          sentToDispatchAt: new Date(),
+          sentToDispatchById: userId,
+        },
+      });
+    }
+
+    // 2. Try finding SalesOrder by direct ID or cleanId
+    const so = await this.prisma.salesOrder.findFirst({
+      where: {
+        OR: [
+          { id: rawId },
+          { id: cleanId },
+          { orderNumber: rawId },
+          { orderNumber: cleanId },
+        ],
+      },
+    });
+
+    if (so) {
+      await this.prisma.finishedGoods.updateMany({
+        where: { salesOrderId: so.id },
+        data: { status: 'READY_FOR_DISPATCH' },
+      });
+
+      await this.prisma.workOrder.updateMany({
+        where: {
+          OR: [
+            { productionPlan: { salesOrderId: so.id } },
+            { salesOrderItem: { salesOrderId: so.id } },
+          ],
+        },
+        data: {
+          status: 'READY_FOR_DISPATCH',
+          productionStatus: 'READY_FOR_DISPATCH',
+          sentToDispatchAt: new Date(),
+          sentToDispatchById: userId,
+        },
+      });
+
+      await this.prisma.salesOrder.update({
+        where: { id: so.id },
+        data: { status: 'READY_FOR_DISPATCH' },
+      });
+
+      return {
+        id: so.id,
+        salesOrderId: so.id,
+        orderNumber: so.orderNumber,
         status: 'READY_FOR_DISPATCH',
         productionStatus: 'READY_FOR_DISPATCH',
         sentToDispatchAt: new Date(),
-        sentToDispatchById: userId,
+      };
+    }
+
+    // 3. Try finding FinishedGoods by ID
+    const fg = await this.prisma.finishedGoods.findFirst({
+      where: {
+        OR: [
+          { id: rawId },
+          { id: cleanId },
+        ],
       },
     });
+
+    if (fg) {
+      return this.prisma.finishedGoods.update({
+        where: { id: fg.id },
+        data: { status: 'READY_FOR_DISPATCH' },
+      });
+    }
+
+    throw new NotFoundException('WorkOrder or SalesOrder not found');
   }
 
   async dispatchOrder(id: string, userId: string) {
-    const wo = await this.prisma.workOrder.findUnique({ where: { id } });
-    if (!wo) throw new NotFoundException('WorkOrder not found');
-    if (wo.status !== 'READY_FOR_DISPATCH') {
-      throw new BadRequestException(
-        'WorkOrder must be READY_FOR_DISPATCH to dispatch',
-      );
-    }
+    const rawId = String(id || '').trim();
+    const cleanId = rawId.replace(/^fg-wo-/, '').replace(/^fg-so-/, '').split('-')[0] || rawId;
 
-    await this.prisma.finishedGoods.updateMany({
-      where: { workOrderId: id },
-      data: { status: 'DISPATCHED' },
+    const wo = await this.prisma.workOrder.findFirst({
+      where: {
+        OR: [
+          { id: rawId },
+          { id: cleanId },
+          { workOrderNumber: rawId },
+          { workOrderNumber: cleanId },
+          { productionPlan: { salesOrderId: rawId } },
+          { productionPlan: { salesOrderId: cleanId } },
+          { salesOrderItem: { salesOrderId: rawId } },
+          { salesOrderItem: { salesOrderId: cleanId } },
+        ],
+      },
     });
 
-    return this.prisma.workOrder.update({
-      where: { id },
-      data: {
+    if (wo) {
+      await this.prisma.finishedGoods.updateMany({
+        where: { workOrderId: wo.id },
+        data: { status: 'DISPATCHED' },
+      });
+
+      return this.prisma.workOrder.update({
+        where: { id: wo.id },
+        data: {
+          status: 'DISPATCHED',
+          productionStatus: 'DISPATCHED',
+          dispatchedAt: new Date(),
+          dispatchedById: userId,
+        },
+      });
+    }
+
+    const so = await this.prisma.salesOrder.findFirst({
+      where: {
+        OR: [
+          { id: rawId },
+          { id: cleanId },
+          { orderNumber: rawId },
+          { orderNumber: cleanId },
+        ],
+      },
+    });
+
+    if (so) {
+      await this.prisma.finishedGoods.updateMany({
+        where: { salesOrderId: so.id },
+        data: { status: 'DISPATCHED' },
+      });
+
+      await this.prisma.workOrder.updateMany({
+        where: {
+          OR: [
+            { productionPlan: { salesOrderId: so.id } },
+            { salesOrderItem: { salesOrderId: so.id } },
+          ],
+        },
+        data: {
+          status: 'DISPATCHED',
+          productionStatus: 'DISPATCHED',
+          dispatchedAt: new Date(),
+          dispatchedById: userId,
+        },
+      });
+
+      await this.prisma.salesOrder.update({
+        where: { id: so.id },
+        data: { status: 'COMPLETED' },
+      });
+
+      return {
+        id: so.id,
+        salesOrderId: so.id,
+        orderNumber: so.orderNumber,
         status: 'DISPATCHED',
         productionStatus: 'DISPATCHED',
         dispatchedAt: new Date(),
-        dispatchedById: userId,
-      },
-    });
+      };
+    }
+
+    throw new NotFoundException('WorkOrder or SalesOrder not found');
   }
 }
