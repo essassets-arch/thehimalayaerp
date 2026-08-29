@@ -812,9 +812,65 @@ export class ProductionWorkflowService {
       };
     });
 
-    const rawList = [...mappedExisting, ...syntheticRecords];
+    const existingSoIds = new Set(
+      [
+        ...records.map((r: any) => r.salesOrderId),
+        ...qcApprovedWorkOrders.map((w: any) => w.productionPlan?.salesOrderId),
+      ].filter(Boolean)
+    );
 
-    // Query StockHistory totals grouped by productId and event to calculate productionIn, dispatchVal, extraCover, extraFrame
+    const readySalesOrders = await this.prisma.salesOrder.findMany({
+      where: {
+        customer: companyId ? { companyId } : undefined,
+        status: { in: ['READY_FOR_DISPATCH', 'CONFIRMED', 'PLANT_APPROVED'] },
+      },
+      include: {
+        customer: true,
+        items: { include: { product: true } },
+      },
+    });
+
+    const soSyntheticRecords: any[] = [];
+    for (const so of (readySalesOrders as any[])) {
+      if (existingSoIds.has(so.id)) continue;
+      for (const item of (so.items || [])) {
+        soSyntheticRecords.push({
+          id: `fg-so-${so.id}-${item.id}`,
+          workOrderId: so.orderNumber,
+          productId: item.productId,
+          salesOrderId: so.id,
+          salesOrderNumber: so.orderNumber,
+          quantity: Number(item.orderedQuantity || 1),
+          availableQuantity: Number(item.orderedQuantity || 1),
+          allocatedQuantity: 0,
+          dispatchedQuantity: 0,
+          unit: item.unit || 'Pcs',
+          status: 'READY_FOR_DISPATCH',
+          location: 'Factory Staging Area',
+          receivedAt: so.confirmedAt ? new Date(so.confirmedAt).toISOString() : new Date(so.createdAt).toISOString(),
+          receivedById: null,
+          workOrder: {
+            id: so.id,
+            workOrderNumber: so.orderNumber,
+            productionStatus: 'READY_FOR_DISPATCH',
+            duration: null,
+            startedAt: null,
+            completedAt: so.confirmedAt ? new Date(so.confirmedAt).toISOString() : new Date(so.createdAt).toISOString(),
+            status: 'READY_FOR_DISPATCH',
+            productionPlan: { salesOrder: so },
+          },
+          salesOrder: so,
+          product: item.product,
+          jobNo: so.orderNumber,
+          customerName: so.customer?.companyName || so.customer?.contactPerson || so.customer?.name || 'Customer',
+          productName: item.product?.name || item.productNameSnapshot || 'Finished Product',
+          productCode: item.product?.sku || item.product?.publicId || item.productCodeSnapshot || '-',
+        });
+      }
+    }
+
+    const rawList = [...mappedExisting, ...syntheticRecords, ...soSyntheticRecords];
+
     const stockHistorySums = await this.prisma.stockHistory.groupBy({
       by: ['productId', 'event'],
       where: {
@@ -854,73 +910,25 @@ export class ProductionWorkflowService {
       }
     }
 
-    // Deduplicate & aggregate by productCode or productId
-    const groupedMap = new Map<string, any>();
-
-    for (const item of rawList) {
-      const key = item.productCode && item.productCode !== '-' ? item.productCode : (item.productId || item.productName);
-
-      if (!groupedMap.has(key)) {
-        groupedMap.set(key, {
-          id: item.id || `prod-${key}`,
-          workOrderId: item.workOrderId,
-          jobNo: item.jobNo,
-          productId: item.productId,
-          productName: item.productName,
-          productCode: item.productCode,
-          category: item.product?.category || item.category || 'Hardware',
-          customerName: item.customerName || 'Internal Stock',
-          quantity: 0,
-          availableQuantity: 0,
-          productionIn: 0,
-          extraCover: 0,
-          extraFrame: 0,
-          dispatchOut: 0,
-          openingStock: 0,
-          unit: (item.unit || item.product?.unit || 'PCS').toUpperCase(),
-          status: 'AVAILABLE',
-          receivedAt: item.receivedAt || new Date().toISOString(),
-          receivedById: item.receivedById || null,
-          product: item.product,
-          workOrder: item.workOrder,
-        });
-      }
-
-      const existing = groupedMap.get(key);
-      existing.quantity += Number(item.quantity || 0);
-      existing.availableQuantity += Number(item.availableQuantity || 0);
-
-      const minStock = Number(item.product?.minimumStock || 0);
-      if (existing.availableQuantity <= 0) {
-        existing.status = 'OUT_OF_STOCK';
-      } else if (existing.availableQuantity <= minStock) {
-        existing.status = 'LOW_STOCK';
-      } else {
-        existing.status = 'AVAILABLE';
-      }
-    }
-
-    // Post-aggregation pass to set correct ledger metrics with auto-pairing of extra covers & frames
-    for (const existing of groupedMap.values()) {
-      const pId = existing.productId || existing.product?.id;
-      const pCode = existing.productCode || existing.product?.sku || existing.product?.publicId;
-      let prodInVal = (pId ? prodInMap.get(pId) : 0) || (pCode ? prodInMap.get(pCode) : 0) || 0;
+    const enrichedList = rawList.map((item: any) => {
+      const pId = item.productId || item.product?.id;
+      const pCode = item.productCode || item.product?.sku || item.product?.publicId;
+      const prodInVal = (pId ? prodInMap.get(pId) : 0) || (pCode ? prodInMap.get(pCode) : 0) || 0;
       const dispatchVal = (pId ? dispatchMap.get(pId) : 0) || (pCode ? dispatchMap.get(pCode) : 0) || 0;
       const rawExtraCover = (pId ? extraCoverMap.get(pId) : 0) || (pCode ? extraCoverMap.get(pCode) : 0) || 0;
       const rawExtraFrame = (pId ? extraFrameMap.get(pId) : 0) || (pCode ? extraFrameMap.get(pCode) : 0) || 0;
 
-      const netExtraCover = Math.max(0, rawExtraCover);
-      const netExtraFrame = Math.max(0, rawExtraFrame);
-      const dispatchOutVal = Math.abs(dispatchVal);
+      return {
+        ...item,
+        productionIn: prodInVal,
+        extraCover: Math.max(0, rawExtraCover),
+        extraFrame: Math.max(0, rawExtraFrame),
+        dispatchOut: Math.abs(dispatchVal),
+        openingStock: Math.max(0, (Number(item.quantity) || 0) - prodInVal + Math.abs(dispatchVal)),
+      };
+    });
 
-      existing.productionIn = prodInVal;
-      existing.extraCover = netExtraCover;
-      existing.extraFrame = netExtraFrame;
-      existing.dispatchOut = dispatchOutVal;
-      existing.openingStock = Math.max(0, existing.quantity - prodInVal + dispatchOutVal);
-    }
-
-    return Array.from(groupedMap.values());
+    return enrichedList;
   }
 
   async createFinishedGoods(dto: any, userId?: string) {
