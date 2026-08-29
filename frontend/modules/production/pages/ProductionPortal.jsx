@@ -1099,8 +1099,8 @@ export default function ProductionPortal() {
     }
     // Fallback using seeded dynamic materials
     return [
-      { material: 'Fine River Sand', quantityPerUnit: 0.4 },
-      { material: 'Fly Ash Grade A', quantityPerUnit: 0.6 }
+      { material: 'General Purpose Unsaturated Polyester Resin (Clear)', quantityPerUnit: 1.5 },
+      { material: 'Chopped Strand Mat – 450 GSM', quantityPerUnit: 0.8 }
     ];
   };
 
@@ -1147,7 +1147,7 @@ export default function ProductionPortal() {
   }, [view, woIdParam, workOrders, rawInventory, lastLoadedWoId]);
 
   const addMaterialRow = () => {
-    const firstAvailable = rawInventory[0]?.material || 'Cement';
+    const firstAvailable = rawInventory[0]?.material || 'White Mold Release Wax Polish';
     setMaterialRows(prev => [...prev, { material: firstAvailable, qty: '10' }]);
   };
 

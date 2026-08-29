@@ -497,22 +497,37 @@ export default function DailyReportEntryView({
   const [selectedMultiProductIds, setSelectedMultiProductIds] = useState([]);
 
 
-  // Fetch Products Master (Exact Parity with Super Admin Products Master, excluding raw materials)
+  // Fetch Products Master (Exact Parity with Plant Head & Super Admin Products Master, excluding raw materials)
   const fetchProducts = useCallback(async () => {
     try {
       setLoadingProducts(true);
-      const res = await backendFetch('/api/backend/products?scope=daily-report&limit=2000');
+      const res = await backendFetch('/api/backend/products?limit=2500', { cacheTtlMs: 0 });
       const rawList = Array.isArray(res) ? res : res?.items || res?.data || [];
 
-      const productList = rawList
+      // Filter products exactly matching /plant-head/products
+      const filtered = rawList.filter(p => {
+        const origType = String(p.productType || p.product_type || '').toUpperCase();
+        const family = String(p.category || p.product_family || '').toLowerCase();
+        const code = String(p.sku || p.product_code || p.publicId || '').toUpperCase();
+        if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') return false;
+        if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(family)) return false;
+        if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) return false;
+        return true;
+      });
+
+      const productList = filtered
         .map(p => {
-          const specs = parseProductSpecs(p.name || p.product_name || '');
+          const name = p.product_name || p.name || '';
+          const sku = p.product_code || p.sku || '';
+          const specs = parseProductSpecs(name);
           return {
             ...p,
             id: p.id,
-            name: p.name || p.product_name || '',
-            sku: p.sku || p.product_code || '',
-            size: p.size || p.variantDetails || specs.size || '',
+            name,
+            product_name: name,
+            sku,
+            product_code: sku,
+            size: p.size || p.variantDetails || p.variant_details || specs.size || '',
             type: p.type || specs.type || '',
             capacity: p.capacity || specs.capacity || '',
             coverUnitWeight: Number(p.coverUnitWeight || p.weight || 0),

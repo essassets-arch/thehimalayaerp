@@ -1792,22 +1792,22 @@ export default function FinancePortal({ initialView, forceView }) {
       ]
     },
     {
-      id: 'INDENT-CMT-53',
-      material: 'Cement Grade 53',
-      materialName: 'Cement Grade 53',
-      materialCode: 'RM-CMT-053',
-      approvedQuantity: 100,
-      quantity: 100,
-      unit: 'Bags',
+      id: 'INDENT-HM010',
+      material: 'General Purpose Unsaturated Polyester Resin (Clear)',
+      materialName: 'General Purpose Unsaturated Polyester Resin (Clear)',
+      materialCode: 'HM010',
+      approvedQuantity: 10,
+      quantity: 10,
+      unit: 'BAREL',
       status: 'PLANT_HEAD_APPROVED',
       targetDate: '2026-08-20',
       requiredDate: '2026-08-20',
       items: [
         {
-          materialName: 'Cement Grade 53',
-          approvedQty: 100,
-          quantity: 100,
-          unit: 'Bags'
+          materialName: 'General Purpose Unsaturated Polyester Resin (Clear)',
+          approvedQty: 10,
+          quantity: 10,
+          unit: 'BAREL'
         }
       ]
     }

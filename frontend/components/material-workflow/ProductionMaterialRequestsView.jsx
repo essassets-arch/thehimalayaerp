@@ -14,20 +14,14 @@ import {
   Layers
 } from 'lucide-react';
 
-const FALLBACK_RAW_MATERIALS_CATALOG = [
-  { material: 'Cement Grade 53', unit: 'Bags', category: 'Raw Material' },
-  { material: 'Fine River Sand', unit: 'Tons', category: 'Raw Material' },
-  { material: 'Coarse Aggregate (20mm)', unit: 'Tons', category: 'Raw Material' },
-  { material: 'Steel Reinforcement Wire (8mm)', unit: 'Coils', category: 'Raw Material' },
-  { material: 'Fly Ash Grade A', unit: 'Tons', category: 'Raw Material' },
-  { material: 'Admixture Waterproofing Liquid', unit: 'Drums', category: 'Raw Material' },
-  { material: 'PVC Pipes (4")', unit: 'Meters', category: 'Hardware' },
-  { material: 'Gaskets', unit: 'Units', category: 'Hardware' },
-  { material: 'Bolts (M12)', unit: 'Units', category: 'Hardware' },
-  { material: 'Steel Plates', unit: 'Units', category: 'Hardware' },
-  { material: 'Metal Brackets', unit: 'Units', category: 'Hardware' },
-  { material: 'Weld Rods (Box)', unit: 'Boxes', category: 'Hardware' }
-];
+import { INITIAL_MATERIALS } from '../../shared/initialMaterials';
+
+const FALLBACK_RAW_MATERIALS_CATALOG = (INITIAL_MATERIALS || []).map(item => ({
+  material: item.material,
+  unit: item.unit || 'PCS',
+  category: item.category || 'Raw Material',
+  code: item.code || ''
+}));
 
 const STATUS_COLORS = {
   PENDING_PLANT_HEAD_APPROVAL: { bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
@@ -73,17 +67,16 @@ export default function ProductionMaterialRequestsView() {
     let isMounted = true;
     async function loadRawMaterials() {
       try {
-        const data = await backendFetch('/api/backend/products?type=RAW_MATERIAL');
-        if (isMounted && Array.isArray(data) && data.length > 0) {
+        const res = await backendFetch('/api/backend/products?type=RAW_MATERIAL');
+        const data = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+        if (isMounted && data.length > 0) {
           const liveList = data.map(item => ({
             material: item.name || item.material || 'Raw Material Item',
-            unit: item.unit || 'Units',
+            unit: item.unit || 'PCS',
             category: item.category || 'Raw Material',
             code: item.sku || item.code || ''
           }));
-          const existingNames = new Set(liveList.map(i => i.material.toLowerCase()));
-          const extraFallbacks = FALLBACK_RAW_MATERIALS_CATALOG.filter(f => !existingNames.has(f.material.toLowerCase()));
-          setCatalog([...liveList, ...extraFallbacks]);
+          setCatalog(liveList);
         }
       } catch (err) {
         console.warn('[ProductionMaterialRequestsView] Failed to load live raw materials:', err);

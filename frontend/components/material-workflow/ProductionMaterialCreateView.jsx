@@ -6,20 +6,15 @@ import { backendFetch } from '../../lib/backendFetch';
 import { Plus, Trash2, ArrowLeft, Send, Save, PackagePlus, AlertCircle } from 'lucide-react';
 import { useFormDraft } from '../../shared/hooks/useFormDraft';
 
-const FALLBACK_RAW_MATERIALS_CATALOG = [
-  { material: 'Cement Grade 53', defaultUnit: 'Bags' },
-  { material: 'Fine River Sand', defaultUnit: 'Tons' },
-  { material: 'Coarse Aggregate (20mm)', defaultUnit: 'Tons' },
-  { material: 'Steel Reinforcement Wire (8mm)', defaultUnit: 'Coils' },
-  { material: 'Fly Ash Grade A', defaultUnit: 'Tons' },
-  { material: 'Admixture Waterproofing Liquid', defaultUnit: 'Drums' },
-  { material: 'PVC Pipes (4")', defaultUnit: 'Meters' },
-  { material: 'Gaskets', defaultUnit: 'Units' },
-  { material: 'Bolts (M12)', defaultUnit: 'Units' },
-  { material: 'Steel Plates', defaultUnit: 'Units' },
-  { material: 'Metal Brackets', defaultUnit: 'Units' },
-  { material: 'Weld Rods (Box)', defaultUnit: 'Boxes' }
-];
+import { INITIAL_MATERIALS } from '../../shared/initialMaterials';
+
+const FALLBACK_RAW_MATERIALS_CATALOG = (INITIAL_MATERIALS || []).map(item => ({
+  material: item.material,
+  defaultUnit: item.unit || 'PCS',
+  unit: item.unit || 'PCS',
+  category: item.category || 'Raw Material',
+  code: item.code || ''
+}));
 
 export default function ProductionMaterialCreateView() {
   const router = useRouter();
@@ -31,15 +26,17 @@ export default function ProductionMaterialCreateView() {
     let isMounted = true;
     async function loadRawMaterials() {
       try {
-        const data = await backendFetch('/api/backend/products?type=RAW_MATERIAL');
-        if (isMounted && Array.isArray(data) && data.length > 0) {
+        const res = await backendFetch('/api/backend/products?type=RAW_MATERIAL');
+        const data = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+        if (isMounted && data.length > 0) {
           const liveList = data.map(item => ({
             material: item.name || item.material || 'Raw Material Item',
-            defaultUnit: item.unit || 'Units'
+            defaultUnit: item.unit || 'PCS',
+            unit: item.unit || 'PCS',
+            category: item.category || 'Raw Material',
+            code: item.sku || item.code || ''
           }));
-          const existingNames = new Set(liveList.map(i => i.material.toLowerCase()));
-          const extraFallbacks = FALLBACK_RAW_MATERIALS_CATALOG.filter(f => !existingNames.has(f.material.toLowerCase()));
-          setCatalog([...liveList, ...extraFallbacks]);
+          setCatalog(liveList);
         }
       } catch (err) {
         console.warn('[ProductionMaterialCreateView] Failed to load live raw materials:', err);
@@ -56,8 +53,8 @@ export default function ProductionMaterialCreateView() {
     requester: 'Ravi Sharma (Line Alpha)',
     notes: '',
     items: [
-      { material: 'Cement Grade 53', requestedQty: 100, unit: 'Bags' },
-      { material: 'Fine River Sand', requestedQty: 50, unit: 'Tons' }
+      { material: 'Vinyl Ester Resin', requestedQty: 10, unit: 'PCS' },
+      { material: 'Sandpaper (Grit 400)', requestedQty: 20, unit: 'PCS' }
     ]
   };
 
