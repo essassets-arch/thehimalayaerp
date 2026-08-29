@@ -27,13 +27,13 @@ try {
     console.warn('================================================================');
   }
 
-  // Fallback defaults only for development mode when environment is not set
-  const defaultApiKey = apiKey || '';
-  const defaultAuthDomain = authDomain || '';
-  const defaultProjectId = projectId || '';
-  const defaultStorageBucket = storageBucket || '';
-  const defaultMessagingSenderId = messagingSenderId || '';
-  const defaultAppId = appId || '';
+  // Fallback defaults for himalaya-c9d06
+  const defaultApiKey = apiKey || 'AIzaSyCKsMYkWC3yhiKNt5VQuRhxOogrGwTh_DA';
+  const defaultAuthDomain = authDomain || 'himalaya-c9d06.firebaseapp.com';
+  const defaultProjectId = projectId || 'himalaya-c9d06';
+  const defaultStorageBucket = storageBucket || 'himalaya-c9d06.firebasestorage.app';
+  const defaultMessagingSenderId = messagingSenderId || '478469947785';
+  const defaultAppId = appId || '1:478469947785:web:bb56793c56cd6e91b7e158';
 
   const swContent = `// Service Worker for Firebase Cloud Messaging Background Push Notifications
 // GENERATED DYNAMICALLY DURING FRONTEND PREBUILD - DO NOT EDIT MANUALLY

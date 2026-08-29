@@ -6,12 +6,12 @@ importScripts('https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/11.10.0/firebase-messaging-compat.js');
 
 const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: "",
+  apiKey: "AIzaSyCKsMYkWC3yhiKNt5VQuRhxOogrGwTh_DA",
+  authDomain: "himalaya-c9d06.firebaseapp.com",
+  projectId: "himalaya-c9d06",
+  storageBucket: "himalaya-c9d06.firebasestorage.app",
+  messagingSenderId: "478469947785",
+  appId: "1:478469947785:web:bb56793c56cd6e91b7e158",
 };
 
 // Immediate activation listeners
