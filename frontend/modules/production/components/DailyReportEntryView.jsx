@@ -1869,8 +1869,8 @@ export default function DailyReportEntryView({
           </div>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table className="daily-report-table responsive-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+        <div style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
+          <table className="daily-report-table" style={{ width: '100%', minWidth: '1100px', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border)' }}>
                 <th style={{ padding: '12px 14px', textAlign: 'center', width: '50px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Sr</th>

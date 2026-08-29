@@ -249,7 +249,7 @@ export default function ProductionMaterialRequestsView() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', padding: '16px 20px', background: '#F5FAFE', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', minWidth: 0, boxSizing: 'border-box', padding: 'clamp(12px, 2vw, 20px)', background: '#F5FAFE', minHeight: '100vh', fontFamily: 'Inter, sans-serif', overflowX: 'hidden' }}>
       
       {/* Top Navigation Row */}
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '16px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center' }}>
@@ -329,7 +329,7 @@ export default function ProductionMaterialRequestsView() {
 
       {/* Main Tab Render */}
       {activeTab === 'Raise' ? (
-        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #DCE5F0', padding: '24px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #DCE5F0', padding: isMobile ? '14px' : '24px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           {/* Card Header Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>

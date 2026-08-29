@@ -136,23 +136,10 @@ const ActiveFloorCard = ({ wo, customerName, targetDate, onPause, onResume, onCo
   const isOverdue = todayStr > (wo.targetDate || '');
 
   return (
-    <div
-      style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
-        borderRadius: '12px',
-        padding: '16px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '20px',
-        flexWrap: 'wrap',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-      }}
-    >
+    <div className="active-floor-card-container">
       {/* SECTION 1: Identity & Badge */}
-      <div style={{ flex: '1 1 240px', minWidth: '220px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+      <div style={{ flex: '1 1 240px', minWidth: 0, width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '14px', fontWeight: '900', color: 'var(--color-primary)', letterSpacing: '0.5px' }}>
             {wo.id}
           </span>
@@ -174,8 +161,8 @@ const ActiveFloorCard = ({ wo, customerName, targetDate, onPause, onResume, onCo
           </div>
         </div>
         <div>
-          <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-text-primary)', margin: 0 }}>{wo.productName}</h3>
-          <div style={{ display: 'flex', gap: '12px', fontSize: '12.5px', color: 'var(--color-text-secondary)', marginTop: '4px', flexWrap: 'wrap' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-text-primary)', margin: 0, wordBreak: 'break-word' }}>{wo.productName}</h3>
+          <div style={{ display: 'flex', gap: '8px 12px', fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '4px', flexWrap: 'wrap' }}>
             <span>Customer: <strong style={{ color: 'var(--color-text-primary)' }}>{customerName}</strong></span>
             <span>Produced: <strong style={{ color: 'var(--color-text-primary)' }}>{producedQty}/{totalQty} Tons</strong></span>
             <span>Target: <strong style={{ color: 'var(--color-text-primary)' }}>{resolvedTarget}</strong></span>
@@ -183,8 +170,8 @@ const ActiveFloorCard = ({ wo, customerName, targetDate, onPause, onResume, onCo
         </div>
       </div>
 
-      {/* SECTION 2: Duration Clock */}
-      <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center' }}>
+      {/* SECTION 2 & 3: Duration Clock + Controls */}
+      <div className="active-floor-card-bottom">
         {/* Running Time Box */}
         <div style={{
           display: 'flex',
@@ -193,46 +180,42 @@ const ActiveFloorCard = ({ wo, customerName, targetDate, onPause, onResume, onCo
           alignItems: 'center',
           background: isRunning ? 'rgba(16, 185, 129, 0.04)' : 'rgba(245, 158, 11, 0.04)',
           border: isRunning ? '1px solid rgba(16, 185, 129, 0.12)' : '1px solid rgba(245, 158, 11, 0.12)',
-          padding: '8px 16px',
+          padding: '6px 14px',
           borderRadius: '10px',
-          height: '54px',
-          minWidth: '110px'
+          height: '48px',
+          minWidth: '105px'
         }}>
-          <span style={{ fontSize: '10px', color: '#5E6B82', fontWeight: '800', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '3px' }}>
+          <span style={{ fontSize: '9.5px', color: '#5E6B82', fontWeight: '800', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '3px' }}>
             <Clock size={10} style={{ color: isRunning ? '#10b981' : '#f59e0b' }} />
             Duration
           </span>
           <strong style={{
             fontFamily: '"Courier New", Courier, monospace',
-            fontSize: '14.5px',
+            fontSize: '13.5px',
             color: isRunning ? '#059669' : '#d97706',
             fontWeight: '800',
             letterSpacing: '0.5px',
-            marginTop: '2px'
+            marginTop: '1px'
           }}>
             {formatDuration(elapsed)} ⏱
           </strong>
         </div>
-      </div>
-
-      {/* SECTION 3: Controls */}
-      <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', minWidth: 'auto' }}>
 
         {/* Buttons Controls */}
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <div className="active-floor-card-actions">
           {wo.status === STATUS.PAUSED ? (
             <button
               type="button"
               onClick={() => onResume(wo)}
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '4px',
                 background: 'linear-gradient(135deg, #1e293b 0%, #24345C 100%)',
                 color: 'var(--color-lime-brand)',
                 border: 'none',
-                padding: '10px 14px',
+                padding: '9px 14px',
                 borderRadius: '8px',
                 fontWeight: '800',
                 cursor: 'pointer',
@@ -250,7 +233,7 @@ const ActiveFloorCard = ({ wo, customerName, targetDate, onPause, onResume, onCo
               type="button"
               onClick={() => onPause(wo)}
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '4px',
@@ -275,14 +258,14 @@ const ActiveFloorCard = ({ wo, customerName, targetDate, onPause, onResume, onCo
             type="button"
             onClick={() => onComplete(wo)}
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '4px',
               background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
               color: '#ffffff',
               border: 'none',
-              padding: '10px 14px',
+              padding: '9px 16px',
               borderRadius: '8px',
               fontWeight: '800',
               cursor: 'pointer',
@@ -848,16 +831,40 @@ export default function ProductionPortal() {
     if (!confirmation.isConfirmed) return;
 
     try {
-      await Promise.all((order.workOrderIds || []).map(workOrderId =>
-        backendFetch(`/api/backend/production/work-orders/${workOrderId}/action`, {
+      if (order.workOrderIds && order.workOrderIds.length > 0) {
+        await Promise.all((order.workOrderIds || []).map(workOrderId =>
+          backendFetch(`/api/backend/production/work-orders/${workOrderId}/action`, {
+            method: 'POST',
+            body: {
+              action,
+              remarks: isAccept ? 'Accepted by Production' : confirmation.value,
+            },
+          }).catch(err => {
+            console.warn('[Production Accept WorkOrder fallback]', err);
+          })
+        ));
+      } else if (order.id) {
+        await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
           method: 'POST',
           body: {
-            action,
+            action: isAccept ? 'START_PRODUCTION' : 'PLANT_REJECT',
             remarks: isAccept ? 'Accepted by Production' : confirmation.value,
           },
-        })
-      ));
-      await loadBackendWorkOrders();
+        }).catch(err => {
+          console.warn('[Production Accept SalesOrder fallback]', err);
+        });
+      }
+
+      // Also activate/update local ERP store so UI state updates immediately
+      if (order.id) {
+        try {
+          useERPStore.getState().activateWorkOrder(order.id, user?.name || 'Production');
+        } catch { /* ignore if already active */ }
+      }
+
+      await loadBackendWorkOrders().catch(() => {});
+      await syncData().catch(() => {});
+
       showToast(
         isAccept
           ? `${order.orderNo} accepted and moved to Work Orders.`
@@ -2269,72 +2276,57 @@ export default function ProductionPortal() {
                       boxShadow: '0 2px 4px rgba(0,0,0,0.01)' 
                     }}
                   >
-                    {/* Card Info Grid (3 Columns) */}
-                    <div 
-                      style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: '1.2fr 1.3fr 1fr', 
-                        gap: '12px', 
-                        alignItems: 'start' 
-                      }}
-                    >
-                      {/* Column 1: Order No & Customer */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                          <span
-                            style={{ 
-                              color: '#1e40af', 
-                              cursor: 'pointer', 
-                              textDecoration: 'underline', 
-                              fontWeight: 'bold',
-                              fontSize: '13px',
-                              wordBreak: 'break-all',
-                              lineHeight: '1.3'
-                            }}
-                            onClick={() => setSelectedOrderDetails(row)}
-                          >
-                            {row.orderNo}
-                          </span>
-                          {row.isReproduction && (
-                            <span style={{ fontSize: '9px', background: '#ffe4e6', color: '#e11d48', border: '1px solid #fecdd3', padding: '1px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
-                              Reproduction
+                    {/* Card Info Grid */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span
+                              style={{ 
+                                color: '#1e40af', 
+                                cursor: 'pointer', 
+                                textDecoration: 'underline', 
+                                fontWeight: 'bold',
+                                fontSize: '13.5px',
+                                wordBreak: 'break-all'
+                              }}
+                              onClick={() => setSelectedOrderDetails(row)}
+                            >
+                              {row.orderNo}
                             </span>
-                          )}
+                            {row.isReproduction && (
+                              <span style={{ fontSize: '9px', background: '#ffe4e6', color: '#e11d48', border: '1px solid #fecdd3', padding: '1px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
+                                Reproduction
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ color: '#64748b', fontSize: '11.5px', fontWeight: '600', marginTop: '2px' }}>
+                            {customerName}
+                          </div>
                         </div>
-                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '500', lineHeight: '1.2' }}>
-                          {customerName}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
+                          <span style={{ color: '#1e293b', fontSize: '12.5px', fontWeight: '800' }}>
+                            {quantityNeeded}
+                          </span>
+                          <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
+                            {targetDate}
+                          </span>
+                        </div>
                       </div>
-
-                      {/* Column 2: Product Item & Priority */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <span style={{ color: '#0f172a', fontSize: '12px', fontWeight: '600', wordBreak: 'break-all', lineHeight: '1.3' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ color: '#0f172a', fontSize: '12.5px', fontWeight: '700', wordBreak: 'break-word' }}>
                           {productItem}
                         </span>
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <span 
-                            style={{ 
-                              fontSize: '9px', 
-                              fontWeight: 'bold', 
-                              padding: '2px 6px', 
-                              borderRadius: '4px',
-                              textAlign: 'center',
-                              display: 'inline-block',
-                              ...getPriorityBadgeStyle(priority)
-                            }}
-                          >
-                            {priority}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Column 3: Quantity Needed & Target Date */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
-                        <span style={{ color: '#1e293b', fontSize: '12px', fontWeight: '700' }}>
-                          {quantityNeeded}
-                        </span>
-                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
-                          {targetDate}
+                        <span 
+                          style={{ 
+                            fontSize: '9.5px', 
+                            fontWeight: 'bold', 
+                            padding: '2px 6px', 
+                            borderRadius: '4px',
+                            ...getPriorityBadgeStyle(priority)
+                          }}
+                        >
+                          {priority}
                         </span>
                       </div>
                     </div>
@@ -3644,9 +3636,9 @@ export default function ProductionPortal() {
         {/* Add Item Form Card */}
         <div className="app-card" style={{ padding: '24px' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', margin: '0 0 16px 0', color: 'var(--color-text-primary)' }}>Add New Product / Material for Testing</h3>
-          <form onSubmit={handleAddItem} style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div style={{ flex: 2, minWidth: '240px' }}>
-              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Product / Material Name</label>
+          <form onSubmit={handleAddItem} style={{ display: 'flex', gap: '14px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ flex: '2 1 220px', minWidth: 0, width: isMobile ? '100%' : 'auto' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: 'var(--color-text-secondary)' }}>Product / Material Name</label>
               <input
                 type="text"
                 className="form-input"
@@ -3656,8 +3648,8 @@ export default function ProductionPortal() {
                 style={{ width: '100%', margin: 0 }}
               />
             </div>
-            <div style={{ flex: 1, minWidth: '140px' }}>
-              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Quantity (pcs)</label>
+            <div style={{ flex: '1 1 120px', minWidth: 0, width: isMobile ? '100%' : 'auto' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: 'var(--color-text-secondary)' }}>Quantity (pcs)</label>
               <input
                 type="number"
                 className="form-input"
@@ -3670,7 +3662,7 @@ export default function ProductionPortal() {
             <button
               type="submit"
               className="btn btn-primary"
-              style={{ padding: '12px 24px', height: '42px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--color-primary)', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
+              style={{ padding: '12px 24px', height: '42px', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: 'var(--color-primary)', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', width: isMobile ? '100%' : 'auto' }}
             >
               <Plus size={16} /> Add to Log
             </button>
@@ -4381,7 +4373,7 @@ export default function ProductionPortal() {
   };
 
   return (
-    <>
+    <div className="production-portal-root">
       {view === 'dashboard' && renderDashboard()}
       {view === 'work-orders' && renderActiveWorkOrders()}
       {view === 'incoming-orders' && renderIncomingOrders()}
@@ -4626,6 +4618,6 @@ export default function ProductionPortal() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

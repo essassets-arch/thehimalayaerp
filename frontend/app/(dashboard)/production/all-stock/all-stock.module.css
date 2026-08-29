@@ -422,6 +422,30 @@
 ========================= */
 
 @media (max-width: 600px) {
+  .page {
+    padding: 12px;
+  }
+
+  .hero {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .heroLeft {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .heroRight {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .btnAddProduct {
+    width: 100%;
+    justify-content: center;
+  }
+
   .inventoryWrapper {
     border-radius: 12px;
   }

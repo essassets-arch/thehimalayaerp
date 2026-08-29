@@ -387,14 +387,14 @@ export default function ProductionReportsView() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '20px 24px', background: '#F5FAFE', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: 'clamp(12px, 2.5vw, 24px)', background: '#F5FAFE', minHeight: '100vh', fontFamily: 'Inter, sans-serif', width: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'hidden' }}>
       
       {/* ── SECTION 1: HEADER & MASTER ACTIONS BAR ── */}
       <div style={{
         background: '#ffffff',
         border: '1px solid #DCE5F0',
         borderRadius: '16px',
-        padding: '24px',
+        padding: 'clamp(14px, 2vw, 24px)',
         boxShadow: '0 4px 12px rgba(15, 23, 42, 0.03)',
         display: 'flex',
         justifyContent: 'space-between',
@@ -769,18 +769,19 @@ export default function ProductionReportsView() {
       <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.03)' }}>
         
         {/* Tab Switcher Toolbar */}
-        <div style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ display: 'flex', gap: '6px', background: '#e2e8f0', padding: '3px', borderRadius: '10px' }}>
+        <div style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '6px', background: '#e2e8f0', padding: '3px', borderRadius: '10px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%', whiteSpace: 'nowrap' }}>
             <button
               type="button"
               onClick={() => setActiveTab('work-orders')}
               style={{
-                padding: '8px 16px',
+                padding: '8px 14px',
                 borderRadius: '8px',
                 border: 'none',
                 fontSize: '12.5px',
                 fontWeight: '800',
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
                 background: activeTab === 'work-orders' ? '#ffffff' : 'transparent',
                 color: activeTab === 'work-orders' ? '#24345C' : '#64748b',
                 boxShadow: activeTab === 'work-orders' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
@@ -793,12 +794,13 @@ export default function ProductionReportsView() {
               type="button"
               onClick={() => setActiveTab('daily-shifts')}
               style={{
-                padding: '8px 16px',
+                padding: '8px 14px',
                 borderRadius: '8px',
                 border: 'none',
                 fontSize: '12.5px',
                 fontWeight: '800',
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
                 background: activeTab === 'daily-shifts' ? '#ffffff' : 'transparent',
                 color: activeTab === 'daily-shifts' ? '#24345C' : '#64748b',
                 boxShadow: activeTab === 'daily-shifts' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
@@ -811,12 +813,13 @@ export default function ProductionReportsView() {
               type="button"
               onClick={() => setActiveTab('qc-testing')}
               style={{
-                padding: '8px 16px',
+                padding: '8px 14px',
                 borderRadius: '8px',
                 border: 'none',
                 fontSize: '12.5px',
                 fontWeight: '800',
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
                 background: activeTab === 'qc-testing' ? '#ffffff' : 'transparent',
                 color: activeTab === 'qc-testing' ? '#24345C' : '#64748b',
                 boxShadow: activeTab === 'qc-testing' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
@@ -829,12 +832,13 @@ export default function ProductionReportsView() {
               type="button"
               onClick={() => setActiveTab('material-requests')}
               style={{
-                padding: '8px 16px',
+                padding: '8px 14px',
                 borderRadius: '8px',
                 border: 'none',
                 fontSize: '12.5px',
                 fontWeight: '800',
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
                 background: activeTab === 'material-requests' ? '#ffffff' : 'transparent',
                 color: activeTab === 'material-requests' ? '#24345C' : '#64748b',
                 boxShadow: activeTab === 'material-requests' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'

@@ -103,7 +103,7 @@ export default function ProductionStoreReleasesView() {
   }, [requests, searchTerm, statusFilter]);
 
   return (
-    <div style={{ padding: '24px', fontFamily: "var(--font-main, 'Inter', sans-serif)" }}>
+    <div style={{ padding: 'clamp(12px, 2vw, 24px)', fontFamily: "var(--font-main, 'Inter', sans-serif)", width: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'hidden' }}>
       {/* Header */}
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
         <div>
