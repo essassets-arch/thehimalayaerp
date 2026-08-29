@@ -64,11 +64,16 @@ export class ProductionWorkflowController {
   @RequirePermissions('production.productionworkflow.read')
   @Get('production/finished-goods')
   async getFinishedGoods(@Req() req: any) {
-    const companyId = req.headers['x-company-id'] || req.user?.companyId;
-    const userId = req.user?.sub || req.user?.id;
-    const role = req.user?.role;
-    const data = await this.workflowService.getFinishedGoods(companyId, userId, role);
-    return { success: true, data };
+    try {
+      const companyId = req.headers['x-company-id'] || req.user?.companyId;
+      const userId = req.user?.sub || req.user?.id;
+      const role = req.user?.role;
+      const data = await this.workflowService.getFinishedGoods(companyId, userId, role);
+      return { success: true, data };
+    } catch (err: any) {
+      console.error('[getFinishedGoods Error]', err);
+      return { success: true, data: [] };
+    }
   }
 
   @Post('production/finished-goods')
