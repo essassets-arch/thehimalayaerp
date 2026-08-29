@@ -131,7 +131,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
         {/* Himalaya brand logo */}
-        <div className="sidebar-logo" id="logoBtn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '16px', gap: '8px' }}>
+        <div className="sidebar-logo" id="logoBtn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '12px', gap: '8px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
             <Image
               src="/himalaya-logo-trimmed.png"

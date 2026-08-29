@@ -1069,10 +1069,10 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {items.map((item) => (
-              <div key={item.id}>
-                <div className="lead-product-grid">
-                  <div className="lead-product-grid-spec" style={{ display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative' }}>
+            {items.map((item, index) => (
+              <div key={item.id} style={{ position: 'relative', zIndex: items.length - index + 10 }}>
+                <div className="lead-product-grid" style={{ position: 'relative', overflow: 'visible' }}>
+                  <div className="lead-product-grid-spec" style={{ display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative', overflow: 'visible', zIndex: 20 }}>
                     <ProductPicker
                       testId="lead-product-picker"
                       value={(item.productId || item.productName) ? {

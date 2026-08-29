@@ -191,22 +191,31 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 24px 16px;
-  gap: 12px;
+  padding: 20px 14px 16px;
+  gap: 10px;
   border-right: 1px solid var(--color-border);
   z-index: 1000;
   flex-shrink: 0;
   transition: var(--transition-smooth);
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
 }
 
 .sidebar-logo {
   display: flex;
   align-items: center;
   width: 100%;
-  margin-bottom: 24px;
+  margin-bottom: 8px;
   gap: 12px;
   cursor: pointer;
-  padding: 0 8px;
+  padding: 0 4px;
+  flex-shrink: 0;
 }
 
 .sidebar-logo svg {
@@ -227,8 +236,8 @@ textarea {
 }
 
 .sidebar-section-badge {
-  margin: 18px 12px 8px;
-  padding: 5px 9px;
+  margin: 14px 8px 4px;
+  padding: 4px 8px;
   width: fit-content;
   border-radius: 6px;
   background: #eef2ff;
@@ -251,15 +260,50 @@ textarea {
 .nav-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
   align-items: stretch;
   overflow-y: auto;
-  flex: 1;
+  overflow-x: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-right: 4px;
+  padding-bottom: 12px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .nav-group::-webkit-scrollbar {
-  display: none;
+  width: 4px;
+}
+
+.nav-group::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nav-group::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.nav-group::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.sidebar-bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 10px;
+  border-top: 1px solid var(--color-border);
+  background: #f8fafc;
+  border-radius: 10px;
 }
 
 .nav-item {
@@ -3385,14 +3429,21 @@ textarea {
     width: 280px;
     max-width: 85vw;
     height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
     background: #ffffff;
     border-right: 1px solid var(--color-border);
     padding: 16px 14px;
-    align-items: flex-start;
-    gap: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
     z-index: 1100;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-sizing: border-box;
+    overflow: hidden;
   }
 
   .sidebar.open {
@@ -3404,8 +3455,9 @@ textarea {
     width: 100%;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     padding: 0 4px;
+    flex-shrink: 0;
   }
 
   .sidebar-close-btn {
@@ -3432,13 +3484,16 @@ textarea {
   }
 
   .nav-group {
-    align-items: flex-start;
+    align-items: stretch;
     width: 100%;
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding-right: 2px;
+    padding-right: 4px;
+    padding-bottom: 12px;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
 
   .nav-item {
@@ -3472,11 +3527,13 @@ textarea {
 
   .sidebar-bottom {
     width: 100%;
-    align-items: flex-start;
     flex-shrink: 0;
     margin-top: auto;
     border-top: 1px solid #e2e8f0;
-    padding-top: 8px;
+    padding: 10px;
+    background: #f8fafc;
+    border-radius: 10px;
+    box-sizing: border-box;
   }
 
   /* Scrollable main view on mobile */
@@ -3996,7 +4053,8 @@ textarea {
   .module-actions .tab-filters-row .filter-pill {
     flex: none !important;
     text-align: center !important;
-    padding: 8px 18px !important; border-radius: 30px !important;
+    padding: 6px 14px !important;
+    border-radius: 8px !important;
     font-size: 13px !important;
     flex-shrink: 0 !important;
     min-width: max-content !important;
@@ -4061,7 +4119,11 @@ textarea {
     grid-column: span 2 !important;
     overflow: visible !important;
     position: relative !important;
-    z-index: 5 !important;
+    z-index: 50 !important;
+  }
+
+  .lead-product-grid-spec:focus-within {
+    z-index: 99999 !important;
   }
 
   .lead-product-qty-wrap label.mobile-only,
@@ -4361,6 +4423,15 @@ textarea {
 
 /* ── LEAD PRODUCT GRID (DESKTOP BASE) ── */
 /* Mobile override is inside the 768px media query above */
+.product-picker {
+  position: relative;
+  width: 100%;
+}
+
+.product-picker:focus-within {
+  z-index: 99999 !important;
+}
+
 .lead-product-grid {
   display: grid;
   grid-template-columns: minmax(200px, 1.2fr) 90px 120px 110px 56px;
@@ -4370,6 +4441,21 @@ textarea {
   background: #ffffff;
   border: 1px solid #DCE5F0;
   border-radius: 12px;
+  position: relative;
+  overflow: visible;
+}
+
+.lead-product-grid:focus-within {
+  z-index: 9999 !important;
+}
+
+.lead-product-grid-spec {
+  position: relative;
+  overflow: visible;
+}
+
+.lead-product-grid-spec:focus-within {
+  z-index: 99999 !important;
 }
 
 .lead-product-grid-header {
@@ -14413,4 +14499,126 @@ body, #root, .app-container {
     max-height: 90vh !important;
     overflow-y: auto !important;
   }
+}
+
+/* ── COMPLETE A4 QUOTATION CANVAS IMMUNITY & MASTER ISOLATION ── */
+.quotation-page,
+.quotation-page *,
+.quotation-preview-container,
+.quotation-preview-container *,
+#quotation-printable-area,
+#quotation-printable-area *,
+.quotation-scale-wrapper,
+.quotation-scale-wrapper * {
+  box-sizing: border-box;
+}
+
+.quotation-page table,
+.quotation-preview-container table,
+#quotation-printable-area table,
+.quotation-items-table,
+.doc-table {
+  display: table !important;
+  width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  margin: 0 !important;
+  background: #ffffff !important;
+}
+
+.quotation-page thead,
+.quotation-preview-container thead,
+#quotation-printable-area thead,
+.quotation-items-table thead,
+.doc-table thead {
+  display: table-header-group !important;
+}
+
+.quotation-page thead tr,
+.quotation-preview-container thead tr,
+#quotation-printable-area thead tr,
+.quotation-items-table thead tr,
+.doc-table thead tr {
+  display: table-row !important;
+  background: #002e5d !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+.quotation-page tbody,
+.quotation-preview-container tbody,
+#quotation-printable-area tbody,
+.quotation-items-table tbody,
+.doc-table tbody {
+  display: table-row-group !important;
+  flex-direction: initial !important;
+  width: 100% !important;
+  gap: 0 !important;
+}
+
+.quotation-page tbody tr,
+.quotation-preview-container tbody tr,
+#quotation-printable-area tbody tr,
+.quotation-items-table tbody tr,
+.doc-table tbody tr {
+  display: table-row !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  flex-direction: initial !important;
+  width: 100% !important;
+}
+
+.quotation-page th,
+.quotation-preview-container th,
+#quotation-printable-area th,
+.quotation-items-table th,
+.doc-table th {
+  display: table-cell !important;
+  background: #002e5d !important;
+  color: #ffffff !important;
+  vertical-align: middle !important;
+  padding: 12px 10px !important;
+  font-weight: 800 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.quotation-page td,
+.quotation-preview-container td,
+#quotation-printable-area td,
+.quotation-items-table td,
+.doc-table td {
+  display: table-cell !important;
+  vertical-align: middle !important;
+  padding: 12px 10px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  text-align: inherit !important;
+  flex-direction: initial !important;
+  justify-content: initial !important;
+  align-items: initial !important;
+  gap: 0 !important;
+  border-radius: 0 !important;
+}
+
+.quotation-page td::before,
+.quotation-preview-container td::before,
+#quotation-printable-area td::before,
+.quotation-items-table td::before,
+.doc-table td::before {
+  display: none !important;
+  content: none !important;
 }

@@ -86,12 +86,12 @@ export const MobileMenu = ({ isSuperAdmin = false }) => {
 
       {/* Sidebar */}
       <div 
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 h-full max-h-screen flex flex-col bg-white shadow-2xl transform transition-transform duration-300 ease-in-out lg:hidden ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">HE</span>
@@ -108,7 +108,7 @@ export const MobileMenu = ({ isSuperAdmin = false }) => {
 
         {/* User Info */}
         {user && (
-          <div className="px-4 py-3 bg-gray-50 border-b">
+          <div className="px-4 py-3 bg-gray-50 border-b flex-shrink-0">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
                 <UserCircle className="w-6 h-6 text-indigo-600" />
@@ -127,7 +127,7 @@ export const MobileMenu = ({ isSuperAdmin = false }) => {
         )}
 
         {/* Navigation */}
-        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-200px)]">
+        <nav className="p-4 space-y-1 overflow-y-auto flex-1 min-h-0">
           {allItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
@@ -149,7 +149,7 @@ export const MobileMenu = ({ isSuperAdmin = false }) => {
         </nav>
 
         {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-white">
+        <div className="p-4 border-t bg-white flex-shrink-0 mt-auto">
           <button
             onClick={handleLogout}
             className="flex items-center space-x-3 px-4 py-3 w-full rounded-lg hover:bg-gray-50 transition text-red-600"

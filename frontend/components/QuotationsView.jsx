@@ -63,16 +63,20 @@ export default function QuotationsView({
     if (!selectedQuotation) return;
     const calculateScale = () => {
       if (typeof window === 'undefined') return;
-      const availableWidth = Math.min(window.innerWidth - 24, 794);
-      const scale = availableWidth < 794 ? availableWidth / 794 : 1;
+      const availableWidth = Math.min(window.innerWidth - 16, 794);
+      const scale = availableWidth < 794 ? (availableWidth / 794) : 1;
       setPreviewScale(scale);
       if (quotationSheetRef.current) {
         setSheetHeight(quotationSheetRef.current.scrollHeight || 1123);
       }
     };
     calculateScale();
+    const timer = setTimeout(calculateScale, 150);
     window.addEventListener('resize', calculateScale);
-    return () => window.removeEventListener('resize', calculateScale);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', calculateScale);
+    };
   }, [selectedQuotation, previewZoomMode]);
 
   // ── Inline Create Quotation Form toggle ──
@@ -144,9 +148,9 @@ export default function QuotationsView({
       const qtyStr = qty > 0 ? `(${qty} ${unit})` : '';
 
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
-            <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', wordBreak: 'break-word' }}>
               {mainLabel} {qtyStr}
             </span>
             {rawItems.length > 1 && (
@@ -159,7 +163,8 @@ export default function QuotationsView({
                   borderRadius: '10px',
                   background: '#e0e7ff',
                   color: '#4338ca',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
                 }}
               >
                 +{rawItems.length - 1} more
@@ -174,9 +179,9 @@ export default function QuotationsView({
       const parts = quotation.items.split(',').map(p => p.trim()).filter(Boolean);
       if (parts.length > 1) {
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', wordBreak: 'break-word' }}>
                 {parts[0]}
               </span>
               <span
@@ -188,7 +193,8 @@ export default function QuotationsView({
                   borderRadius: '10px',
                   background: '#e0e7ff',
                   color: '#4338ca',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
                 }}
               >
                 +{parts.length - 1} more
@@ -197,7 +203,7 @@ export default function QuotationsView({
           </div>
         );
       }
-      return <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>{quotation.items}</span>;
+      return <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', wordBreak: 'break-word' }}>{quotation.items}</span>;
     }
 
     if (quotation?.productInterest || quotation?.productInterested || quotation?.lead?.productInterest) {
@@ -659,13 +665,13 @@ export default function QuotationsView({
         <h2 className="module-title">Quotations Manager</h2>
         <div className="module-actions">
           {/* Status filters */}
-          <div className="tab-filters-row" style={{ background: '#f1f3f5' }}>
+          <div className="tab-filters-row" style={{ background: '#f1f3f5', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', flexWrap: 'nowrap', width: '100%', maxWidth: '100%' }}>
             {['All', 'Draft', 'Sent', 'Approved', 'Rejected', 'Reminders'].map(st => (
               <button
                 key={st}
                 className={`filter-pill ${filter === st ? 'active' : ''}`}
                 onClick={() => setFilter(st)}
-                style={{ color: filter === st ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+                style={{ color: filter === st ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', flexShrink: 0, whiteSpace: 'nowrap' }}
               >
                 {st}
               </button>
@@ -905,20 +911,53 @@ export default function QuotationsView({
           ) : (
             displayedQuotations.map((q) => {
               return (
-                <div key={q.id} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #f1f3f5', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {/* Header Row */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span onClick={() => setSelectedQuotation(q)} style={{ fontSize: '12.5px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>
+                <div key={q.id} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {/* Header Row: Quotation ID + Status Badge + 3-dot More */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                    <span onClick={() => setSelectedQuotation(q)} style={{ fontSize: '13px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>
                       #{resolveQuotationNumber(q).replace(/^#/, '')}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ 
+                        padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '700',
+                        backgroundColor: (q.status === 'Converted' || q.status === 'Approved') ? '#dcfce7' : (q.status === 'New' || q.status === 'Draft' ? '#dbeafe' : '#f1f5f9'),
+                        color: (q.status === 'Converted' || q.status === 'Approved') ? '#15803d' : (q.status === 'New' || q.status === 'Draft' ? '#1d4ed8' : '#475569')
+                      }}>
+                        {q.status || 'Draft'}
+                      </div>
+                      <button onClick={() => setSelectedQuotation(q)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                        <MoreVertical size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Body Row 1: Customer Name */}
+                  <div style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', lineHeight: 1.3 }}>
+                    {resolveQuotationCustomerName(q)}
+                  </div>
+                  
+                  {/* Body Row 2: Items / Products */}
+                  <div style={{ fontSize: '13px', color: '#475569', fontWeight: '500', minWidth: 0 }}>
+                    {renderQuotationProducts(q)}
+                  </div>
+
+                  {/* Body Row 3: Total Amount & Primary Action */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px', borderTop: '1px solid #f1f5f9', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Total Value</span>
+                      <span style={{ fontSize: '16px', fontWeight: '900', color: '#0f172a' }}>
+                        {formatINR(quotationTotal(q))}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
                       {canConvertQuotation(q.status) ? (
                         <button
                           onClick={() => handleConvertToOrderClick(q)}
                           style={{
                             background: '#2F4375', color: '#ffffff', border: '1px solid #2F4375',
-                            padding: '6px 12px', borderRadius: '8px', fontWeight: '800', fontSize: '11px',
-                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'
+                            padding: '6px 12px', borderRadius: '8px', fontWeight: '800', fontSize: '11.5px',
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', flexShrink: 0
                           }}
                         >
                           Convert to Order →
@@ -928,66 +967,36 @@ export default function QuotationsView({
                           onClick={() => handleSendQuotationClick(q)}
                           style={{
                             background: '#2F4375', color: '#ffffff', border: '1px solid #2F4375',
-                            padding: '6px 12px', borderRadius: '8px', fontWeight: '800', fontSize: '11px',
-                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'
+                            padding: '6px 12px', borderRadius: '8px', fontWeight: '800', fontSize: '11.5px',
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', flexShrink: 0
                           }}
                         >
                           Send Quotation →
                         </button>
                       ) : null}
-                      <button onClick={() => setSelectedQuotation(q)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                        <MoreVertical size={16} />
+
+                      <button
+                        title="View Quotation"
+                        onClick={() => setSelectedQuotation(q)}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        <Eye size={15} />
+                      </button>
+                      <button
+                        title="Edit Quotation"
+                        onClick={() => startEditingQuotation(q)}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        <Edit size={15} />
+                      </button>
+                      <button
+                        title="Add Reminder"
+                        onClick={() => setReminderModal({ quotation: q })}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        <Bell size={15} />
                       </button>
                     </div>
-                  </div>
-                  
-                  {/* Body Row 1: Customer Name */}
-                  <div style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b' }}>
-                    {q.customerName}
-                  </div>
-                  
-                  {/* Body Row 2: Items, Total */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ fontSize: '13px', color: '#475569', fontWeight: '500', flex: 1, paddingRight: '8px' }}>
-                      {renderQuotationProducts(q)}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontSize: '14px', fontWeight: '800', color: '#1e293b' }}>
-                        {formatINR(quotationTotal(q))}
-                      </span>
-                      <div style={{ 
-                        padding: '4px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '700',
-                        backgroundColor: (q.status === 'Converted' || q.status === 'Approved') ? '#dcfce7' : (q.status === 'New' || q.status === 'Draft' ? '#dbeafe' : '#f1f5f9'),
-                        color: (q.status === 'Converted' || q.status === 'Approved') ? '#15803d' : (q.status === 'New' || q.status === 'Draft' ? '#1d4ed8' : '#475569')
-                      }}>
-                        {q.status || 'Draft'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Footer Row: Actions */}
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
-                    <button
-                      title="View Quotation"
-                      onClick={() => setSelectedQuotation(q)}
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer' }}
-                    >
-                      <Eye size={16} />
-                    </button>
-                    <button
-                      title="Edit Quotation"
-                      onClick={() => startEditingQuotation(q)}
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer' }}
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      title="Add Reminder"
-                      onClick={() => setReminderModal({ quotation: q })}
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer' }}
-                    >
-                      <Bell size={16} />
-                    </button>
                   </div>
                 </div>
               );
@@ -1241,14 +1250,14 @@ export default function QuotationsView({
                 <div
                   ref={quotationSheetRef}
                   id="quotation-printable-area"
-                  className="quotation-page quotation-preview-container"
+                  className="quotation-page quotation-preview-container no-mobile-stack flat-table"
                   style={{
                     width: '794px',
                     minWidth: '794px',
                     maxWidth: '794px',
                     minHeight: '1123px',
                     background: '#ffffff',
-                    borderRadius: '12px',
+                    borderRadius: '0',
                     overflow: 'hidden',
                     boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
                     boxSizing: 'border-box',
@@ -1362,8 +1371,8 @@ export default function QuotationsView({
               </div>
 
               {/* Items Table */}
-              <div className="quotation-table-container" style={{ margin: '0 0 16px 0', border: '1.5px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', background: '#ffffff' }}>
-                <table className="quotation-items-table doc-table" style={{ border: 'none', width: '100%', borderCollapse: 'collapse', borderSpacing: 0, display: 'table', tableLayout: 'fixed', background: '#ffffff', margin: 0 }}>
+              <div className="quotation-table-container no-mobile-stack" style={{ margin: '0 0 16px 0', border: '1.5px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', background: '#ffffff' }}>
+                <table className="quotation-items-table doc-table no-mobile-stack flat-table" style={{ border: 'none', width: '100%', borderCollapse: 'collapse', borderSpacing: 0, display: 'table', tableLayout: 'fixed', background: '#ffffff', margin: 0 }}>
                   <thead style={{ display: 'table-header-group' }}>
                     <tr style={{ background: '#002e5d', color: '#ffffff', display: 'table-row' }}>
                       <th style={{ width: '6%', padding: '12px 8px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', textAlign: 'center', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>#</th>
