@@ -136,13 +136,43 @@ export class PermissionsGuard implements CanActivate {
       // Ignore DB lookup error and fall back to collected set
     }
 
+    // Plant Head and Production role default baseline permissions
+    if (normalizedRole === 'PLANT_HEAD' || normalizedRole.includes('PLANT_HEAD')) {
+      [
+        'admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read',
+        'admin.planthead.create', 'planthead.create', 'plant-head.create',
+        'production.plan.read', 'production.plans.read', 'production.plan.create', 'production.plan.approve', 'production.plan.release',
+        'production.workorder.read', 'production.workorders.read', 'production.work_orders.manage', 'production.workorder.manage',
+        'production.workorder.start', 'production.workorder.complete', 'production.workorder.update',
+        'production.floor.read', 'production.productionworkflow.read', 'qc.inspections.read', 'production.qc.read',
+        'inventory.stock.read', 'inventory.inventory.read', 'inventory.warehouses.read', 'procurement.suppliers.read',
+        'procurement.indents.read', 'procurement.indents.approve', 'procurement.purchase_orders.read',
+        'sales.orders.read', 'sales.orders.update', 'sales.orders.approve', 'user.read',
+      ].forEach(p => userPermSet.add(p));
+    }
+
+    if (normalizedRole === 'PRODUCTION' || normalizedRole.includes('PRODUCTION') || normalizedRole === 'PRODUCTION_MANAGER') {
+      [
+        'production.plan.read', 'production.plans.read', 'production.plan.create', 'production.plan.approve', 'production.plan.release',
+        'production.workorder.read', 'production.workorders.read', 'production.work_orders.manage', 'production.workorder.manage',
+        'production.workorder.start', 'production.workorder.complete', 'production.workorder.update',
+        'production.floor.read', 'production.floor.create', 'production.floor.update', 'production.floor.start', 'production.floor.complete',
+        'production.productionworkflow.read', 'production.finishedgoods.read', 'production.qc.read', 'qc.inspections.read',
+        'inventory.stock.read', 'inventory.inventory.read', 'inventory.warehouses.read', 'procurement.suppliers.read',
+        'sales.orders.read', 'sales.orders.update', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'user.read',
+      ].forEach(p => userPermSet.add(p));
+    }
+
     const allUserPerms = Array.from(userPermSet);
 
     const PERMISSION_ALIASES: Record<string, string[]> = {
-      'admin.planthead.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read', 'production.plans.read'],
-      'planthead.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read', 'production.plans.read'],
-      'plant-head.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read', 'production.plans.read'],
-      'planthead.dashboard.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read', 'production.plans.read'],
+      'admin.planthead.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read', 'production.plans.read', 'production.workorder.read', 'production.work_orders.manage', 'sales.orders.read'],
+      'planthead.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read', 'production.plans.read', 'production.workorder.read', 'production.work_orders.manage', 'sales.orders.read'],
+      'plant-head.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read', 'production.plans.read', 'production.workorder.read', 'production.work_orders.manage', 'sales.orders.read'],
+      'planthead.dashboard.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read', 'production.plans.read', 'production.workorder.read', 'production.work_orders.manage', 'sales.orders.read'],
+      'admin.planthead.create': ['admin.planthead.create', 'planthead.create', 'plant-head.create', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'production.plan.create', 'production.plan.approve', 'production.plans.create', 'production.plan.release', 'production.work_orders.manage'],
+      'planthead.create': ['admin.planthead.create', 'planthead.create', 'plant-head.create', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'production.plan.create', 'production.plan.approve', 'production.plans.create', 'production.plan.release', 'production.work_orders.manage'],
+      'plant-head.create': ['admin.planthead.create', 'planthead.create', 'plant-head.create', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'production.plan.create', 'production.plan.approve', 'production.plans.create', 'production.plan.release', 'production.work_orders.manage'],
       'admin.products.read': ['admin.products.read', 'products.read', 'store.read', 'finance.read', 'sales.read', 'inventory.stock.read', 'admin.read', 'super-admin.read'],
       'products.read': ['admin.products.read', 'products.read', 'store.read', 'finance.read', 'sales.read', 'inventory.stock.read', 'admin.read', 'super-admin.read'],
       'inventory.warehouses.read': ['inventory.warehouses.read', 'warehouses.read', 'inventory.stock.read', 'store.read', 'finance.read', 'admin.read', 'super-admin.read', 'production.productionworkflow.read', 'production.workorder.read', 'production.work_orders.manage', 'admin.planthead.read', 'planthead.read', 'plant-head.read'],
