@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../../lib/apiClient';
 import StatusBadge from './StatusBadge';
 import { 
-  User, Calendar, FileText, CreditCard, 
+  User, Calendar, CalendarDays, FileText, CreditCard, 
   Upload, FileDown, PlusCircle, RefreshCw,
   Mail, Phone, ShieldCheck, MapPin, LogIn, LogOut, Clock, Fingerprint, Camera
 } from 'lucide-react';
@@ -440,10 +440,10 @@ export default function MyProfileView() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', paddingBottom: '32px' }}>
+    <div className="hr-page my-profile-root" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%', overflowX: 'hidden', paddingBottom: '32px', boxSizing: 'border-box' }}>
       
       {/* 1. Header Profile Info Card */}
-      <div className="app-card profile-header-card" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+      <div className="app-card profile-header-card profile-header" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', width: '100%', boxSizing: 'border-box' }}>
         
         {/* Avatar Area */}
         <div className="profile-header-avatar" style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid #0284c7', flexShrink: 0 }}>
@@ -469,71 +469,62 @@ export default function MyProfileView() {
       </div>
 
       {/* 2. Navigation Tabs */}
-      <div 
-        className="profile-tabs-nav erp-tab-scroll-bar" 
-        style={{ 
-          display: 'flex', 
-          overflowX: 'auto', 
-          WebkitOverflowScrolling: 'touch', 
-          minWidth: 0, 
-          width: '100%',
-          boxSizing: 'border-box',
-          gap: '8px', 
-          padding: '6px 8px',
-          scrollBehavior: 'smooth'
-        }}
-        onWheel={(e) => {
-          if (e.deltaY !== 0) {
-            e.currentTarget.scrollLeft += e.deltaY * 0.8;
-          }
-        }}
-        onMouseDown={(e) => {
-          const el = e.currentTarget;
-          el.dataset.isDown = 'true';
-          el.dataset.startX = String(e.pageX - el.offsetLeft);
-          el.dataset.scrollLeft = String(el.scrollLeft);
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.dataset.isDown = 'false';
-        }}
-        onMouseUp={(e) => {
-          e.currentTarget.dataset.isDown = 'false';
-        }}
-        onMouseMove={(e) => {
-          const el = e.currentTarget;
-          if (el.dataset.isDown !== 'true') return;
-          e.preventDefault();
-          const x = e.pageX - el.offsetLeft;
-          const startX = Number(el.dataset.startX || 0);
-          const scrollLeft = Number(el.dataset.scrollLeft || 0);
-          const walk = (x - startX) * 1.5;
-          el.scrollLeft = scrollLeft - walk;
-        }}
-      >
-        {[
-          { key: 'attendance', label: 'Attendance Records', icon: Calendar },
-          { key: 'salary', label: 'Salary Slips', icon: FileText },
-          { key: 'expenses', label: 'Expense Center', icon: CreditCard },
-          { key: 'leaves', label: 'Leave Management', icon: Calendar }
-        ].map(tab => {
-          const isActive = activeTab === tab.key;
-          const TabIcon = tab.icon;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`profile-tab-btn ${isActive ? 'active' : ''}`}
-              style={{ whiteSpace: 'nowrap', flexShrink: 0, userSelect: 'none' }}
-            >
-              <TabIcon size={16} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+      <div className="hr-tabs-wrapper">
+        <div 
+          className="hr-tabs profile-tabs-nav erp-tab-scroll-bar" 
+          onWheel={(e) => {
+            if (e.deltaY !== 0) {
+              e.currentTarget.scrollLeft += e.deltaY * 0.8;
+            }
+          }}
+          onMouseDown={(e) => {
+            const el = e.currentTarget;
+            el.dataset.isDown = 'true';
+            el.dataset.startX = String(e.pageX - el.offsetLeft);
+            el.dataset.scrollLeft = String(el.scrollLeft);
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.dataset.isDown = 'false';
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.dataset.isDown = 'false';
+          }}
+          onMouseMove={(e) => {
+            const el = e.currentTarget;
+            if (el.dataset.isDown !== 'true') return;
+            e.preventDefault();
+            const x = e.pageX - el.offsetLeft;
+            const startX = Number(el.dataset.startX || 0);
+            const scrollLeft = Number(el.dataset.scrollLeft || 0);
+            const walk = (x - startX) * 1.5;
+            el.scrollLeft = scrollLeft - walk;
+          }}
+        >
+          {[
+            { key: 'attendance', label: 'Attendance Records', icon: CalendarDays },
+            { key: 'salary', label: 'Salary Slips', icon: FileText },
+            { key: 'expenses', label: 'Expense Center', icon: CreditCard },
+            { key: 'leaves', label: 'Leave Management', icon: Calendar }
+          ].map(tab => {
+            const isActive = activeTab === tab.key;
+            const TabIcon = tab.icon;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`hr-tab profile-tab-btn ${isActive ? 'active' : ''}`}
+                style={{ whiteSpace: 'nowrap', flexShrink: 0, userSelect: 'none' }}
+              >
+                <TabIcon size={16} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* 3. Dynamic Tabs Content Viewports */}
-      <div style={{ width: '100%' }}>
+      <main className="hr-content" style={{ width: '100%', maxWidth: '100%' }}>
         
         {/* Attendance Tab */}
         {activeTab === 'attendance' && (
@@ -1182,7 +1173,7 @@ export default function MyProfileView() {
           </div>
         )}
 
-      </div>
+      </main>
     </div>
   );
 }

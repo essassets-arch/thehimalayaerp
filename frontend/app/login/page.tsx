@@ -361,11 +361,27 @@ export default function LoginPage() {
         }
 
         .login-label {
-          font-size: 11.5px;
+          display: block;
+          font-size: 12.5px;
           font-weight: 700;
-          color: #475569;
+          color: #334155;
           text-transform: uppercase;
-          letter-spacing: 0.05em;
+          letter-spacing: 0.04em;
+          margin-bottom: 2px;
+        }
+
+        .login-form {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          width: 100%;
+        }
+
+        .form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          width: 100%;
         }
 
         .login-input-wrap {
@@ -378,17 +394,18 @@ export default function LoginPage() {
 
         .login-icon {
           position: absolute;
-          left: 14px;
+          left: 15px;
           top: 50%;
           transform: translateY(-50%);
-          color: #8191AA;
+          color: #94A3B8;
           pointer-events: none;
-          z-index: 10;
+          z-index: 2;
           display: flex;
           align-items: center;
           justify-content: center;
           width: 18px;
           height: 18px;
+          transition: color 0.2s ease;
         }
 
         .login-input {
@@ -396,25 +413,33 @@ export default function LoginPage() {
           height: 48px !important;
           min-height: 48px !important;
           box-sizing: border-box !important;
-          padding-left: 46px !important;
-          padding-right: 16px !important;
-          background: #F8FAFD !important;
+          padding: 0 16px 0 46px !important;
+          background: #F8FAFC !important;
           border: 1.5px solid #E2E8F0 !important;
           border-radius: 12px !important;
-          color: #1E293B !important;
-          font-size: 14px !important;
+          color: #0F172A !important;
+          font-size: 14.5px !important;
+          font-weight: 500 !important;
           font-family: 'Outfit', sans-serif !important;
           outline: none !important;
-          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
         }
-        .login-input::placeholder { color: #94A3B8 !important; }
+        .login-input::placeholder {
+          color: #94A3B8 !important;
+          font-weight: 400 !important;
+        }
+        .login-input:hover {
+          border-color: #CBD5E1 !important;
+          background: #FFFFFF !important;
+        }
         .login-input:focus {
           background: #FFFFFF !important;
-          border-color: #3BAEEB !important;
-          box-shadow: 0 0 0 3px rgba(59,174,235,0.12) !important;
+          border-color: #2563EB !important;
+          box-shadow: 0 0 0 4px rgba(37,99,235,0.12) !important;
         }
         .login-input-wrap:focus-within .login-icon {
-          color: #3BAEEB;
+          color: #2563EB;
         }
 
         .login-input-pass {
@@ -423,21 +448,25 @@ export default function LoginPage() {
 
         .pass-toggle {
           position: absolute;
-          right: 14px;
+          right: 12px;
           top: 50%;
           transform: translateY(-50%);
-          background: none;
+          background: transparent;
           border: none;
+          border-radius: 8px;
           cursor: pointer;
-          color: #8191AA;
+          color: #94A3B8;
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 4px;
-          z-index: 10;
-          transition: color 0.2s;
+          padding: 6px;
+          z-index: 2;
+          transition: all 0.2s ease;
         }
-        .pass-toggle:hover { color: #3BAEEB; }
+        .pass-toggle:hover {
+          color: #1E293B;
+          background: #F1F5F9;
+        }
 
         .login-divider {
           height: 1px;
@@ -446,26 +475,28 @@ export default function LoginPage() {
 
         .login-btn {
           width: 100%;
+          height: 48px;
+          margin-top: 4px;
           padding: 12px;
-          background: linear-gradient(135deg, #2F4375 0%, #3BAEEB 100%);
+          background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 50%, #3BAEEB 100%);
           color: #fff;
           border: none;
           border-radius: 12px;
           font-weight: 800;
-          font-size: 14px;
+          font-size: 15px;
           font-family: 'Outfit', sans-serif;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 8px;
-          box-shadow: 0 4px 16px rgba(47,67,117,0.20);
-          transition: all 0.2s;
-          min-height: 46px;
+          box-shadow: 0 4px 16px rgba(37,99,235,0.25);
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .login-btn:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 22px rgba(47,67,117,0.26);
+          transform: translateY(-1px);
+          box-shadow: 0 8px 22px rgba(37,99,235,0.35);
+          filter: brightness(1.03);
         }
         .login-btn:active:not(:disabled) { transform: translateY(0); }
         .login-btn:disabled { opacity: 0.65; cursor: not-allowed; }
@@ -744,13 +775,13 @@ export default function LoginPage() {
             {error && <div className="login-error">{error}</div>}
 
             {/* Form */}
-            <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <form onSubmit={handleLoginSubmit} className="login-form">
 
               {/* Email */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label className="login-label">Email Address</label>
-                <div className="input-wrapper" style={{ position: 'relative', width: '100%' }}>
-                  <span className="left-icon" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', zIndex: 5, color: '#8191AA', pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="form-group">
+                <label htmlFor="login-email" className="login-label">Email Address</label>
+                <div className="login-input-wrap">
+                  <span className="login-icon">
                     <Mail size={18} />
                   </span>
                   <input
@@ -758,20 +789,7 @@ export default function LoginPage() {
                     id="login-email"
                     data-testid="login-email"
                     className="login-input"
-                    placeholder="name@himalayaerp.com"
-                    style={{
-                      width: '100%',
-                      height: '48px',
-                      boxSizing: 'border-box',
-                      paddingLeft: '44px',
-                      paddingRight: '16px',
-                      border: '1px solid #d6e2f2',
-                      borderRadius: '10px',
-                      background: '#e8f0fc',
-                      fontSize: '15px',
-                      color: '#111827',
-                      outline: 'none',
-                    }}
+                    placeholder="admin@thehimalaya.cloud"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={loading}
@@ -782,10 +800,10 @@ export default function LoginPage() {
               </div>
 
               {/* Password */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label className="login-label">Password</label>
-                <div className="input-wrapper" style={{ position: 'relative', width: '100%' }}>
-                  <span className="left-icon" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', zIndex: 5, color: '#8191AA', pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="form-group">
+                <label htmlFor="login-password" className="login-label">Password</label>
+                <div className="login-input-wrap">
+                  <span className="login-icon">
                     <KeyRound size={18} />
                   </span>
                   <input
@@ -794,34 +812,21 @@ export default function LoginPage() {
                     data-testid="login-password"
                     className="login-input login-input-pass"
                     placeholder="Enter password"
-                    style={{
-                      width: '100%',
-                      height: '48px',
-                      boxSizing: 'border-box',
-                      paddingLeft: '44px',
-                      paddingRight: '44px',
-                      border: '1px solid #d6e2f2',
-                      borderRadius: '10px',
-                      background: '#e8f0fc',
-                      fontSize: '15px',
-                      color: '#111827',
-                      outline: 'none',
-                    }}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={loading}
                     autoComplete="current-password"
                     required
                   />
-                  <span
-                    className="right-icon pass-toggle"
+                  <button
+                    type="button"
+                    className="pass-toggle"
                     onClick={() => setShowPass(p => !p)}
-                    style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', zIndex: 5, color: '#8191AA', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     tabIndex={-1}
                     aria-label={showPass ? 'Hide password' : 'Show password'}
                   >
                     {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </span>
+                  </button>
                 </div>
               </div>
 
