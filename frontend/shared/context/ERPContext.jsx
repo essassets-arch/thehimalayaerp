@@ -159,21 +159,30 @@ export const useERP = () => {
         try {
           const authUser = useAuthStore.getState().user;
           const role = authUser?.role || '';
-          const canReadProcurement = ['Super Admin', 'Admin', 'Procurement', 'Procurement Executive', 'Plant Head', 'Finance'].includes(role) || hasPermission(authUser, 'procurement.indents.read');
+          const isBackOffice = role.toLowerCase().includes('back') && role.toLowerCase().includes('office');
+          const isProcurementRole = ['Super Admin', 'Admin', 'Procurement', 'Procurement Executive', 'Plant Head', 'Finance', 'Store'].some(r => role.toLowerCase().includes(r.toLowerCase()));
 
-          if (canReadProcurement) {
+          if (isProcurementRole || hasPermission(authUser, 'procurement.indents.read')) {
             const indentsRes = await purchaseIndentService.list({ limit: 100 }).catch(() => []);
             materialIndents = Array.isArray(indentsRes) ? indentsRes : (indentsRes?.data || []);
-            
+          }
+          
+          if (isProcurementRole || hasPermission(authUser, 'procurement.purchase_orders.read')) {
             const posRes = await purchaseOrderService.list({ limit: 100 }).catch(() => []);
             purchaseOrders = Array.isArray(posRes) ? posRes : (posRes?.data || []);
-            
+          }
+          
+          if (isProcurementRole || hasPermission(authUser, 'procurement.grns.read')) {
             const grnsRes = await grnService.list({ limit: 100 }).catch(() => []);
             goodsReceiptNotes = Array.isArray(grnsRes) ? grnsRes : (grnsRes?.data || []);
+          }
 
+          if (['Super Admin', 'Admin', 'Finance', 'Procurement'].some(r => role.toLowerCase().includes(r.toLowerCase())) || hasPermission(authUser, 'procurement.invoices.read')) {
             const invoicesRes = await vendorInvoiceService.list({ limit: 100 }).catch(() => []);
             vendorInvoices = Array.isArray(invoicesRes) ? invoicesRes : (invoicesRes?.data || []);
+          }
 
+          if (['Super Admin', 'Admin', 'Finance', 'Procurement'].some(r => role.toLowerCase().includes(r.toLowerCase())) || hasPermission(authUser, 'procurement.payments.read')) {
             const paymentsRes = await vendorPaymentService.list({ limit: 100 }).catch(() => []);
             vendorPayments = Array.isArray(paymentsRes) ? paymentsRes : (paymentsRes?.data || []);
           }
@@ -198,18 +207,18 @@ export const useERP = () => {
           }
 
           // Fetch all audit logs for history timeline (Admins only)
-          if (authUserLog?.role === 'Super Admin' || authUserLog?.role === 'Admin') {
+          if (authUser?.role === 'Super Admin' || authUser?.role === 'Admin') {
             const auditRaw = await backendFetch('/api/backend/admin/audit-logs').catch(() => []);
             auditLogs = Array.isArray(auditRaw) ? auditRaw : (auditRaw?.data || []);
           }
           
           if (
-            authUserLog?.role === 'Sales Executive' ||
-            authUserLog?.role === 'SuperSales' ||
-            (authUserLog?.role && String(authUserLog.role).startsWith('SuperSales')) ||
-            authUserLog?.role === 'Sales Manager' ||
-            authUserLog?.role === 'Super Admin' ||
-            authUserLog?.role === 'Admin'
+            authUser?.role === 'Sales Executive' ||
+            authUser?.role === 'SuperSales' ||
+            (authUser?.role && String(authUser.role).startsWith('SuperSales')) ||
+            authUser?.role === 'Sales Manager' ||
+            authUser?.role === 'Super Admin' ||
+            authUser?.role === 'Admin'
           ) {
             const remindersRaw = await backendFetch('/api/backend/sales/reminders').catch(() => []);
             fetchedReminders = Array.isArray(remindersRaw) ? remindersRaw : (remindersRaw?.data || []);

@@ -8,6 +8,7 @@ import { grnService } from '../services/procurement/grnService';
 import { vendorInvoiceService } from '../services/procurement/vendorInvoiceService';
 import { vendorPaymentService } from '../services/procurement/vendorPaymentService';
 import { procurementRequest } from '../services/procurement/procurementClient';
+import { hasPermission } from '../services/permissions/permissionService';
 
 import { 
   INDENT_STATUS, 
@@ -35,15 +36,18 @@ export async function syncProcurementData() {
   const token = typeof window !== 'undefined' ? useAuthStore.getState().accessToken : null;
   if (!token) return;
 
-  // safeList: returns empty array on 403/permission errors but logs them clearly
-  // so missing role permissions are visible in the console instead of silently swallowed.
+  const authUser = useAuthStore.getState().user;
+  const role = authUser?.role || '';
+  const isProcurementRole = ['SUPER_ADMIN', 'ADMIN', 'PROCUREMENT', 'PROCUREMENT_EXECUTIVE', 'PLANT_HEAD', 'FINANCE', 'STORE', 'STORE_MANAGER'].some(r => role.toUpperCase().includes(r));
+
+  // safeList: returns empty array on 403/permission errors but logs other errors
   const safeList = async (label: string, fn: () => Promise<any>) => {
     try {
       const res = await fn();
       return Array.isArray(res) ? res : (res?.data || []);
     } catch (err: any) {
       if (err?.status === 403 || err?.code === 'FORBIDDEN') {
-        console.warn(`[syncProcurementData] 403 on "${label}" — current role lacks permission. Check role permissions in seed.ts.`);
+        // Expected if current role lacks granular permission
       } else {
         console.warn(`[syncProcurementData] Failed to load "${label}":`, err?.message || err);
       }
@@ -51,11 +55,21 @@ export async function syncProcurementData() {
     }
   };
 
-  const materialIndents = await safeList('indents', () => purchaseIndentService.list({ limit: 100 }));
-  const purchaseOrders  = await safeList('purchase-orders', () => purchaseOrderService.list({ limit: 100 }));
-  const goodsReceiptNotes = await safeList('grns', () => grnService.list({ limit: 100 }));
-  const vendorInvoices  = await safeList('vendor-invoices', () => vendorInvoiceService.list({ limit: 100 }));
-  const vendorPayments  = await safeList('vendor-payments', () => vendorPaymentService.list({ limit: 100 }));
+  const materialIndents = (isProcurementRole || hasPermission(authUser, 'procurement.indents.read'))
+    ? await safeList('indents', () => purchaseIndentService.list({ limit: 100 }))
+    : [];
+  const purchaseOrders = (isProcurementRole || hasPermission(authUser, 'procurement.purchase_orders.read'))
+    ? await safeList('purchase-orders', () => purchaseOrderService.list({ limit: 100 }))
+    : [];
+  const goodsReceiptNotes = (isProcurementRole || hasPermission(authUser, 'procurement.grns.read'))
+    ? await safeList('grns', () => grnService.list({ limit: 100 }))
+    : [];
+  const vendorInvoices = (['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'PROCUREMENT'].some(r => role.toUpperCase().includes(r)) || hasPermission(authUser, 'procurement.invoices.read'))
+    ? await safeList('vendor-invoices', () => vendorInvoiceService.list({ limit: 100 }))
+    : [];
+  const vendorPayments = (['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'PROCUREMENT'].some(r => role.toUpperCase().includes(r)) || hasPermission(authUser, 'procurement.payments.read'))
+    ? await safeList('vendor-payments', () => vendorPaymentService.list({ limit: 100 }))
+    : [];
   const materialRejectionsRaw = await safeList('material-rejections', () => procurementRequest<any>('material-rejections', 'GET'));
   const materialRejections = materialRejectionsRaw.map((rej: any) => ({
     ...rej,
