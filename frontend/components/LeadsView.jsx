@@ -978,7 +978,6 @@ export default function LeadsView({
                 <th>Company Name</th>
                 <th>Specification</th>
                 <th>Phone / Email</th>
-                <th>Status</th>
                 <th>Next Reminder</th>
                 <th>Actions</th>
               </tr>
@@ -986,7 +985,7 @@ export default function LeadsView({
             <tbody>
               {filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
                     <strong>{search.trim() ? `No leads found for "${search.trim()}"` : 'No leads available'}</strong>
                     <div style={{ marginTop: 6, fontSize: 13, fontWeight: 500 }}>
                       {search.trim() ? 'Try a different search term or clear active filters.' : 'Create your first lead to begin the sales workflow.'}
@@ -1009,35 +1008,6 @@ export default function LeadsView({
                           <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>{lead.phone || lead.mobile || lead.siteInchargeMobile || 'N/A'}</span>
                           <span style={{ fontSize: '11px', color: '#5E6B82', whiteSpace: 'nowrap' }}>{lead.email || 'N/A'}</span>
                         </div>
-                      </td>
-                      <td data-label="Status">
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          padding: '3px 10px',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          background: displayStatus === 'New' || displayStatus === 'New Lead' ? '#dbeafe'
-                            : displayStatus === 'Follow-up' ? '#fef9c3'
-                              : displayStatus === 'Converted' ? '#dcfce7'
-                                : displayStatus === 'Lost' ? '#fee2e2'
-                                  : displayStatus === 'Quotation Draft' ? '#ffedd5'
-                                    : displayStatus === 'Quotation Generated' ? '#e0f2fe'
-                                      : displayStatus === 'Sample Sent' ? '#e0f2fe'
-                                        : '#f1f5f9',
-                          color: displayStatus === 'New' || displayStatus === 'New Lead' ? '#1d4ed8'
-                            : displayStatus === 'Follow-up' ? '#92400e'
-                              : displayStatus === 'Converted' ? '#15803d'
-                                : displayStatus === 'Lost' ? '#dc2626'
-                                  : displayStatus === 'Quotation Draft' ? '#ea580c'
-                                    : displayStatus === 'Quotation Generated' ? '#0369a1'
-                                      : displayStatus === 'Sample Sent' ? '#0369a1'
-                                        : '#475569',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {displayStatus}
-                        </span>
                       </td>
                       <td data-label="Next Reminder">{renderNextReminder(lead)}</td>
                       <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
