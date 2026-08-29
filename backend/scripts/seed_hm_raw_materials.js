@@ -1,225 +1,61 @@
 const { PrismaClient } = require('@prisma/client');
+const fs = require('fs');
+const path = require('path');
 const prisma = new PrismaClient();
 
-const rawMaterialsData = [
-  { code: 'HM001', name: 'White Mold Release Wax Polish', unit: 'KG' },
-  { code: 'HM002', name: 'Benjo Mold Release Wax Polish', unit: 'KG' },
-  { code: 'HM003', name: 'Polyvinyl Alcohol (PVA) Release Agent', unit: 'LTR' },
-  { code: 'HM004', name: 'NC-50 Solvent-Based Mold Release Agent', unit: 'PCS' },
-  { code: 'HM005', name: 'White Pigment (TiO₂)', unit: 'KG' },
-  { code: 'HM006', name: 'LIGHT GREY PIGMENT', unit: 'KG' },
-  { code: 'HM007', name: 'Black Pigment', unit: 'PCS' },
-  { code: 'HM008', name: 'Phthalocyanine Blue Pigment', unit: 'PCS' },
-  { code: 'HM009', name: 'Polyethylene Terephthalate Resin (PET)', unit: 'BAREL' },
-  { code: 'HM010', name: 'General Purpose Unsaturated Polyester Resin (Clear)', unit: 'BAREL' },
-  { code: 'HM011', name: 'Isophthalic Polyester Resin', unit: 'KGS' },
-  { code: 'HM012', name: 'Vinyl Ester Resin', unit: 'PCS' },
-  { code: 'HM013', name: 'Isophthalic Gel Coat (Pre-accelerated)', unit: 'KG' },
-  { code: 'HM014', name: 'Surface Tissue Mat (30 GSM)', unit: 'ROLL' },
-  { code: 'HM015', name: 'Chopped Strand Mat – 225 GSM', unit: 'KGS' },
-  { code: 'HM016', name: 'Chopped Strand Mat – 450 GSM', unit: 'ROLL' },
-  { code: 'HM017', name: 'Woven Roving – 610 GSM', unit: 'ROLL' },
-  { code: 'HM018', name: 'Unidirectional Fiberglass Mat – 1230 GSM', unit: 'ROLL' },
-  { code: 'HM019', name: 'Methyl Ethyl Ketone Peroxide (Catalyst)', unit: 'KG' },
-  { code: 'HM020', name: 'Cobalt Octoate Solution (Accelerator)', unit: 'KGS' },
-  { code: 'HM021', name: 'Dimethylaniline (DMA) Promoter', unit: 'PCS' },
-  { code: 'HM022', name: 'Quartz Powder – small', unit: 'KGS' },
-  { code: 'HM023', name: 'Quartz Powder – medium', unit: 'KGS' },
-  { code: 'HM024', name: 'Quartz Powder – big', unit: 'KGS' },
-  { code: 'HM025', name: 'Quartz Powder – black and white', unit: 'PCS' },
-  { code: 'HM026', name: 'General Mineral Filler (e.g., Dolomite Powder)', unit: 'KG' },
-  { code: 'HM027', name: 'Gel Coat Grade Filler Powder', unit: 'KG' },
-  { code: 'HM028', name: 'Acetone (Solvent)', unit: 'PCS' },
-  { code: 'HM029', name: 'Thinner (General Purpose Paint/Resin Thinner)', unit: 'LTR' },
-  { code: 'HM030', name: 'Paint Brush 50mm', unit: 'PCS' },
-  { code: 'HM031', name: 'Paint Brush 75mm', unit: 'PCS' },
-  { code: 'HM032', name: 'Brush 25mm', unit: 'PCS' },
-  { code: 'HM033', name: 'Paint Brush 100mm', unit: 'PCS' },
-  { code: 'HM034', name: 'thapi SMALL', unit: 'PCS' },
-  { code: 'HM035', name: 'thapi 6', unit: 'PCS' },
-  { code: 'HM036', name: 'thapi 8', unit: 'PCS' },
-  { code: 'HM037', name: 'thapi 10', unit: 'PCS' },
-  { code: 'HM038', name: 'thapi 12', unit: 'PCS' },
-  { code: 'HM039', name: 'bucket 8no', unit: 'PCS' },
-  { code: 'HM040', name: 'bucket 12no', unit: 'PCS' },
-  { code: 'HM041', name: 'bucket 10no', unit: 'PCS' },
-  { code: 'HM042', name: 'bucket 19no', unit: 'PCS' },
-  { code: 'HM043', name: 'bucket 14no', unit: 'PCS' },
-  { code: 'HM044', name: 'mugga small', unit: 'PCS' },
-  { code: 'HM045', name: 'mugga big', unit: 'PCS' },
-  { code: 'HM046', name: 'balti small 5 to 18', unit: 'PCS' },
-  { code: 'HM047', name: 'balti big 20', unit: 'PCS' },
-  { code: 'HM048', name: 'Steel Putty blade (4")', unit: 'PCS' },
-  { code: 'HM049', name: 'Steel Putty blade (2")', unit: 'PCS' },
-  { code: 'HM050', name: 'Hacksaw Blade', unit: 'NOS' },
-  { code: 'HM051', name: 'Steel Measuring Tape (5m', unit: 'PCS' },
-  { code: 'HM052', name: 'Steel Measuring Tape (3m', unit: 'PCS' },
-  { code: 'HM053', name: 'Steel Ruler / Engineer Scale Medium', unit: 'NOS' },
-  { code: 'HM054', name: 'Steel Ruler / Engineer Scale small 1.5 feet', unit: 'PCS' },
-  { code: 'HM055', name: 'Steel Ruler / Engineer Scale small 2 feet', unit: 'PCS' },
-  { code: 'HM056', name: 'Flat Chisel –40', unit: 'PCS' },
-  { code: 'HM057', name: 'Flat Chisel -25', unit: 'PCS' },
-  { code: 'HM058', name: 'Flat Chisel - 32', unit: 'PCS' },
-  { code: 'HM059', name: 'Flat Chisel –50', unit: 'PCS' },
-  { code: 'HM060', name: 'General Purpose Chisel', unit: 'PCS' },
-  { code: 'HM061', name: 'head screwdriver big', unit: 'NOS' },
-  { code: 'HM062', name: 'head screwdriver small', unit: 'NOS' },
-  { code: 'HM063', name: 'Electric Jigsaw Machine', unit: 'PCS' },
-  { code: 'HM064', name: 'jigsaw blade', unit: 'PCS' },
-  { code: 'HM065', name: 'Wood/Composite Router Machine', unit: 'PCS' },
-  { code: 'HM066', name: 'wood cutter blade', unit: 'PCS' },
-  { code: 'HM067', name: 'Angle Grinder (4"/5")', unit: 'PCS' },
-  { code: 'HM068', name: 'dimanod cutter', unit: 'PCS' },
-  { code: 'HM069', name: 'gc wheel', unit: 'PCS' },
-  { code: 'HM070', name: 'bear disc 60', unit: 'PKT' },
-  { code: 'HM071', name: 'grinder lock nut', unit: 'PCS' },
-  { code: 'HM072', name: 'Digital Vernier Caliper (0.01 mm accuracy)', unit: 'PCS' },
-  { code: 'HM073', name: 'Air Spray Gun for Gel Coat/Primer Application', unit: 'PCS' },
-  { code: 'HM074', name: 'spary gun nozzel 4mm', unit: 'PCS' },
-  { code: 'HM075', name: 'Electric Polishing Machine (Rotary/Orbital)', unit: 'PCS' },
-  { code: 'HM076', name: 'Cotton Wool Buffing Pad', unit: 'PCS' },
-  { code: 'HM077', name: 'Orbital/Eccentric Sanding Machine', unit: 'PCS' },
-  { code: 'HM078', name: 'buffing compond', unit: 'PCS' },
-  { code: 'HM079', name: 'Surface Primer for FRP Application', unit: 'PCS' },
-  { code: 'HM080', name: 'Plaster of Paris (CaSO₄·½H₂O)', unit: 'PCS' },
-  { code: 'HM081', name: 'Electric Drill Machine (Variable Speed)', unit: 'PCS' },
-  { code: 'HM082', name: 'Masonry Drill Bit', unit: 'PCS' },
-  { code: 'HM083', name: 'HSS Twist Drill Bit – 3mm', unit: 'PCS' },
-  { code: 'HM084', name: 'HSS Twist Drill Bit – 4mm', unit: 'PCS' },
-  { code: 'HM085', name: 'HSS Twist Drill Bit – 6mm', unit: 'PCS' },
-  { code: 'HM086', name: 'HSS Twist Drill Bit – 6mm *210mm', unit: 'PCS' },
-  { code: 'HM087', name: 'HSS Twist Drill Bit – 8mm', unit: 'PCS' },
-  { code: 'HM088', name: 'HSS Twist Drill Bit – 10mm', unit: 'PCS' },
-  { code: 'HM089', name: 'HSS Twist Drill Bit – 12mm', unit: 'PCS' },
-  { code: 'HM090', name: 'Hole Saw Cutter – 25mm Diameter', unit: 'PCS' },
-  { code: 'HM091', name: 'Hole Saw Cutter – 50mm Diameter', unit: 'PCS' },
-  { code: 'HM092', name: 'Emery Paper (Grit 60)', unit: 'ROLL' },
-  { code: 'HM093', name: 'Emery Paper (Grit 120)', unit: 'PCS' },
-  { code: 'HM094', name: 'Emery Paper (Grit 150)', unit: 'PCS' },
-  { code: 'HM095', name: 'Emery Paper (Grit 220)', unit: 'PCS' },
-  { code: 'HM096', name: 'Emery Paper (Grit 320)', unit: 'PCS' },
-  { code: 'HM097', name: 'Emery Paper (Grit 400)', unit: 'PCS' },
-  { code: 'HM098', name: 'Emery Paper (Grit 600)', unit: 'PCS' },
-  { code: 'HM099', name: 'Emery Paper (Grit 800)', unit: 'PCS' },
-  { code: 'HM100', name: 'Emery Paper (Grit 1000)', unit: 'PCS' },
-  { code: 'HM101', name: 'Emery Paper (Grit 1200)', unit: 'PCS' },
-  { code: 'HM102', name: 'Sandpaper (Grit 80)', unit: 'PCS' },
-  { code: 'HM103', name: 'Sandpaper (Grit 120)', unit: 'PCS' },
-  { code: 'HM104', name: 'Sandpaper (Grit 180)', unit: 'PCS' },
-  { code: 'HM105', name: 'Sandpaper (Grit 220)', unit: 'PCS' },
-  { code: 'HM106', name: 'Sandpaper (Grit 320)', unit: 'PCS' },
-  { code: 'HM107', name: 'Sandpaper (Grit 400)', unit: 'PCS' },
-  { code: 'HM108', name: 'Buffing/Polishing Compound (Paste Form)', unit: 'KG' },
-  { code: 'HM109', name: 'ply wood 6mm', unit: 'PCS' },
-  { code: 'HM110', name: 'ply wood 12mm', unit: 'PCS' },
-  { code: 'HM111', name: 'ply wood 18mm', unit: 'PCS' },
-  { code: 'HM112', name: 'pen', unit: 'PCS' },
-  { code: 'HM113', name: 'permenent marker', unit: 'PCS' },
-  { code: 'HM114', name: 'board marker', unit: 'PCS' },
-  { code: 'HM115', name: 'pencile', unit: 'PCS' },
-  { code: 'HM116', name: 'sharpner', unit: 'PCS' },
-  { code: 'HM117', name: 'eraser', unit: 'PCS' },
-  { code: 'HM118', name: 'NOTEBOOK', unit: 'PCS' },
-  { code: 'HM119', name: 'attandance sheet', unit: 'PCS' },
-  { code: 'HM120', name: 'c handel', unit: 'PCS' },
-  { code: 'HM121', name: 'roundhandel', unit: 'PCS' },
-  { code: 'HM122', name: 'c clamp', unit: 'PCS' },
-  { code: 'HM123', name: 'cloth', unit: 'KG' },
-  { code: 'HM124', name: 'flap disc', unit: 'PCS' },
-  { code: 'HM125', name: 'masking tape', unit: 'PCS' },
-  { code: 'HM126', name: 'raping role', unit: 'ROLL' },
-  { code: 'HM127', name: 'stone bit', unit: 'PKT' },
-  { code: 'HM128', name: 'raping White tape', unit: 'PCS' },
-  { code: 'HM129', name: 'packing role thread', unit: 'PCS' },
-  { code: 'HM130', name: 'knife blade', unit: 'PCS' },
-  { code: 'HM131', name: 'knife blade frame', unit: 'PCS' },
-  { code: 'HM132', name: 'jadu', unit: 'PCS' },
-  { code: 'HM133', name: 'desil', unit: 'PCS' },
-  { code: 'HM134', name: 'grey colour', unit: 'CAN' },
-  { code: 'HM135', name: 'black colour', unit: 'CAN' },
-  { code: 'HM136', name: 'blue colour', unit: 'CAN' },
-  { code: 'HM137', name: 'grinder carbon', unit: 'PCS' },
-  { code: 'HM138', name: 'hand mixter', unit: 'PCS' },
-  { code: 'HM139', name: 'hand mixture sterer 10mm', unit: 'PCS' },
-  { code: 'HM140', name: 'hand mixture sterer 8mm', unit: 'PCS' },
-  { code: 'HM141', name: 'hand mixture carbon', unit: 'PCS' },
-  { code: 'HM142', name: 'fevikick', unit: 'PCS' },
-  { code: 'HM143', name: 'yellow gloves', unit: 'SET' },
-  { code: 'HM144', name: 'mask', unit: 'PKT' },
-  { code: 'HM145', name: 'gogels', unit: 'PCS' },
-  { code: 'HM146', name: 'plug box', unit: 'PCS' },
-  { code: 'HM147', name: 'duble seel rubber 4mm', unit: 'METER' },
-  { code: 'HM148', name: 'spaner kit', unit: 'PCS' },
-  { code: 'HM149', name: 'hamer', unit: 'PCS' },
-  { code: 'HM150', name: 'hydralic oil', unit: 'LTR' },
-  { code: 'HM151', name: 'patra', unit: 'PCS' },
-  { code: 'HM152', name: 'iron cutter disc', unit: 'PCS' },
-  { code: 'HM153', name: 'glinder paid wheel', unit: 'PCS' },
-  { code: 'HM154', name: 'fingure', unit: 'PKT' },
-  { code: 'HM155', name: 'Cloth Gloves', unit: 'SET' },
-  { code: 'HM156', name: 'Belcha', unit: 'NOS' },
-  { code: 'HM157', name: 'Wire BUNDLE', unit: 'PCS' },
-  { code: 'HM158', name: 'Grees', unit: 'KG' },
-  { code: 'HM159', name: 'Admixture CHEMICAL', unit: "BRL'" },
-  { code: 'HM160', name: 'Reileas Chemicale', unit: 'BRL(200LTR)' },
-  { code: 'HM161', name: 'Acid Gloves', unit: 'SET' },
-  { code: 'HM162', name: 'Ecodrive Belt', unit: 'PCS' },
-  { code: 'HM163', name: 'Fawda', unit: 'PCS' },
-  { code: 'HM164', name: 'pvc farsi white', unit: 'PCS' },
-  { code: 'HM165', name: 'handle patra', unit: 'PCS' },
-  { code: 'HM166', name: 'allen key', unit: 'PCS' },
-  { code: 'HM167', name: 'write angle', unit: 'PCS' },
-  { code: 'HM168', name: 'wire tape', unit: 'PKT' },
-  { code: 'HM169', name: 'grey moja', unit: 'PAIR' },
-  { code: 'HM170', name: 'rassi/plastic sulti', unit: 'KGS' },
-  { code: 'HM171', name: 'dhaga', unit: 'BOX' },
-  { code: 'HM172', name: 'NYLON BLOCK PATTI SMALL', unit: 'NOS' },
-  { code: 'HM173', name: 'balti small 8 NO', unit: 'PCS' },
-  { code: 'HM174', name: 'D A GREY', unit: 'PCS' },
-  { code: 'HM175', name: 'emery paper 80', unit: 'PCS' },
-  { code: 'HM176', name: 'sand paper 600', unit: 'PCS' },
-  { code: 'HM177', name: 'sterar 8mm', unit: 'PCS' },
-  { code: 'HM178', name: 'sterar 10mm', unit: 'PCS' },
-  { code: 'HM179', name: 'p v', unit: 'PCS' },
-  { code: 'HM180', name: 'steel putty blade 50*150mm', unit: 'PCS' },
-  { code: 'HM181', name: 'steel putty blade 8"', unit: 'PCS' },
-  { code: 'HM182', name: 'steel putty blade 5/6"', unit: 'PCS' },
-  { code: 'HM183', name: 'BALTI MID', unit: 'PCS' },
-  { code: 'HM184', name: 'bucket 12no', unit: 'PCS' },
-  { code: 'HM185', name: 'MEASURING TAPE', unit: 'NOS' },
-  { code: 'HM186', name: 'sand paper 180', unit: 'PCS' },
-  { code: 'HM186-B', name: 'bear disc 80', unit: 'PCS' },
-  { code: 'HM187', name: 'bear disc 120', unit: 'PCS' },
-  { code: 'HM188', name: 'welcro paper 600 grit', unit: 'PCS' },
-  { code: 'HM189', name: 'WELDING ROD', unit: 'PCS' },
-  { code: 'HM190', name: 'buffing machine', unit: 'PCS' },
-  { code: 'HM191', name: 'c clamp big', unit: 'PCS' },
-  { code: 'HM192', name: 'RED BRICK PIGMENT', unit: 'PCS' },
-  { code: 'HM193', name: 'bear disc 80', unit: 'PCS' },
-  { code: 'HM194', name: 'bear disc 120', unit: 'PCS' },
-  { code: 'HM195', name: 'welcro paper 80', unit: 'PCS' },
-  { code: 'HM196', name: 'welcro paper 120', unit: 'PCS' },
-  { code: 'HM197', name: 'welcro paper 180', unit: 'PCS' },
-  { code: 'HM198', name: 'welcro paper 220', unit: 'PCS' },
-  { code: 'HM199', name: 'welcro paper 320', unit: 'PCS' },
-  { code: 'HM200', name: 'welcro paper 400', unit: 'PCS' },
-  { code: 'HM201', name: 'welcro paper 600', unit: 'PCS' },
-  { code: 'HM202', name: 'sending machine pad', unit: 'PCS' },
-  { code: 'HM203', name: 'bear disc 36', unit: 'PCS' },
-  { code: 'HM204', name: 'handle', unit: 'PCS' },
-  { code: 'HM205', name: 'Pliers (Pakkad)', unit: 'PCS' },
-  { code: 'HM206', name: 'Round File', unit: 'PCS' },
-  { code: 'HM207', name: 'Flat File', unit: 'PCS' },
-  { code: 'HM208', name: 'Thundor File', unit: 'PCS' },
-  { code: 'HM209', name: 'FAVDE HANDLE', unit: 'PCS' },
-  { code: 'HM210', name: 'BROWAN Pigment', unit: 'PCS' },
-  { code: 'HM211', name: 'TERRA COATA Pigment', unit: 'PCS' }
-];
+function parseCsvLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function loadCsvData() {
+  const csvPath = path.resolve(__dirname, '../../Raw_Material_Inventory_Export_2026-08-18.csv');
+  const content = fs.readFileSync(csvPath, 'utf8');
+  const lines = content.split(/\r?\n/).filter(line => line.trim().length > 0);
+  
+  return lines.slice(1).map(line => {
+    const parts = parseCsvLine(line);
+    return {
+      code: parts[0].trim(),
+      name: parts[1].trim(),
+      category: parts[2].trim() || 'Raw Material',
+      unit: parts[3].trim() || 'PCS',
+      currentStock: Number(parts[4]) || 0,
+      minStock: Number(parts[5]) || 0,
+      reorderLevel: Number(parts[6]) || 0,
+      unitRate: Number(parts[7]) || 0,
+      totalStockValue: Number(parts[8]) || 0,
+      stockStatus: parts[9].trim() || 'OUT OF STOCK',
+      fsnVelocity: parts[10].trim() || 'Non-Moving',
+      storageLocation: parts[11].trim() || 'Raw Material Store',
+    };
+  });
+}
 
 async function seedHM() {
+  const rawMaterialsData = loadCsvData();
   console.log(`Starting HM Raw Materials Seed (${rawMaterialsData.length} items)...`);
   
-  let company = await prisma.company.findFirst({ where: { publicId: 'COMP-000001' } });
+  let company = await prisma.company.findFirst({ where: { id: '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' } });
   if (!company) {
     company = await prisma.company.findFirst();
   }
@@ -228,16 +64,33 @@ async function seedHM() {
     return;
   }
 
+  let warehouse = await prisma.warehouse.findFirst({ where: { companyId: company.id } });
+  if (!warehouse) {
+    warehouse = await prisma.warehouse.create({
+      data: {
+        companyId: company.id,
+        name: 'Main Store'
+      }
+    });
+  }
+
   let upsertedCount = 0;
+  let stockTxCount = 0;
+
   for (const item of rawMaterialsData) {
     const publicId = `RM-${item.code}`;
+    const prodPublicId = `PROD-${item.code}`;
     const cleanUnit = (item.unit || 'PCS').trim();
-    await prisma.rawMaterial.upsert({
+
+    const rm = await prisma.rawMaterial.upsert({
       where: { sku: item.code },
       update: {
+        companyId: company.id,
         name: item.name,
         unit: cleanUnit,
-        category: 'Raw Material',
+        category: item.category,
+        minimumStock: item.minStock,
+        storageLocation: item.storageLocation,
         isActive: true,
       },
       create: {
@@ -246,17 +99,91 @@ async function seedHM() {
         sku: item.code,
         name: item.name,
         unit: cleanUnit,
-        category: 'Raw Material',
-        minimumStock: 0,
+        category: item.category,
+        minimumStock: item.minStock,
+        storageLocation: item.storageLocation,
         isActive: true,
       },
     });
+
+    const existingProd = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { sku: item.code },
+          { publicId: prodPublicId },
+          { id: rm.id }
+        ]
+      }
+    });
+
+    let prod;
+    if (!existingProd) {
+      const existingById = await prisma.product.findUnique({ where: { id: rm.id } });
+      const createData = {
+        publicId: prodPublicId,
+        companyId: company.id,
+        sku: item.code,
+        name: item.name,
+        category: item.category,
+        productType: 'RAW_MATERIAL',
+        unit: cleanUnit,
+        unitPrice: item.unitRate,
+        minimumStock: item.minStock,
+        isActive: true,
+      };
+      if (!existingById) createData.id = rm.id;
+      prod = await prisma.product.create({ data: createData });
+    } else {
+      prod = await prisma.product.update({
+        where: { id: existingProd.id },
+        data: {
+          companyId: company.id,
+          name: item.name,
+          sku: item.code,
+          category: item.category,
+          productType: 'RAW_MATERIAL',
+          unit: cleanUnit,
+          unitPrice: item.unitRate,
+          minimumStock: item.minStock,
+          isActive: true,
+        }
+      });
+    }
+
+    // Opening stock transaction
+    await prisma.inventoryTransaction.deleteMany({
+      where: {
+        companyId: company.id,
+        OR: [
+          { rawMaterialId: rm.id, referenceType: 'OPENING_STOCK' },
+          { productId: prod.id, referenceType: 'OPENING_STOCK' },
+        ]
+      }
+    });
+
+    if (item.currentStock > 0) {
+      await prisma.inventoryTransaction.create({
+        data: {
+          companyId: company.id,
+          rawMaterialId: rm.id,
+          productId: prod.id,
+          warehouseId: warehouse.id,
+          type: 'OPENING_STOCK',
+          quantity: item.currentStock,
+          referenceType: 'OPENING_STOCK',
+          referenceId: 'MASTER_INVENTORY_IMPORT',
+        }
+      });
+      stockTxCount++;
+    }
+
     upsertedCount++;
   }
 
   console.log(`Successfully seeded ${upsertedCount} HM Raw Material items!`);
-  const totalCount = await prisma.rawMaterial.count();
-  console.log(`Total RawMaterial count in database: ${totalCount}`);
+  console.log(`Created ${stockTxCount} stock balance transactions.`);
+  const totalCount = await prisma.rawMaterial.count({ where: { companyId: company.id } });
+  console.log(`Total RawMaterial count in database for company: ${totalCount}`);
 }
 
 seedHM()

@@ -125,7 +125,7 @@ export class ProductsService {
       }
       const rawMaterials = await this.prisma.rawMaterial.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { sku: 'asc' },
       });
 
       return rawMaterials.map((rm) => ({
