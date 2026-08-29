@@ -1114,9 +1114,20 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
     const taxAmt = (sub - discount) * (taxRate / 100);
     const tot = sub - discount + taxAmt;
 
+    let cleanDetails = item.productDetails;
+    if (typeof cleanDetails === 'string') {
+      cleanDetails = cleanDetails
+        .replace(/\|\s*Qty:\s*[^|]+/gi, '')
+        .replace(/\|\s*Rate:\s*[^|]+/gi, '')
+        .replace(/\|\s*Total:\s*[^|]+/gi, '')
+        .replace(/\s*\|\s*$/, '')
+        .trim();
+      if (cleanDetails === 'Standard Specification') cleanDetails = '';
+    }
+
     return [
       idx + 1,
-      [item.productName || item.name || 'Item', item.productDetails, item.code ? `Code: ${item.code}` : ''].filter(Boolean).join('\n'),
+      [item.productName || item.name || 'Item', cleanDetails, item.code ? `Code: ${item.code}` : ''].filter(Boolean).join('\n'),
       qty,
       `Rs. ${rate.toFixed(2)}`,
       `${taxRate}%`,

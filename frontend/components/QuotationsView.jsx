@@ -264,6 +264,24 @@ export default function QuotationsView({
       tax: Number(item.tax ?? item.gstPercent ?? 0),
     }));
   };
+
+  const formatCleanProductSpecs = (item) => {
+    if (item.productDetails && typeof item.productDetails === 'string') {
+      const cleaned = item.productDetails
+        .replace(/\|\s*Qty:\s*[^|]+/gi, '')
+        .replace(/\|\s*Rate:\s*[^|]+/gi, '')
+        .replace(/\|\s*Total:\s*[^|]+/gi, '')
+        .replace(/\s*\|\s*$/, '')
+        .trim();
+      if (cleaned && cleaned !== 'Standard Specification') return cleaned;
+    }
+    const parts = [];
+    if (item.product || item.type) parts.push(`Product: ${item.product || item.type}`);
+    if (item.size) parts.push(`Size: ${item.size}`);
+    if (item.capacity) parts.push(`Capacity: ${item.capacity}`);
+    if (item.color) parts.push(`Color: ${item.color}`);
+    return parts.join(' | ');
+  };
   const quotationTotal = (quotation) => {
     const rows = quotationDetailItems(quotation);
     if (!rows.length) return Number(quotation?.totalAmount ?? quotation?.grandTotal ?? 0);
@@ -1154,7 +1172,7 @@ export default function QuotationsView({
               background: #002e5d !important;
               color: #ffffff !important;
               vertical-align: middle !important;
-              padding: 12px 14px !important;
+              padding: 12px 10px !important;
               font-weight: 800 !important;
               font-size: 11px !important;
               letter-spacing: 0.04em !important;
@@ -1167,7 +1185,7 @@ export default function QuotationsView({
             .doc-table td {
               display: table-cell !important;
               vertical-align: middle !important;
-              padding: 12px 14px !important;
+              padding: 12px 10px !important;
               background: #ffffff !important;
               box-shadow: none !important;
               border: none !important;
@@ -1183,6 +1201,76 @@ export default function QuotationsView({
             .doc-table td::before {
               display: none !important;
               content: none !important;
+            }
+            .quotation-items-table .col-number,
+            .quotation-items-table .product-number {
+              width: 7% !important;
+              text-align: center !important;
+              vertical-align: middle !important;
+              white-space: nowrap !important;
+            }
+            .quotation-items-table .col-details,
+            .quotation-items-table .product-details-cell {
+              width: 46% !important;
+              text-align: left !important;
+              vertical-align: middle !important;
+              min-width: 0 !important;
+              overflow: hidden !important;
+              padding: 14px 16px !important;
+            }
+            .quotation-items-table .col-qty,
+            .quotation-items-table .product-qty {
+              width: 10% !important;
+              text-align: center !important;
+              vertical-align: middle !important;
+              white-space: nowrap !important;
+            }
+            .quotation-items-table .col-rate,
+            .quotation-items-table .product-rate {
+              width: 13% !important;
+              text-align: right !important;
+              vertical-align: middle !important;
+              white-space: nowrap !important;
+            }
+            .quotation-items-table .col-tax,
+            .quotation-items-table .product-tax {
+              width: 11% !important;
+              text-align: center !important;
+              vertical-align: middle !important;
+              white-space: nowrap !important;
+            }
+            .quotation-items-table .col-total,
+            .quotation-items-table .product-total {
+              width: 13% !important;
+              text-align: right !important;
+              vertical-align: middle !important;
+              white-space: nowrap !important;
+            }
+            .quotation-items-table .product-name {
+              font-size: 14.5px !important;
+              font-weight: 800 !important;
+              color: #002e5d !important;
+              line-height: 1.25 !important;
+              margin-bottom: 4px !important;
+              white-space: normal !important;
+              overflow-wrap: break-word !important;
+            }
+            .quotation-items-table .product-description {
+              font-size: 12px !important;
+              line-height: 1.4 !important;
+              color: #52627a !important;
+              margin-bottom: 4px !important;
+              white-space: normal !important;
+              overflow-wrap: break-word !important;
+              font-weight: 500 !important;
+            }
+            .quotation-items-table .product-code {
+              font-size: 11px !important;
+              line-height: 1.3 !important;
+              color: #718096 !important;
+              font-family: monospace !important;
+              white-space: normal !important;
+              overflow-wrap: anywhere !important;
             }
             @media (max-width: 640px) {
               .quotation-document-viewport {
@@ -1370,17 +1458,17 @@ export default function QuotationsView({
                 </div>
               </div>
 
-              {/* Items Table */}
+              {/* Items Table - Exact 6 Columns */}
               <div className="quotation-table-container no-mobile-stack" style={{ margin: '0 0 16px 0', border: '1.5px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', background: '#ffffff' }}>
                 <table className="quotation-items-table doc-table no-mobile-stack flat-table" style={{ border: 'none', width: '100%', borderCollapse: 'collapse', borderSpacing: 0, display: 'table', tableLayout: 'fixed', background: '#ffffff', margin: 0 }}>
                   <thead style={{ display: 'table-header-group' }}>
                     <tr style={{ background: '#002e5d', color: '#ffffff', display: 'table-row' }}>
-                      <th style={{ width: '6%', padding: '12px 8px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', textAlign: 'center', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>#</th>
-                      <th style={{ width: '44%', padding: '12px 14px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', textAlign: 'left', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>PRODUCT DETAILS</th>
-                      <th style={{ width: '10%', padding: '12px 8px', textAlign: 'center', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>QTY</th>
-                      <th style={{ width: '13%', padding: '12px 12px', textAlign: 'right', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>RATE</th>
-                      <th style={{ width: '12%', padding: '12px 8px', textAlign: 'center', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>TAX (GST)</th>
-                      <th style={{ width: '15%', padding: '12px 14px', textAlign: 'right', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>TOTAL</th>
+                      <th className="col-number" style={{ width: '7%', padding: '12px 8px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', textAlign: 'center', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>#</th>
+                      <th className="col-details" style={{ width: '46%', padding: '12px 16px', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', textAlign: 'left', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>PRODUCT DETAILS</th>
+                      <th className="col-qty" style={{ width: '10%', padding: '12px 8px', textAlign: 'center', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>QTY</th>
+                      <th className="col-rate" style={{ width: '13%', padding: '12px 10px', textAlign: 'right', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>RATE</th>
+                      <th className="col-tax" style={{ width: '11%', padding: '12px 8px', textAlign: 'center', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>TAX (GST)</th>
+                      <th className="col-total" style={{ width: '13%', padding: '12px 14px', textAlign: 'right', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#ffffff', background: '#002e5d', display: 'table-cell', verticalAlign: 'middle' }}>TOTAL</th>
                     </tr>
                   </thead>
                   <tbody style={{ display: 'table-row-group' }}>
@@ -1390,21 +1478,49 @@ export default function QuotationsView({
                       const taxable = itemSubtotal - discountValue;
                       const taxValue = taxable * (item.tax !== undefined ? item.tax : 18) / 100;
                       const itemTotal = taxable + taxValue;
+                      const cleanSpecs = formatCleanProductSpecs(item);
 
                       return (
-                        <tr key={index} style={{ borderBottom: '1px solid #f1f5f9', display: 'table-row', background: 'transparent' }}>
-                          <td style={{ width: '6%', padding: '12px 8px', textAlign: 'center', fontWeight: '700', color: '#64748b', fontSize: '13px', display: 'table-cell', verticalAlign: 'middle' }}>{index + 1}</td>
-                          <td style={{ width: '44%', padding: '12px 14px', display: 'table-cell', verticalAlign: 'middle', textAlign: 'left' }}>
-                            <div style={{ fontWeight: '800', color: '#002e5d', fontSize: '13.5px' }}>{item.productName}</div>
-                            {item.productDetails && (
-                              <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
-                            )}
-                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>Code: {item.code}</div>
+                        <tr key={index} className="quotation-product-row" style={{ borderBottom: '1px solid #f1f5f9', display: 'table-row', background: 'transparent' }}>
+                          {/* # */}
+                          <td className="product-number" style={{ width: '7%', padding: '12px 8px', textAlign: 'center', fontWeight: '700', color: '#64748b', fontSize: '13px', display: 'table-cell', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                            {index + 1}
                           </td>
-                          <td style={{ width: '10%', padding: '12px 8px', textAlign: 'center', fontWeight: '800', color: '#002e5d', fontSize: '13.5px', display: 'table-cell', verticalAlign: 'middle' }}>{item.quantity}</td>
-                          <td style={{ width: '13%', padding: '12px 12px', textAlign: 'right', fontWeight: '700', color: '#002e5d', fontSize: '13.5px', display: 'table-cell', verticalAlign: 'middle' }}>{formatINR(item.unitPrice)}</td>
-                          <td style={{ width: '12%', padding: '12px 8px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '13px', display: 'table-cell', verticalAlign: 'middle' }}>{item.tax !== undefined ? item.tax : 18}%</td>
-                          <td style={{ width: '15%', padding: '12px 14px', textAlign: 'right', fontWeight: '900', color: '#002e5d', fontSize: '14px', display: 'table-cell', verticalAlign: 'middle' }}>{formatINR(itemTotal)}</td>
+
+                          {/* PRODUCT DETAILS — EVERYTHING IN ONE CELL */}
+                          <td className="product-details-cell" style={{ width: '46%', padding: '14px 16px', display: 'table-cell', verticalAlign: 'middle', textAlign: 'left', minWidth: 0, overflow: 'hidden' }}>
+                            <div className="product-name" style={{ fontWeight: '800', color: '#002e5d', fontSize: '14px', lineHeight: '1.25', marginBottom: '4px', whiteSpace: 'normal', overflowWrap: 'break-word' }}>
+                              {item.productName}
+                            </div>
+                            {cleanSpecs ? (
+                              <div className="product-description" style={{ fontSize: '12px', color: '#52627a', lineHeight: '1.4', marginBottom: '4px', whiteSpace: 'normal', overflowWrap: 'break-word', fontWeight: '500' }}>
+                                {cleanSpecs}
+                              </div>
+                            ) : null}
+                            <div className="product-code" style={{ fontSize: '11px', color: '#718096', fontFamily: 'monospace', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                              Code: {item.code}
+                            </div>
+                          </td>
+
+                          {/* QTY */}
+                          <td className="product-qty" style={{ width: '10%', padding: '12px 8px', textAlign: 'center', fontWeight: '800', color: '#002e5d', fontSize: '13.5px', display: 'table-cell', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                            {item.quantity}
+                          </td>
+
+                          {/* RATE */}
+                          <td className="product-rate" style={{ width: '13%', padding: '12px 10px', textAlign: 'right', fontWeight: '700', color: '#002e5d', fontSize: '13.5px', display: 'table-cell', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                            ₹{Math.round(item.unitPrice).toLocaleString('en-IN')}
+                          </td>
+
+                          {/* TAX */}
+                          <td className="product-tax" style={{ width: '11%', padding: '12px 8px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '13px', display: 'table-cell', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                            {item.tax !== undefined ? item.tax : 18}%
+                          </td>
+
+                          {/* TOTAL */}
+                          <td className="product-total" style={{ width: '13%', padding: '12px 14px', textAlign: 'right', fontWeight: '900', color: '#002e5d', fontSize: '14px', display: 'table-cell', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                            ₹{Math.round(itemTotal).toLocaleString('en-IN')}
+                          </td>
                         </tr>
                       );
                     })}
