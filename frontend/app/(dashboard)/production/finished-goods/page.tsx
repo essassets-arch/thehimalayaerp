@@ -81,7 +81,7 @@ export default function FinishedGoodsPage() {
   const isAwaitingHandoff = (status?: string) => {
     if (!status) return true;
     const s = String(status).toUpperCase();
-    return ["AVAILABLE", "QC_APPROVED", "PASSED", "STAGED", "PENDING_HANDOFF", "IN_STAGING"].includes(s);
+    return ["AVAILABLE", "QC_APPROVED", "QC_PASSED", "PASSED", "STAGED", "PENDING_HANDOFF", "IN_STAGING", "READY_FOR_DISPATCH", "COMPLETED"].includes(s);
   };
 
   const readyItems = useMemo(() => allItems.filter((i) => isAwaitingHandoff(i.status)), [allItems]);
@@ -246,12 +246,6 @@ export default function FinishedGoodsPage() {
         const soNo = rawSo || `SO-2026-${(numPart || "00001").padStart(5, "0")}`;
         return <span className="font-bold text-blue-600 hover:underline">{soNo}</span>;
       },
-    },
-    {
-      id: "woNumber",
-      header: "WO Number",
-      size: 145,
-      cell: ({ row }) => <strong>{row.original.jobNo}</strong>,
     },
     {
       id: "product",

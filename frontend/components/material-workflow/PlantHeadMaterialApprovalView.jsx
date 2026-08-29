@@ -111,7 +111,7 @@ export default function PlantHeadMaterialApprovalView() {
                 <tr style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#475569', fontSize: '12px', textTransform: 'uppercase' }}>
                   <th style={{ padding: '14px 20px' }}>Request No</th>
                   <th style={{ padding: '14px 20px' }}>Date</th>
-                  <th style={{ padding: '14px 20px' }}>Work Order</th>
+                  <th style={{ padding: '14px 20px' }}>Sales Order</th>
                   <th style={{ padding: '14px 20px' }}>Items</th>
                   <th style={{ padding: '14px 20px' }}>Priority</th>
                   <th style={{ padding: '14px 20px' }}>Status</th>
@@ -231,7 +231,7 @@ export default function PlantHeadMaterialApprovalView() {
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px', fontSize: '13px', background: '#F5FAFE', padding: '14px', borderRadius: '12px' }}>
-              <div><strong>Work Order:</strong> {selectedReq.workOrderNo || '—'}</div>
+              <div><strong>Sales Order:</strong> {selectedReq.workOrderNo || '—'}</div>
               <div><strong>Priority:</strong> <span style={{ fontWeight: '800' }}>{selectedReq.priority}</span></div>
               {selectedReq.notes && (
                 <div style={{ gridColumn: isMobile ? 'auto' : 'span 3', color: '#92400e', background: '#fffbeb', padding: '10px', borderRadius: '8px', border: '1px solid #fde68a' }}>

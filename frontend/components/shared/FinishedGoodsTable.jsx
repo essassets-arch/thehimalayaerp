@@ -65,7 +65,7 @@ export default function FinishedGoodsTable({ records = [], readOnly = false, sho
   const columns = [
     { header: 'Finished Goods No.', accessor: 'id', render: (row) => <strong>{row.finishedGoodsId || row.id || row.workOrderNumber}</strong> },
     { header: 'Batch ID', accessor: 'batchId', render: (row) => <strong>{row.batchId || row.id}</strong> },
-    { header: 'Work Order', accessor: 'workOrderId', render: (row) => row.workOrderNumber || row.workOrderNo || row.workOrderId || '—' },
+    { header: 'Sales Order', accessor: 'orderNo', render: (row) => <span className="font-bold text-blue-600">{row.salesOrderNumber || row.orderNo || row.salesOrder?.orderNumber || '—'}</span> },
     { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || 'N/A' },
     { header: 'Product Item', accessor: 'items', render: (row) => {
         if (row.salesOrderItem?.product?.name) return row.salesOrderItem.product.name;

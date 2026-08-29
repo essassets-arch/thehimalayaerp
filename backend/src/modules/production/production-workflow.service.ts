@@ -714,7 +714,9 @@ export class ProductionWorkflowService {
         },
       },
       OR: [
-        { status: { in: ['READY_FOR_DISPATCH', 'COMPLETED'] } },
+        { status: { in: ['READY_FOR_DISPATCH', 'COMPLETED', 'QC_APPROVED', 'QC_PASSED'] } },
+        { productionStatus: { in: ['READY_FOR_DISPATCH', 'COMPLETED'] } },
+        { qcResult: 'PASS' },
         { qcInspections: { some: { status: { in: ['PASSED', 'APPROVED'] } } } },
       ],
     };

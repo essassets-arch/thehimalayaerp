@@ -210,12 +210,12 @@ export default function ProductionMaterialCreateView() {
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: '#5E6B82', marginBottom: '8px' }}>Linked Work Order No</label>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', color: '#5E6B82', marginBottom: '8px' }}>Linked Sales Order No</label>
           <input
             type="text"
             value={workOrderNo}
             onChange={(e) => setWorkOrderNo(e.target.value)}
-            placeholder="e.g. WO-109"
+            placeholder="e.g. SO-2026-00010"
             style={{ width: '100%', height: '42px', padding: '0 12px', borderRadius: '10px', border: '1px solid #D6E2F0', fontSize: '14px', fontFamily: 'monospace', fontWeight: '700', color: '#24345C' }}
           />
         </div>

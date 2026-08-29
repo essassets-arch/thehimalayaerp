@@ -64,12 +64,6 @@ export default function CompletedOrdersPage() {
       },
     },
     {
-      accessorKey: 'workOrderNumber',
-      header: 'WO Number',
-      size: 155,
-      cell: ({ row }) => <strong>{row.getValue('workOrderNumber')}</strong>,
-    },
-    {
       id: 'product',
       header: 'Product',
       size: 175,

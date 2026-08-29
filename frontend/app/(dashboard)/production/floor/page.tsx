@@ -162,8 +162,6 @@ export default function ProductionFloorPage() {
               <thead>
                 <tr>
                   <th>Sales Order</th>
-                  <th>WO Number</th>
-                  <th>Production Plan</th>
                   <th>Customer</th>
                   <th>Quantity</th>
                   <th>Status</th>
@@ -178,8 +176,6 @@ export default function ProductionFloorPage() {
                   return (
                     <tr key={job.id}>
                       <td style={{ fontWeight: 700, color: '#2563eb' }}>{soNo}</td>
-                      <td>{job.workOrderNumber || job.id}</td>
-                      <td>{job.productionPlan?.planNumber || job.productionPlan || job.planId || job.productionPlanId || 'PP-00005'}</td>
                       <td>{job.productionPlan?.salesOrder?.customer?.companyName || job.customerName || job.customer || 'emperorwala'}</td>
                       <td>{job.quantity || job.orderedQuantity || job.qty}</td>
                       <td>

@@ -3066,17 +3066,16 @@ export default function ProductionPortal() {
             <DataTable
               columns={[
                 { header: 'Request ID', accessor: 'id', render: (row) => <strong style={{ color: 'var(--color-text-primary)' }}>{row.id}</strong> },
-                { header: 'Work Order ID', accessor: 'workOrderId', render: (row) => <strong style={{ color: 'var(--color-text-primary)' }}>{row.workOrderId}</strong> },
                 {
-                  header: 'Order Reference', accessor: 'orderNo', render: (row) => (
+                  header: 'Sales Order Number', accessor: 'orderNo', render: (row) => (
                     <span
-                      style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                      style={{ color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
                       onClick={() => {
                         const order = orders.find(o => o.orderNo === row.orderNo);
                         if (order) setSelectedOrderDetails(order);
                       }}
                     >
-                      {row.orderNo}
+                      {row.orderNo || row.workOrderId || '—'}
                     </span>
                   )
                 },
@@ -3164,14 +3163,13 @@ export default function ProductionPortal() {
         <DataTable
           columns={[
             { header: 'Request ID', accessor: 'id', render: (row) => <strong style={{ color: '#000000' }}>{row.id}</strong> },
-            { header: 'Work Order ID', accessor: 'workOrderId' },
             {
-              header: 'Order Reference', accessor: 'orderNo', render: (row) => (
+              header: 'Sales Order Number', accessor: 'orderNo', render: (row) => (
                 <span
-                  style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                  onClick={() => navigate.push(`/orders/${row.orderNo}`)}
+                  style={{ color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                  onClick={() => navigate.push(`/orders/${row.orderNo || row.workOrderId}`)}
                 >
-                  {row.orderNo}
+                  {row.orderNo || row.workOrderId || '—'}
                 </span>
               )
             },
@@ -3337,17 +3335,16 @@ export default function ProductionPortal() {
 
         <DataTable
           columns={[
-            { header: 'Work Order ID', accessor: 'id', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.id}</strong> },
             {
-              header: 'Order Ref', accessor: 'orderNo', render: (row) => (
+              header: 'Sales Order Number', accessor: 'orderNo', render: (row) => (
                 <span
-                  style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                  style={{ color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
                   onClick={() => {
                     const order = orders.find(o => String(o.orderNo) === String(row.orderNo) || String(o.id) === String(row.orderId || row.orderNo));
                     if (order) setSelectedOrderDetails(order);
                   }}
                 >
-                  {row.orderNo || row.orderId || '—'}
+                  {row.orderNo || row.orderId || row.id || '—'}
                 </span>
               )
             },
@@ -3417,17 +3414,16 @@ export default function ProductionPortal() {
         </div>
         <DataTable
           columns={[
-            { header: 'Work Order ID', accessor: 'id', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.id}</strong> },
             {
-              header: 'Order Ref', accessor: 'orderNo', render: (row) => (
+              header: 'Sales Order Number', accessor: 'orderNo', render: (row) => (
                 <span
-                  style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                  style={{ color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
                   onClick={() => {
                     const order = orders.find(o => String(o.orderNo) === String(row.orderNo) || String(o.id) === String(row.orderId || row.orderNo));
                     if (order) setSelectedOrderDetails(order);
                   }}
                 >
-                  {row.orderNo || row.orderId || '—'}
+                  {row.orderNo || row.orderId || row.id || '—'}
                 </span>
               )
             },
@@ -3764,7 +3760,7 @@ export default function ProductionPortal() {
         <DataTable
           columns={[
             { header: 'Rework ID', accessor: 'id', render: (row) => <strong style={{ color: '#ef4444' }}>{row.id}</strong> },
-            { header: 'Work Order ID', accessor: 'workOrderId', render: (row) => <strong>{row.workOrderId}</strong> },
+            { header: 'Sales Order Number', accessor: 'orderNo', render: (row) => <span className="font-bold text-blue-600 hover:underline">{row.orderNo || row.workOrderId || '—'}</span> },
             { header: 'Product Item', accessor: 'productName' },
             { header: 'Produced Qty', accessor: 'producedQty', render: (row) => `${(row.producedQty || 0).toLocaleString()} pcs` },
             { header: 'Rework Qty', accessor: 'reworkQty', render: (row) => <strong style={{ color: '#dc2626' }}>{(row.reworkQty || 0).toLocaleString()} pcs</strong> },

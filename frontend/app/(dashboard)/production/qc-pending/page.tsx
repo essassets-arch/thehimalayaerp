@@ -389,8 +389,6 @@ export default function QCPendingPage() {
               <thead>
                 <tr>
                   <th style={{ minWidth: '170px' }}>Sales Order</th>
-                  <th style={{ minWidth: '150px' }}>WO Number</th>
-                  <th style={{ minWidth: '150px' }}>Production Plan</th>
                   <th style={{ minWidth: '160px' }}>Customer</th>
                   <th style={{ minWidth: '180px' }}>Product</th>
                   <th style={{ minWidth: '90px', textAlign: 'center' }}>Quantity</th>
@@ -418,8 +416,6 @@ export default function QCPendingPage() {
                   return (
                     <tr key={job.id}>
                       <td style={{ fontWeight: 700, color: '#2563eb' }}>{soNo}</td>
-                      <td style={{ fontWeight: 600, color: '#0f172a' }}>{job.workOrderNumber || job.id}</td>
-                      <td>{job.productionPlan?.planNumber || 'N/A'}</td>
                       <td>{job.productionPlan?.salesOrder?.customer?.name || 'Internal'}</td>
                       <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={job.salesOrderItem?.product?.name || 'N/A'}>
                         {job.salesOrderItem?.product?.name || 'N/A'}

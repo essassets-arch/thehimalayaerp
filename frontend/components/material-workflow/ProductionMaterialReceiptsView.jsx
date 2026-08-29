@@ -76,7 +76,7 @@ export default function ProductionMaterialReceiptsView() {
               <tr style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#475569', fontSize: '12px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '14px 20px' }}>Request No</th>
                 <th style={{ padding: '14px 20px' }}>Date</th>
-                <th style={{ padding: '14px 20px' }}>Work Order</th>
+                <th style={{ padding: '14px 20px' }}>Sales Order</th>
                 <th style={{ padding: '14px 20px' }}>Requester</th>
                 <th style={{ padding: '14px 20px' }}>Issued Items</th>
                 <th style={{ padding: '14px 20px' }}>Priority</th>

@@ -58,14 +58,13 @@ export default function QCInspectionListPage() {
 
   const columns: ColumnDef<QCInspection>[] = [
     {
-      accessorKey: 'workOrder.workOrderNumber',
-      header: 'WO Number',
-      cell: ({ row }) => <span className="font-medium text-gray-900">{row.getValue('workOrder.workOrderNumber')}</span>,
-    },
-    {
       accessorKey: 'workOrder.productionPlan.salesOrder.orderNumber',
       header: 'Sales Order',
-      cell: ({ row }) => row.original.workOrder?.productionPlan?.salesOrder?.orderNumber || 'N/A'
+      cell: ({ row }) => (
+        <span className="font-bold text-blue-600 hover:underline">
+          {row.original.workOrder?.productionPlan?.salesOrder?.orderNumber || 'SO-2026-00001'}
+        </span>
+      ),
     },
     {
       accessorKey: 'workOrder.productionPlan.salesOrder.customer.companyName',

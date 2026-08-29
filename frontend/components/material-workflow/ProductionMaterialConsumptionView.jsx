@@ -77,7 +77,7 @@ export default function ProductionMaterialConsumptionView() {
               <tr style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#475569', fontSize: '12px', textTransform: 'uppercase' }}>
                 <th style={{ padding: '14px 20px' }}>Request No</th>
                 <th style={{ padding: '14px 20px' }}>Date</th>
-                <th style={{ padding: '14px 20px' }}>Work Order</th>
+                <th style={{ padding: '14px 20px' }}>Sales Order</th>
                 <th style={{ padding: '14px 20px' }}>Floor Station</th>
                 <th style={{ padding: '14px 20px' }}>Consumption Progress</th>
                 <th style={{ padding: '14px 20px' }}>Priority</th>

@@ -217,7 +217,7 @@ export default function OrderDetailPage() {
           <div style={{ fontWeight:800,fontSize:14,color:"#24345C",marginBottom:14,display:"flex",alignItems:"center",gap:7 }}><MapPin size={16} color="#a6d53d" />Delivery & Production</div>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
             <div style={{ gridColumn:"span 2" }}><InfoCard icon={MapPin} label="Delivery Address" value={deliveryAddr} /></div>
-            <InfoCard icon={Layers} label="Work Order ID" value={workOrder?.id || workOrder?.workOrderNo || order.workOrderId} />
+            <InfoCard icon={Layers} label="Order Status" value={order.status || 'IN_PROGRESS'} />
             <InfoCard icon={Package} label="Produced Qty" value={workOrder?.producedQuantity ?? order.producedQuantity} />
             <InfoCard icon={CheckCircle} label="QC Approved Qty" value={qcInspection?.approvedQuantity ?? order.qcApprovedQuantity} />
             <InfoCard icon={AlertCircle} label="QC Rejected Qty" value={qcInspection?.rejectedQuantity ?? order.qcRejectedQuantity ?? 0} />

@@ -166,8 +166,6 @@ export default function QCFailedPage() {
               <thead>
                 <tr>
                   <th style={{ minWidth: '170px' }}>Sales Order</th>
-                  <th style={{ minWidth: '150px' }}>WO Number</th>
-                  <th style={{ minWidth: '150px' }}>Production Plan</th>
                   <th style={{ minWidth: '170px' }}>Failure Reason</th>
                   <th style={{ minWidth: '160px' }}>QC Remarks</th>
                   <th style={{ minWidth: '90px', textAlign: 'center' }}>Reworks</th>
@@ -183,8 +181,6 @@ export default function QCFailedPage() {
                   return (
                     <tr key={job.id}>
                       <td style={{ fontWeight: 700, color: '#2563eb' }}>{soNo}</td>
-                      <td style={{ fontWeight: 600, color: '#0f172a' }}>{job.workOrderNumber || job.id}</td>
-                      <td>{job.productionPlan?.planNumber || 'N/A'}</td>
                       <td>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', padding: '4px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600 }}>
                           <AlertTriangle size={13} />

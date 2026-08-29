@@ -751,7 +751,7 @@ export default function ProductionMaterialRequestsView() {
                         </div>
                         <div>
                           <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#8893a7', fontWeight: '800' }}>
-                            Work Order
+                            Sales Order
                           </span>
                           <span style={{ fontSize: '12.5px', color: '#4f46e5', fontWeight: '700' }}>
                             {mr.workOrderNo || '—'}
@@ -824,7 +824,7 @@ export default function ProductionMaterialRequestsView() {
                     <tr style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#475569', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800' }}>
                       <th style={{ padding: '14px 20px' }}>Request No</th>
                       <th style={{ padding: '14px 20px' }}>Date</th>
-                      <th style={{ padding: '14px 20px' }}>Work Order</th>
+                      <th style={{ padding: '14px 20px' }}>Sales Order</th>
                       <th style={{ padding: '14px 20px' }}>Items Summary</th>
                       <th style={{ padding: '14px 20px' }}>Priority</th>
                       <th style={{ padding: '14px 20px' }}>Status</th>
@@ -939,7 +939,7 @@ export default function ProductionMaterialRequestsView() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px', fontSize: '13px', background: '#F5FAFE', padding: '14px', borderRadius: '12px' }}>
               <div><strong>Status:</strong> <span style={{ color: '#2563eb', fontWeight: '800' }}>{selectedReq.status}</span></div>
               <div><strong>Date:</strong> {selectedReq.requestDate}</div>
-              <div><strong>Work Order:</strong> {selectedReq.workOrderNo}</div>
+              <div><strong>Sales Order:</strong> {selectedReq.workOrderNo}</div>
               <div><strong>Requester:</strong> {selectedReq.requester}</div>
               <div><strong>Priority:</strong> {selectedReq.priority}</div>
             </div>

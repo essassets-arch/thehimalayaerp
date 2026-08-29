@@ -229,18 +229,6 @@ export default function WorkOrderListPage() {
       },
     },
     {
-      accessorKey: 'workOrderNumber',
-      header: 'WO Number',
-      size: 160,
-      cell: ({ row }) => <span className="font-medium text-gray-900">{row.getValue('workOrderNumber')}</span>,
-    },
-    {
-      accessorKey: 'productionPlan.planNumber',
-      header: 'Production Plan',
-      size: 160,
-      cell: ({ row }) => <span>{row.original.productionPlan?.planNumber || '—'}</span>,
-    },
-    {
       accessorKey: 'productionPlan.salesOrder.customer.companyName',
       header: 'Customer',
       size: 160,
@@ -435,11 +423,11 @@ export default function WorkOrderListPage() {
                       boxShadow: '0 2px 4px rgba(0,0,0,0.01)' 
                     }}
                   >
-                    {/* Card Info Grid (3 Columns) */}
+                    {/* Card Info Grid (2 Columns) */}
                     <div 
                       style={{ 
                         display: 'grid', 
-                        gridTemplateColumns: '1.2fr 1.3fr 1fr', 
+                        gridTemplateColumns: '1.4fr 1fr', 
                         gap: '12px', 
                         alignItems: 'start' 
                       }}
@@ -454,17 +442,7 @@ export default function WorkOrderListPage() {
                         </span>
                       </div>
 
-                      {/* Column 2: WO Number & Plan Number */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <span style={{ color: '#0f172a', fontSize: '12px', fontWeight: '600', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                          {woNo}
-                        </span>
-                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
-                          Plan: {planNo}
-                        </span>
-                      </div>
-
-                      {/* Column 3: Quantity & Date */}
+                      {/* Column 2: Quantity & Date */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
                         <span style={{ color: '#1e293b', fontSize: '12px', fontWeight: '700' }}>
                           {quantity} Units
