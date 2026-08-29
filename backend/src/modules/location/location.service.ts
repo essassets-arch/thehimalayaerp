@@ -170,7 +170,7 @@ export class LocationService {
       where: { sessionId: dto.sessionId },
     });
 
-    if (!session || session.userId !== userId || session.companyId !== companyId) {
+    if (!session || session.userId !== userId) {
       throw new UnauthorizedException('Session access denied');
     }
 
@@ -577,24 +577,50 @@ export class LocationService {
   }
 
   async getLocationHistory(
-    companyId: string,
-    userId: string,
-    deviceSessionId: string,
+    companyId?: string,
+    userId?: string,
+    deviceSessionId?: string,
     dateQuery?: string,
     fromQuery?: string,
     toQuery?: string,
   ): Promise<any> {
-    const session = await this.prisma.deviceSession.findUnique({
-      where: { sessionId: deviceSessionId },
-    });
+    let session = deviceSessionId
+      ? await this.prisma.deviceSession.findUnique({
+          where: { sessionId: deviceSessionId },
+        })
+      : null;
 
-    if (!session || session.userId !== userId || session.companyId !== companyId) {
+    if (!session && deviceSessionId) {
+      session = await this.prisma.deviceSession.findFirst({
+        where: { id: deviceSessionId },
+      });
+    }
+
+    if (!session && userId) {
+      session = await this.prisma.deviceSession.findFirst({
+        where: { userId },
+        orderBy: { lastSeenAt: 'desc' },
+      });
+    }
+
+    if (!session) {
       throw new ForbiddenException('Session access denied or invalid association.');
     }
 
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-    });
+    if (userId && session.userId !== userId) {
+      throw new ForbiddenException('Session access denied or invalid association.');
+    }
+
+    if (companyId && session.companyId !== companyId) {
+      throw new ForbiddenException('Session access denied or invalid association.');
+    }
+
+    const sessionCompanyId = session.companyId || companyId;
+    const company = sessionCompanyId
+      ? await this.prisma.company.findUnique({
+          where: { id: sessionCompanyId },
+        })
+      : null;
     const tz = (company as any)?.timezone || 'Asia/Kolkata';
 
     let start: Date;

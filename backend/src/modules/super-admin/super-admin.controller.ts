@@ -146,8 +146,11 @@ export class SuperAdminController {
       throw new BadRequestException('Provide either "date" OR ("from" and "to") parameters.');
     }
 
+    const normalizedRole = String(user?.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const isSuperAdmin = normalizedRole.includes('SUPER_ADMIN') || normalizedRole === 'ADMIN';
+
     return this.locationService.getLocationHistory(
-      user.companyId,
+      isSuperAdmin ? undefined : user?.companyId,
       targetUserId,
       deviceSessionId,
       dateQuery,
