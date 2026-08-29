@@ -100,6 +100,7 @@ const SIMULATION_CURRENT_TIME = Date.now();
 export default function SuperAdminPortal() {
   const pathname = usePathname();
   const params = useParams();
+  const navigate = useRouter();
   const pathSlug = pathname ? pathname.split('/').filter(Boolean) : [];
   const view = params?.slug?.[0] || (pathSlug.length > 1 ? pathSlug[1] : 'dashboard') || 'dashboard';
   const subView = params?.slug?.[1] || (pathSlug.length > 2 ? pathSlug[2] : undefined);
@@ -131,7 +132,6 @@ export default function SuperAdminPortal() {
   const { showToast } = useToast();
   const { confirm, ConfirmDialogComponent } = useConfirm();
   const { isLoading: isAdminLoading, withLoading } = useLoading();
-  const navigate = useRouter();
   const { notifications = [] } = useNotifications() || {};
   const { data: adminData, loading: adminLoading, refetch: refetchAdminData } = useSuperAdminData();
   const [deptEmployee, setDeptEmployee] = useState(null);
