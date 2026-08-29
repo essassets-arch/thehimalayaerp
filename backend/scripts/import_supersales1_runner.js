@@ -186,9 +186,32 @@ function parseAddressObj(addrStr, stateStr, cityStr, pincodeStr) {
 }
 
 async function main() {
-  const csvPath = path.resolve('hussain_sir(super_sales1) (2).csv');
-  if (!fs.existsSync(csvPath)) {
-    console.error(`CSV file not found at: ${csvPath}`);
+  const candidatePaths = [
+    path.resolve('hussain_sir(super_sales1) (2).csv'),
+    path.join(__dirname, 'hussain_sir(super_sales1) (2).csv'),
+    path.join(__dirname, '../hussain_sir(super_sales1) (2).csv'),
+    path.resolve('/app/hussain_sir(super_sales1) (2).csv'),
+    path.resolve('/app/scripts/hussain_sir(super_sales1) (2).csv'),
+  ];
+
+  let csvPath = candidatePaths.find(p => fs.existsSync(p));
+  if (!csvPath) {
+    // Search for any csv with 'hussain' in the name in current dir or scripts dir
+    const searchDirs = [process.cwd(), __dirname, '/app', '/app/scripts'];
+    for (const dir of searchDirs) {
+      if (fs.existsSync(dir)) {
+        const match = fs.readdirSync(dir).find(f => f.toLowerCase().includes('hussain') && f.endsWith('.csv'));
+        if (match) {
+          csvPath = path.join(dir, match);
+          break;
+        }
+      }
+    }
+  }
+
+  if (!csvPath || !fs.existsSync(csvPath)) {
+    console.error(`CSV file not found in candidates: ${candidatePaths.join(', ')}`);
+    console.error(`Please copy the CSV file into the container with: docker cp "hussain_sir(super_sales1) (2).csv" himalaya-backend:/app/`);
     process.exit(1);
   }
 

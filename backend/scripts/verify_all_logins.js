@@ -4,8 +4,8 @@ function testLogin(email, password) {
   return new Promise((resolve) => {
     const postData = JSON.stringify({ email, password });
     const req = http.request({
-      hostname: 'localhost',
-      port: 4001,
+      hostname: '127.0.0.1',
+      port: process.env.PORT ? parseInt(process.env.PORT) : 4000,
       path: '/api/v1/auth/login',
       method: 'POST',
       headers: {
