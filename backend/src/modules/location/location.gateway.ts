@@ -18,10 +18,7 @@ import { UsePipes, ValidationPipe, Logger } from '@nestjs/common';
 
 @WebSocketGateway({
   cors: {
-    origin: [
-      'https://thehimalaya.cloud',
-      'http://localhost:3000',
-    ],
+    origin: true,
     credentials: true,
   },
   transports: ['websocket', 'polling'],
@@ -44,18 +41,23 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
    */
   async handleConnection(socket: Socket) {
     try {
-      const token =
+      let rawToken =
         socket.handshake.auth?.token ||
         socket.handshake.query?.token ||
-        socket.handshake.headers?.authorization?.split(' ')[1];
+        socket.handshake.headers?.authorization;
 
-      if (!token) {
+      if (!rawToken) {
         this.logger.warn(`Connection attempt without token: socket id ${socket.id}`);
         socket.disconnect(true);
         return;
       }
 
-      const secret = this.configService.get<string>('jwt.accessSecret') || 'secret';
+      const token = typeof rawToken === 'string' ? rawToken.replace(/^Bearer\s+/i, '').trim() : rawToken;
+      const secret =
+        this.configService.get<string>('jwt.accessSecret') ||
+        process.env.JWT_ACCESS_SECRET ||
+        process.env.JWT_SECRET ||
+        'secret';
       const payload = await this.jwtService.verifyAsync(token, { secret });
 
       // Attach user identity to socket

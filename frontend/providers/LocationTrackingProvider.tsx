@@ -1,8 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/authStore';
+import { backendFetch } from '@/lib/backendFetch';
 
 // Haversine formula to measure distance between two GPS points
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -67,7 +68,7 @@ export const useLocationTracking = () => {
 
 const LOCATION_SEND_INTERVAL_MS = 15000;
 const LOCATION_MIN_DISTANCE_METERS = 10;
-const HEARTBEAT_INTERVAL_MS = 30000;
+const HEARTBEAT_INTERVAL_MS = 25000;
 
 export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, accessToken, user } = useAuthStore();
@@ -101,7 +102,6 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     let devId = window.localStorage.getItem('himalaya_device_id');
     if (!devId) {
       devId = crypto.randomUUID();
-      window.localStorage.getItem('himalaya_device_id');
       window.localStorage.setItem('himalaya_device_id', devId);
     }
     return devId;
@@ -116,7 +116,26 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     startTracking();
   };
 
-  const startTracking = () => {
+  const syncPermission = useCallback((state: 'GRANTED' | 'DENIED' | 'PROMPT' | 'UNAVAILABLE' | 'UNSUPPORTED') => {
+    if (sessionIdRef.current) {
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('user:permission:update', {
+          sessionId: sessionIdRef.current,
+          locationPermission: state,
+        });
+      } else {
+        backendFetch('/location/permission', {
+          method: 'POST',
+          body: {
+            sessionId: sessionIdRef.current,
+            locationPermission: state,
+          },
+        }).catch(() => {});
+      }
+    }
+  }, []);
+
+  const startTracking = useCallback(() => {
     if (typeof window === 'undefined' || !window.navigator.geolocation) {
       setPermissionState('UNSUPPORTED');
       syncPermission('UNSUPPORTED');
@@ -150,18 +169,26 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
 
         lastLocationRef.current = { latitude, longitude, time: now };
 
-        // Send via Socket.IO if connected
-        if (socketRef.current?.connected && sessionIdRef.current) {
-          socketRef.current.emit('user:location:update', {
-            sessionId: sessionIdRef.current,
-            latitude,
-            longitude,
-            accuracy,
-            altitude,
-            speed,
-            heading,
-            capturedAt: new Date(pos.timestamp).toISOString(),
-          });
+        const payload = {
+          sessionId: sessionIdRef.current,
+          latitude,
+          longitude,
+          accuracy,
+          altitude,
+          speed,
+          heading,
+          capturedAt: new Date(pos.timestamp).toISOString(),
+        };
+
+        if (sessionIdRef.current) {
+          if (socketRef.current?.connected) {
+            socketRef.current.emit('user:location:update', payload);
+          } else {
+            backendFetch('/location/location-update', {
+              method: 'POST',
+              body: payload,
+            }).catch(() => {});
+          }
         }
       },
       (err) => {
@@ -176,16 +203,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
     );
-  };
-
-  const syncPermission = (state: 'GRANTED' | 'DENIED' | 'PROMPT' | 'UNAVAILABLE' | 'UNSUPPORTED') => {
-    if (socketRef.current?.connected && sessionIdRef.current) {
-      socketRef.current.emit('user:permission:update', {
-        sessionId: sessionIdRef.current,
-        locationPermission: state,
-      });
-    }
-  };
+  }, [syncPermission]);
 
   useEffect(() => {
     if (!isAuthenticated || !accessToken) {
@@ -202,16 +220,41 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       return;
     }
 
-    // Connect to NestJS backend Socket.IO
-    // Development: http://localhost:4000
-    // Production: same-origin (https://thehimalaya.cloud) with /socket.io handled via Caddy reverse proxy
+    const { browser, os, deviceType } = parseUserAgent();
+    const cleanToken = accessToken.replace(/^Bearer\s+/i, '').trim();
+
+    // 1. Authoritative Immediate REST Session Registration
+    const registerDeviceViaRest = async () => {
+      try {
+        const res = await backendFetch<{ sessionId: string }>('/location/session', {
+          method: 'POST',
+          body: {
+            deviceId: getDeviceId(),
+            deviceType,
+            browser,
+            operatingSystem: os,
+            clientType: 'WEB',
+            locationPermission: permissionStateRef.current,
+          },
+        });
+        if (res?.sessionId) {
+          setSessionId(res.sessionId);
+          startTracking();
+        }
+      } catch (err) {
+        console.warn('[LocationTracking] REST device registration fallback warning:', err);
+      }
+    };
+
+    registerDeviceViaRest();
+
+    // 2. Connect to NestJS backend Socket.IO for low-latency streaming
     let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_BACKEND_SOCKET_URL || '';
     if (typeof window !== 'undefined') {
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       if (isLocalhost) {
         socketUrl = socketUrl || `${window.location.protocol}//${window.location.hostname}:4000`;
       } else {
-        // In production, always use same-origin without hardcoded ports so requests proxy cleanly through Caddy
         socketUrl = window.location.origin;
       }
     } else {
@@ -220,7 +263,8 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
 
     const socket = io(socketUrl, {
       path: '/socket.io',
-      auth: { token: accessToken },
+      auth: { token: cleanToken },
+      query: { token: cleanToken },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -231,9 +275,6 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      const { browser, os, deviceType } = parseUserAgent();
-
-      // Register device session on every connect / reconnect
       socket.emit(
         'device:register',
         {
@@ -245,10 +286,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
           locationPermission: permissionStateRef.current,
         },
         (res: any) => {
-          if (res?.success && res.sessionId) {
-            setSessionId(res.sessionId);
-            startTracking();
-          } else if (res?.sessionId) {
+          if (res?.sessionId) {
             setSessionId(res.sessionId);
             startTracking();
           }
@@ -256,12 +294,29 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       );
     });
 
-    // Start periodic heartbeats to maintain online status independently of GPS
-    const heartbeatTimer = setInterval(() => {
-      if (socket.connected && sessionIdRef.current) {
-        socket.emit('user:presence:heartbeat', { sessionId: sessionIdRef.current });
+    socket.on('connect_error', (err) => {
+      console.warn('[LocationTracking] Socket connection notice (polling fallback active):', err?.message || err);
+    });
+
+    // 3. Periodic Presence Heartbeat (Socket + REST fallback)
+    const sendHeartbeat = () => {
+      const currentSid = sessionIdRef.current;
+      if (!currentSid) {
+        registerDeviceViaRest();
+        return;
       }
-    }, HEARTBEAT_INTERVAL_MS);
+
+      if (socket.connected) {
+        socket.emit('user:presence:heartbeat', { sessionId: currentSid });
+      } else {
+        backendFetch('/location/heartbeat', {
+          method: 'POST',
+          body: { sessionId: currentSid },
+        }).catch(() => {});
+      }
+    };
+
+    const heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 
     return () => {
       clearInterval(heartbeatTimer);
@@ -272,7 +327,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
         watchIdRef.current = null;
       }
     };
-  }, [isAuthenticated, accessToken]);
+  }, [isAuthenticated, accessToken, startTracking]);
 
   return (
     <LocationTrackingContext.Provider value={{ sessionId, permissionState, showNotice, acknowledgeNotice }}>

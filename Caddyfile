@@ -19,7 +19,7 @@
     }
 
     @socket_io {
-        path /socket.io /socket.io/*
+        path /socket.io*
     }
     reverse_proxy @socket_io backend:4000 {
         header_up Host {host}

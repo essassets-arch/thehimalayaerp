@@ -495,6 +495,8 @@ export default function SuperAdminLiveMapPage() {
   useEffect(() => {
     if (!accessToken) return;
 
+    const cleanToken = (accessToken || '').replace(/^Bearer\s+/i, '').trim();
+
     // Connect to NestJS backend Socket.IO
     // Development: http://localhost:4000
     // Production: same-origin (https://thehimalaya.cloud) with /socket.io handled via Caddy reverse proxy
@@ -512,7 +514,8 @@ export default function SuperAdminLiveMapPage() {
 
     const socket = io(socketUrl, {
       path: '/socket.io',
-      auth: { token: accessToken },
+      auth: { token: cleanToken },
+      query: { token: cleanToken },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -528,11 +531,13 @@ export default function SuperAdminLiveMapPage() {
       fetchSnapshot();
     });
 
-    socket.on('connect_error', () => {
+    socket.on('connect_error', (err) => {
+      console.warn('[LiveMap] Socket connection notice (REST sync active):', err?.message || err);
       setLiveStatus('RECONNECTING');
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+      console.warn('[LiveMap] Socket disconnected:', reason);
       setLiveStatus('OFFLINE');
       setLastSocketEvent({ name: 'disconnect', time: new Date().toLocaleTimeString() });
     });

@@ -4,6 +4,7 @@ import {
   Get,
   Body,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { LocationService, LiveUserResponse } from './location.service';
 import { CreateDeviceSessionDto } from './dto/device-session.dto';
@@ -26,6 +27,21 @@ export class LocationController {
     @Body() dto: CreateDeviceSessionDto,
   ) {
     return this.locationService.registerSession(user.sub, user.companyId, dto);
+  }
+
+  /**
+   * REST presence heartbeat to keep user marked online
+   */
+  @Post('heartbeat')
+  async heartbeat(
+    @CurrentUser() user: any,
+    @Body() body: { sessionId: string },
+  ) {
+    if (!body?.sessionId) {
+      throw new BadRequestException('sessionId is required');
+    }
+    await this.locationService.heartbeat(user.sub, body.sessionId);
+    return { success: true };
   }
 
   /**
