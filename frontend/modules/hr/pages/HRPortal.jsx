@@ -270,10 +270,12 @@ export default function HRPortal() {
           setSelectedExitRecord(record);
           setShowExitModal(true);
         }}
-        employees={employees}
+        employees={directoryEmployees.length > 0 ? directoryEmployees : dbEmployees.length > 0 ? dbEmployees : employees}
         leaves={leaves}
+        expenses={state.expenses || []}
         exitClearances={exitClearances}
         shifts={shifts}
+        auditLogs={state.auditLogs || []}
       />
     );
   };
