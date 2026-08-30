@@ -303,7 +303,7 @@ export default function StoreReleasesView() {
             {/* Meta Header */}
             <div className="store-release-card__meta">
               <span><strong>Order ID:</strong> {orderId || '—'}</span>
-              <span className="store-release-card__request"><strong>Request ID:</strong> {visibleRequests.map((request) => request.id).join(', ')}</span>
+              <span className="store-release-card__request"><strong>Request ID:</strong> {visibleRequests.map((request) => request.requestNo || request.publicId || request.id).join(', ')}</span>
               <span><strong>Materials:</strong> {visibleRequests.reduce((sum, request) => sum + request.items.length, 0)}</span>
               <span>
                 <strong>Status:</strong>{' '}

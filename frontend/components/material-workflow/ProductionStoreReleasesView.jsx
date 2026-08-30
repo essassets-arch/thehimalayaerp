@@ -178,7 +178,7 @@ export default function ProductionStoreReleasesView() {
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', fontSize: '13px', color: '#475569', width: isMobile ? '100%' : 'auto' }}>
                 <span><strong>Order ID:</strong> <span style={{ color: '#0f172a', fontFamily: 'monospace', fontWeight: '700' }}>{request.orderId || '—'}</span></span>
                 <span><strong>Department:</strong> <span style={{ color: '#0f172a', fontWeight: '600' }}>{request.department || 'Production'}</span></span>
-                <span><strong>Request ID:</strong> <span style={{ fontFamily: 'monospace', color: '#64748b', wordBreak: 'break-all' }}>{request.id}</span></span>
+                <span><strong>Request ID:</strong> <span style={{ fontFamily: 'monospace', color: '#24345C', fontWeight: '700' }}>{request.requestNo || request.publicId || request.id}</span></span>
                 {request.issueReference && <span><strong>Issue Ref:</strong> <span style={{ color: '#0284c7', fontWeight: '600' }}>{request.issueReference}</span></span>}
               </div>
 

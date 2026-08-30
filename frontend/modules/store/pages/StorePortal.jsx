@@ -2064,7 +2064,7 @@ export default function StorePortal() {
 
                       return (
                         <tr key={req.id}>
-                          <td style={{ fontSize: '13px', color: '#5E6B82', fontFamily: 'monospace', fontWeight: '600' }}>{req.id}</td>
+                          <td style={{ fontSize: '13px', color: '#24345C', fontFamily: 'monospace', fontWeight: '700' }}>{req.requestNo || req.publicId || req.id}</td>
                           <td style={{ fontWeight: '700', color: '#0f766e' }}>{req.materialName}</td>
 
                           {/* Department selector */}

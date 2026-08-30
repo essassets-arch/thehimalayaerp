@@ -88,7 +88,7 @@ export default function StoreMaterialIssueView() {
             ) : paginatedRequests.flatMap((request) => {
               return request.items.map((item, index) => (
                 <tr key={`${request.id}-${item.materialId || index}`}>
-                  <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9', fontWeight: 700 }}>{request.id}</td>
+                  <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9', fontWeight: 700, fontFamily: 'monospace', color: '#24345C' }}>{request.requestNo || request.publicId || request.id}</td>
                   <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9' }}>{item.materialName}</td>
                   <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9' }}>{request.department}</td>
                   <td style={{ padding: 14, borderBottom: '1px solid #f1f5f9' }}>{item.approvedQty} {item.unit}</td>
