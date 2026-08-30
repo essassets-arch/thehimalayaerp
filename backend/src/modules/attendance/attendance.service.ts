@@ -196,16 +196,6 @@ export class AttendanceService {
       throw new BadRequestException('Invalid selfie format');
     }
 
-    const testMode = process.env.ATTENDANCE_TEST_MODE === 'true' || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
-
-    if (body.isBiometricCard && !testMode) {
-      throw new BadRequestException('Physical camera selfie verification is required in production.');
-    }
-
-    if ((body.isGpsFallback || (latitude === 23.0228 && longitude === 72.5566)) && !testMode) {
-      throw new BadRequestException('Real GPS location coordinates are required for attendance. GPS mock/fallback is rejected.');
-    }
-
     if (accuracy !== undefined && accuracy !== null) {
       const accuracyVal = Number(accuracy);
       if (accuracyVal <= 0) {
@@ -279,16 +269,6 @@ export class AttendanceService {
     const savedSelfieUrl = saveBase64Image(selfie, 'attendance');
     if (!savedSelfieUrl) {
       throw new BadRequestException('Invalid selfie format');
-    }
-
-    const testMode = process.env.ATTENDANCE_TEST_MODE === 'true' || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
-
-    if (body.isBiometricCard && !testMode) {
-      throw new BadRequestException('Physical camera selfie verification is required in production.');
-    }
-
-    if ((body.isGpsFallback || (latitude === 23.0228 && longitude === 72.5566)) && !testMode) {
-      throw new BadRequestException('Real GPS location coordinates are required for attendance. GPS mock/fallback is rejected.');
     }
 
     if (accuracy !== undefined && accuracy !== null) {
