@@ -632,8 +632,8 @@ export const PlantHeadDashboard = () => {
         </div>
       )}
 
-      {/* ── 10 Dashboard Tabs Bar ── */}
-      <div className="erp-tab-scroll-bar" style={{ background: '#ffffff', borderRadius: '14px', padding: '12px', marginBottom: '24px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', gap: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+      {/* ── 10 Dashboard Tabs Bar (Horizontally swipeable on mobile) ── */}
+      <div className="plant-head-tabs erp-tab-scroll-bar" style={{ background: '#ffffff', borderRadius: '14px', padding: '12px', marginBottom: '24px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexWrap: 'nowrap', gap: '8px', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
         {[
           { id: 'executive_overview', label: '📊 Executive Overview' },
           { id: 'planning_calendar', label: '📅 Production Planning' },

@@ -15086,6 +15086,9 @@ body, #root, .app-container {
 }
 
 /* ── Horizontal Scrollable Tab Bar for Mobile Touch ── */
+.plant-head-tabs,
+.plant-head-dashboard-root .plant-head-tabs,
+.plant-head-portal-root .plant-head-tabs,
 .plant-head-dashboard-root .erp-tab-scroll-bar,
 .plant-head-portal-root .erp-tab-scroll-bar {
   display: flex !important;
@@ -15098,22 +15101,43 @@ body, #root, .app-container {
   max-width: 100% !important;
   box-sizing: border-box !important;
   gap: 8px !important;
-  padding: 8px !important;
+  padding: 4px 0 8px !important;
   scrollbar-width: none !important;
 }
 
+.plant-head-tabs::-webkit-scrollbar,
+.plant-head-dashboard-root .plant-head-tabs::-webkit-scrollbar,
+.plant-head-portal-root .plant-head-tabs::-webkit-scrollbar,
 .plant-head-dashboard-root .erp-tab-scroll-bar::-webkit-scrollbar,
 .plant-head-portal-root .erp-tab-scroll-bar::-webkit-scrollbar {
   display: none !important;
+  height: 0px !important;
+  width: 0px !important;
 }
 
+.plant-head-tabs > *,
+.plant-head-tabs button,
+.plant-head-tabs a,
 .plant-head-dashboard-root .erp-tab-scroll-bar button,
 .plant-head-portal-root .erp-tab-scroll-bar button {
+  flex: 0 0 auto !important;
   flex-shrink: 0 !important;
   white-space: nowrap !important;
-  padding: 8px 14px !important;
-  font-size: 12px !important;
-  border-radius: 8px !important;
+}
+
+@media (max-width: 768px) {
+  .plant-head-tabs,
+  .plant-head-dashboard-root .plant-head-tabs,
+  .plant-head-portal-root .plant-head-tabs {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    flex-wrap: nowrap !important;
+    touch-action: pan-x !important;
+    padding-left: 2px !important;
+    padding-right: 12px !important;
+  }
 }
 
 /* ── Tables & Containers in Plant Head ── */
