@@ -46,7 +46,11 @@ describe('Leave Domain — E2E Suite', () => {
     const salesRole = await prisma.role.upsert({
       where: { code: 'SALES_EXECUTIVE' },
       update: {},
-      create: { publicId: 'R-SALES', name: 'Sales Executive', code: 'SALES_EXECUTIVE' },
+      create: {
+        publicId: 'R-SALES',
+        name: 'Sales Executive',
+        code: 'SALES_EXECUTIVE',
+      },
     });
 
     const plantHeadRole = await prisma.role.upsert({
@@ -115,7 +119,8 @@ describe('Leave Domain — E2E Suite', () => {
     const adminLogin = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email: 'super.admin@himalayaerp.com', password: 'admin123' });
-    adminToken = adminLogin.body.accessToken || adminLogin.body.data?.accessToken;
+    adminToken =
+      adminLogin.body.accessToken || adminLogin.body.data?.accessToken;
 
     const hrLogin = await request(app.getHttpServer())
       .post('/auth/login')
@@ -125,7 +130,8 @@ describe('Leave Domain — E2E Suite', () => {
     const salesLogin = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email: 'sales1@himalayaerp.com', password: 'admin123' });
-    salesToken = salesLogin.body.accessToken || salesLogin.body.data?.accessToken;
+    salesToken =
+      salesLogin.body.accessToken || salesLogin.body.data?.accessToken;
 
     const phLogin = await request(app.getHttpServer())
       .post('/auth/login')
@@ -211,14 +217,18 @@ describe('Leave Domain — E2E Suite', () => {
       const hrRes = await request(app.getHttpServer())
         .get('/leaves/pending')
         .set('Authorization', `Bearer ${hrToken}`);
-      const hrLeave = hrRes.body.data?.find((l: any) => l.id === plantHeadLeaveId);
+      const hrLeave = hrRes.body.data?.find(
+        (l: any) => l.id === plantHeadLeaveId,
+      );
       expect(hrLeave).toBeUndefined();
 
       // Super Admin checks pending list -> should see it
       const adminRes = await request(app.getHttpServer())
         .get('/leaves/pending')
         .set('Authorization', `Bearer ${adminToken}`);
-      const adminLeave = adminRes.body.data?.find((l: any) => l.id === plantHeadLeaveId);
+      const adminLeave = adminRes.body.data?.find(
+        (l: any) => l.id === plantHeadLeaveId,
+      );
       expect(adminLeave).toBeDefined();
 
       // Super Admin approves it -> APPROVED directly

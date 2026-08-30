@@ -130,7 +130,10 @@ export class WorkflowService {
 
       let fromStateId = params.currentStateId;
       if (!fromStateId) {
-        const initialState = await this.getInitialState(params.workflowCode, db);
+        const initialState = await this.getInitialState(
+          params.workflowCode,
+          db,
+        );
         fromStateId = initialState.id;
       }
 
@@ -166,7 +169,6 @@ export class WorkflowService {
         },
       });
     }
-
 
     const fromState = transition.workflow.states.find(
       (s) => s.id === transition.fromStateId,

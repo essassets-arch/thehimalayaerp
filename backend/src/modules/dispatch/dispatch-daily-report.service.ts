@@ -24,7 +24,10 @@ export class DispatchDailyReportService {
     private readonly inventoryService: InventoryService,
   ) {}
 
-  private getSequencePrefix(date: Date, dispatchType: string): { key: string; prefix: string } {
+  private getSequencePrefix(
+    date: Date,
+    dispatchType: string,
+  ): { key: string; prefix: string } {
     const yyyy = date.getFullYear();
     const isD1 = dispatchType === 'DISPATCH_1';
     const base = isD1 ? 'DR' : 'DR2';
@@ -50,14 +53,17 @@ export class DispatchDailyReportService {
       };
     }
 
-    const productIds = Array.from(new Set(items.map((i) => i.productId).filter(Boolean)));
-    const products = productIds.length > 0
-      ? await this.prisma.product.findMany({
-          where: {
-            id: { in: productIds as string[] },
-          },
-        })
-      : [];
+    const productIds = Array.from(
+      new Set(items.map((i) => i.productId).filter(Boolean)),
+    );
+    const products =
+      productIds.length > 0
+        ? await this.prisma.product.findMany({
+            where: {
+              id: { in: productIds as string[] },
+            },
+          })
+        : [];
 
     const productMap = new Map(products.map((p) => [p.id, p]));
 
@@ -70,7 +76,8 @@ export class DispatchDailyReportService {
 
     const processedItems = items.map((item, index) => {
       const product = item.productId ? productMap.get(item.productId) : null;
-      const customProductName = item.customProductName || (!product ? item.productId : null);
+      const customProductName =
+        item.customProductName || (!product ? item.productId : null);
 
       const srNo = item.srNo || index + 1;
       const size = item.size || product?.size || product?.variantDetails || '';
@@ -95,14 +102,16 @@ export class DispatchDailyReportService {
         item.actualCoverWeight !== undefined && item.actualCoverWeight !== null
           ? Number(item.actualCoverWeight)
           : null;
-      const coverWeight = actualCoverWeight !== null ? actualCoverWeight : calculatedCoverWeight;
+      const coverWeight =
+        actualCoverWeight !== null ? actualCoverWeight : calculatedCoverWeight;
 
       const calculatedFrameWeight = frameQty * frameUnitWeight;
       const actualFrameWeight =
         item.actualFrameWeight !== undefined && item.actualFrameWeight !== null
           ? Number(item.actualFrameWeight)
           : null;
-      const frameWeight = actualFrameWeight !== null ? actualFrameWeight : calculatedFrameWeight;
+      const frameWeight =
+        actualFrameWeight !== null ? actualFrameWeight : calculatedFrameWeight;
 
       const totalWeight = coverWeight + frameWeight;
 
@@ -110,7 +119,8 @@ export class DispatchDailyReportService {
       const framesPerSet = Math.max(1, product?.framesPerSet || 1);
 
       const setsFromCovers = Math.floor(coverQty / coversPerSet);
-      const setsFromFrames = frameQty > 0 ? Math.floor(frameQty / framesPerSet) : 0;
+      const setsFromFrames =
+        frameQty > 0 ? Math.floor(frameQty / framesPerSet) : 0;
       const setQty =
         item.setQty !== undefined && item.setQty !== null
           ? Math.max(0, Math.floor(Number(item.setQty)))
@@ -119,12 +129,15 @@ export class DispatchDailyReportService {
       const extraCoverQty =
         item.extraCoverQty !== undefined && item.extraCoverQty !== null
           ? Math.max(0, Math.floor(Number(item.extraCoverQty)))
-          : Math.max(0, coverQty - (setQty * coversPerSet));
+          : Math.max(0, coverQty - setQty * coversPerSet);
 
       const extraFrameQty =
         item.extraFrameQty !== undefined && item.extraFrameQty !== null
           ? Math.max(0, Math.floor(Number(item.extraFrameQty)))
-          : Math.max(0, frameQty - (setQty * (framesPerSet > 0 ? framesPerSet : 0)));
+          : Math.max(
+              0,
+              frameQty - setQty * (framesPerSet > 0 ? framesPerSet : 0),
+            );
 
       totalCovers += coverQty;
       totalFrames += frameQty;
@@ -143,11 +156,17 @@ export class DispatchDailyReportService {
         coverQty,
         coverUnitWeight: new Prisma.Decimal(coverUnitWeight),
         coverWeight: new Prisma.Decimal(coverWeight),
-        actualCoverWeight: actualCoverWeight !== null ? new Prisma.Decimal(actualCoverWeight) : null,
+        actualCoverWeight:
+          actualCoverWeight !== null
+            ? new Prisma.Decimal(actualCoverWeight)
+            : null,
         frameQty,
         frameUnitWeight: new Prisma.Decimal(frameUnitWeight),
         frameWeight: new Prisma.Decimal(frameWeight),
-        actualFrameWeight: actualFrameWeight !== null ? new Prisma.Decimal(actualFrameWeight) : null,
+        actualFrameWeight:
+          actualFrameWeight !== null
+            ? new Prisma.Decimal(actualFrameWeight)
+            : null,
         weightOverrideReason: item.weightOverrideReason || null,
         setQty,
         extraCoverQty,
@@ -168,7 +187,11 @@ export class DispatchDailyReportService {
     };
   }
 
-  async listReports(companyId: string, dispatchType: string, query: QueryDispatchDailyReportDto) {
+  async listReports(
+    companyId: string,
+    dispatchType: string,
+    query: QueryDispatchDailyReportDto,
+  ) {
     const page = Math.max(1, Number(query.page || 1));
     const limit = Math.max(1, Math.min(100, Number(query.limit || 20)));
     const skip = (page - 1) * limit;
@@ -216,7 +239,15 @@ export class DispatchDailyReportService {
         end.setHours(23, 59, 59, 999);
       } else if (presetLower === 'this month' || presetLower === 'this_month') {
         start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+        end = new Date(
+          today.getFullYear(),
+          today.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999,
+        );
       }
     } else {
       if (query.startDate) {
@@ -235,7 +266,8 @@ export class DispatchDailyReportService {
     }
 
     if (query.search || query.product || query.type || query.capacity) {
-      const searchItemConditions: Prisma.DispatchDailyReportItemWhereInput[] = [];
+      const searchItemConditions: Prisma.DispatchDailyReportItemWhereInput[] =
+        [];
 
       if (query.product) {
         searchItemConditions.push({
@@ -249,11 +281,15 @@ export class DispatchDailyReportService {
       }
 
       if (query.type) {
-        searchItemConditions.push({ type: { contains: query.type, mode: 'insensitive' } });
+        searchItemConditions.push({
+          type: { contains: query.type, mode: 'insensitive' },
+        });
       }
 
       if (query.capacity) {
-        searchItemConditions.push({ capacity: { contains: query.capacity, mode: 'insensitive' } });
+        searchItemConditions.push({
+          capacity: { contains: query.capacity, mode: 'insensitive' },
+        });
       }
 
       if (query.search) {
@@ -312,7 +348,12 @@ export class DispatchDailyReportService {
     };
   }
 
-  async checkDuplicate(companyId: string, dateStr: string, shift: string, dispatchType: string) {
+  async checkDuplicate(
+    companyId: string,
+    dateStr: string,
+    shift: string,
+    dispatchType: string,
+  ) {
     // Multiple reports per day and shift are allowed
     return {
       exists: false,
@@ -320,7 +361,11 @@ export class DispatchDailyReportService {
     };
   }
 
-  async getReport(companyId: string, idOrReportNo: string, dispatchType: string) {
+  async getReport(
+    companyId: string,
+    idOrReportNo: string,
+    dispatchType: string,
+  ) {
     const report = await this.prisma.dispatchDailyReport.findFirst({
       where: {
         companyId,
@@ -351,20 +396,32 @@ export class DispatchDailyReportService {
     });
 
     if (!report) {
-      throw new NotFoundException(`Daily Dispatch Report '${idOrReportNo}' not found`);
+      throw new NotFoundException(
+        `Daily Dispatch Report '${idOrReportNo}' not found`,
+      );
     }
 
     return report;
   }
 
-  async createReport(companyId: string, userId: string, dto: CreateDispatchDailyReportDto, dispatchType: string) {
+  async createReport(
+    companyId: string,
+    userId: string,
+    dto: CreateDispatchDailyReportDto,
+    dispatchType: string,
+  ) {
     const reportDate = new Date(dto.reportDate);
     reportDate.setHours(0, 0, 0, 0);
 
     const { key, prefix } = this.getSequencePrefix(reportDate, dispatchType);
 
     return this.prisma.$transaction(async (tx) => {
-      const reportNo = await this.sequenceService.generateNextWithTx(tx, key, prefix, 6);
+      const reportNo = await this.sequenceService.generateNextWithTx(
+        tx,
+        key,
+        prefix,
+        6,
+      );
       const {
         processedItems,
         totalCovers,
@@ -380,7 +437,8 @@ export class DispatchDailyReportService {
           reportNo,
           reportDate,
           shift: dto.shift || 'Morning',
-          dispatchExecutive: dto.dispatchExecutive || dto.supervisorName || null,
+          dispatchExecutive:
+            dto.dispatchExecutive || dto.supervisorName || null,
           dispatchType,
           status: 'DRAFT',
           totalCovers,
@@ -426,7 +484,11 @@ export class DispatchDailyReportService {
       `;
       const report = reports[0];
 
-      if (!report || report.companyId !== companyId || report.dispatchType !== dispatchType) {
+      if (
+        !report ||
+        report.companyId !== companyId ||
+        report.dispatchType !== dispatchType
+      ) {
         throw new NotFoundException(`Report with ID ${id} not found`);
       }
 
@@ -434,7 +496,9 @@ export class DispatchDailyReportService {
         throw new ForbiddenException(`Cannot edit an APPROVED dispatch report`);
       }
 
-      const reportDate = dto.reportDate ? new Date(dto.reportDate) : new Date(report.reportDate);
+      const reportDate = dto.reportDate
+        ? new Date(dto.reportDate)
+        : new Date(report.reportDate);
       reportDate.setHours(0, 0, 0, 0);
 
       let itemsUpdate: any = {};
@@ -464,7 +528,10 @@ export class DispatchDailyReportService {
           for (const item of oldItems) {
             if (item.productId) {
               const current = oldItemsMap.get(item.productId) || 0;
-              oldItemsMap.set(item.productId, current + Number(item.setQty || 0));
+              oldItemsMap.set(
+                item.productId,
+                current + Number(item.setQty || 0),
+              );
             }
           }
 
@@ -472,7 +539,10 @@ export class DispatchDailyReportService {
           for (const item of processed.processedItems) {
             if (item.productId) {
               const current = newItemsMap.get(item.productId) || 0;
-              newItemsMap.set(item.productId, current + Number(item.setQty || 0));
+              newItemsMap.set(
+                item.productId,
+                current + Number(item.setQty || 0),
+              );
             }
           }
 
@@ -492,7 +562,7 @@ export class DispatchDailyReportService {
                 null,
                 report.reportNo,
                 userId,
-                `Adjustment (+${diff}) from Dispatch Report update`
+                `Adjustment (+${diff}) from Dispatch Report update`,
               );
             } else if (diff < 0) {
               // Less dispatched -> stock in (reversal)
@@ -507,7 +577,7 @@ export class DispatchDailyReportService {
                 report.reportNo,
                 userId,
                 `Adjustment (${diff}) from Dispatch Report update`,
-                'DISPATCH_REVERSAL'
+                'DISPATCH_REVERSAL',
               );
             }
             oldItemsMap.delete(productId);
@@ -527,7 +597,7 @@ export class DispatchDailyReportService {
                 report.reportNo,
                 userId,
                 `Adjustment (-${oldQty}) - product removed from Dispatch Report`,
-                'DISPATCH_REVERSAL'
+                'DISPATCH_REVERSAL',
               );
             }
           }
@@ -548,7 +618,9 @@ export class DispatchDailyReportService {
           reportDate,
           shift: dto.shift !== undefined ? dto.shift : report.shift,
           dispatchExecutive:
-            dto.dispatchExecutive !== undefined ? dto.dispatchExecutive : report.dispatchExecutive,
+            dto.dispatchExecutive !== undefined
+              ? dto.dispatchExecutive
+              : report.dispatchExecutive,
           totalCovers,
           totalFrames,
           totalSets,
@@ -573,7 +645,12 @@ export class DispatchDailyReportService {
     });
   }
 
-  async deleteReport(companyId: string, userId: string, id: string, dispatchType: string) {
+  async deleteReport(
+    companyId: string,
+    userId: string,
+    id: string,
+    dispatchType: string,
+  ) {
     const report = await this.prisma.dispatchDailyReport.findFirst({
       where: { id, companyId, dispatchType },
     });
@@ -590,10 +667,18 @@ export class DispatchDailyReportService {
       where: { id },
     });
 
-    return { success: true, message: `Report ${report.reportNo} deleted successfully` };
+    return {
+      success: true,
+      message: `Report ${report.reportNo} deleted successfully`,
+    };
   }
 
-  async submitReport(companyId: string, userId: string, id: string, dispatchType: string) {
+  async submitReport(
+    companyId: string,
+    userId: string,
+    id: string,
+    dispatchType: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       // 1. SELECT ... FOR UPDATE row-level locking for concurrency & double-submit protection
       const reports = await tx.$queryRaw<any[]>`
@@ -604,17 +689,25 @@ export class DispatchDailyReportService {
       `;
       const report = reports[0];
 
-      if (!report || report.companyId !== companyId || report.dispatchType !== dispatchType) {
+      if (
+        !report ||
+        report.companyId !== companyId ||
+        report.dispatchType !== dispatchType
+      ) {
         throw new NotFoundException(`Report with ID ${id} not found`);
       }
 
       // Idempotency guard: do not deduct again if already posted
       if (report.stockPostedAt) {
-        throw new BadRequestException(`Stock has already been deducted for report ${report.reportNo}`);
+        throw new BadRequestException(
+          `Stock has already been deducted for report ${report.reportNo}`,
+        );
       }
 
       if (report.status !== 'DRAFT' && report.status !== 'REOPENED') {
-        throw new BadRequestException(`Only DRAFT or REOPENED reports can be submitted (current status: ${report.status})`);
+        throw new BadRequestException(
+          `Only DRAFT or REOPENED reports can be submitted (current status: ${report.status})`,
+        );
       }
 
       const items = await tx.dispatchDailyReportItem.findMany({
@@ -622,15 +715,21 @@ export class DispatchDailyReportService {
       });
 
       if (items.length === 0) {
-        throw new BadRequestException(`Cannot submit an empty report with no dispatch rows`);
+        throw new BadRequestException(
+          `Cannot submit an empty report with no dispatch rows`,
+        );
       }
 
       for (const item of items) {
         if (item.coverQty < 0 || item.frameQty < 0 || item.setQty < 0) {
-          throw new BadRequestException(`Invalid negative quantity found in line item Sr #${item.srNo}`);
+          throw new BadRequestException(
+            `Invalid negative quantity found in line item Sr #${item.srNo}`,
+          );
         }
         if (Number(item.totalWeight) < 0) {
-          throw new BadRequestException(`Invalid negative weight found in line item Sr #${item.srNo}`);
+          throw new BadRequestException(
+            `Invalid negative weight found in line item Sr #${item.srNo}`,
+          );
         }
       }
 
@@ -639,7 +738,10 @@ export class DispatchDailyReportService {
       for (const item of items) {
         if (item.productId && item.setQty > 0) {
           const current = productSetsMap.get(item.productId) || 0;
-          productSetsMap.set(item.productId, current + Number(item.setQty || 0));
+          productSetsMap.set(
+            item.productId,
+            current + Number(item.setQty || 0),
+          );
         }
       }
 
@@ -655,7 +757,7 @@ export class DispatchDailyReportService {
           null,
           report.reportNo,
           userId,
-          `Dispatch Report submission ${report.reportNo}`
+          `Dispatch Report submission ${report.reportNo}`,
         );
       }
 
@@ -683,7 +785,12 @@ export class DispatchDailyReportService {
     });
   }
 
-  async reopenReport(companyId: string, userId: string, id: string, dispatchType: string) {
+  async reopenReport(
+    companyId: string,
+    userId: string,
+    id: string,
+    dispatchType: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       // 1. SELECT ... FOR UPDATE row-level locking
       const reports = await tx.$queryRaw<any[]>`
@@ -694,12 +801,18 @@ export class DispatchDailyReportService {
       `;
       const report = reports[0];
 
-      if (!report || report.companyId !== companyId || report.dispatchType !== dispatchType) {
+      if (
+        !report ||
+        report.companyId !== companyId ||
+        report.dispatchType !== dispatchType
+      ) {
         throw new NotFoundException(`Report with ID ${id} not found`);
       }
 
       if (report.status !== 'SUBMITTED' && report.status !== 'APPROVED') {
-        throw new BadRequestException(`Cannot reopen report in ${report.status} status`);
+        throw new BadRequestException(
+          `Cannot reopen report in ${report.status} status`,
+        );
       }
 
       // Reverse stock if it was posted (idempotent guard)
@@ -713,7 +826,10 @@ export class DispatchDailyReportService {
         for (const item of items) {
           if (item.productId && item.setQty > 0) {
             const current = productSetsMap.get(item.productId) || 0;
-            productSetsMap.set(item.productId, current + Number(item.setQty || 0));
+            productSetsMap.set(
+              item.productId,
+              current + Number(item.setQty || 0),
+            );
           }
         }
 
@@ -729,7 +845,7 @@ export class DispatchDailyReportService {
             report.reportNo,
             userId,
             `Stock reversal for reopened dispatch report ${report.reportNo}`,
-            'DISPATCH_REVERSAL'
+            'DISPATCH_REVERSAL',
           );
         }
       }
@@ -756,7 +872,12 @@ export class DispatchDailyReportService {
     });
   }
 
-  async cancelReport(companyId: string, userId: string, id: string, dispatchType: string) {
+  async cancelReport(
+    companyId: string,
+    userId: string,
+    id: string,
+    dispatchType: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       // 1. SELECT ... FOR UPDATE row-level locking
       const reports = await tx.$queryRaw<any[]>`
@@ -767,12 +888,22 @@ export class DispatchDailyReportService {
       `;
       const report = reports[0];
 
-      if (!report || report.companyId !== companyId || report.dispatchType !== dispatchType) {
+      if (
+        !report ||
+        report.companyId !== companyId ||
+        report.dispatchType !== dispatchType
+      ) {
         throw new NotFoundException(`Report with ID ${id} not found`);
       }
 
-      if (report.status !== 'SUBMITTED' && report.status !== 'APPROVED' && report.status !== 'REOPENED') {
-        throw new BadRequestException(`Only SUBMITTED, APPROVED or REOPENED reports can be cancelled`);
+      if (
+        report.status !== 'SUBMITTED' &&
+        report.status !== 'APPROVED' &&
+        report.status !== 'REOPENED'
+      ) {
+        throw new BadRequestException(
+          `Only SUBMITTED, APPROVED or REOPENED reports can be cancelled`,
+        );
       }
 
       // Re-add stock back since dispatch was cancelled (idempotent guard)
@@ -786,7 +917,10 @@ export class DispatchDailyReportService {
         for (const item of items) {
           if (item.productId && item.setQty > 0) {
             const current = productSetsMap.get(item.productId) || 0;
-            productSetsMap.set(item.productId, current + Number(item.setQty || 0));
+            productSetsMap.set(
+              item.productId,
+              current + Number(item.setQty || 0),
+            );
           }
         }
 
@@ -802,7 +936,7 @@ export class DispatchDailyReportService {
             report.reportNo,
             userId,
             `Cancellation reversal of Dispatch Report ${report.reportNo}`,
-            'DISPATCH_REVERSAL'
+            'DISPATCH_REVERSAL',
           );
         }
       }

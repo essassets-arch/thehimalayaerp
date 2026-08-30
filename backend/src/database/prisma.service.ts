@@ -7,8 +7,14 @@ const boundedDatabaseUrl = (databaseUrl?: string): string => {
   try {
     const url = new URL(databaseUrl);
     // One NestJS process must not consume the whole PostgreSQL connection budget.
-    url.searchParams.set('connection_limit', process.env.DATABASE_CONNECTION_LIMIT || '5');
-    url.searchParams.set('pool_timeout', process.env.DATABASE_POOL_TIMEOUT || '20');
+    url.searchParams.set(
+      'connection_limit',
+      process.env.DATABASE_CONNECTION_LIMIT || '5',
+    );
+    url.searchParams.set(
+      'pool_timeout',
+      process.env.DATABASE_POOL_TIMEOUT || '20',
+    );
     return url.toString();
   } catch {
     // Let Prisma report malformed URLs using its normal, actionable error message.
@@ -95,7 +101,9 @@ export class PrismaService
       });
 
       if (unpostedProd.length > 0) {
-        console.log(`[STARTUP] Found ${unpostedProd.length} unposted submitted production daily reports. Posting stock...`);
+        console.log(
+          `[STARTUP] Found ${unpostedProd.length} unposted submitted production daily reports. Posting stock...`,
+        );
         for (const report of unpostedProd) {
           await this.$transaction(async (tx) => {
             for (const item of report.items) {
@@ -145,19 +153,24 @@ export class PrismaService
                   });
                 } else {
                   // Create dummy workOrder & finished goods
-                  let customer = await tx.customer.findFirst({ where: { companyId } });
+                  let customer = await tx.customer.findFirst({
+                    where: { companyId },
+                  });
                   if (!customer) {
                     customer = await tx.customer.create({
                       data: {
                         companyId,
                         companyName: 'Default Client',
                         status: 'ACTIVE',
-                      }
+                      },
                     });
                   }
 
-                  const plan = await tx.productionPlan.findFirst({ where: { salesOrder: { customer: { companyId } } } }) || 
-                    await tx.productionPlan.create({
+                  const plan =
+                    (await tx.productionPlan.findFirst({
+                      where: { salesOrder: { customer: { companyId } } },
+                    })) ||
+                    (await tx.productionPlan.create({
                       data: {
                         planNumber: `PP-AUTO-${Date.now().toString().slice(-6)}`,
                         status: 'APPROVED',
@@ -170,10 +183,10 @@ export class PrismaService
                             taxableAmount: 0,
                             createdById: report.createdById || 'system',
                             customerId: customer.id,
-                          }
-                        }
-                      }
-                    });
+                          },
+                        },
+                      },
+                    }));
 
                   const wo = await tx.workOrder.create({
                     data: {
@@ -237,48 +250,76 @@ export class PrismaService
       const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
 
       // Ensure target company exists first to avoid FKEY violations
-      let targetCompany = await this.company.findUnique({ where: { id: companyId } });
+      let targetCompany = await this.company.findUnique({
+        where: { id: companyId },
+      });
       if (!targetCompany) {
         targetCompany = await this.company.create({
           data: {
             id: companyId,
             publicId: 'COM-001',
             name: 'Himalaya Corp',
-          }
+          },
         });
       }
       // 1. Align all existing company partitions
       try {
         await this.user.updateMany({
           where: { companyId: { not: companyId } },
-          data: { companyId }
+          data: { companyId },
         });
         await this.employee.updateMany({
           where: { companyId: { not: companyId } },
-          data: { companyId }
+          data: { companyId },
         });
         await this.workLocation.updateMany({
           where: { companyId: { not: companyId } },
-          data: { companyId }
+          data: { companyId },
         });
         await this.attendance.updateMany({
           where: { companyId: { not: companyId } },
-          data: { companyId }
+          data: { companyId },
         });
       } catch (alignErr) {
-        console.warn('[PrismaService] Partition alignment notice:', alignErr?.message || alignErr);
+        console.warn(
+          '[PrismaService] Partition alignment notice:',
+          alignErr?.message || alignErr,
+        );
       }
 
       // 2. Ensure Super Admin and HR accounts are ensured
       const targetUsers = [
-        { email: 'super.admin@himalayaerp.com', name: 'Super Admin', role: 'SUPER_ADMIN', empCode: 'EMP-SA-001', pass: 'SuperAdmin@hcppl', deptCode: 'DEPT-SUPER-ADMIN', deptName: 'Super Admin Department' },
-        { email: 'nahin.v@himalayaerp.com', name: 'Nahin V', role: 'HR', empCode: 'EMP-HR-001', pass: 'HR@hcppl', deptCode: 'DEPT-HR', deptName: 'HR Department' },
+        {
+          email: 'super.admin@himalayaerp.com',
+          name: 'Super Admin',
+          role: 'SUPER_ADMIN',
+          empCode: 'EMP-SA-001',
+          pass: 'SuperAdmin@hcppl',
+          deptCode: 'DEPT-SUPER-ADMIN',
+          deptName: 'Super Admin Department',
+        },
+        {
+          email: 'nahin.v@himalayaerp.com',
+          name: 'Nahin V',
+          role: 'HR',
+          empCode: 'EMP-HR-001',
+          pass: 'HR@hcppl',
+          deptCode: 'DEPT-HR',
+          deptName: 'HR Department',
+        },
       ];
 
-      let loc = await this.workLocation.findFirst({ where: { companyId, isActive: true } });
+      let loc = await this.workLocation.findFirst({
+        where: { companyId, isActive: true },
+      });
       if (!loc) {
         loc = await this.workLocation.create({
-          data: { code: 'LOC-HQ', name: 'Ahmedabad Head Office', companyId, isActive: true }
+          data: {
+            code: 'LOC-HQ',
+            name: 'Ahmedabad Head Office',
+            companyId,
+            isActive: true,
+          },
         });
       }
 
@@ -290,10 +331,17 @@ export class PrismaService
           const dbRole = await this.role.findFirst({ where: { code: t.role } });
           if (!dbRole) continue;
 
-          let targetDept = await this.department.findFirst({ where: { companyId, code: t.deptCode } });
+          let targetDept = await this.department.findFirst({
+            where: { companyId, code: t.deptCode },
+          });
           if (!targetDept) {
             targetDept = await this.department.create({
-              data: { code: t.deptCode, name: t.deptName, companyId, isActive: true }
+              data: {
+                code: t.deptCode,
+                name: t.deptName,
+                companyId,
+                isActive: true,
+              },
             });
           }
 
@@ -308,18 +356,29 @@ export class PrismaService
                 name: t.name,
                 roleId: dbRole.id,
                 companyId,
-                isActive: true
-              }
+                isActive: true,
+              },
             });
           } else {
             user = await this.user.update({
               where: { id: user.id },
-              data: { companyId, roleId: dbRole.id, password: passwordHash, isActive: true }
+              data: {
+                companyId,
+                roleId: dbRole.id,
+                password: passwordHash,
+                isActive: true,
+              },
             });
           }
 
-          let employee = await this.employee.findFirst({
-            where: { OR: [{ userId: user.id }, { workEmail: t.email }, { employeeCode: t.empCode }] }
+          const employee = await this.employee.findFirst({
+            where: {
+              OR: [
+                { userId: user.id },
+                { workEmail: t.email },
+                { employeeCode: t.empCode },
+              ],
+            },
           });
 
           if (!employee) {
@@ -356,24 +415,32 @@ export class PrismaService
                 bankAccountEncrypted: 'enc-auto',
                 bankAccountLastFour: '1234',
                 bankAccountHash: `bhash-${t.empCode}`,
-                ifscCode: 'SBIN0001234'
-              }
+                ifscCode: 'SBIN0001234',
+              },
             });
           } else {
             await this.employee.update({
               where: { id: employee.id },
-              data: { userId: user.id, companyId }
+              data: { userId: user.id, companyId },
             });
           }
         } catch (innerErr) {
-          console.error(`[PrismaService] Failed to provision/link user ${t.email}:`, innerErr);
+          console.error(
+            `[PrismaService] Failed to provision/link user ${t.email}:`,
+            innerErr,
+          );
         }
       }
-      console.log('[PrismaService] Startup Target 17 accounts provisioning completed successfully.');
+      console.log(
+        '[PrismaService] Startup Target 17 accounts provisioning completed successfully.',
+      );
 
       // Reconciled at start of hook
     } catch (e) {
-      console.error('[PrismaService] Error during startup target provisioning:', e);
+      console.error(
+        '[PrismaService] Error during startup target provisioning:',
+        e,
+      );
     }
   }
 

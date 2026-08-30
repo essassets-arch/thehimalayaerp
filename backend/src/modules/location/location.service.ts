@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  Logger,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateDeviceSessionDto } from './dto/device-session.dto';
 import { UpdateLocationDto } from './dto/location-update.dto';
@@ -67,7 +73,8 @@ export class LocationService {
           operatingSystem: dto.operatingSystem,
           browser: dto.browser,
           clientType: dto.clientType || 'WEB',
-          locationPermission: dto.locationPermission || existing.locationPermission,
+          locationPermission:
+            dto.locationPermission || existing.locationPermission,
           lastSeenAt: now,
           connectedAt: now,
         },
@@ -135,14 +142,21 @@ export class LocationService {
    * Save coordinates, updating LatestUserLocation and lastSeenAt
    */
   // Helper for computing coordinate distance
-  calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
     const R = 6371000; // Radius of Earth in meters
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
@@ -157,12 +171,20 @@ export class LocationService {
   ): Promise<any> {
     // 1. Strict Coordinate Bounds & Accuracy Validation
     if (dto.latitude < -90 || dto.latitude > 90) {
-      throw new BadRequestException('Invalid latitude coordinate: must be between -90 and 90');
+      throw new BadRequestException(
+        'Invalid latitude coordinate: must be between -90 and 90',
+      );
     }
     if (dto.longitude < -180 || dto.longitude > 180) {
-      throw new BadRequestException('Invalid longitude coordinate: must be between -180 and 180');
+      throw new BadRequestException(
+        'Invalid longitude coordinate: must be between -180 and 180',
+      );
     }
-    if (dto.accuracy !== null && dto.accuracy !== undefined && dto.accuracy <= 0) {
+    if (
+      dto.accuracy !== null &&
+      dto.accuracy !== undefined &&
+      dto.accuracy <= 0
+    ) {
       throw new BadRequestException('GPS accuracy must be a positive number');
     }
 
@@ -201,18 +223,30 @@ export class LocationService {
 
     // 2. Impossible GPS Jump / Teleportation Filter
     const maxSpeedMps = Number(process.env.MAX_GPS_SPEED_MPS) || 55.5; // ~200 km/h max realistic ground speed
-    if (existingLocation && existingLocation.latitude && existingLocation.longitude) {
+    if (
+      existingLocation &&
+      existingLocation.latitude &&
+      existingLocation.longitude
+    ) {
       const distance = this.calculateDistance(
         Number(existingLocation.latitude),
         Number(existingLocation.longitude),
         dto.latitude,
         dto.longitude,
       );
-      const elapsedSeconds = Math.max(1, (captured.getTime() - new Date(existingLocation.capturedAt).getTime()) / 1000);
+      const elapsedSeconds = Math.max(
+        1,
+        (captured.getTime() - new Date(existingLocation.capturedAt).getTime()) /
+          1000,
+      );
       const calculatedSpeed = distance / elapsedSeconds;
 
       // If speed exceeds 200 km/h over more than 500 meters in a short interval, filter as suspicious jump
-      if (distance > 500 && elapsedSeconds < 300 && calculatedSpeed > maxSpeedMps) {
+      if (
+        distance > 500 &&
+        elapsedSeconds < 300 &&
+        calculatedSpeed > maxSpeedMps
+      ) {
         this.logger.warn(
           `[GPS Jump Filtered] Suspicious GPS jump for user ${userId}: moved ${Math.round(distance)}m in ${elapsedSeconds}s (${Math.round(calculatedSpeed * 3.6)} km/h). Rejecting coordinate warping.`,
         );
@@ -265,11 +299,17 @@ export class LocationService {
     });
 
     // 4. Sampling location history: protect against poor GPS accuracy
-    const maxAccuracyThreshold = Number(process.env.LOCATION_HISTORY_MAX_ACCURACY_METERS) || 100;
-    const samplingDistanceMeters = Number(process.env.LOCATION_HISTORY_SAMPLING_DISTANCE_METERS) || 20;
-    const samplingTimeSeconds = Number(process.env.LOCATION_HISTORY_SAMPLING_TIME_SECONDS) || 60;
+    const maxAccuracyThreshold =
+      Number(process.env.LOCATION_HISTORY_MAX_ACCURACY_METERS) || 100;
+    const samplingDistanceMeters =
+      Number(process.env.LOCATION_HISTORY_SAMPLING_DISTANCE_METERS) || 20;
+    const samplingTimeSeconds =
+      Number(process.env.LOCATION_HISTORY_SAMPLING_TIME_SECONDS) || 60;
 
-    const isAccurate = dto.accuracy === null || dto.accuracy === undefined || dto.accuracy <= maxAccuracyThreshold;
+    const isAccurate =
+      dto.accuracy === null ||
+      dto.accuracy === undefined ||
+      dto.accuracy <= maxAccuracyThreshold;
 
     if (isAccurate) {
       const prevHistory = await this.prisma.userLocationHistory.findFirst({
@@ -287,7 +327,9 @@ export class LocationService {
           dto.latitude,
           dto.longitude,
         );
-        const elapsed = (captured.getTime() - new Date(prevHistory.capturedAt).getTime()) / 1000;
+        const elapsed =
+          (captured.getTime() - new Date(prevHistory.capturedAt).getTime()) /
+          1000;
         if (dist >= samplingDistanceMeters || elapsed >= samplingTimeSeconds) {
           shouldInsertHistory = true;
         }
@@ -354,8 +396,12 @@ export class LocationService {
    */
   async getLiveUsers(companyId?: string): Promise<LiveUserResponse[]> {
     const now = new Date();
-    const onlineCutoff = new Date(now.getTime() - ONLINE_THRESHOLD_SECONDS * 1000);
-    const recentCutoff = new Date(now.getTime() - RECENT_THRESHOLD_SECONDS * 1000);
+    const onlineCutoff = new Date(
+      now.getTime() - ONLINE_THRESHOLD_SECONDS * 1000,
+    );
+    const recentCutoff = new Date(
+      now.getTime() - RECENT_THRESHOLD_SECONDS * 1000,
+    );
 
     const whereClause: any = { isActive: true };
     if (companyId) {
@@ -397,13 +443,25 @@ export class LocationService {
           status = 'RECENTLY_ACTIVE';
         }
 
-        const heartbeatAgeSeconds = Math.max(0, Math.round((now.getTime() - new Date(ds.lastSeenAt).getTime()) / 1000));
+        const heartbeatAgeSeconds = Math.max(
+          0,
+          Math.round(
+            (now.getTime() - new Date(ds.lastSeenAt).getTime()) / 1000,
+          ),
+        );
         let gpsStatus: 'ACTIVE' | 'STALE' | 'UNAVAILABLE' = 'UNAVAILABLE';
         let gpsAgeSeconds: number | null = null;
 
         let locationData: any = null;
         if (ds.latestLocation) {
-          gpsAgeSeconds = Math.max(0, Math.round((now.getTime() - new Date(ds.latestLocation.capturedAt).getTime()) / 1000));
+          gpsAgeSeconds = Math.max(
+            0,
+            Math.round(
+              (now.getTime() -
+                new Date(ds.latestLocation.capturedAt).getTime()) /
+                1000,
+            ),
+          );
           gpsStatus = gpsAgeSeconds <= 120 ? 'ACTIVE' : 'STALE';
 
           locationData = {
@@ -483,7 +541,9 @@ export class LocationService {
 
     if (!user || !user.role) return false;
 
-    const normalizedRole = String(user.role.code || user.role.name || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const normalizedRole = String(user.role.code || user.role.name || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
     if (
       normalizedRole === 'SUPER_ADMIN' ||
       normalizedRole === 'ADMIN' ||
@@ -493,10 +553,15 @@ export class LocationService {
       normalizedRole.includes('SALES') ||
       normalizedRole.includes('MANAGER') ||
       normalizedRole.includes('DIRECTOR')
-    ) return true;
+    )
+      return true;
 
     const perms = user.role.rolePermissions.map((rp) => rp.permission.code);
-    return perms.includes('LIVE_USER_MAP_VIEW') || perms.includes('SUPER_ADMIN') || perms.includes('ADMIN');
+    return (
+      perms.includes('LIVE_USER_MAP_VIEW') ||
+      perms.includes('SUPER_ADMIN') ||
+      perms.includes('ADMIN')
+    );
   }
 
   /**
@@ -518,7 +583,9 @@ export class LocationService {
 
     if (!user || !user.role) return false;
 
-    const normalizedRole = String(user.role.code || user.role.name || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const normalizedRole = String(user.role.code || user.role.name || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
     if (
       normalizedRole === 'SUPER_ADMIN' ||
       normalizedRole === 'ADMIN' ||
@@ -528,17 +595,24 @@ export class LocationService {
       normalizedRole.includes('SALES') ||
       normalizedRole.includes('MANAGER') ||
       normalizedRole.includes('DIRECTOR')
-    ) return true;
+    )
+      return true;
 
     const perms = user.role.rolePermissions.map((rp) => rp.permission.code);
-    return perms.includes('USER_LOCATION_HISTORY_VIEW') || perms.includes('LIVE_USER_MAP_VIEW') || perms.includes('SUPER_ADMIN') || perms.includes('ADMIN');
+    return (
+      perms.includes('USER_LOCATION_HISTORY_VIEW') ||
+      perms.includes('LIVE_USER_MAP_VIEW') ||
+      perms.includes('SUPER_ADMIN') ||
+      perms.includes('ADMIN')
+    );
   }
 
   /**
    * Cleanup expired UserLocationHistory entries older than 30 days
    */
   async cleanupExpiredLocationHistory(): Promise<number> {
-    const retentionDays = Number(process.env.LOCATION_HISTORY_RETENTION_DAYS) || 30;
+    const retentionDays =
+      Number(process.env.LOCATION_HISTORY_RETENTION_DAYS) || 30;
     const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
     const result = await this.prisma.userLocationHistory.deleteMany({
       where: {
@@ -547,33 +621,47 @@ export class LocationService {
         },
       },
     });
-    this.logger.log(`Cleaned up ${result.count} expired user location history records.`);
+    this.logger.log(
+      `Cleaned up ${result.count} expired user location history records.`,
+    );
     return result.count;
   }
 
   // Local helper for dynamic timezone calculations to UTC
-  private getUtcRangeForLocalDate(dateStr: string, timezone: string): { start: Date; end: Date } {
+  private getUtcRangeForLocalDate(
+    dateStr: string,
+    timezone: string,
+  ): { start: Date; end: Date } {
     const [year, month, day] = dateStr.split('-').map(Number);
     const testDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
-      year: 'numeric', month: 'numeric', day: 'numeric',
-      hour: 'numeric', minute: 'numeric', second: 'numeric',
-      hour12: false
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false,
     });
     const parts = formatter.formatToParts(testDate);
-    const getPart = (type: string) => Number(parts.find(p => p.type === type)?.value);
+    const getPart = (type: string) =>
+      Number(parts.find((p) => p.type === type)?.value);
     const formattedUtc = Date.UTC(
       getPart('year'),
       getPart('month') - 1,
       getPart('day'),
       getPart('hour'),
       getPart('minute'),
-      getPart('second')
+      getPart('second'),
     );
     const offsetMs = formattedUtc - testDate.getTime();
-    const startUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0) - offsetMs);
-    const endUtc = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999) - offsetMs);
+    const startUtc = new Date(
+      Date.UTC(year, month - 1, day, 0, 0, 0, 0) - offsetMs,
+    );
+    const endUtc = new Date(
+      Date.UTC(year, month - 1, day, 23, 59, 59, 999) - offsetMs,
+    );
     return { start: startUtc, end: endUtc };
   }
 
@@ -585,7 +673,10 @@ export class LocationService {
     fromQuery?: string,
     toQuery?: string,
   ): Promise<any> {
-    const cleanUserId = userId && userId !== 'undefined' && userId !== 'null' ? userId : undefined;
+    const cleanUserId =
+      userId && userId !== 'undefined' && userId !== 'null'
+        ? userId
+        : undefined;
 
     let session = deviceSessionId
       ? await this.prisma.deviceSession.findUnique({
@@ -607,15 +698,21 @@ export class LocationService {
     }
 
     if (!session) {
-      throw new ForbiddenException('Session access denied or invalid association.');
+      throw new ForbiddenException(
+        'Session access denied or invalid association.',
+      );
     }
 
     if (cleanUserId && session.userId !== cleanUserId) {
-      throw new ForbiddenException('Session access denied or invalid association.');
+      throw new ForbiddenException(
+        'Session access denied or invalid association.',
+      );
     }
 
     if (companyId && session.companyId !== companyId) {
-      throw new ForbiddenException('Session access denied or invalid association.');
+      throw new ForbiddenException(
+        'Session access denied or invalid association.',
+      );
     }
 
     const sessionCompanyId = session.companyId || companyId;
@@ -639,7 +736,9 @@ export class LocationService {
       start = startRange.start;
       end = endRange.end;
     } else {
-      throw new BadRequestException('Provide either "date" OR ("from" and "to") parameters.');
+      throw new BadRequestException(
+        'Provide either "date" OR ("from" and "to") parameters.',
+      );
     }
 
     const maxRangeMs = 7 * 24 * 60 * 60 * 1000;

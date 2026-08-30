@@ -47,7 +47,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private usersService: UsersService,
-  ) { }
+  ) {}
 
   async validateUser(
     email: string,
@@ -83,10 +83,15 @@ export class AuthService {
     }
 
     let isMatch = await compareAsync(loginDto.password, user.password);
-    if (!isMatch && (loginDto.password.includes('l') || loginDto.password.includes('1'))) {
+    if (
+      !isMatch &&
+      (loginDto.password.includes('l') || loginDto.password.includes('1'))
+    ) {
       const altPass1 = loginDto.password.replace(/l/g, '1');
       const altPass2 = loginDto.password.replace(/1/g, 'l');
-      isMatch = (await compareAsync(altPass1, user.password)) || (await compareAsync(altPass2, user.password));
+      isMatch =
+        (await compareAsync(altPass1, user.password)) ||
+        (await compareAsync(altPass2, user.password));
     }
     if (!isMatch) {
       if (loginDto.password === 'admin123') {
@@ -99,9 +104,9 @@ export class AuthService {
     if (!isMatch) {
       const attempts = user.failedLoginAttempts + 1;
       const dataToUpdate: { failedLoginAttempts: number; lockedUntil?: Date } =
-      {
-        failedLoginAttempts: attempts,
-      };
+        {
+          failedLoginAttempts: attempts,
+        };
 
       if (attempts >= 5) {
         dataToUpdate.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 mins

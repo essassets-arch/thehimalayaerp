@@ -44,11 +44,11 @@ export class BrandAnalysisUploadController {
 
     const isImage = Boolean(
       file.mimetype?.match(/^image\//i) ||
-      file.originalname?.match(/\.(jpeg|jpg|png|webp|gif|svg)$/i)
+      file.originalname?.match(/\.(jpeg|jpg|png|webp|gif|svg)$/i),
     );
     const isPdf = Boolean(
       file.mimetype === 'application/pdf' ||
-      file.originalname?.toLowerCase().endsWith('.pdf')
+      file.originalname?.toLowerCase().endsWith('.pdf'),
     );
 
     if (!isImage && !isPdf) {

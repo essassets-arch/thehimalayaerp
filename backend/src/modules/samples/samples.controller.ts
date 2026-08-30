@@ -51,7 +51,12 @@ export class SamplesController {
       PENDING_DISPATCH: 'READY_FOR_DISPATCH',
       TESTING: 'UNDER_TESTING',
     };
-    const leadName = data.lead?.companyName || data.lead?.leadNumber || data.customer?.companyName || data.company?.name || 'Unknown Lead/Customer';
+    const leadName =
+      data.lead?.companyName ||
+      data.lead?.leadNumber ||
+      data.customer?.companyName ||
+      data.company?.name ||
+      'Unknown Lead/Customer';
     const product = data.items?.[0]?.product?.name || 'Sample Product';
     return {
       ...data,
@@ -93,7 +98,12 @@ export class SamplesController {
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req, @Headers() headers) {
     const { companyId, userId, role } = this.extractAuthData(req, headers);
-    const result = await this.samplesService.findOne(id, companyId, userId, role);
+    const result = await this.samplesService.findOne(
+      id,
+      companyId,
+      userId,
+      role,
+    );
     return this.mapSampleStatus(result);
   }
 
@@ -116,7 +126,12 @@ export class SamplesController {
     return this.mapSampleStatus(result);
   }
 
-  @RequirePermissions('admin.samples.create', 'admin.samples.update', 'logistics.dispatches.start-delivery', 'logistics.dispatches.confirm-delivery')
+  @RequirePermissions(
+    'admin.samples.create',
+    'admin.samples.update',
+    'logistics.dispatches.start-delivery',
+    'logistics.dispatches.confirm-delivery',
+  )
   @Post(':id/status')
   async updateStatus(
     @Param('id') id: string,

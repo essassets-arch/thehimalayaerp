@@ -22,7 +22,7 @@ export class MaterialRequestsService {
     }
     const digits = clean.replace(/\D/g, '');
     if (digits.length >= 8) {
-      const num = parseInt(digits.slice(-4), 10) || ((index ?? 0) + 1);
+      const num = parseInt(digits.slice(-4), 10) || (index ?? 0) + 1;
       return `MR-${String(num).padStart(4, '0')}`;
     }
     if (digits) {
@@ -37,7 +37,9 @@ export class MaterialRequestsService {
       id: request.id,
       requestNo: this.formatPublicId(request.publicId, index),
       rawPublicId: request.publicId,
-      requestDate: request.requestDate ? request.requestDate.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      requestDate: request.requestDate
+        ? request.requestDate.toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
       workOrderNo: request.workOrderNo,
       orderId: request.workOrderNo,
       department: 'Production',
@@ -51,12 +53,15 @@ export class MaterialRequestsService {
       ...(request.metadata && typeof request.metadata === 'object'
         ? request.metadata
         : {}),
-      createdAt: request.createdAt ? request.createdAt.toISOString() : new Date().toISOString(),
+      createdAt: request.createdAt
+        ? request.createdAt.toISOString()
+        : new Date().toISOString(),
       items: (request.items || []).map((item: any) => ({
         id: item.id,
         materialId: item.productId,
         material: item.product?.name || item.materialName || 'Material Item',
-        materialName: item.product?.name || item.materialName || 'Material Item',
+        materialName:
+          item.product?.name || item.materialName || 'Material Item',
         requestedQty: Number(item.quantity || 0),
         approvedQty: Number(item.approvedQuantity ?? item.quantity ?? 0),
         issuedQty: Number(item.issuedQuantity ?? 0),
@@ -86,7 +91,9 @@ export class MaterialRequestsService {
     let publicId = dto.requestNo;
     if (!publicId || /^MR-\d{6,}$/i.test(publicId)) {
       const count = await this.prisma.materialRequest.count({
-        where: { companyId: companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' },
+        where: {
+          companyId: companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015',
+        },
       });
       publicId = `MR-${String(count + 1).padStart(4, '0')}`;
     }
@@ -147,17 +154,19 @@ export class MaterialRequestsService {
 
     // Notify Plant Head of new Material Request awaiting approval
     if (this.notificationsService) {
-      await this.notificationsService.notifyRole({
-        companyId,
-        role: 'PLANT_HEAD',
-        type: 'MATERIAL_REQUEST_PENDING_APPROVAL',
-        title: 'Material Request Awaiting Approval',
-        message: `${publicId} — Production has requested material for ${row.workOrderNo || 'Work Order'}.`,
-        route: '/plant-head/material-approvals',
-        entityType: 'MaterialRequest',
-        entityId: row.id,
-        eventKeyPrefix: `MATERIAL_REQUEST:${row.id}:PENDING_APPROVAL`,
-      }).catch(() => {});
+      await this.notificationsService
+        .notifyRole({
+          companyId,
+          role: 'PLANT_HEAD',
+          type: 'MATERIAL_REQUEST_PENDING_APPROVAL',
+          title: 'Material Request Awaiting Approval',
+          message: `${publicId} — Production has requested material for ${row.workOrderNo || 'Work Order'}.`,
+          route: '/plant-head/material-approvals',
+          entityType: 'MaterialRequest',
+          entityId: row.id,
+          eventKeyPrefix: `MATERIAL_REQUEST:${row.id}:PENDING_APPROVAL`,
+        })
+        .catch(() => {});
     }
 
     return this.map(row);
@@ -222,30 +231,38 @@ export class MaterialRequestsService {
     // Notify Store / Production when Plant Head approves/rejects Material Request
     if (this.notificationsService) {
       if (status === 'PLANT_HEAD_APPROVED') {
-        await this.notificationsService.notifyRole({
-          companyId,
-          role: 'STORE_MANAGER',
-          type: 'MATERIAL_REQUEST_APPROVED',
-          title: 'Material Request Approved',
-          message: `${current.publicId} — Approved material request is ready for Store processing.`,
-          route: '/store/material-requests',
-          entityType: 'MaterialRequest',
-          entityId: current.id,
-          eventKeyPrefix: `MATERIAL_REQUEST:${current.id}:APPROVED`,
-        }).catch(() => {});
-      } else if (status === 'PLANT_HEAD_REJECTED' || status === 'REJECTED' || status.includes('REJECT')) {
-        if (current.requestedById) {
-          await this.notificationsService.notifyUser({
+        await this.notificationsService
+          .notifyRole({
             companyId,
-            userId: current.requestedById,
-            type: 'MATERIAL_REQUEST_REJECTED',
-            title: 'Material Request Rejected',
-            message: `${current.publicId} — Plant Head rejected the material request.`,
-            route: '/production/material-requests',
+            role: 'STORE_MANAGER',
+            type: 'MATERIAL_REQUEST_APPROVED',
+            title: 'Material Request Approved',
+            message: `${current.publicId} — Approved material request is ready for Store processing.`,
+            route: '/store/material-requests',
             entityType: 'MaterialRequest',
             entityId: current.id,
-            eventKey: `MATERIAL_REQUEST:${current.id}:REJECTED`,
-          }).catch(() => {});
+            eventKeyPrefix: `MATERIAL_REQUEST:${current.id}:APPROVED`,
+          })
+          .catch(() => {});
+      } else if (
+        status === 'PLANT_HEAD_REJECTED' ||
+        status === 'REJECTED' ||
+        status.includes('REJECT')
+      ) {
+        if (current.requestedById) {
+          await this.notificationsService
+            .notifyUser({
+              companyId,
+              userId: current.requestedById,
+              type: 'MATERIAL_REQUEST_REJECTED',
+              title: 'Material Request Rejected',
+              message: `${current.publicId} — Plant Head rejected the material request.`,
+              route: '/production/material-requests',
+              entityType: 'MaterialRequest',
+              entityId: current.id,
+              eventKey: `MATERIAL_REQUEST:${current.id}:REJECTED`,
+            })
+            .catch(() => {});
         }
       }
     }
@@ -331,19 +348,24 @@ export class MaterialRequestsService {
     if (this.notificationsService && row) {
       if (dto.status === 'ISSUED_TO_PRODUCTION') {
         if (row.requestedById) {
-          this.notificationsService.notifyUser({
-            companyId,
-            userId: row.requestedById,
-            type: 'MATERIAL_RELEASED',
-            title: 'Material Released',
-            message: `${row.publicId} — Store has released the requested material for ${row.workOrderNo || 'Work Order'}.`,
-            route: '/production/material-requests',
-            entityType: 'MaterialRequest',
-            entityId: row.id,
-            eventKey: `MATERIAL_REQUEST:${row.id}:RELEASED`,
-          }).catch((err) =>
-            console.warn('[MaterialRequestsService Notification] Failed to notify Material Released:', err.message)
-          );
+          this.notificationsService
+            .notifyUser({
+              companyId,
+              userId: row.requestedById,
+              type: 'MATERIAL_RELEASED',
+              title: 'Material Released',
+              message: `${row.publicId} — Store has released the requested material for ${row.workOrderNo || 'Work Order'}.`,
+              route: '/production/material-requests',
+              entityType: 'MaterialRequest',
+              entityId: row.id,
+              eventKey: `MATERIAL_REQUEST:${row.id}:RELEASED`,
+            })
+            .catch((err) =>
+              console.warn(
+                '[MaterialRequestsService Notification] Failed to notify Material Released:',
+                err.message,
+              ),
+            );
         }
       }
     }

@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsEnum, IsInt, Min, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsInt,
+  Min,
+  IsOptional,
+} from 'class-validator';
 import { TargetPeriod } from '@prisma/client';
 
 export class CreateProductionTargetDto {

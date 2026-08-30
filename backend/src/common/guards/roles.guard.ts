@@ -33,10 +33,18 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Insufficient role privileges');
     }
 
-    let normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    if (normalizedRole.startsWith('SUPER_SALES') || normalizedRole.startsWith('SUPERSALES')) {
+    let normalizedRole = String(user.role || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    if (
+      normalizedRole.startsWith('SUPER_SALES') ||
+      normalizedRole.startsWith('SUPERSALES')
+    ) {
       normalizedRole = 'SUPER_SALES';
-    } else if (normalizedRole.startsWith('SALES_EXEC') || normalizedRole === 'SALES') {
+    } else if (
+      normalizedRole.startsWith('SALES_EXEC') ||
+      normalizedRole === 'SALES'
+    ) {
       normalizedRole = 'SALES_EXECUTIVE';
     }
 
@@ -44,10 +52,14 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const normalizedRequired = requiredRoles.map(r => {
-      let nr = String(r || '').toUpperCase().replace(/[\s-]+/g, '_');
-      if (nr.startsWith('SUPER_SALES') || nr.startsWith('SUPERSALES')) return 'SUPER_SALES';
-      if (nr.startsWith('SALES_EXEC') || nr === 'SALES') return 'SALES_EXECUTIVE';
+    const normalizedRequired = requiredRoles.map((r) => {
+      const nr = String(r || '')
+        .toUpperCase()
+        .replace(/[\s-]+/g, '_');
+      if (nr.startsWith('SUPER_SALES') || nr.startsWith('SUPERSALES'))
+        return 'SUPER_SALES';
+      if (nr.startsWith('SALES_EXEC') || nr === 'SALES')
+        return 'SALES_EXECUTIVE';
       return nr;
     });
     const hasRole = normalizedRequired.includes(normalizedRole);

@@ -54,40 +54,70 @@ describe('Quotations RBAC E2E', () => {
     }
 
     // Ensure roles exist and permissions assigned
-    const salesExecRole = await prisma.role.findUnique({ where: { code: 'SALES_EXECUTIVE' } });
+    const salesExecRole = await prisma.role.findUnique({
+      where: { code: 'SALES_EXECUTIVE' },
+    });
     if (salesExecRole) {
       const perms = await prisma.permission.findMany({
-        where: { code: { in: ['crm.quotations.read', 'crm.quotations.create', 'crm.quotations.update', 'crm.quotations.send'] } },
+        where: {
+          code: {
+            in: [
+              'crm.quotations.read',
+              'crm.quotations.create',
+              'crm.quotations.update',
+              'crm.quotations.send',
+            ],
+          },
+        },
       });
       for (const perm of perms) {
         await prisma.rolePermission.upsert({
-          where: { roleId_permissionId: { roleId: salesExecRole.id, permissionId: perm.id } },
+          where: {
+            roleId_permissionId: {
+              roleId: salesExecRole.id,
+              permissionId: perm.id,
+            },
+          },
           update: {},
           create: { roleId: salesExecRole.id, permissionId: perm.id },
         });
       }
     }
 
-    const salesMgrRole = await prisma.role.findUnique({ where: { code: 'SALES_MANAGER' } });
+    const salesMgrRole = await prisma.role.findUnique({
+      where: { code: 'SALES_MANAGER' },
+    });
     if (salesMgrRole) {
       const perms = await prisma.permission.findMany({
         where: { code: { in: quotationPermCodes } },
       });
       for (const perm of perms) {
         await prisma.rolePermission.upsert({
-          where: { roleId_permissionId: { roleId: salesMgrRole.id, permissionId: perm.id } },
+          where: {
+            roleId_permissionId: {
+              roleId: salesMgrRole.id,
+              permissionId: perm.id,
+            },
+          },
           update: {},
           create: { roleId: salesMgrRole.id, permissionId: perm.id },
         });
       }
     }
 
-    const superAdminRole = await prisma.role.findUnique({ where: { code: 'SUPER_ADMIN' } });
+    const superAdminRole = await prisma.role.findUnique({
+      where: { code: 'SUPER_ADMIN' },
+    });
     if (superAdminRole) {
       const allPerms = await prisma.permission.findMany();
       for (const perm of allPerms) {
         await prisma.rolePermission.upsert({
-          where: { roleId_permissionId: { roleId: superAdminRole.id, permissionId: perm.id } },
+          where: {
+            roleId_permissionId: {
+              roleId: superAdminRole.id,
+              permissionId: perm.id,
+            },
+          },
           update: {},
           create: { roleId: superAdminRole.id, permissionId: perm.id },
         });
@@ -124,7 +154,9 @@ describe('Quotations RBAC E2E', () => {
       .get('/crm/quotations')
       .set('Authorization', `Bearer ${hrToken}`);
     expect(res.status).toBe(403);
-    expect(res.body.message || res.body.error?.message).toContain('Insufficient permissions');
+    expect(res.body.message || res.body.error?.message).toContain(
+      'Insufficient permissions',
+    );
   });
 
   it('3. Sales Executive with crm.quotations.read returns 200', async () => {

@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { getSalesScope, isRestrictedRole, canAssignSalesOwner } from '../../common/utils/rbac.util';
+import {
+  getSalesScope,
+  isRestrictedRole,
+  canAssignSalesOwner,
+} from '../../common/utils/rbac.util';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 
@@ -96,8 +100,10 @@ export class LeadsService {
     const leadNumber = await this.sequenceService.generateLeadNumber(leadDate);
 
     const isManager = canAssignSalesOwner(role);
-    const assignedId = isManager ? (dto.assignedToId || userId) : userId;
-    const salesExecutiveId = isManager ? (dto.salesExecutiveId || assignedId) : userId;
+    const assignedId = isManager ? dto.assignedToId || userId : userId;
+    const salesExecutiveId = isManager
+      ? dto.salesExecutiveId || assignedId
+      : userId;
 
     return this.prisma.lead.create({
       data: {
@@ -126,7 +132,10 @@ export class LeadsService {
         workflowStateId: initialState.id,
         createdById: userId,
       },
-      include: { workflowState: true, salesExecutive: { select: { id: true, name: true, email: true } } },
+      include: {
+        workflowState: true,
+        salesExecutive: { select: { id: true, name: true, email: true } },
+      },
     });
   }
 
@@ -164,7 +173,9 @@ export class LeadsService {
 
     // Filter only explicitly provided (non-undefined) values
     const data = Object.fromEntries(
-      Object.entries(dto).filter(([key, val]) => allowed.includes(key) && val !== undefined),
+      Object.entries(dto).filter(
+        ([key, val]) => allowed.includes(key) && val !== undefined,
+      ),
     ) as any;
 
     if (data.nextReminder) {
@@ -174,7 +185,7 @@ export class LeadsService {
     if (data.leadDate) {
       data.leadDate = new Date(data.leadDate);
     }
-    
+
     // Prevent unauthorized reassignment for salesperson roles
     if (isRestrictedRole(role)) {
       delete data.assignedToId;
@@ -182,7 +193,11 @@ export class LeadsService {
     }
 
     // Safeguard: Protect detailedItems from accidental empty array deletion unless explicitly allowed
-    if (Array.isArray(dto.detailedItems) && dto.detailedItems.length === 0 && dto.allowClearItems !== true) {
+    if (
+      Array.isArray(dto.detailedItems) &&
+      dto.detailedItems.length === 0 &&
+      dto.allowClearItems !== true
+    ) {
       delete data.detailedItems;
     }
 

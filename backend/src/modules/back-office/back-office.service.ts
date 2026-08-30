@@ -56,14 +56,22 @@ export class BackOfficeService implements OnApplicationBootstrap {
     }
 
     const permissions = [
-      { code: 'backoffice.report.create', name: 'Create Back Office Daily Report' },
+      {
+        code: 'backoffice.report.create',
+        name: 'Create Back Office Daily Report',
+      },
       { code: 'backoffice.report.read', name: 'View Back Office Daily Report' },
-      { code: 'backoffice.report.manage', name: 'Manage Back Office Daily Report' },
+      {
+        code: 'backoffice.report.manage',
+        name: 'Manage Back Office Daily Report',
+      },
       { code: 'profile.read', name: 'View Profile' },
     ];
 
     for (const p of permissions) {
-      let perm = await this.prisma.permission.findUnique({ where: { code: p.code } });
+      let perm = await this.prisma.permission.findUnique({
+        where: { code: p.code },
+      });
       if (!perm) {
         perm = await this.prisma.permission.create({
           data: {
@@ -106,7 +114,10 @@ export class BackOfficeService implements OnApplicationBootstrap {
       }
       const rpAdmin = await this.prisma.rolePermission.findUnique({
         where: {
-          roleId_permissionId: { roleId: superAdminRole.id, permissionId: reviewPerm.id },
+          roleId_permissionId: {
+            roleId: superAdminRole.id,
+            permissionId: reviewPerm.id,
+          },
         },
       });
       if (!rpAdmin) {
@@ -309,7 +320,9 @@ export class BackOfficeService implements OnApplicationBootstrap {
     }
 
     if (existing.userId !== userId) {
-      throw new ForbiddenException('Cannot edit report submitted by another user');
+      throw new ForbiddenException(
+        'Cannot edit report submitted by another user',
+      );
     }
 
     if (existing.status === 'ACKNOWLEDGED') {
@@ -322,10 +335,14 @@ export class BackOfficeService implements OnApplicationBootstrap {
     }
     if (dto.title !== undefined) dataToUpdate.title = dto.title;
     if (dto.summary !== undefined) dataToUpdate.summary = dto.summary || null;
-    if (dto.tasksCompleted !== undefined) dataToUpdate.tasksCompleted = dto.tasksCompleted;
-    if (dto.issuesOrBlockers !== undefined) dataToUpdate.issuesOrBlockers = dto.issuesOrBlockers || null;
-    if (dto.planForTomorrow !== undefined) dataToUpdate.planForTomorrow = dto.planForTomorrow || null;
-    if (dto.workingHours !== undefined) dataToUpdate.workingHours = dto.workingHours;
+    if (dto.tasksCompleted !== undefined)
+      dataToUpdate.tasksCompleted = dto.tasksCompleted;
+    if (dto.issuesOrBlockers !== undefined)
+      dataToUpdate.issuesOrBlockers = dto.issuesOrBlockers || null;
+    if (dto.planForTomorrow !== undefined)
+      dataToUpdate.planForTomorrow = dto.planForTomorrow || null;
+    if (dto.workingHours !== undefined)
+      dataToUpdate.workingHours = dto.workingHours;
     if (dto.status !== undefined) dataToUpdate.status = dto.status;
 
     const updated = await this.prisma.backOfficeDailyReport.update({
@@ -360,7 +377,9 @@ export class BackOfficeService implements OnApplicationBootstrap {
     }
 
     if (existing.userId !== userId) {
-      throw new ForbiddenException('Cannot delete report submitted by another user');
+      throw new ForbiddenException(
+        'Cannot delete report submitted by another user',
+      );
     }
 
     if (existing.status === 'ACKNOWLEDGED') {
@@ -528,7 +547,10 @@ export class BackOfficeService implements OnApplicationBootstrap {
       where: { id },
       data: {
         status: dto.status || 'ACKNOWLEDGED',
-        adminRemarks: dto.adminRemarks !== undefined ? dto.adminRemarks : existing.adminRemarks,
+        adminRemarks:
+          dto.adminRemarks !== undefined
+            ? dto.adminRemarks
+            : existing.adminRemarks,
         acknowledgedById: adminUserId,
         acknowledgedAt: new Date(),
       },

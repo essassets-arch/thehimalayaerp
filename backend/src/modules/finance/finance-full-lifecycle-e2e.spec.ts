@@ -1,6 +1,10 @@
 import { PaymentsService } from './payments.service';
 import { PaymentFollowupEngineService } from './payment-followup-engine.service';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 
 describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Acceptance Suite', () => {
   let engineService: PaymentFollowupEngineService;
@@ -16,14 +20,16 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
     };
 
     mockWorkflow = {
-      processAction: jest.fn().mockResolvedValue({ nextStateId: 'state-verified' }),
+      processAction: jest
+        .fn()
+        .mockResolvedValue({ nextStateId: 'state-verified' }),
       getInitialState: jest.fn().mockResolvedValue({ id: 'state-initial' }),
     };
 
-    let salesOrders: Map<string, any> = new Map();
-    let customerPayments: Map<string, any> = new Map();
-    let followUpTasks: any[] = [];
-    let auditLogs: any[] = [];
+    const salesOrders: Map<string, any> = new Map();
+    const customerPayments: Map<string, any> = new Map();
+    const followUpTasks: any[] = [];
+    const auditLogs: any[] = [];
 
     // Helper to register mock order
     const registerOrder = (order: any) => {
@@ -42,7 +48,9 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
     const txClient = {
       salesOrder: {
         findUnique: jest.fn().mockImplementation(async ({ where }) => {
-          return salesOrders.get(where.id) ? { ...salesOrders.get(where.id) } : null;
+          return salesOrders.get(where.id)
+            ? { ...salesOrders.get(where.id) }
+            : null;
         }),
         update: jest.fn().mockImplementation(async ({ where, data }) => {
           const existing = salesOrders.get(where.id);
@@ -57,12 +65,18 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
           const p = customerPayments.get(where.id);
           if (!p) return null;
           const order = p.salesOrderId ? salesOrders.get(p.salesOrderId) : null;
-          return { ...p, customer: { companyId: 'company-1' }, salesOrder: order };
+          return {
+            ...p,
+            customer: { companyId: 'company-1' },
+            salesOrder: order,
+          };
         }),
         findMany: jest.fn().mockImplementation(async ({ where }) => {
           const list = Array.from(customerPayments.values()).filter((p) => {
-            if (where.salesOrderId && p.salesOrderId !== where.salesOrderId) return false;
-            if (where.status?.in && !where.status.in.includes(p.status)) return false;
+            if (where.salesOrderId && p.salesOrderId !== where.salesOrderId)
+              return false;
+            if (where.status?.in && !where.status.in.includes(p.status))
+              return false;
             return true;
           });
           return list;
@@ -72,8 +86,14 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
           if (!existing) throw new NotFoundException('Payment not found');
           const updated = { ...existing, ...data };
           customerPayments.set(where.id, updated);
-          const order = updated.salesOrderId ? salesOrders.get(updated.salesOrderId) : null;
-          return { ...updated, customer: { companyId: 'company-1' }, salesOrder: order };
+          const order = updated.salesOrderId
+            ? salesOrders.get(updated.salesOrderId)
+            : null;
+          return {
+            ...updated,
+            customer: { companyId: 'company-1' },
+            salesOrder: order,
+          };
         }),
       },
       customerLedger: {
@@ -102,7 +122,9 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
     };
 
     mockPrisma = {
-      $transaction: jest.fn().mockImplementation(async (callback) => callback(txClient)),
+      $transaction: jest
+        .fn()
+        .mockImplementation(async (callback) => callback(txClient)),
       salesOrder: txClient.salesOrder,
       customerPayment: txClient.customerPayment,
       customerLedger: txClient.customerLedger,
@@ -110,7 +132,8 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
       followUp: txClient.followUp,
       _state: {
         registerOrder,
-        registerPayment: (payment: any) => customerPayments.set(payment.id, payment),
+        registerPayment: (payment: any) =>
+          customerPayments.set(payment.id, payment),
         getOrder: (id: string) => salesOrders.get(id),
         getPayment: (id: string) => customerPayments.get(id),
         addTask: (task: any) => followUpTasks.push(task),
@@ -118,7 +141,10 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
       },
     };
 
-    engineService = new PaymentFollowupEngineService(mockPrisma, mockNotifications);
+    engineService = new PaymentFollowupEngineService(
+      mockPrisma,
+      mockNotifications,
+    );
     paymentsService = new PaymentsService(
       mockPrisma,
       mockWorkflow,
@@ -131,53 +157,169 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
   describe('1. Dynamic Payment Terms & Schedules (7, 15, 20, 30, 90, Custom)', () => {
     it('evaluates 7-day schedule transitions', () => {
       const schedule = engineService.calculatePaymentSchedule(7);
-      expect(schedule).toEqual({ termDays: 7, reminderDay: 5, dueDay: 7, overdueDay: 8 });
+      expect(schedule).toEqual({
+        termDays: 7,
+        reminderDay: 5,
+        dueDay: 7,
+        overdueDay: 8,
+      });
 
       const start = '2026-08-01T00:00:00Z'; // Aug 1 (Day 1)
       // Day 4 (Aug 4) -> UPCOMING
-      expect(engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 7, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-04T00:00:00Z' }).dueState).toBe('UPCOMING');
+      expect(
+        engineService.evaluateOrderState({
+          paymentTermStartDate: start,
+          paymentTermDays: 7,
+          orderTotal: 50000,
+          verifiedPaidAmount: 0,
+          currentDate: '2026-08-04T00:00:00Z',
+        }).dueState,
+      ).toBe('UPCOMING');
       // Day 5 (Aug 5) -> DUE_SOON
-      expect(engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 7, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-05T00:00:00Z' }).dueState).toBe('DUE_SOON');
+      expect(
+        engineService.evaluateOrderState({
+          paymentTermStartDate: start,
+          paymentTermDays: 7,
+          orderTotal: 50000,
+          verifiedPaidAmount: 0,
+          currentDate: '2026-08-05T00:00:00Z',
+        }).dueState,
+      ).toBe('DUE_SOON');
       // Day 7 (Aug 7) -> DUE_TODAY
-      expect(engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 7, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-07T00:00:00Z' }).dueState).toBe('DUE_TODAY');
+      expect(
+        engineService.evaluateOrderState({
+          paymentTermStartDate: start,
+          paymentTermDays: 7,
+          orderTotal: 50000,
+          verifiedPaidAmount: 0,
+          currentDate: '2026-08-07T00:00:00Z',
+        }).dueState,
+      ).toBe('DUE_TODAY');
       // Day 8 (Aug 8) -> OVERDUE (1 day overdue)
-      const ov = engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 7, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-08T00:00:00Z' });
+      const ov = engineService.evaluateOrderState({
+        paymentTermStartDate: start,
+        paymentTermDays: 7,
+        orderTotal: 50000,
+        verifiedPaidAmount: 0,
+        currentDate: '2026-08-08T00:00:00Z',
+      });
       expect(ov.dueState).toBe('OVERDUE');
       expect(ov.daysOverdue).toBe(1);
     });
 
     it('evaluates 15-day schedule transitions', () => {
       const schedule = engineService.calculatePaymentSchedule(15);
-      expect(schedule).toEqual({ termDays: 15, reminderDay: 12, dueDay: 15, overdueDay: 16 });
+      expect(schedule).toEqual({
+        termDays: 15,
+        reminderDay: 12,
+        dueDay: 15,
+        overdueDay: 16,
+      });
 
       const start = '2026-08-01T00:00:00Z';
-      expect(engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 15, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-12T00:00:00Z' }).dueState).toBe('DUE_SOON');
-      expect(engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 15, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-15T00:00:00Z' }).dueState).toBe('DUE_TODAY');
-      const ov = engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 15, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-16T00:00:00Z' });
+      expect(
+        engineService.evaluateOrderState({
+          paymentTermStartDate: start,
+          paymentTermDays: 15,
+          orderTotal: 50000,
+          verifiedPaidAmount: 0,
+          currentDate: '2026-08-12T00:00:00Z',
+        }).dueState,
+      ).toBe('DUE_SOON');
+      expect(
+        engineService.evaluateOrderState({
+          paymentTermStartDate: start,
+          paymentTermDays: 15,
+          orderTotal: 50000,
+          verifiedPaidAmount: 0,
+          currentDate: '2026-08-15T00:00:00Z',
+        }).dueState,
+      ).toBe('DUE_TODAY');
+      const ov = engineService.evaluateOrderState({
+        paymentTermStartDate: start,
+        paymentTermDays: 15,
+        orderTotal: 50000,
+        verifiedPaidAmount: 0,
+        currentDate: '2026-08-16T00:00:00Z',
+      });
       expect(ov.dueState).toBe('OVERDUE');
       expect(ov.daysOverdue).toBe(1);
     });
 
     it('evaluates 20-day schedule transitions', () => {
       const schedule = engineService.calculatePaymentSchedule(20);
-      expect(schedule).toEqual({ termDays: 20, reminderDay: 15, dueDay: 20, overdueDay: 21 });
+      expect(schedule).toEqual({
+        termDays: 20,
+        reminderDay: 15,
+        dueDay: 20,
+        overdueDay: 21,
+      });
 
       const start = '2026-08-01T00:00:00Z';
-      expect(engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 20, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-15T00:00:00Z' }).dueState).toBe('DUE_SOON');
-      expect(engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 20, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-20T00:00:00Z' }).dueState).toBe('DUE_TODAY');
-      const ov = engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 20, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-21T00:00:00Z' });
+      expect(
+        engineService.evaluateOrderState({
+          paymentTermStartDate: start,
+          paymentTermDays: 20,
+          orderTotal: 50000,
+          verifiedPaidAmount: 0,
+          currentDate: '2026-08-15T00:00:00Z',
+        }).dueState,
+      ).toBe('DUE_SOON');
+      expect(
+        engineService.evaluateOrderState({
+          paymentTermStartDate: start,
+          paymentTermDays: 20,
+          orderTotal: 50000,
+          verifiedPaidAmount: 0,
+          currentDate: '2026-08-20T00:00:00Z',
+        }).dueState,
+      ).toBe('DUE_TODAY');
+      const ov = engineService.evaluateOrderState({
+        paymentTermStartDate: start,
+        paymentTermDays: 20,
+        orderTotal: 50000,
+        verifiedPaidAmount: 0,
+        currentDate: '2026-08-21T00:00:00Z',
+      });
       expect(ov.dueState).toBe('OVERDUE');
       expect(ov.daysOverdue).toBe(1);
     });
 
     it('evaluates Custom 10-day schedule transitions', () => {
       const schedule = engineService.calculatePaymentSchedule(10);
-      expect(schedule).toEqual({ termDays: 10, reminderDay: 7, dueDay: 10, overdueDay: 11 });
+      expect(schedule).toEqual({
+        termDays: 10,
+        reminderDay: 7,
+        dueDay: 10,
+        overdueDay: 11,
+      });
 
       const start = '2026-08-01T00:00:00Z';
-      expect(engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 10, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-07T00:00:00Z' }).dueState).toBe('DUE_SOON');
-      expect(engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 10, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-10T00:00:00Z' }).dueState).toBe('DUE_TODAY');
-      const ov = engineService.evaluateOrderState({ paymentTermStartDate: start, paymentTermDays: 10, orderTotal: 50000, verifiedPaidAmount: 0, currentDate: '2026-08-11T00:00:00Z' });
+      expect(
+        engineService.evaluateOrderState({
+          paymentTermStartDate: start,
+          paymentTermDays: 10,
+          orderTotal: 50000,
+          verifiedPaidAmount: 0,
+          currentDate: '2026-08-07T00:00:00Z',
+        }).dueState,
+      ).toBe('DUE_SOON');
+      expect(
+        engineService.evaluateOrderState({
+          paymentTermStartDate: start,
+          paymentTermDays: 10,
+          orderTotal: 50000,
+          verifiedPaidAmount: 0,
+          currentDate: '2026-08-10T00:00:00Z',
+        }).dueState,
+      ).toBe('DUE_TODAY');
+      const ov = engineService.evaluateOrderState({
+        paymentTermStartDate: start,
+        paymentTermDays: 10,
+        orderTotal: 50000,
+        verifiedPaidAmount: 0,
+        currentDate: '2026-08-11T00:00:00Z',
+      });
       expect(ov.dueState).toBe('OVERDUE');
       expect(ov.daysOverdue).toBe(1);
     });
@@ -277,7 +419,11 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
       });
 
       await expect(
-        paymentsService.rejectPayment('pay-201', { rejectionReason: '   ' }, 'finance-user-1'),
+        paymentsService.rejectPayment(
+          'pay-201',
+          { rejectionReason: '   ' },
+          'finance-user-1',
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -307,7 +453,9 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
 
       const payment = mockPrisma._state.getPayment('pay-201');
       expect(payment.status).toBe('REJECTED');
-      expect(payment.rejectionReason).toBe('UTR reference not found on bank statement');
+      expect(payment.rejectionReason).toBe(
+        'UTR reference not found on bank statement',
+      );
       expect(payment.rejectedById).toBe('finance-user-1');
 
       // Order balance remains 0 paid / 50000 outstanding

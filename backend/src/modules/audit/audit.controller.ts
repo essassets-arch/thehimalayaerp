@@ -15,7 +15,17 @@ export class AuditController {
    * Returns audit log entries, optionally filtered by entityType / entityId.
    */
   @Get('audit-logs')
-  @Roles('SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'FINANCE_EXECUTIVE', 'STORE_MANAGER', 'STORE_EXECUTIVE', 'PLANT_HEAD')
+  @Roles(
+    'SUPER_ADMIN',
+    'SUPERADMIN',
+    'ADMIN',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'FINANCE_EXECUTIVE',
+    'STORE_MANAGER',
+    'STORE_EXECUTIVE',
+    'PLANT_HEAD',
+  )
   @RequirePermissions('procurement.audit.read')
   async list(
     @Query('entityType') entityType?: string,

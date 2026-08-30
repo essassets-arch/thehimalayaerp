@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  Param,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, Param, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -51,50 +44,106 @@ export class FinanceSalesAnalyticsController {
 
   @Get('leads')
   @RequirePermissions('finance.sales-analytics.read')
-  async getLeads(@Query() query: FinanceSalesAnalyticsQueryDto, @Req() req?: any) {
-    return this.analyticsService.getLeads(query, req?.user?.sub, req?.user?.role);
+  async getLeads(
+    @Query() query: FinanceSalesAnalyticsQueryDto,
+    @Req() req?: any,
+  ) {
+    return this.analyticsService.getLeads(
+      query,
+      req?.user?.sub,
+      req?.user?.role,
+    );
   }
 
   @Get('samples')
   @RequirePermissions('finance.sales-analytics.read')
-  async getSamples(@Query() query: FinanceSalesAnalyticsQueryDto, @Req() req?: any) {
-    return this.analyticsService.getSamples(query, req?.user?.sub, req?.user?.role);
+  async getSamples(
+    @Query() query: FinanceSalesAnalyticsQueryDto,
+    @Req() req?: any,
+  ) {
+    return this.analyticsService.getSamples(
+      query,
+      req?.user?.sub,
+      req?.user?.role,
+    );
   }
 
   @Get('quotations')
   @RequirePermissions('finance.sales-analytics.read')
-  async getQuotations(@Query() query: FinanceSalesAnalyticsQueryDto, @Req() req?: any) {
-    return this.analyticsService.getQuotations(query, req?.user?.sub, req?.user?.role);
+  async getQuotations(
+    @Query() query: FinanceSalesAnalyticsQueryDto,
+    @Req() req?: any,
+  ) {
+    return this.analyticsService.getQuotations(
+      query,
+      req?.user?.sub,
+      req?.user?.role,
+    );
   }
 
   @Get('orders')
   @RequirePermissions('finance.sales-analytics.read')
-  async getOrders(@Query() query: FinanceSalesAnalyticsQueryDto, @Req() req?: any) {
-    return this.analyticsService.getOrders(query, req?.user?.sub, req?.user?.role);
+  async getOrders(
+    @Query() query: FinanceSalesAnalyticsQueryDto,
+    @Req() req?: any,
+  ) {
+    return this.analyticsService.getOrders(
+      query,
+      req?.user?.sub,
+      req?.user?.role,
+    );
   }
 
   @Get('collections')
   @RequirePermissions('finance.sales-analytics.receivables.read')
-  async getCollections(@Query() query: FinanceSalesAnalyticsQueryDto, @Req() req?: any) {
-    return this.analyticsService.getCollections(query, req?.user?.sub, req?.user?.role);
+  async getCollections(
+    @Query() query: FinanceSalesAnalyticsQueryDto,
+    @Req() req?: any,
+  ) {
+    return this.analyticsService.getCollections(
+      query,
+      req?.user?.sub,
+      req?.user?.role,
+    );
   }
 
   @Get('customers')
   @RequirePermissions('finance.sales-analytics.read')
-  async getCustomers(@Query() query: FinanceSalesAnalyticsQueryDto, @Req() req?: any) {
-    return this.analyticsService.getCustomers(query, req?.user?.sub, req?.user?.role);
+  async getCustomers(
+    @Query() query: FinanceSalesAnalyticsQueryDto,
+    @Req() req?: any,
+  ) {
+    return this.analyticsService.getCustomers(
+      query,
+      req?.user?.sub,
+      req?.user?.role,
+    );
   }
 
   @Get('activities')
   @RequirePermissions('finance.sales-analytics.activity.read')
-  async getActivities(@Query() query: FinanceSalesAnalyticsQueryDto, @Req() req?: any) {
-    return this.analyticsService.getActivities(query, req?.user?.sub, req?.user?.role);
+  async getActivities(
+    @Query() query: FinanceSalesAnalyticsQueryDto,
+    @Req() req?: any,
+  ) {
+    return this.analyticsService.getActivities(
+      query,
+      req?.user?.sub,
+      req?.user?.role,
+    );
   }
 
   @Get('complaints')
   @RequirePermissions('finance.sales-analytics.read')
-  async getComplaints(@Query() query: FinanceSalesAnalyticsQueryDto, @Req() req?: any) {
-    return this.analyticsService.getComplaints(query, req?.user?.sub, req?.user?.role);
+  async getComplaints(
+    @Query() query: FinanceSalesAnalyticsQueryDto,
+    @Req() req?: any,
+  ) {
+    return this.analyticsService.getComplaints(
+      query,
+      req?.user?.sub,
+      req?.user?.role,
+    );
   }
 
   @Get('returns')

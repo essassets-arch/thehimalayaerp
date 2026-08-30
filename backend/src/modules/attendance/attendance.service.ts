@@ -42,7 +42,11 @@ function saveBase64Image(base64Str: string, folder: string): string | null {
 }
 
 // Helper to get Kolkata timezone date
-export function getKolkataDate(date: Date = new Date()): { dateStr: string; startOfDay: Date; endOfDay: Date } {
+export function getKolkataDate(date: Date = new Date()): {
+  dateStr: string;
+  startOfDay: Date;
+  endOfDay: Date;
+} {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Kolkata',
     year: 'numeric',
@@ -55,7 +59,8 @@ export function getKolkataDate(date: Date = new Date()): { dateStr: string; star
   });
 
   const parts = formatter.formatToParts(date);
-  const getVal = (type: string) => parts.find(p => p.type === type)?.value || '';
+  const getVal = (type: string) =>
+    parts.find((p) => p.type === type)?.value || '';
 
   const year = parseInt(getVal('year'), 10);
   const month = parseInt(getVal('month'), 10) - 1;
@@ -184,11 +189,34 @@ export class AttendanceService {
     if (latitude === undefined || longitude === undefined) {
       throw new BadRequestException('Valid GPS coordinates are required');
     }
-    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    if (
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
       throw new BadRequestException('Invalid GPS coordinates values.');
     }
     if (!selfie) {
       throw new BadRequestException('Camera selfie verification is required');
+    }
+
+    const isTestMode = process.env.ATTENDANCE_TEST_MODE === 'true';
+
+    if (!isTestMode && body.isBiometricCard) {
+      throw new BadRequestException(
+        'Biometric security card fallback is not permitted in production. Live camera selfie is mandatory.',
+      );
+    }
+
+    if (
+      !isTestMode &&
+      (body.isGpsFallback ||
+        (Number(latitude) === 23.0228 && Number(longitude) === 72.5566))
+    ) {
+      throw new BadRequestException(
+        'GPS Fallback / Default coordinates are not permitted in production. Live GPS lock is required.',
+      );
     }
 
     const savedSelfieUrl = saveBase64Image(selfie, 'attendance');
@@ -198,8 +226,15 @@ export class AttendanceService {
 
     if (accuracy !== undefined && accuracy !== null) {
       const accuracyVal = Number(accuracy);
-      if (accuracyVal <= 0) {
-        throw new BadRequestException('GPS accuracy must be a positive number.');
+      if (isNaN(accuracyVal) || accuracyVal <= 0) {
+        throw new BadRequestException(
+          'GPS accuracy must be a positive number.',
+        );
+      }
+      if (!isTestMode && accuracyVal > 50) {
+        throw new BadRequestException(
+          'GPS accuracy too low (> 50m). Please move to an open area with clear GPS reception.',
+        );
       }
     }
 
@@ -216,9 +251,13 @@ export class AttendanceService {
 
     if (existing) {
       if (existing.status === 'PUNCHED_IN') {
-        throw new ConflictException('ALREADY_PUNCHED_IN: Employee is already punched in today.');
+        throw new ConflictException(
+          'ALREADY_PUNCHED_IN: Employee is already punched in today.',
+        );
       }
-      throw new ConflictException('ALREADY_PUNCHED_IN: Employee has already completed today\'s attendance.');
+      throw new ConflictException(
+        "ALREADY_PUNCHED_IN: Employee has already completed today's attendance.",
+      );
     }
 
     // Evaluate Late Minutes based on shift policy
@@ -259,11 +298,34 @@ export class AttendanceService {
     if (latitude === undefined || longitude === undefined) {
       throw new BadRequestException('Valid GPS coordinates are required');
     }
-    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    if (
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
       throw new BadRequestException('Invalid GPS coordinates values.');
     }
     if (!selfie) {
       throw new BadRequestException('Camera selfie verification is required');
+    }
+
+    const isTestMode = process.env.ATTENDANCE_TEST_MODE === 'true';
+
+    if (!isTestMode && body.isBiometricCard) {
+      throw new BadRequestException(
+        'Biometric security card fallback is not permitted in production. Live camera selfie is mandatory.',
+      );
+    }
+
+    if (
+      !isTestMode &&
+      (body.isGpsFallback ||
+        (Number(latitude) === 23.0228 && Number(longitude) === 72.5566))
+    ) {
+      throw new BadRequestException(
+        'GPS Fallback / Default coordinates are not permitted in production. Live GPS lock is required.',
+      );
     }
 
     const savedSelfieUrl = saveBase64Image(selfie, 'attendance');
@@ -273,8 +335,15 @@ export class AttendanceService {
 
     if (accuracy !== undefined && accuracy !== null) {
       const accuracyVal = Number(accuracy);
-      if (accuracyVal <= 0) {
-        throw new BadRequestException('GPS accuracy must be a positive number.');
+      if (isNaN(accuracyVal) || accuracyVal <= 0) {
+        throw new BadRequestException(
+          'GPS accuracy must be a positive number.',
+        );
+      }
+      if (!isTestMode && accuracyVal > 50) {
+        throw new BadRequestException(
+          'GPS accuracy too low (> 50m). Please move to an open area with clear GPS reception.',
+        );
       }
     }
 
@@ -289,15 +358,20 @@ export class AttendanceService {
     });
 
     if (!existing || !existing.punchInAt) {
-      throw new ConflictException('NOT_PUNCHED_IN: No active punch-in found for today.');
+      throw new ConflictException(
+        'NOT_PUNCHED_IN: No active punch-in found for today.',
+      );
     }
 
     if (existing.punchOutAt !== null) {
-      throw new ConflictException('ALREADY_PUNCHED_OUT: Today\'s punch out has already been completed.');
+      throw new ConflictException(
+        "ALREADY_PUNCHED_OUT: Today's punch out has already been completed.",
+      );
     }
 
     const punchOutAt = now;
-    const elapsedMs = punchOutAt.getTime() - new Date(existing.punchInAt).getTime();
+    const elapsedMs =
+      punchOutAt.getTime() - new Date(existing.punchInAt).getTime();
     const workedSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
     const workedMinutes = Math.floor(workedSeconds / 60);
 
@@ -310,7 +384,10 @@ export class AttendanceService {
     const policy = await this.getPolicyForDept(deptName);
 
     // Calculate early exit & overtime
-    const earlyExitMinutes = this.calculateEarlyExitMinutes(now, policy.checkOut);
+    const earlyExitMinutes = this.calculateEarlyExitMinutes(
+      now,
+      policy.checkOut,
+    );
     const overtimeMinutes = workedMinutes > 540 ? workedMinutes - 540 : 0; // Overtime after 9 hours (540 mins)
 
     // Primary Status: PRESENT if worked >= 8h (480m), HALF_DAY if worked >= 4h (240m)
@@ -345,16 +422,19 @@ export class AttendanceService {
       const now = new Date();
       const { startOfDay } = getKolkataDate(now);
 
-      const user = userId ? await this.prisma.user.findUnique({
-        where: { id: userId },
-        include: { employee: true },
-      }) : null;
+      const user = userId
+        ? await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: { employee: true },
+          })
+        : null;
 
       const targetCompanyId = companyId || user?.companyId;
 
       const whereConditions: any[] = [];
       if (userId) whereConditions.push({ userId });
-      if (user?.employee?.id) whereConditions.push({ employeeId: user.employee.id });
+      if (user?.employee?.id)
+        whereConditions.push({ employeeId: user.employee.id });
 
       if (whereConditions.length === 0) {
         return {
@@ -439,7 +519,12 @@ export class AttendanceService {
 
     let runningSeconds = record.workedSeconds;
     if (isPunchedIn && record.punchInAt) {
-      runningSeconds = Math.max(0, Math.floor((new Date().getTime() - new Date(record.punchInAt).getTime()) / 1000));
+      runningSeconds = Math.max(
+        0,
+        Math.floor(
+          (new Date().getTime() - new Date(record.punchInAt).getTime()) / 1000,
+        ),
+      );
     }
 
     return {
@@ -472,8 +557,12 @@ export class AttendanceService {
 
     if (query.from || query.to) {
       where.attendanceDate = {};
-      if (query.from) where.attendanceDate.gte = getKolkataDate(new Date(query.from)).startOfDay;
-      if (query.to) where.attendanceDate.lte = getKolkataDate(new Date(query.to)).endOfDay;
+      if (query.from)
+        where.attendanceDate.gte = getKolkataDate(
+          new Date(query.from),
+        ).startOfDay;
+      if (query.to)
+        where.attendanceDate.lte = getKolkataDate(new Date(query.to)).endOfDay;
     }
 
     const [items, total] = await Promise.all([
@@ -486,7 +575,7 @@ export class AttendanceService {
       this.prisma.attendance.count({ where }),
     ]);
 
-    const mapped = items.map(item => {
+    const mapped = items.map((item) => {
       const formatTime = (d: Date | null) => {
         if (!d) return '—';
         return new Intl.DateTimeFormat('en-US', {
@@ -526,7 +615,9 @@ export class AttendanceService {
         earlyExitMinutes: item.earlyExitMinutes,
         overtimeMinutes: item.overtimeMinutes,
         location: item.punchOutAddress || item.punchInAddress || '—',
-        coords: item.punchOutLatitude ? `${item.punchOutLatitude}, ${item.punchOutLongitude}` : `${item.punchInLatitude}, ${item.punchInLongitude}`,
+        coords: item.punchOutLatitude
+          ? `${item.punchOutLatitude}, ${item.punchOutLongitude}`
+          : `${item.punchInLatitude}, ${item.punchInLongitude}`,
         punchInAccuracy: item.punchInAccuracy,
         punchOutAccuracy: item.punchOutAccuracy,
         selfieUrl: item.punchOutSelfieUrl || item.punchInSelfieUrl || null,
@@ -554,8 +645,10 @@ export class AttendanceService {
         const where: any = { companyId };
         if (fromDate || toDate) {
           where.attendanceDate = {};
-          if (fromDate) where.attendanceDate.gte = getKolkataDate(fromDate).startOfDay;
-          if (toDate) where.attendanceDate.lte = getKolkataDate(toDate).endOfDay;
+          if (fromDate)
+            where.attendanceDate.gte = getKolkataDate(fromDate).startOfDay;
+          if (toDate)
+            where.attendanceDate.lte = getKolkataDate(toDate).endOfDay;
         }
 
         const records = await this.prisma.attendance.findMany({
@@ -564,25 +657,30 @@ export class AttendanceService {
             employee: {
               include: {
                 department: true,
-                workLocation: true
-              }
+                workLocation: true,
+              },
             },
             user: {
               include: {
-                role: true
-              }
-            }
+                role: true,
+              },
+            },
           },
-          orderBy: { punchInAt: 'desc' }
+          orderBy: { punchInAt: 'desc' },
         });
 
-        return records.map(att => {
+        return records.map((att) => {
           const emp = att.employee;
           const usr = att.user;
           const empName = emp?.fullName || usr?.name || 'Staff Member';
-          const empCode = emp?.employeeCode || (usr ? `EMP-${usr.id.slice(0, 5).toUpperCase()}` : '—');
+          const empCode =
+            emp?.employeeCode ||
+            (usr ? `EMP-${usr.id.slice(0, 5).toUpperCase()}` : '—');
           const deptName = emp?.department?.name || 'Operations';
-          const roleName = emp?.jobTitle || usr?.role?.name || (typeof usr?.role === 'string' ? usr.role : 'Staff Member');
+          const roleName =
+            emp?.jobTitle ||
+            usr?.role?.name ||
+            (typeof usr?.role === 'string' ? usr.role : 'Staff Member');
           const locationName = emp?.workLocation?.name || 'Ahmedabad Plant';
 
           const formatTime = (d: Date | null | undefined) => {
@@ -620,7 +718,11 @@ export class AttendanceService {
             date: formatDate(att.attendanceDate),
             punchIn: formatTime(att.punchInAt),
             punchOut: formatTime(att.punchOutAt),
-            workedDuration: att.workedMinutes ? formatDuration(att.workedMinutes) : (att.status === 'PUNCHED_IN' ? 'Running' : '—'),
+            workedDuration: att.workedMinutes
+              ? formatDuration(att.workedMinutes)
+              : att.status === 'PUNCHED_IN'
+                ? 'Running'
+                : '—',
             workedMinutes: att.workedMinutes || 0,
             lateMinutes: att.lateMinutes || 0,
             earlyExitMinutes: att.earlyExitMinutes || 0,
@@ -628,12 +730,17 @@ export class AttendanceService {
             status: att.status,
             punchInLocation: att.punchInAddress || locationName,
             location: att.punchInAddress || locationName,
-            coords: att.punchOutLatitude ? `${att.punchOutLatitude}, ${att.punchOutLongitude}` : (att.punchInLatitude ? `${att.punchInLatitude}, ${att.punchInLongitude}` : '—'),
+            coords: att.punchOutLatitude
+              ? `${att.punchOutLatitude}, ${att.punchOutLongitude}`
+              : att.punchInLatitude
+                ? `${att.punchInLatitude}, ${att.punchInLongitude}`
+                : '—',
             accuracy: att.punchOutAccuracy || att.punchInAccuracy || null,
             selfieUrl: att.punchOutSelfieUrl || att.punchInSelfieUrl || null,
             punchInSelfieUrl: att.punchInSelfieUrl || null,
             punchOutSelfieUrl: att.punchOutSelfieUrl || null,
-            timestamp: att.punchInAt?.toISOString() || att.createdAt.toISOString(),
+            timestamp:
+              att.punchInAt?.toISOString() || att.createdAt.toISOString(),
           };
         });
       }
@@ -641,153 +748,174 @@ export class AttendanceService {
       const targetDate = query.date ? new Date(query.date) : new Date();
       const { startOfDay, endOfDay } = getKolkataDate(targetDate);
       const now = new Date();
-      const isToday = getKolkataDate(now).dateStr === getKolkataDate(targetDate).dateStr;
+      const isToday =
+        getKolkataDate(now).dateStr === getKolkataDate(targetDate).dateStr;
 
-    // 1. Fetch all ACTIVE employees
-    const activeEmployees = await this.prisma.employee.findMany({
-      where: {
-        companyId,
-        status: 'ACTIVE',
-      },
-      include: {
-        department: true,
-        workLocation: true,
-        user: { include: { role: true } },
-      },
-      orderBy: { fullName: 'asc' },
-    });
+      // 1. Fetch all ACTIVE employees
+      const activeEmployees = await this.prisma.employee.findMany({
+        where: {
+          companyId,
+          status: 'ACTIVE',
+        },
+        include: {
+          department: true,
+          workLocation: true,
+          user: { include: { role: true } },
+        },
+        orderBy: { fullName: 'asc' },
+      });
 
-    // 2. Fetch Attendance DB records for target date
-    const attendanceRecords = await this.prisma.attendance.findMany({
-      where: {
-        companyId,
-        attendanceDate: { gte: startOfDay, lte: endOfDay },
-      },
-    });
-    const attendanceMap = new Map(attendanceRecords.map(a => [a.employeeId || a.userId, a]));
+      // 2. Fetch Attendance DB records for target date
+      const attendanceRecords = await this.prisma.attendance.findMany({
+        where: {
+          companyId,
+          attendanceDate: { gte: startOfDay, lte: endOfDay },
+        },
+      });
+      const attendanceMap = new Map(
+        attendanceRecords.map((a) => [a.employeeId || a.userId, a]),
+      );
 
-    // 3. Fetch Approved Leave Requests covering target date
-    const approvedLeaves = await this.prisma.leaveRequest.findMany({
-      where: {
-        companyId,
-        status: 'APPROVED',
-        fromDate: { lte: endOfDay },
-        toDate: { gte: startOfDay },
-      },
-    });
-    const leaveMap = new Map(approvedLeaves.map(l => [l.employeeId, l]));
+      // 3. Fetch Approved Leave Requests covering target date
+      const approvedLeaves = await this.prisma.leaveRequest.findMany({
+        where: {
+          companyId,
+          status: 'APPROVED',
+          fromDate: { lte: endOfDay },
+          toDate: { gte: startOfDay },
+        },
+      });
+      const leaveMap = new Map(approvedLeaves.map((l) => [l.employeeId, l]));
 
-    // 4. Derive Status for each employee (Roster-First)
-    let roster = activeEmployees.map(emp => {
-      const att = attendanceMap.get(emp.id) || (emp.user ? attendanceMap.get(emp.user.id) : null);
-      const leave = leaveMap.get(emp.id);
+      // 4. Derive Status for each employee (Roster-First)
+      let roster = activeEmployees.map((emp) => {
+        const att =
+          attendanceMap.get(emp.id) ||
+          (emp.user ? attendanceMap.get(emp.user.id) : null);
+        const leave = leaveMap.get(emp.id);
 
-      const deptName = emp.department?.name || 'Operations';
-      const roleName = emp.jobTitle || emp.user?.role?.name || 'Staff Member';
-      const locationName = emp.workLocation?.name || 'Ahmedabad Plant';
+        const deptName = emp.department?.name || 'Operations';
+        const roleName = emp.jobTitle || emp.user?.role?.name || 'Staff Member';
+        const locationName = emp.workLocation?.name || 'Ahmedabad Plant';
 
-      const formatTime = (d: Date | null | undefined) => {
-        if (!d) return '—';
-        return new Intl.DateTimeFormat('en-US', {
-          timeZone: 'Asia/Kolkata',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        }).format(new Date(d));
-      };
+        const formatTime = (d: Date | null | undefined) => {
+          if (!d) return '—';
+          return new Intl.DateTimeFormat('en-US', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          }).format(new Date(d));
+        };
 
-      const formatDuration = (mins: number) => {
-        if (!mins) return '—';
-        const h = Math.floor(mins / 60);
-        const m = mins % 60;
-        return `${h}h ${m}m`;
-      };
+        const formatDuration = (mins: number) => {
+          if (!mins) return '—';
+          const h = Math.floor(mins / 60);
+          const m = mins % 60;
+          return `${h}h ${m}m`;
+        };
 
-      // Precedence Order evaluation
-      let status = 'NOT_PUNCHED_IN';
-      let punchIn = '—';
-      let punchOut = '—';
-      let workedDuration = '—';
-      let workedMinutes = 0;
-      let lateMinutes = 0;
-      let earlyExitMinutes = 0;
-      let overtimeMinutes = 0;
-      let selfieUrl: string | null = null;
-      let location = locationName;
-      let coords = '—';
-      let accuracy: number | null = null;
+        // Precedence Order evaluation
+        let status = 'NOT_PUNCHED_IN';
+        let punchIn = '—';
+        let punchOut = '—';
+        let workedDuration = '—';
+        let workedMinutes = 0;
+        let lateMinutes = 0;
+        let earlyExitMinutes = 0;
+        let overtimeMinutes = 0;
+        let selfieUrl: string | null = null;
+        let location = locationName;
+        let coords = '—';
+        let accuracy: number | null = null;
 
-      if (emp.joiningDate && new Date(emp.joiningDate) > endOfDay) {
-        status = 'NOT_APPLICABLE';
-      } else if (targetDate.getDay() === 0) { // Sunday Weekly Off
-        status = 'WEEKLY_OFF';
-      } else if (leave) {
-        status = leave.leaveType === 'UNPAID' ? 'UNPAID_LEAVE' : 'PAID_LEAVE';
-      } else if (att) {
-        status = att.status;
-        punchIn = formatTime(att.punchInAt);
-        punchOut = formatTime(att.punchOutAt);
-        workedMinutes = att.workedMinutes;
-        workedDuration = att.workedMinutes ? formatDuration(att.workedMinutes) : (att.status === 'PUNCHED_IN' ? 'Running' : '—');
-        lateMinutes = att.lateMinutes;
-        earlyExitMinutes = att.earlyExitMinutes;
-        overtimeMinutes = att.overtimeMinutes;
-        selfieUrl = att.punchOutSelfieUrl || att.punchInSelfieUrl || null;
-        location = att.punchOutAddress || att.punchInAddress || locationName;
-        coords = att.punchOutLatitude ? `${att.punchOutLatitude}, ${att.punchOutLongitude}` : (att.punchInLatitude ? `${att.punchInLatitude}, ${att.punchInLongitude}` : '—');
-        accuracy = att.punchOutAccuracy || att.punchInAccuracy || null;
-      } else if (isToday) {
-        status = 'NOT_PUNCHED_IN';
-      } else {
-        status = 'ABSENT';
+        if (emp.joiningDate && new Date(emp.joiningDate) > endOfDay) {
+          status = 'NOT_APPLICABLE';
+        } else if (targetDate.getDay() === 0) {
+          // Sunday Weekly Off
+          status = 'WEEKLY_OFF';
+        } else if (leave) {
+          status = leave.leaveType === 'UNPAID' ? 'UNPAID_LEAVE' : 'PAID_LEAVE';
+        } else if (att) {
+          status = att.status;
+          punchIn = formatTime(att.punchInAt);
+          punchOut = formatTime(att.punchOutAt);
+          workedMinutes = att.workedMinutes;
+          workedDuration = att.workedMinutes
+            ? formatDuration(att.workedMinutes)
+            : att.status === 'PUNCHED_IN'
+              ? 'Running'
+              : '—';
+          lateMinutes = att.lateMinutes;
+          earlyExitMinutes = att.earlyExitMinutes;
+          overtimeMinutes = att.overtimeMinutes;
+          selfieUrl = att.punchOutSelfieUrl || att.punchInSelfieUrl || null;
+          location = att.punchOutAddress || att.punchInAddress || locationName;
+          coords = att.punchOutLatitude
+            ? `${att.punchOutLatitude}, ${att.punchOutLongitude}`
+            : att.punchInLatitude
+              ? `${att.punchInLatitude}, ${att.punchInLongitude}`
+              : '—';
+          accuracy = att.punchOutAccuracy || att.punchInAccuracy || null;
+        } else if (isToday) {
+          status = 'NOT_PUNCHED_IN';
+        } else {
+          status = 'ABSENT';
+        }
+
+        return {
+          id: emp.id,
+          employeeCode: emp.employeeCode,
+          employeeName: emp.fullName,
+          email: emp.workEmail,
+          department: deptName,
+          role: roleName,
+          workLocation: locationName,
+          date: getKolkataDate(targetDate).dateStr,
+          punchIn,
+          punchOut,
+          workedDuration,
+          workedMinutes,
+          lateMinutes,
+          earlyExitMinutes,
+          overtimeMinutes,
+          status,
+          punchInLocation: location,
+          coords,
+          accuracy,
+          selfieUrl,
+          punchInSelfieUrl: att?.punchInSelfieUrl || null,
+          punchOutSelfieUrl: att?.punchOutSelfieUrl || null,
+          timestamp:
+            att?.punchInAt?.toISOString() ||
+            att?.createdAt?.toISOString() ||
+            new Date(targetDate).toISOString(),
+        };
+      });
+
+      // Filtering
+      if (query.department && query.department !== 'all') {
+        roster = roster.filter(
+          (r) => r.department.toLowerCase() === query.department.toLowerCase(),
+        );
+      }
+      if (query.status && query.status !== 'all') {
+        roster = roster.filter(
+          (r) => r.status.toUpperCase() === query.status.toUpperCase(),
+        );
+      }
+      if (query.search) {
+        const s = query.search.toLowerCase();
+        roster = roster.filter(
+          (r) =>
+            r.employeeName.toLowerCase().includes(s) ||
+            r.employeeCode.toLowerCase().includes(s) ||
+            r.department.toLowerCase().includes(s) ||
+            r.role.toLowerCase().includes(s),
+        );
       }
 
-      return {
-        id: emp.id,
-        employeeCode: emp.employeeCode,
-        employeeName: emp.fullName,
-        email: emp.workEmail,
-        department: deptName,
-        role: roleName,
-        workLocation: locationName,
-        date: getKolkataDate(targetDate).dateStr,
-        punchIn,
-        punchOut,
-        workedDuration,
-        workedMinutes,
-        lateMinutes,
-        earlyExitMinutes,
-        overtimeMinutes,
-        status,
-        punchInLocation: location,
-        coords,
-        accuracy,
-        selfieUrl,
-        punchInSelfieUrl: att?.punchInSelfieUrl || null,
-        punchOutSelfieUrl: att?.punchOutSelfieUrl || null,
-        timestamp: att?.punchInAt?.toISOString() || att?.createdAt?.toISOString() || new Date(targetDate).toISOString(),
-      };
-    });
-
-    // Filtering
-    if (query.department && query.department !== 'all') {
-      roster = roster.filter(r => r.department.toLowerCase() === query.department.toLowerCase());
-    }
-    if (query.status && query.status !== 'all') {
-      roster = roster.filter(r => r.status.toUpperCase() === query.status.toUpperCase());
-    }
-    if (query.search) {
-      const s = query.search.toLowerCase();
-      roster = roster.filter(
-        r =>
-          r.employeeName.toLowerCase().includes(s) ||
-          r.employeeCode.toLowerCase().includes(s) ||
-          r.department.toLowerCase().includes(s) ||
-          r.role.toLowerCase().includes(s)
-      );
-    }
-
-    return roster;
+      return roster;
     } catch (err) {
       console.warn('[AttendanceService] listCompanyAttendance fallback:', err);
       return [];
@@ -797,17 +925,33 @@ export class AttendanceService {
   // Dynamic Attendance Summary for HR Dashboard Top Cards
   async getAttendanceSummary(companyId: string, dateStr?: string) {
     const targetDate = dateStr ? new Date(dateStr) : new Date();
-    const roster = await this.listCompanyAttendance(companyId, { date: targetDate.toISOString() });
+    const roster = await this.listCompanyAttendance(companyId, {
+      date: targetDate.toISOString(),
+    });
 
-    const totalEmployees = roster.filter(r => r.status !== 'NOT_APPLICABLE').length;
-    const present = roster.filter(r => r.status === 'PRESENT' || r.status === 'HALF_DAY').length;
-    const currentlyPunchedIn = roster.filter(r => r.status === 'PUNCHED_IN').length;
-    const punchedOut = roster.filter(r => (r.status === 'PRESENT' || r.status === 'HALF_DAY') && r.punchOut !== '—').length;
-    const absent = roster.filter(r => r.status === 'ABSENT').length;
-    const onLeave = roster.filter(r => r.status === 'PAID_LEAVE' || r.status === 'UNPAID_LEAVE').length;
-    const halfDay = roster.filter(r => r.status === 'HALF_DAY').length;
-    const late = roster.filter(r => r.lateMinutes > 0).length;
-    const missingPunchOut = roster.filter(r => r.status === 'MISSING_PUNCH_OUT').length;
+    const totalEmployees = roster.filter(
+      (r) => r.status !== 'NOT_APPLICABLE',
+    ).length;
+    const present = roster.filter(
+      (r) => r.status === 'PRESENT' || r.status === 'HALF_DAY',
+    ).length;
+    const currentlyPunchedIn = roster.filter(
+      (r) => r.status === 'PUNCHED_IN',
+    ).length;
+    const punchedOut = roster.filter(
+      (r) =>
+        (r.status === 'PRESENT' || r.status === 'HALF_DAY') &&
+        r.punchOut !== '—',
+    ).length;
+    const absent = roster.filter((r) => r.status === 'ABSENT').length;
+    const onLeave = roster.filter(
+      (r) => r.status === 'PAID_LEAVE' || r.status === 'UNPAID_LEAVE',
+    ).length;
+    const halfDay = roster.filter((r) => r.status === 'HALF_DAY').length;
+    const late = roster.filter((r) => r.lateMinutes > 0).length;
+    const missingPunchOut = roster.filter(
+      (r) => r.status === 'MISSING_PUNCH_OUT',
+    ).length;
 
     return {
       totalEmployees,
@@ -823,7 +967,11 @@ export class AttendanceService {
   }
 
   // Complete Monthly Attendance Breakdown for /hr/employees/:employeeId
-  async getEmployeeMonthlyAttendance(employeeId: string, companyIdOrMonthStr?: string, monthStrInput?: string) {
+  async getEmployeeMonthlyAttendance(
+    employeeId: string,
+    companyIdOrMonthStr?: string,
+    monthStrInput?: string,
+  ) {
     let companyId: string | undefined;
     let monthStr = monthStrInput;
 
@@ -841,7 +989,9 @@ export class AttendanceService {
     });
 
     if (!emp) {
-      throw new NotFoundException(`Employee record not found for ID: ${employeeId}`);
+      throw new NotFoundException(
+        `Employee record not found for ID: ${employeeId}`,
+      );
     }
 
     const now = new Date();
@@ -871,7 +1021,9 @@ export class AttendanceService {
         },
       },
     });
-    const attMap = new Map(attendances.map(a => [getKolkataDate(a.attendanceDate).dateStr, a]));
+    const attMap = new Map(
+      attendances.map((a) => [getKolkataDate(a.attendanceDate).dateStr, a]),
+    );
 
     // Fetch Approved Leave Requests in this month
     const approvedLeaves = await this.prisma.leaveRequest.findMany({
@@ -885,20 +1037,24 @@ export class AttendanceService {
     });
 
     const isLeaveOnDate = (d: Date) => {
-      return approvedLeaves.some(l => new Date(l.fromDate) <= d && d <= new Date(l.toDate));
+      return approvedLeaves.some(
+        (l) => new Date(l.fromDate) <= d && d <= new Date(l.toDate),
+      );
     };
 
-    const joiningDate = emp.joiningDate ? new Date(emp.joiningDate) : firstDayOfMonth;
+    const joiningDate = emp.joiningDate
+      ? new Date(emp.joiningDate)
+      : firstDayOfMonth;
 
     let scheduledWorkingDays = 0;
     let elapsedWorkingDays = 0;
     let presentDays = 0;
     let absentDays = 0;
     let paidLeaveDays = 0;
-    let unpaidLeaveDays = 0;
+    const unpaidLeaveDays = 0;
     let halfDays = 0;
     let weeklyOffDays = 0;
-    let holidayDays = 0;
+    const holidayDays = 0;
     let lateArrivals = 0;
     let earlyExits = 0;
     let missingPunchOuts = 0;
@@ -924,7 +1080,9 @@ export class AttendanceService {
         }).format(new Date(d));
       };
 
-      const dayName = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(curDate);
+      const dayName = new Intl.DateTimeFormat('en-US', {
+        weekday: 'short',
+      }).format(curDate);
       const att = attMap.get(dateStr);
       const hasLeave = isLeaveOnDate(curDate);
 
@@ -936,7 +1094,8 @@ export class AttendanceService {
       // Evaluation
       if (curDate < getKolkataDate(joiningDate).startOfDay) {
         status = 'NOT_APPLICABLE';
-      } else if (curDate.getDay() === 0) { // Sunday
+      } else if (curDate.getDay() === 0) {
+        // Sunday
         status = 'WEEKLY_OFF';
         weeklyOffDays++;
       } else if (hasLeave) {
@@ -1009,7 +1168,10 @@ export class AttendanceService {
         joiningDate: emp.joiningDate,
       },
       summary: {
-        month: new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(firstDayOfMonth),
+        month: new Intl.DateTimeFormat('en-US', {
+          month: 'long',
+          year: 'numeric',
+        }).format(firstDayOfMonth),
         totalCalendarDays,
         scheduledWorkingDays,
         elapsedWorkingDays,
@@ -1032,15 +1194,22 @@ export class AttendanceService {
 
   // Internal policy helper
   private async getPolicyForDept(deptName: string) {
-    let policy = await this.prisma.shiftPolicy.findUnique({ where: { deptName } });
+    let policy = await this.prisma.shiftPolicy.findUnique({
+      where: { deptName },
+    });
     if (!policy) {
-      policy = await this.prisma.shiftPolicy.findUnique({ where: { deptName: 'Default' } });
+      policy = await this.prisma.shiftPolicy.findUnique({
+        where: { deptName: 'Default' },
+      });
     }
     return policy || { checkIn: '09:00 AM', checkOut: '06:00 PM', grace: 15 };
   }
 
   // Late Minutes calculation helper
-  private async calculateLateMinutes(checkInTime: Date, deptName: string): Promise<number> {
+  private async calculateLateMinutes(
+    checkInTime: Date,
+    deptName: string,
+  ): Promise<number> {
     try {
       const policy = await this.getPolicyForDept(deptName);
       const formatter = new Intl.DateTimeFormat('en-US', {
@@ -1073,7 +1242,10 @@ export class AttendanceService {
   }
 
   // Early Exit calculation helper
-  private calculateEarlyExitMinutes(checkOutTime: Date, policyCheckOut: string): number {
+  private calculateEarlyExitMinutes(
+    checkOutTime: Date,
+    policyCheckOut: string,
+  ): number {
     try {
       const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: 'Asia/Kolkata',
@@ -1108,11 +1280,36 @@ export class AttendanceService {
     const policies = await this.prisma.shiftPolicy.findMany();
     if (policies.length === 0) {
       const defaults = [
-        { deptName: 'HR', checkIn: '09:00 AM', checkOut: '06:00 PM', grace: 15 },
-        { deptName: 'Sales', checkIn: '09:30 AM', checkOut: '06:30 PM', grace: 30 },
-        { deptName: 'Production', checkIn: '08:00 AM', checkOut: '05:00 PM', grace: 10 },
-        { deptName: 'Finance', checkIn: '09:00 AM', checkOut: '06:00 PM', grace: 15 },
-        { deptName: 'Default', checkIn: '09:00 AM', checkOut: '06:00 PM', grace: 15 },
+        {
+          deptName: 'HR',
+          checkIn: '09:00 AM',
+          checkOut: '06:00 PM',
+          grace: 15,
+        },
+        {
+          deptName: 'Sales',
+          checkIn: '09:30 AM',
+          checkOut: '06:30 PM',
+          grace: 30,
+        },
+        {
+          deptName: 'Production',
+          checkIn: '08:00 AM',
+          checkOut: '05:00 PM',
+          grace: 10,
+        },
+        {
+          deptName: 'Finance',
+          checkIn: '09:00 AM',
+          checkOut: '06:00 PM',
+          grace: 15,
+        },
+        {
+          deptName: 'Default',
+          checkIn: '09:00 AM',
+          checkOut: '06:00 PM',
+          grace: 15,
+        },
       ];
       for (const d of defaults) {
         await this.prisma.shiftPolicy.create({ data: d });
@@ -1143,4 +1340,3 @@ export class AttendanceService {
     return this.prisma.attendance.deleteMany();
   }
 }
-

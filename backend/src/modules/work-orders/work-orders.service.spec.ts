@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { WorkOrdersService } from './work-orders.service';
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { createMockPrismaService } from '../../../test/mocks/prisma.mock';
 
 describe('WorkOrdersService', () => {
@@ -15,6 +16,10 @@ describe('WorkOrdersService', () => {
         {
           provide: WorkflowService,
           useValue: { trigger: jest.fn(), log: jest.fn() },
+        },
+        {
+          provide: NotificationsService,
+          useValue: { send: jest.fn(), sendToRole: jest.fn() },
         },
       ],
     }).compile();

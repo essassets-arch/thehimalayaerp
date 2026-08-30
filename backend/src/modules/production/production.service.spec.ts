@@ -3,6 +3,7 @@ import { ProductionService } from './production.service';
 import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { createMockPrismaService } from '../../../test/mocks/prisma.mock';
 
 describe('ProductionService', () => {
@@ -18,6 +19,10 @@ describe('ProductionService', () => {
           useValue: { trigger: jest.fn(), log: jest.fn() },
         },
         { provide: SequenceService, useValue: { generate: jest.fn() } },
+        {
+          provide: NotificationsService,
+          useValue: { send: jest.fn(), sendToRole: jest.fn() },
+        },
       ],
     }).compile();
 

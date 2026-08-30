@@ -60,7 +60,9 @@ describe('FilesService & FilesController — Universal File Access Layer', () =>
     });
 
     it('cleans localhost origins and resolves correct disk path', () => {
-      const result = service.resolveFile(`http://localhost:3000/uploads/pod/${testFileName}`);
+      const result = service.resolveFile(
+        `http://localhost:3000/uploads/pod/${testFileName}`,
+      );
       expect(result).toBeDefined();
       expect(result?.fileName).toBe(testFileName);
     });
@@ -93,7 +95,12 @@ describe('FilesService & FilesController — Universal File Access Layer', () =>
       expect(result.mimeType).toBe('image/png');
 
       // Cleanup saved test file
-      const savedPath = join(process.cwd(), 'uploads', 'pod', result.storedName);
+      const savedPath = join(
+        process.cwd(),
+        'uploads',
+        'pod',
+        result.storedName,
+      );
       if (existsSync(savedPath)) unlinkSync(savedPath);
     });
   });

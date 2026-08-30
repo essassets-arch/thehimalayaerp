@@ -59,7 +59,11 @@ describe('Expense Domain — E2E Suite', () => {
     const salesRole = await prisma.role.upsert({
       where: { code: 'SALES_EXECUTIVE' },
       update: {},
-      create: { publicId: 'R-SALES', name: 'Sales Executive', code: 'SALES_EXECUTIVE' },
+      create: {
+        publicId: 'R-SALES',
+        name: 'Sales Executive',
+        code: 'SALES_EXECUTIVE',
+      },
     });
 
     const plantHeadRole = await prisma.role.upsert({
@@ -130,7 +134,8 @@ describe('Expense Domain — E2E Suite', () => {
     const adminLogin = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email: 'super.admin@himalayaerp.com', password: 'admin123' });
-    adminToken = adminLogin.body.accessToken || adminLogin.body.data?.accessToken;
+    adminToken =
+      adminLogin.body.accessToken || adminLogin.body.data?.accessToken;
 
     const hrLogin = await request(app.getHttpServer())
       .post('/auth/login')
@@ -140,7 +145,8 @@ describe('Expense Domain — E2E Suite', () => {
     const salesLogin = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email: 'sales1@himalayaerp.com', password: 'admin123' });
-    salesToken = salesLogin.body.accessToken || salesLogin.body.data?.accessToken;
+    salesToken =
+      salesLogin.body.accessToken || salesLogin.body.data?.accessToken;
 
     const phLogin = await request(app.getHttpServer())
       .post('/auth/login')
@@ -161,12 +167,15 @@ describe('Expense Domain — E2E Suite', () => {
         .set('Authorization', `Bearer ${salesToken}`)
         .send({
           expenseName: 'Client Site Conveyance',
-          amount: 1500.50,
+          amount: 1500.5,
           expenseDate: new Date(),
         });
 
       expect(res.status).toBe(201);
-      console.log('SUBMIT EXPENSE RESPONSE BODY:', JSON.stringify(res.body, null, 2));
+      console.log(
+        'SUBMIT EXPENSE RESPONSE BODY:',
+        JSON.stringify(res.body, null, 2),
+      );
       expect(res.body.success).toBe(true);
       expect(res.body.data.expenseName).toBe('Client Site Conveyance');
       expect(res.body.data.status).toBe('PENDING_HR');
@@ -227,28 +236,32 @@ describe('Expense Domain — E2E Suite', () => {
         .set('Authorization', `Bearer ${plantHeadToken}`)
         .send({
           expenseName: 'Plant Machine Part Conveyance',
-          amount: 4500.00,
+          amount: 4500.0,
           expenseDate: new Date(),
         });
 
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
       expect(res.body.data.status).toBe('PENDING_SUPER_ADMIN');
-      
+
       const plantHeadClaimId = res.body.data.id;
 
       // HR checks pending list -> should NOT see it
       const hrRes = await request(app.getHttpServer())
         .get('/expenses/pending')
         .set('Authorization', `Bearer ${hrToken}`);
-      const hrClaim = hrRes.body.data?.find((e: any) => e.id === plantHeadClaimId);
+      const hrClaim = hrRes.body.data?.find(
+        (e: any) => e.id === plantHeadClaimId,
+      );
       expect(hrClaim).toBeUndefined();
 
       // Super Admin checks pending list -> should see it
       const adminRes = await request(app.getHttpServer())
         .get('/expenses/pending')
         .set('Authorization', `Bearer ${adminToken}`);
-      const adminClaim = adminRes.body.data?.find((e: any) => e.id === plantHeadClaimId);
+      const adminClaim = adminRes.body.data?.find(
+        (e: any) => e.id === plantHeadClaimId,
+      );
       expect(adminClaim).toBeDefined();
 
       // Super Admin approves Plant Head claim -> becomes APPROVED

@@ -19,7 +19,19 @@ export class QcController {
   constructor(private readonly qcService: QcService) {}
 
   @Get()
-  @Roles('QC', 'QC_MANAGER', 'QC_INSPECTOR', 'QC_ENGINEER', 'STORE_MANAGER', 'STORE_EXECUTIVE', 'STORE_KEEPER', 'PLANT_HEAD', 'SUPER_ADMIN', 'SUPERADMIN', 'ADMIN')
+  @Roles(
+    'QC',
+    'QC_MANAGER',
+    'QC_INSPECTOR',
+    'QC_ENGINEER',
+    'STORE_MANAGER',
+    'STORE_EXECUTIVE',
+    'STORE_KEEPER',
+    'PLANT_HEAD',
+    'SUPER_ADMIN',
+    'SUPERADMIN',
+    'ADMIN',
+  )
   @RequirePermissions('qc.inspection.read')
   async listInspections(@Req() req: any) {
     const companyId = req.headers['x-company-id'] || req.user?.companyId;
@@ -29,7 +41,19 @@ export class QcController {
   }
 
   @Get(':id')
-  @Roles('QC', 'QC_MANAGER', 'QC_INSPECTOR', 'QC_ENGINEER', 'STORE_MANAGER', 'STORE_EXECUTIVE', 'STORE_KEEPER', 'PLANT_HEAD', 'SUPER_ADMIN', 'SUPERADMIN', 'ADMIN')
+  @Roles(
+    'QC',
+    'QC_MANAGER',
+    'QC_INSPECTOR',
+    'QC_ENGINEER',
+    'STORE_MANAGER',
+    'STORE_EXECUTIVE',
+    'STORE_KEEPER',
+    'PLANT_HEAD',
+    'SUPER_ADMIN',
+    'SUPERADMIN',
+    'ADMIN',
+  )
   @RequirePermissions('qc.inspection.read')
   async getInspection(@Param('id') id: string) {
     return this.qcService.getInspection(id);

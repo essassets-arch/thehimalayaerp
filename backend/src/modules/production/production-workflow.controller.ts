@@ -68,7 +68,11 @@ export class ProductionWorkflowController {
       const companyId = req.headers['x-company-id'] || req.user?.companyId;
       const userId = req.user?.sub || req.user?.id;
       const role = req.user?.role;
-      const data = await this.workflowService.getFinishedGoods(companyId, userId, role);
+      const data = await this.workflowService.getFinishedGoods(
+        companyId,
+        userId,
+        role,
+      );
       return { success: true, data };
     } catch (err: any) {
       console.error('[getFinishedGoods Error]', err);
@@ -77,7 +81,11 @@ export class ProductionWorkflowController {
   }
 
   @Post('production/finished-goods')
-  @RequirePermissions('production.productionworkflow.read', 'production.productionworkflow.create', 'production.floor.create')
+  @RequirePermissions(
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'production.floor.create',
+  )
   async createFinishedGoods(@Body() dto: any, @Req() req: any) {
     const data = await this.workflowService.createFinishedGoods(
       dto,
@@ -87,7 +95,11 @@ export class ProductionWorkflowController {
   }
 
   @Post('production/finished-goods/stock-in')
-  @RequirePermissions('production.productionworkflow.read', 'production.productionworkflow.create', 'production.floor.create')
+  @RequirePermissions(
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'production.floor.create',
+  )
   async stockInFinishedGoods(@Body() dto: any, @Req() req: any) {
     const data = await this.workflowService.stockInFinishedGoods(
       dto,
@@ -97,7 +109,11 @@ export class ProductionWorkflowController {
   }
 
   @Post('production/finished-goods/stock-out')
-  @RequirePermissions('production.productionworkflow.read', 'production.productionworkflow.create', 'production.floor.create')
+  @RequirePermissions(
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'production.floor.create',
+  )
   async stockOutFinishedGoods(@Body() dto: any, @Req() req: any) {
     const data = await this.workflowService.stockOutFinishedGoods(
       dto,
@@ -107,7 +123,11 @@ export class ProductionWorkflowController {
   }
 
   @Post('production/finished-goods/adjust')
-  @RequirePermissions('production.productionworkflow.read', 'production.productionworkflow.create', 'production.floor.create')
+  @RequirePermissions(
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'production.floor.create',
+  )
   async adjustFinishedGoods(@Body() dto: any, @Req() req: any) {
     const data = await this.workflowService.adjustFinishedGoods(
       dto,
@@ -122,8 +142,12 @@ export class ProductionWorkflowController {
     @Param('productId') productId: string,
     @Req() req: any,
   ) {
-    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'COMP-000001';
-    const data = await this.workflowService.getFinishedGoodsHistory(companyId, productId);
+    const companyId =
+      req.headers['x-company-id'] || req.user?.companyId || 'COMP-000001';
+    const data = await this.workflowService.getFinishedGoodsHistory(
+      companyId,
+      productId,
+    );
     return { success: true, data };
   }
 
@@ -198,14 +222,22 @@ export class ProductionWorkflowController {
   // QC FAILED
   // ==========================================
   @Get('production/qc-failed')
-  @RequirePermissions('production.floor.read', 'production.qc.read', 'production.productionworkflow.read')
+  @RequirePermissions(
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+  )
   async getQCFailed() {
     const data = await this.workflowService.getJobsByStatus(['QC_FAILED']);
     return { success: true, data };
   }
 
   @Post('production/:id/start-rework')
-  @RequirePermissions('production.floor.rework', 'production.floor.start', 'production.floor.create')
+  @RequirePermissions(
+    'production.floor.rework',
+    'production.floor.start',
+    'production.floor.create',
+  )
   async startRework(@Param('id') id: string, @Req() req: any) {
     return this.workflowService.startRework(id, req.user?.sub || 'system');
   }

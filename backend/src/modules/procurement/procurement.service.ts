@@ -20,13 +20,33 @@ const INDENT: Record<string, string[]> = {
   cancel: ['DRAFT', 'PLANT_HEAD_CORRECTION_REQUIRED'],
 };
 const PO: Record<string, string[]> = {
-  submit: ['DRAFT', 'CORRECTION_REQUIRED', 'PLANT_HEAD_PURCHASE_REJECTED', 'SUPER_ADMIN_REJECTED'],
-  approve: ['PENDING_SUPER_ADMIN_APPROVAL', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL'],
+  submit: [
+    'DRAFT',
+    'CORRECTION_REQUIRED',
+    'PLANT_HEAD_PURCHASE_REJECTED',
+    'SUPER_ADMIN_REJECTED',
+  ],
+  approve: [
+    'PENDING_SUPER_ADMIN_APPROVAL',
+    'PENDING_PLANT_HEAD_PURCHASE_APPROVAL',
+  ],
   'plant-head-approve': ['PENDING_PLANT_HEAD_PURCHASE_APPROVAL'],
   'plant-head-reject': ['PENDING_PLANT_HEAD_PURCHASE_APPROVAL'],
-  return: ['PENDING_SUPER_ADMIN_APPROVAL', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL'],
-  reject: ['PENDING_SUPER_ADMIN_APPROVAL', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL'],
-  issue: ['SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED', 'ORDERED', 'PO_ISSUED'],
+  return: [
+    'PENDING_SUPER_ADMIN_APPROVAL',
+    'PENDING_PLANT_HEAD_PURCHASE_APPROVAL',
+  ],
+  reject: [
+    'PENDING_SUPER_ADMIN_APPROVAL',
+    'PENDING_PLANT_HEAD_PURCHASE_APPROVAL',
+  ],
+  issue: [
+    'SUPER_ADMIN_APPROVED',
+    'PLANT_HEAD_PURCHASE_APPROVED',
+    'FINANCE_APPROVED',
+    'ORDERED',
+    'PO_ISSUED',
+  ],
   'vendor-accept': ['ORDERED', 'PO_ISSUED'],
   'vendor-reject': ['ORDERED', 'PO_ISSUED'],
   dispatch: ['ORDERED', 'PO_ISSUED', 'VENDOR_ACCEPTED'],
@@ -132,7 +152,11 @@ export class ProcurementService {
       if (search) {
         where.OR = [
           { invoiceNumber: { contains: search, mode: 'insensitive' } },
-          { purchaseOrder: { publicId: { contains: search, mode: 'insensitive' } } },
+          {
+            purchaseOrder: {
+              publicId: { contains: search, mode: 'insensitive' },
+            },
+          },
         ];
       }
     } else if (entity === 'vendorPayment') {
@@ -191,7 +215,9 @@ export class ProcurementService {
       },
       goodsReceiptNote: {
         items: { include: { product: true } },
-        purchaseOrder: { include: { supplier: { select: { id: true, name: true } } } },
+        purchaseOrder: {
+          include: { supplier: { select: { id: true, name: true } } },
+        },
       },
     };
     const include = ENTITY_INCLUDES[entity] ?? { items: true };
@@ -306,10 +332,24 @@ export class ProcurementService {
     let status = query.status;
     if (!status) {
       if (tab === 'Draft POs' || tab === 'Drafts') {
-        status = { in: ['DRAFT', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL', 'PLANT_HEAD_PURCHASE_REJECTED', 'SUPER_ADMIN_REJECTED'] };
+        status = {
+          in: [
+            'DRAFT',
+            'PENDING_PLANT_HEAD_PURCHASE_APPROVAL',
+            'PENDING_SUPER_ADMIN_APPROVAL',
+            'PLANT_HEAD_PURCHASE_REJECTED',
+            'SUPER_ADMIN_REJECTED',
+          ],
+        };
       } else if (tab === 'Approved POs') {
         // All approved POs: Direct Finance (<= 10k), Plant Head (10k-15k), Super Admin (> 15k)
-        status = { in: ['SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED'] };
+        status = {
+          in: [
+            'SUPER_ADMIN_APPROVED',
+            'PLANT_HEAD_PURCHASE_APPROVED',
+            'FINANCE_APPROVED',
+          ],
+        };
       } else if (tab === 'Closed POs') {
         status = 'CLOSED';
       }
@@ -417,7 +457,10 @@ export class ProcurementService {
     return { data, meta: { page, limit, total } };
   }
 
-  async superAdminPurchaseOrderHistory(companyId: string | undefined, query: any) {
+  async superAdminPurchaseOrderHistory(
+    companyId: string | undefined,
+    query: any,
+  ) {
     const { page, limit, skip } = this.page(query);
     const where: any = {
       ...(companyId && { companyId }),
@@ -484,7 +527,7 @@ export class ProcurementService {
           'purchaseOrderId and delivery items are required',
         );
       return await this.prisma.$transaction(async (tx) => {
-        let po: any = await tx.purchaseOrder.findFirst({
+        const po: any = await tx.purchaseOrder.findFirst({
           where: {
             OR: [
               { id: dto.purchaseOrderId },
@@ -499,19 +542,25 @@ export class ProcurementService {
           },
         });
         if (!po) {
-          throw new NotFoundException(`Purchase order "${dto.purchaseOrderId}" was not found`);
+          throw new NotFoundException(
+            `Purchase order "${dto.purchaseOrderId}" was not found`,
+          );
         }
 
         // 1. Terminal status check
         const terminalStatuses = ['CLOSED', 'PO_CLOSED', 'CANCELLED'];
         if (terminalStatuses.includes(po.status)) {
-          throw new BadRequestException(`Purchase order is in ${po.status} status and cannot receive deliveries.`);
+          throw new BadRequestException(
+            `Purchase order is in ${po.status} status and cannot receive deliveries.`,
+          );
         }
 
         // 2. Full fulfillment check
-        const allItemsFulfilled = (po.items || []).length > 0 && (po.items || []).every((i: any) =>
-          MONEY(i.receivedQuantity).gte(i.quantity),
-        );
+        const allItemsFulfilled =
+          (po.items || []).length > 0 &&
+          (po.items || []).every((i: any) =>
+            MONEY(i.receivedQuantity).gte(i.quantity),
+          );
         if (allItemsFulfilled && !dto.isReplacement) {
           throw new BadRequestException(
             `Purchase order "${po.poNumber || po.publicId || po.id}" is already completely delivered and fulfilled.`,
@@ -519,20 +568,43 @@ export class ProcurementService {
         }
 
         // 3. Idempotency Check: Prevent duplicate delivery verification with the same Challan, Invoice or Idempotency Key (ignoring empty strings)
-        const cleanChallan = typeof dto.deliveryChallanNumber === 'string' ? dto.deliveryChallanNumber.trim() : '';
-        const cleanInvoice = typeof dto.invoiceNumber === 'string' ? dto.invoiceNumber.trim() : '';
-        const idempotencyKey = typeof dto.idempotencyKey === 'string' ? dto.idempotencyKey.trim() : '';
+        const cleanChallan =
+          typeof dto.deliveryChallanNumber === 'string'
+            ? dto.deliveryChallanNumber.trim()
+            : '';
+        const cleanInvoice =
+          typeof dto.invoiceNumber === 'string' ? dto.invoiceNumber.trim() : '';
+        const idempotencyKey =
+          typeof dto.idempotencyKey === 'string'
+            ? dto.idempotencyKey.trim()
+            : '';
 
         if (cleanChallan || cleanInvoice || idempotencyKey) {
           const existingGrn = (po.grns || []).find((g: any) => {
-            const snap = (g.snapshot as any) || {};
-            const snapChallan = typeof snap.deliveryChallanNumber === 'string' ? snap.deliveryChallanNumber.trim() : '';
-            const snapInvoice = typeof snap.invoiceNumber === 'string' ? snap.invoiceNumber.trim() : '';
-            const snapKey = typeof snap.idempotencyKey === 'string' ? snap.idempotencyKey.trim() : '';
+            const snap = g.snapshot || {};
+            const snapChallan =
+              typeof snap.deliveryChallanNumber === 'string'
+                ? snap.deliveryChallanNumber.trim()
+                : '';
+            const snapInvoice =
+              typeof snap.invoiceNumber === 'string'
+                ? snap.invoiceNumber.trim()
+                : '';
+            const snapKey =
+              typeof snap.idempotencyKey === 'string'
+                ? snap.idempotencyKey.trim()
+                : '';
 
-            const matchChallan = cleanChallan && snapChallan && snapChallan.toLowerCase() === cleanChallan.toLowerCase();
-            const matchInvoice = cleanInvoice && snapInvoice && snapInvoice.toLowerCase() === cleanInvoice.toLowerCase();
-            const matchKey = idempotencyKey && snapKey && snapKey === idempotencyKey;
+            const matchChallan =
+              cleanChallan &&
+              snapChallan &&
+              snapChallan.toLowerCase() === cleanChallan.toLowerCase();
+            const matchInvoice =
+              cleanInvoice &&
+              snapInvoice &&
+              snapInvoice.toLowerCase() === cleanInvoice.toLowerCase();
+            const matchKey =
+              idempotencyKey && snapKey && snapKey === idempotencyKey;
 
             return Boolean(matchChallan || matchInvoice || matchKey);
           });
@@ -586,16 +658,25 @@ export class ProcurementService {
         const stockUpdates: any[] = [];
 
         for (const input of dto.items) {
-          const deliveredNum = Number(input.deliveredQuantity ?? input.receivedQuantity ?? 0);
+          const deliveredNum = Number(
+            input.deliveredQuantity ?? input.receivedQuantity ?? 0,
+          );
           if (deliveredNum < 0) {
-            throw new BadRequestException('Delivered quantity cannot be negative.');
+            throw new BadRequestException(
+              'Delivered quantity cannot be negative.',
+            );
           }
 
-          let acceptedNum = input.acceptedQuantity !== undefined ? Number(input.acceptedQuantity) : deliveredNum;
-          let rejectedNum = Number(input.rejectedQuantity || 0);
+          let acceptedNum =
+            input.acceptedQuantity !== undefined
+              ? Number(input.acceptedQuantity)
+              : deliveredNum;
+          const rejectedNum = Number(input.rejectedQuantity || 0);
 
           if (acceptedNum < 0 || rejectedNum < 0) {
-            throw new BadRequestException('Accepted and rejected quantities must be non-negative.');
+            throw new BadRequestException(
+              'Accepted and rejected quantities must be non-negative.',
+            );
           }
 
           if (acceptedNum + rejectedNum !== deliveredNum) {
@@ -606,17 +687,20 @@ export class ProcurementService {
           const accepted = MONEY(acceptedNum);
           const rejected = MONEY(rejectedNum);
 
-          const poItem = (po.items || []).find(
-            (x: any) =>
-              x.id === input.purchaseOrderItemId ||
-              x.productId === input.productId ||
-              (x.materialCode && x.materialCode === input.materialCode) ||
-              (x.materialName && x.materialName.toLowerCase() === (input.materialName || '').toLowerCase()),
-          ) || po.items?.[0];
+          const poItem =
+            (po.items || []).find(
+              (x: any) =>
+                x.id === input.purchaseOrderItemId ||
+                x.productId === input.productId ||
+                (x.materialCode && x.materialCode === input.materialCode) ||
+                (x.materialName &&
+                  x.materialName.toLowerCase() ===
+                    (input.materialName || '').toLowerCase()),
+            ) || po.items?.[0];
 
-          let searchId = poItem?.productId || input.productId;
-          let searchCode = input.materialCode || poItem?.materialCode;
-          let searchName = input.materialName || poItem?.materialName;
+          const searchId = poItem?.productId || input.productId;
+          const searchCode = input.materialCode || poItem?.materialCode;
+          const searchName = input.materialName || poItem?.materialName;
 
           // Find or sync in RawMaterial & Product catalogs
           let rawMaterial: any = null;
@@ -631,7 +715,16 @@ export class ProcurementService {
                   { publicId: searchId },
                   { sku: searchId },
                   ...(searchCode ? [{ sku: searchCode }] : []),
-                  ...(searchName ? [{ name: { equals: searchName, mode: 'insensitive' as any } }] : []),
+                  ...(searchName
+                    ? [
+                        {
+                          name: {
+                            equals: searchName,
+                            mode: 'insensitive' as any,
+                          },
+                        },
+                      ]
+                    : []),
                 ],
               },
             });
@@ -643,7 +736,16 @@ export class ProcurementService {
                   { publicId: searchId },
                   { sku: searchId },
                   ...(searchCode ? [{ sku: searchCode }] : []),
-                  ...(searchName ? [{ name: { equals: searchName, mode: 'insensitive' as any } }] : []),
+                  ...(searchName
+                    ? [
+                        {
+                          name: {
+                            equals: searchName,
+                            mode: 'insensitive' as any,
+                          },
+                        },
+                      ]
+                    : []),
                 ],
               },
             });
@@ -655,7 +757,16 @@ export class ProcurementService {
                 companyId: po.companyId,
                 OR: [
                   ...(searchCode ? [{ sku: searchCode }] : []),
-                  ...(searchName ? [{ name: { equals: searchName, mode: 'insensitive' as any } }] : []),
+                  ...(searchName
+                    ? [
+                        {
+                          name: {
+                            equals: searchName,
+                            mode: 'insensitive' as any,
+                          },
+                        },
+                      ]
+                    : []),
                 ],
               },
             });
@@ -667,15 +778,30 @@ export class ProcurementService {
                 companyId: po.companyId,
                 OR: [
                   ...(searchCode ? [{ sku: searchCode }] : []),
-                  ...(searchName ? [{ name: { equals: searchName, mode: 'insensitive' as any } }] : []),
+                  ...(searchName
+                    ? [
+                        {
+                          name: {
+                            equals: searchName,
+                            mode: 'insensitive' as any,
+                          },
+                        },
+                      ]
+                    : []),
                 ],
               },
             });
           }
 
-          const matName = searchName || product?.name || rawMaterial?.name || 'Raw Material';
-          const matSku = searchCode || rawMaterial?.sku || product?.sku || `RM-${Date.now().toString().slice(-6)}`;
-          const matUnit = input.unit || rawMaterial?.unit || product?.unit || 'Kg';
+          const matName =
+            searchName || product?.name || rawMaterial?.name || 'Raw Material';
+          const matSku =
+            searchCode ||
+            rawMaterial?.sku ||
+            product?.sku ||
+            `RM-${Date.now().toString().slice(-6)}`;
+          const matUnit =
+            input.unit || rawMaterial?.unit || product?.unit || 'Kg';
 
           if (!rawMaterial && !product) {
             const randomId = this.id('RM');
@@ -741,7 +867,11 @@ export class ProcurementService {
             }
           }
 
-          const targetProductId = product ? product.id : (rawMaterial ? rawMaterial.id : null);
+          const targetProductId = product
+            ? product.id
+            : rawMaterial
+              ? rawMaterial.id
+              : null;
           const targetRawMaterialId = rawMaterial ? rawMaterial.id : null;
 
           grnItems.push({
@@ -759,7 +889,9 @@ export class ProcurementService {
               companyId: po.companyId,
               OR: [
                 ...(targetProductId ? [{ productId: targetProductId }] : []),
-                ...(targetRawMaterialId ? [{ rawMaterialId: targetRawMaterialId }] : []),
+                ...(targetRawMaterialId
+                  ? [{ rawMaterialId: targetRawMaterialId }]
+                  : []),
               ],
             },
           });
@@ -767,9 +899,23 @@ export class ProcurementService {
           for (const t of prevTxs) {
             const tType = (t.type || '').toUpperCase().trim();
             const tQty = Number(t.quantity || 0);
-            if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN', 'PURCHASE_DELIVERY'].includes(tType)) {
+            if (
+              [
+                'IN',
+                'PURCHASE_RECEIPT',
+                'OPENING_STOCK',
+                'QUICK_STOCK_IN',
+                'STOCK IN',
+                'STOCK_IN',
+                'PURCHASE_DELIVERY',
+              ].includes(tType)
+            ) {
               balanceBefore += tQty;
-            } else if (['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(tType)) {
+            } else if (
+              ['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(
+                tType,
+              )
+            ) {
               balanceBefore -= tQty;
             } else if (tType === 'ADJUSTMENT') {
               balanceBefore += tQty;
@@ -859,7 +1005,8 @@ export class ProcurementService {
             await tx.stockHistory.create({
               data: {
                 companyId: po.companyId,
-                productId: itemStock.productId || itemStock.rawMaterialId || 'PROD',
+                productId:
+                  itemStock.productId || itemStock.rawMaterialId || 'PROD',
                 quantity: itemStock.acceptedQuantity,
                 event: 'STOCK_IN',
                 actor: validActorId || 'Store Operator',
@@ -957,7 +1104,13 @@ export class ProcurementService {
         await this.notifyRole(
           tx,
           po.companyId,
-          ['FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER', 'STORE', 'STORE_MANAGER'],
+          [
+            'FINANCE',
+            'FINANCE_EXECUTIVE',
+            'FINANCE_MANAGER',
+            'STORE',
+            'STORE_MANAGER',
+          ],
           'Purchase Delivery Verified',
           `${grn.grnNumber} was verified for ${po.publicId || po.poNumber}. Raw inventory stock updated.`,
           'GoodsReceiptNote',
@@ -972,10 +1125,15 @@ export class ProcurementService {
       });
     } catch (error: any) {
       console.error('[verifyDelivery Exception]', error);
-      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
         throw error;
       }
-      throw new BadRequestException(error?.message || 'Failed to verify delivery');
+      throw new BadRequestException(
+        error?.message || 'Failed to verify delivery',
+      );
     }
   }
 
@@ -1007,9 +1165,21 @@ export class ProcurementService {
             OR: [
               { grnNumber: { contains: search, mode: 'insensitive' } },
               { publicId: { contains: search, mode: 'insensitive' } },
-              { purchaseOrder: { poNumber: { contains: search, mode: 'insensitive' } } },
-              { purchaseOrder: { publicId: { contains: search, mode: 'insensitive' } } },
-              { purchaseOrder: { supplier: { name: { contains: search, mode: 'insensitive' } } } },
+              {
+                purchaseOrder: {
+                  poNumber: { contains: search, mode: 'insensitive' },
+                },
+              },
+              {
+                purchaseOrder: {
+                  publicId: { contains: search, mode: 'insensitive' },
+                },
+              },
+              {
+                purchaseOrder: {
+                  supplier: { name: { contains: search, mode: 'insensitive' } },
+                },
+              },
             ],
           }
         : {}),
@@ -1056,9 +1226,14 @@ export class ProcurementService {
       return {
         ...grn,
         receivedBy: receiver
-          ? { id: receiver.id, name: receiver.name || receiver.email, email: receiver.email }
+          ? {
+              id: receiver.id,
+              name: receiver.name || receiver.email,
+              email: receiver.email,
+            }
           : null,
-        challanNumber: snapshot.deliveryChallanNumber || snapshot.challanNo || null,
+        challanNumber:
+          snapshot.deliveryChallanNumber || snapshot.challanNo || null,
         invoiceNumber: snapshot.invoiceNumber || snapshot.invoiceNo || null,
         remarks: snapshot.remarks || null,
         totalAcceptedQty: (grn.items || []).reduce(
@@ -1194,7 +1369,7 @@ export class ProcurementService {
             });
           }
         }
-        
+
         // Calculate current stock levels from the ledger transactions
         const grouped = await tx.inventoryTransaction.groupBy({
           by: ['productId', 'rawMaterialId', 'type'],
@@ -1207,9 +1382,23 @@ export class ProcurementService {
         for (const r of grouped) {
           const qty = Number(r._sum.quantity || 0);
           const typeUpper = (r.type || '').toUpperCase().trim();
-          if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN', 'ADJUSTMENT'].includes(typeUpper)) {
+          if (
+            [
+              'IN',
+              'PURCHASE_RECEIPT',
+              'OPENING_STOCK',
+              'QUICK_STOCK_IN',
+              'STOCK IN',
+              'STOCK_IN',
+              'ADJUSTMENT',
+            ].includes(typeUpper)
+          ) {
             currentStock += qty;
-          } else if (['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(typeUpper)) {
+          } else if (
+            ['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(
+              typeUpper,
+            )
+          ) {
             currentStock -= qty;
           }
         }
@@ -1217,8 +1406,10 @@ export class ProcurementService {
         itemsToCreate.push({
           productId: product.id,
           quantity: MONEY(i.quantity),
-          approvedQuantity: i.approvedQuantity == null ? null : MONEY(i.approvedQuantity),
-          estimatedUnitRate: i.estimatedUnitRate == null ? null : MONEY(i.estimatedUnitRate),
+          approvedQuantity:
+            i.approvedQuantity == null ? null : MONEY(i.approvedQuantity),
+          estimatedUnitRate:
+            i.estimatedUnitRate == null ? null : MONEY(i.estimatedUnitRate),
           lineRemarks: i.lineRemarks,
           materialCode: product?.sku || '',
           materialName: product?.name || '',
@@ -1512,7 +1703,10 @@ export class ProcurementService {
         gstAmount = gstAmount.add(lineGst);
 
         const indentItem = await tx.purchaseIndentItem.findFirst({
-          where: { purchaseIndentId: indentId, productId: i.productId || i.materialId },
+          where: {
+            purchaseIndentId: indentId,
+            productId: i.productId || i.materialId,
+          },
         });
 
         itemsToCreate.push({
@@ -1603,7 +1797,9 @@ export class ProcurementService {
         tx,
         indent.companyId,
         ['FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER'],
-        initialStatus === 'FINANCE_APPROVED' ? 'PO Directly Approved' : 'Draft PO created',
+        initialStatus === 'FINANCE_APPROVED'
+          ? 'PO Directly Approved'
+          : 'Draft PO created',
         initialStatus === 'FINANCE_APPROVED'
           ? `${po.publicId} (₹${grandTotalNum}) is directly approved and ready to issue.`
           : `${po.publicId} is ready to send for approval.`,
@@ -1667,13 +1863,19 @@ export class ProcurementService {
           status = 'PENDING_SUPER_ADMIN_APPROVAL';
         }
       } else if (action === 'approve' || action === 'plant-head-approve') {
-        if (row.status === 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL' || action === 'plant-head-approve') {
+        if (
+          row.status === 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL' ||
+          action === 'plant-head-approve'
+        ) {
           status = 'PLANT_HEAD_PURCHASE_APPROVED';
         } else {
           status = 'SUPER_ADMIN_APPROVED';
         }
       } else if (action === 'reject' || action === 'plant-head-reject') {
-        if (row.status === 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL' || action === 'plant-head-reject') {
+        if (
+          row.status === 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL' ||
+          action === 'plant-head-reject'
+        ) {
           status = 'PLANT_HEAD_PURCHASE_REJECTED';
         } else {
           status = 'SUPER_ADMIN_REJECTED';
@@ -1717,11 +1919,13 @@ export class ProcurementService {
       const updateData: any = {
         status,
         version: { increment: 1 },
-        ...( (action === 'approve' || action === 'plant-head-approve' || (action === 'submit' && totalVal <= 10000)) && {
+        ...((action === 'approve' ||
+          action === 'plant-head-approve' ||
+          (action === 'submit' && totalVal <= 10000)) && {
           superAdminApprovedById: actorId || null,
           superAdminApprovedAt: new Date(),
         }),
-        ...( (action === 'reject' || action === 'plant-head-reject') && {
+        ...((action === 'reject' || action === 'plant-head-reject') && {
           superAdminRejectedById: actorId || null,
           superAdminRejectedAt: new Date(),
           superAdminRejectionReason: dto.remarks,
@@ -1734,7 +1938,8 @@ export class ProcurementService {
           expectedDeliveryDate: dto.expectedDeliveryDate
             ? new Date(dto.expectedDeliveryDate)
             : row.expectedDeliveryDate,
-          vendorOrderReference: dto.vendorOrderReference || dto.vendorAcknowledgementNumber || null,
+          vendorOrderReference:
+            dto.vendorOrderReference || dto.vendorAcknowledgementNumber || null,
           orderRemarks: dto.remarks || dto.financeRemarks || null,
         }),
       };
@@ -1807,7 +2012,11 @@ export class ProcurementService {
           'PurchaseOrder',
           id,
         );
-      } else if (status === 'SUPER_ADMIN_APPROVED' || status === 'PLANT_HEAD_PURCHASE_APPROVED' || status === 'FINANCE_APPROVED') {
+      } else if (
+        status === 'SUPER_ADMIN_APPROVED' ||
+        status === 'PLANT_HEAD_PURCHASE_APPROVED' ||
+        status === 'FINANCE_APPROVED'
+      ) {
         await this.notifyRole(
           tx,
           row.companyId,
@@ -1924,8 +2133,13 @@ export class ProcurementService {
         }
       }
 
-      if (action === 'audit-approve' && row.status !== 'PENDING_FINANCE_AUDIT') {
-        throw new BadRequestException('GRN has already been audited or is not in PENDING_FINANCE_AUDIT status');
+      if (
+        action === 'audit-approve' &&
+        row.status !== 'PENDING_FINANCE_AUDIT'
+      ) {
+        throw new BadRequestException(
+          'GRN has already been audited or is not in PENDING_FINANCE_AUDIT status',
+        );
       }
 
       if (action === 'audit-approve' && row.inventoryPostedAt) return row;
@@ -2024,7 +2238,10 @@ export class ProcurementService {
           for (const g of approvedGrns) {
             for (const gi of g.items) {
               const prev = acceptedQtyMap.get(gi.productId) || 0;
-              acceptedQtyMap.set(gi.productId, prev + Number(gi.acceptedQuantity || 0));
+              acceptedQtyMap.set(
+                gi.productId,
+                prev + Number(gi.acceptedQuantity || 0),
+              );
             }
           }
 

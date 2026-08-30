@@ -31,23 +31,32 @@ export function mapSalesOrder(
   },
 ): SalesOrderResponseDto {
   const productionPlan = order.productionPlans[0];
-  
+
   const workOrders = productionPlan?.workOrders ?? [];
-  let calculatedProductionStatus: string | null = productionPlan?.status ?? null;
+  let calculatedProductionStatus: string | null =
+    productionPlan?.status ?? null;
   let calculatedQcStatus = 'NOT_READY';
 
   if (workOrders.length > 0) {
     const statuses = workOrders.map((wo) => String(wo.status).toUpperCase());
-    if (statuses.some(s => ['DISPATCHED', 'READY_FOR_DISPATCH', 'QC_APPROVED'].includes(s))) {
+    if (
+      statuses.some((s) =>
+        ['DISPATCHED', 'READY_FOR_DISPATCH', 'QC_APPROVED'].includes(s),
+      )
+    ) {
       calculatedProductionStatus = 'QC_APPROVED';
       calculatedQcStatus = 'QC_APPROVED';
-    } else if (statuses.some(s => ['QC_PENDING', 'COMPLETED'].includes(s))) {
+    } else if (statuses.some((s) => ['QC_PENDING', 'COMPLETED'].includes(s))) {
       calculatedProductionStatus = 'QC';
       calculatedQcStatus = 'QC_PENDING';
-    } else if (statuses.some(s => ['STARTED', 'PARTIALLY_COMPLETED'].includes(s))) {
+    } else if (
+      statuses.some((s) => ['STARTED', 'PARTIALLY_COMPLETED'].includes(s))
+    ) {
       calculatedProductionStatus = 'IN_PRODUCTION';
       calculatedQcStatus = 'PENDING';
-    } else if (statuses.some(s => ['CREATED', 'MATERIAL_PENDING', 'READY'].includes(s))) {
+    } else if (
+      statuses.some((s) => ['CREATED', 'MATERIAL_PENDING', 'READY'].includes(s))
+    ) {
       calculatedProductionStatus = 'PLANNED';
       calculatedQcStatus = 'PENDING';
     }
@@ -109,7 +118,7 @@ export function mapSalesOrder(
           : 'NOT_DUE';
   const returnStatus = latestReturn
     ? latestReturn.status === 'CLOSED'
-    ? 'COMPLETED'
+      ? 'COMPLETED'
       : latestReturn.status
     : undefined;
   const replacementStatus = latestReplacement
@@ -183,22 +192,46 @@ export function mapSalesOrder(
       const allocationMap = fulfillmentData?.allocationMap;
 
       const isTrading =
-        ((item as any).product?.productType || (item as any).productType || '').toUpperCase() === 'TRADING' ||
-        ((item as any).product?.category || '').toUpperCase().includes('TRADING');
+        (
+          (item as any).product?.productType ||
+          (item as any).productType ||
+          ''
+        ).toUpperCase() === 'TRADING' ||
+        ((item as any).product?.category || '')
+          .toUpperCase()
+          .includes('TRADING');
 
       const orderedQty = Number(item.orderedQuantity);
-      const alreadyDispatchedQty = dispatchMap ? (dispatchMap.get(item.id) || 0) : 0;
-      const activeReservedQty = allocationMap ? (allocationMap.get(item.id)?.reserved || 0) : 0;
-      const activeProductionCommittedQty = allocationMap ? (allocationMap.get(item.id)?.production || 0) : 0;
+      const alreadyDispatchedQty = dispatchMap
+        ? dispatchMap.get(item.id) || 0
+        : 0;
+      const activeReservedQty = allocationMap
+        ? allocationMap.get(item.id)?.reserved || 0
+        : 0;
+      const activeProductionCommittedQty = allocationMap
+        ? allocationMap.get(item.id)?.production || 0
+        : 0;
 
-      const remainingUnallocatedQty = Math.max(0, orderedQty - alreadyDispatchedQty - activeReservedQty - activeProductionCommittedQty);
-      const availableFG = fgMap ? (fgMap.get(item.productId) || 0) : 0;
-      
+      const remainingUnallocatedQty = Math.max(
+        0,
+        orderedQty -
+          alreadyDispatchedQty -
+          activeReservedQty -
+          activeProductionCommittedQty,
+      );
+      const availableFG = fgMap ? fgMap.get(item.productId) || 0 : 0;
+
       // Trading products never require factory floor manufacturing
-      const fgAllocatableQty = isTrading ? remainingUnallocatedQty : Math.min(availableFG, remainingUnallocatedQty);
-      const productionRequiredQty = isTrading ? 0 : Math.max(0, remainingUnallocatedQty - fgAllocatableQty);
+      const fgAllocatableQty = isTrading
+        ? remainingUnallocatedQty
+        : Math.min(availableFG, remainingUnallocatedQty);
+      const productionRequiredQty = isTrading
+        ? 0
+        : Math.max(0, remainingUnallocatedQty - fgAllocatableQty);
 
-      const pendingDirectDispatchQty = isTrading ? remainingUnallocatedQty : fgAllocatableQty;
+      const pendingDirectDispatchQty = isTrading
+        ? remainingUnallocatedQty
+        : fgAllocatableQty;
       const pendingProductionQty = isTrading ? 0 : productionRequiredQty;
 
       let fulfillmentState = 'PENDING_DECISION';
@@ -233,7 +266,9 @@ export function mapSalesOrder(
         productId: item.productId,
         productName: item.productNameSnapshot,
         productCode: item.productCodeSnapshot,
-        productType: (item as any).product?.productType || (isTrading ? 'TRADING' : 'MANUFACTURING'),
+        productType:
+          (item as any).product?.productType ||
+          (isTrading ? 'TRADING' : 'MANUFACTURING'),
         isTrading,
         orderedQuantity: Number(item.orderedQuantity),
         deliveredQuantity,
@@ -265,16 +300,20 @@ export function mapSalesOrder(
       order.status === 'IN_PRODUCTION' ||
       order.status === 'READY_FOR_DISPATCH' ||
       order.status === 'COMPLETED' ||
-      productionPlan?.id
+      productionPlan?.id,
     ),
-    sentToPlantHeadAt: (order.status === 'SENT_TO_PLANT_HEAD' || order.status === 'PLANT_APPROVED') ? order.updatedAt?.toISOString() : undefined,
-    planningStatus: (order.status === 'SENT_TO_PLANT_HEAD')
-      ? 'PENDING_ACCEPTANCE'
-      : (order.status === 'PLANT_APPROVED')
-        ? 'PLANT_HEAD_ACCEPTED'
-        : productionPlan?.id
-          ? 'PRODUCTION_PLANNED'
-          : 'NOT_SENT',
+    sentToPlantHeadAt:
+      order.status === 'SENT_TO_PLANT_HEAD' || order.status === 'PLANT_APPROVED'
+        ? order.updatedAt?.toISOString()
+        : undefined,
+    planningStatus:
+      order.status === 'SENT_TO_PLANT_HEAD'
+        ? 'PENDING_ACCEPTANCE'
+        : order.status === 'PLANT_APPROVED'
+          ? 'PLANT_HEAD_ACCEPTED'
+          : productionPlan?.id
+            ? 'PRODUCTION_PLANNED'
+            : 'NOT_SENT',
     dispatchStatus,
     deliveredAt: deliveredAt?.toISOString(),
     podUrl: podUrl ?? undefined,
@@ -284,7 +323,8 @@ export function mapSalesOrder(
     productionStatus: calculatedProductionStatus,
     productionAssignedToId: productionPlan?.assignedToId ?? null,
     qcStatus: calculatedQcStatus,
-    targetDate: productionPlan?.plannedEndDate?.toISOString().split('T')[0] ?? null,
+    targetDate:
+      productionPlan?.plannedEndDate?.toISOString().split('T')[0] ?? null,
     priority: (productionPlan as any)?.priority ?? null,
 
     workflowStateId: order.workflowStateId,

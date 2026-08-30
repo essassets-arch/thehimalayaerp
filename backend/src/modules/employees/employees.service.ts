@@ -42,20 +42,33 @@ export class EmployeesService {
     return user.companyId;
   }
 
-  private mapJobTitleToRoleCode(jobTitle: string, departmentName: string): string {
+  private mapJobTitleToRoleCode(
+    jobTitle: string,
+    departmentName: string,
+  ): string {
     const title = (jobTitle || '').toUpperCase().replace(/_/g, ' ');
     if (title.includes('SUPER SALES')) return 'SUPER_SALES';
-    if (title.includes('SALES EXECUTIVE') || title.includes('SALES EXEC')) return 'SALES_EXECUTIVE';
+    if (title.includes('SALES EXECUTIVE') || title.includes('SALES EXEC'))
+      return 'SALES_EXECUTIVE';
     if (title.includes('SALES MANAGER')) return 'SALES_MANAGER';
-    if (title.includes('PLANT HEAD') || title.includes('PLANTHEAD')) return 'PLANT_HEAD';
-    if (title.includes('PRODUCTION PLANNER') || title.includes('PLANNER')) return 'PRODUCTION_PLANNER';
-    if (title.includes('PRODUCTION OPERATOR') || title.includes('OPERATOR')) return 'PRODUCTION_OPERATOR';
-    if (title.includes('QC INSPECTOR') || title.includes('QUALITY') || title.includes('QC')) return 'QC_INSPECTOR';
+    if (title.includes('PLANT HEAD') || title.includes('PLANTHEAD'))
+      return 'PLANT_HEAD';
+    if (title.includes('PRODUCTION PLANNER') || title.includes('PLANNER'))
+      return 'PRODUCTION_PLANNER';
+    if (title.includes('PRODUCTION OPERATOR') || title.includes('OPERATOR'))
+      return 'PRODUCTION_OPERATOR';
+    if (
+      title.includes('QC INSPECTOR') ||
+      title.includes('QUALITY') ||
+      title.includes('QC')
+    )
+      return 'QC_INSPECTOR';
     if (title.includes('DISPATCH EXECUTIVE')) return 'DISPATCH_EXECUTIVE';
     if (title.includes('DISPATCH 2')) return 'DISPATCH_2';
     if (title.includes('FINANCE EXECUTIVE')) return 'FINANCE_EXECUTIVE';
     if (title.includes('FINANCE MANAGER')) return 'FINANCE_MANAGER';
-    if (title.includes('STORE MANAGER') || title.includes('STORE')) return 'STORE_MANAGER';
+    if (title.includes('STORE MANAGER') || title.includes('STORE'))
+      return 'STORE_MANAGER';
     if (title.includes('HR') || title.includes('HUMAN RESOURCES')) return 'HR';
     if (title.includes('ADMIN')) return 'ADMIN';
 
@@ -136,8 +149,14 @@ export class EmployeesService {
       'joiningDate',
       'createdAt',
     ]);
-    const sortBy = (query.sortBy && allowedSort.has(query.sortBy)) ? query.sortBy : 'createdAt';
-    const sortOrder = (query.sortOrder && query.sortOrder.toLowerCase() === 'desc') ? 'desc' : 'asc';
+    const sortBy =
+      query.sortBy && allowedSort.has(query.sortBy)
+        ? query.sortBy
+        : 'createdAt';
+    const sortOrder =
+      query.sortOrder && query.sortOrder.toLowerCase() === 'desc'
+        ? 'desc'
+        : 'asc';
     const [items, total] = await this.prisma.$transaction([
       this.prisma.employee.findMany({
         where,
@@ -158,7 +177,11 @@ export class EmployeesService {
 
     // Natural sort by employeeCode number if default sort by createdAt/employeeCode
     const mapped = items.map(mapEmployee);
-    if (!query.sortBy || query.sortBy === 'employeeCode' || query.sortBy === 'createdAt') {
+    if (
+      !query.sortBy ||
+      query.sortBy === 'employeeCode' ||
+      query.sortBy === 'createdAt'
+    ) {
       const getNum = (code: string) => {
         const m = (code || '').match(/(\d+)/);
         return m ? parseInt(m[1], 10) : 999999;
@@ -445,9 +468,10 @@ export class EmployeesService {
           });
           const deptName = dept?.name || 'Operations';
           const roleCode = this.mapJobTitleToRoleCode(dto.jobTitle, deptName);
-          const dbRole = await tx.role.findFirst({
-            where: { code: roleCode },
-          }) || await tx.role.findFirst();
+          const dbRole =
+            (await tx.role.findFirst({
+              where: { code: roleCode },
+            })) || (await tx.role.findFirst());
 
           if (dbRole) {
             const tempPassword = randomBytes(24).toString('hex');
@@ -494,9 +518,14 @@ export class EmployeesService {
             workEmail,
             personalEmail: dto.personalEmail?.trim().toLowerCase() || null,
             phoneNumber: dto.phoneNumber,
-            companyPhoneNumber: (dto.companyPhoneNumber || dto.companyPhone || '').replace(/\D/g, '') || null,
+            companyPhoneNumber:
+              (dto.companyPhoneNumber || dto.companyPhone || '').replace(
+                /\D/g,
+                '',
+              ) || null,
             residentialAddress: dto.residentialAddress.trim(),
-            permanentAddress: dto.permanentAddress?.trim() || dto.residentialAddress.trim(),
+            permanentAddress:
+              dto.permanentAddress?.trim() || dto.residentialAddress.trim(),
             emergencyContactName: dto.emergencyContactName.trim(),
             emergencyContactPhone: dto.emergencyContactPhone,
             emergencyRelationship: dto.emergencyRelationship,
@@ -514,30 +543,40 @@ export class EmployeesService {
             bankAccountHash: this.hash(bankAccount),
             ifscCode: dto.ifscCode.toUpperCase(),
             branchName: dto.branchName || null,
-            baseSalary: (dto.baseSalary !== undefined && dto.baseSalary !== null && String(dto.baseSalary).trim() !== '') ? Number(dto.baseSalary) : (dto.salary !== undefined && dto.salary !== null && String(dto.salary).trim() !== '') ? Number(dto.salary) : 0,
+            baseSalary:
+              dto.baseSalary !== undefined &&
+              dto.baseSalary !== null &&
+              String(dto.baseSalary).trim() !== ''
+                ? Number(dto.baseSalary)
+                : dto.salary !== undefined &&
+                    dto.salary !== null &&
+                    String(dto.salary).trim() !== ''
+                  ? Number(dto.salary)
+                  : 0,
             createdById: user.sub,
           },
         });
         await tx.employeeDocument.createMany({
           data: stored.map((item) => {
-            const additionalMetadata = item.field === 'additionalDocuments'
-              ? additional[additionalDocumentIndex++]
-              : undefined;
+            const additionalMetadata =
+              item.field === 'additionalDocuments'
+                ? additional[additionalDocumentIndex++]
+                : undefined;
             return {
-            employeeId,
-            documentType:
-              DOCUMENT_TYPE[item.field] ||
-              additionalMetadata?.documentType ||
-              EmployeeDocumentType.OTHER,
-            documentName: additionalMetadata?.documentName || item.field,
-            originalFileName: item.file.originalname,
-            storedFileName: item.storedFileName,
-            storageKey: item.storageKey,
-            mimeType: item.file.mimetype,
-            fileSize: item.file.size,
-            description: additionalMetadata?.description,
-            uploadedById: user.sub,
-          };
+              employeeId,
+              documentType:
+                DOCUMENT_TYPE[item.field] ||
+                additionalMetadata?.documentType ||
+                EmployeeDocumentType.OTHER,
+              documentName: additionalMetadata?.documentName || item.field,
+              originalFileName: item.file.originalname,
+              storedFileName: item.storedFileName,
+              storageKey: item.storageKey,
+              mimeType: item.file.mimetype,
+              fileSize: item.file.size,
+              description: additionalMetadata?.description,
+              uploadedById: user.sub,
+            };
           }),
         });
         if (dto.draftId) {
@@ -611,8 +650,14 @@ export class EmployeesService {
 
   async update(id: string, payload: any, user: any, requestId?: string) {
     const current = await this.get(id, user);
-    if (payload.version !== undefined && payload.version !== null && payload.version !== current.version) {
-      console.warn(`[EmployeeUpdate] Version difference on ${id}: payload ${payload.version} vs current ${current.version}`);
+    if (
+      payload.version !== undefined &&
+      payload.version !== null &&
+      payload.version !== current.version
+    ) {
+      console.warn(
+        `[EmployeeUpdate] Version difference on ${id}: payload ${payload.version} vs current ${current.version}`,
+      );
     }
     if (payload.reportingManagerId === id) {
       this.error(
@@ -626,60 +671,97 @@ export class EmployeesService {
     const data: any = {};
 
     // 1. Identity & Name
-    if (payload.firstName !== undefined) data.firstName = payload.firstName?.trim() || '';
-    if (payload.lastName !== undefined) data.lastName = payload.lastName?.trim() || '';
+    if (payload.firstName !== undefined)
+      data.firstName = payload.firstName?.trim() || '';
+    if (payload.lastName !== undefined)
+      data.lastName = payload.lastName?.trim() || '';
     if (payload.firstName !== undefined || payload.lastName !== undefined) {
-      const f = payload.firstName !== undefined ? payload.firstName.trim() : (current.firstName || '');
-      const l = payload.lastName !== undefined ? payload.lastName.trim() : (current.lastName || '');
+      const f =
+        payload.firstName !== undefined
+          ? payload.firstName.trim()
+          : current.firstName || '';
+      const l =
+        payload.lastName !== undefined
+          ? payload.lastName.trim()
+          : current.lastName || '';
       data.fullName = `${f} ${l}`.trim() || current.fullName;
     } else if (payload.fullName !== undefined) {
       data.fullName = payload.fullName?.trim();
     }
     if (payload.dateOfBirth !== undefined) {
-      data.dateOfBirth = payload.dateOfBirth ? new Date(payload.dateOfBirth) : current.dateOfBirth;
+      data.dateOfBirth = payload.dateOfBirth
+        ? new Date(payload.dateOfBirth)
+        : current.dateOfBirth;
     }
     if (payload.gender !== undefined) data.gender = payload.gender;
 
     // 2. Employment
-    if (payload.jobTitle !== undefined) data.jobTitle = payload.jobTitle?.trim();
-    if (payload.departmentId !== undefined) data.departmentId = payload.departmentId || null;
-    if (payload.reportingManagerId !== undefined) data.reportingManagerId = payload.reportingManagerId || null;
-    if (payload.workLocationId !== undefined) data.workLocationId = payload.workLocationId || null;
-    if (payload.employmentType !== undefined) data.employmentType = payload.employmentType;
+    if (payload.jobTitle !== undefined)
+      data.jobTitle = payload.jobTitle?.trim();
+    if (payload.departmentId !== undefined)
+      data.departmentId = payload.departmentId || null;
+    if (payload.reportingManagerId !== undefined)
+      data.reportingManagerId = payload.reportingManagerId || null;
+    if (payload.workLocationId !== undefined)
+      data.workLocationId = payload.workLocationId || null;
+    if (payload.employmentType !== undefined)
+      data.employmentType = payload.employmentType;
     if (payload.joiningDate !== undefined) {
-      data.joiningDate = payload.joiningDate ? new Date(payload.joiningDate) : current.joiningDate;
+      data.joiningDate = payload.joiningDate
+        ? new Date(payload.joiningDate)
+        : current.joiningDate;
     }
     if (payload.probationEndDate !== undefined) {
-      data.probationEndDate = payload.probationEndDate ? new Date(payload.probationEndDate) : null;
+      data.probationEndDate = payload.probationEndDate
+        ? new Date(payload.probationEndDate)
+        : null;
     }
     if (payload.status !== undefined) data.status = payload.status;
-    if (payload.branchName !== undefined) data.branchName = payload.branchName || null;
+    if (payload.branchName !== undefined)
+      data.branchName = payload.branchName || null;
     if (payload.baseSalary !== undefined || payload.salary !== undefined) {
-      const sal = payload.baseSalary !== undefined ? payload.baseSalary : payload.salary;
+      const sal =
+        payload.baseSalary !== undefined ? payload.baseSalary : payload.salary;
       data.baseSalary = Number(sal) || 0;
     }
 
     // 3. Contact Details
-    if (payload.workEmail !== undefined) data.workEmail = payload.workEmail?.trim().toLowerCase();
-    if (payload.personalEmail !== undefined) data.personalEmail = payload.personalEmail?.trim().toLowerCase() || null;
-    if (payload.phoneNumber !== undefined) data.phoneNumber = payload.phoneNumber?.trim();
-    if (payload.companyPhoneNumber !== undefined) data.companyPhoneNumber = payload.companyPhoneNumber?.trim() || null;
-    if (payload.residentialAddress !== undefined) data.residentialAddress = payload.residentialAddress?.trim();
-    if (payload.permanentAddress !== undefined) data.permanentAddress = payload.permanentAddress?.trim();
+    if (payload.workEmail !== undefined)
+      data.workEmail = payload.workEmail?.trim().toLowerCase();
+    if (payload.personalEmail !== undefined)
+      data.personalEmail = payload.personalEmail?.trim().toLowerCase() || null;
+    if (payload.phoneNumber !== undefined)
+      data.phoneNumber = payload.phoneNumber?.trim();
+    if (payload.companyPhoneNumber !== undefined)
+      data.companyPhoneNumber = payload.companyPhoneNumber?.trim() || null;
+    if (payload.residentialAddress !== undefined)
+      data.residentialAddress = payload.residentialAddress?.trim();
+    if (payload.permanentAddress !== undefined)
+      data.permanentAddress = payload.permanentAddress?.trim();
 
     // 4. Emergency Contact
-    if (payload.emergencyContactName !== undefined) data.emergencyContactName = payload.emergencyContactName?.trim();
-    if (payload.emergencyContactPhone !== undefined) data.emergencyContactPhone = payload.emergencyContactPhone?.trim();
-    if (payload.emergencyRelationship !== undefined) data.emergencyRelationship = payload.emergencyRelationship?.trim();
+    if (payload.emergencyContactName !== undefined)
+      data.emergencyContactName = payload.emergencyContactName?.trim();
+    if (payload.emergencyContactPhone !== undefined)
+      data.emergencyContactPhone = payload.emergencyContactPhone?.trim();
+    if (payload.emergencyRelationship !== undefined)
+      data.emergencyRelationship = payload.emergencyRelationship?.trim();
 
     // 5. Statutory & Bank
-    if (payload.panNumber !== undefined) data.panNumber = payload.panNumber?.trim().toUpperCase();
-    if (payload.uanNumber !== undefined) data.uanNumber = payload.uanNumber?.trim() || null;
-    if (payload.esicNumber !== undefined) data.esicNumber = payload.esicNumber?.trim() || null;
-    if (payload.bankName !== undefined) data.bankName = payload.bankName?.trim();
-    if (payload.accountHolderName !== undefined) data.accountHolderName = payload.accountHolderName?.trim();
-    if (payload.bankAccountType !== undefined) data.bankAccountType = payload.bankAccountType;
-    if (payload.ifscCode !== undefined) data.ifscCode = payload.ifscCode?.trim().toUpperCase();
+    if (payload.panNumber !== undefined)
+      data.panNumber = payload.panNumber?.trim().toUpperCase();
+    if (payload.uanNumber !== undefined)
+      data.uanNumber = payload.uanNumber?.trim() || null;
+    if (payload.esicNumber !== undefined)
+      data.esicNumber = payload.esicNumber?.trim() || null;
+    if (payload.bankName !== undefined)
+      data.bankName = payload.bankName?.trim();
+    if (payload.accountHolderName !== undefined)
+      data.accountHolderName = payload.accountHolderName?.trim();
+    if (payload.bankAccountType !== undefined)
+      data.bankAccountType = payload.bankAccountType;
+    if (payload.ifscCode !== undefined)
+      data.ifscCode = payload.ifscCode?.trim().toUpperCase();
 
     if (payload.aadhaarNumber && !payload.aadhaarNumber.includes('X')) {
       const aadhaar = payload.aadhaarNumber.replace(/\D/g, '');
@@ -700,7 +782,8 @@ export class EmployeesService {
     }
 
     if (payload.selfieUrl !== undefined) data.selfieUrl = payload.selfieUrl;
-    if (payload.signatureUrl !== undefined) data.signatureUrl = payload.signatureUrl;
+    if (payload.signatureUrl !== undefined)
+      data.signatureUrl = payload.signatureUrl;
 
     let userId = current.userId || null;
     const targetEmail = data.workEmail || current.workEmail;
@@ -711,17 +794,24 @@ export class EmployeesService {
       if (matchedUser) {
         userId = matchedUser.id;
         if (data.fullName) {
-          await this.prisma.user.update({
-            where: { id: matchedUser.id },
-            data: { name: data.fullName }
-          }).catch(() => {});
+          await this.prisma.user
+            .update({
+              where: { id: matchedUser.id },
+              data: { name: data.fullName },
+            })
+            .catch(() => {});
         }
       }
     }
 
     const updated = await this.prisma.employee.update({
       where: { id },
-      data: { ...data, userId, version: { increment: 1 }, updatedById: user.sub },
+      data: {
+        ...data,
+        userId,
+        version: { increment: 1 },
+        updatedById: user.sub,
+      },
     });
     await this.prisma.auditLog.create({
       data: {

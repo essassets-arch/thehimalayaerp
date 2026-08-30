@@ -20,7 +20,12 @@ import { SubmitFulfillmentPlanDto } from './dto/fulfillment-plan.dto';
 export class PlantHeadController {
   constructor(private readonly plantHeadService: PlantHeadService) {}
 
-  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
   @Get('incoming-orders')
   async getIncomingOrders(@Req() req: Request) {
     const companyId =
@@ -29,7 +34,12 @@ export class PlantHeadController {
     return this.plantHeadService.getIncomingOrders(companyId);
   }
 
-  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
   @Get('planning-orders')
   async getPlanningOrdersAlias(@Req() req: Request) {
     const companyId =
@@ -38,7 +48,12 @@ export class PlantHeadController {
     return this.plantHeadService.getIncomingOrders(companyId); // alias for incoming-orders based on mock logic
   }
 
-  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
   @Get('planning')
   async getPlanningOrders(@Req() req: Request) {
     const companyId =
@@ -47,19 +62,26 @@ export class PlantHeadController {
     return this.plantHeadService.getPlanningOrders(companyId);
   }
 
-  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
   @Get('daily-summary')
-  async getDailySummary(
-    @Req() req: Request,
-    @Query('date') date?: string,
-  ) {
+  async getDailySummary(@Req() req: Request, @Query('date') date?: string) {
     const companyId =
       (req as any).user?.['companyId'] ||
       (req.headers['x-company-id'] as string);
     return this.plantHeadService.getDailySummary(companyId, date);
   }
 
-  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
   @Get('dashboard-data')
   async getDashboardData(
     @Req() req: Request,
@@ -78,7 +100,12 @@ export class PlantHeadController {
     );
   }
 
-  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
   @Get('analytics/production')
   async getProductionAnalytics(
     @Req() req: Request,
@@ -97,7 +124,12 @@ export class PlantHeadController {
     );
   }
 
-  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
   @Get('analytics/material')
   async getMaterialAnalytics(
     @Req() req: Request,
@@ -116,7 +148,12 @@ export class PlantHeadController {
     );
   }
 
-  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
   @Get('analytics/dispatch')
   async getDispatchAnalytics(
     @Req() req: Request,
@@ -135,7 +172,12 @@ export class PlantHeadController {
     );
   }
 
-  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read')
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
   @Get('overview/departments')
   async getDepartmentOverview(@Req() req: Request) {
     const companyId =
@@ -167,18 +209,29 @@ export class PlantHeadController {
   @Post('orders/:orderId/direct-dispatch')
   async directDispatch(
     @Param('orderId') orderId: string,
-    @Body('items') items: { salesOrderItemId: string; productId: string; quantity: number }[],
+    @Body('items')
+    items: { salesOrderItemId: string; productId: string; quantity: number }[],
     @Req() req: Request,
   ) {
     const companyId =
       (req.headers['x-company-id'] as string) ||
       (req as any).user?.['companyId'] ||
       'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
-    const userId = (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
-    return this.plantHeadService.directDispatch(orderId, items, companyId, userId);
+    const userId =
+      (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
+    return this.plantHeadService.directDispatch(
+      orderId,
+      items,
+      companyId,
+      userId,
+    );
   }
 
-  @RequirePermissions('admin.planthead.read', 'planthead.read', 'plant-head.read')
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+  )
   @Get('orders/:orderId/fulfillment-plan')
   async getFulfillmentPlan(
     @Param('orderId') orderId: string,
@@ -201,7 +254,13 @@ export class PlantHeadController {
       (req.headers['x-company-id'] as string) ||
       (req as any).user?.['companyId'] ||
       'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
-    const userId = (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
-    return this.plantHeadService.submitFulfillmentPlan(orderId, planDto, companyId, userId);
+    const userId =
+      (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
+    return this.plantHeadService.submitFulfillmentPlan(
+      orderId,
+      planDto,
+      companyId,
+      userId,
+    );
   }
 }

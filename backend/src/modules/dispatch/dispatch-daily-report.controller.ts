@@ -26,7 +26,10 @@ export class Dispatch1DailyReportController {
   constructor(private readonly service: DispatchDailyReportService) {}
 
   @Get()
-  async listReports(@Req() req: any, @Query() query: QueryDispatchDailyReportDto) {
+  async listReports(
+    @Req() req: any,
+    @Query() query: QueryDispatchDailyReportDto,
+  ) {
     const companyId = req.user?.companyId || 'COMP-000001';
     return this.service.listReports(companyId, 'DISPATCH_1', query);
   }
@@ -41,7 +44,12 @@ export class Dispatch1DailyReportController {
       throw new BadRequestException('Date query parameter is required');
     }
     const companyId = req.user?.companyId || 'COMP-000001';
-    return this.service.checkDuplicate(companyId, date, shift || 'Morning', 'DISPATCH_1');
+    return this.service.checkDuplicate(
+      companyId,
+      date,
+      shift || 'Morning',
+      'DISPATCH_1',
+    );
   }
 
   @Get(':id')
@@ -51,7 +59,10 @@ export class Dispatch1DailyReportController {
   }
 
   @Post()
-  async createReport(@Req() req: any, @Body() dto: CreateDispatchDailyReportDto) {
+  async createReport(
+    @Req() req: any,
+    @Body() dto: CreateDispatchDailyReportDto,
+  ) {
     const companyId = req.user?.companyId || 'COMP-000001';
     const userId = req.user?.sub || req.user?.id;
     return this.service.createReport(companyId, userId, dto, 'DISPATCH_1');
@@ -103,7 +114,10 @@ export class Dispatch2DailyReportController {
   constructor(private readonly service: DispatchDailyReportService) {}
 
   @Get()
-  async listReports(@Req() req: any, @Query() query: QueryDispatchDailyReportDto) {
+  async listReports(
+    @Req() req: any,
+    @Query() query: QueryDispatchDailyReportDto,
+  ) {
     const companyId = req.user?.companyId || 'COMP-000001';
     return this.service.listReports(companyId, 'DISPATCH_2', query);
   }
@@ -118,7 +132,12 @@ export class Dispatch2DailyReportController {
       throw new BadRequestException('Date query parameter is required');
     }
     const companyId = req.user?.companyId || 'COMP-000001';
-    return this.service.checkDuplicate(companyId, date, shift || 'Morning', 'DISPATCH_2');
+    return this.service.checkDuplicate(
+      companyId,
+      date,
+      shift || 'Morning',
+      'DISPATCH_2',
+    );
   }
 
   @Get(':id')
@@ -128,7 +147,10 @@ export class Dispatch2DailyReportController {
   }
 
   @Post()
-  async createReport(@Req() req: any, @Body() dto: CreateDispatchDailyReportDto) {
+  async createReport(
+    @Req() req: any,
+    @Body() dto: CreateDispatchDailyReportDto,
+  ) {
     const companyId = req.user?.companyId || 'COMP-000001';
     const userId = req.user?.sub || req.user?.id;
     return this.service.createReport(companyId, userId, dto, 'DISPATCH_2');

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { Prisma, StockHistoryEvent } from '@prisma/client';
@@ -14,7 +18,11 @@ export class InventoryService {
     let productId: string | null = null;
     let rawMaterialId: string | null = null;
 
-    const itemQuery = dto.productId || (dto as any).material_name || (dto as any).materialName || (dto as any).material;
+    const itemQuery =
+      dto.productId ||
+      (dto as any).material_name ||
+      (dto as any).materialName ||
+      (dto as any).material;
     if (!itemQuery) {
       throw new NotFoundException('Product / Material identifier is required');
     }
@@ -86,16 +94,31 @@ export class InventoryService {
     for (const t of prevTxs) {
       const tType = (t.type || '').toUpperCase().trim();
       const tQty = Number(t.quantity || 0);
-      if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN', 'PURCHASE_DELIVERY'].includes(tType)) {
+      if (
+        [
+          'IN',
+          'PURCHASE_RECEIPT',
+          'OPENING_STOCK',
+          'QUICK_STOCK_IN',
+          'STOCK IN',
+          'STOCK_IN',
+          'PURCHASE_DELIVERY',
+        ].includes(tType)
+      ) {
         balanceBefore += tQty;
-      } else if (['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(tType)) {
+      } else if (
+        ['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(tType)
+      ) {
         balanceBefore -= tQty;
       } else if (tType === 'ADJUSTMENT') {
         balanceBefore += tQty;
       }
     }
     const qtyNum = Number(dto.quantity);
-    const balanceAfter = txType === 'IN' || txType === 'ADJUSTMENT' ? balanceBefore + qtyNum : balanceBefore - qtyNum;
+    const balanceAfter =
+      txType === 'IN' || txType === 'ADJUSTMENT'
+        ? balanceBefore + qtyNum
+        : balanceBefore - qtyNum;
 
     const createdTx = await this.prisma.inventoryTransaction.create({
       data: {
@@ -125,7 +148,9 @@ export class InventoryService {
           sourceType: dto.referenceType || 'MANUAL',
           sourceId: createdTx.id,
           referenceNumber: dto.referenceId || null,
-          remarks: (dto as any).remarks || `${txType} transaction: ${dto.quantity} units`,
+          remarks:
+            (dto as any).remarks ||
+            `${txType} transaction: ${dto.quantity} units`,
         },
       });
     } catch (e) {
@@ -169,9 +194,21 @@ export class InventoryService {
       const qty = Number(row._sum.quantity || 0);
 
       const typeUpper = (row.type || '').toUpperCase().trim();
-      if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN', 'PURCHASE_DELIVERY'].includes(typeUpper)) {
+      if (
+        [
+          'IN',
+          'PURCHASE_RECEIPT',
+          'OPENING_STOCK',
+          'QUICK_STOCK_IN',
+          'STOCK IN',
+          'STOCK_IN',
+          'PURCHASE_DELIVERY',
+        ].includes(typeUpper)
+      ) {
         item.quantity += qty;
-      } else if (['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(typeUpper)) {
+      } else if (
+        ['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(typeUpper)
+      ) {
         item.quantity -= qty;
       } else if (typeUpper === 'ADJUSTMENT') {
         item.quantity += qty;
@@ -262,40 +299,45 @@ export class InventoryService {
     return result.filter((m) => m.currentStock <= m.minimumStock);
   }
 
-
   async updateItemBalance(id: string, balance: number) {
     return { id, balance };
   }
 
   async getDashboardData(companyId: string) {
-    const [rawMaterials, products, transactions, warehouses, qcInspections] = await Promise.all([
-      this.prisma.rawMaterial.findMany({
-        where: { companyId },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.product.findMany({
-        where: { companyId, isActive: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.inventoryTransaction.findMany({
-        where: { companyId },
-        orderBy: { createdAt: 'desc' },
-        include: { warehouse: { select: { name: true } } },
-      }),
-      this.prisma.warehouse.findMany({
-        where: { companyId },
-      }),
-      (this.prisma as any).qCInspection?.findMany({
-        where: { companyId },
-      }).catch(() => []) ?? Promise.resolve([]),
-    ]);
+    const [rawMaterials, products, transactions, warehouses, qcInspections] =
+      await Promise.all([
+        this.prisma.rawMaterial.findMany({
+          where: { companyId },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.product.findMany({
+          where: { companyId, isActive: true },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.inventoryTransaction.findMany({
+          where: { companyId },
+          orderBy: { createdAt: 'desc' },
+          include: { warehouse: { select: { name: true } } },
+        }),
+        this.prisma.warehouse.findMany({
+          where: { companyId },
+        }),
+        (this.prisma as any).qCInspection
+          ?.findMany({
+            where: { companyId },
+          })
+          .catch(() => []) ?? Promise.resolve([]),
+      ]);
 
     const stockLevels = await this.getStockLevels(companyId);
     const stockMap = new Map<string, number>(
       stockLevels.map((s) => [s.productId, s.quantity]),
     );
 
-    const latestTxMap = new Map<string, { date: Date; warehouseName: string }>();
+    const latestTxMap = new Map<
+      string,
+      { date: Date; warehouseName: string }
+    >();
     for (const tx of transactions) {
       const itemId = tx.productId || tx.rawMaterialId;
       if (!itemId) continue;
@@ -337,9 +379,11 @@ export class InventoryService {
         if (days > 1) return days;
       }
       // Realistic aging spread based on item ID hash when no historical transaction exists
-      const hash = itemId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const hash = itemId
+        .split('')
+        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
       const mod = hash % 10;
-      if (mod < 6) return (hash % 25); // 0-24 days => Fast Moving
+      if (mod < 6) return hash % 25; // 0-24 days => Fast Moving
       if (mod < 9) return 35 + (hash % 50); // 35-84 days => Slow Moving
       return 185 + (hash % 100); // >180 days => Non-Moving / Dead Stock
     };
@@ -399,10 +443,18 @@ export class InventoryService {
 
     let rejectionRate = 0;
     if (Array.isArray(qcInspections) && qcInspections.length > 0) {
-      const totalInspected = qcInspections.reduce((sum, q) => sum + (Number(q.quantityInspected || q.inspectedQty) || 0), 0);
-      const totalRejected = qcInspections.reduce((sum, q) => sum + (Number(q.quantityRejected || q.rejectedQty) || 0), 0);
+      const totalInspected = qcInspections.reduce(
+        (sum, q) => sum + (Number(q.quantityInspected || q.inspectedQty) || 0),
+        0,
+      );
+      const totalRejected = qcInspections.reduce(
+        (sum, q) => sum + (Number(q.quantityRejected || q.rejectedQty) || 0),
+        0,
+      );
       if (totalInspected > 0) {
-        rejectionRate = Number(((totalRejected / totalInspected) * 100).toFixed(1));
+        rejectionRate = Number(
+          ((totalRejected / totalInspected) * 100).toFixed(1),
+        );
       }
     }
 
@@ -426,8 +478,6 @@ export class InventoryService {
       transactions: transactions.slice(0, 50),
     };
   }
-
-
 
   async stockInFinishedGoods(
     tx: Prisma.TransactionClient,
@@ -478,8 +528,11 @@ export class InventoryService {
       });
     } else {
       // Create a dummy work order to satisfy FinishedGoods workOrderId relation
-      const plan = await tx.productionPlan.findFirst({ where: { salesOrder: { customer: { companyId } } } }) || 
-        await tx.productionPlan.create({
+      const plan =
+        (await tx.productionPlan.findFirst({
+          where: { salesOrder: { customer: { companyId } } },
+        })) ||
+        (await tx.productionPlan.create({
           data: {
             planNumber: `PP-AUTO-${Date.now().toString().slice(-6)}`,
             status: 'APPROVED',
@@ -496,12 +549,12 @@ export class InventoryService {
                     companyId,
                     companyName: 'Internal Stock Customer',
                     customerCode: `CUST-AUTO-${Date.now().toString().slice(-6)}`,
-                  }
-                }
-              }
-            }
-          }
-        });
+                  },
+                },
+              },
+            },
+          },
+        }));
 
       const wo = await tx.workOrder.create({
         data: {
@@ -574,7 +627,10 @@ export class InventoryService {
       FOR UPDATE
     `;
 
-    let totalAvail = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
+    let totalAvail = fgRecords.reduce(
+      (sum, r) => sum + Number(r.availableQuantity || 0),
+      0,
+    );
 
     // Auto-materialize any unmaterialized ready work orders for this product if needed
     if (totalAvail < qty) {
@@ -583,11 +639,11 @@ export class InventoryService {
           status: { in: ['READY_FOR_DISPATCH', 'COMPLETED'] },
           OR: [
             { salesOrderItem: { productId } },
-            { salesOrderItem: { product: { id: productId } } }
+            { salesOrderItem: { product: { id: productId } } },
           ],
-          FinishedGoods: null
+          FinishedGoods: null,
         },
-        include: { salesOrderItem: true }
+        include: { salesOrderItem: true },
       });
 
       for (const wo of readyWos) {
@@ -602,7 +658,7 @@ export class InventoryService {
             unit: (wo as any).salesOrderItem?.unit || 'PCS',
             status: 'AVAILABLE',
             receivedById: userId,
-          }
+          },
         });
         fgRecords.push(createdFg);
         totalAvail += woQty;
@@ -612,18 +668,21 @@ export class InventoryService {
     if (qty > totalAvail) {
       const product = await tx.product.findUnique({
         where: { id: productId },
-        select: { name: true, sku: true, unit: true }
+        select: { name: true, sku: true, unit: true },
       });
       const prodName = product?.name || product?.sku || productId;
       const unit = product?.unit || 'PCS';
       throw new BadRequestException(
-        `Insufficient finished goods available stock for "${prodName}". Available: ${totalAvail} ${unit}, Requested: ${qty} ${unit}.`
+        `Insufficient finished goods available stock for "${prodName}". Available: ${totalAvail} ${unit}, Requested: ${qty} ${unit}.`,
       );
     }
 
     let remainingToDeduct = qty;
-    let beforeQtyTotal = fgRecords.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
-    let beforeAvailTotal = totalAvail;
+    const beforeQtyTotal = fgRecords.reduce(
+      (sum, r) => sum + Number(r.quantity || 0),
+      0,
+    );
+    const beforeAvailTotal = totalAvail;
 
     for (const fg of fgRecords) {
       if (remainingToDeduct <= 0) break;
@@ -679,7 +738,9 @@ export class InventoryService {
   ) {
     const newStock = Number(newPhysicalStock);
     if (isNaN(newStock) || newStock < 0) {
-      throw new BadRequestException('Physical stock must be a non-negative number');
+      throw new BadRequestException(
+        'Physical stock must be a non-negative number',
+      );
     }
 
     // 1. SELECT ... FOR UPDATE row-level locking
@@ -690,9 +751,18 @@ export class InventoryService {
       FOR UPDATE
     `;
 
-    const beforeQtyTotal = fgRecords.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
-    const beforeAvailTotal = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
-    const reservedTotal = fgRecords.reduce((sum, r) => sum + Number(r.reservedQuantity || 0), 0);
+    const beforeQtyTotal = fgRecords.reduce(
+      (sum, r) => sum + Number(r.quantity || 0),
+      0,
+    );
+    const beforeAvailTotal = fgRecords.reduce(
+      (sum, r) => sum + Number(r.availableQuantity || 0),
+      0,
+    );
+    const reservedTotal = fgRecords.reduce(
+      (sum, r) => sum + Number(r.reservedQuantity || 0),
+      0,
+    );
 
     const afterQtyTotal = newStock;
     const afterAvailTotal = Math.max(0, newStock - reservedTotal);
@@ -722,8 +792,11 @@ export class InventoryService {
       }
     } else {
       // Create new FinishedGoods record if none exists
-      const plan = await tx.productionPlan.findFirst({ where: { salesOrder: { customer: { companyId } } } }) || 
-        await tx.productionPlan.create({
+      const plan =
+        (await tx.productionPlan.findFirst({
+          where: { salesOrder: { customer: { companyId } } },
+        })) ||
+        (await tx.productionPlan.create({
           data: {
             planNumber: `PP-AUTO-${Date.now().toString().slice(-6)}`,
             status: 'APPROVED',
@@ -740,12 +813,12 @@ export class InventoryService {
                     companyId,
                     companyName: 'Internal Stock Customer',
                     customerCode: `CUST-AUTO-${Date.now().toString().slice(-6)}`,
-                  }
-                }
-              }
-            }
-          }
-        });
+                  },
+                },
+              },
+            },
+          },
+        }));
 
       const wo = await tx.workOrder.create({
         data: {
@@ -791,7 +864,9 @@ export class InventoryService {
 
   async getFinishedGoodsHistory(companyId: string, productId: string) {
     let resolvedProductId = productId;
-    const cleanId = (productId || '').replace(/^fg-prod-/, '').replace(/^prod-/, '');
+    const cleanId = (productId || '')
+      .replace(/^fg-prod-/, '')
+      .replace(/^prod-/, '');
 
     const prod = await this.prisma.product.findFirst({
       where: {
@@ -818,13 +893,16 @@ export class InventoryService {
       take: 100,
     });
 
-    const actorIds = Array.from(new Set(histories.map((h) => h.actor).filter(Boolean)));
-    const users = actorIds.length > 0
-      ? await this.prisma.user.findMany({
-          where: { id: { in: actorIds as string[] } },
-          select: { id: true, name: true, email: true },
-        })
-      : [];
+    const actorIds = Array.from(
+      new Set(histories.map((h) => h.actor).filter(Boolean)),
+    );
+    const users =
+      actorIds.length > 0
+        ? await this.prisma.user.findMany({
+            where: { id: { in: actorIds as string[] } },
+            select: { id: true, name: true, email: true },
+          })
+        : [];
     const userMap = new Map(users.map((u) => [u.id, u]));
 
     const mapped = histories.map((h) => {

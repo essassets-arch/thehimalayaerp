@@ -81,7 +81,11 @@ export class BrandAnalysisController {
   }
 
   @Post(':id/approve')
-  @RequirePermissions('super-admin.brand-analysis.approve', 'admin.approve', 'admin.read')
+  @RequirePermissions(
+    'super-admin.brand-analysis.approve',
+    'admin.approve',
+    'admin.read',
+  )
   approve(
     @Param('id') id: string,
     @Body() dto: ApproveBrandAnalysisDto,
@@ -92,7 +96,11 @@ export class BrandAnalysisController {
   }
 
   @Post(':id/reject')
-  @RequirePermissions('super-admin.brand-analysis.reject', 'admin.reject', 'admin.read')
+  @RequirePermissions(
+    'super-admin.brand-analysis.reject',
+    'admin.reject',
+    'admin.read',
+  )
   reject(
     @Param('id') id: string,
     @Body() dto: RejectBrandAnalysisDto,

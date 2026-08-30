@@ -36,7 +36,16 @@ export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
   @Get()
-  @RequirePermissions('sales.orders.read', 'logistics.dispatches.read', 'store.read', 'store.view', 'store.materials.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
+  @RequirePermissions(
+    'sales.orders.read',
+    'logistics.dispatches.read',
+    'store.read',
+    'store.view',
+    'store.materials.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+  )
   async listOrders(
     @Query() query: ListSalesOrdersQueryDto,
     @Req() req: any,
@@ -47,18 +56,43 @@ export class SalesController {
   @Get('delivered/pending-payment')
   @RequirePermissions('sales.orders.read')
   async listDeliveredPendingPayment(@Req() req: any) {
-    return this.salesService.listDeliveredPendingPayment(req.user?.sub, req.user?.role);
+    return this.salesService.listDeliveredPendingPayment(
+      req.user?.sub,
+      req.user?.role,
+    );
   }
 
   @Get('lookup/by-number')
-  @RequirePermissions('sales.orders.read', 'logistics.dispatches.read', 'store.read', 'store.view', 'store.materials.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
-  async lookupOrder(@Query('orderNumber') orderNumber: string, @Query('id') id: string, @Req() req: any): Promise<any> {
+  @RequirePermissions(
+    'sales.orders.read',
+    'logistics.dispatches.read',
+    'store.read',
+    'store.view',
+    'store.materials.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+  )
+  async lookupOrder(
+    @Query('orderNumber') orderNumber: string,
+    @Query('id') id: string,
+    @Req() req: any,
+  ): Promise<any> {
     const target = orderNumber || id || '';
     return this.salesService.getOrder(target, req.user?.sub, req.user?.role);
   }
 
   @Get(':id')
-  @RequirePermissions('sales.orders.read', 'logistics.dispatches.read', 'store.read', 'store.view', 'store.materials.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
+  @RequirePermissions(
+    'sales.orders.read',
+    'logistics.dispatches.read',
+    'store.read',
+    'store.view',
+    'store.materials.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+  )
   async getOrder(@Param('id') id: string, @Req() req: any): Promise<any> {
     return this.salesService.getOrder(id, req.user?.sub, req.user?.role);
   }

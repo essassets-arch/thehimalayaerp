@@ -27,7 +27,10 @@ export class DispatchService {
   async listDispatches(userId?: string, role?: string, status?: string) {
     let scope = getSalesScope(userId, role, 'Dispatch');
 
-    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
+    if (
+      userId &&
+      (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')
+    ) {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
       });
@@ -55,7 +58,10 @@ export class DispatchService {
   async getDispatch(id: string, userId?: string, role?: string) {
     let scope = getSalesScope(userId, role, 'Dispatch');
 
-    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
+    if (
+      userId &&
+      (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')
+    ) {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
       });
@@ -122,505 +128,550 @@ export class DispatchService {
           `DISP - ${new Date().getFullYear()} -`,
         );
 
-      let invoiceSubtotal = new Decimal(0);
-      let invoiceDiscount = new Decimal(0);
-      let invoiceTaxable = new Decimal(0);
-      let invoiceTax = new Decimal(0);
-      const soItemsMap = new Map(so.items.map((item) => [item.id, item]));
-      const invoiceLines: any[] = [];
+        let invoiceSubtotal = new Decimal(0);
+        let invoiceDiscount = new Decimal(0);
+        let invoiceTaxable = new Decimal(0);
+        let invoiceTax = new Decimal(0);
+        const soItemsMap = new Map(so.items.map((item) => [item.id, item]));
+        const invoiceLines: any[] = [];
 
-      for (const item of dto.items) {
-        const soItem = soItemsMap.get(item.salesOrderItemId);
-        if (!soItem) {
-          throw new BadRequestException(
-            `Order item ${item.salesOrderItemId} does not belong to this order`,
-          );
-        }
-
-        const validDispatchItems = (soItem.dispatchItems || []).filter(
-          (di: any) => !di.dispatch || !['CANCELLED', 'REJECTED'].includes(di.dispatch.status),
-        );
-        const alreadyDispatched = validDispatchItems.reduce(
-          (sum: number, di: any) => sum + Number(di.quantity || 0),
-          0,
-        );
-
-        let requestedQty = Number(item.quantity);
-        if (requestedQty <= 0) {
-          throw new BadRequestException('Dispatch quantity must be greater than zero');
-        }
-
-        const remainingOrderQty = Math.max(
-          0,
-          Number(soItem.orderedQuantity || 0) - alreadyDispatched,
-        );
-
-        // If requested quantity exceeds remaining order quantity, cap it to remaining quantity if positive
-        if (remainingOrderQty > 0 && requestedQty > remainingOrderQty) {
-          requestedQty = remainingOrderQty;
-          item.quantity = remainingOrderQty;
-        }
-
-        // 2. Validate against QC approved quantity
-        const wos = await tx.workOrder.findMany({
-          where: { salesOrderItemId: item.salesOrderItemId },
-          include: {
-            qcInspections: {
-              where: { status: 'APPROVED' },
-            },
-          },
-        });
-        const totalQcApproved = wos.reduce((sum, wo) => {
-          const approved =
-            wo.qcInspections.length > 0
-              ? wo.qcInspections.reduce(
-                  (s, qc) =>
-                    s + Number(qc.approvedQuantity ?? wo.quantity ?? 0),
-                  0,
-                )
-              : Number(wo.quantity || 0);
-          return sum + approved;
-        }, 0);
-
-        if (alreadyDispatched + requestedQty > totalQcApproved) {
-          console.warn(
-            `QC Warning: Dispatch quantity(${requestedQty}) + already dispatched(${alreadyDispatched}) exceeds QC - approved quantity(${totalQcApproved}) for product ${soItem.productNameSnapshot}. Allowing dispatch to proceed.`,
-          );
-        }
-
-        // Validate Finished Goods Stock in Database
-        let fgRecords = await tx.finishedGoods.findMany({
-          where: { productId: soItem.productId },
-        });
-
-        if (!fgRecords.length) {
-          const prod = await tx.product.findUnique({ where: { id: soItem.productId } });
-          if (prod) {
-            fgRecords = await tx.finishedGoods.findMany({
-              where: {
-                OR: [
-                  { productId: prod.id },
-                  { product: { sku: prod.sku } },
-                  { product: { name: { equals: prod.name, mode: 'insensitive' } } },
-                ],
-              },
-            });
-          }
-        }
-
-        const allocations = await tx.salesOrderAllocation.findMany({
-          where: {
-            salesOrderItemId: item.salesOrderItemId,
-            allocationType: 'FINISHED_GOODS_RESERVATION',
-            reservedQuantity: { gt: 0 },
-          },
-        });
-        const reservedQty = allocations.reduce((sum, r) => sum + Number(r.reservedQuantity), 0);
-
-        const fromRes = Math.min(requestedQty, reservedQty);
-        const fromAvail = Math.max(0, requestedQty - reservedQty);
-
-        // Auto-provision finished goods batch if stock records are uninitialized
-        const totalFgAvailable = fgRecords.reduce(
-          (sum, r) => sum + Number(r.availableQuantity || 0),
-          0,
-        );
-
-        if (!fgRecords.length || totalFgAvailable < fromAvail) {
-          let primaryFg = fgRecords[0];
-          const needed = Math.max(fromAvail - totalFgAvailable, 0);
-          if (!primaryFg) {
-            let targetWoId = wos[0]?.id || (await tx.workOrder.findFirst({ where: { salesOrderItemId: item.salesOrderItemId } }))?.id;
-            if (!targetWoId) {
-              const plan = (await tx.productionPlan.findFirst({ where: { salesOrderId: so.id } })) || (await tx.productionPlan.create({
-                data: {
-                  planNumber: `PLAN-${Date.now().toString().slice(-6)}`,
-                  salesOrderId: so.id,
-                  status: 'APPROVED',
-                },
-              }));
-              const createdWo = await tx.workOrder.create({
-                data: {
-                  workOrderNumber: `WO-${Date.now().toString().slice(-6)}`,
-                  productionPlanId: plan.id,
-                  salesOrderItemId: soItem.id,
-                  quantity: requestedQty,
-                  status: 'READY_FOR_DISPATCH',
-                },
-              });
-              targetWoId = createdWo.id;
-            }
-
-            primaryFg = await tx.finishedGoods.create({
-              data: {
-                workOrderId: targetWoId,
-                productId: soItem.productId,
-                quantity: requestedQty,
-                availableQuantity: requestedQty,
-                reservedQuantity: 0,
-                unit: 'PCS',
-                status: 'AVAILABLE',
-                salesOrderId: so.id,
-              },
-            });
-            fgRecords = [primaryFg];
-          } else if (needed > 0) {
-            await tx.finishedGoods.update({
-              where: { id: primaryFg.id },
-              data: {
-                availableQuantity: { increment: needed },
-                quantity: { increment: needed },
-              },
-            });
-            primaryFg.availableQuantity = (Number(primaryFg.availableQuantity) || 0) + needed as any;
-            primaryFg.quantity = (Number(primaryFg.quantity) || 0) + needed as any;
-          }
-        }
-
-        // Deduct from reserves (physical stock only)
-        if (fromRes > 0) {
-          let remainingFromRes = fromRes;
-          for (const fg of fgRecords) {
-            if (remainingFromRes <= 0) break;
-            const currentQty = Number(fg.quantity || 0);
-            if (currentQty <= 0) continue;
-
-            const deduct = Math.min(currentQty, remainingFromRes);
-
-            const updated = await tx.finishedGoods.updateMany({
-              where: {
-                id: fg.id,
-                quantity: { gte: deduct },
-              },
-              data: {
-                quantity: { decrement: deduct },
-                reservedQuantity: { decrement: deduct },
-              },
-            });
-
-            if (updated.count === 0) {
-              throw new BadRequestException(
-                `Insufficient finished goods physical stock due to concurrent updates. Please retry.`,
-              );
-            }
-
-            remainingFromRes -= deduct;
-          }
-
-          if (remainingFromRes > 0) {
+        for (const item of dto.items) {
+          const soItem = soItemsMap.get(item.salesOrderItemId);
+          if (!soItem) {
             throw new BadRequestException(
-              `Insufficient finished goods physical stock for reserves.`,
+              `Order item ${item.salesOrderItemId} does not belong to this order`,
             );
           }
 
-          // Decrement reservedQuantity on allocations
-          let remainingAllocationToDeduct = fromRes;
-          for (const alloc of allocations) {
-            if (remainingAllocationToDeduct <= 0) break;
-            const currentReserved = Number(alloc.reservedQuantity || 0);
-            const deduct = Math.min(currentReserved, remainingAllocationToDeduct);
+          const validDispatchItems = (soItem.dispatchItems || []).filter(
+            (di: any) =>
+              !di.dispatch ||
+              !['CANCELLED', 'REJECTED'].includes(di.dispatch.status),
+          );
+          const alreadyDispatched = validDispatchItems.reduce(
+            (sum: number, di: any) => sum + Number(di.quantity || 0),
+            0,
+          );
 
-            await tx.salesOrderAllocation.update({
-              where: { id: alloc.id },
-              data: {
-                reservedQuantity: { decrement: deduct },
-              },
-            });
-
-            remainingAllocationToDeduct -= deduct;
+          let requestedQty = Number(item.quantity);
+          if (requestedQty <= 0) {
+            throw new BadRequestException(
+              'Dispatch quantity must be greater than zero',
+            );
           }
-        }
 
-        // Deduct from available stock (both physical and available)
-        if (fromAvail > 0) {
+          const remainingOrderQty = Math.max(
+            0,
+            Number(soItem.orderedQuantity || 0) - alreadyDispatched,
+          );
+
+          // If requested quantity exceeds remaining order quantity, cap it to remaining quantity if positive
+          if (remainingOrderQty > 0 && requestedQty > remainingOrderQty) {
+            requestedQty = remainingOrderQty;
+            item.quantity = remainingOrderQty;
+          }
+
+          // 2. Validate against QC approved quantity
+          const wos = await tx.workOrder.findMany({
+            where: { salesOrderItemId: item.salesOrderItemId },
+            include: {
+              qcInspections: {
+                where: { status: 'APPROVED' },
+              },
+            },
+          });
+          const totalQcApproved = wos.reduce((sum, wo) => {
+            const approved =
+              wo.qcInspections.length > 0
+                ? wo.qcInspections.reduce(
+                    (s, qc) =>
+                      s + Number(qc.approvedQuantity ?? wo.quantity ?? 0),
+                    0,
+                  )
+                : Number(wo.quantity || 0);
+            return sum + approved;
+          }, 0);
+
+          if (alreadyDispatched + requestedQty > totalQcApproved) {
+            console.warn(
+              `QC Warning: Dispatch quantity(${requestedQty}) + already dispatched(${alreadyDispatched}) exceeds QC - approved quantity(${totalQcApproved}) for product ${soItem.productNameSnapshot}. Allowing dispatch to proceed.`,
+            );
+          }
+
+          // Validate Finished Goods Stock in Database
+          let fgRecords = await tx.finishedGoods.findMany({
+            where: { productId: soItem.productId },
+          });
+
+          if (!fgRecords.length) {
+            const prod = await tx.product.findUnique({
+              where: { id: soItem.productId },
+            });
+            if (prod) {
+              fgRecords = await tx.finishedGoods.findMany({
+                where: {
+                  OR: [
+                    { productId: prod.id },
+                    { product: { sku: prod.sku } },
+                    {
+                      product: {
+                        name: { equals: prod.name, mode: 'insensitive' },
+                      },
+                    },
+                  ],
+                },
+              });
+            }
+          }
+
+          const allocations = await tx.salesOrderAllocation.findMany({
+            where: {
+              salesOrderItemId: item.salesOrderItemId,
+              allocationType: 'FINISHED_GOODS_RESERVATION',
+              reservedQuantity: { gt: 0 },
+            },
+          });
+          const reservedQty = allocations.reduce(
+            (sum, r) => sum + Number(r.reservedQuantity),
+            0,
+          );
+
+          const fromRes = Math.min(requestedQty, reservedQty);
+          const fromAvail = Math.max(0, requestedQty - reservedQty);
+
+          // Auto-provision finished goods batch if stock records are uninitialized
           const totalFgAvailable = fgRecords.reduce(
             (sum, r) => sum + Number(r.availableQuantity || 0),
             0,
           );
 
-          if (fromAvail > totalFgAvailable) {
-            throw new BadRequestException(
-              `Insufficient finished goods available stock for ${soItem.productNameSnapshot || 'product'}. Available: ${totalFgAvailable} ${(soItem as any).product?.unit || 'PCS'}, Requested: ${fromAvail} ${(soItem as any).product?.unit || 'PCS'}.`,
-            );
+          if (!fgRecords.length || totalFgAvailable < fromAvail) {
+            let primaryFg = fgRecords[0];
+            const needed = Math.max(fromAvail - totalFgAvailable, 0);
+            if (!primaryFg) {
+              let targetWoId =
+                wos[0]?.id ||
+                (
+                  await tx.workOrder.findFirst({
+                    where: { salesOrderItemId: item.salesOrderItemId },
+                  })
+                )?.id;
+              if (!targetWoId) {
+                const plan =
+                  (await tx.productionPlan.findFirst({
+                    where: { salesOrderId: so.id },
+                  })) ||
+                  (await tx.productionPlan.create({
+                    data: {
+                      planNumber: `PLAN-${Date.now().toString().slice(-6)}`,
+                      salesOrderId: so.id,
+                      status: 'APPROVED',
+                    },
+                  }));
+                const createdWo = await tx.workOrder.create({
+                  data: {
+                    workOrderNumber: `WO-${Date.now().toString().slice(-6)}`,
+                    productionPlanId: plan.id,
+                    salesOrderItemId: soItem.id,
+                    quantity: requestedQty,
+                    status: 'READY_FOR_DISPATCH',
+                  },
+                });
+                targetWoId = createdWo.id;
+              }
+
+              primaryFg = await tx.finishedGoods.create({
+                data: {
+                  workOrderId: targetWoId,
+                  productId: soItem.productId,
+                  quantity: requestedQty,
+                  availableQuantity: requestedQty,
+                  reservedQuantity: 0,
+                  unit: 'PCS',
+                  status: 'AVAILABLE',
+                  salesOrderId: so.id,
+                },
+              });
+              fgRecords = [primaryFg];
+            } else if (needed > 0) {
+              await tx.finishedGoods.update({
+                where: { id: primaryFg.id },
+                data: {
+                  availableQuantity: { increment: needed },
+                  quantity: { increment: needed },
+                },
+              });
+              primaryFg.availableQuantity = ((Number(
+                primaryFg.availableQuantity,
+              ) || 0) + needed) as any;
+              primaryFg.quantity = ((Number(primaryFg.quantity) || 0) +
+                needed) as any;
+            }
           }
 
-          let remainingFromAvail = fromAvail;
-          for (const fg of fgRecords) {
-            if (remainingFromAvail <= 0) break;
-            const currentAvail = Number(fg.availableQuantity || 0);
-            if (currentAvail <= 0) continue;
+          // Deduct from reserves (physical stock only)
+          if (fromRes > 0) {
+            let remainingFromRes = fromRes;
+            for (const fg of fgRecords) {
+              if (remainingFromRes <= 0) break;
+              const currentQty = Number(fg.quantity || 0);
+              if (currentQty <= 0) continue;
 
-            const deduct = Math.min(currentAvail, remainingFromAvail);
+              const deduct = Math.min(currentQty, remainingFromRes);
 
-            const updated = await tx.finishedGoods.updateMany({
-              where: {
-                id: fg.id,
-                availableQuantity: { gte: deduct },
-              },
-              data: {
-                availableQuantity: { decrement: deduct },
-                quantity: { decrement: deduct },
-              },
-            });
+              const updated = await tx.finishedGoods.updateMany({
+                where: {
+                  id: fg.id,
+                  quantity: { gte: deduct },
+                },
+                data: {
+                  quantity: { decrement: deduct },
+                  reservedQuantity: { decrement: deduct },
+                },
+              });
 
-            if (updated.count === 0) {
+              if (updated.count === 0) {
+                throw new BadRequestException(
+                  `Insufficient finished goods physical stock due to concurrent updates. Please retry.`,
+                );
+              }
+
+              remainingFromRes -= deduct;
+            }
+
+            if (remainingFromRes > 0) {
               throw new BadRequestException(
-                `Insufficient finished goods stock due to concurrent updates. Please retry.`,
+                `Insufficient finished goods physical stock for reserves.`,
               );
             }
 
-            remainingFromAvail -= deduct;
+            // Decrement reservedQuantity on allocations
+            let remainingAllocationToDeduct = fromRes;
+            for (const alloc of allocations) {
+              if (remainingAllocationToDeduct <= 0) break;
+              const currentReserved = Number(alloc.reservedQuantity || 0);
+              const deduct = Math.min(
+                currentReserved,
+                remainingAllocationToDeduct,
+              );
+
+              await tx.salesOrderAllocation.update({
+                where: { id: alloc.id },
+                data: {
+                  reservedQuantity: { decrement: deduct },
+                },
+              });
+
+              remainingAllocationToDeduct -= deduct;
+            }
           }
 
-          if (remainingFromAvail > 0) {
-            throw new BadRequestException(
-              `Insufficient finished goods stock for ${soItem.productNameSnapshot || 'product'}.`,
+          // Deduct from available stock (both physical and available)
+          if (fromAvail > 0) {
+            const totalFgAvailable = fgRecords.reduce(
+              (sum, r) => sum + Number(r.availableQuantity || 0),
+              0,
             );
+
+            if (fromAvail > totalFgAvailable) {
+              throw new BadRequestException(
+                `Insufficient finished goods available stock for ${soItem.productNameSnapshot || 'product'}. Available: ${totalFgAvailable} ${(soItem as any).product?.unit || 'PCS'}, Requested: ${fromAvail} ${(soItem as any).product?.unit || 'PCS'}.`,
+              );
+            }
+
+            let remainingFromAvail = fromAvail;
+            for (const fg of fgRecords) {
+              if (remainingFromAvail <= 0) break;
+              const currentAvail = Number(fg.availableQuantity || 0);
+              if (currentAvail <= 0) continue;
+
+              const deduct = Math.min(currentAvail, remainingFromAvail);
+
+              const updated = await tx.finishedGoods.updateMany({
+                where: {
+                  id: fg.id,
+                  availableQuantity: { gte: deduct },
+                },
+                data: {
+                  availableQuantity: { decrement: deduct },
+                  quantity: { decrement: deduct },
+                },
+              });
+
+              if (updated.count === 0) {
+                throw new BadRequestException(
+                  `Insufficient finished goods stock due to concurrent updates. Please retry.`,
+                );
+              }
+
+              remainingFromAvail -= deduct;
+            }
+
+            if (remainingFromAvail > 0) {
+              throw new BadRequestException(
+                `Insufficient finished goods stock for ${soItem.productNameSnapshot || 'product'}.`,
+              );
+            }
+          }
+
+          // Record Inventory Transaction for Audit Trail
+          const warehouse =
+            (await tx.warehouse.findFirst({
+              where: {
+                companyId: so.customer.companyId,
+                name: 'Finished Goods',
+              },
+            })) ||
+            (await tx.warehouse.findFirst({
+              where: { companyId: so.customer.companyId },
+            }));
+
+          if (warehouse) {
+            await tx.inventoryTransaction.create({
+              data: {
+                companyId: so.customer.companyId,
+                productId: soItem.productId,
+                warehouseId: warehouse.id,
+                type: 'OUT',
+                quantity: requestedQty,
+                referenceType: 'FINISHED_GOODS_DISPATCH',
+                referenceId: dispatchNo,
+              },
+            });
+          }
+
+          const qty = new Decimal(item.quantity);
+          const unitPrice = soItem.unitPrice;
+          const lineTotal = qty.mul(unitPrice);
+
+          let lineDiscount = new Decimal(0);
+          if (soItem.discountAmount) {
+            lineDiscount = soItem.discountAmount;
+          }
+
+          const taxable = lineTotal.sub(lineDiscount);
+          const tax = taxable.mul(soItem.taxRate || 0).div(100);
+
+          invoiceSubtotal = invoiceSubtotal.add(lineTotal);
+          invoiceDiscount = invoiceDiscount.add(lineDiscount);
+          invoiceTaxable = invoiceTaxable.add(taxable);
+          invoiceTax = invoiceTax.add(tax);
+
+          invoiceLines.push({
+            salesOrderItemId: item.salesOrderItemId,
+            quantity: item.quantity,
+            unitPrice: soItem.unitPrice,
+            discountAmount: lineDiscount,
+            taxableAmount: taxable,
+            taxRate: soItem.taxRate,
+            taxAmount: tax,
+            lineTotal: taxable.add(tax),
+            amount: taxable.add(tax),
+          });
+        }
+
+        const invoiceFreight = new Decimal(dto.freightAmount || 0);
+        const invoiceTotal = invoiceTaxable.add(invoiceTax).add(invoiceFreight);
+
+        // Check credit
+        const creditCheck = await this.creditService.checkCreditLimit(
+          so.customerId,
+          invoiceTotal.toNumber(),
+          'DISPATCH',
+        );
+        if (!creditCheck.allowed) {
+          throw new BadRequestException(
+            `Credit limit exceeded.Limit: ${creditCheck.creditLimit}, Projected: ${creditCheck.projectedBalance}. Dispatch blocked.`,
+          );
+        }
+
+        // Auto-detect D1 vs D2 dispatchCategory from ordered items
+        let detectedCategory = 'D1';
+        for (const item of dto.items) {
+          const soItem = soItemsMap.get(item.salesOrderItemId);
+          if (soItem?.productId) {
+            const prod = await tx.product.findUnique({
+              where: { id: soItem.productId },
+              select: { dispatchCategory: true },
+            });
+            if (prod?.dispatchCategory) {
+              detectedCategory = prod.dispatchCategory;
+              break;
+            }
           }
         }
 
-
-
-        // Record Inventory Transaction for Audit Trail
-        let warehouse = await tx.warehouse.findFirst({
-          where: { companyId: so.customer.companyId, name: 'Finished Goods' },
-        }) || await tx.warehouse.findFirst({
-          where: { companyId: so.customer.companyId },
+        // Create Dispatch record starting directly as IN_TRANSIT
+        const dispatch = await tx.dispatch.create({
+          data: {
+            dispatchNo,
+            salesOrderId: dto.salesOrderId,
+            dispatchCategory: detectedCategory,
+            status: 'IN_TRANSIT',
+            isSubmitted: false,
+            createdById: userId,
+            deliveryAddress: dto.deliveryAddress,
+            totalWeight: dto.totalWeight,
+            transporterName: dto.transporterName,
+            vehicleNumber: dto.vehicleNumber,
+            driverName: dto.driverName,
+            driverPhone: dto.driverPhone,
+            transitRemarks: dto.dispatchRemarks,
+            freightAmount: dto.freightAmount,
+            eta: dto.expectedDeliveryDate
+              ? new Date(dto.expectedDeliveryDate)
+              : null,
+            invoiceNumber: dto.invoiceNumber,
+            ewayBillNumber: dto.ewayBillNumber,
+            dispatchedAt: new Date(),
+            items: {
+              create: dto.items.map((item) => ({
+                salesOrderItemId: item.salesOrderItemId,
+                quantity: item.quantity,
+              })),
+            },
+          },
+          include: { items: true },
         });
 
-        if (warehouse) {
-          await tx.inventoryTransaction.create({
-            data: {
-              companyId: so.customer.companyId,
-              productId: soItem.productId,
-              warehouseId: warehouse.id,
-              type: 'OUT',
-              quantity: requestedQty,
-              referenceType: 'FINISHED_GOODS_DISPATCH',
-              referenceId: dispatchNo,
+        // Update WorkOrder status to DISPATCHED
+        for (const item of dto.items) {
+          const wos = await tx.workOrder.findMany({
+            where: {
+              salesOrderItemId: item.salesOrderItemId,
+              status: 'READY_FOR_DISPATCH',
+              ...(item.workOrderIds?.length
+                ? { id: { in: item.workOrderIds } }
+                : {}),
             },
           });
-        }
-
-        const qty = new Decimal(item.quantity);
-        const unitPrice = soItem.unitPrice;
-        const lineTotal = qty.mul(unitPrice);
-
-        let lineDiscount = new Decimal(0);
-        if (soItem.discountAmount) {
-          lineDiscount = soItem.discountAmount;
-        }
-
-        const taxable = lineTotal.sub(lineDiscount);
-        const tax = taxable.mul(soItem.taxRate || 0).div(100);
-
-        invoiceSubtotal = invoiceSubtotal.add(lineTotal);
-        invoiceDiscount = invoiceDiscount.add(lineDiscount);
-        invoiceTaxable = invoiceTaxable.add(taxable);
-        invoiceTax = invoiceTax.add(tax);
-
-        invoiceLines.push({
-          salesOrderItemId: item.salesOrderItemId,
-          quantity: item.quantity,
-          unitPrice: soItem.unitPrice,
-          discountAmount: lineDiscount,
-          taxableAmount: taxable,
-          taxRate: soItem.taxRate,
-          taxAmount: tax,
-          lineTotal: taxable.add(tax),
-          amount: taxable.add(tax),
-        });
-      }
-
-      const invoiceFreight = new Decimal(dto.freightAmount || 0);
-      const invoiceTotal = invoiceTaxable.add(invoiceTax).add(invoiceFreight);
-
-      // Check credit
-      const creditCheck = await this.creditService.checkCreditLimit(
-        so.customerId,
-        invoiceTotal.toNumber(),
-        'DISPATCH',
-      );
-      if (!creditCheck.allowed) {
-        throw new BadRequestException(
-          `Credit limit exceeded.Limit: ${creditCheck.creditLimit}, Projected: ${creditCheck.projectedBalance}. Dispatch blocked.`,
-        );
-      }
-
-      // Auto-detect D1 vs D2 dispatchCategory from ordered items
-      let detectedCategory = 'D1';
-      for (const item of dto.items) {
-        const soItem = soItemsMap.get(item.salesOrderItemId);
-        if (soItem?.productId) {
-          const prod = await tx.product.findUnique({
-            where: { id: soItem.productId },
-            select: { dispatchCategory: true },
-          });
-          if (prod?.dispatchCategory) {
-            detectedCategory = prod.dispatchCategory;
-            break;
+          for (const wo of wos) {
+            await tx.workOrder.update({
+              where: { id: wo.id },
+              data: { status: 'DISPATCHED' },
+            });
           }
         }
-      }
 
-      // Create Dispatch record starting directly as IN_TRANSIT
-      const dispatch = await tx.dispatch.create({
-        data: {
-          dispatchNo,
-          salesOrderId: dto.salesOrderId,
-          dispatchCategory: detectedCategory,
-          status: 'IN_TRANSIT',
-          isSubmitted: false,
-          createdById: userId,
-          deliveryAddress: dto.deliveryAddress,
-          totalWeight: dto.totalWeight,
-          transporterName: dto.transporterName,
-          vehicleNumber: dto.vehicleNumber,
-          driverName: dto.driverName,
-          driverPhone: dto.driverPhone,
-          transitRemarks: dto.dispatchRemarks,
-          freightAmount: dto.freightAmount,
-          eta: dto.expectedDeliveryDate
-            ? new Date(dto.expectedDeliveryDate)
-            : null,
-          invoiceNumber: dto.invoiceNumber,
-          ewayBillNumber: dto.ewayBillNumber,
-          dispatchedAt: new Date(),
-          items: {
-            create: dto.items.map((item) => ({
-              salesOrderItemId: item.salesOrderItemId,
-              quantity: item.quantity,
-            })),
-          },
-        },
-        include: { items: true },
-      });
-
-      // Update WorkOrder status to DISPATCHED
-      for (const item of dto.items) {
-        const wos = await tx.workOrder.findMany({
-          where: {
+        await tx.salesOrderAllocation.createMany({
+          data: dto.items.map((item) => ({
+            salesOrderId: so.id,
             salesOrderItemId: item.salesOrderItemId,
-            status: 'READY_FOR_DISPATCH',
-            ...(item.workOrderIds?.length
-              ? { id: { in: item.workOrderIds } }
-              : {}),
+            allocationType: 'FINISHED_GOODS_RESERVATION',
+            requiredQuantity: item.quantity,
+            reservedQuantity: item.quantity,
+          })),
+        });
+
+        const initialInvoiceState = await this.workflowService.getInitialState(
+          'INVOICE',
+          tx,
+        );
+        const invoiceNumber = await this.sequenceService.generateNextWithTx(
+          tx,
+          'invoice_number',
+          `INV - ${new Date().getFullYear()} -`,
+        );
+        await tx.salesInvoice.create({
+          data: {
+            invoiceNumber,
+            salesOrderId: dto.salesOrderId,
+            dispatchId: dispatch.id,
+            status: 'DRAFT',
+            workflowStateId: initialInvoiceState.id,
+            subtotal: invoiceSubtotal.toDecimalPlaces(2).toNumber(),
+            discountAmount: invoiceDiscount.toDecimalPlaces(2).toNumber(),
+            taxableAmount: invoiceTaxable.toDecimalPlaces(2).toNumber(),
+            taxAmount: invoiceTax.toDecimalPlaces(2).toNumber(),
+            freightAmount: invoiceFreight.toDecimalPlaces(2).toNumber(),
+            roundingAmount: 0,
+            totalAmount: invoiceTotal.toDecimalPlaces(2).toNumber(),
+            items: {
+              create: invoiceLines,
+            },
           },
         });
-        for (const wo of wos) {
-          await tx.workOrder.update({
-            where: { id: wo.id },
-            data: { status: 'DISPATCHED' },
-          });
+
+        await tx.salesOrder.update({
+          where: { id: dto.salesOrderId },
+          data: { status: 'READY_FOR_DISPATCH' },
+        });
+
+        console.log(
+          '[DISPATCH 10] Dispatch transaction committed successfully:',
+          dispatch.dispatchNo,
+        );
+        return dispatch;
+      });
+
+      if (this.notificationsService && result) {
+        // Query salesOrder customer & salesExecutiveId
+        const dispatchWithDetails = await this.prisma.dispatch.findUnique({
+          where: { id: result.id },
+          include: {
+            salesOrder: { include: { customer: true } },
+          },
+        });
+
+        if (dispatchWithDetails?.salesOrder?.salesExecutiveId) {
+          const companyId = dispatchWithDetails.salesOrder.customer.companyId;
+          const executiveId = dispatchWithDetails.salesOrder.salesExecutiveId;
+          const soNo = dispatchWithDetails.salesOrder.orderNumber;
+
+          // 1. Dispatch Created Notification
+          this.notificationsService
+            .notifyUser({
+              companyId,
+              userId: executiveId,
+              type: 'DISPATCH_CREATED',
+              title: 'Dispatch Created',
+              message: `${dispatchWithDetails.dispatchNo} — Dispatch has been created for ${soNo}.`,
+              route: `/sales/orders/${dispatchWithDetails.salesOrderId}`,
+              entityType: 'Dispatch',
+              entityId: dispatchWithDetails.id,
+              eventKey: `DISPATCH:${dispatchWithDetails.id}:CREATED`,
+            })
+            .catch((err) =>
+              console.warn(
+                '[DispatchService Notification] Failed to notify DISPATCH_CREATED:',
+                err.message,
+              ),
+            );
+
+          // 2. Dispatch In Transit Notification
+          this.notificationsService
+            .notifyUser({
+              companyId,
+              userId: executiveId,
+              type: 'DISPATCH_IN_TRANSIT',
+              title: 'Shipment In Transit',
+              message: `${dispatchWithDetails.dispatchNo} — Shipment for ${soNo} is now in transit.`,
+              route: `/sales/orders/${dispatchWithDetails.salesOrderId}`,
+              entityType: 'Dispatch',
+              entityId: dispatchWithDetails.id,
+              eventKey: `DISPATCH:${dispatchWithDetails.id}:IN_TRANSIT`,
+            })
+            .catch((err) =>
+              console.warn(
+                '[DispatchService Notification] Failed to notify DISPATCH_IN_TRANSIT:',
+                err.message,
+              ),
+            );
         }
       }
 
-      await tx.salesOrderAllocation.createMany({
-        data: dto.items.map((item) => ({
-          salesOrderId: so.id,
-          salesOrderItemId: item.salesOrderItemId,
-          allocationType: 'FINISHED_GOODS_RESERVATION',
-          requiredQuantity: item.quantity,
-          reservedQuantity: item.quantity,
-        })),
+      return result;
+    } catch (error: any) {
+      console.error('[CREATE DISPATCH ORIGINAL ERROR]', {
+        name: error?.name,
+        code: error?.code,
+        message: error?.message,
+        meta: error?.meta,
+        cause: error?.cause,
       });
-
-      const initialInvoiceState = await this.workflowService.getInitialState(
-        'INVOICE',
-        tx,
-      );
-      const invoiceNumber = await this.sequenceService.generateNextWithTx(
-        tx,
-        'invoice_number',
-        `INV - ${new Date().getFullYear()} -`,
-      );
-      await tx.salesInvoice.create({
-        data: {
-          invoiceNumber,
-          salesOrderId: dto.salesOrderId,
-          dispatchId: dispatch.id,
-          status: 'DRAFT',
-          workflowStateId: initialInvoiceState.id,
-          subtotal: invoiceSubtotal.toDecimalPlaces(2).toNumber(),
-          discountAmount: invoiceDiscount.toDecimalPlaces(2).toNumber(),
-          taxableAmount: invoiceTaxable.toDecimalPlaces(2).toNumber(),
-          taxAmount: invoiceTax.toDecimalPlaces(2).toNumber(),
-          freightAmount: invoiceFreight.toDecimalPlaces(2).toNumber(),
-          roundingAmount: 0,
-          totalAmount: invoiceTotal.toDecimalPlaces(2).toNumber(),
-          items: {
-            create: invoiceLines,
-          },
-        },
-      });
-
-      await tx.salesOrder.update({
-        where: { id: dto.salesOrderId },
-        data: { status: 'READY_FOR_DISPATCH' },
-      });
-
-      console.log('[DISPATCH 10] Dispatch transaction committed successfully:', dispatch.dispatchNo);
-      return dispatch;
-    });
-
-    if (this.notificationsService && result) {
-      // Query salesOrder customer & salesExecutiveId
-      const dispatchWithDetails = await this.prisma.dispatch.findUnique({
-        where: { id: result.id },
-        include: {
-          salesOrder: { include: { customer: true } },
-        },
-      });
-
-      if (dispatchWithDetails?.salesOrder?.salesExecutiveId) {
-        const companyId = dispatchWithDetails.salesOrder.customer.companyId;
-        const executiveId = dispatchWithDetails.salesOrder.salesExecutiveId;
-        const soNo = dispatchWithDetails.salesOrder.orderNumber;
-
-        // 1. Dispatch Created Notification
-        this.notificationsService.notifyUser({
-          companyId,
-          userId: executiveId,
-          type: 'DISPATCH_CREATED',
-          title: 'Dispatch Created',
-          message: `${dispatchWithDetails.dispatchNo} — Dispatch has been created for ${soNo}.`,
-          route: `/sales/orders/${dispatchWithDetails.salesOrderId}`,
-          entityType: 'Dispatch',
-          entityId: dispatchWithDetails.id,
-          eventKey: `DISPATCH:${dispatchWithDetails.id}:CREATED`,
-        }).catch((err) =>
-          console.warn('[DispatchService Notification] Failed to notify DISPATCH_CREATED:', err.message),
-        );
-
-        // 2. Dispatch In Transit Notification
-        this.notificationsService.notifyUser({
-          companyId,
-          userId: executiveId,
-          type: 'DISPATCH_IN_TRANSIT',
-          title: 'Shipment In Transit',
-          message: `${dispatchWithDetails.dispatchNo} — Shipment for ${soNo} is now in transit.`,
-          route: `/sales/orders/${dispatchWithDetails.salesOrderId}`,
-          entityType: 'Dispatch',
-          entityId: dispatchWithDetails.id,
-          eventKey: `DISPATCH:${dispatchWithDetails.id}:IN_TRANSIT`,
-        }).catch((err) =>
-          console.warn('[DispatchService Notification] Failed to notify DISPATCH_IN_TRANSIT:', err.message),
-        );
-      }
+      throw error;
     }
-
-    return result;
-  } catch (error: any) {
-    console.error('[CREATE DISPATCH ORIGINAL ERROR]', {
-      name: error?.name,
-      code: error?.code,
-      message: error?.message,
-      meta: error?.meta,
-      cause: error?.cause,
-    });
-    throw error;
   }
-}
 
   async startDelivery(id: string) {
     const dispatch = await this.prisma.dispatch.findFirst({
@@ -735,7 +786,9 @@ export class DispatchService {
       }
 
       // 2. Mark dispatch as DELIVERED
-      const deliveredAtDate = dto.deliveredAt ? new Date(dto.deliveredAt) : new Date();
+      const deliveredAtDate = dto.deliveredAt
+        ? new Date(dto.deliveredAt)
+        : new Date();
       const updatedDispatch = await tx.dispatch.update({
         where: { id },
         data: {
@@ -791,7 +844,11 @@ export class DispatchService {
         include: { quotation: true },
       });
 
-      const termDays = so?.paymentTermDays || so?.paymentTermsDays || so?.quotation?.paymentTermDays || 15;
+      const termDays =
+        so?.paymentTermDays ||
+        so?.paymentTermsDays ||
+        so?.quotation?.paymentTermDays ||
+        15;
       const dueDate = new Date(deliveredAtDate.getTime() + termDays * 86400000);
       const paid = Number(so?.paidAmount || 0);
       const total = Number(so?.totalAmount || 0);
@@ -804,7 +861,12 @@ export class DispatchService {
           paymentTermStartDate: deliveredAtDate,
           paymentDueDate: dueDate,
           outstandingAmount: outstanding,
-          paymentStatus: paid >= total && total > 0 ? 'PAID' : paid > 0 ? 'PARTIALLY_PAID' : 'PENDING',
+          paymentStatus:
+            paid >= total && total > 0
+              ? 'PAID'
+              : paid > 0
+                ? 'PARTIALLY_PAID'
+                : 'PENDING',
         },
       });
 
@@ -813,33 +875,39 @@ export class DispatchService {
 
     // Notify Salesperson / Super Sales owner post-commit
     if (dispatch.salesOrder?.salesExecutiveId && this.notificationsService) {
-      await this.notificationsService.notifyUser({
-        companyId: dispatch.salesOrder.customer.companyId,
-        userId: dispatch.salesOrder.salesExecutiveId,
-        type: 'DISPATCH_DELIVERED',
-        title: 'Order Delivered',
-        message: `${dispatch.salesOrder.orderNumber} — Delivery to ${dispatch.salesOrder.customer.companyName} has been completed.`,
-        route: `/sales/orders/${dispatch.salesOrderId}`,
-        entityType: 'Dispatch',
-        entityId: dispatch.id,
-        eventKey: `DISPATCH:${dispatch.id}:DELIVERED`,
-      }).catch(() => {});
+      await this.notificationsService
+        .notifyUser({
+          companyId: dispatch.salesOrder.customer.companyId,
+          userId: dispatch.salesOrder.salesExecutiveId,
+          type: 'DISPATCH_DELIVERED',
+          title: 'Order Delivered',
+          message: `${dispatch.salesOrder.orderNumber} — Delivery to ${dispatch.salesOrder.customer.companyName} has been completed.`,
+          route: `/sales/orders/${dispatch.salesOrderId}`,
+          entityType: 'Dispatch',
+          entityId: dispatch.id,
+          eventKey: `DISPATCH:${dispatch.id}:DELIVERED`,
+        })
+        .catch(() => {});
     }
 
     // Notify Finance Team to begin payment verification & receivables tracking
     if (this.notificationsService) {
-      const companyId = dispatch.salesOrder?.customer?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
-      this.notificationsService.notifyRole({
-        companyId,
-        role: 'FINANCE_MANAGER',
-        type: 'ORDER_DELIVERED_START_PAYMENT_TERM',
-        title: 'Order Delivered — Payment Terms Started',
-        message: `${dispatch.salesOrder?.orderNumber} delivered to ${dispatch.salesOrder?.customer?.companyName}. Payment terms started (Due: ${new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN')}).`,
-        route: '/finance/payment-verification',
-        entityType: 'SalesOrder',
-        entityId: dispatch.salesOrderId,
-        eventKeyPrefix: `DISPATCH:${dispatch.id}:FINANCE_TERMS_START`,
-      }).catch(() => {});
+      const companyId =
+        dispatch.salesOrder?.customer?.companyId ||
+        '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+      this.notificationsService
+        .notifyRole({
+          companyId,
+          role: 'FINANCE_MANAGER',
+          type: 'ORDER_DELIVERED_START_PAYMENT_TERM',
+          title: 'Order Delivered — Payment Terms Started',
+          message: `${dispatch.salesOrder?.orderNumber} delivered to ${dispatch.salesOrder?.customer?.companyName}. Payment terms started (Due: ${new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN')}).`,
+          route: '/finance/payment-verification',
+          entityType: 'SalesOrder',
+          entityId: dispatch.salesOrderId,
+          eventKeyPrefix: `DISPATCH:${dispatch.id}:FINANCE_TERMS_START`,
+        })
+        .catch(() => {});
     }
 
     return deliveryResult;
@@ -886,14 +954,18 @@ export class DispatchService {
           salesOrderId: d.salesOrderId,
           orderNumber: d.salesOrder?.orderNumber || 'SO-STOCK',
           productCode: prod?.sku || prod?.publicId || 'FG-ITEM',
-          productName: prod?.name || item.salesOrderItem?.productNameSnapshot || 'Finished Good Item',
+          productName:
+            prod?.name ||
+            item.salesOrderItem?.productNameSnapshot ||
+            'Finished Good Item',
           category: prod?.category || 'Hardware',
           unit: (prod?.unit || 'PCS').toUpperCase(),
           quantityBefore: qtyBefore,
           dispatchedQuantity: dispatchedQty,
           quantityAfter: currentRemaining,
           vehicleNumber: d.vehicleNumber || 'UK-07-CB-1234',
-          customerName: d.salesOrder?.customer?.companyName || 'Factory Staging Area',
+          customerName:
+            d.salesOrder?.customer?.companyName || 'Factory Staging Area',
           dispatchedAt: d.dispatchedAt || d.createdAt,
           createdBy: d.createdById || 'Dispatch Executive',
         });
@@ -904,18 +976,35 @@ export class DispatchService {
     const dailyReportHistories = await this.prisma.stockHistory.findMany({
       where: {
         event: { in: ['DISPATCH_OUT', 'DISPATCH_REVERSAL'] },
-        sourceType: { in: ['DISPATCH_REPORT', 'DISPATCH_REPORT_REVERSAL', 'DISPATCH_REPORT_UPDATE', 'DISPATCH_REPORT_CANCEL'] },
+        sourceType: {
+          in: [
+            'DISPATCH_REPORT',
+            'DISPATCH_REPORT_REVERSAL',
+            'DISPATCH_REPORT_UPDATE',
+            'DISPATCH_REPORT_CANCEL',
+          ],
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    const shProductIds = Array.from(new Set(dailyReportHistories.map((h) => h.productId).filter(Boolean)));
-    const shProducts = shProductIds.length > 0
-      ? await this.prisma.product.findMany({
-          where: { id: { in: shProductIds } },
-          select: { id: true, name: true, sku: true, publicId: true, category: true, unit: true },
-        })
-      : [];
+    const shProductIds = Array.from(
+      new Set(dailyReportHistories.map((h) => h.productId).filter(Boolean)),
+    );
+    const shProducts =
+      shProductIds.length > 0
+        ? await this.prisma.product.findMany({
+            where: { id: { in: shProductIds } },
+            select: {
+              id: true,
+              name: true,
+              sku: true,
+              publicId: true,
+              category: true,
+              unit: true,
+            },
+          })
+        : [];
     const shProductMap = new Map(shProducts.map((p) => [p.id, p]));
 
     for (const sh of dailyReportHistories) {
@@ -931,17 +1020,28 @@ export class DispatchService {
         productName: prod?.name || 'Finished Good Item',
         category: prod?.category || 'FRP COVER',
         unit: (prod?.unit || 'PCS').toUpperCase(),
-        quantityBefore: Number(sh.beforeAvailableQuantity ?? sh.beforeQuantity ?? 0),
+        quantityBefore: Number(
+          sh.beforeAvailableQuantity ?? sh.beforeQuantity ?? 0,
+        ),
         dispatchedQuantity: dispatchedQty,
-        quantityAfter: Number(sh.afterAvailableQuantity ?? sh.afterQuantity ?? 0),
+        quantityAfter: Number(
+          sh.afterAvailableQuantity ?? sh.afterQuantity ?? 0,
+        ),
         vehicleNumber: 'Direct Daily Dispatch Log',
         customerName: 'Factory Staging / Daily Dispatch',
-        dispatchedAt: sh.createdAt ? (typeof sh.createdAt.toISOString === 'function' ? sh.createdAt.toISOString() : new Date(sh.createdAt).toISOString()) : new Date().toISOString(),
+        dispatchedAt: sh.createdAt
+          ? typeof sh.createdAt.toISOString === 'function'
+            ? sh.createdAt.toISOString()
+            : new Date(sh.createdAt).toISOString()
+          : new Date().toISOString(),
         createdBy: sh.actor || 'Dispatch Executive',
       });
     }
 
-    history.sort((a, b) => new Date(b.dispatchedAt).getTime() - new Date(a.dispatchedAt).getTime());
+    history.sort(
+      (a, b) =>
+        new Date(b.dispatchedAt).getTime() - new Date(a.dispatchedAt).getTime(),
+    );
 
     return history;
   }
@@ -949,8 +1049,13 @@ export class DispatchService {
   async getDispatchQueue(userId: string, role: string, companyId: string) {
     // 1. Resolve category filter for the Dispatch Executive user
     let userCategory: string | null = null;
-    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
-      const u: any = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (
+      userId &&
+      (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')
+    ) {
+      const u: any = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
       if (u?.dispatchCategory) {
         userCategory = u.dispatchCategory;
       }
@@ -977,7 +1082,9 @@ export class DispatchService {
 
     const ordersMap = new Map<string, any>();
     for (const alloc of allocations) {
-      const salesOrderItem = alloc.salesOrder.items.find(i => i.id === alloc.salesOrderItemId);
+      const salesOrderItem = alloc.salesOrder.items.find(
+        (i) => i.id === alloc.salesOrderItemId,
+      );
       if (!salesOrderItem) continue;
 
       const product = salesOrderItem.product;
@@ -988,8 +1095,16 @@ export class DispatchService {
         const c1 = String(dispatchCat).trim().toUpperCase();
         const c2 = String(userCategory).trim().toUpperCase();
         let matches = c1 === c2;
-        if ((c1 === 'D1' || c1 === 'DISPATCH 1') && (c2 === 'D1' || c2 === 'DISPATCH 1')) matches = true;
-        if ((c1 === 'D2' || c1 === 'DISPATCH 2') && (c2 === 'D2' || c2 === 'DISPATCH 2')) matches = true;
+        if (
+          (c1 === 'D1' || c1 === 'DISPATCH 1') &&
+          (c2 === 'D1' || c2 === 'DISPATCH 1')
+        )
+          matches = true;
+        if (
+          (c1 === 'D2' || c1 === 'DISPATCH 2') &&
+          (c2 === 'D2' || c2 === 'DISPATCH 2')
+        )
+          matches = true;
         if (!matches) continue;
       }
 
@@ -1002,9 +1117,12 @@ export class DispatchService {
           salesOrderId: alloc.salesOrderId,
           batchId: product?.sku || 'FG-STOCK',
           customerName: alloc.salesOrder.customer.companyName,
-          deliveryAddress: typeof alloc.salesOrder.shippingAddress === 'string'
-            ? alloc.salesOrder.shippingAddress
-            : (alloc.salesOrder.shippingAddress ? JSON.stringify(alloc.salesOrder.shippingAddress) : 'Factory Staging Area'),
+          deliveryAddress:
+            typeof alloc.salesOrder.shippingAddress === 'string'
+              ? alloc.salesOrder.shippingAddress
+              : alloc.salesOrder.shippingAddress
+                ? JSON.stringify(alloc.salesOrder.shippingAddress)
+                : 'Factory Staging Area',
           status: 'READY_FOR_DISPATCH',
           items: [],
         });
@@ -1036,7 +1154,9 @@ export class DispatchService {
         },
         include: {
           salesOrderItem: { include: { product: true } },
-          productionPlan: { include: { salesOrder: { include: { customer: true } } } },
+          productionPlan: {
+            include: { salesOrder: { include: { customer: true } } },
+          },
         },
       });
 
@@ -1050,8 +1170,16 @@ export class DispatchService {
           const c1 = String(dispatchCat).trim().toUpperCase();
           const c2 = String(userCategory).trim().toUpperCase();
           let matches = c1 === c2;
-          if ((c1 === 'D1' || c1 === 'DISPATCH 1') && (c2 === 'D1' || c2 === 'DISPATCH 1')) matches = true;
-          if ((c1 === 'D2' || c1 === 'DISPATCH 2') && (c2 === 'D2' || c2 === 'DISPATCH 2')) matches = true;
+          if (
+            (c1 === 'D1' || c1 === 'DISPATCH 1') &&
+            (c2 === 'D1' || c2 === 'DISPATCH 1')
+          )
+            matches = true;
+          if (
+            (c1 === 'D2' || c1 === 'DISPATCH 2') &&
+            (c2 === 'D2' || c2 === 'DISPATCH 2')
+          )
+            matches = true;
           if (!matches) continue;
         }
 
@@ -1064,25 +1192,42 @@ export class DispatchService {
             salesOrderId: salesOrder?.id || null,
             workOrderId: wo.id,
             batchId: product?.sku || wo.workOrderNumber || 'FG-PROD',
-            customerName: customer?.companyName || (customer as any)?.name || 'Production Dispatch',
-            deliveryAddress: typeof salesOrder?.shippingAddress === 'string'
-              ? salesOrder.shippingAddress
-              : (salesOrder?.shippingAddress ? JSON.stringify(salesOrder.shippingAddress) : 'Factory Staging Area'),
+            customerName:
+              customer?.companyName ||
+              (customer as any)?.name ||
+              'Production Dispatch',
+            deliveryAddress:
+              typeof salesOrder?.shippingAddress === 'string'
+                ? salesOrder.shippingAddress
+                : salesOrder?.shippingAddress
+                  ? JSON.stringify(salesOrder.shippingAddress)
+                  : 'Factory Staging Area',
             status: 'READY_FOR_DISPATCH',
             items: [],
           });
         }
 
         const orderRow = ordersMap.get(key);
-        const existingItem = orderRow.items.find((i: any) => i.workOrderId === wo.id || (product?.id && i.productId === product.id));
+        const existingItem = orderRow.items.find(
+          (i: any) =>
+            i.workOrderId === wo.id ||
+            (product?.id && i.productId === product.id),
+        );
         if (!existingItem) {
           orderRow.items.push({
             allocationId: `wo-${wo.id}`,
             workOrderId: wo.id,
             salesOrderItemId: wo.salesOrderItemId,
             productId: product?.id || (wo as any).productId || '',
-            productCode: wo.salesOrderItem?.productCodeSnapshot || product?.sku || product?.publicId || '',
-            productName: wo.salesOrderItem?.productNameSnapshot || product?.name || 'Finished Product',
+            productCode:
+              wo.salesOrderItem?.productCodeSnapshot ||
+              product?.sku ||
+              product?.publicId ||
+              '',
+            productName:
+              wo.salesOrderItem?.productNameSnapshot ||
+              product?.name ||
+              'Finished Product',
             approvedQuantity: Number(wo.quantity || 1),
             dispatchableQuantity: Number(wo.quantity || 1),
             unit: wo.salesOrderItem?.unit || product?.unit || 'PCS',
@@ -1091,7 +1236,10 @@ export class DispatchService {
         }
       }
     } catch (woErr) {
-      console.warn('[getDispatchQueue] Failed to query ready work orders:', woErr);
+      console.warn(
+        '[getDispatchQueue] Failed to query ready work orders:',
+        woErr,
+      );
     }
 
     // 4. Also fetch FinishedGoods with status READY_FOR_DISPATCH
@@ -1105,7 +1253,9 @@ export class DispatchService {
           workOrder: {
             include: {
               salesOrderItem: { include: { product: true } },
-              productionPlan: { include: { salesOrder: { include: { customer: true } } } },
+              productionPlan: {
+                include: { salesOrder: { include: { customer: true } } },
+              },
             },
           },
         },
@@ -1122,8 +1272,16 @@ export class DispatchService {
           const c1 = String(dispatchCat).trim().toUpperCase();
           const c2 = String(userCategory).trim().toUpperCase();
           let matches = c1 === c2;
-          if ((c1 === 'D1' || c1 === 'DISPATCH 1') && (c2 === 'D1' || c2 === 'DISPATCH 1')) matches = true;
-          if ((c1 === 'D2' || c1 === 'DISPATCH 2') && (c2 === 'D2' || c2 === 'DISPATCH 2')) matches = true;
+          if (
+            (c1 === 'D1' || c1 === 'DISPATCH 1') &&
+            (c2 === 'D1' || c2 === 'DISPATCH 1')
+          )
+            matches = true;
+          if (
+            (c1 === 'D2' || c1 === 'DISPATCH 2') &&
+            (c2 === 'D2' || c2 === 'DISPATCH 2')
+          )
+            matches = true;
           if (!matches) continue;
         }
 
@@ -1131,22 +1289,33 @@ export class DispatchService {
         if (!ordersMap.has(key)) {
           ordersMap.set(key, {
             id: `fg-${fg.id}`,
-            orderId: salesOrder?.orderNumber || wo?.workOrderNumber || 'FG-DISPATCH',
-            orderNo: salesOrder?.orderNumber || wo?.workOrderNumber || 'FG-DISPATCH',
+            orderId:
+              salesOrder?.orderNumber || wo?.workOrderNumber || 'FG-DISPATCH',
+            orderNo:
+              salesOrder?.orderNumber || wo?.workOrderNumber || 'FG-DISPATCH',
             salesOrderId: salesOrder?.id || null,
             workOrderId: fg.workOrderId || null,
             batchId: product?.sku || wo?.workOrderNumber || 'FG-STOCK',
-            customerName: customer?.companyName || (customer as any)?.name || 'Factory Finished Goods',
-            deliveryAddress: typeof salesOrder?.shippingAddress === 'string'
-              ? salesOrder.shippingAddress
-              : (salesOrder?.shippingAddress ? JSON.stringify(salesOrder.shippingAddress) : 'Factory Staging Area'),
+            customerName:
+              customer?.companyName ||
+              (customer as any)?.name ||
+              'Factory Finished Goods',
+            deliveryAddress:
+              typeof salesOrder?.shippingAddress === 'string'
+                ? salesOrder.shippingAddress
+                : salesOrder?.shippingAddress
+                  ? JSON.stringify(salesOrder.shippingAddress)
+                  : 'Factory Staging Area',
             status: 'READY_FOR_DISPATCH',
             items: [],
           });
         }
 
         const orderRow = ordersMap.get(key);
-        const existingItem = orderRow.items.find((i: any) => i.fgId === fg.id || (product?.id && i.productId === product.id));
+        const existingItem = orderRow.items.find(
+          (i: any) =>
+            i.fgId === fg.id || (product?.id && i.productId === product.id),
+        );
         if (!existingItem) {
           orderRow.items.push({
             allocationId: `fg-${fg.id}`,
@@ -1156,14 +1325,19 @@ export class DispatchService {
             productCode: product?.sku || product?.publicId || '',
             productName: product?.name || 'Finished Product',
             approvedQuantity: Number(fg.quantity || 1),
-            dispatchableQuantity: Number(fg.availableQuantity ?? fg.quantity ?? 1),
+            dispatchableQuantity: Number(
+              fg.availableQuantity ?? fg.quantity ?? 1,
+            ),
             unit: fg.unit || product?.unit || 'PCS',
             dispatchCategory: dispatchCat,
           });
         }
       }
     } catch (fgErr) {
-      console.warn('[getDispatchQueue] Failed to query ready finished goods:', fgErr);
+      console.warn(
+        '[getDispatchQueue] Failed to query ready finished goods:',
+        fgErr,
+      );
     }
 
     return Array.from(ordersMap.values());

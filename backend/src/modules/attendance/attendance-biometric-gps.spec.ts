@@ -25,9 +25,9 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
     mockPrisma = {
       user: {
         findUnique: jest.fn().mockImplementation(({ where }) => {
-          const u = mockUsers.find(user => user.id === where.id);
+          const u = mockUsers.find((user) => user.id === where.id);
           if (!u) return Promise.resolve(null);
-          const emp = mockEmployees.find(e => e.userId === u.id);
+          const emp = mockEmployees.find((e) => e.userId === u.id);
           return Promise.resolve({
             ...u,
             employee: emp || null,
@@ -37,12 +37,19 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
       employee: {
         findUnique: jest.fn().mockImplementation(({ where }) => {
           if (where.workEmail) {
-            return Promise.resolve(mockEmployees.find(e => e.workEmail === where.workEmail) || null);
+            return Promise.resolve(
+              mockEmployees.find((e) => e.workEmail === where.workEmail) ||
+                null,
+            );
           }
-          return Promise.resolve(mockEmployees.find(e => e.id === where.id) || null);
+          return Promise.resolve(
+            mockEmployees.find((e) => e.id === where.id) || null,
+          );
         }),
         findFirst: jest.fn().mockImplementation(({ where }) => {
-          return Promise.resolve(mockEmployees.find(e => e.userId === where.userId) || null);
+          return Promise.resolve(
+            mockEmployees.find((e) => e.userId === where.userId) || null,
+          );
         }),
         create: jest.fn().mockImplementation(({ data }) => {
           const emp = { id: `emp-${mockEmployees.length + 1}`, ...data };
@@ -51,35 +58,49 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
         }),
       },
       department: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'dept-1', name: 'Default' }),
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: 'dept-1', name: 'Default' }),
         create: jest.fn().mockResolvedValue({ id: 'dept-1', name: 'Default' }),
       },
       workLocation: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'loc-1', name: 'Default Location' }),
-        create: jest.fn().mockResolvedValue({ id: 'loc-1', name: 'Default Location' }),
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: 'loc-1', name: 'Default Location' }),
+        create: jest
+          .fn()
+          .mockResolvedValue({ id: 'loc-1', name: 'Default Location' }),
       },
       shiftPolicy: {
         findUnique: jest.fn().mockImplementation(({ where }) => {
-          return Promise.resolve(mockShiftPolicies.find(p => p.deptName === where.deptName) || null);
+          return Promise.resolve(
+            mockShiftPolicies.find((p) => p.deptName === where.deptName) ||
+              null,
+          );
         }),
       },
       attendance: {
         findFirst: jest.fn().mockImplementation(({ where }) => {
           return Promise.resolve(
             mockAttendances.find(
-              a =>
+              (a) =>
                 a.employeeId === where.employeeId &&
-                a.attendanceDate.getTime() === where.attendanceDate.getTime()
-            ) || null
+                a.attendanceDate.getTime() === where.attendanceDate.getTime(),
+            ) || null,
           );
         }),
         create: jest.fn().mockImplementation(({ data }) => {
-          const att = { id: `att-${mockAttendances.length + 1}`, createdAt: new Date(), punchOutAt: null, ...data };
+          const att = {
+            id: `att-${mockAttendances.length + 1}`,
+            createdAt: new Date(),
+            punchOutAt: null,
+            ...data,
+          };
           mockAttendances.push(att);
           return Promise.resolve(att);
         }),
         update: jest.fn().mockImplementation(({ where, data }) => {
-          const idx = mockAttendances.findIndex(a => a.id === where.id);
+          const idx = mockAttendances.findIndex((a) => a.id === where.id);
           if (idx === -1) return Promise.resolve(null);
           mockAttendances[idx] = { ...mockAttendances[idx], ...data };
           return Promise.resolve(mockAttendances[idx]);
@@ -99,8 +120,18 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
 
   describe('1. Production Biometric Selfie Constraints', () => {
     it('accepts real camera selfie with valid location and accuracy in production', async () => {
-      mockUsers.push({ id: 'user-1', email: 'user1@example.com', companyId: 'comp-1', name: 'User One' });
-      mockEmployees.push({ id: 'emp-1', userId: 'user-1', companyId: 'comp-1', fullName: 'User One' });
+      mockUsers.push({
+        id: 'user-1',
+        email: 'user1@example.com',
+        companyId: 'comp-1',
+        name: 'User One',
+      });
+      mockEmployees.push({
+        id: 'emp-1',
+        userId: 'user-1',
+        companyId: 'comp-1',
+        fullName: 'User One',
+      });
 
       const res = await service.punchIn('user-1', 'comp-1', {
         latitude: 23.02281,
@@ -117,8 +148,18 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
     });
 
     it('rejects biometric security card fallback in production', async () => {
-      mockUsers.push({ id: 'user-1', email: 'user1@example.com', companyId: 'comp-1', name: 'User One' });
-      mockEmployees.push({ id: 'emp-1', userId: 'user-1', companyId: 'comp-1', fullName: 'User One' });
+      mockUsers.push({
+        id: 'user-1',
+        email: 'user1@example.com',
+        companyId: 'comp-1',
+        name: 'User One',
+      });
+      mockEmployees.push({
+        id: 'emp-1',
+        userId: 'user-1',
+        companyId: 'comp-1',
+        fullName: 'User One',
+      });
 
       await expect(
         service.punchIn('user-1', 'comp-1', {
@@ -129,14 +170,24 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
           selfie: 'data:image/jpeg;base64,realimageselfiedatabytes',
           isBiometricCard: true,
           isGpsFallback: false,
-        })
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('accepts biometric security card fallback if ATTENDANCE_TEST_MODE is enabled', async () => {
       process.env.ATTENDANCE_TEST_MODE = 'true';
-      mockUsers.push({ id: 'user-1', email: 'user1@example.com', companyId: 'comp-1', name: 'User One' });
-      mockEmployees.push({ id: 'emp-1', userId: 'user-1', companyId: 'comp-1', fullName: 'User One' });
+      mockUsers.push({
+        id: 'user-1',
+        email: 'user1@example.com',
+        companyId: 'comp-1',
+        name: 'User One',
+      });
+      mockEmployees.push({
+        id: 'emp-1',
+        userId: 'user-1',
+        companyId: 'comp-1',
+        fullName: 'User One',
+      });
 
       const res = await service.punchIn('user-1', 'comp-1', {
         latitude: 23.02281,
@@ -154,8 +205,18 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
 
   describe('2. GPS Fallback and Default Coordinates Prevention', () => {
     it('rejects default coordinates or Gps Fallback in production', async () => {
-      mockUsers.push({ id: 'user-1', email: 'user1@example.com', companyId: 'comp-1', name: 'User One' });
-      mockEmployees.push({ id: 'emp-1', userId: 'user-1', companyId: 'comp-1', fullName: 'User One' });
+      mockUsers.push({
+        id: 'user-1',
+        email: 'user1@example.com',
+        companyId: 'comp-1',
+        name: 'User One',
+      });
+      mockEmployees.push({
+        id: 'emp-1',
+        userId: 'user-1',
+        companyId: 'comp-1',
+        fullName: 'User One',
+      });
 
       await expect(
         service.punchIn('user-1', 'comp-1', {
@@ -166,14 +227,24 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
           selfie: 'data:image/jpeg;base64,realimageselfiedatabytes',
           isBiometricCard: false,
           isGpsFallback: true,
-        })
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('accepts default coordinates / fallback GPS if ATTENDANCE_TEST_MODE is enabled', async () => {
       process.env.ATTENDANCE_TEST_MODE = 'true';
-      mockUsers.push({ id: 'user-1', email: 'user1@example.com', companyId: 'comp-1', name: 'User One' });
-      mockEmployees.push({ id: 'emp-1', userId: 'user-1', companyId: 'comp-1', fullName: 'User One' });
+      mockUsers.push({
+        id: 'user-1',
+        email: 'user1@example.com',
+        companyId: 'comp-1',
+        name: 'User One',
+      });
+      mockEmployees.push({
+        id: 'emp-1',
+        userId: 'user-1',
+        companyId: 'comp-1',
+        fullName: 'User One',
+      });
 
       const res = await service.punchIn('user-1', 'comp-1', {
         latitude: 23.0228,
@@ -191,8 +262,18 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
 
   describe('3. GPS Accuracy Thresholds', () => {
     it('rejects poor GPS accuracy (> 50m) in production', async () => {
-      mockUsers.push({ id: 'user-1', email: 'user1@example.com', companyId: 'comp-1', name: 'User One' });
-      mockEmployees.push({ id: 'emp-1', userId: 'user-1', companyId: 'comp-1', fullName: 'User One' });
+      mockUsers.push({
+        id: 'user-1',
+        email: 'user1@example.com',
+        companyId: 'comp-1',
+        name: 'User One',
+      });
+      mockEmployees.push({
+        id: 'emp-1',
+        userId: 'user-1',
+        companyId: 'comp-1',
+        fullName: 'User One',
+      });
 
       await expect(
         service.punchIn('user-1', 'comp-1', {
@@ -203,13 +284,23 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
           selfie: 'data:image/jpeg;base64,realimageselfiedatabytes',
           isBiometricCard: false,
           isGpsFallback: false,
-        })
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('rejects negative or zero GPS accuracy', async () => {
-      mockUsers.push({ id: 'user-1', email: 'user1@example.com', companyId: 'comp-1', name: 'User One' });
-      mockEmployees.push({ id: 'emp-1', userId: 'user-1', companyId: 'comp-1', fullName: 'User One' });
+      mockUsers.push({
+        id: 'user-1',
+        email: 'user1@example.com',
+        companyId: 'comp-1',
+        name: 'User One',
+      });
+      mockEmployees.push({
+        id: 'emp-1',
+        userId: 'user-1',
+        companyId: 'comp-1',
+        fullName: 'User One',
+      });
 
       await expect(
         service.punchIn('user-1', 'comp-1', {
@@ -220,15 +311,25 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
           selfie: 'data:image/jpeg;base64,realimageselfiedatabytes',
           isBiometricCard: false,
           isGpsFallback: false,
-        })
+        }),
       ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('4. Attendance Uniqueness and Sequence Constraints', () => {
     it('rejects punch-out when no punch-in exists for today', async () => {
-      mockUsers.push({ id: 'user-1', email: 'user1@example.com', companyId: 'comp-1', name: 'User One' });
-      mockEmployees.push({ id: 'emp-1', userId: 'user-1', companyId: 'comp-1', fullName: 'User One' });
+      mockUsers.push({
+        id: 'user-1',
+        email: 'user1@example.com',
+        companyId: 'comp-1',
+        name: 'User One',
+      });
+      mockEmployees.push({
+        id: 'emp-1',
+        userId: 'user-1',
+        companyId: 'comp-1',
+        fullName: 'User One',
+      });
 
       await expect(
         service.punchOut('user-1', 'comp-1', {
@@ -239,13 +340,23 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
           selfie: 'data:image/jpeg;base64,realimageselfiedatabytes',
           isBiometricCard: false,
           isGpsFallback: false,
-        })
+        }),
       ).rejects.toThrow(ConflictException);
     });
 
     it('rejects duplicate punch-in on same calendar date', async () => {
-      mockUsers.push({ id: 'user-1', email: 'user1@example.com', companyId: 'comp-1', name: 'User One' });
-      mockEmployees.push({ id: 'emp-1', userId: 'user-1', companyId: 'comp-1', fullName: 'User One' });
+      mockUsers.push({
+        id: 'user-1',
+        email: 'user1@example.com',
+        companyId: 'comp-1',
+        name: 'User One',
+      });
+      mockEmployees.push({
+        id: 'emp-1',
+        userId: 'user-1',
+        companyId: 'comp-1',
+        fullName: 'User One',
+      });
 
       // First punch in
       await service.punchIn('user-1', 'comp-1', {
@@ -268,13 +379,23 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
           selfie: 'data:image/jpeg;base64,realimageselfiedatabytes',
           isBiometricCard: false,
           isGpsFallback: false,
-        })
+        }),
       ).rejects.toThrow(ConflictException);
     });
 
     it('completes the daily attendance cycle (punch-in then punch-out) successfully', async () => {
-      mockUsers.push({ id: 'user-1', email: 'user1@example.com', companyId: 'comp-1', name: 'User One' });
-      mockEmployees.push({ id: 'emp-1', userId: 'user-1', companyId: 'comp-1', fullName: 'User One' });
+      mockUsers.push({
+        id: 'user-1',
+        email: 'user1@example.com',
+        companyId: 'comp-1',
+        name: 'User One',
+      });
+      mockEmployees.push({
+        id: 'emp-1',
+        userId: 'user-1',
+        companyId: 'comp-1',
+        fullName: 'User One',
+      });
 
       const inRes = await service.punchIn('user-1', 'comp-1', {
         latitude: 23.02281,

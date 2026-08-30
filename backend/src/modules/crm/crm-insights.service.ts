@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { getLeadSalesScope, getQuotationSalesScope, getOrderSalesScope } from '../../common/utils/rbac.util';
+import {
+  getLeadSalesScope,
+  getQuotationSalesScope,
+  getOrderSalesScope,
+} from '../../common/utils/rbac.util';
 
 @Injectable()
 export class CrmInsightsService {
@@ -25,7 +29,10 @@ export class CrmInsightsService {
     const [leads, quotations, orders, invoices, payments, ledger] =
       await Promise.all([
         this.prisma.lead.findMany({
-          where: { OR: [{ customerId }, { convertedCustomerId: customerId }], ...scope },
+          where: {
+            OR: [{ customerId }, { convertedCustomerId: customerId }],
+            ...scope,
+          },
           include: { workflowState: true, activities: true },
           orderBy: { createdAt: 'desc' },
         }),
@@ -45,12 +52,18 @@ export class CrmInsightsService {
           orderBy: { createdAt: 'desc' },
         }),
         this.prisma.salesOrder.findMany({
-          where: { customerId, deletedAt: null, ...getOrderSalesScope(userId, role) },
+          where: {
+            customerId,
+            deletedAt: null,
+            ...getOrderSalesScope(userId, role),
+          },
           include: { workflowState: true, items: true, dispatches: true },
           orderBy: { createdAt: 'desc' },
         }),
         this.prisma.salesInvoice.findMany({
-          where: { salesOrder: { customerId, ...getOrderSalesScope(userId, role) } },
+          where: {
+            salesOrder: { customerId, ...getOrderSalesScope(userId, role) },
+          },
           include: {
             workflowState: true,
             items: true,
@@ -166,12 +179,18 @@ export class CrmInsightsService {
           ...(companyId ? { customer: { companyId } } : {}),
           ...orderScope,
         },
-        select: { totalAmount: true, createdById: true, salesExecutiveId: true },
+        select: {
+          totalAmount: true,
+          createdById: true,
+          salesExecutiveId: true,
+        },
       }),
       this.prisma.customerLedger.findMany({
         where: {
           ...(companyId ? { customer: { companyId } } : {}),
-          ...(Object.keys(orderScope).length > 0 ? { createdById: userId } : {}),
+          ...(Object.keys(orderScope).length > 0
+            ? { createdById: userId }
+            : {}),
         },
         select: { debit: true, credit: true },
       }),
@@ -211,7 +230,9 @@ export class CrmInsightsService {
         (lead) => lead.assignedToId === user.id && lead.convertedAt,
       ).length,
       revenue: orders
-        .filter((order) => (order.salesExecutiveId || order.createdById) === user.id)
+        .filter(
+          (order) => (order.salesExecutiveId || order.createdById) === user.id,
+        )
         .reduce((sum, order) => sum + Number(order.totalAmount), 0),
     }));
 

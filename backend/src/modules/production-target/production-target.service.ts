@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateProductionTargetDto } from './dto/create-production-target.dto';
 import { UpdateProductionTargetDto } from './dto/update-production-target.dto';
@@ -11,7 +15,8 @@ export class ProductionTargetService {
     if (obj === null || obj === undefined) return obj;
     if (obj instanceof Date) return obj;
     if (typeof obj === 'bigint') return Number(obj);
-    if (Array.isArray(obj)) return obj.map((item) => this.serializeBigInt(item));
+    if (Array.isArray(obj))
+      return obj.map((item) => this.serializeBigInt(item));
     if (typeof obj === 'object') {
       const res: any = {};
       for (const key of Object.keys(obj)) {
@@ -27,7 +32,9 @@ export class ProductionTargetService {
     const end = new Date(dto.endDate);
 
     if (start > end) {
-      throw new BadRequestException('Start date must be before or equal to end date.');
+      throw new BadRequestException(
+        'Start date must be before or equal to end date.',
+      );
     }
 
     // Verify if there is already an active target for the same period
@@ -41,7 +48,9 @@ export class ProductionTargetService {
     });
 
     if (existing) {
-      throw new BadRequestException(`An active target already exists for ${dto.targetPeriod} in the specified date range.`);
+      throw new BadRequestException(
+        `An active target already exists for ${dto.targetPeriod} in the specified date range.`,
+      );
     }
 
     const target = await this.prisma.productionTarget.create({
@@ -65,13 +74,19 @@ export class ProductionTargetService {
       orderBy: { createdAt: 'desc' },
     });
     const serialized = this.serializeBigInt(targets);
-    
+
     const enriched = await Promise.all(
       serialized.map(async (t: any) => {
         const workOrders = await this.prisma.workOrder.findMany({
           where: {
             status: {
-              in: ['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'CLOSED'],
+              in: [
+                'COMPLETED',
+                'QC_APPROVED',
+                'READY_FOR_DISPATCH',
+                'DISPATCHED',
+                'CLOSED',
+              ],
             },
             completedAt: {
               gte: new Date(t.startDate),
@@ -82,14 +97,18 @@ export class ProductionTargetService {
             quantity: true,
           },
         });
-        const achieved = workOrders.reduce((sum, wo) => sum + Number(wo.quantity), 0);
-        const achievement = t.quantityTarget > 0 ? (achieved / t.quantityTarget) * 100 : 0;
+        const achieved = workOrders.reduce(
+          (sum, wo) => sum + Number(wo.quantity),
+          0,
+        );
+        const achievement =
+          t.quantityTarget > 0 ? (achieved / t.quantityTarget) * 100 : 0;
         return {
           ...t,
           achieved,
           achievement: Number(achievement.toFixed(1)),
         };
-      })
+      }),
     );
 
     return enriched;
@@ -145,14 +164,26 @@ export class ProductionTargetService {
       });
 
       if (!activeTarget) {
-        return { hasTarget: false, achievement: 0, achieved: 0, target: 0, remaining: 0 };
+        return {
+          hasTarget: false,
+          achievement: 0,
+          achieved: 0,
+          target: 0,
+          remaining: 0,
+        };
       }
 
       // Sum quantity of completed work orders within target period
       const workOrders = await this.prisma.workOrder.findMany({
         where: {
           status: {
-            in: ['COMPLETED', 'QC_APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'CLOSED'],
+            in: [
+              'COMPLETED',
+              'QC_APPROVED',
+              'READY_FOR_DISPATCH',
+              'DISPATCHED',
+              'CLOSED',
+            ],
           },
           completedAt: {
             gte: activeTarget.startDate,
@@ -165,9 +196,13 @@ export class ProductionTargetService {
       });
 
       const targetVal = activeTarget.quantityTarget || 0;
-      const achievedVal = workOrders.reduce((sum, wo) => sum + Number(wo.quantity || 0), 0);
+      const achievedVal = workOrders.reduce(
+        (sum, wo) => sum + Number(wo.quantity || 0),
+        0,
+      );
       const remainingVal = Math.max(targetVal - achievedVal, 0);
-      const achievementVal = targetVal > 0 ? (achievedVal / targetVal) * 100 : 0;
+      const achievementVal =
+        targetVal > 0 ? (achievedVal / targetVal) * 100 : 0;
 
       return {
         hasTarget: true,
@@ -181,7 +216,13 @@ export class ProductionTargetService {
         endDate: activeTarget.endDate.toISOString().split('T')[0],
       };
     } catch (error) {
-      return { hasTarget: false, achievement: 0, achieved: 0, target: 0, remaining: 0 };
+      return {
+        hasTarget: false,
+        achievement: 0,
+        achieved: 0,
+        target: 0,
+        remaining: 0,
+      };
     }
   }
 }

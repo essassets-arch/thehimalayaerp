@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestReplacementDto } from './dto/request-replacement.dto';
-import { getReplacementSalesScope, isSalespersonScopedRole } from '../../common/utils/rbac.util';
+import {
+  getReplacementSalesScope,
+  isSalespersonScopedRole,
+} from '../../common/utils/rbac.util';
 
 @Injectable()
 export class ReplacementsService {
@@ -32,7 +35,12 @@ export class ReplacementsService {
 
       const delivered = order.dispatches
         .filter((dispatch) =>
-          ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'COMPLETED'].includes(dispatch.status),
+          [
+            'DELIVERED',
+            'POD_RECEIVED',
+            'DISPATCH_CLOSED',
+            'COMPLETED',
+          ].includes(dispatch.status),
         )
         .flatMap((dispatch) => dispatch.items)
         .filter(
@@ -99,7 +107,8 @@ export class ReplacementsService {
           items: {
             create: dto.items.map((i) => ({
               salesOrderItemId: i.salesOrderItemId,
-              productId: order.items.find((oi) => oi.id === i.salesOrderItemId)!.productId,
+              productId: order.items.find((oi) => oi.id === i.salesOrderItemId)!
+                .productId,
               requestedQuantity: i.requestedQuantity,
               reason: i.reason,
             })),
@@ -200,7 +209,8 @@ export class ReplacementsService {
     if (request.status !== 'APPROVED') {
       throw new BadRequestException('Plant Head approval is required');
     }
-    const currentDispatchStatus = request.dispatchStatus || request.status || '';
+    const currentDispatchStatus =
+      request.dispatchStatus || request.status || '';
     if (
       !['DISPATCHED', 'READY_FOR_DISPATCH', 'APPROVED'].includes(
         currentDispatchStatus,
@@ -219,7 +229,8 @@ export class ReplacementsService {
       where: { id },
     });
     if (!request) throw new NotFoundException('Replacement request not found');
-    const currentDispatchStatus = request.dispatchStatus || request.status || '';
+    const currentDispatchStatus =
+      request.dispatchStatus || request.status || '';
     if (
       !['DISPATCHED', 'IN_TRANSIT', 'READY_FOR_DISPATCH', 'APPROVED'].includes(
         currentDispatchStatus,

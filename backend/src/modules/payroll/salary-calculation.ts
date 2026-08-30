@@ -28,7 +28,9 @@ export function calculateSalaryStructure(input: SalaryInputData) {
   const educationAllowanceAmount = round((basic * eduPct) / 100);
   const conveyanceAmount = round((basic * convPct) / 100);
 
-  const grossTotalA = round(basic + hraAmount + ltaAmount + educationAllowanceAmount + conveyanceAmount);
+  const grossTotalA = round(
+    basic + hraAmount + ltaAmount + educationAllowanceAmount + conveyanceAmount,
+  );
 
   const epfPct = round(Number(input.employeeEpfPercentage) || 0);
   const esicPct = round(Number(input.employeeEsicPercentage) || 0);
@@ -38,22 +40,28 @@ export function calculateSalaryStructure(input: SalaryInputData) {
   const employeeEsicAmount = round((grossTotalA * esicPct) / 100);
   const professionalTaxAmount = round((grossTotalA * ptPct) / 100);
 
-  const totalDeductionB = round(employeeEpfAmount + employeeEsicAmount + professionalTaxAmount);
+  const totalDeductionB = round(
+    employeeEpfAmount + employeeEsicAmount + professionalTaxAmount,
+  );
   const netTakeHomeC = round(grossTotalA - totalDeductionB);
 
   const compEpfPct = round(Number(input.companyEpfPercentage) || 0);
   const compEsicPct = round(Number(input.companyEsicPercentage) || 0);
   const gratuityPct = round(
-    input.gratuityPercentage !== undefined && input.gratuityPercentage !== null && !isNaN(Number(input.gratuityPercentage))
+    input.gratuityPercentage !== undefined &&
+      input.gratuityPercentage !== null &&
+      !isNaN(Number(input.gratuityPercentage))
       ? Number(input.gratuityPercentage)
-      : 4.81
+      : 4.81,
   );
 
   const companyEpfAmount = round((basic * compEpfPct) / 100);
   const companyEsicAmount = round((grossTotalA * compEsicPct) / 100);
   const gratuityAmount = round((basic * gratuityPct) / 100);
 
-  const totalCompanyContributionD = round(companyEpfAmount + companyEsicAmount + gratuityAmount);
+  const totalCompanyContributionD = round(
+    companyEpfAmount + companyEsicAmount + gratuityAmount,
+  );
   const ctcPerMonthE = round(grossTotalA + totalCompanyContributionD);
 
   return {

@@ -41,10 +41,14 @@ async function bootstrap() {
   app.setGlobalPrefix(apiPrefix);
 
   app.use((req, res, next) => {
-    console.log(`[REQUEST] ${req.method} ${req.url} - Auth: ${req.headers.authorization ? 'Present' : 'Missing'}`);
+    console.log(
+      `[REQUEST] ${req.method} ${req.url} - Auth: ${req.headers.authorization ? 'Present' : 'Missing'}`,
+    );
     const originalSend = res.send;
     res.send = function (body) {
-      console.log(`[RESPONSE] ${req.method} ${req.url} - Status: ${res.statusCode}`);
+      console.log(
+        `[RESPONSE] ${req.method} ${req.url} - Status: ${res.statusCode}`,
+      );
       return originalSend.apply(this, arguments);
     };
     next();
@@ -52,30 +56,48 @@ async function bootstrap() {
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
-  app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: false,
-  }));
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: false,
+    }),
+  );
   app.use(compression());
   app.use(cookieParser());
 
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
-  app.use('/api/backend/uploads', express.static(join(process.cwd(), 'uploads')));
+  app.use(
+    '/api/backend/uploads',
+    express.static(join(process.cwd(), 'uploads')),
+  );
   app.use('/api/v1/uploads', express.static(join(process.cwd(), 'uploads')));
 
-  const corsOriginsConfig = configService.get<string>('corsOrigin') || configService.get<string>('frontendUrl') || '';
-  const parsedOrigins = corsOriginsConfig.split(',').map((s) => s.trim()).filter(Boolean);
+  const corsOriginsConfig =
+    configService.get<string>('corsOrigin') ||
+    configService.get<string>('frontendUrl') ||
+    '';
+  const parsedOrigins = corsOriginsConfig
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   const defaultOrigins = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://localhost:4000',
     'https://thehimalaya.cloud',
   ];
-  const allowedOrigins = Array.from(new Set([...defaultOrigins, ...parsedOrigins]));
+  const allowedOrigins = Array.from(
+    new Set([...defaultOrigins, ...parsedOrigins]),
+  );
 
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:')
+      ) {
         callback(null, true);
       } else {
         callback(null, true);

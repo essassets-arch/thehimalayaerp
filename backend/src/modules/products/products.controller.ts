@@ -23,13 +23,28 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  @RequirePermissions('admin.products.create', 'products.create', 'store.materials.create', 'store.create', 'inventory.inventory.create', 'products.read', 'inventory.stock.read')
+  @RequirePermissions(
+    'admin.products.create',
+    'products.create',
+    'store.materials.create',
+    'store.create',
+    'inventory.inventory.create',
+    'products.read',
+    'inventory.stock.read',
+  )
   @Post()
   create(@CurrentUser() user: any, @Body() createProductDto: CreateProductDto) {
     return this.productsService.create(user.companyId, createProductDto);
   }
 
-  @RequirePermissions('admin.products.read', 'products.read', 'store.read', 'store.materials.read', 'store.rawinventory.read', 'inventory.stock.read')
+  @RequirePermissions(
+    'admin.products.read',
+    'products.read',
+    'store.read',
+    'store.materials.read',
+    'store.rawinventory.read',
+    'inventory.stock.read',
+  )
   @Get()
   findAll(
     @CurrentUser() user: any,
@@ -37,16 +52,37 @@ export class ProductsController {
     @Query('scope') scope?: string,
     @Query('type') type?: string,
   ) {
-    return this.productsService.findAll(user.companyId, search, scope, type, user.sub || user.id, user.role);
+    return this.productsService.findAll(
+      user.companyId,
+      search,
+      scope,
+      type,
+      user.sub || user.id,
+      user.role,
+    );
   }
 
-  @RequirePermissions('admin.products.read', 'products.read', 'store.read', 'store.materials.read', 'store.rawinventory.read', 'inventory.stock.read')
+  @RequirePermissions(
+    'admin.products.read',
+    'products.read',
+    'store.read',
+    'store.materials.read',
+    'store.rawinventory.read',
+    'inventory.stock.read',
+  )
   @Get(':id')
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
     return this.productsService.findOne(user.companyId, id);
   }
 
-  @RequirePermissions('admin.products.update', 'products.update', 'store.materials.update', 'store.update', 'products.read', 'inventory.stock.read')
+  @RequirePermissions(
+    'admin.products.update',
+    'products.update',
+    'store.materials.update',
+    'store.update',
+    'products.read',
+    'inventory.stock.read',
+  )
   @Patch(':id')
   @Put(':id')
   update(
@@ -57,7 +93,14 @@ export class ProductsController {
     return this.productsService.update(user.companyId, id, updateProductDto);
   }
 
-  @RequirePermissions('admin.products.update', 'admin.products.delete', 'products.update', 'products.delete', 'products.read', 'inventory.stock.read')
+  @RequirePermissions(
+    'admin.products.update',
+    'admin.products.delete',
+    'products.update',
+    'products.delete',
+    'products.read',
+    'inventory.stock.read',
+  )
   @Delete(':id')
   remove(@CurrentUser() user: any, @Param('id') id: string) {
     return this.productsService.remove(user.companyId, id);

@@ -3,10 +3,16 @@ import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
 export class FinanceReportsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-  async getRevenueExpense(dateFrom?: string, dateTo?: string, companyId?: string) {
-    const from = dateFrom ? new Date(dateFrom) : new Date(new Date().setMonth(new Date().getMonth() - 6));
+  async getRevenueExpense(
+    dateFrom?: string,
+    dateTo?: string,
+    companyId?: string,
+  ) {
+    const from = dateFrom
+      ? new Date(dateFrom)
+      : new Date(new Date().setMonth(new Date().getMonth() - 6));
     const to = dateTo ? new Date(dateTo) : new Date();
 
     let payments: any[] = [];
@@ -50,12 +56,22 @@ export class FinanceReportsService {
     }
 
     const totalRevenue: number =
-      payments.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0) ||
-      orders.reduce((acc: number, o: any) => acc + Number(o.totalAmount || 0), 0);
-    const totalExpense: number = expenses.reduce((acc: number, e: any) => acc + Number(e.amount || 0), 0);
+      payments.reduce(
+        (acc: number, p: any) => acc + Number(p.amount || 0),
+        0,
+      ) ||
+      orders.reduce(
+        (acc: number, o: any) => acc + Number(o.totalAmount || 0),
+        0,
+      );
+    const totalExpense: number = expenses.reduce(
+      (acc: number, e: any) => acc + Number(e.amount || 0),
+      0,
+    );
 
     const monthMap = new Map<string, { revenue: number; expense: number }>();
-    const getMonthKey = (d: Date) => d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+    const getMonthKey = (d: Date) =>
+      d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
 
     payments.forEach((p: any) => {
       const k = getMonthKey(new Date(p.createdAt));
@@ -87,7 +103,9 @@ export class FinanceReportsService {
   }
 
   async getCashFlow(dateFrom?: string, dateTo?: string, companyId?: string) {
-    const from = dateFrom ? new Date(dateFrom) : new Date(new Date().setMonth(new Date().getMonth() - 6));
+    const from = dateFrom
+      ? new Date(dateFrom)
+      : new Date(new Date().setMonth(new Date().getMonth() - 6));
     const to = dateTo ? new Date(dateTo) : new Date();
 
     let payments: any[] = [];
@@ -130,13 +148,23 @@ export class FinanceReportsService {
       vendorPayments = [];
     }
 
-    const totalIncoming: number = payments.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
-    const expenseSum: number = expenses.reduce((acc: number, e: any) => acc + Number(e.amount || 0), 0);
-    const vendorPaymentSum: number = vendorPayments.reduce((acc: number, vp: any) => acc + Number(vp.paidAmount || vp.amount || 0), 0);
+    const totalIncoming: number = payments.reduce(
+      (acc: number, p: any) => acc + Number(p.amount || 0),
+      0,
+    );
+    const expenseSum: number = expenses.reduce(
+      (acc: number, e: any) => acc + Number(e.amount || 0),
+      0,
+    );
+    const vendorPaymentSum: number = vendorPayments.reduce(
+      (acc: number, vp: any) => acc + Number(vp.paidAmount || vp.amount || 0),
+      0,
+    );
     const totalOutgoing: number = expenseSum + vendorPaymentSum;
 
     const monthMap = new Map<string, { incoming: number; outgoing: number }>();
-    const getMonthKey = (d: Date) => d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+    const getMonthKey = (d: Date) =>
+      d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
 
     payments.forEach((p: any) => {
       const k = getMonthKey(new Date(p.createdAt));

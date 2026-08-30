@@ -17,7 +17,13 @@ import { ConvertQuotationToOrderDto } from './dto/convert-quotation-to-order.dto
 import { Decimal } from '@prisma/client/runtime/library';
 import { WorkflowService } from '../workflow/workflow.service';
 import { CreditService } from '../finance/credit.service';
-import { getOrderSalesScope, getQuotationSalesScope, getSalesScope, isSalespersonScopedRole, canAssignSalesOwner } from '../../common/utils/rbac.util';
+import {
+  getOrderSalesScope,
+  getQuotationSalesScope,
+  getSalesScope,
+  isSalespersonScopedRole,
+  canAssignSalesOwner,
+} from '../../common/utils/rbac.util';
 import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
@@ -38,23 +44,38 @@ export class SalesService {
     const { page = 1, pageSize = 100, search, status } = query;
     const skip = (page - 1) * pageSize;
     const take = pageSize;
-    const isOperationalScope = role === 'DISPATCH_EXECUTIVE' || role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'PLANT_HEAD' || role === 'FINANCE_MANAGER' || role === 'FINANCE_EXECUTIVE';
+    const isOperationalScope =
+      role === 'DISPATCH_EXECUTIVE' ||
+      role === 'SUPER_ADMIN' ||
+      role === 'ADMIN' ||
+      role === 'PLANT_HEAD' ||
+      role === 'FINANCE_MANAGER' ||
+      role === 'FINANCE_EXECUTIVE';
     const scope = isOperationalScope ? {} : getOrderSalesScope(userId, role);
     const where: Prisma.SalesOrderWhereInput = { ...scope, deletedAt: null };
 
     if (status) {
-      where.OR = [
-        { status: status as any },
-        { workflowState: { code: status } },
-      ];
+      where.OR = [{ status: status }, { workflowState: { code: status } }];
     }
 
     if (search) {
       const searchOR: Prisma.SalesOrderWhereInput[] = [
-        { orderNumber: { contains: search, mode: Prisma.QueryMode.insensitive } },
-        { customerPurchaseOrderNo: { contains: search, mode: Prisma.QueryMode.insensitive } },
         {
-          customer: { companyName: { contains: search, mode: Prisma.QueryMode.insensitive } },
+          orderNumber: { contains: search, mode: Prisma.QueryMode.insensitive },
+        },
+        {
+          customerPurchaseOrderNo: {
+            contains: search,
+            mode: Prisma.QueryMode.insensitive,
+          },
+        },
+        {
+          customer: {
+            companyName: {
+              contains: search,
+              mode: Prisma.QueryMode.insensitive,
+            },
+          },
         },
       ];
       if (where.OR) {
@@ -98,8 +119,13 @@ export class SalesService {
         take,
       }),
     ]);
-    const resolvedCompanyId = (await this.prisma.company.findFirst())?.id || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
-    const mapped = await this.mapSalesOrdersWithFulfillment(records, resolvedCompanyId);
+    const resolvedCompanyId =
+      (await this.prisma.company.findFirst())?.id ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const mapped = await this.mapSalesOrdersWithFulfillment(
+      records,
+      resolvedCompanyId,
+    );
     return {
       data: mapped,
       pagination: {
@@ -112,7 +138,13 @@ export class SalesService {
   }
 
   async getOrder(id: string, userId?: string, role?: string) {
-    const isOperationalScope = role === 'DISPATCH_EXECUTIVE' || role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'PLANT_HEAD' || role === 'FINANCE_MANAGER' || role === 'FINANCE_EXECUTIVE';
+    const isOperationalScope =
+      role === 'DISPATCH_EXECUTIVE' ||
+      role === 'SUPER_ADMIN' ||
+      role === 'ADMIN' ||
+      role === 'PLANT_HEAD' ||
+      role === 'FINANCE_MANAGER' ||
+      role === 'FINANCE_EXECUTIVE';
     const scope = isOperationalScope ? {} : getOrderSalesScope(userId, role);
     const rawId = String(id || '').trim();
     let decodedId = rawId;
@@ -187,7 +219,10 @@ export class SalesService {
       );
     }
 
-    const mappedOrder = await this.mapSalesOrderWithFulfillment(order, order.customer.companyId);
+    const mappedOrder = await this.mapSalesOrderWithFulfillment(
+      order,
+      order.customer.companyId,
+    );
     return {
       ...mappedOrder,
       availableActions,
@@ -209,10 +244,23 @@ export class SalesService {
         salesExecutive: { select: { id: true, name: true, email: true } },
         quotation: { select: { paymentTerms: true, paymentTermDays: true } },
         invoices: {
-          select: { id: true, invoiceNumber: true, createdAt: true, totalAmount: true, status: true },
+          select: {
+            id: true,
+            invoiceNumber: true,
+            createdAt: true,
+            totalAmount: true,
+            status: true,
+          },
         },
         customerPayments: {
-          select: { id: true, paymentNo: true, amount: true, status: true, receivedAt: true, verifiedAt: true },
+          select: {
+            id: true,
+            paymentNo: true,
+            amount: true,
+            status: true,
+            receivedAt: true,
+            verifiedAt: true,
+          },
         },
         dispatches: {
           select: { status: true, deliveredAt: true, podUrl: true },
@@ -224,17 +272,23 @@ export class SalesService {
     return orders.map((order) => {
       const verifiedPaidAmount = (order.customerPayments || [])
         .filter((p) =>
-          ['VERIFIED', 'FINANCE_VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(
-            String(p.status || '').toUpperCase(),
-          ),
+          [
+            'VERIFIED',
+            'FINANCE_VERIFIED',
+            'PARTIALLY_ALLOCATED',
+            'ALLOCATED',
+          ].includes(String(p.status || '').toUpperCase()),
         )
         .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
       const totalAmount = Number(order.totalAmount || 0);
       const balanceAmount = Math.max(0, totalAmount - verifiedPaidAmount);
 
-      const deliveredDispatches = (order.dispatches || []).filter((d) =>
-        ['DELIVERED', 'COMPLETED'].includes(String(d.status || '').toUpperCase()) || Boolean(d.deliveredAt),
+      const deliveredDispatches = (order.dispatches || []).filter(
+        (d) =>
+          ['DELIVERED', 'COMPLETED'].includes(
+            String(d.status || '').toUpperCase(),
+          ) || Boolean(d.deliveredAt),
       );
       const deliveredAtDate =
         deliveredDispatches
@@ -243,7 +297,9 @@ export class SalesService {
           .sort((left, right) => right.getTime() - left.getTime())[0] ||
         (order as any).deliveredAt ||
         order.paymentTermStartDate ||
-        (order.dispatches || []).map((d: any) => d.deliveredAt).filter(Boolean)[0];
+        (order.dispatches || [])
+          .map((d: any) => d.deliveredAt)
+          .filter(Boolean)[0];
 
       const deliveredAt = deliveredAtDate ? new Date(deliveredAtDate) : null;
 
@@ -266,14 +322,15 @@ export class SalesService {
         deliveredAt: deliveredAt ? deliveredAt.toISOString() : undefined,
         deliveryDate: deliveredAt ? deliveredAt.toISOString() : undefined,
         delivery_date: deliveredAt ? deliveredAt.toISOString() : undefined,
-        paymentTerms: order.paymentTerms || `${order.paymentTermDays || 15} Days`,
+        paymentTerms:
+          order.paymentTerms || `${order.paymentTermDays || 15} Days`,
         paymentDueDate: order.paymentDueDate?.toISOString(),
         paymentStatus:
           balanceAmount <= 0 && totalAmount > 0
             ? 'PAID'
             : verifiedPaidAmount > 0
-            ? 'PARTIALLY_PAID'
-            : 'PENDING',
+              ? 'PARTIALLY_PAID'
+              : 'PENDING',
       };
     });
   }
@@ -348,28 +405,55 @@ export class SalesService {
       let quotationPaymentTermStartDate: Date | null = null;
       if (dto.quotationId) {
         const quoteObj = await tx.quotation.findFirst({
-          where: { id: dto.quotationId, ...getQuotationSalesScope(userId, role) },
-          select: { salesExecutiveId: true, createdById: true, paymentTerms: true, paymentTermDays: true, createdAt: true },
+          where: {
+            id: dto.quotationId,
+            ...getQuotationSalesScope(userId, role),
+          },
+          select: {
+            salesExecutiveId: true,
+            createdById: true,
+            paymentTerms: true,
+            paymentTermDays: true,
+            createdAt: true,
+          },
         });
         if (!quoteObj && isSalespersonScopedRole(role)) {
           throw new NotFoundException('Quotation not found');
         }
         if (quoteObj) {
-          quotationSalesExecutiveId = quoteObj.salesExecutiveId || quoteObj.createdById;
+          quotationSalesExecutiveId =
+            quoteObj.salesExecutiveId || quoteObj.createdById;
           quotationPaymentTerms = quoteObj.paymentTerms;
           quotationPaymentTermDays = quoteObj.paymentTermDays;
-          quotationPaymentTermStartDate = (quoteObj as any).paymentTermStartDate || quoteObj.createdAt;
+          quotationPaymentTermStartDate =
+            (quoteObj as any).paymentTermStartDate || quoteObj.createdAt;
         }
       }
       const isManager = canAssignSalesOwner(role);
       const resolvedSalesExecutiveId = isManager
-        ? ((dto as any).salesExecutiveId || quotationSalesExecutiveId || userId)
-        : (quotationSalesExecutiveId || userId);
+        ? (dto as any).salesExecutiveId || quotationSalesExecutiveId || userId
+        : quotationSalesExecutiveId || userId;
 
-      const resolvedTermDays = dto.paymentTermsDays || quotationPaymentTermDays || (quotationPaymentTerms ? parseInt(String(quotationPaymentTerms).match(/\d+/)?.[0] || '15', 10) : 15);
-      const resolvedPaymentTerms = (dto as any).paymentTerms || quotationPaymentTerms || `${resolvedTermDays} Days`;
-      const resolvedStartDate = (dto as any).paymentTermStartDate ? new Date((dto as any).paymentTermStartDate) : (quotationPaymentTermStartDate || (dto.orderDate ? new Date(dto.orderDate) : new Date()));
-      const resolvedDueDate = (dto as any).paymentDueDate ? new Date((dto as any).paymentDueDate) : new Date(resolvedStartDate.getTime() + resolvedTermDays * 86400000);
+      const resolvedTermDays =
+        dto.paymentTermsDays ||
+        quotationPaymentTermDays ||
+        (quotationPaymentTerms
+          ? parseInt(
+              String(quotationPaymentTerms).match(/\d+/)?.[0] || '15',
+              10,
+            )
+          : 15);
+      const resolvedPaymentTerms =
+        (dto as any).paymentTerms ||
+        quotationPaymentTerms ||
+        `${resolvedTermDays} Days`;
+      const resolvedStartDate = (dto as any).paymentTermStartDate
+        ? new Date((dto as any).paymentTermStartDate)
+        : quotationPaymentTermStartDate ||
+          (dto.orderDate ? new Date(dto.orderDate) : new Date());
+      const resolvedDueDate = (dto as any).paymentDueDate
+        ? new Date((dto as any).paymentDueDate)
+        : new Date(resolvedStartDate.getTime() + resolvedTermDays * 86400000);
 
       const order = await tx.salesOrder.create({
         data: {
@@ -434,8 +518,12 @@ export class SalesService {
           after: JSON.parse(JSON.stringify(order)),
         },
       });
-      const mappedOrder = await this.mapSalesOrderWithFulfillment(order, order.customer.companyId);
-      if (!mappedOrder) throw new BadRequestException('Failed to map created order.');
+      const mappedOrder = await this.mapSalesOrderWithFulfillment(
+        order,
+        order.customer.companyId,
+      );
+      if (!mappedOrder)
+        throw new BadRequestException('Failed to map created order.');
       return mappedOrder;
     });
   }
@@ -544,31 +632,36 @@ export class SalesService {
           (p) =>
             p.productType === 'MANUFACTURING' ||
             (p.productType !== 'TRADING' &&
-              ['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING', 'COVERBLOCK'].includes(
-                (p.category || '').toUpperCase(),
-              )),
+              [
+                'FRP COVERS',
+                'FRP GRATINGS',
+                'MANUFACTURING',
+                'COVERBLOCK',
+              ].includes((p.category || '').toUpperCase())),
         );
 
         if (hasManufacturingProduct) {
           // Manufacturing order -> Route to Plant Head & Factory Production Planning
           if (updated.productionPlans.length === 0) {
-            const [initialPlanState, plantHead, planNumber] = await Promise.all([
-              this.workflowService.getInitialState('PRODUCTION_PLAN', tx),
-              tx.user.findFirst({
-                where: {
-                  isActive: true,
-                  deletedAt: null,
-                  role: { code: 'PLANT_HEAD' },
-                },
-                select: { id: true },
-                orderBy: { createdAt: 'asc' },
-              }),
-              this.sequenceService.generateNextWithTx(
-                tx,
-                'production_plan_number',
-                'PP-',
-              ),
-            ]);
+            const [initialPlanState, plantHead, planNumber] = await Promise.all(
+              [
+                this.workflowService.getInitialState('PRODUCTION_PLAN', tx),
+                tx.user.findFirst({
+                  where: {
+                    isActive: true,
+                    deletedAt: null,
+                    role: { code: 'PLANT_HEAD' },
+                  },
+                  select: { id: true },
+                  orderBy: { createdAt: 'asc' },
+                }),
+                this.sequenceService.generateNextWithTx(
+                  tx,
+                  'production_plan_number',
+                  'PP-',
+                ),
+              ],
+            );
             await tx.productionPlan.create({
               data: {
                 planNumber,
@@ -582,13 +675,18 @@ export class SalesService {
         } else {
           // 100% Trading order -> Bypass Plant Head factory production & route directly to Dispatch User
           const readyDispatchState = await tx.workflowState.findFirst({
-            where: { workflow: { code: 'SALES_ORDER' }, code: 'READY_FOR_DISPATCH' },
+            where: {
+              workflow: { code: 'SALES_ORDER' },
+              code: 'READY_FOR_DISPATCH',
+            },
           });
           await tx.salesOrder.update({
             where: { id: order.id },
             data: {
               status: SalesOrderStatus.READY_FOR_DISPATCH,
-              ...(readyDispatchState ? { workflowStateId: readyDispatchState.id } : {}),
+              ...(readyDispatchState
+                ? { workflowStateId: readyDispatchState.id }
+                : {}),
             },
           });
         }
@@ -609,7 +707,10 @@ export class SalesService {
         },
       });
 
-      const mappedOrder = await this.mapSalesOrderWithFulfillment(orderWithPlan, orderWithPlan.customer.companyId);
+      const mappedOrder = await this.mapSalesOrderWithFulfillment(
+        orderWithPlan,
+        orderWithPlan.customer.companyId,
+      );
       return {
         success: true,
         message: `Action ${dto.action} processed successfully. New state: ${updated.workflowState?.name || updated.status}`,
@@ -624,98 +725,132 @@ export class SalesService {
       const companyId = order.customer.companyId;
 
       if (dto.action === 'SEND_TO_PLANT') {
-        notificationsService.notifyRole({
-          companyId,
-          role: 'PLANT_HEAD',
-          type: 'SALES_ORDER_PENDING_PLANT_HEAD',
-          title: 'New Order Awaiting Review',
-          message: `${order.orderNumber} — ${order.customer.companyName} is awaiting Plant Head acceptance.`,
-          route: '/plant-head/incoming-orders',
-          entityType: 'SalesOrder',
-          entityId: order.id,
-          eventKeyPrefix: `SALES_ORDER:${order.id}:PENDING_PLANT_HEAD`,
-        }).catch((err) =>
-          console.warn('[SalesService Notification] Failed to notify PLANT_HEAD:', err.message),
-        );
+        notificationsService
+          .notifyRole({
+            companyId,
+            role: 'PLANT_HEAD',
+            type: 'SALES_ORDER_PENDING_PLANT_HEAD',
+            title: 'New Order Awaiting Review',
+            message: `${order.orderNumber} — ${order.customer.companyName} is awaiting Plant Head acceptance.`,
+            route: '/plant-head/incoming-orders',
+            entityType: 'SalesOrder',
+            entityId: order.id,
+            eventKeyPrefix: `SALES_ORDER:${order.id}:PENDING_PLANT_HEAD`,
+          })
+          .catch((err) =>
+            console.warn(
+              '[SalesService Notification] Failed to notify PLANT_HEAD:',
+              err.message,
+            ),
+          );
       } else if (dto.action === 'PLANT_APPROVE') {
         const recipientId = order.salesExecutiveId || order.createdById;
         if (recipientId) {
-          this.prisma.user.findUnique({
-            where: { id: recipientId },
-            include: { role: true },
-          }).then((recipient) => {
-            if (recipient) {
-              const isSuperSales = recipient.role?.code === 'SUPER_SALES';
-              const route = isSuperSales
-                ? `/supersales/orders/${order.id}`
-                : `/sales/orders/${order.id}`;
+          this.prisma.user
+            .findUnique({
+              where: { id: recipientId },
+              include: { role: true },
+            })
+            .then((recipient) => {
+              if (recipient) {
+                const isSuperSales = recipient.role?.code === 'SUPER_SALES';
+                const route = isSuperSales
+                  ? `/supersales/orders/${order.id}`
+                  : `/sales/orders/${order.id}`;
 
-              notificationsService.notifyUser({
-                companyId,
-                userId: recipient.id,
-                type: 'SALES_ORDER_PLANT_ACCEPTED',
-                title: 'Order Accepted by Plant Head',
-                message: `${order.orderNumber} — Plant Head has accepted the order.`,
-                route,
-                entityType: 'SalesOrder',
-                entityId: order.id,
-                eventKey: `SALES_ORDER:${order.id}:PLANT_ACCEPTED`,
-              }).catch((err) =>
-                console.warn('[SalesService Notification] Failed to notify Sales Executive/Owner:', err.message),
+                notificationsService
+                  .notifyUser({
+                    companyId,
+                    userId: recipient.id,
+                    type: 'SALES_ORDER_PLANT_ACCEPTED',
+                    title: 'Order Accepted by Plant Head',
+                    message: `${order.orderNumber} — Plant Head has accepted the order.`,
+                    route,
+                    entityType: 'SalesOrder',
+                    entityId: order.id,
+                    eventKey: `SALES_ORDER:${order.id}:PLANT_ACCEPTED`,
+                  })
+                  .catch((err) =>
+                    console.warn(
+                      '[SalesService Notification] Failed to notify Sales Executive/Owner:',
+                      err.message,
+                    ),
+                  );
+              }
+            })
+            .catch((err) => {
+              console.warn(
+                '[SalesService Notification] Failed to fetch recipient details:',
+                err.message,
               );
-            }
-          }).catch((err) => {
-            console.warn('[SalesService Notification] Failed to fetch recipient details:', err.message);
-          });
+            });
         }
       } else if (dto.action === 'PLANT_REJECT') {
         const recipientId = order.salesExecutiveId || order.createdById;
         if (recipientId) {
-          this.prisma.user.findUnique({
-            where: { id: recipientId },
-            include: { role: true },
-          }).then((recipient) => {
-            if (recipient) {
-              const isSuperSales = recipient.role?.code === 'SUPER_SALES';
-              const route = isSuperSales
-                ? `/supersales/orders/${order.id}`
-                : `/sales/orders/${order.id}`;
+          this.prisma.user
+            .findUnique({
+              where: { id: recipientId },
+              include: { role: true },
+            })
+            .then((recipient) => {
+              if (recipient) {
+                const isSuperSales = recipient.role?.code === 'SUPER_SALES';
+                const route = isSuperSales
+                  ? `/supersales/orders/${order.id}`
+                  : `/sales/orders/${order.id}`;
 
-              notificationsService.notifyUser({
-                companyId,
-                userId: recipient.id,
-                type: 'SALES_ORDER_RETURNED',
-                title: 'Order Requires Sales Action',
-                message: `${order.orderNumber} — Plant Head returned the order for correction/review.`,
-                route,
-                entityType: 'SalesOrder',
-                entityId: order.id,
-                eventKey: `SALES_ORDER:${order.id}:RETURNED`,
-              }).catch((err) =>
-                console.warn('[SalesService Notification] Failed to notify Sales Executive/Owner:', err.message),
+                notificationsService
+                  .notifyUser({
+                    companyId,
+                    userId: recipient.id,
+                    type: 'SALES_ORDER_RETURNED',
+                    title: 'Order Requires Sales Action',
+                    message: `${order.orderNumber} — Plant Head returned the order for correction/review.`,
+                    route,
+                    entityType: 'SalesOrder',
+                    entityId: order.id,
+                    eventKey: `SALES_ORDER:${order.id}:RETURNED`,
+                  })
+                  .catch((err) =>
+                    console.warn(
+                      '[SalesService Notification] Failed to notify Sales Executive/Owner:',
+                      err.message,
+                    ),
+                  );
+              }
+            })
+            .catch((err) => {
+              console.warn(
+                '[SalesService Notification] Failed to fetch recipient details:',
+                err.message,
               );
-            }
-          }).catch((err) => {
-            console.warn('[SalesService Notification] Failed to fetch recipient details:', err.message);
-          });
+            });
         }
       } else if (dto.action === 'PLAN_PRODUCTION') {
         const targetDateStr = order.productionPlans?.[0]?.plannedEndDate
-          ? new Date(order.productionPlans[0].plannedEndDate).toLocaleDateString('en-GB')
+          ? new Date(
+              order.productionPlans[0].plannedEndDate,
+            ).toLocaleDateString('en-GB')
           : 'not set';
-        notificationsService.notifyRole({
-          companyId,
-          role: 'PRODUCTION_MANAGER',
-          type: 'ORDER_RELEASED_TO_PRODUCTION',
-          title: 'Order Released to Production',
-          message: `${order.orderNumber} — Production target date is ${targetDateStr} and the order is ready for planning/execution.`,
-          route: '/production/incoming-orders',
-          entityType: 'SalesOrder',
-          entityId: order.id,
-          eventKeyPrefix: `SALES_ORDER:${order.id}:RELEASED_TO_PRODUCTION`,
-        }).catch((err) =>
-          console.warn('[SalesService Notification] Failed to notify PRODUCTION_MANAGER:', err.message),
-        );
+        notificationsService
+          .notifyRole({
+            companyId,
+            role: 'PRODUCTION_MANAGER',
+            type: 'ORDER_RELEASED_TO_PRODUCTION',
+            title: 'Order Released to Production',
+            message: `${order.orderNumber} — Production target date is ${targetDateStr} and the order is ready for planning/execution.`,
+            route: '/production/incoming-orders',
+            entityType: 'SalesOrder',
+            entityId: order.id,
+            eventKeyPrefix: `SALES_ORDER:${order.id}:RELEASED_TO_PRODUCTION`,
+          })
+          .catch((err) =>
+            console.warn(
+              '[SalesService Notification] Failed to notify PRODUCTION_MANAGER:',
+              err.message,
+            ),
+          );
       }
     }
 
@@ -742,8 +877,10 @@ export class SalesService {
   }
 
   private async getFulfillmentData(orders: any[], companyId: string) {
-    const allItemIds = orders.flatMap(o => o.items?.map(i => i.id) || []);
-    const allProductIds = Array.from(new Set(orders.flatMap(o => o.items?.map(i => i.productId) || [])));
+    const allItemIds = orders.flatMap((o) => o.items?.map((i) => i.id) || []);
+    const allProductIds = Array.from(
+      new Set(orders.flatMap((o) => o.items?.map((i) => i.productId) || [])),
+    );
 
     const fgRecords = await this.prisma.finishedGoods.findMany({
       where: {
@@ -765,17 +902,29 @@ export class SalesService {
 
     const fgMap = new Map<string, number>();
     for (const fg of fgRecords) {
-      fgMap.set(fg.productId, (fgMap.get(fg.productId) || 0) + Number(fg.availableQuantity));
+      fgMap.set(
+        fg.productId,
+        (fgMap.get(fg.productId) || 0) + Number(fg.availableQuantity),
+      );
     }
 
     const dispatchMap = new Map<string, number>();
     for (const d of dispatchItems) {
-      dispatchMap.set(d.salesOrderItemId, (dispatchMap.get(d.salesOrderItemId) || 0) + Number(d.quantity));
+      dispatchMap.set(
+        d.salesOrderItemId,
+        (dispatchMap.get(d.salesOrderItemId) || 0) + Number(d.quantity),
+      );
     }
 
-    const allocationMap = new Map<string, { reserved: number; production: number }>();
+    const allocationMap = new Map<
+      string,
+      { reserved: number; production: number }
+    >();
     for (const a of allocations) {
-      const current = allocationMap.get(a.salesOrderItemId) || { reserved: 0, production: 0 };
+      const current = allocationMap.get(a.salesOrderItemId) || {
+        reserved: 0,
+        production: 0,
+      };
       if (a.allocationType === 'FINISHED_GOODS_RESERVATION') {
         current.reserved += Number(a.reservedQuantity);
       } else if (a.allocationType === 'PRODUCTION_REQUIRED') {
@@ -787,10 +936,13 @@ export class SalesService {
     return { fgMap, dispatchMap, allocationMap };
   }
 
-  private async mapSalesOrdersWithFulfillment(orders: any[], companyId: string) {
+  private async mapSalesOrdersWithFulfillment(
+    orders: any[],
+    companyId: string,
+  ) {
     if (!orders || orders.length === 0) return [];
     const fulfillmentData = await this.getFulfillmentData(orders, companyId);
-    return orders.map(order => mapSalesOrder(order, fulfillmentData));
+    return orders.map((order) => mapSalesOrder(order, fulfillmentData));
   }
 
   private async mapSalesOrderWithFulfillment(order: any, companyId: string) {

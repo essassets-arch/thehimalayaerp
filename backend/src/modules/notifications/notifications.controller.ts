@@ -34,7 +34,12 @@ export class NotificationsController {
     const companyId = req.user?.companyId || req.headers['x-company-id'];
     const limit = limitStr ? parseInt(limitStr, 10) : 20;
     const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
-    return this.notificationsService.getNotifications(userId, companyId, limit, offset);
+    return this.notificationsService.getNotifications(
+      userId,
+      companyId,
+      limit,
+      offset,
+    );
   }
 
   /**
@@ -44,7 +49,10 @@ export class NotificationsController {
   async getUnreadCount(@Req() req: any) {
     const userId = req.user?.sub;
     const companyId = req.user?.companyId || req.headers['x-company-id'];
-    const unreadCount = await this.notificationsService.getUnreadCount(userId, companyId);
+    const unreadCount = await this.notificationsService.getUnreadCount(
+      userId,
+      companyId,
+    );
     return { unreadCount };
   }
 
@@ -55,7 +63,12 @@ export class NotificationsController {
   async getUnreadLegacy(@Req() req: any) {
     const userId = req.user?.sub;
     const companyId = req.user?.companyId || req.headers['x-company-id'];
-    const result = await this.notificationsService.getNotifications(userId, companyId, 20, 0);
+    const result = await this.notificationsService.getNotifications(
+      userId,
+      companyId,
+      20,
+      0,
+    );
     return result.items.filter((item) => !item.isRead);
   }
 
@@ -108,16 +121,17 @@ export class NotificationsController {
    * Remove FCM Device Token on user logout.
    */
   @Delete('device-token')
-  async removeDeviceToken(
-    @Body() body: { token: string },
-    @Req() req: any,
-  ) {
+  async removeDeviceToken(@Body() body: { token: string }, @Req() req: any) {
     if (!body?.token) {
       throw new BadRequestException('FCM token is required');
     }
     const userId = req.user?.sub;
     const companyId = req.user?.companyId || req.headers['x-company-id'];
-    await this.notificationsService.removeDeviceToken(userId, companyId, body.token);
+    await this.notificationsService.removeDeviceToken(
+      userId,
+      companyId,
+      body.token,
+    );
     return { success: true };
   }
 

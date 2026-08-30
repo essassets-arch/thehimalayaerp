@@ -1,10 +1,26 @@
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { UseGuards, Controller, Get, Post, Put, Patch, Delete, Query, Req, Body, Param, NotFoundException } from '@nestjs/common';
+import {
+  UseGuards,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Query,
+  Req,
+  Body,
+  Param,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
-import { getFollowUpSalesScope, isSalespersonScopedRole } from '../../common/utils/rbac.util';
+import {
+  getFollowUpSalesScope,
+  isSalespersonScopedRole,
+} from '../../common/utils/rbac.util';
 
 /** Dynamic reminder feed and CRUD operations used by the Sales workspace. */
 @Controller('sales/reminders')
@@ -23,19 +39,59 @@ export class SalesRemindersController {
     @Query('module') moduleParam?: string,
   ) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId =
+      req.headers['x-company-id'] ||
+      req.user?.companyId ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     const scope = getFollowUpSalesScope(userId, req.user?.role);
 
     const isFinance = moduleParam === 'Finance';
     const isSales = moduleParam === 'Sales';
 
     const moduleTypeFilter = isFinance
-      ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
+      ? {
+          in: [
+            'Payment',
+            'PaymentFollowup',
+            'SalesOrder',
+            'Order',
+            'Invoice',
+            'Finance',
+            'PAYMENT',
+            'PAYMENT_FOLLOWUP',
+            'SALESORDER',
+            'ORDER',
+            'INVOICE',
+          ],
+        }
       : isSales
-      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
-      : undefined;
+        ? {
+            in: [
+              'Lead',
+              'Sample',
+              'SampleRequest',
+              'Quotation',
+              'Payment',
+              'PaymentFollowup',
+              'SalesOrder',
+              'Order',
+              'Invoice',
+              'LEAD',
+              'SAMPLE',
+              'SAMPLEREQUEST',
+              'QUOTATION',
+              'PAYMENT',
+              'PAYMENT_FOLLOWUP',
+              'SALESORDER',
+              'ORDER',
+              'INVOICE',
+            ],
+          }
+        : undefined;
 
-    const moduleWhere = moduleTypeFilter ? { moduleType: moduleTypeFilter } : {};
+    const moduleWhere = moduleTypeFilter
+      ? { moduleType: moduleTypeFilter }
+      : {};
 
     // Fetch all for counts
     const allReminders = await this.prisma.followUp.findMany({
@@ -47,10 +103,18 @@ export class SalesRemindersController {
     });
 
     const now = new Date();
-    const pendingCount = allReminders.filter(r => r.status === 'Pending').length;
-    const completedCount = allReminders.filter(r => r.status === 'Completed').length;
-    const overdueCount = allReminders.filter(r => r.status === 'Pending' && r.reminderAt && r.reminderAt < now).length;
-    const upcomingCount = allReminders.filter(r => r.status === 'Pending' && r.reminderAt && r.reminderAt >= now).length;
+    const pendingCount = allReminders.filter(
+      (r) => r.status === 'Pending',
+    ).length;
+    const completedCount = allReminders.filter(
+      (r) => r.status === 'Completed',
+    ).length;
+    const overdueCount = allReminders.filter(
+      (r) => r.status === 'Pending' && r.reminderAt && r.reminderAt < now,
+    ).length;
+    const upcomingCount = allReminders.filter(
+      (r) => r.status === 'Pending' && r.reminderAt && r.reminderAt >= now,
+    ).length;
 
     // Filtered query
     const targetDate = dateQuery || new Date().toISOString().split('T')[0];
@@ -81,23 +145,39 @@ export class SalesRemindersController {
     for (const r of matchedReminders) {
       if (search) {
         const sq = search.toLowerCase();
-        const matchesSearch = (r.customerName?.toLowerCase().includes(sq) || false) ||
-                              (r.notes?.toLowerCase().includes(sq) || false) ||
-                              (r.remarks?.toLowerCase().includes(sq) || false);
+        const matchesSearch =
+          r.customerName?.toLowerCase().includes(sq) ||
+          false ||
+          r.notes?.toLowerCase().includes(sq) ||
+          false ||
+          r.remarks?.toLowerCase().includes(sq) ||
+          false;
         if (!matchesSearch) continue;
       }
 
       let referenceNo = 'N/A';
       if (r.moduleType === 'Lead' && r.moduleId) {
-        const lead = await this.prisma.lead.findUnique({ where: { id: r.moduleId } });
+        const lead = await this.prisma.lead.findUnique({
+          where: { id: r.moduleId },
+        });
         referenceNo = lead?.leadNumber || 'N/A';
-      } else if ((r.moduleType === 'Sample' || r.moduleType === 'SampleRequest') && r.moduleId) {
-        const sample = await this.prisma.sampleRequest.findUnique({ where: { id: r.moduleId } });
+      } else if (
+        (r.moduleType === 'Sample' || r.moduleType === 'SampleRequest') &&
+        r.moduleId
+      ) {
+        const sample = await this.prisma.sampleRequest.findUnique({
+          where: { id: r.moduleId },
+        });
         referenceNo = sample?.sampleNumber || 'N/A';
       } else if (r.moduleType === 'Quotation' && r.moduleId) {
-        const quote = await this.prisma.quotation.findUnique({ where: { id: r.moduleId } });
+        const quote = await this.prisma.quotation.findUnique({
+          where: { id: r.moduleId },
+        });
         referenceNo = quote?.quotationNumber || 'N/A';
-      } else if ((r.moduleType === 'Payment' || r.moduleType === 'SalesOrder') && r.moduleId) {
+      } else if (
+        (r.moduleType === 'Payment' || r.moduleType === 'SalesOrder') &&
+        r.moduleId
+      ) {
         const order = await this.prisma.salesOrder.findFirst({
           where: {
             OR: [
@@ -112,7 +192,7 @@ export class SalesRemindersController {
 
       const creator = await this.prisma.user.findUnique({
         where: { id: r.createdById },
-        select: { id: true, name: true }
+        select: { id: true, name: true },
       });
 
       items.push({
@@ -125,7 +205,7 @@ export class SalesRemindersController {
         description: r.notes || '',
         reminderAt: r.reminderAt,
         status: r.status,
-        salesPerson: creator || { id: r.createdById, name: 'Sales Executive' }
+        salesPerson: creator || { id: r.createdById, name: 'Sales Executive' },
       });
     }
 
@@ -137,7 +217,7 @@ export class SalesRemindersController {
         completed: completedCount,
         overdue: overdueCount,
         upcoming: upcomingCount,
-      }
+      },
     };
   }
 
@@ -150,17 +230,55 @@ export class SalesRemindersController {
     @Query('module') moduleParam?: string,
   ) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId =
+      req.headers['x-company-id'] ||
+      req.user?.companyId ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     const scope = getFollowUpSalesScope(userId, req.user?.role);
 
     const isFinance = moduleParam === 'Finance';
     const isSales = moduleParam === 'Sales';
 
     const moduleTypeFilter = isFinance
-      ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
+      ? {
+          in: [
+            'Payment',
+            'PaymentFollowup',
+            'SalesOrder',
+            'Order',
+            'Invoice',
+            'Finance',
+            'PAYMENT',
+            'PAYMENT_FOLLOWUP',
+            'SALESORDER',
+            'ORDER',
+            'INVOICE',
+          ],
+        }
       : isSales
-      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
-      : undefined;
+        ? {
+            in: [
+              'Lead',
+              'Sample',
+              'SampleRequest',
+              'Quotation',
+              'Payment',
+              'PaymentFollowup',
+              'SalesOrder',
+              'Order',
+              'Invoice',
+              'LEAD',
+              'SAMPLE',
+              'SAMPLEREQUEST',
+              'QUOTATION',
+              'PAYMENT',
+              'PAYMENT_FOLLOWUP',
+              'SALESORDER',
+              'ORDER',
+              'INVOICE',
+            ],
+          }
+        : undefined;
 
     const whereClause: any = {
       companyId: String(companyId),
@@ -191,7 +309,11 @@ export class SalesRemindersController {
       moduleId: reminder.moduleId || reminder.entityId || reminder.leadId,
       customerName: reminder.customerName || '',
       moduleType: reminder.moduleType || reminder.entityType || 'Lead',
-      reminderDate: reminder.reminderDate || (reminder.reminderAt ? reminder.reminderAt.toISOString().split('T')[0] : null),
+      reminderDate:
+        reminder.reminderDate ||
+        (reminder.reminderAt
+          ? reminder.reminderAt.toISOString().split('T')[0]
+          : null),
       reminderTime: reminder.reminderTime || null,
       reminderType: reminder.reminderType || 'Follow-up',
       priority: reminder.priority || 'Medium',
@@ -203,8 +325,12 @@ export class SalesRemindersController {
   @Post()
   @RequirePermissions('sales.leads.update')
   async create(@Req() req: any, @Body() dto: any) {
-    const userId = req.user?.sub || req.user?.id || req.user?.userId || 'SYSTEM';
-    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const userId =
+      req.user?.sub || req.user?.id || req.user?.userId || 'SYSTEM';
+    const companyId =
+      req.headers['x-company-id'] ||
+      req.user?.companyId ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     const userRole = req.user?.role;
 
     const { sourceType, sourceId, title, description, reminderAt } = dto;
@@ -218,7 +344,10 @@ export class SalesRemindersController {
 
     let reminderDateObj = new Date();
     let reminderDateStr = reminderDateObj.toISOString().split('T')[0];
-    let reminderTimeStr = reminderDateObj.toTimeString().split(' ')[0].substring(0, 5);
+    let reminderTimeStr = reminderDateObj
+      .toTimeString()
+      .split(' ')[0]
+      .substring(0, 5);
 
     const val = reminderAt || dto.reminderDate;
     if (val) {
@@ -235,8 +364,19 @@ export class SalesRemindersController {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const source = await validateSourceOwnership(tx, moduleType, moduleId, companyId, userId, userRole);
-      const customerName = await getCustomerNameForSource(tx, moduleType, source);
+      const source = await validateSourceOwnership(
+        tx,
+        moduleType,
+        moduleId,
+        companyId,
+        userId,
+        userRole,
+      );
+      const customerName = await getCustomerNameForSource(
+        tx,
+        moduleType,
+        source,
+      );
 
       const reminder = await tx.followUp.create({
         data: {
@@ -257,7 +397,13 @@ export class SalesRemindersController {
         },
       });
 
-      await recalculateNextReminder(tx, moduleType, moduleId, companyId, userId);
+      await recalculateNextReminder(
+        tx,
+        moduleType,
+        moduleId,
+        companyId,
+        userId,
+      );
       return reminder;
     });
 
@@ -268,7 +414,10 @@ export class SalesRemindersController {
   @RequirePermissions('sales.leads.update')
   async update(@Param('id') id: string, @Req() req: any, @Body() dto: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId =
+      req.headers['x-company-id'] ||
+      req.user?.companyId ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     const userRole = req.user?.role;
 
     const existing = await this.prisma.followUp.findUnique({ where: { id } });
@@ -290,7 +439,9 @@ export class SalesRemindersController {
         } catch (e) {}
       }
     } else if (dto.reminderDate) {
-      const d = new Date(`${dto.reminderDate}T${dto.reminderTime || '00:00:00'}`);
+      const d = new Date(
+        `${dto.reminderDate}T${dto.reminderTime || '00:00:00'}`,
+      );
       if (!isNaN(d.getTime())) {
         reminderAtObj = d;
         reminderDateStr = dto.reminderDate;
@@ -300,11 +451,15 @@ export class SalesRemindersController {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const updateData: any = {
-        ...(dto.remarks !== undefined ? { notes: dto.remarks, remarks: dto.remarks } : {}),
+        ...(dto.remarks !== undefined
+          ? { notes: dto.remarks, remarks: dto.remarks }
+          : {}),
         ...(reminderAtObj !== null ? { reminderAt: reminderAtObj } : {}),
         ...(reminderDateStr !== null ? { reminderDate: reminderDateStr } : {}),
         ...(reminderTimeStr !== null ? { reminderTime: reminderTimeStr } : {}),
-        ...(dto.reminderType !== undefined ? { reminderType: dto.reminderType } : {}),
+        ...(dto.reminderType !== undefined
+          ? { reminderType: dto.reminderType }
+          : {}),
         ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
       };
@@ -314,7 +469,13 @@ export class SalesRemindersController {
         data: updateData,
       });
 
-      await recalculateNextReminder(tx, reminder.moduleType || 'Lead', reminder.moduleId || '', companyId, userId);
+      await recalculateNextReminder(
+        tx,
+        reminder.moduleType || 'Lead',
+        reminder.moduleId || '',
+        companyId,
+        userId,
+      );
       return reminder;
     });
 
@@ -325,7 +486,10 @@ export class SalesRemindersController {
   @RequirePermissions('sales.leads.update')
   async complete(@Param('id') id: string, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId =
+      req.headers['x-company-id'] ||
+      req.user?.companyId ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
 
     const result = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.followUp.findUnique({ where: { id } });
@@ -341,7 +505,13 @@ export class SalesRemindersController {
         },
       });
 
-      await recalculateNextReminder(tx, reminder.moduleType || 'Lead', reminder.moduleId || '', companyId, userId);
+      await recalculateNextReminder(
+        tx,
+        reminder.moduleType || 'Lead',
+        reminder.moduleId || '',
+        companyId,
+        userId,
+      );
       return reminder;
     });
 
@@ -352,7 +522,10 @@ export class SalesRemindersController {
   @RequirePermissions('sales.leads.update')
   async dismiss(@Param('id') id: string, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId =
+      req.headers['x-company-id'] ||
+      req.user?.companyId ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
 
     const result = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.followUp.findUnique({ where: { id } });
@@ -368,7 +541,13 @@ export class SalesRemindersController {
         },
       });
 
-      await recalculateNextReminder(tx, reminder.moduleType || 'Lead', reminder.moduleId || '', companyId, userId);
+      await recalculateNextReminder(
+        tx,
+        reminder.moduleType || 'Lead',
+        reminder.moduleId || '',
+        companyId,
+        userId,
+      );
       return reminder;
     });
 
@@ -379,7 +558,10 @@ export class SalesRemindersController {
   @RequirePermissions('sales.leads.update')
   async cancel(@Param('id') id: string, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
-    const companyId = req.headers['x-company-id'] || req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const companyId =
+      req.headers['x-company-id'] ||
+      req.user?.companyId ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
 
     const result = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.followUp.findUnique({ where: { id } });
@@ -388,7 +570,13 @@ export class SalesRemindersController {
       }
 
       await tx.followUp.delete({ where: { id } });
-      await recalculateNextReminder(tx, existing.moduleType || 'Lead', existing.moduleId || '', companyId, userId);
+      await recalculateNextReminder(
+        tx,
+        existing.moduleType || 'Lead',
+        existing.moduleId || '',
+        companyId,
+        userId,
+      );
       return { success: true };
     });
 
@@ -398,12 +586,28 @@ export class SalesRemindersController {
 
 // ── UTILITY FUNCTIONS ──
 
-function normalizeSourceType(type: string): { moduleType: string; relationField: string } {
+function normalizeSourceType(type: string): {
+  moduleType: string;
+  relationField: string;
+} {
   const upper = String(type).toUpperCase();
-  if (upper === 'LEAD' || upper === 'CRM_LEAD') return { moduleType: 'Lead', relationField: 'lead' };
-  if (upper === 'SAMPLE' || upper === 'SAMPLEREQUEST' || upper === 'SAMPLE_REQUEST') return { moduleType: 'Sample', relationField: 'sampleRequest' };
-  if (upper === 'QUOTATION') return { moduleType: 'Quotation', relationField: 'quotation' };
-  if (upper === 'PAYMENT_FOLLOWUP' || upper === 'PAYMENT' || upper === 'SALESORDER' || upper === 'SALES_ORDER') return { moduleType: 'Payment', relationField: 'salesOrder' };
+  if (upper === 'LEAD' || upper === 'CRM_LEAD')
+    return { moduleType: 'Lead', relationField: 'lead' };
+  if (
+    upper === 'SAMPLE' ||
+    upper === 'SAMPLEREQUEST' ||
+    upper === 'SAMPLE_REQUEST'
+  )
+    return { moduleType: 'Sample', relationField: 'sampleRequest' };
+  if (upper === 'QUOTATION')
+    return { moduleType: 'Quotation', relationField: 'quotation' };
+  if (
+    upper === 'PAYMENT_FOLLOWUP' ||
+    upper === 'PAYMENT' ||
+    upper === 'SALESORDER' ||
+    upper === 'SALES_ORDER'
+  )
+    return { moduleType: 'Payment', relationField: 'salesOrder' };
   return { moduleType: type, relationField: type.toLowerCase() };
 }
 
@@ -415,7 +619,9 @@ async function validateSourceOwnership(
   userId: string,
   userRole: string,
 ) {
-  const isManagement = ['Super Admin', 'Admin', 'Sales Manager'].includes(userRole);
+  const isManagement = ['Super Admin', 'Admin', 'Sales Manager'].includes(
+    userRole,
+  );
   const typeUpper = moduleType.toUpperCase();
 
   let sourceRecord: any = null;
@@ -423,10 +629,17 @@ async function validateSourceOwnership(
   if (typeUpper === 'LEAD') {
     sourceRecord = await tx.lead.findUnique({ where: { id: moduleId } });
   } else if (typeUpper === 'SAMPLE' || typeUpper === 'SAMPLEREQUEST') {
-    sourceRecord = await tx.sampleRequest.findUnique({ where: { id: moduleId } });
+    sourceRecord = await tx.sampleRequest.findUnique({
+      where: { id: moduleId },
+    });
   } else if (typeUpper === 'QUOTATION') {
     sourceRecord = await tx.quotation.findUnique({ where: { id: moduleId } });
-  } else if (typeUpper === 'PAYMENT_FOLLOWUP' || typeUpper === 'PAYMENT' || typeUpper === 'SALESORDER' || typeUpper === 'ORDER') {
+  } else if (
+    typeUpper === 'PAYMENT_FOLLOWUP' ||
+    typeUpper === 'PAYMENT' ||
+    typeUpper === 'SALESORDER' ||
+    typeUpper === 'ORDER'
+  ) {
     sourceRecord = await tx.salesOrder.findFirst({
       where: {
         OR: [
@@ -440,15 +653,23 @@ async function validateSourceOwnership(
   }
 
   if (!sourceRecord) {
-    throw new NotFoundException(`${moduleType} record with ID ${moduleId} not found`);
+    throw new NotFoundException(
+      `${moduleType} record with ID ${moduleId} not found`,
+    );
   }
 
-  if (sourceRecord.companyId && String(sourceRecord.companyId) !== String(companyId)) {
+  if (
+    sourceRecord.companyId &&
+    String(sourceRecord.companyId) !== String(companyId)
+  ) {
     throw new Error('Unauthorized company mismatch');
   }
 
   if (!isManagement) {
-    const ownerId = sourceRecord.salesExecutiveId || sourceRecord.createdById || sourceRecord.assignedToId;
+    const ownerId =
+      sourceRecord.salesExecutiveId ||
+      sourceRecord.createdById ||
+      sourceRecord.assignedToId;
     if (ownerId && String(ownerId) !== String(userId)) {
       throw new Error('Unauthorized salesperson mismatch');
     }
@@ -466,15 +687,19 @@ async function getCustomerNameForSource(
   if (typeUpper === 'LEAD') {
     return sourceRecord.companyName || sourceRecord.customerName || 'Lead';
   }
-  
-  let customerId = sourceRecord.customerId;
+
+  const customerId = sourceRecord.customerId;
   if (!customerId && sourceRecord.leadId) {
-    const lead = await tx.lead.findUnique({ where: { id: sourceRecord.leadId } });
+    const lead = await tx.lead.findUnique({
+      where: { id: sourceRecord.leadId },
+    });
     if (lead) return lead.companyName || lead.customerName || 'Client';
   }
 
   if (customerId) {
-    const customer = await tx.customer.findUnique({ where: { id: customerId } });
+    const customer = await tx.customer.findUnique({
+      where: { id: customerId },
+    });
     if (customer) return customer.name || customer.companyName || 'Client';
   }
 
@@ -517,7 +742,11 @@ async function recalculateNextReminder(
       where: { id: moduleId },
       data: { nextReminder },
     });
-  } else if (typeUpper === 'PAYMENT_FOLLOWUP' || typeUpper === 'PAYMENT' || typeUpper === 'SALESORDER') {
+  } else if (
+    typeUpper === 'PAYMENT_FOLLOWUP' ||
+    typeUpper === 'PAYMENT' ||
+    typeUpper === 'SALESORDER'
+  ) {
     await tx.salesOrder.update({
       where: { id: moduleId },
       data: { nextReminder },

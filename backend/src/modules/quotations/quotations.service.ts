@@ -7,7 +7,12 @@ import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { Decimal } from '@prisma/client/runtime/library';
-import { getQuotationSalesScope, getLeadSalesScope, getSalesScope, canAssignSalesOwner } from '../../common/utils/rbac.util';
+import {
+  getQuotationSalesScope,
+  getLeadSalesScope,
+  getSalesScope,
+  canAssignSalesOwner,
+} from '../../common/utils/rbac.util';
 
 @Injectable()
 export class QuotationsService {
@@ -36,7 +41,11 @@ export class QuotationsService {
       include: {
         workflowState: true,
         salesExecutive: { select: { id: true, name: true, email: true } },
-        lead: { include: { salesExecutive: { select: { id: true, name: true, email: true } } } },
+        lead: {
+          include: {
+            salesExecutive: { select: { id: true, name: true, email: true } },
+          },
+        },
         items: { include: { product: true } },
         selectedTerms: { orderBy: { sortOrder: 'asc' } },
       },
@@ -80,7 +89,11 @@ export class QuotationsService {
         salesExecutive: { select: { id: true, name: true, email: true } },
         items: { include: { product: true } },
         selectedTerms: { orderBy: { sortOrder: 'asc' } },
-        lead: { include: { salesExecutive: { select: { id: true, name: true, email: true } } } },
+        lead: {
+          include: {
+            salesExecutive: { select: { id: true, name: true, email: true } },
+          },
+        },
         parentQuotation: true,
         childQuotations: {
           include: { workflowState: true },
@@ -148,11 +161,9 @@ export class QuotationsService {
     const normalizedRole = String(userRole || '')
       .toUpperCase()
       .replace(/[\s-]+/g, '_');
-    const isSpecialRole = [
-      'SUPER_SALES',
-      'SUPER_ADMIN',
-      'ADMIN',
-    ].includes(normalizedRole);
+    const isSpecialRole = ['SUPER_SALES', 'SUPER_ADMIN', 'ADMIN'].includes(
+      normalizedRole,
+    );
     const maxPaymentTermDays = isSpecialRole ? 90 : 20;
 
     if (days !== undefined && !isNaN(days)) {
@@ -195,12 +206,17 @@ export class QuotationsService {
           ...(resolvedCompanyId ? { companyId: resolvedCompanyId } : {}),
           ...getLeadSalesScope(userId, role),
         },
-        select: { salesExecutiveId: true, assignedToId: true, createdById: true },
+        select: {
+          salesExecutiveId: true,
+          assignedToId: true,
+          createdById: true,
+        },
       });
       if (!leadObj) {
         throw new NotFoundException('Lead not found');
       }
-      leadSalesExecutiveId = leadObj.salesExecutiveId || leadObj.assignedToId || leadObj.createdById;
+      leadSalesExecutiveId =
+        leadObj.salesExecutiveId || leadObj.assignedToId || leadObj.createdById;
     }
 
     const paymentTermInfo = this.validateAndExtractPaymentTerms(dto, role);
@@ -260,31 +276,58 @@ export class QuotationsService {
     const totals = this.calculate(resolvedItems);
     if (!totals.processedItems.length)
       throw new BadRequestException('At least one quotation item is required');
-    const quotationNumber = await this.sequenceService.generateQuotationNumber();
+    const quotationNumber =
+      await this.sequenceService.generateQuotationNumber();
 
     const isManager = canAssignSalesOwner(role);
     const resolvedSalesExecutiveId = isManager
-      ? (dto.salesExecutiveId || leadSalesExecutiveId || userId)
-      : (leadSalesExecutiveId || userId);
+      ? dto.salesExecutiveId || leadSalesExecutiveId || userId
+      : leadSalesExecutiveId || userId;
 
     const rawTerms = Array.isArray(dto.selectedTerms)
       ? dto.selectedTerms
-      : (Array.isArray(dto.terms) ? dto.terms : null);
+      : Array.isArray(dto.terms)
+        ? dto.terms
+        : null;
 
-    const termsToSave = rawTerms !== null
-      ? rawTerms.map((t: any, index: number) => ({
-          termId: t.termId || t.id || null,
-          text: String(t.text || t.label || t.title || '').trim(),
-          sortOrder: t.sortOrder !== undefined ? Number(t.sortOrder) : index + 1,
-        })).filter((t: any) => Boolean(t.text))
-      : [
-          { termId: 'payment-terms', text: 'Payment Terms', sortOrder: 1 },
-          { termId: 'unloading-breakage', text: 'Unloading at Client scope & breakage risk & responsibility', sortOrder: 2 },
-          { termId: 'delivery-timeline', text: 'Delivery timeline', sortOrder: 3 },
-          { termId: 'jurisdiction', text: 'Any Dispute Shall Be Subject To Ahmedabad Jurisdiction', sortOrder: 4 },
-          { termId: 'manufacturer-test-report', text: 'Manufacturer Test Report shall be provided', sortOrder: 5 },
-          { termId: 'colour-options', text: 'Different Colour Options available at additional 10% cost', sortOrder: 6 },
-        ];
+    const termsToSave =
+      rawTerms !== null
+        ? rawTerms
+            .map((t: any, index: number) => ({
+              termId: t.termId || t.id || null,
+              text: String(t.text || t.label || t.title || '').trim(),
+              sortOrder:
+                t.sortOrder !== undefined ? Number(t.sortOrder) : index + 1,
+            }))
+            .filter((t: any) => Boolean(t.text))
+        : [
+            { termId: 'payment-terms', text: 'Payment Terms', sortOrder: 1 },
+            {
+              termId: 'unloading-breakage',
+              text: 'Unloading at Client scope & breakage risk & responsibility',
+              sortOrder: 2,
+            },
+            {
+              termId: 'delivery-timeline',
+              text: 'Delivery timeline',
+              sortOrder: 3,
+            },
+            {
+              termId: 'jurisdiction',
+              text: 'Any Dispute Shall Be Subject To Ahmedabad Jurisdiction',
+              sortOrder: 4,
+            },
+            {
+              termId: 'manufacturer-test-report',
+              text: 'Manufacturer Test Report shall be provided',
+              sortOrder: 5,
+            },
+            {
+              termId: 'colour-options',
+              text: 'Different Colour Options available at additional 10% cost',
+              sortOrder: 6,
+            },
+          ];
 
     const quotation = await this.prisma.quotation.create({
       data: {
@@ -293,13 +336,24 @@ export class QuotationsService {
         leadId: dto.leadId,
         customerId: dto.customerId,
         salesExecutiveId: resolvedSalesExecutiveId,
-        validUntil: dto.validUntil ? new Date(dto.validUntil) : (dto.validTill ? new Date(dto.validTill) : null),
+        validUntil: dto.validUntil
+          ? new Date(dto.validUntil)
+          : dto.validTill
+            ? new Date(dto.validTill)
+            : null,
         subtotal: totals.subtotal,
         discount: totals.discount,
         tax: totals.tax,
         total: totals.total,
-        expectedTransportationCost: Number(dto.expectedTransportationCost ?? dto.transportCharge ?? 0),
-        remarks: dto.remarks !== undefined ? dto.remarks : (dto.notes !== undefined ? dto.notes : null),
+        expectedTransportationCost: Number(
+          dto.expectedTransportationCost ?? dto.transportCharge ?? 0,
+        ),
+        remarks:
+          dto.remarks !== undefined
+            ? dto.remarks
+            : dto.notes !== undefined
+              ? dto.notes
+              : null,
         paymentTerms: paymentTermInfo.paymentTerms,
         paymentTermDays: paymentTermInfo.paymentTermDays,
         workflowStateId: initialState.id,
@@ -307,7 +361,11 @@ export class QuotationsService {
         items: {
           create: totals.processedItems.map((item: any) => ({
             productId: item.productId,
-            description: item.description || item.specification || item.productDetails || '',
+            description:
+              item.description ||
+              item.specification ||
+              item.productDetails ||
+              '',
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             discount: item.discount || 0,
@@ -337,10 +395,12 @@ export class QuotationsService {
         where: { workflow: { code: 'LEAD' }, code: 'QUOTATION_SENT' },
       });
       if (quotationState) {
-        await this.prisma.lead.update({
-          where: { id: dto.leadId },
-          data: { workflowStateId: quotationState.id },
-        }).catch(() => {});
+        await this.prisma.lead
+          .update({
+            where: { id: dto.leadId },
+            data: { workflowStateId: quotationState.id },
+          })
+          .catch(() => {});
       }
     }
 
@@ -366,7 +426,16 @@ export class QuotationsService {
         include: { workflowState: true },
       });
       if (!quotation) throw new NotFoundException('Quotation not found');
-      const lockedStates = ['APPROVED', 'QUOTATION_APPROVED', 'CONVERTED', 'CONVERTED_TO_SO', 'REJECTED', 'QUOTATION_REJECTED', 'CANCELLED', 'SUPERSEDED'];
+      const lockedStates = [
+        'APPROVED',
+        'QUOTATION_APPROVED',
+        'CONVERTED',
+        'CONVERTED_TO_SO',
+        'REJECTED',
+        'QUOTATION_REJECTED',
+        'CANCELLED',
+        'SUPERSEDED',
+      ];
       if (lockedStates.includes(quotation.workflowState?.code || '')) {
         throw new BadRequestException(
           `Quotations in state "${quotation.workflowState?.code || 'unknown'}" are locked and cannot be edited`,
@@ -385,7 +454,10 @@ export class QuotationsService {
                       ? [{ id: item.productId }, { publicId: item.productId }]
                       : []),
                     ...(item.productCode
-                      ? [{ sku: item.productCode }, { publicId: item.productCode }]
+                      ? [
+                          { sku: item.productCode },
+                          { publicId: item.productCode },
+                        ]
                       : []),
                     ...(item.productName
                       ? [
@@ -427,60 +499,89 @@ export class QuotationsService {
       if (dto.items)
         await tx.quotationItem.deleteMany({ where: { quotationId: id } });
       // 1. If leadId is present or updated, update the associated Lead's name, group, GST details
-      const targetLeadId = dto.leadId !== undefined ? dto.leadId : quotation.leadId;
+      const targetLeadId =
+        dto.leadId !== undefined ? dto.leadId : quotation.leadId;
       if (targetLeadId) {
-        await tx.lead.update({
-          where: { id: targetLeadId },
-          data: {
-            companyName: dto.customerName !== undefined ? dto.customerName : undefined,
-            groupName: dto.groupName !== undefined ? dto.groupName : undefined,
-            gstName: dto.gstName !== undefined ? dto.gstName : undefined,
-            gstNumber: dto.gstNumber !== undefined ? (dto.gstNumber || null) : undefined,
-          },
-        }).catch(() => {});
+        await tx.lead
+          .update({
+            where: { id: targetLeadId },
+            data: {
+              companyName:
+                dto.customerName !== undefined ? dto.customerName : undefined,
+              groupName:
+                dto.groupName !== undefined ? dto.groupName : undefined,
+              gstName: dto.gstName !== undefined ? dto.gstName : undefined,
+              gstNumber:
+                dto.gstNumber !== undefined ? dto.gstNumber || null : undefined,
+            },
+          })
+          .catch(() => {});
       }
 
       // 2. If customerId is present or updated, update the associated Customer's name and GST
-      const targetCustomerId = dto.customerId !== undefined ? dto.customerId : quotation.customerId;
+      const targetCustomerId =
+        dto.customerId !== undefined ? dto.customerId : quotation.customerId;
       if (targetCustomerId) {
-        await tx.customer.update({
-          where: { id: targetCustomerId },
-          data: {
-            companyName: dto.customerName !== undefined ? dto.customerName : undefined,
-            gstin: dto.gstNumber !== undefined ? (dto.gstNumber || null) : undefined,
-          },
-        }).catch(() => {});
+        await tx.customer
+          .update({
+            where: { id: targetCustomerId },
+            data: {
+              companyName:
+                dto.customerName !== undefined ? dto.customerName : undefined,
+              gstin:
+                dto.gstNumber !== undefined ? dto.gstNumber || null : undefined,
+            },
+          })
+          .catch(() => {});
       }
 
       // 3. Update Selected Terms if provided
-      const rawUpdateTerms = dto.selectedTerms !== undefined ? dto.selectedTerms : dto.terms;
+      const rawUpdateTerms =
+        dto.selectedTerms !== undefined ? dto.selectedTerms : dto.terms;
       if (Array.isArray(rawUpdateTerms)) {
         await tx.quotationTerm.deleteMany({ where: { quotationId: id } });
         if (rawUpdateTerms.length > 0) {
           await tx.quotationTerm.createMany({
-            data: rawUpdateTerms.map((t: any, index: number) => ({
-              quotationId: id,
-              termId: t.termId || t.id || null,
-              text: String(t.text || t.label || t.title || '').trim(),
-              sortOrder: t.sortOrder !== undefined ? Number(t.sortOrder) : index + 1,
-            })).filter((t: any) => Boolean(t.text)),
+            data: rawUpdateTerms
+              .map((t: any, index: number) => ({
+                quotationId: id,
+                termId: t.termId || t.id || null,
+                text: String(t.text || t.label || t.title || '').trim(),
+                sortOrder:
+                  t.sortOrder !== undefined ? Number(t.sortOrder) : index + 1,
+              }))
+              .filter((t: any) => Boolean(t.text)),
           });
         }
       }
 
-      const validUntilDate = dto.validUntil !== undefined
-        ? (dto.validUntil ? new Date(dto.validUntil) : null)
-        : (dto.validTill !== undefined ? (dto.validTill ? new Date(dto.validTill) : null) : undefined);
+      const validUntilDate =
+        dto.validUntil !== undefined
+          ? dto.validUntil
+            ? new Date(dto.validUntil)
+            : null
+          : dto.validTill !== undefined
+            ? dto.validTill
+              ? new Date(dto.validTill)
+              : null
+            : undefined;
 
       const expectedTransportationCost =
-        dto.expectedTransportationCost !== undefined && dto.expectedTransportationCost !== null
+        dto.expectedTransportationCost !== undefined &&
+        dto.expectedTransportationCost !== null
           ? Number(dto.expectedTransportationCost)
-          : (dto.transportCharge !== undefined && dto.transportCharge !== null ? Number(dto.transportCharge) : undefined);
+          : dto.transportCharge !== undefined && dto.transportCharge !== null
+            ? Number(dto.transportCharge)
+            : undefined;
 
       const remarks =
         dto.remarks !== undefined
           ? dto.remarks
-          : (dto.notes !== undefined ? dto.notes : (dto.termsAndNotes !== undefined ? dto.termsAndNotes : undefined));
+          : dto.notes !== undefined
+            ? dto.notes
+            : dto.termsAndNotes !== undefined
+              ? dto.termsAndNotes
+              : undefined;
 
       const updated = await tx.quotation.update({
         where: { id },
@@ -489,8 +590,14 @@ export class QuotationsService {
           customerId: dto.customerId !== undefined ? dto.customerId : undefined,
           validUntil: validUntilDate,
           remarks: remarks,
-          paymentTerms: paymentTermInfo.paymentTerms !== undefined ? paymentTermInfo.paymentTerms : undefined,
-          paymentTermDays: paymentTermInfo.paymentTermDays !== undefined ? paymentTermInfo.paymentTermDays : undefined,
+          paymentTerms:
+            paymentTermInfo.paymentTerms !== undefined
+              ? paymentTermInfo.paymentTerms
+              : undefined,
+          paymentTermDays:
+            paymentTermInfo.paymentTermDays !== undefined
+              ? paymentTermInfo.paymentTermDays
+              : undefined,
           updatedById: userId,
           expectedTransportationCost: expectedTransportationCost,
           ...(totals
@@ -502,7 +609,11 @@ export class QuotationsService {
                 items: {
                   create: totals.processedItems.map((item: any) => ({
                     productId: item.productId,
-                    description: item.description || item.specification || item.productDetails || '',
+                    description:
+                      item.description ||
+                      item.specification ||
+                      item.productDetails ||
+                      '',
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
                     discount: item.discount || 0,
@@ -518,7 +629,11 @@ export class QuotationsService {
           salesExecutive: { select: { id: true, name: true, email: true } },
           items: { include: { product: true } },
           selectedTerms: { orderBy: { sortOrder: 'asc' } },
-          lead: { include: { salesExecutive: { select: { id: true, name: true, email: true } } } },
+          lead: {
+            include: {
+              salesExecutive: { select: { id: true, name: true, email: true } },
+            },
+          },
         },
       });
 
@@ -544,11 +659,27 @@ export class QuotationsService {
     if (!terms.length) {
       const defaultTerms = [
         { title: 'Payment Terms', sortOrder: 1, isActive: true },
-        { title: 'Unloading at Client scope & breakage risk & responsibility', sortOrder: 2, isActive: true },
+        {
+          title: 'Unloading at Client scope & breakage risk & responsibility',
+          sortOrder: 2,
+          isActive: true,
+        },
         { title: 'Delivery timeline', sortOrder: 3, isActive: true },
-        { title: 'Any Dispute Shall Be Subject To Ahmedabad Jurisdiction', sortOrder: 4, isActive: true },
-        { title: 'Manufacturer Test Report shall be provided', sortOrder: 5, isActive: true },
-        { title: 'Different Colour Options available at additional 10% cost', sortOrder: 6, isActive: true },
+        {
+          title: 'Any Dispute Shall Be Subject To Ahmedabad Jurisdiction',
+          sortOrder: 4,
+          isActive: true,
+        },
+        {
+          title: 'Manufacturer Test Report shall be provided',
+          sortOrder: 5,
+          isActive: true,
+        },
+        {
+          title: 'Different Colour Options available at additional 10% cost',
+          sortOrder: 6,
+          isActive: true,
+        },
       ];
       await this.prisma.quotationTermMaster.createMany({
         data: defaultTerms,
@@ -696,8 +827,17 @@ export class QuotationsService {
       });
 
       if (!quotation) throw new NotFoundException('Quotation not found');
-      
-      const allowedCodes = ['APPROVED', 'SENT', 'NEGOTIATION', 'NEW', 'DRAFT', 'INTERNAL_REVIEW', 'QUOTATION_SENT', 'QUOTATION_APPROVED'];
+
+      const allowedCodes = [
+        'APPROVED',
+        'SENT',
+        'NEGOTIATION',
+        'NEW',
+        'DRAFT',
+        'INTERNAL_REVIEW',
+        'QUOTATION_SENT',
+        'QUOTATION_APPROVED',
+      ];
       if (!allowedCodes.includes(quotation.workflowState?.code || '')) {
         throw new BadRequestException(
           'Only active quotations can be converted to Sales Orders',
@@ -712,7 +852,11 @@ export class QuotationsService {
         if (approvedState) {
           await tx.quotation.update({
             where: { id },
-            data: { workflowStateId: approvedState.id, approvedById: userId, approvedAt: new Date() },
+            data: {
+              workflowStateId: approvedState.id,
+              approvedById: userId,
+              approvedAt: new Date(),
+            },
           });
         }
       }
@@ -729,10 +873,7 @@ export class QuotationsService {
         );
       const existingOrder = await tx.salesOrder.findFirst({
         where: {
-          OR: [
-            { sourceQuotationId: id },
-            { quotationId: id }
-          ]
+          OR: [{ sourceQuotationId: id }, { quotationId: id }],
         },
       });
       if (existingOrder) {
@@ -754,10 +895,13 @@ export class QuotationsService {
         const cleanGstin = quotation.lead.gstNumber?.trim()
           ? quotation.lead.gstNumber.trim()
           : null;
-        const companyId = quotation.companyId || quotation.lead.companyId || undefined;
+        const companyId =
+          quotation.companyId || quotation.lead.companyId || undefined;
         const duplicateConditions: any[] = [];
-        if (quotation.lead.email) duplicateConditions.push({ email: quotation.lead.email });
-        if (quotation.lead.phone) duplicateConditions.push({ phone: quotation.lead.phone });
+        if (quotation.lead.email)
+          duplicateConditions.push({ email: quotation.lead.email });
+        if (quotation.lead.phone)
+          duplicateConditions.push({ phone: quotation.lead.phone });
         if (cleanGstin) duplicateConditions.push({ gstin: cleanGstin });
         if (quotation.lead.companyName) {
           duplicateConditions.push({
@@ -772,7 +916,8 @@ export class QuotationsService {
           where: {
             companyId,
             deletedAt: null,
-            OR: duplicateConditions.length > 0 ? duplicateConditions : undefined,
+            OR:
+              duplicateConditions.length > 0 ? duplicateConditions : undefined,
           },
         });
         if (existingCustomer) {
@@ -862,15 +1007,27 @@ export class QuotationsService {
       const qtnAny = quotation as any;
       const freightCost = Number(
         qtnAny.expectedTransportationCost ??
-        qtnAny.transportCharge ??
-        qtnAny.freightAmount ??
-        0
+          qtnAny.transportCharge ??
+          qtnAny.freightAmount ??
+          0,
       );
 
-      const termDays = quotation.paymentTermDays || (quotation.paymentTerms ? parseInt(String(quotation.paymentTerms).match(/\d+/)?.[0] || '15', 10) : 15);
+      const termDays =
+        quotation.paymentTermDays ||
+        (quotation.paymentTerms
+          ? parseInt(
+              String(quotation.paymentTerms).match(/\d+/)?.[0] || '15',
+              10,
+            )
+          : 15);
       const paymentTermsStr = quotation.paymentTerms || `${termDays} Days`;
-      const termStartDate = (quotation as any).paymentTermStartDate || quotation.createdAt || new Date();
-      const termDueDate = new Date(new Date(termStartDate).getTime() + termDays * 86400000);
+      const termStartDate =
+        (quotation as any).paymentTermStartDate ||
+        quotation.createdAt ||
+        new Date();
+      const termDueDate = new Date(
+        new Date(termStartDate).getTime() + termDays * 86400000,
+      );
 
       // Snapshot exactly from quotation items
       const salesOrder = await tx.salesOrder.create({
@@ -879,7 +1036,12 @@ export class QuotationsService {
           customerId,
           quotationId: id,
           sourceQuotationId: id,
-          salesExecutiveId: quotation.salesExecutiveId || quotation.createdById || quotation.lead?.salesExecutiveId || quotation.lead?.createdById || userId,
+          salesExecutiveId:
+            quotation.salesExecutiveId ||
+            quotation.createdById ||
+            quotation.lead?.salesExecutiveId ||
+            quotation.lead?.createdById ||
+            userId,
           workflowStateId: soInitialState?.id,
           createdById: userId,
           paymentTerms: paymentTermsStr,

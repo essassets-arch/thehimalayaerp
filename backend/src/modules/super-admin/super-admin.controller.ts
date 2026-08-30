@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Res, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Res,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SuperAdminService } from './super-admin.service';
 import { CentralizedReportQueryDto } from './dto/centralized-report-query.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -61,11 +74,18 @@ export class SuperAdminController {
   async getLiveUsers(@CurrentUser() user: any) {
     const hasAccess = await this.locationService.hasMapPermission(user.sub);
     if (!hasAccess) {
-      throw new ForbiddenException('Access Denied: Insufficient permissions to view the Live User Map.');
+      throw new ForbiddenException(
+        'Access Denied: Insufficient permissions to view the Live User Map.',
+      );
     }
 
-    const normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const isSuperAdmin = normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'SUPER_ADMIN_ROLE' || normalizedRole === 'SUPER_ADMIN_PORTAL';
+    const normalizedRole = String(user.role || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    const isSuperAdmin =
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'SUPER_ADMIN_ROLE' ||
+      normalizedRole === 'SUPER_ADMIN_PORTAL';
 
     if (isSuperAdmin) {
       return this.locationService.getLiveUsers();
@@ -126,28 +146,41 @@ export class SuperAdminController {
   ) {
     const hasAccess = await this.locationService.hasHistoryPermission(user.sub);
     if (!hasAccess) {
-      throw new ForbiddenException('Access Denied: Insufficient permissions to view location history.');
+      throw new ForbiddenException(
+        'Access Denied: Insufficient permissions to view location history.',
+      );
     }
 
     if (!deviceSessionId) {
-      throw new BadRequestException('deviceSessionId query parameter is required.');
+      throw new BadRequestException(
+        'deviceSessionId query parameter is required.',
+      );
     }
 
     const hasDate = !!dateQuery;
     const hasRange = !!fromQuery && !!toQuery;
 
     if (hasDate && hasRange) {
-      throw new BadRequestException('Provide either "date" OR ("from" and "to") parameters, not both.');
+      throw new BadRequestException(
+        'Provide either "date" OR ("from" and "to") parameters, not both.',
+      );
     }
     if ((fromQuery && !toQuery) || (!fromQuery && toQuery)) {
-      throw new BadRequestException('Both "from" and "to" parameters must be provided for a custom date range.');
+      throw new BadRequestException(
+        'Both "from" and "to" parameters must be provided for a custom date range.',
+      );
     }
     if (!hasDate && !hasRange) {
-      throw new BadRequestException('Provide either "date" OR ("from" and "to") parameters.');
+      throw new BadRequestException(
+        'Provide either "date" OR ("from" and "to") parameters.',
+      );
     }
 
-    const normalizedRole = String(user?.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const isSuperAdmin = normalizedRole.includes('SUPER_ADMIN') || normalizedRole === 'ADMIN';
+    const normalizedRole = String(user?.role || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    const isSuperAdmin =
+      normalizedRole.includes('SUPER_ADMIN') || normalizedRole === 'ADMIN';
 
     return this.locationService.getLocationHistory(
       isSuperAdmin ? undefined : user?.companyId,
@@ -170,8 +203,14 @@ export class SuperAdminController {
   }
 
   @Get('executive-command-center')
-  async getExecutiveCommandCenter(@Query() query: any, @CurrentUser() user: any) {
-    return this.superAdminService.getExecutiveCommandCenter(query, user.companyId);
+  async getExecutiveCommandCenter(
+    @Query() query: any,
+    @CurrentUser() user: any,
+  ) {
+    return this.superAdminService.getExecutiveCommandCenter(
+      query,
+      user.companyId,
+    );
   }
 
   @Get('analytics/production')
@@ -205,7 +244,10 @@ export class SuperAdminController {
   }
 
   @Get('reports')
-  async getCentralizedReports(@Query() query: CentralizedReportQueryDto, @CurrentUser() user: any) {
+  async getCentralizedReports(
+    @Query() query: CentralizedReportQueryDto,
+    @CurrentUser() user: any,
+  ) {
     return this.superAdminService.getCentralizedReports(query, user.companyId);
   }
 
@@ -215,9 +257,15 @@ export class SuperAdminController {
     @CurrentUser() user: any,
     @Res() res: any,
   ) {
-    const result = await this.superAdminService.exportCentralizedReportsCsv(query, user.companyId);
+    const result = await this.superAdminService.exportCentralizedReportsCsv(
+      query,
+      user.companyId,
+    );
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${result.filename}"`,
+    );
     return res.send(result.content);
   }
 

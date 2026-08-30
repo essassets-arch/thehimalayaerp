@@ -11,4 +11,3 @@ import { PayrollModule } from '../payroll/payroll.module';
   exports: [EmployeesService],
 })
 export class EmployeesModule {}
-

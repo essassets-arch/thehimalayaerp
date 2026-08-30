@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Swal from 'sweetalert2';
@@ -170,7 +170,7 @@ export function CreateSalaryStructureView({
   }, [selectedEmployeeId, existingStructures, structureId]);
 
   // Refetch attendance helper
-  const fetchAttendance = async () => {
+  const fetchAttendance = useCallback(async () => {
     if (!selectedEmployeeId) return;
     setLoadingAttendance(true);
     setAttendanceError(null);
@@ -199,7 +199,7 @@ export function CreateSalaryStructureView({
     } finally {
       setLoadingAttendance(false);
     }
-  };
+  }, [selectedEmployeeId, payrollMonth, mode]);
 
   // AUTOMATIC ATTENDANCE & LEAVE FETCHING ON EMPLOYEE / MONTH SELECTION
   useEffect(() => {
@@ -210,7 +210,7 @@ export function CreateSalaryStructureView({
       return;
     }
     void fetchAttendance();
-  }, [selectedEmployeeId, payrollMonth, mode]);
+  }, [selectedEmployeeId, fetchAttendance]);
 
   // Auto-fill basic salary from employee master if starting fresh
   const handleSelectEmployee = (emp: EmployeeOption) => {

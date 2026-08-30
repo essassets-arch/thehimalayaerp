@@ -10,7 +10,8 @@ export class MachineService {
   private serializeBigInt(obj: any): any {
     if (obj === null || obj === undefined) return obj;
     if (typeof obj === 'bigint') return Number(obj);
-    if (Array.isArray(obj)) return obj.map((item) => this.serializeBigInt(item));
+    if (Array.isArray(obj))
+      return obj.map((item) => this.serializeBigInt(item));
     if (typeof obj === 'object') {
       const res: any = {};
       for (const key of Object.keys(obj)) {

@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsArray, ValidateNested, IsNumber, ValidateIf } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  IsNumber,
+  ValidateIf,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateDispatchDailyReportItemDto {

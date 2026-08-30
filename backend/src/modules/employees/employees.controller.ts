@@ -231,7 +231,10 @@ export class EmployeesController {
 
   @Get('salary-structures/employee/:employeeId')
   @RequirePermissions('hr.payroll.read')
-  getEmployeeSalaryStructure(@Param('employeeId') employeeId: string, @Req() req: any) {
+  getEmployeeSalaryStructure(
+    @Param('employeeId') employeeId: string,
+    @Req() req: any,
+  ) {
     return this.payrollService.getEmployeeSalaryStructure(employeeId, req.user);
   }
 
@@ -243,13 +246,21 @@ export class EmployeesController {
 
   @Put('salary-structures/:id')
   @RequirePermissions('hr.payroll.update')
-  updateSalaryStructure(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  updateSalaryStructure(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
     return this.payrollService.updateSalaryStructure(id, body, req.user);
   }
 
   @Patch('salary-structures/:id')
   @RequirePermissions('hr.payroll.update')
-  patchSalaryStructure(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  patchSalaryStructure(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
     return this.payrollService.updateSalaryStructure(id, body, req.user);
   }
 
@@ -259,4 +270,3 @@ export class EmployeesController {
     return this.payrollService.deleteSalaryStructure(id, req.user);
   }
 }
-

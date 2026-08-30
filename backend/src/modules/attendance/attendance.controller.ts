@@ -1,11 +1,22 @@
-import { Controller, Get, Post, Body, UseGuards, Param, Query, Req, ForbiddenException, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  UseGuards,
+  Param,
+  Query,
+  Req,
+  ForbiddenException,
+  Delete,
+} from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @Controller('attendance')
 @UseGuards(JwtAuthGuard)
 export class AttendanceController {
-  constructor(private readonly attendanceService: AttendanceService) { }
+  constructor(private readonly attendanceService: AttendanceService) {}
 
   @Get('me/today')
   getTodayAttendance(@Req() req: any) {
@@ -27,7 +38,11 @@ export class AttendanceController {
   getMyAttendanceHistory(@Req() req: any, @Query() query: any) {
     const userId = req.user?.sub || req.user?.id || req.user?.userId;
     const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
-    return this.attendanceService.getMyAttendanceHistory(userId, companyId, query);
+    return this.attendanceService.getMyAttendanceHistory(
+      userId,
+      companyId,
+      query,
+    );
   }
 
   @Post('punch-in')
@@ -53,11 +68,26 @@ export class AttendanceController {
   @Get()
   listCompanyAttendance(@Req() req: any, @Query() query: any) {
     const rawRole = req.user?.role;
-    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
+    const roleCode =
+      typeof rawRole === 'string'
+        ? rawRole
+        : rawRole?.code || rawRole?.name || '';
     const upperRole = roleCode.toUpperCase();
-    const allowedRoles = ['HR', 'SUPER_ADMIN', 'ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PLANT_HEAD', 'PLANT_HEAD_MANAGER'];
-    if (!allowedRoles.some(r => upperRole.includes(r))) {
-      return this.attendanceService.getMyAttendanceHistory(req.user?.sub, '88c57ebc-b3b7-49e3-8d5d-6321a0e89015', query);
+    const allowedRoles = [
+      'HR',
+      'SUPER_ADMIN',
+      'ADMIN',
+      'FINANCE',
+      'FINANCE_MANAGER',
+      'PLANT_HEAD',
+      'PLANT_HEAD_MANAGER',
+    ];
+    if (!allowedRoles.some((r) => upperRole.includes(r))) {
+      return this.attendanceService.getMyAttendanceHistory(
+        req.user?.sub,
+        '88c57ebc-b3b7-49e3-8d5d-6321a0e89015',
+        query,
+      );
     }
     const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
     return this.attendanceService.listCompanyAttendance(companyId, query);
@@ -76,13 +106,29 @@ export class AttendanceController {
 
   // HR Employee Attendance breakdown endpoint
   @Get('employees/:employeeId')
-  getEmployeeMonthlyAttendance(@Req() req: any, @Param('employeeId') employeeId: string, @Query('month') monthStr?: string) {
+  getEmployeeMonthlyAttendance(
+    @Req() req: any,
+    @Param('employeeId') employeeId: string,
+    @Query('month') monthStr?: string,
+  ) {
     const role = req.user.role;
-    if (role !== 'HR' && role !== 'SUPER_ADMIN' && role !== 'ADMIN' && role !== 'Super Admin' && role !== 'Admin') {
-      throw new ForbiddenException('Not authorized to access employee attendance details');
+    if (
+      role !== 'HR' &&
+      role !== 'SUPER_ADMIN' &&
+      role !== 'ADMIN' &&
+      role !== 'Super Admin' &&
+      role !== 'Admin'
+    ) {
+      throw new ForbiddenException(
+        'Not authorized to access employee attendance details',
+      );
     }
     const companyId = '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
-    return this.attendanceService.getEmployeeMonthlyAttendance(employeeId, companyId, monthStr);
+    return this.attendanceService.getEmployeeMonthlyAttendance(
+      employeeId,
+      companyId,
+      monthStr,
+    );
   }
 
   @Delete('clear-all')

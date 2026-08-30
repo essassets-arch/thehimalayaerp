@@ -117,7 +117,10 @@ export class ProductionWorkflowService {
       });
       return Array.isArray(records) ? records : [];
     } catch (err) {
-      console.error(`[ProductionWorkflow] getJobsByStatus failed for ${statuses}:`, err);
+      console.error(
+        `[ProductionWorkflow] getJobsByStatus failed for ${statuses}:`,
+        err,
+      );
       return [];
     }
   }
@@ -440,7 +443,8 @@ export class ProductionWorkflowService {
       const refId = pendingInspection?.id || workOrderId;
       const refType = pendingInspection ? 'QCInspection' : 'WorkOrder';
 
-      const companyId = workOrder.productionPlan?.salesOrder?.customer?.companyId;
+      const companyId =
+        workOrder.productionPlan?.salesOrder?.customer?.companyId;
       if (companyId && workOrder.salesOrderItem?.productId) {
         let warehouse = await tx.warehouse.findFirst({
           where: { companyId, name: 'Finished Goods' },
@@ -588,7 +592,8 @@ export class ProductionWorkflowService {
   async getFinishedGoods(companyId?: string, userId?: string, role?: string) {
     // Reconcile any unposted submitted production reports first
     try {
-      const activeCompanyId = companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+      const activeCompanyId =
+        companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
       const unpostedProd = await this.prisma.productionDailyReport.findMany({
         where: {
           status: 'SUBMITTED',
@@ -600,13 +605,19 @@ export class ProductionWorkflowService {
       });
 
       if (unpostedProd.length > 0) {
-        console.log(`[RECONCILE] Found ${unpostedProd.length} unposted submitted production reports. Reconciling...`);
+        console.log(
+          `[RECONCILE] Found ${unpostedProd.length} unposted submitted production reports. Reconciling...`,
+        );
         for (const report of unpostedProd) {
           await this.prisma.$transaction(async (tx) => {
             const productSetsMap = new Map<string, number>();
             for (const item of report.items) {
               if (item.productId && item.setQty > 0) {
-                productSetsMap.set(item.productId, (productSetsMap.get(item.productId) || 0) + Number(item.setQty || 0));
+                productSetsMap.set(
+                  item.productId,
+                  (productSetsMap.get(item.productId) || 0) +
+                    Number(item.setQty || 0),
+                );
               }
             }
 
@@ -621,7 +632,7 @@ export class ProductionWorkflowService {
                 null,
                 report.reportNo,
                 userId || report.createdById || 'system',
-                `Reconciled auto-post for report ${report.reportNo}`
+                `Reconciled auto-post for report ${report.reportNo}`,
               );
             }
             await tx.productionDailyReport.update({
@@ -634,7 +645,9 @@ export class ProductionWorkflowService {
             });
           });
         }
-        console.log('[RECONCILE] Reconciled production stock completed successfully.');
+        console.log(
+          '[RECONCILE] Reconciled production stock completed successfully.',
+        );
       }
 
       // Reconcile any unposted submitted dispatch reports
@@ -649,14 +662,20 @@ export class ProductionWorkflowService {
       });
 
       if (unpostedDispatch.length > 0) {
-        console.log(`[RECONCILE] Found ${unpostedDispatch.length} unposted submitted dispatch reports. Reconciling...`);
+        console.log(
+          `[RECONCILE] Found ${unpostedDispatch.length} unposted submitted dispatch reports. Reconciling...`,
+        );
         for (const report of unpostedDispatch) {
           try {
             await this.prisma.$transaction(async (tx) => {
               const productSetsMap = new Map<string, number>();
               for (const item of report.items) {
                 if (item.productId && item.setQty > 0) {
-                  productSetsMap.set(item.productId, (productSetsMap.get(item.productId) || 0) + Number(item.setQty || 0));
+                  productSetsMap.set(
+                    item.productId,
+                    (productSetsMap.get(item.productId) || 0) +
+                      Number(item.setQty || 0),
+                  );
                 }
               }
 
@@ -671,7 +690,7 @@ export class ProductionWorkflowService {
                   null,
                   report.reportNo,
                   userId || report.createdById || 'system',
-                  `Reconciled auto-deduct for dispatch report ${report.reportNo}`
+                  `Reconciled auto-deduct for dispatch report ${report.reportNo}`,
                 );
               }
 
@@ -685,18 +704,31 @@ export class ProductionWorkflowService {
               });
             });
           } catch (itemErr) {
-            console.error(`[RECONCILE] Could not auto-post dispatch report ${report.reportNo}:`, itemErr);
+            console.error(
+              `[RECONCILE] Could not auto-post dispatch report ${report.reportNo}:`,
+              itemErr,
+            );
           }
         }
-        console.log('[RECONCILE] Reconciled dispatch stock completed successfully.');
+        console.log(
+          '[RECONCILE] Reconciled dispatch stock completed successfully.',
+        );
       }
     } catch (reconcileErr) {
-      console.error('[RECONCILE] Failed to reconcile unposted reports:', reconcileErr);
+      console.error(
+        '[RECONCILE] Failed to reconcile unposted reports:',
+        reconcileErr,
+      );
     }
 
     let userCategory: string | null = null;
-    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
-      const u: any = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (
+      userId &&
+      (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')
+    ) {
+      const u: any = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
       if (u?.dispatchCategory) {
         userCategory = u.dispatchCategory;
       }
@@ -748,7 +780,9 @@ export class ProductionWorkflowService {
       orderBy: { receivedAt: 'desc' },
     });
 
-    const existingWoIds = new Set(records.map((r: any) => r.workOrderId).filter(Boolean));
+    const existingWoIds = new Set(
+      records.map((r: any) => r.workOrderId).filter(Boolean),
+    );
 
     const qcApprovedWorkOrders = await this.prisma.workOrder.findMany({
       where: woWhere,
@@ -768,7 +802,8 @@ export class ProductionWorkflowService {
         const customer = so?.customer;
         const item = wo.salesOrderItem;
         const product = item?.product;
-        const qcApprovedQty = wo.qcInspections?.[0]?.approvedQuantity || wo.quantity || 1;
+        const qcApprovedQty =
+          wo.qcInspections?.[0]?.approvedQuantity || wo.quantity || 1;
 
         return {
           id: `fg-wo-${wo.id}`,
@@ -780,17 +815,33 @@ export class ProductionWorkflowService {
           allocatedQuantity: 0,
           dispatchedQuantity: 0,
           unit: item?.unit || 'Pcs',
-          status: wo.status === 'READY_FOR_DISPATCH' || wo.status === 'DISPATCHED' || wo.sentToDispatchAt ? 'READY_FOR_DISPATCH' : 'AVAILABLE',
+          status:
+            wo.status === 'READY_FOR_DISPATCH' ||
+            wo.status === 'DISPATCHED' ||
+            wo.sentToDispatchAt
+              ? 'READY_FOR_DISPATCH'
+              : 'AVAILABLE',
           location: 'Factory Staging Area',
-          receivedAt: wo.completedAt ? new Date(wo.completedAt).toISOString() : new Date().toISOString(),
+          receivedAt: wo.completedAt
+            ? new Date(wo.completedAt).toISOString()
+            : new Date().toISOString(),
           receivedById: null,
           workOrder: wo,
           product,
           jobNo: wo.workOrderNumber,
           productionPlanId: wo.productionPlanId,
-          customerName: customer?.companyName || customer?.contactPerson || customer?.name || 'Internal',
-          productName: product?.name || item?.productNameSnapshot || 'Finished Good',
-          productCode: product?.sku || product?.publicId || item?.productCodeSnapshot || '-',
+          customerName:
+            customer?.companyName ||
+            customer?.contactPerson ||
+            customer?.name ||
+            'Internal',
+          productName:
+            product?.name || item?.productNameSnapshot || 'Finished Good',
+          productCode:
+            product?.sku ||
+            product?.publicId ||
+            item?.productCodeSnapshot ||
+            '-',
         };
       });
 
@@ -804,11 +855,24 @@ export class ProductionWorkflowService {
         ...entry,
         jobNo: wo?.workOrderNumber || entry.jobNo || entry.workOrderId,
         productionPlanId: wo?.productionPlanId,
-        customerName: customer?.companyName || customer?.contactPerson || customer?.name || 'Internal',
-        productName: product?.name || wo?.salesOrderItem?.productNameSnapshot || 'Finished Good',
-        productCode: product?.sku || product?.publicId || wo?.salesOrderItem?.productCodeSnapshot || '-',
+        customerName:
+          customer?.companyName ||
+          customer?.contactPerson ||
+          customer?.name ||
+          'Internal',
+        productName:
+          product?.name ||
+          wo?.salesOrderItem?.productNameSnapshot ||
+          'Finished Good',
+        productCode:
+          product?.sku ||
+          product?.publicId ||
+          wo?.salesOrderItem?.productCodeSnapshot ||
+          '-',
         quantity: Number(entry.quantity ?? 0),
-        availableQuantity: Number(entry.availableQuantity ?? entry.quantity ?? 0),
+        availableQuantity: Number(
+          entry.availableQuantity ?? entry.quantity ?? 0,
+        ),
       };
     });
 
@@ -816,7 +880,7 @@ export class ProductionWorkflowService {
       [
         ...records.map((r: any) => r.salesOrderId),
         ...qcApprovedWorkOrders.map((w: any) => w.productionPlan?.salesOrderId),
-      ].filter(Boolean)
+      ].filter(Boolean),
     );
 
     const readySalesOrders = await this.prisma.salesOrder.findMany({
@@ -831,9 +895,9 @@ export class ProductionWorkflowService {
     });
 
     const soSyntheticRecords: any[] = [];
-    for (const so of (readySalesOrders as any[])) {
+    for (const so of readySalesOrders as any[]) {
       if (existingSoIds.has(so.id)) continue;
-      for (const item of (so.items || [])) {
+      for (const item of so.items || []) {
         soSyntheticRecords.push({
           id: `fg-so-${so.id}-${item.id}`,
           workOrderId: so.orderNumber,
@@ -847,7 +911,9 @@ export class ProductionWorkflowService {
           unit: item.unit || 'Pcs',
           status: 'READY_FOR_DISPATCH',
           location: 'Factory Staging Area',
-          receivedAt: so.confirmedAt ? new Date(so.confirmedAt).toISOString() : new Date(so.createdAt).toISOString(),
+          receivedAt: so.confirmedAt
+            ? new Date(so.confirmedAt).toISOString()
+            : new Date(so.createdAt).toISOString(),
           receivedById: null,
           workOrder: {
             id: so.id,
@@ -855,40 +921,115 @@ export class ProductionWorkflowService {
             productionStatus: 'READY_FOR_DISPATCH',
             duration: null,
             startedAt: null,
-            completedAt: so.confirmedAt ? new Date(so.confirmedAt).toISOString() : new Date(so.createdAt).toISOString(),
+            completedAt: so.confirmedAt
+              ? new Date(so.confirmedAt).toISOString()
+              : new Date(so.createdAt).toISOString(),
             status: 'READY_FOR_DISPATCH',
             productionPlan: { salesOrder: so },
           },
           salesOrder: so,
           product: item.product,
           jobNo: so.orderNumber,
-          customerName: so.customer?.companyName || so.customer?.contactPerson || so.customer?.name || 'Customer',
-          productName: item.product?.name || item.productNameSnapshot || 'Finished Product',
-          productCode: item.product?.sku || item.product?.publicId || item.productCodeSnapshot || '-',
+          customerName:
+            so.customer?.companyName ||
+            so.customer?.contactPerson ||
+            so.customer?.name ||
+            'Customer',
+          productName:
+            item.product?.name ||
+            item.productNameSnapshot ||
+            'Finished Product',
+          productCode:
+            item.product?.sku ||
+            item.product?.publicId ||
+            item.productCodeSnapshot ||
+            '-',
         });
       }
     }
 
     const isCatalogProduct = (item: any) => {
-      const origType = String(item?.productType || item?.product_type || item?.product?.productType || item?.product?.product_type || '').toUpperCase();
-      const family = String(item?.category || item?.product_family || item?.product?.category || item?.product?.product_family || '').toLowerCase();
-      const code = String(item?.sku || item?.productCode || item?.product_code || item?.publicId || item?.product?.sku || item?.product?.publicId || '').toUpperCase();
-      const name = String(item?.name || item?.productName || item?.product_name || item?.product?.name || item?.product?.product_name || '').toLowerCase();
+      const origType = String(
+        item?.productType ||
+          item?.product_type ||
+          item?.product?.productType ||
+          item?.product?.product_type ||
+          '',
+      ).toUpperCase();
+      const family = String(
+        item?.category ||
+          item?.product_family ||
+          item?.product?.category ||
+          item?.product?.product_family ||
+          '',
+      ).toLowerCase();
+      const code = String(
+        item?.sku ||
+          item?.productCode ||
+          item?.product_code ||
+          item?.publicId ||
+          item?.product?.sku ||
+          item?.product?.publicId ||
+          '',
+      ).toUpperCase();
+      const name = String(
+        item?.name ||
+          item?.productName ||
+          item?.product_name ||
+          item?.product?.name ||
+          item?.product?.product_name ||
+          '',
+      ).toLowerCase();
 
       if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') {
         return false;
       }
-      if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(family)) {
+      if (
+        [
+          'raw material',
+          'hardware',
+          'electric',
+          'consumables',
+          'consumable',
+        ].includes(family)
+      ) {
         return false;
       }
-      if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
+      if (
+        code.startsWith('HCPPL') ||
+        code.startsWith('RM-') ||
+        code.startsWith('HM')
+      ) {
         return false;
       }
       const rawKeywords = [
-        'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
-        'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
-        'clamp', 'hammer', 'bucket', 'ghamela', 'carbon', 'pva', 'wax', 'polish', 
-        'resin', 'cobalt', 'catalyst', 'fly ash', 'admixture'
+        'cement',
+        'sand',
+        'aggregate',
+        'gravel',
+        'stone',
+        'pigment',
+        'powder',
+        'water paper',
+        'brush',
+        'welcor',
+        'haksaw',
+        'drill',
+        'thappi',
+        'chisel',
+        'clamp',
+        'hammer',
+        'bucket',
+        'ghamela',
+        'carbon',
+        'pva',
+        'wax',
+        'polish',
+        'resin',
+        'cobalt',
+        'catalyst',
+        'fly ash',
+        'admixture',
       ];
       if (rawKeywords.some((keyword) => name.includes(keyword))) {
         return false;
@@ -942,7 +1083,9 @@ export class ProductionWorkflowService {
           unit: prod.unit || 'PCS',
           status: 'AVAILABLE',
           location: 'Factory Staging Area',
-          receivedAt: prod.createdAt ? new Date(prod.createdAt).toISOString() : new Date().toISOString(),
+          receivedAt: prod.createdAt
+            ? new Date(prod.createdAt).toISOString()
+            : new Date().toISOString(),
           receivedById: null,
           workOrder: null,
           product: prod,
@@ -955,7 +1098,12 @@ export class ProductionWorkflowService {
       }
     }
 
-    const rawList = [...mappedExisting, ...syntheticRecords, ...soSyntheticRecords, ...catalogSyntheticRecords].filter(isCatalogProduct);
+    const rawList = [
+      ...mappedExisting,
+      ...syntheticRecords,
+      ...soSyntheticRecords,
+      ...catalogSyntheticRecords,
+    ].filter(isCatalogProduct);
 
     const stockHistorySums = await this.prisma.stockHistory.groupBy({
       by: ['productId', 'event'],
@@ -987,26 +1135,52 @@ export class ProductionWorkflowService {
       const qty = Number(g._sum.quantity || 0);
       if (g.event === 'PRODUCTION_IN' || g.event === 'PRODUCTION_REVERSAL') {
         prodInMap.set(pId, (prodInMap.get(pId) || 0) + qty);
-      } else if (g.event === 'DISPATCH_OUT' || g.event === 'DISPATCH_REVERSAL') {
+      } else if (
+        g.event === 'DISPATCH_OUT' ||
+        g.event === 'DISPATCH_REVERSAL'
+      ) {
         dispatchMap.set(pId, (dispatchMap.get(pId) || 0) + qty);
-      } else if (g.event === 'EXTRA_COVER_IN' || g.event === 'EXTRA_COVER_REVERSAL') {
+      } else if (
+        g.event === 'EXTRA_COVER_IN' ||
+        g.event === 'EXTRA_COVER_REVERSAL'
+      ) {
         extraCoverMap.set(pId, (extraCoverMap.get(pId) || 0) + qty);
-      } else if (g.event === 'EXTRA_FRAME_IN' || g.event === 'EXTRA_FRAME_REVERSAL') {
+      } else if (
+        g.event === 'EXTRA_FRAME_IN' ||
+        g.event === 'EXTRA_FRAME_REVERSAL'
+      ) {
         extraFrameMap.set(pId, (extraFrameMap.get(pId) || 0) + qty);
       }
     }
 
     const enrichedList = rawList.map((item: any) => {
       const pId = item.productId || item.product?.id;
-      const pCode = item.productCode || item.product?.sku || item.product?.publicId;
-      const prodInVal = (pId ? prodInMap.get(pId) : 0) || (pCode ? prodInMap.get(pCode) : 0) || 0;
-      const dispatchVal = (pId ? dispatchMap.get(pId) : 0) || (pCode ? dispatchMap.get(pCode) : 0) || 0;
-      const rawExtraCover = (pId ? extraCoverMap.get(pId) : 0) || (pCode ? extraCoverMap.get(pCode) : 0) || 0;
-      const rawExtraFrame = (pId ? extraFrameMap.get(pId) : 0) || (pCode ? extraFrameMap.get(pCode) : 0) || 0;
+      const pCode =
+        item.productCode || item.product?.sku || item.product?.publicId;
+      const prodInVal =
+        (pId ? prodInMap.get(pId) : 0) ||
+        (pCode ? prodInMap.get(pCode) : 0) ||
+        0;
+      const dispatchVal =
+        (pId ? dispatchMap.get(pId) : 0) ||
+        (pCode ? dispatchMap.get(pCode) : 0) ||
+        0;
+      const rawExtraCover =
+        (pId ? extraCoverMap.get(pId) : 0) ||
+        (pCode ? extraCoverMap.get(pCode) : 0) ||
+        0;
+      const rawExtraFrame =
+        (pId ? extraFrameMap.get(pId) : 0) ||
+        (pCode ? extraFrameMap.get(pCode) : 0) ||
+        0;
 
       const netStock = Math.max(0, prodInVal - Math.abs(dispatchVal));
-      const finalQuantity = Number(item.quantity) > 0 ? Number(item.quantity) : netStock;
-      const finalAvailable = Number(item.availableQuantity) > 0 ? Number(item.availableQuantity) : netStock;
+      const finalQuantity =
+        Number(item.quantity) > 0 ? Number(item.quantity) : netStock;
+      const finalAvailable =
+        Number(item.availableQuantity) > 0
+          ? Number(item.availableQuantity)
+          : netStock;
 
       return {
         ...item,
@@ -1016,7 +1190,10 @@ export class ProductionWorkflowService {
         extraCover: Math.max(0, rawExtraCover),
         extraFrame: Math.max(0, rawExtraFrame),
         dispatchOut: Math.abs(dispatchVal),
-        openingStock: Math.max(0, finalQuantity - prodInVal + Math.abs(dispatchVal)),
+        openingStock: Math.max(
+          0,
+          finalQuantity - prodInVal + Math.abs(dispatchVal),
+        ),
       };
     });
 
@@ -1035,12 +1212,16 @@ export class ProductionWorkflowService {
     let product: any = null;
 
     if (productId) {
-      product = await this.prisma.product.findUnique({ where: { id: productId } });
+      product = await this.prisma.product.findUnique({
+        where: { id: productId },
+      });
     }
 
     if (!product && dto.productName) {
       product = await this.prisma.product.findFirst({
-        where: { name: { contains: dto.productName.trim(), mode: 'insensitive' } },
+        where: {
+          name: { contains: dto.productName.trim(), mode: 'insensitive' },
+        },
       });
     }
 
@@ -1068,15 +1249,15 @@ export class ProductionWorkflowService {
 
     let realWorkOrderId = dto.workOrderId;
     let existingWo: any = null;
-    const jobNoStr = dto.jobNo || dto.workOrderId || `WO-FG-${Date.now().toString().slice(-6)}`;
+    const jobNoStr =
+      dto.jobNo ||
+      dto.workOrderId ||
+      `WO-FG-${Date.now().toString().slice(-6)}`;
 
     if (realWorkOrderId) {
       existingWo = await this.prisma.workOrder.findFirst({
         where: {
-          OR: [
-            { id: realWorkOrderId },
-            { workOrderNumber: jobNoStr },
-          ],
+          OR: [{ id: realWorkOrderId }, { workOrderNumber: jobNoStr }],
         },
       });
     }
@@ -1130,7 +1311,10 @@ export class ProductionWorkflowService {
     realWorkOrderId = existingWo.id;
 
     const availQty = Number(dto.availableQuantity ?? qty);
-    const receivedAtDate = dto.date || dto.receivedAt ? new Date(dto.date || dto.receivedAt) : new Date();
+    const receivedAtDate =
+      dto.date || dto.receivedAt
+        ? new Date(dto.date || dto.receivedAt)
+        : new Date();
 
     const fg = await this.prisma.finishedGoods.upsert({
       where: { workOrderId: realWorkOrderId },
@@ -1187,14 +1371,19 @@ export class ProductionWorkflowService {
 
     let product: any = null;
     if (dto.productId) {
-      product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+      product = await this.prisma.product.findUnique({
+        where: { id: dto.productId },
+      });
       if (!product) {
         const fg = await this.prisma.finishedGoods.findUnique({
           where: { id: dto.productId },
           include: { product: true },
         });
         if (fg?.product) product = fg.product;
-        else if (fg?.productId) product = await this.prisma.product.findUnique({ where: { id: fg.productId } });
+        else if (fg?.productId)
+          product = await this.prisma.product.findUnique({
+            where: { id: fg.productId },
+          });
       }
     }
     if (!product && (dto.productCode || dto.productName)) {
@@ -1239,7 +1428,7 @@ export class ProductionWorkflowService {
         null,
         dto.reference || 'MANUAL_STOCK_IN',
         userId || 'system',
-        'Manual stock in from UI'
+        'Manual stock in from UI',
       );
       return fg;
     });
@@ -1253,14 +1442,19 @@ export class ProductionWorkflowService {
 
     let product: any = null;
     if (dto.productId) {
-      product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+      product = await this.prisma.product.findUnique({
+        where: { id: dto.productId },
+      });
       if (!product) {
         const fg = await this.prisma.finishedGoods.findUnique({
           where: { id: dto.productId },
           include: { product: true },
         });
         if (fg?.product) product = fg.product;
-        else if (fg?.productId) product = await this.prisma.product.findUnique({ where: { id: fg.productId } });
+        else if (fg?.productId)
+          product = await this.prisma.product.findUnique({
+            where: { id: fg.productId },
+          });
       }
     }
     if (!product && (dto.productCode || dto.productName)) {
@@ -1305,17 +1499,22 @@ export class ProductionWorkflowService {
         null,
         dto.reason || 'MANUAL_STOCK_OUT',
         userId || 'system',
-        'Manual stock out from UI'
+        'Manual stock out from UI',
       );
 
-      return { success: true, message: `Successfully issued -${qty} ${product.unit || 'PCS'}` };
+      return {
+        success: true,
+        message: `Successfully issued -${qty} ${product.unit || 'PCS'}`,
+      };
     });
   }
 
   async adjustFinishedGoods(dto: any, userId?: string) {
     const newStock = Number(dto.newPhysicalStock);
     if (isNaN(newStock) || newStock < 0) {
-      throw new BadRequestException('Physical stock must be a non-negative number');
+      throw new BadRequestException(
+        'Physical stock must be a non-negative number',
+      );
     }
     if (!dto.reason || !dto.reason.trim()) {
       throw new BadRequestException('Reason is required for stock adjustment');
@@ -1323,14 +1522,19 @@ export class ProductionWorkflowService {
 
     let product: any = null;
     if (dto.productId) {
-      product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+      product = await this.prisma.product.findUnique({
+        where: { id: dto.productId },
+      });
       if (!product) {
         const fg = await this.prisma.finishedGoods.findUnique({
           where: { id: dto.productId },
           include: { product: true },
         });
         if (fg?.product) product = fg.product;
-        else if (fg?.productId) product = await this.prisma.product.findUnique({ where: { id: fg.productId } });
+        else if (fg?.productId)
+          product = await this.prisma.product.findUnique({
+            where: { id: fg.productId },
+          });
       }
     }
     if (!product && (dto.productCode || dto.productName)) {
@@ -1371,10 +1575,13 @@ export class ProductionWorkflowService {
         product.id,
         newStock,
         dto.reason,
-        userId || 'system'
+        userId || 'system',
       );
 
-      return { success: true, message: `Adjusted physical stock to ${newStock} ${product.unit || 'PCS'}` };
+      return {
+        success: true,
+        message: `Adjusted physical stock to ${newStock} ${product.unit || 'PCS'}`,
+      };
     });
   }
 

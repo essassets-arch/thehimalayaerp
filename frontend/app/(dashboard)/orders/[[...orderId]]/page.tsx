@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -161,7 +161,7 @@ export default function OrderDetailPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedPodImage, setSelectedPodImage] = useState<string | null>(null);
 
-  const fetchOrderDetails = async () => {
+  const fetchOrderDetails = useCallback(async () => {
     if (!decodedOrderId) {
       setIsLoading(false);
       return;
@@ -256,11 +256,11 @@ export default function OrderDetailPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [decodedOrderId]);
 
   useEffect(() => {
     fetchOrderDetails();
-  }, [decodedOrderId]);
+  }, [fetchOrderDetails]);
 
   if (isLoading) {
     return (

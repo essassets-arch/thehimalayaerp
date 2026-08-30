@@ -76,13 +76,19 @@ export class UsersService {
         include: {
           role: true,
           employee: {
-            include: { department: true }
-          }
+            include: { department: true },
+          },
         },
       }),
       this.prisma.employee.findMany({
-        select: { id: true, employeeCode: true, workEmail: true, userId: true, department: { select: { name: true } } }
-      })
+        select: {
+          id: true,
+          employeeCode: true,
+          workEmail: true,
+          userId: true,
+          department: { select: { name: true } },
+        },
+      }),
     ]);
 
     const empByUserId = new Map();
@@ -92,8 +98,11 @@ export class UsersService {
       if (emp.workEmail) empByEmail.set(emp.workEmail.toLowerCase(), emp);
     }
 
-    const mapped = users.map(u => {
-      const linkedEmp = u.employee || empByUserId.get(u.id) || empByEmail.get(u.email.toLowerCase());
+    const mapped = users.map((u) => {
+      const linkedEmp =
+        u.employee ||
+        empByUserId.get(u.id) ||
+        empByEmail.get(u.email.toLowerCase());
       const empCode = linkedEmp?.employeeCode || u.publicId;
       const normalizedEmail = (u.email || '').toLowerCase().trim();
       return {
@@ -107,12 +116,16 @@ export class UsersService {
         role: u.role?.name || 'Staff',
         roleCode: u.role?.code || 'STAFF',
         roleId: u.roleId,
-        department: linkedEmp?.department?.name || u.employee?.department?.name || u.role?.name || 'Super Admin',
+        department:
+          linkedEmp?.department?.name ||
+          u.employee?.department?.name ||
+          u.role?.name ||
+          'Super Admin',
         dispatchCategory: u.dispatchCategory,
         isActive: u.isActive,
         status: u.isActive ? 'Active' : 'Inactive',
         createdAt: u.createdAt,
-        updatedAt: u.updatedAt
+        updatedAt: u.updatedAt,
       };
     });
 
@@ -137,19 +150,24 @@ export class UsersService {
       include: { role: true },
     });
 
-    const roleInput = data.roleCode || data.role_name || data.role || data.role_id || data.roleId || 'Sales';
+    const roleInput =
+      data.roleCode ||
+      data.role_name ||
+      data.role ||
+      data.role_id ||
+      data.roleId ||
+      'Sales';
     let role = await this.prisma.role.findFirst({
       where: {
-        OR: [
-          { code: roleInput },
-          { name: roleInput },
-          { id: roleInput },
-        ],
+        OR: [{ code: roleInput }, { name: roleInput }, { id: roleInput }],
       },
     });
 
     if (!role) {
-      role = (await this.prisma.role.findFirst({ where: { name: { contains: 'Sales' } } })) || (await this.prisma.role.findFirst());
+      role =
+        (await this.prisma.role.findFirst({
+          where: { name: { contains: 'Sales' } },
+        })) || (await this.prisma.role.findFirst());
     }
 
     if (!role) {
@@ -159,9 +177,13 @@ export class UsersService {
     const targetEmployeeId = data.employeeId || data.employee_id;
     let employeeToLink: any = null;
     if (targetEmployeeId) {
-      employeeToLink = await this.prisma.employee.findUnique({ where: { id: targetEmployeeId } });
+      employeeToLink = await this.prisma.employee.findUnique({
+        where: { id: targetEmployeeId },
+      });
     } else {
-      employeeToLink = await this.prisma.employee.findFirst({ where: { workEmail: email } });
+      employeeToLink = await this.prisma.employee.findFirst({
+        where: { workEmail: email },
+      });
     }
 
     if (existing) {
@@ -192,32 +214,37 @@ export class UsersService {
         });
       }
 
-      const result = { 
-        ...updatedUser, 
+      const result = {
+        ...updatedUser,
         employeeId: employeeToLink?.id || null,
         employeeCode: employeeToLink?.employeeCode || updatedUser.publicId,
-        password: data.password || KNOWN_USER_PASSWORDS[email.toLowerCase()] || 'Himalaya@2026'
+        password:
+          data.password ||
+          KNOWN_USER_PASSWORDS[email.toLowerCase()] ||
+          'Himalaya@2026',
       };
       return result;
     }
 
     let companyId = data.companyId || data.company_id;
-    let company = typeof companyId === 'string' && companyId.length > 5
-      ? await this.prisma.company.findUnique({ where: { id: companyId } })
-      : null;
+    let company =
+      typeof companyId === 'string' && companyId.length > 5
+        ? await this.prisma.company.findUnique({ where: { id: companyId } })
+        : null;
 
     if (!company) {
       company = await this.prisma.company.findFirst();
     }
 
     if (!company) {
-      throw new BadRequestException(
-        'No company found in database to assign.',
-      );
+      throw new BadRequestException('No company found in database to assign.');
     }
     companyId = company.id;
 
-    const name = data.name || `${data.first_name || ''} ${data.last_name || ''}`.trim() || email.split('@')[0];
+    const name =
+      data.name ||
+      `${data.first_name || ''} ${data.last_name || ''}`.trim() ||
+      email.split('@')[0];
     const passwordToHash = data.password || 'admin123';
     const hashAsync = hash as unknown as (
       data: string,
@@ -233,8 +260,14 @@ export class UsersService {
         name,
         roleId: role.id,
         companyId,
-        dispatchCategory: data.dispatchCategory || data.dispatch_category || null,
-        isActive: data.isActive !== undefined ? Boolean(data.isActive) : (data.status ? (data.status === 'Active' || data.status === 'ACTIVE') : true),
+        dispatchCategory:
+          data.dispatchCategory || data.dispatch_category || null,
+        isActive:
+          data.isActive !== undefined
+            ? Boolean(data.isActive)
+            : data.status
+              ? data.status === 'Active' || data.status === 'ACTIVE'
+              : true,
       },
       include: {
         role: true,
@@ -253,7 +286,7 @@ export class UsersService {
       ...user,
       employeeId: employeeToLink?.id || null,
       employeeCode: employeeToLink?.employeeCode || user.publicId,
-      password: data.password || 'admin123'
+      password: data.password || 'admin123',
     };
   }
 
@@ -265,16 +298,17 @@ export class UsersService {
 
   async update(id: string, data: any) {
     let roleId: string | undefined;
-    const roleInput = data.roleCode || data.role_name || data.role || data.role_id || data.roleId;
+    const roleInput =
+      data.roleCode ||
+      data.role_name ||
+      data.role ||
+      data.role_id ||
+      data.roleId;
     if (roleInput) {
       const role = await this.prisma.role.findFirst({
         where: {
-          OR: [
-            { code: roleInput },
-            { name: roleInput },
-            { id: roleInput }
-          ]
-        }
+          OR: [{ code: roleInput }, { name: roleInput }, { id: roleInput }],
+        },
       });
       if (role) {
         roleId = role.id;
@@ -292,7 +326,8 @@ export class UsersService {
 
     const updateData: any = {};
     if (data.name || data.first_name || data.last_name) {
-      updateData.name = data.name || `${data.first_name || ''} ${data.last_name || ''}`.trim();
+      updateData.name =
+        data.name || `${data.first_name || ''} ${data.last_name || ''}`.trim();
     }
     if (data.email) {
       updateData.email = data.email;
@@ -303,13 +338,18 @@ export class UsersService {
     if (hashedPassword) {
       updateData.password = hashedPassword;
     }
-    if (data.dispatchCategory !== undefined || data.dispatch_category !== undefined) {
-      updateData.dispatchCategory = data.dispatchCategory || data.dispatch_category || null;
+    if (
+      data.dispatchCategory !== undefined ||
+      data.dispatch_category !== undefined
+    ) {
+      updateData.dispatchCategory =
+        data.dispatchCategory || data.dispatch_category || null;
     }
     if (data.isActive !== undefined) {
       updateData.isActive = Boolean(data.isActive);
     } else if (data.status !== undefined) {
-      updateData.isActive = data.status === 'Active' || data.status === 'ACTIVE';
+      updateData.isActive =
+        data.status === 'Active' || data.status === 'ACTIVE';
     }
 
     const updatedUser = await this.prisma.user.update({
@@ -333,7 +373,7 @@ export class UsersService {
     const hashedPassword = await hashAsync(newPassword, 12);
     await this.prisma.user.update({
       where: { id },
-      data: { password: hashedPassword }
+      data: { password: hashedPassword },
     });
     return { success: true };
   }
@@ -341,7 +381,7 @@ export class UsersService {
   async toggleStatus(id: string, isActive: boolean) {
     await this.prisma.user.update({
       where: { id },
-      data: { isActive }
+      data: { isActive },
     });
     return { success: true };
   }
@@ -349,7 +389,7 @@ export class UsersService {
   async delete(id: string) {
     await this.prisma.user.update({
       where: { id },
-      data: { deletedAt: new Date(), isActive: false }
+      data: { deletedAt: new Date(), isActive: false },
     });
     return { success: true };
   }
@@ -360,7 +400,10 @@ export class UsersService {
    * - Links missing permissions to the role unless explicitly removed by an admin.
    * - Safe for existing users and newly created users.
    */
-  async ensureDefaultPermissions(roleId: string, roleCode: string): Promise<string[]> {
+  async ensureDefaultPermissions(
+    roleId: string,
+    roleCode: string,
+  ): Promise<string[]> {
     if (!roleId || !roleCode) return [];
 
     const norm = roleCode.toUpperCase().replace(/[\s-]+/g, '_');
@@ -372,157 +415,201 @@ export class UsersService {
       { code: 'profile.read', name: 'View Profile' },
     ];
 
-    const roleSpecificPerms: Record<string, { code: string; name: string }[]> = {
-      SUPER_ADMIN: [
-        { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
-        { code: 'USER_LOCATION_HISTORY_VIEW', name: 'User Location History View' },
-        { code: 'admin.dashboard.read', name: 'View Admin Dashboard' },
-        { code: 'admin.users.manage', name: 'Manage Users' },
-        { code: 'admin.roles.manage', name: 'Manage Roles & Permissions' },
-        { code: 'admin.audit.read', name: 'View System Audit Logs' },
-        { code: 'admin.planthead.read', name: 'View Plant Head Workspace' },
-        { code: 'backoffice.report.review', name: 'Review Back Office Daily Reports' },
-      ],
-      ADMIN: [
-        { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
-        { code: 'USER_LOCATION_HISTORY_VIEW', name: 'User Location History View' },
-        { code: 'admin.dashboard.read', name: 'View Admin Dashboard' },
-        { code: 'admin.users.manage', name: 'Manage Users' },
-        { code: 'admin.roles.manage', name: 'Manage Roles & Permissions' },
-        { code: 'backoffice.report.review', name: 'Review Back Office Daily Reports' },
-      ],
-      BACK_OFFICE: [
-        { code: 'backoffice.report.create', name: 'Create Back Office Daily Report' },
-        { code: 'backoffice.report.read', name: 'View Back Office Daily Report' },
-        { code: 'backoffice.report.manage', name: 'Manage Back Office Daily Report' },
-        { code: 'profile.read', name: 'View Profile' },
-      ],
-      SALES: [
-        { code: 'sales.leads.read', name: 'View Sales Leads' },
-        { code: 'sales.leads.create', name: 'Create Sales Lead' },
-        { code: 'sales.orders.read', name: 'View Sales Orders' },
-        { code: 'sales.orders.create', name: 'Create Sales Order' },
-        { code: 'sales.customers.read', name: 'View Customers' },
-        { code: 'sales.quotations.read', name: 'View Quotations' },
-        { code: 'sales.quotations.create', name: 'Create Quotation' },
-        { code: 'sales.payments.read', name: 'View Sales Payments' },
-        { code: 'sales.payments.create', name: 'Create Sales Payment' },
-        { code: 'sales.followup.manage', name: 'Manage Payment Followups' },
-        { code: 'location.track.enable', name: 'Enable Location Tracking' },
-      ],
-      SUPER_SALES: [
-        { code: 'sales.leads.read', name: 'View Sales Leads' },
-        { code: 'sales.leads.create', name: 'Create Sales Lead' },
-        { code: 'sales.orders.read', name: 'View Sales Orders' },
-        { code: 'sales.orders.create', name: 'Create Sales Order' },
-        { code: 'sales.customers.read', name: 'View Customers' },
-        { code: 'sales.quotations.read', name: 'View Quotations' },
-        { code: 'sales.payments.read', name: 'View Sales Payments' },
-        { code: 'sales.followup.manage', name: 'Manage Payment Followups' },
-        { code: 'location.track.enable', name: 'Enable Location Tracking' },
-      ],
-      PLANT_HEAD: [
-        { code: 'admin.planthead.read', name: 'View Plant Head Workspace' },
-        { code: 'planthead.read', name: 'View Plant Head Workspace' },
-        { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
-        { code: 'production.plan.read', name: 'View Production Plans' },
-        { code: 'production.plans.read', name: 'View Production Plans' },
-        { code: 'production.plan.create', name: 'Create Production Plan' },
-        { code: 'production.plan.approve', name: 'Approve Production Plan' },
-        { code: 'production.plan.release', name: 'Release Production Plan' },
-        { code: 'production.workorder.read', name: 'View Work Orders' },
-        { code: 'production.work_orders.manage', name: 'Manage Work Orders' },
-        { code: 'production.workorder.complete', name: 'Complete Work Order' },
-        { code: 'production.workorder.start', name: 'Start Work Order' },
-        { code: 'production.workorder.update', name: 'Update Work Order' },
-        { code: 'production.floor.read', name: 'View Production Floor' },
-        { code: 'production.productionworkflow.read', name: 'View Production Workflow' },
-        { code: 'qc.inspections.read', name: 'View QC Inspections' },
-        { code: 'production.qc.read', name: 'View QC Inspections' },
-        { code: 'inventory.stock.read', name: 'View Stock Levels' },
-        { code: 'procurement.indents.read', name: 'View Indents' },
-        { code: 'procurement.indents.approve', name: 'Approve Indents' },
-        { code: 'procurement.purchase_orders.read', name: 'View Purchase Orders' },
-        { code: 'sales.orders.read', name: 'View Sales Orders' },
-        { code: 'user.read', name: 'View Users' },
-      ],
-      PRODUCTION: [
-        { code: 'production.plan.read', name: 'View Production Plans' },
-        { code: 'production.plans.read', name: 'View Production Plans' },
-        { code: 'production.plan.create', name: 'Create Production Plan' },
-        { code: 'production.workorder.read', name: 'View Work Orders' },
-        { code: 'production.work_orders.manage', name: 'Manage Work Orders' },
-        { code: 'production.workorder.start', name: 'Start Work Order' },
-        { code: 'production.workorder.complete', name: 'Complete Work Order' },
-        { code: 'production.workorder.update', name: 'Update Work Order' },
-        { code: 'production.floor.read', name: 'View Production Floor' },
-        { code: 'production.productionworkflow.read', name: 'View Production Workflow' },
-        { code: 'production.floor.create', name: 'Create Production Batch' },
-        { code: 'production.floor.start', name: 'Start Production Batch' },
-        { code: 'production.floor.complete', name: 'Complete Production Batch' },
-        { code: 'production.reports.read', name: 'View Production Reports' },
-        { code: 'inventory.stock.read', name: 'View Stock Levels' },
-        { code: 'user.read', name: 'View Users' },
-      ],
-      STORE: [
-        { code: 'inventory.stock.read', name: 'View Stock Levels' },
-        { code: 'inventory.inventory.read', name: 'View Inventory' },
-        { code: 'inventory.items.manage', name: 'Manage Inventory Items' },
-        { code: 'inventory.warehouses.read', name: 'View Warehouses' },
-        { code: 'inventory.warehouses.create', name: 'Create Warehouses' },
-        { code: 'inventory.warehouses.update', name: 'Update Warehouses' },
-        { code: 'procurement.indents.create', name: 'Create Indent' },
-        { code: 'procurement.indents.read', name: 'View Indents' },
-        { code: 'procurement.indents.update', name: 'Update Indent' },
-        { code: 'procurement.grns.read', name: 'View GRNs' },
-        { code: 'procurement.grns.create', name: 'Create GRN' },
-        { code: 'procurement.suppliers.read', name: 'View Suppliers' },
-        { code: 'suppliers.read', name: 'View Suppliers' },
-        { code: 'vendors.read', name: 'View Vendors' },
-        { code: 'products.read', name: 'View Products' },
-        { code: 'admin.products.read', name: 'View Products' },
-        { code: 'user.read', name: 'View Users' },
-      ],
-      FINANCE: [
-        { code: 'finance.invoices.read', name: 'View Invoices' },
-        { code: 'finance.payments.manage', name: 'Manage Payments' },
-        { code: 'finance.payments.verify', name: 'Verify Payments' },
-        { code: 'finance.payments.reject', name: 'Reject Payments' },
-        { code: 'finance.ledger.read', name: 'View Customer Ledger' },
-        { code: 'sales.orders.read', name: 'View Sales Orders' },
-        { code: 'procurement.purchase_orders.read', name: 'View Purchase Orders' },
-        { code: 'procurement.invoices.read', name: 'View Invoices' },
-        { code: 'procurement.payments.read', name: 'View Payments' },
-        { code: 'user.read', name: 'View Users' },
-      ],
-      HR: [
-        { code: 'hr.employees.read', name: 'View HR Roster' },
-        { code: 'hr.employees.manage', name: 'Manage Employees' },
-        { code: 'hr.payroll.read', name: 'View Payroll' },
-        { code: 'hr.attendance.read', name: 'View Attendance' },
-        { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
-        { code: 'user.read', name: 'View Users' },
-      ],
-      DISPATCH: [
-        { code: 'dispatch.shipments.read', name: 'View Shipments' },
-        { code: 'dispatch.shipments.create', name: 'Create Shipment' },
-        { code: 'dispatch.delivery.verify', name: 'Verify Delivery' },
-        { code: 'production.workorder.read', name: 'View Work Orders' },
-        { code: 'sales.orders.read', name: 'View Sales Orders' },
-        { code: 'location.track.enable', name: 'Enable Location Tracking' },
-        { code: 'user.read', name: 'View Users' },
-      ],
-      QC: [
-        { code: 'qc.inspections.read', name: 'View QC Inspections' },
-        { code: 'production.qc.read', name: 'View QC Inspections' },
-        { code: 'user.read', name: 'View Users' },
-      ],
-    };
+    const roleSpecificPerms: Record<string, { code: string; name: string }[]> =
+      {
+        SUPER_ADMIN: [
+          { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
+          {
+            code: 'USER_LOCATION_HISTORY_VIEW',
+            name: 'User Location History View',
+          },
+          { code: 'admin.dashboard.read', name: 'View Admin Dashboard' },
+          { code: 'admin.users.manage', name: 'Manage Users' },
+          { code: 'admin.roles.manage', name: 'Manage Roles & Permissions' },
+          { code: 'admin.audit.read', name: 'View System Audit Logs' },
+          { code: 'admin.planthead.read', name: 'View Plant Head Workspace' },
+          {
+            code: 'backoffice.report.review',
+            name: 'Review Back Office Daily Reports',
+          },
+        ],
+        ADMIN: [
+          { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
+          {
+            code: 'USER_LOCATION_HISTORY_VIEW',
+            name: 'User Location History View',
+          },
+          { code: 'admin.dashboard.read', name: 'View Admin Dashboard' },
+          { code: 'admin.users.manage', name: 'Manage Users' },
+          { code: 'admin.roles.manage', name: 'Manage Roles & Permissions' },
+          {
+            code: 'backoffice.report.review',
+            name: 'Review Back Office Daily Reports',
+          },
+        ],
+        BACK_OFFICE: [
+          {
+            code: 'backoffice.report.create',
+            name: 'Create Back Office Daily Report',
+          },
+          {
+            code: 'backoffice.report.read',
+            name: 'View Back Office Daily Report',
+          },
+          {
+            code: 'backoffice.report.manage',
+            name: 'Manage Back Office Daily Report',
+          },
+          { code: 'profile.read', name: 'View Profile' },
+        ],
+        SALES: [
+          { code: 'sales.leads.read', name: 'View Sales Leads' },
+          { code: 'sales.leads.create', name: 'Create Sales Lead' },
+          { code: 'sales.orders.read', name: 'View Sales Orders' },
+          { code: 'sales.orders.create', name: 'Create Sales Order' },
+          { code: 'sales.customers.read', name: 'View Customers' },
+          { code: 'sales.quotations.read', name: 'View Quotations' },
+          { code: 'sales.quotations.create', name: 'Create Quotation' },
+          { code: 'sales.payments.read', name: 'View Sales Payments' },
+          { code: 'sales.payments.create', name: 'Create Sales Payment' },
+          { code: 'sales.followup.manage', name: 'Manage Payment Followups' },
+          { code: 'location.track.enable', name: 'Enable Location Tracking' },
+        ],
+        SUPER_SALES: [
+          { code: 'sales.leads.read', name: 'View Sales Leads' },
+          { code: 'sales.leads.create', name: 'Create Sales Lead' },
+          { code: 'sales.orders.read', name: 'View Sales Orders' },
+          { code: 'sales.orders.create', name: 'Create Sales Order' },
+          { code: 'sales.customers.read', name: 'View Customers' },
+          { code: 'sales.quotations.read', name: 'View Quotations' },
+          { code: 'sales.payments.read', name: 'View Sales Payments' },
+          { code: 'sales.followup.manage', name: 'Manage Payment Followups' },
+          { code: 'location.track.enable', name: 'Enable Location Tracking' },
+        ],
+        PLANT_HEAD: [
+          { code: 'admin.planthead.read', name: 'View Plant Head Workspace' },
+          { code: 'planthead.read', name: 'View Plant Head Workspace' },
+          { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
+          { code: 'production.plan.read', name: 'View Production Plans' },
+          { code: 'production.plans.read', name: 'View Production Plans' },
+          { code: 'production.plan.create', name: 'Create Production Plan' },
+          { code: 'production.plan.approve', name: 'Approve Production Plan' },
+          { code: 'production.plan.release', name: 'Release Production Plan' },
+          { code: 'production.workorder.read', name: 'View Work Orders' },
+          { code: 'production.work_orders.manage', name: 'Manage Work Orders' },
+          {
+            code: 'production.workorder.complete',
+            name: 'Complete Work Order',
+          },
+          { code: 'production.workorder.start', name: 'Start Work Order' },
+          { code: 'production.workorder.update', name: 'Update Work Order' },
+          { code: 'production.floor.read', name: 'View Production Floor' },
+          {
+            code: 'production.productionworkflow.read',
+            name: 'View Production Workflow',
+          },
+          { code: 'qc.inspections.read', name: 'View QC Inspections' },
+          { code: 'production.qc.read', name: 'View QC Inspections' },
+          { code: 'inventory.stock.read', name: 'View Stock Levels' },
+          { code: 'procurement.indents.read', name: 'View Indents' },
+          { code: 'procurement.indents.approve', name: 'Approve Indents' },
+          {
+            code: 'procurement.purchase_orders.read',
+            name: 'View Purchase Orders',
+          },
+          { code: 'sales.orders.read', name: 'View Sales Orders' },
+          { code: 'user.read', name: 'View Users' },
+        ],
+        PRODUCTION: [
+          { code: 'production.plan.read', name: 'View Production Plans' },
+          { code: 'production.plans.read', name: 'View Production Plans' },
+          { code: 'production.plan.create', name: 'Create Production Plan' },
+          { code: 'production.workorder.read', name: 'View Work Orders' },
+          { code: 'production.work_orders.manage', name: 'Manage Work Orders' },
+          { code: 'production.workorder.start', name: 'Start Work Order' },
+          {
+            code: 'production.workorder.complete',
+            name: 'Complete Work Order',
+          },
+          { code: 'production.workorder.update', name: 'Update Work Order' },
+          { code: 'production.floor.read', name: 'View Production Floor' },
+          {
+            code: 'production.productionworkflow.read',
+            name: 'View Production Workflow',
+          },
+          { code: 'production.floor.create', name: 'Create Production Batch' },
+          { code: 'production.floor.start', name: 'Start Production Batch' },
+          {
+            code: 'production.floor.complete',
+            name: 'Complete Production Batch',
+          },
+          { code: 'production.reports.read', name: 'View Production Reports' },
+          { code: 'inventory.stock.read', name: 'View Stock Levels' },
+          { code: 'user.read', name: 'View Users' },
+        ],
+        STORE: [
+          { code: 'inventory.stock.read', name: 'View Stock Levels' },
+          { code: 'inventory.inventory.read', name: 'View Inventory' },
+          { code: 'inventory.items.manage', name: 'Manage Inventory Items' },
+          { code: 'inventory.warehouses.read', name: 'View Warehouses' },
+          { code: 'inventory.warehouses.create', name: 'Create Warehouses' },
+          { code: 'inventory.warehouses.update', name: 'Update Warehouses' },
+          { code: 'procurement.indents.create', name: 'Create Indent' },
+          { code: 'procurement.indents.read', name: 'View Indents' },
+          { code: 'procurement.indents.update', name: 'Update Indent' },
+          { code: 'procurement.grns.read', name: 'View GRNs' },
+          { code: 'procurement.grns.create', name: 'Create GRN' },
+          { code: 'procurement.suppliers.read', name: 'View Suppliers' },
+          { code: 'suppliers.read', name: 'View Suppliers' },
+          { code: 'vendors.read', name: 'View Vendors' },
+          { code: 'products.read', name: 'View Products' },
+          { code: 'admin.products.read', name: 'View Products' },
+          { code: 'user.read', name: 'View Users' },
+        ],
+        FINANCE: [
+          { code: 'finance.invoices.read', name: 'View Invoices' },
+          { code: 'finance.payments.manage', name: 'Manage Payments' },
+          { code: 'finance.payments.verify', name: 'Verify Payments' },
+          { code: 'finance.payments.reject', name: 'Reject Payments' },
+          { code: 'finance.ledger.read', name: 'View Customer Ledger' },
+          { code: 'sales.orders.read', name: 'View Sales Orders' },
+          {
+            code: 'procurement.purchase_orders.read',
+            name: 'View Purchase Orders',
+          },
+          { code: 'procurement.invoices.read', name: 'View Invoices' },
+          { code: 'procurement.payments.read', name: 'View Payments' },
+          { code: 'user.read', name: 'View Users' },
+        ],
+        HR: [
+          { code: 'hr.employees.read', name: 'View HR Roster' },
+          { code: 'hr.employees.manage', name: 'Manage Employees' },
+          { code: 'hr.payroll.read', name: 'View Payroll' },
+          { code: 'hr.attendance.read', name: 'View Attendance' },
+          { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
+          { code: 'user.read', name: 'View Users' },
+        ],
+        DISPATCH: [
+          { code: 'dispatch.shipments.read', name: 'View Shipments' },
+          { code: 'dispatch.shipments.create', name: 'Create Shipment' },
+          { code: 'dispatch.delivery.verify', name: 'Verify Delivery' },
+          { code: 'production.workorder.read', name: 'View Work Orders' },
+          { code: 'sales.orders.read', name: 'View Sales Orders' },
+          { code: 'location.track.enable', name: 'Enable Location Tracking' },
+          { code: 'user.read', name: 'View Users' },
+        ],
+        QC: [
+          { code: 'qc.inspections.read', name: 'View QC Inspections' },
+          { code: 'production.qc.read', name: 'View QC Inspections' },
+          { code: 'user.read', name: 'View Users' },
+        ],
+      };
 
     // Determine target list
-    let targetPerms = norm === 'BACK_OFFICE' || norm.includes('BACK_OFFICE')
-      ? []
-      : [...commonPerms];
+    const targetPerms =
+      norm === 'BACK_OFFICE' || norm.includes('BACK_OFFICE')
+        ? []
+        : [...commonPerms];
     for (const [key, perms] of Object.entries(roleSpecificPerms)) {
       if (norm === key || norm.includes(key)) {
         targetPerms.push(...perms);
@@ -535,7 +622,9 @@ export class UsersService {
         where: { roleId },
         include: { permission: true },
       });
-      const activeCodes = new Set<string>(currentRolePerms.map((rp) => rp.permission.code));
+      const activeCodes = new Set<string>(
+        currentRolePerms.map((rp) => rp.permission.code),
+      );
 
       // 2. Provision any missing permission
       for (const item of targetPerms) {
@@ -574,9 +663,12 @@ export class UsersService {
         }
       }
 
-      return Array.from(activeCodes) as string[];
+      return Array.from(activeCodes);
     } catch (err) {
-      console.warn(`[ensureDefaultPermissions] Non-fatal provisioning warning:`, err);
+      console.warn(
+        `[ensureDefaultPermissions] Non-fatal provisioning warning:`,
+        err,
+      );
       // Fallback to currently assigned permissions if any error
       const existing = await this.prisma.rolePermission.findMany({
         where: { roleId },

@@ -23,7 +23,8 @@ export class LeadsController {
   @Get()
   // @RequirePermissions('sales.leads.read')
   async listLeads(@Req() req: any, @Query('search') search?: string) {
-    const resolvedCompanyId = req.user?.companyId || req.headers['x-company-id'];
+    const resolvedCompanyId =
+      req.user?.companyId || req.headers['x-company-id'];
     return this.leadsService.listLeads(
       resolvedCompanyId,
       search,
@@ -36,7 +37,8 @@ export class LeadsController {
   @Get(':id')
   // @RequirePermissions('sales.leads.read')
   async getLead(@Param('id') id: string, @Req() req: any) {
-    const resolvedCompanyId = req.user?.companyId || req.headers['x-company-id'];
+    const resolvedCompanyId =
+      req.user?.companyId || req.headers['x-company-id'];
     return this.leadsService.getLead(
       id,
       resolvedCompanyId,

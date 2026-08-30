@@ -7,7 +7,10 @@ import {
 import { ComplaintStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCustomerComplaintDto } from './dto/create-customer-complaint.dto';
-import { getComplaintSalesScope, isSalespersonScopedRole } from '../../common/utils/rbac.util';
+import {
+  getComplaintSalesScope,
+  isSalespersonScopedRole,
+} from '../../common/utils/rbac.util';
 
 const includeRelations = {
   customer: { select: { id: true, companyName: true, customerCode: true } },

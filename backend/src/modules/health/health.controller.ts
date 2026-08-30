@@ -1,6 +1,11 @@
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { UseGuards, Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import {
+  UseGuards,
+  Controller,
+  Get,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { Public } from '../../common/decorators/public.decorator';
 

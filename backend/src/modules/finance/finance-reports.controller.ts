@@ -12,15 +12,27 @@ export class FinanceReportsController {
 
   @Get('revenue-expense')
   @RequirePermissions('finance.reports.read')
-  @Roles('FINANCE', 'FINANCE_MANAGER', 'FINANCE_EXECUTIVE', 'ADMIN', 'SUPER_ADMIN', 'SUPERADMIN')
+  @Roles(
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'FINANCE_EXECUTIVE',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'SUPERADMIN',
+  )
   async getRevenueExpense(
     @Query('date_from') dateFrom: string,
     @Query('date_to') dateTo: string,
     @Req() req: any,
   ) {
     const rawRole = req.user?.role;
-    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
-    const isSuperAdmin = roleCode.toUpperCase().includes('SUPER_ADMIN') || roleCode.toUpperCase().includes('ADMIN');
+    const roleCode =
+      typeof rawRole === 'string'
+        ? rawRole
+        : rawRole?.code || rawRole?.name || '';
+    const isSuperAdmin =
+      roleCode.toUpperCase().includes('SUPER_ADMIN') ||
+      roleCode.toUpperCase().includes('ADMIN');
     const targetCompanyId = isSuperAdmin ? undefined : req.user?.companyId;
 
     return this.service.getRevenueExpense(dateFrom, dateTo, targetCompanyId);
@@ -28,15 +40,27 @@ export class FinanceReportsController {
 
   @Get('cash-flow')
   @RequirePermissions('finance.reports.read')
-  @Roles('FINANCE', 'FINANCE_MANAGER', 'FINANCE_EXECUTIVE', 'ADMIN', 'SUPER_ADMIN', 'SUPERADMIN')
+  @Roles(
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'FINANCE_EXECUTIVE',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'SUPERADMIN',
+  )
   async getCashFlow(
     @Query('date_from') dateFrom: string,
     @Query('date_to') dateTo: string,
     @Req() req: any,
   ) {
     const rawRole = req.user?.role;
-    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
-    const isSuperAdmin = roleCode.toUpperCase().includes('SUPER_ADMIN') || roleCode.toUpperCase().includes('ADMIN');
+    const roleCode =
+      typeof rawRole === 'string'
+        ? rawRole
+        : rawRole?.code || rawRole?.name || '';
+    const isSuperAdmin =
+      roleCode.toUpperCase().includes('SUPER_ADMIN') ||
+      roleCode.toUpperCase().includes('ADMIN');
     const targetCompanyId = isSuperAdmin ? undefined : req.user?.companyId;
 
     return this.service.getCashFlow(dateFrom, dateTo, targetCompanyId);

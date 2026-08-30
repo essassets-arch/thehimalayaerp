@@ -13,6 +13,12 @@ export class SearchController {
     @CurrentUser() user: any,
   ): Promise<GlobalSearchResponse> {
     const limit = query.limit || 20;
-    return this.searchService.globalSearch(query.q, user, limit, query.types, query.panel);
+    return this.searchService.globalSearch(
+      query.q,
+      user,
+      limit,
+      query.types,
+      query.panel,
+    );
   }
 }

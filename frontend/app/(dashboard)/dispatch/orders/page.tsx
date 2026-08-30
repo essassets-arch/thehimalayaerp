@@ -536,7 +536,7 @@ export default function DispatchOrdersPage() {
         item.deliveryAddress.toLowerCase().includes(lower)
       );
     });
-  }, [pendingItems, userDispatchCat, productsMap, search]);
+  }, [pendingItems, userDispatchCat, search]);
 
   const filteredHistoryItems = useMemo(() => {
     const targetCat = isDispatch2 ? "D2" : "D1";

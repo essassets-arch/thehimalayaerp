@@ -12,14 +12,28 @@ export function createSalarySlipPdf(slip: any): Buffer {
   const commands: string[] = [];
 
   // Helper to place text in PDF at (x, y)
-  const drawText = (text: string, x: number, y: number, size = 9, bold = false) => {
+  const drawText = (
+    text: string,
+    x: number,
+    y: number,
+    size = 9,
+    bold = false,
+  ) => {
     if (!text) return;
     const font = bold ? '/F2' : '/F1';
-    commands.push(`BT ${font} ${size} Tf ${x} ${y} Td (${escapePdf(text)}) Tj ET`);
+    commands.push(
+      `BT ${font} ${size} Tf ${x} ${y} Td (${escapePdf(text)}) Tj ET`,
+    );
   };
 
   // Helper to draw horizontal line
-  const drawLine = (x1: number, y1: number, x2: number, y2: number, width = 0.5) => {
+  const drawLine = (
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    width = 0.5,
+  ) => {
     commands.push(`${width} w ${x1} ${y1} m ${x2} ${y2} l S`);
   };
 
@@ -31,11 +45,34 @@ export function createSalarySlipPdf(slip: any): Buffer {
   let y = 800;
 
   // 1. Company Header
-  drawText(slip.company?.name || 'Himalaya ERP & Construction Products', 48, y, 15, true);
+  drawText(
+    slip.company?.name || 'Himalaya ERP & Construction Products',
+    48,
+    y,
+    15,
+    true,
+  );
   y -= 16;
-  drawText(slip.company?.address || 'Industrial Area, Solan, Himachal Pradesh', 48, y, 9, false);
+  drawText(
+    slip.company?.address || 'Industrial Area, Solan, Himachal Pradesh',
+    48,
+    y,
+    9,
+    false,
+  );
   y -= 13;
-  drawText([slip.company?.email || 'finance@himalayaerp.com', slip.company?.phone || '+91 98160 00000'].filter(Boolean).join(' | '), 48, y, 8, false);
+  drawText(
+    [
+      slip.company?.email || 'finance@himalayaerp.com',
+      slip.company?.phone || '+91 98160 00000',
+    ]
+      .filter(Boolean)
+      .join(' | '),
+    48,
+    y,
+    8,
+    false,
+  );
   y -= 15;
 
   drawLine(48, y, 547, y, 1.5);
@@ -43,9 +80,21 @@ export function createSalarySlipPdf(slip: any): Buffer {
 
   // 2. Document Title
   drawText('SALARY SLIP', 48, y, 14, true);
-  drawText(`${(slip.salaryMonthName || 'August').toUpperCase()} ${slip.salaryYear || 2026}`, 400, y, 12, true);
+  drawText(
+    `${(slip.salaryMonthName || 'August').toUpperCase()} ${slip.salaryYear || 2026}`,
+    400,
+    y,
+    12,
+    true,
+  );
   y -= 15;
-  drawText(`Slip No: ${slip.slipNumber || 'SLIP-001'}    |    Payroll No: ${slip.payrollNumber || 'PAY-001'}`, 48, y, 9, false);
+  drawText(
+    `Slip No: ${slip.slipNumber || 'SLIP-001'}    |    Payroll No: ${slip.payrollNumber || 'PAY-001'}`,
+    48,
+    y,
+    9,
+    false,
+  );
   y -= 22;
 
   // 3. Employee Information Box
@@ -54,21 +103,75 @@ export function createSalarySlipPdf(slip: any): Buffer {
   drawLine(48, y - 10, 547, y - 10, 0.5);
 
   const emp = slip.employee || {};
-  let empY = y - 24;
+  const empY = y - 24;
 
   // Column 1
   drawText(`Name: ${emp.fullName || 'Staff Member'}`, 58, empY, 9, true);
-  drawText(`Employee ID: ${emp.employeeId || 'EMP-001'}`, 58, empY - 14, 9, false);
-  drawText(`Department: ${emp.department || 'Operations'}`, 58, empY - 28, 9, false);
-  drawText(`Designation: ${emp.designation || 'Employee'}`, 58, empY - 42, 9, false);
-  drawText(`Joining Date: ${String(emp.joiningDate || '').slice(0, 10)}`, 58, empY - 56, 9, false);
+  drawText(
+    `Employee ID: ${emp.employeeId || 'EMP-001'}`,
+    58,
+    empY - 14,
+    9,
+    false,
+  );
+  drawText(
+    `Department: ${emp.department || 'Operations'}`,
+    58,
+    empY - 28,
+    9,
+    false,
+  );
+  drawText(
+    `Designation: ${emp.designation || 'Employee'}`,
+    58,
+    empY - 42,
+    9,
+    false,
+  );
+  drawText(
+    `Joining Date: ${String(emp.joiningDate || '').slice(0, 10)}`,
+    58,
+    empY - 56,
+    9,
+    false,
+  );
 
   // Column 2
-  drawText(`Work Location: ${emp.location || 'Main Plant'}`, 310, empY, 9, false);
-  drawText(`Bank Name: ${emp.bankName || 'HDFC Bank'}`, 310, empY - 14, 9, false);
-  drawText(`Account No: ${emp.maskedAccountNumber || '****1234'}`, 310, empY - 28, 9, false);
-  drawText(`IFSC Code: ${emp.ifscCode || 'HDFC0001234'}`, 310, empY - 42, 9, false);
-  drawText(`PAN / UAN: ${emp.panNumber || 'N/A'} / ${emp.uanNumber || 'N/A'}`, 310, empY - 56, 9, false);
+  drawText(
+    `Work Location: ${emp.location || 'Main Plant'}`,
+    310,
+    empY,
+    9,
+    false,
+  );
+  drawText(
+    `Bank Name: ${emp.bankName || 'HDFC Bank'}`,
+    310,
+    empY - 14,
+    9,
+    false,
+  );
+  drawText(
+    `Account No: ${emp.maskedAccountNumber || '****1234'}`,
+    310,
+    empY - 28,
+    9,
+    false,
+  );
+  drawText(
+    `IFSC Code: ${emp.ifscCode || 'HDFC0001234'}`,
+    310,
+    empY - 42,
+    9,
+    false,
+  );
+  drawText(
+    `PAN / UAN: ${emp.panNumber || 'N/A'} / ${emp.uanNumber || 'N/A'}`,
+    310,
+    empY - 56,
+    9,
+    false,
+  );
 
   y -= 115;
 
@@ -78,9 +181,21 @@ export function createSalarySlipPdf(slip: any): Buffer {
   drawLine(48, y - 10, 547, y - 10, 0.5);
 
   const att = slip.attendance || {};
-  let attY = y - 24;
-  drawText(`Calendar Days: ${att.calendarDays || 31}    Standard Days: ${att.standardWorkingDays || 25}    Present: ${att.presentDays || 25}`, 58, attY, 9, false);
-  drawText(`Paid Leave: ${att.paidLeaveDays || 0}    Unpaid Leave (LOP): ${att.unpaidLeaveDays || 0}    Payable Days: ${att.payableDays || 25}`, 58, attY - 15, 9, false);
+  const attY = y - 24;
+  drawText(
+    `Calendar Days: ${att.calendarDays || 31}    Standard Days: ${att.standardWorkingDays || 25}    Present: ${att.presentDays || 25}`,
+    58,
+    attY,
+    9,
+    false,
+  );
+  drawText(
+    `Paid Leave: ${att.paidLeaveDays || 0}    Unpaid Leave (LOP): ${att.unpaidLeaveDays || 0}    Payable Days: ${att.payableDays || 25}`,
+    58,
+    attY - 15,
+    9,
+    false,
+  );
 
   y -= 75;
 
@@ -139,17 +254,41 @@ export function createSalarySlipPdf(slip: any): Buffer {
   drawLine(48, y - 10, 547, y - 10, 0.5);
 
   const pm = slip.payment || {};
-  drawText(`Status: ${pm.paidAmount !== undefined ? 'PAID' : 'PROCESSED'}    Date: ${String(pm.paymentDate || '').slice(0, 10)}    Mode: ${pm.paymentMode || 'NEFT / Bank Transfer'}`, 58, y - 24, 9, false);
-  drawText(`UTR Number: ${pm.utrNumber || 'N/A'}    Ref: ${pm.transactionReference || 'N/A'}    Processed By: ${pm.processedBy || 'Finance Manager'}`, 58, y - 38, 9, false);
+  drawText(
+    `Status: ${pm.paidAmount !== undefined ? 'PAID' : 'PROCESSED'}    Date: ${String(pm.paymentDate || '').slice(0, 10)}    Mode: ${pm.paymentMode || 'NEFT / Bank Transfer'}`,
+    58,
+    y - 24,
+    9,
+    false,
+  );
+  drawText(
+    `UTR Number: ${pm.utrNumber || 'N/A'}    Ref: ${pm.transactionReference || 'N/A'}    Processed By: ${pm.processedBy || 'Finance Manager'}`,
+    58,
+    y - 38,
+    9,
+    false,
+  );
 
   y -= 65;
 
   // 8. Footer Notice
   drawLine(48, y, 547, y, 0.5);
   y -= 12;
-  drawText('This is a system-generated salary slip and does not require a physical signature.', 125, y, 8, false);
+  drawText(
+    'This is a system-generated salary slip and does not require a physical signature.',
+    125,
+    y,
+    8,
+    false,
+  );
   y -= 10;
-  drawText(`Confidential payroll document. Generated electronically on ${new Date().toLocaleDateString('en-IN')}.`, 150, y, 8, false);
+  drawText(
+    `Confidential payroll document. Generated electronically on ${new Date().toLocaleDateString('en-IN')}.`,
+    150,
+    y,
+    8,
+    false,
+  );
 
   const pdfStream = commands.join('\n');
   const objects = [

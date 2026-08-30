@@ -14,7 +14,7 @@ export class QcService {
     private readonly prisma: PrismaService,
     private readonly workflowService: WorkflowService,
     private readonly notificationsService?: NotificationsService,
-  ) { }
+  ) {}
 
   async listInspections(companyId: string) {
     return this.prisma.qCInspection.findMany({
@@ -95,7 +95,6 @@ export class QcService {
     if (!inspection) throw new NotFoundException('QC Inspection not found');
 
     const inspectionResult = await this.prisma.$transaction(async (tx) => {
-
       if (
         extraData?.expectedVersion &&
         inspection.version !== extraData.expectedVersion
@@ -239,7 +238,8 @@ export class QcService {
           create: {
             workOrderId: inspection.workOrderId,
             productId: orderItem.productId,
-            salesOrderId: inspection.workOrder.productionPlan?.salesOrderId || '',
+            salesOrderId:
+              inspection.workOrder.productionPlan?.salesOrderId || '',
             quantity: inspection.workOrder.quantity,
             availableQuantity: inspection.workOrder.quantity,
             unit: productUnit,
@@ -256,7 +256,6 @@ export class QcService {
             receivedById: userId || 'SYSTEM',
           },
         });
-
 
         const planId = inspection.workOrder.productionPlanId;
         const planWorkOrders = await tx.workOrder.findMany({
@@ -316,61 +315,70 @@ export class QcService {
     });
 
     // Notify Production / Plant Head post-commit
-    const companyId = inspection?.workOrder?.productionPlan?.salesOrder?.customer?.companyId;
+    const companyId =
+      inspection?.workOrder?.productionPlan?.salesOrder?.customer?.companyId;
     const woNumber = inspection?.workOrder?.workOrderNumber || id;
     if (companyId && this.notificationsService) {
       if (actionName === 'APPROVE') {
         // Notify Production Manager/Planner
-        await this.notificationsService.notifyRole({
-          companyId,
-          role: 'PRODUCTION_PLANNER',
-          type: 'QC_PASSED',
-          title: 'QC Passed',
-          message: `${woNumber} — Quality inspection passed successfully.`,
-          route: '/production/work-orders',
-          entityType: 'QCInspection',
-          entityId: id,
-          eventKeyPrefix: `QC_INSPECTION:${id}:PASSED_PM`,
-        }).catch(() => { });
+        await this.notificationsService
+          .notifyRole({
+            companyId,
+            role: 'PRODUCTION_PLANNER',
+            type: 'QC_PASSED',
+            title: 'QC Passed',
+            message: `${woNumber} — Quality inspection passed successfully.`,
+            route: '/production/work-orders',
+            entityType: 'QCInspection',
+            entityId: id,
+            eventKeyPrefix: `QC_INSPECTION:${id}:PASSED_PM`,
+          })
+          .catch(() => {});
 
         // Notify Plant Head
-        await this.notificationsService.notifyRole({
-          companyId,
-          role: 'PLANT_HEAD',
-          type: 'QC_PASSED',
-          title: 'QC Passed',
-          message: `${woNumber} — Quality inspection passed successfully.`,
-          route: '/plant-head/planning',
-          entityType: 'QCInspection',
-          entityId: id,
-          eventKeyPrefix: `QC_INSPECTION:${id}:PASSED_PH`,
-        }).catch(() => { });
+        await this.notificationsService
+          .notifyRole({
+            companyId,
+            role: 'PLANT_HEAD',
+            type: 'QC_PASSED',
+            title: 'QC Passed',
+            message: `${woNumber} — Quality inspection passed successfully.`,
+            route: '/plant-head/planning',
+            entityType: 'QCInspection',
+            entityId: id,
+            eventKeyPrefix: `QC_INSPECTION:${id}:PASSED_PH`,
+          })
+          .catch(() => {});
       } else if (actionName === 'REJECT') {
         // Notify Production Manager/Planner
-        await this.notificationsService.notifyRole({
-          companyId,
-          role: 'PRODUCTION_PLANNER',
-          type: 'QC_FAILED',
-          title: 'QC Failed — Rework Required',
-          message: `${woNumber} — Quality inspection failed and requires rework.`,
-          route: '/production/rework',
-          entityType: 'QCInspection',
-          entityId: id,
-          eventKeyPrefix: `QC_INSPECTION:${id}:FAILED_PM`,
-        }).catch(() => { });
+        await this.notificationsService
+          .notifyRole({
+            companyId,
+            role: 'PRODUCTION_PLANNER',
+            type: 'QC_FAILED',
+            title: 'QC Failed — Rework Required',
+            message: `${woNumber} — Quality inspection failed and requires rework.`,
+            route: '/production/rework',
+            entityType: 'QCInspection',
+            entityId: id,
+            eventKeyPrefix: `QC_INSPECTION:${id}:FAILED_PM`,
+          })
+          .catch(() => {});
 
         // Notify Plant Head
-        await this.notificationsService.notifyRole({
-          companyId,
-          role: 'PLANT_HEAD',
-          type: 'QC_FAILED',
-          title: 'QC Failed — Rework Required',
-          message: `${woNumber} — Quality inspection failed and requires rework.`,
-          route: '/plant-head/qc-failures',
-          entityType: 'QCInspection',
-          entityId: id,
-          eventKeyPrefix: `QC_INSPECTION:${id}:FAILED_PH`,
-        }).catch(() => { });
+        await this.notificationsService
+          .notifyRole({
+            companyId,
+            role: 'PLANT_HEAD',
+            type: 'QC_FAILED',
+            title: 'QC Failed — Rework Required',
+            message: `${woNumber} — Quality inspection failed and requires rework.`,
+            route: '/plant-head/qc-failures',
+            entityType: 'QCInspection',
+            entityId: id,
+            eventKeyPrefix: `QC_INSPECTION:${id}:FAILED_PH`,
+          })
+          .catch(() => {});
       }
     }
 

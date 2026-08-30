@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { LocationService, ONLINE_THRESHOLD_SECONDS, RECENT_THRESHOLD_SECONDS } from './location.service';
+import {
+  LocationService,
+  ONLINE_THRESHOLD_SECONDS,
+  RECENT_THRESHOLD_SECONDS,
+} from './location.service';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../../database/prisma.service';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
@@ -29,16 +33,24 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
       deviceSession: {
         findUnique: jest.fn().mockImplementation(({ where }) => {
           if (where.sessionId) {
-            return Promise.resolve(mockSessions.find((s) => s.sessionId === where.sessionId) || null);
+            return Promise.resolve(
+              mockSessions.find((s) => s.sessionId === where.sessionId) || null,
+            );
           }
           if (where.id) {
-            return Promise.resolve(mockSessions.find((s) => s.id === where.id) || null);
+            return Promise.resolve(
+              mockSessions.find((s) => s.id === where.id) || null,
+            );
           }
           return Promise.resolve(null);
         }),
         findFirst: jest.fn().mockImplementation(({ where }) => {
           return Promise.resolve(
-            mockSessions.find((s) => s.userId === where.userId && (!where.deviceId || s.deviceId === where.deviceId)) || null,
+            mockSessions.find(
+              (s) =>
+                s.userId === where.userId &&
+                (!where.deviceId || s.deviceId === where.deviceId),
+            ) || null,
           );
         }),
         create: jest.fn().mockImplementation(({ data }) => {
@@ -53,7 +65,9 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
           return Promise.resolve(session);
         }),
         update: jest.fn().mockImplementation(({ where, data }) => {
-          const session = mockSessions.find((s) => s.id === where.id || s.sessionId === where.sessionId);
+          const session = mockSessions.find(
+            (s) => s.id === where.id || s.sessionId === where.sessionId,
+          );
           if (session) Object.assign(session, data);
           return Promise.resolve(session);
         }),
@@ -61,10 +75,16 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
       },
       latestUserLocation: {
         findUnique: jest.fn().mockImplementation(({ where }) => {
-          return Promise.resolve(mockLocations.find((l) => l.deviceSessionId === where.deviceSessionId) || null);
+          return Promise.resolve(
+            mockLocations.find(
+              (l) => l.deviceSessionId === where.deviceSessionId,
+            ) || null,
+          );
         }),
         upsert: jest.fn().mockImplementation(({ where, create, update }) => {
-          let loc = mockLocations.find((l) => l.deviceSessionId === where.deviceSessionId);
+          let loc = mockLocations.find(
+            (l) => l.deviceSessionId === where.deviceSessionId,
+          );
           if (!loc) {
             loc = { id: `loc-${mockLocations.length + 1}`, ...create };
             mockLocations.push(loc);
@@ -76,11 +96,16 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
       },
       userLocationHistory: {
         findFirst: jest.fn().mockImplementation(({ where }) => {
-          const histories = mockLocationHistories.filter((h) => h.deviceSessionId === where.deviceSessionId);
+          const histories = mockLocationHistories.filter(
+            (h) => h.deviceSessionId === where.deviceSessionId,
+          );
           return Promise.resolve(histories[histories.length - 1] || null);
         }),
         create: jest.fn().mockImplementation(({ data }) => {
-          const item = { id: `hist-${mockLocationHistories.length + 1}`, ...data };
+          const item = {
+            id: `hist-${mockLocationHistories.length + 1}`,
+            ...data,
+          };
           mockLocationHistories.push(item);
           return Promise.resolve(item);
         }),
@@ -95,13 +120,17 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
                 .filter((s) => s.userId === u.id)
                 .map((s) => ({
                   ...s,
-                  latestLocation: mockLocations.find((l) => l.deviceSessionId === s.id) || null,
+                  latestLocation:
+                    mockLocations.find((l) => l.deviceSessionId === s.id) ||
+                    null,
                 })),
             })),
           );
         }),
         findUnique: jest.fn().mockImplementation(({ where }) => {
-          const u = mockUsers.find((user) => user.id === where.id || user.email === where.email);
+          const u = mockUsers.find(
+            (user) => user.id === where.id || user.email === where.email,
+          );
           if (!u) return Promise.resolve(null);
           return Promise.resolve({
             ...u,
@@ -111,7 +140,9 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
                 .filter((rp) => rp.roleId === u.roleId)
                 .map((rp) => ({
                   ...rp,
-                  permission: mockPermissions.find((p) => p.id === rp.permissionId),
+                  permission: mockPermissions.find(
+                    (p) => p.id === rp.permissionId,
+                  ),
                 })),
             },
           });
@@ -119,7 +150,9 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
       },
       permission: {
         findUnique: jest.fn().mockImplementation(({ where }) => {
-          return Promise.resolve(mockPermissions.find((p) => p.code === where.code) || null);
+          return Promise.resolve(
+            mockPermissions.find((p) => p.code === where.code) || null,
+          );
         }),
         create: jest.fn().mockImplementation(({ data }) => {
           const perm = { id: `perm-${mockPermissions.length + 1}`, ...data };
@@ -134,13 +167,17 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
               .filter((rp) => rp.roleId === where.roleId)
               .map((rp) => ({
                 ...rp,
-                permission: mockPermissions.find((p) => p.id === rp.permissionId),
+                permission: mockPermissions.find(
+                  (p) => p.id === rp.permissionId,
+                ),
               })),
           );
         }),
         upsert: jest.fn().mockImplementation(({ where, create }) => {
           let rp = mockRolePermissions.find(
-            (r) => r.roleId === where.roleId_permissionId.roleId && r.permissionId === where.roleId_permissionId.permissionId,
+            (r) =>
+              r.roleId === where.roleId_permissionId.roleId &&
+              r.permissionId === where.roleId_permissionId.permissionId,
           );
           if (!rp) {
             rp = { id: `rp-${mockRolePermissions.length + 1}`, ...create };
@@ -166,11 +203,41 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
   describe('1. Multi-User Session Registration & Map Visibility', () => {
     it('registers multiple concurrent users across departments and makes them visible on live-users snapshot', async () => {
       const users = [
-        { id: 'user-sales-1', name: 'Sales Executive 1', email: 'sales1@thehimalaya.cloud', role: { name: 'Sales Executive', code: 'SALES_EXECUTIVE' }, roleId: 'role-sales' },
-        { id: 'user-sales-2', name: 'Sales Executive 2', email: 'sales2@thehimalaya.cloud', role: { name: 'Sales Executive', code: 'SALES_EXECUTIVE' }, roleId: 'role-sales' },
-        { id: 'user-prod-1', name: 'Production Plant Lead', email: 'plant@thehimalaya.cloud', role: { name: 'Plant Head', code: 'PLANT_HEAD' }, roleId: 'role-plant' },
-        { id: 'user-store-1', name: 'Store Master', email: 'store@thehimalaya.cloud', role: { name: 'Store Manager', code: 'STORE_MANAGER' }, roleId: 'role-store' },
-        { id: 'user-fin-1', name: 'Finance Head', email: 'finance@thehimalaya.cloud', role: { name: 'Finance Manager', code: 'FINANCE_MANAGER' }, roleId: 'role-fin' },
+        {
+          id: 'user-sales-1',
+          name: 'Sales Executive 1',
+          email: 'sales1@thehimalaya.cloud',
+          role: { name: 'Sales Executive', code: 'SALES_EXECUTIVE' },
+          roleId: 'role-sales',
+        },
+        {
+          id: 'user-sales-2',
+          name: 'Sales Executive 2',
+          email: 'sales2@thehimalaya.cloud',
+          role: { name: 'Sales Executive', code: 'SALES_EXECUTIVE' },
+          roleId: 'role-sales',
+        },
+        {
+          id: 'user-prod-1',
+          name: 'Production Plant Lead',
+          email: 'plant@thehimalaya.cloud',
+          role: { name: 'Plant Head', code: 'PLANT_HEAD' },
+          roleId: 'role-plant',
+        },
+        {
+          id: 'user-store-1',
+          name: 'Store Master',
+          email: 'store@thehimalaya.cloud',
+          role: { name: 'Store Manager', code: 'STORE_MANAGER' },
+          roleId: 'role-store',
+        },
+        {
+          id: 'user-fin-1',
+          name: 'Finance Head',
+          email: 'finance@thehimalaya.cloud',
+          role: { name: 'Finance Manager', code: 'FINANCE_MANAGER' },
+          roleId: 'role-fin',
+        },
       ];
 
       for (const u of users) {
@@ -214,7 +281,10 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
 
   describe('2. GPS Coordinate Bounds & Accuracy Validation', () => {
     it('rejects invalid latitude values (> 90 or < -90)', async () => {
-      const reg = await locationService.registerSession('u-test', 'comp-1', { deviceId: 'd1', deviceType: 'WEB' });
+      const reg = await locationService.registerSession('u-test', 'comp-1', {
+        deviceId: 'd1',
+        deviceType: 'WEB',
+      });
       await expect(
         locationService.updateLocation('u-test', 'comp-1', {
           sessionId: reg.sessionId,
@@ -226,7 +296,10 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
     });
 
     it('rejects invalid longitude values (> 180 or < -180)', async () => {
-      const reg = await locationService.registerSession('u-test', 'comp-1', { deviceId: 'd1', deviceType: 'WEB' });
+      const reg = await locationService.registerSession('u-test', 'comp-1', {
+        deviceId: 'd1',
+        deviceType: 'WEB',
+      });
       await expect(
         locationService.updateLocation('u-test', 'comp-1', {
           sessionId: reg.sessionId,
@@ -238,7 +311,10 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
     });
 
     it('rejects non-positive GPS accuracy (accuracy <= 0)', async () => {
-      const reg = await locationService.registerSession('u-test', 'comp-1', { deviceId: 'd1', deviceType: 'WEB' });
+      const reg = await locationService.registerSession('u-test', 'comp-1', {
+        deviceId: 'd1',
+        deviceType: 'WEB',
+      });
       await expect(
         locationService.updateLocation('u-test', 'comp-1', {
           sessionId: reg.sessionId,
@@ -251,8 +327,13 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
     });
 
     it('rejects future timestamps (> 10 mins)', async () => {
-      const reg = await locationService.registerSession('u-test', 'comp-1', { deviceId: 'd1', deviceType: 'WEB' });
-      const futureTime = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+      const reg = await locationService.registerSession('u-test', 'comp-1', {
+        deviceId: 'd1',
+        deviceType: 'WEB',
+      });
+      const futureTime = new Date(
+        Date.now() + 2 * 60 * 60 * 1000,
+      ).toISOString();
       await expect(
         locationService.updateLocation('u-test', 'comp-1', {
           sessionId: reg.sessionId,
@@ -266,26 +347,38 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
 
   describe('3. Impossible GPS Jump (Teleportation) Filter', () => {
     it('filters out supersonic teleportation jumps without updating map coordinates', async () => {
-      const reg = await locationService.registerSession('u-jump-test', 'comp-1', { deviceId: 'd-jump', deviceType: 'WEB' });
+      const reg = await locationService.registerSession(
+        'u-jump-test',
+        'comp-1',
+        { deviceId: 'd-jump', deviceType: 'WEB' },
+      );
 
       // 1. Initial location in Ahmedabad
-      const loc1 = await locationService.updateLocation('u-jump-test', 'comp-1', {
-        sessionId: reg.sessionId,
-        latitude: 23.0225,
-        longitude: 72.5714,
-        accuracy: 10,
-        capturedAt: new Date(Date.now() - 5000).toISOString(),
-      });
+      const loc1 = await locationService.updateLocation(
+        'u-jump-test',
+        'comp-1',
+        {
+          sessionId: reg.sessionId,
+          latitude: 23.0225,
+          longitude: 72.5714,
+          accuracy: 10,
+          capturedAt: new Date(Date.now() - 5000).toISOString(),
+        },
+      );
       expect(loc1.latitude).toBe(23.0225);
 
       // 2. Sudden jump to Delhi (900km away) in 3 seconds (> 1,000,000 km/h)
-      const loc2 = await locationService.updateLocation('u-jump-test', 'comp-1', {
-        sessionId: reg.sessionId,
-        latitude: 28.6139,
-        longitude: 77.2090,
-        accuracy: 10,
-        capturedAt: new Date().toISOString(),
-      });
+      const loc2 = await locationService.updateLocation(
+        'u-jump-test',
+        'comp-1',
+        {
+          sessionId: reg.sessionId,
+          latitude: 28.6139,
+          longitude: 77.209,
+          accuracy: 10,
+          capturedAt: new Date().toISOString(),
+        },
+      );
 
       // Filtered: isSuspiciousJump = true, coordinates remain in Ahmedabad
       expect(loc2.isSuspiciousJump).toBe(true);
@@ -297,7 +390,14 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
   describe('4. Server-Controlled Presence & GPS Staleness Telemetry', () => {
     it('accurately distinguishes ONLINE vs RECENTLY_ACTIVE vs OFFLINE and ACTIVE vs STALE GPS', async () => {
       const now = Date.now();
-      mockUsers.push({ id: 'u-presence', name: 'Presence User', email: 'p@erp.com', role: { name: 'Sales', code: 'SALES' }, companyId: 'comp-1', isActive: true });
+      mockUsers.push({
+        id: 'u-presence',
+        name: 'Presence User',
+        email: 'p@erp.com',
+        role: { name: 'Sales', code: 'SALES' },
+        companyId: 'comp-1',
+        isActive: true,
+      });
 
       // Session with recent heartbeat and fresh GPS (< 120s)
       const s1 = {
@@ -331,7 +431,10 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
       const roleId = 'role-sales-executive';
       const roleCode = 'SALES_EXECUTIVE';
 
-      const perms = await usersService.ensureDefaultPermissions(roleId, roleCode);
+      const perms = await usersService.ensureDefaultPermissions(
+        roleId,
+        roleCode,
+      );
       expect(perms).toContain('sales.leads.read');
       expect(perms).toContain('sales.orders.create');
       expect(perms).toContain('location.track.enable');

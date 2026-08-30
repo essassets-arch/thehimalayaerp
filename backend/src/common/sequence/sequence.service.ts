@@ -11,7 +11,8 @@ export class SequenceService {
    * April 1 to March 31 cycle.
    */
   getFinancialYearCode(date: Date = new Date()): string {
-    const d = date instanceof Date && !isNaN(date.getTime()) ? date : new Date();
+    const d =
+      date instanceof Date && !isNaN(date.getTime()) ? date : new Date();
     const month = d.getMonth(); // 0 = Jan, 3 = Apr, 11 = Dec
     const fullYear = d.getFullYear();
     const startYear = month >= 3 ? fullYear : fullYear - 1;
@@ -53,18 +54,27 @@ export class SequenceService {
    * Generates next Lead number (e.g. LEAD/2627/0001).
    * Independent sequence per financial year, collision-safe.
    */
-  async generateLeadNumber(date: Date = new Date(), tx?: Prisma.TransactionClient): Promise<string> {
+  async generateLeadNumber(
+    date: Date = new Date(),
+    tx?: Prisma.TransactionClient,
+  ): Promise<string> {
     const fy = this.getFinancialYearCode(date);
     const key = `lead_number_${fy}`;
     const prefix = `LEAD/${fy}/`;
 
     const runner = async (client: Prisma.TransactionClient) => {
       let candidate = await this.generateNextWithTx(client, key, prefix, 4);
-      let exists = await client.lead.findFirst({ where: { leadNumber: candidate }, select: { id: true } });
-      
+      let exists = await client.lead.findFirst({
+        where: { leadNumber: candidate },
+        select: { id: true },
+      });
+
       while (exists) {
         candidate = await this.generateNextWithTx(client, key, prefix, 4);
-        exists = await client.lead.findFirst({ where: { leadNumber: candidate }, select: { id: true } });
+        exists = await client.lead.findFirst({
+          where: { leadNumber: candidate },
+          select: { id: true },
+        });
       }
       return candidate;
     };
@@ -76,18 +86,27 @@ export class SequenceService {
    * Generates next Quotation number (e.g. QU/2627/0001).
    * Independent sequence per financial year, collision-safe.
    */
-  async generateQuotationNumber(date: Date = new Date(), tx?: Prisma.TransactionClient): Promise<string> {
+  async generateQuotationNumber(
+    date: Date = new Date(),
+    tx?: Prisma.TransactionClient,
+  ): Promise<string> {
     const fy = this.getFinancialYearCode(date);
     const key = `quotation_number_${fy}`;
     const prefix = `QU/${fy}/`;
 
     const runner = async (client: Prisma.TransactionClient) => {
       let candidate = await this.generateNextWithTx(client, key, prefix, 4);
-      let exists = await client.quotation.findFirst({ where: { quotationNumber: candidate }, select: { id: true } });
-      
+      let exists = await client.quotation.findFirst({
+        where: { quotationNumber: candidate },
+        select: { id: true },
+      });
+
       while (exists) {
         candidate = await this.generateNextWithTx(client, key, prefix, 4);
-        exists = await client.quotation.findFirst({ where: { quotationNumber: candidate }, select: { id: true } });
+        exists = await client.quotation.findFirst({
+          where: { quotationNumber: candidate },
+          select: { id: true },
+        });
       }
       return candidate;
     };
@@ -99,18 +118,27 @@ export class SequenceService {
    * Generates next Sales Order number (e.g. HCPPL/2627/0001).
    * Independent sequence per financial year, collision-safe.
    */
-  async generateSalesOrderNumber(date: Date = new Date(), tx?: Prisma.TransactionClient): Promise<string> {
+  async generateSalesOrderNumber(
+    date: Date = new Date(),
+    tx?: Prisma.TransactionClient,
+  ): Promise<string> {
     const fy = this.getFinancialYearCode(date);
     const key = `sales_order_number_${fy}`;
     const prefix = `HCPPL/${fy}/`;
 
     const runner = async (client: Prisma.TransactionClient) => {
       let candidate = await this.generateNextWithTx(client, key, prefix, 4);
-      let exists = await client.salesOrder.findFirst({ where: { orderNumber: candidate }, select: { id: true } });
-      
+      let exists = await client.salesOrder.findFirst({
+        where: { orderNumber: candidate },
+        select: { id: true },
+      });
+
       while (exists) {
         candidate = await this.generateNextWithTx(client, key, prefix, 4);
-        exists = await client.salesOrder.findFirst({ where: { orderNumber: candidate }, select: { id: true } });
+        exists = await client.salesOrder.findFirst({
+          where: { orderNumber: candidate },
+          select: { id: true },
+        });
       }
       return candidate;
     };

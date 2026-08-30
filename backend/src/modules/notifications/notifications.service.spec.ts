@@ -3,6 +3,8 @@ import { NotificationsService } from './notifications.service';
 import { PrismaService } from '../../database/prisma.service';
 import { createMockPrismaService } from '../../../test/mocks/prisma.mock';
 
+import { FirebasePushService } from './firebase-push.service';
+
 describe('NotificationsService', () => {
   let service: NotificationsService;
 
@@ -11,6 +13,10 @@ describe('NotificationsService', () => {
       providers: [
         NotificationsService,
         { provide: PrismaService, useValue: createMockPrismaService() },
+        {
+          provide: FirebasePushService,
+          useValue: { sendPushNotification: jest.fn() },
+        },
       ],
     }).compile();
 

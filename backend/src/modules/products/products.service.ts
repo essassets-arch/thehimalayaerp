@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class ProductsService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async create(companyId: string, dto: CreateProductDto) {
     const isRawMaterial =
@@ -27,7 +27,8 @@ export class ProductsService {
     const rawDC = dto.dispatchCategory || dto.dispatch_category;
     if (rawDC === 'D1' || rawDC === 'DISPATCH 1') dispatchCategory = 'D1';
     else if (rawDC === 'D2' || rawDC === 'DISPATCH 2') dispatchCategory = 'D2';
-    else if (rawDC && rawDC !== 'Unassigned' && rawDC !== 'UNASSIGNED') dispatchCategory = String(rawDC);
+    else if (rawDC && rawDC !== 'Unassigned' && rawDC !== 'UNASSIGNED')
+      dispatchCategory = String(rawDC);
     const gstRate = dto.gstRate !== undefined ? dto.gstRate : dto.gst_rate;
     const hsnCode = dto.hsnCode || dto.hsn_sac_code;
     const variantDetails = dto.variantDetails || dto.variant_details;
@@ -44,7 +45,11 @@ export class ProductsService {
           category,
           unit,
           minimumStock: dto.minimumStock || 0,
-          storageLocation: dto.storageLocation || dto.storage_location || dto.description || null,
+          storageLocation:
+            dto.storageLocation ||
+            dto.storage_location ||
+            dto.description ||
+            null,
         },
       });
     }
@@ -54,9 +59,7 @@ export class ProductsService {
         where: { companyId, sku },
       });
       if (existing) {
-        throw new ConflictException(
-          `Product with SKU ${sku} already exists.`,
-        );
+        throw new ConflictException(`Product with SKU ${sku} already exists.`);
       }
     }
 
@@ -84,7 +87,14 @@ export class ProductsService {
     });
   }
 
-  async findAll(companyId: string, search?: string, scope?: string, type?: string, userId?: string, role?: string) {
+  async findAll(
+    companyId: string,
+    search?: string,
+    scope?: string,
+    type?: string,
+    userId?: string,
+    role?: string,
+  ) {
     if (scope === 'store' || scope === 'inventory') {
       const products = await this.prisma.product.findMany({
         where: { companyId, isActive: true },
@@ -172,7 +182,11 @@ export class ProductsService {
       where.AND = [
         {
           OR: [
-            { productType: { in: ['MANUFACTURING', 'TRADING', 'FINISHED_GOODS'] } },
+            {
+              productType: {
+                in: ['MANUFACTURING', 'TRADING', 'FINISHED_GOODS'],
+              },
+            },
             {
               AND: [
                 { productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] } },
@@ -205,7 +219,9 @@ export class ProductsService {
             {
               AND: [
                 { productType: null },
-                { category: { notIn: ['Hardware', 'Raw Material', 'Electric'] } },
+                {
+                  category: { notIn: ['Hardware', 'Raw Material', 'Electric'] },
+                },
               ],
             },
           ],
@@ -262,10 +278,7 @@ export class ProductsService {
   async findOne(companyId: string, id: string) {
     const rm = await this.prisma.rawMaterial.findFirst({
       where: {
-        OR: [
-          { id },
-          { publicId: id },
-        ],
+        OR: [{ id }, { publicId: id }],
       },
     });
     if (rm) {
@@ -286,10 +299,7 @@ export class ProductsService {
 
     const product = await this.prisma.product.findFirst({
       where: {
-        OR: [
-          { id },
-          { publicId: id },
-        ],
+        OR: [{ id }, { publicId: id }],
       },
     });
 
@@ -312,39 +322,65 @@ export class ProductsService {
           category: dto.category || dto.product_family,
           unit: dto.unit || dto.unit_of_measure,
           minimumStock: dto.minimumStock,
-          storageLocation: dto.storageLocation || dto.storage_location || dto.description,
+          storageLocation:
+            dto.storageLocation || dto.storage_location || dto.description,
         },
       });
     }
 
     const updateData: any = {};
-    if (dto.name || dto.product_name) updateData.name = dto.name || dto.product_name;
-    if (dto.sku || dto.product_code) updateData.sku = dto.sku || dto.product_code;
+    if (dto.name || dto.product_name)
+      updateData.name = dto.name || dto.product_name;
+    if (dto.sku || dto.product_code)
+      updateData.sku = dto.sku || dto.product_code;
     if (dto.description !== undefined) updateData.description = dto.description;
-    if (dto.category || dto.product_family) updateData.category = dto.category || dto.product_family;
-    if (dto.unit || dto.unit_of_measure) updateData.unit = dto.unit || dto.unit_of_measure;
+    if (dto.category || dto.product_family)
+      updateData.category = dto.category || dto.product_family;
+    if (dto.unit || dto.unit_of_measure)
+      updateData.unit = dto.unit || dto.unit_of_measure;
     if (dto.unitPrice !== undefined) updateData.unitPrice = dto.unitPrice;
-    if (dto.productType || dto.product_type) updateData.productType = dto.productType || dto.product_type;
+    if (dto.productType || dto.product_type)
+      updateData.productType = dto.productType || dto.product_type;
     if (dto.brand !== undefined) updateData.brand = dto.brand;
-    if (dto.dispatchCategory !== undefined || dto.dispatch_category !== undefined) {
-      const rawDC = dto.dispatchCategory !== undefined ? dto.dispatchCategory : dto.dispatch_category;
-      if (rawDC === 'D1' || rawDC === 'DISPATCH 1') updateData.dispatchCategory = 'D1';
-      else if (rawDC === 'D2' || rawDC === 'DISPATCH 2') updateData.dispatchCategory = 'D2';
-      else if (rawDC && rawDC !== 'Unassigned' && rawDC !== 'UNASSIGNED') updateData.dispatchCategory = String(rawDC);
+    if (
+      dto.dispatchCategory !== undefined ||
+      dto.dispatch_category !== undefined
+    ) {
+      const rawDC =
+        dto.dispatchCategory !== undefined
+          ? dto.dispatchCategory
+          : dto.dispatch_category;
+      if (rawDC === 'D1' || rawDC === 'DISPATCH 1')
+        updateData.dispatchCategory = 'D1';
+      else if (rawDC === 'D2' || rawDC === 'DISPATCH 2')
+        updateData.dispatchCategory = 'D2';
+      else if (rawDC && rawDC !== 'Unassigned' && rawDC !== 'UNASSIGNED')
+        updateData.dispatchCategory = String(rawDC);
       else updateData.dispatchCategory = null;
     }
-    if (dto.gstRate !== undefined || dto.gst_rate !== undefined) updateData.gstRate = dto.gstRate !== undefined ? dto.gstRate : dto.gst_rate;
-    if (dto.hsnCode || dto.hsn_sac_code) updateData.hsnCode = dto.hsnCode || dto.hsn_sac_code;
-    if (dto.variantDetails || dto.variant_details) updateData.variantDetails = dto.variantDetails || dto.variant_details;
+    if (dto.gstRate !== undefined || dto.gst_rate !== undefined)
+      updateData.gstRate =
+        dto.gstRate !== undefined ? dto.gstRate : dto.gst_rate;
+    if (dto.hsnCode || dto.hsn_sac_code)
+      updateData.hsnCode = dto.hsnCode || dto.hsn_sac_code;
+    if (dto.variantDetails || dto.variant_details)
+      updateData.variantDetails = dto.variantDetails || dto.variant_details;
     if (dto.weight !== undefined) updateData.weight = dto.weight;
-    if (dto.imageUrl || dto.image_url) updateData.imageUrl = dto.imageUrl || dto.image_url;
-    if (dto.minimumStock !== undefined) updateData.minimumStock = dto.minimumStock;
-    if (dto.reorderQuantity !== undefined) updateData.reorderQuantity = dto.reorderQuantity;
+    if (dto.imageUrl || dto.image_url)
+      updateData.imageUrl = dto.imageUrl || dto.image_url;
+    if (dto.minimumStock !== undefined)
+      updateData.minimumStock = dto.minimumStock;
+    if (dto.reorderQuantity !== undefined)
+      updateData.reorderQuantity = dto.reorderQuantity;
     if (dto.reorderUnit !== undefined) updateData.reorderUnit = dto.reorderUnit;
-    if (dto.leadTimeDays !== undefined) updateData.leadTimeDays = dto.leadTimeDays;
-    if (dto.preferredVendorId !== undefined) updateData.preferredVendorId = dto.preferredVendorId;
-    if (dto.isAutoReorderEnabled !== undefined) updateData.isAutoReorderEnabled = dto.isAutoReorderEnabled;
-    if (dto.storageLocation !== undefined || dto.storage_location !== undefined) updateData.storageLocation = dto.storageLocation || dto.storage_location;
+    if (dto.leadTimeDays !== undefined)
+      updateData.leadTimeDays = dto.leadTimeDays;
+    if (dto.preferredVendorId !== undefined)
+      updateData.preferredVendorId = dto.preferredVendorId;
+    if (dto.isAutoReorderEnabled !== undefined)
+      updateData.isAutoReorderEnabled = dto.isAutoReorderEnabled;
+    if (dto.storageLocation !== undefined || dto.storage_location !== undefined)
+      updateData.storageLocation = dto.storageLocation || dto.storage_location;
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
 
     return this.prisma.product.update({

@@ -37,23 +37,41 @@ export class CreateEmployeeDto {
   @IsOptional() @IsDateString() probationEndDate?: string;
   @IsEmail() workEmail!: string;
   @IsOptional() @IsEmail() personalEmail?: string;
-  @Transform(({ value }) => typeof value === 'string' ? value.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '') : value)
-  @Matches(/^\d{10}$/) phoneNumber!: string;
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '')
+      : value,
+  )
+  @Matches(/^\d{10}$/)
+  phoneNumber!: string;
   @IsOptional()
-  @Transform(({ value }) => typeof value === 'string' && value.trim() !== '' ? value.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '') : undefined)
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() !== ''
+      ? value.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '')
+      : undefined,
+  )
   @ValidateIf((o) => !!o.companyPhoneNumber)
   @Matches(/^\d{10}$/)
   companyPhoneNumber?: string;
   @IsOptional()
-  @Transform(({ value }) => typeof value === 'string' && value.trim() !== '' ? value.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '') : undefined)
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() !== ''
+      ? value.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '')
+      : undefined,
+  )
   @ValidateIf((o) => !!o.companyPhone)
   @Matches(/^\d{10}$/)
   companyPhone?: string;
   @IsString() @IsNotEmpty() residentialAddress!: string;
   @IsOptional() @IsString() permanentAddress?: string;
   @IsString() @IsNotEmpty() emergencyContactName!: string;
-  @Transform(({ value }) => typeof value === 'string' ? value.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '') : value)
-  @Matches(/^\d{10}$/) emergencyContactPhone!: string;
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '')
+      : value,
+  )
+  @Matches(/^\d{10}$/)
+  emergencyContactPhone!: string;
   @IsString() @IsNotEmpty() emergencyRelationship!: string;
   @Transform(upper) @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/) panNumber!: string;
   @Matches(/^[2-9]\d{11}$/) aadhaarNumber!: string;

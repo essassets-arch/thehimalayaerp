@@ -47,7 +47,11 @@ export class FinanceSalesAnalyticsMetricService {
     'PENDING_APPROVAL',
   ];
 
-  public readonly ELIGIBLE_INVOICE_STATUSES = ['POSTED', 'PARTIALLY_PAID', 'PAID'];
+  public readonly ELIGIBLE_INVOICE_STATUSES = [
+    'POSTED',
+    'PARTIALLY_PAID',
+    'PAID',
+  ];
 
   public readonly EXCLUDED_INVOICE_STATUSES = ['DRAFT', 'VOID', 'CANCELLED'];
 
@@ -111,15 +115,43 @@ export class FinanceSalesAnalyticsMetricService {
 
     switch (preset) {
       case DateRangePreset.TODAY: {
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+        startDate = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          0,
+          0,
+          0,
+        );
+        endDate = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          23,
+          59,
+          59,
+        );
         break;
       }
       case DateRangePreset.YESTERDAY: {
         const y = new Date(now);
         y.setDate(y.getDate() - 1);
-        startDate = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 0, 0, 0);
-        endDate = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59);
+        startDate = new Date(
+          y.getFullYear(),
+          y.getMonth(),
+          y.getDate(),
+          0,
+          0,
+          0,
+        );
+        endDate = new Date(
+          y.getFullYear(),
+          y.getMonth(),
+          y.getDate(),
+          23,
+          59,
+          59,
+        );
         break;
       }
       case DateRangePreset.LAST_7_DAYS: {
@@ -148,13 +180,21 @@ export class FinanceSalesAnalyticsMetricService {
       }
       case DateRangePreset.THIS_QUARTER: {
         const currentQuarterMonth = Math.floor(now.getMonth() / 3) * 3;
-        startDate = new Date(now.getFullYear(), currentQuarterMonth, 1, 0, 0, 0);
+        startDate = new Date(
+          now.getFullYear(),
+          currentQuarterMonth,
+          1,
+          0,
+          0,
+          0,
+        );
         endDate = new Date(now);
         break;
       }
       case DateRangePreset.THIS_FY: {
         // Indian FY starts April 1st
-        const fyYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+        const fyYear =
+          now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
         startDate = new Date(fyYear, 3, 1, 0, 0, 0);
         endDate = new Date(now);
         break;
@@ -171,7 +211,10 @@ export class FinanceSalesAnalyticsMetricService {
   /**
    * Decimal-safe collection efficiency calculation
    */
-  calculateCollectionEfficiency(collected: number, eligibleReceivable: number): number {
+  calculateCollectionEfficiency(
+    collected: number,
+    eligibleReceivable: number,
+  ): number {
     if (!eligibleReceivable || eligibleReceivable <= 0) return 0;
     const eff = (collected / eligibleReceivable) * 100;
     return Math.min(Math.round(eff * 100) / 100, 100);

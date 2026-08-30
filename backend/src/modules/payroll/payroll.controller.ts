@@ -49,19 +49,37 @@ export class PayrollController {
     return this.service.editReturned(id, req.user);
   }
 
-  @Post(['hr/payroll/send-to-super-admin', 'hr/payroll/:id/submit', 'hr/payroll/submit-bulk'])
-  sendToSuperAdmin(@Param('id') idParam: string, @Body() body: any, @Req() req: any) {
-    const ids = body?.ids || body?.records?.map((r: any) => r?.id || r) || (idParam ? [idParam] : []);
+  @Post([
+    'hr/payroll/send-to-super-admin',
+    'hr/payroll/:id/submit',
+    'hr/payroll/submit-bulk',
+  ])
+  sendToSuperAdmin(
+    @Param('id') idParam: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    const ids =
+      body?.ids ||
+      body?.records?.map((r: any) => r?.id || r) ||
+      (idParam ? [idParam] : []);
     return this.service.submitToSuperAdmin(ids, req.user);
   }
 
-  @Get(['hr/payroll/attendance-summary/:employeeId', 'payroll/attendance-summary/:employeeId'])
+  @Get([
+    'hr/payroll/attendance-summary/:employeeId',
+    'payroll/attendance-summary/:employeeId',
+  ])
   getPayrollAttendanceSummary(
     @Param('employeeId') employeeId: string,
     @Query('month') month: string,
     @Req() req: any,
   ) {
-    return this.service.getPayrollAttendanceSummary(employeeId, month, req.user);
+    return this.service.getPayrollAttendanceSummary(
+      employeeId,
+      month,
+      req.user,
+    );
   }
 
   // ==========================================
@@ -86,8 +104,16 @@ export class PayrollController {
     return this.service.hold(id, body, req.user);
   }
 
-  @Post(['super-admin/payroll/:id/return', 'hr/payroll/:id/return', 'hr/payroll/:id/return-for-correction'])
-  returnRecordToHr(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  @Post([
+    'super-admin/payroll/:id/return',
+    'hr/payroll/:id/return',
+    'hr/payroll/:id/return-for-correction',
+  ])
+  returnRecordToHr(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
     return this.service.returnToHr(id, body, req.user);
   }
 
@@ -121,9 +147,20 @@ export class PayrollController {
     return this.service.list(query, req.user, ['PAID']);
   }
 
-  @Post(['finance/payroll/start-processing', 'hr/payroll/:id/start-processing', 'hr/payroll/start-processing-bulk'])
-  startProcessing(@Param('id') idParam: string, @Body() body: any, @Req() req: any) {
-    const ids = body?.ids || body?.records?.map((r: any) => r?.id || r) || (idParam ? [idParam] : []);
+  @Post([
+    'finance/payroll/start-processing',
+    'hr/payroll/:id/start-processing',
+    'hr/payroll/start-processing-bulk',
+  ])
+  startProcessing(
+    @Param('id') idParam: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    const ids =
+      body?.ids ||
+      body?.records?.map((r: any) => r?.id || r) ||
+      (idParam ? [idParam] : []);
     return this.service.startProcessing(ids, req.user);
   }
 
@@ -146,8 +183,14 @@ export class PayrollController {
     return this.service.getSalarySlipPdf(id, req.user);
   }
 
-  @Get(['salary-slips/payroll/:payrollRecordId', 'hr/salary-slips/payroll/:payrollRecordId'])
-  getSalarySlipByPayrollId(@Param('payrollRecordId') payrollRecordId: string, @Req() req: any) {
+  @Get([
+    'salary-slips/payroll/:payrollRecordId',
+    'hr/salary-slips/payroll/:payrollRecordId',
+  ])
+  getSalarySlipByPayrollId(
+    @Param('payrollRecordId') payrollRecordId: string,
+    @Req() req: any,
+  ) {
     return this.service.getSalarySlipByPayrollId(payrollRecordId, req.user);
   }
 
@@ -157,15 +200,26 @@ export class PayrollController {
   }
 
   @Get(['salary-slips/:id/pdf', 'hr/salary-slips/:id/pdf'])
-  async getSalarySlipPdfFile(@Param('id') id: string, @Req() req: any, @Res() res: any) {
+  async getSalarySlipPdfFile(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Res() res: any,
+  ) {
     const result = await this.service.getSalarySlipPdfBuffer(id, req.user);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${result.filename}"`,
+    );
     return res.send(result.buffer);
   }
 
   @Post(['salary-slips/:id/share', 'hr/salary-slips/:id/share'])
-  createSalarySlipShare(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  createSalarySlipShare(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
     return this.service.createSalarySlipShare(id, body, req.user);
   }
 
@@ -193,8 +247,14 @@ export class PayrollController {
     return this.service.getSalaryStructure(id, req.user);
   }
 
-  @Get(['hr/salary-structures/employee/:employeeId', 'salary-structures/employee/:employeeId'])
-  getEmployeeSalaryStructure(@Param('employeeId') employeeId: string, @Req() req: any) {
+  @Get([
+    'hr/salary-structures/employee/:employeeId',
+    'salary-structures/employee/:employeeId',
+  ])
+  getEmployeeSalaryStructure(
+    @Param('employeeId') employeeId: string,
+    @Req() req: any,
+  ) {
     return this.service.getEmployeeSalaryStructure(employeeId, req.user);
   }
 
@@ -204,12 +264,20 @@ export class PayrollController {
   }
 
   @Put(['hr/salary-structures/:id', 'salary-structures/:id'])
-  updateSalaryStructure(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  updateSalaryStructure(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
     return this.service.updateSalaryStructure(id, body, req.user);
   }
 
   @Patch(['hr/salary-structures/:id', 'salary-structures/:id'])
-  patchSalaryStructure(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  patchSalaryStructure(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
     return this.service.updateSalaryStructure(id, body, req.user);
   }
 

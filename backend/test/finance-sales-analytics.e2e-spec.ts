@@ -60,7 +60,7 @@ describe('Finance Sales Analytics — E2E Suite', () => {
     const adminLogin = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email: 'super.admin@himalayaerp.com', password: 'admin123' });
-    
+
     adminToken =
       adminLogin.body.accessToken || adminLogin.body.data?.accessToken;
   });

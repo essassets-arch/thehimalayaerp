@@ -29,6 +29,9 @@ export class MachineStatusController {
     @Req() req: any,
   ) {
     const userId = req.user?.sub;
-    return this.machineStatusService.saveDailyStatus(saveMachineStatusDto, userId);
+    return this.machineStatusService.saveDailyStatus(
+      saveMachineStatusDto,
+      userId,
+    );
   }
 }

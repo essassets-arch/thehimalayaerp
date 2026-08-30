@@ -60,11 +60,12 @@ export class ProfileService {
       };
     }
 
-    const summaries = await this.prisma.employeeMonthlyAttendanceSummary.findMany({
-      where: { employeeId: employee.id },
-      include: { payrollPeriod: true },
-      take: 12,
-    });
+    const summaries =
+      await this.prisma.employeeMonthlyAttendanceSummary.findMany({
+        where: { employeeId: employee.id },
+        include: { payrollPeriod: true },
+        take: 12,
+      });
 
     // Sort in memory by year/month descending
     const sorted = summaries.sort((a, b) => {
@@ -74,10 +75,24 @@ export class ProfileService {
       return b.payrollPeriod.month - a.payrollPeriod.month;
     });
 
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const formatted = sorted.map(s => {
+    const monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    const formatted = sorted.map((s) => {
       const monthName = monthNames[s.payrollPeriod.month - 1] || 'Month';
-      const leaves = Number(s.paidLeaveDays || 0) + Number(s.unpaidLeaveDays || 0);
+      const leaves =
+        Number(s.paidLeaveDays || 0) + Number(s.unpaidLeaveDays || 0);
       return {
         id: s.id,
         month: `${monthName} ${s.payrollPeriod.year}`,
@@ -115,20 +130,31 @@ export class ProfileService {
 
     const slips = await this.prisma.salarySlip.findMany({
       where: { employeeId: employee.id, availableToEmployee: true },
-      orderBy: [
-        { salaryYear: 'desc' },
-        { salaryMonth: 'desc' },
-      ],
+      orderBy: [{ salaryYear: 'desc' }, { salaryMonth: 'desc' }],
     });
 
     return {
       success: true,
-      data: slips.map(s => ({
+      data: slips.map((s) => ({
         id: s.id,
         slipNumber: s.slipNumber,
         month: s.salaryMonth,
         year: s.salaryYear,
-        monthName: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][s.salaryMonth - 1] || 'Month',
+        monthName:
+          [
+            'January',
+            'February',
+            'March',
+            'April',
+            'May',
+            'June',
+            'July',
+            'August',
+            'September',
+            'October',
+            'November',
+            'December',
+          ][s.salaryMonth - 1] || 'Month',
         grossEarnings: s.grossEarnings,
         totalDeductions: s.totalDeductions,
         netPaid: s.netPaid,
@@ -140,7 +166,7 @@ export class ProfileService {
   async getMyExpenses(userId: string, companyId: string) {
     let activeCompanyId = companyId;
     const companyExists = await this.prisma.company.findUnique({
-      where: { id: companyId }
+      where: { id: companyId },
     });
     if (!companyExists) {
       const firstCompany = await this.prisma.company.findFirst();

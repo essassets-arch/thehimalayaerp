@@ -100,24 +100,29 @@ export class ProductionService {
         assignedToId: userId,
       },
       include: {
-        salesOrder: { include: { customer: true } }
-      }
+        salesOrder: { include: { customer: true } },
+      },
     });
 
     if (this.notificationsService && plan.salesOrder?.customer?.companyId) {
-      this.notificationsService.notifyRole({
-        companyId: plan.salesOrder.customer.companyId,
-        role: 'PRODUCTION_MANAGER',
-        type: 'PRODUCTION_PLAN_CREATED',
-        title: 'Production Plan Created',
-        message: `${plan.planNumber} — Production plan for ${plan.salesOrder.orderNumber} has been created.`,
-        route: '/production/incoming-orders',
-        entityType: 'ProductionPlan',
-        entityId: plan.id,
-        eventKeyPrefix: `PRODUCTION_PLAN:${plan.id}:CREATED`
-      }).catch((err) =>
-        console.warn('[ProductionService Notification] Failed to notify PRODUCTION_MANAGER:', err.message)
-      );
+      this.notificationsService
+        .notifyRole({
+          companyId: plan.salesOrder.customer.companyId,
+          role: 'PRODUCTION_MANAGER',
+          type: 'PRODUCTION_PLAN_CREATED',
+          title: 'Production Plan Created',
+          message: `${plan.planNumber} — Production plan for ${plan.salesOrder.orderNumber} has been created.`,
+          route: '/production/incoming-orders',
+          entityType: 'ProductionPlan',
+          entityId: plan.id,
+          eventKeyPrefix: `PRODUCTION_PLAN:${plan.id}:CREATED`,
+        })
+        .catch((err) =>
+          console.warn(
+            '[ProductionService Notification] Failed to notify PRODUCTION_MANAGER:',
+            err.message,
+          ),
+        );
     }
 
     return plan;
@@ -224,8 +229,14 @@ export class ProductionService {
               allocationType: 'FINISHED_GOODS_RESERVATION',
             },
           });
-          const reservedQty = reservations.reduce((sum, r) => sum + Number(r.reservedQuantity), 0);
-          const workOrderQty = Math.max(0, Number(item.orderedQuantity) - reservedQty);
+          const reservedQty = reservations.reduce(
+            (sum, r) => sum + Number(r.reservedQuantity),
+            0,
+          );
+          const workOrderQty = Math.max(
+            0,
+            Number(item.orderedQuantity) - reservedQty,
+          );
 
           if (workOrderQty > 0) {
             const wo = await tx.workOrder.create({
@@ -268,19 +279,24 @@ export class ProductionService {
       if (planWithOrder?.salesOrder?.customer?.companyId) {
         const companyId = planWithOrder.salesOrder.customer.companyId;
         for (const wo of planWithOrder.workOrders) {
-          this.notificationsService.notifyRole({
-            companyId,
-            role: 'PRODUCTION_MANAGER',
-            type: 'WORK_ORDER_CREATED',
-            title: 'New Work Order',
-            message: `${wo.workOrderNumber} — Work Order for ${planWithOrder.salesOrder.orderNumber} is ready for production.`,
-            route: '/production/work-orders',
-            entityType: 'WorkOrder',
-            entityId: wo.id,
-            eventKeyPrefix: `WORK_ORDER:${wo.id}:CREATED`,
-          }).catch((err) =>
-            console.warn('[ProductionService Notification] Failed to notify WORK_ORDER_CREATED:', err.message),
-          );
+          this.notificationsService
+            .notifyRole({
+              companyId,
+              role: 'PRODUCTION_MANAGER',
+              type: 'WORK_ORDER_CREATED',
+              title: 'New Work Order',
+              message: `${wo.workOrderNumber} — Work Order for ${planWithOrder.salesOrder.orderNumber} is ready for production.`,
+              route: '/production/work-orders',
+              entityType: 'WorkOrder',
+              entityId: wo.id,
+              eventKeyPrefix: `WORK_ORDER:${wo.id}:CREATED`,
+            })
+            .catch((err) =>
+              console.warn(
+                '[ProductionService Notification] Failed to notify WORK_ORDER_CREATED:',
+                err.message,
+              ),
+            );
         }
       }
     }

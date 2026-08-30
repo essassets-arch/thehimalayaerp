@@ -38,4 +38,3 @@ import { InventoryModule } from '../inventory/inventory.module';
   exports: [FinishedGoodsStockService],
 })
 export class ProductionModule {}
-

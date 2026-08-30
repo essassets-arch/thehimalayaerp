@@ -28,7 +28,11 @@ export class ProductionDailyReportController {
     private readonly dailyReportService: ProductionDailyReportService,
   ) {}
 
-  @RequirePermissions('production.floor.read', 'production.plan.read', 'production.qc.read')
+  @RequirePermissions(
+    'production.floor.read',
+    'production.plan.read',
+    'production.qc.read',
+  )
   @Get()
   async listReports(@Req() req: any, @Query() query: QueryDailyReportDto) {
     const companyId = req.user?.companyId || 'COMP-000001';

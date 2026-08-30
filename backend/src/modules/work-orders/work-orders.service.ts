@@ -23,7 +23,10 @@ export class WorkOrdersService {
       where.status = { in: statuses };
     }
 
-    if (userId && (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')) {
+    if (
+      userId &&
+      (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')
+    ) {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
       });
@@ -40,7 +43,15 @@ export class WorkOrdersService {
       where,
       include: {
         productionPlan: {
-          include: { salesOrder: { include: { customer: true, items: { include: { product: true } }, sourceQuotation: true } } },
+          include: {
+            salesOrder: {
+              include: {
+                customer: true,
+                items: { include: { product: true } },
+                sourceQuotation: true,
+              },
+            },
+          },
         },
         salesOrderItem: {
           include: { dispatchItems: true, product: true },
@@ -63,7 +74,11 @@ export class WorkOrdersService {
         productionPlan: {
           include: {
             salesOrder: {
-              include: { customer: true, items: { include: { product: true } }, sourceQuotation: true },
+              include: {
+                customer: true,
+                items: { include: { product: true } },
+                sourceQuotation: true,
+              },
             },
           },
         },
@@ -230,38 +245,50 @@ export class WorkOrdersService {
         },
       });
 
-      const companyId = woWithDetails?.productionPlan?.salesOrder?.customer?.companyId;
-      const orderNumber = woWithDetails?.productionPlan?.salesOrder?.orderNumber || 'SO';
+      const companyId =
+        woWithDetails?.productionPlan?.salesOrder?.customer?.companyId;
+      const orderNumber =
+        woWithDetails?.productionPlan?.salesOrder?.orderNumber || 'SO';
 
       if (companyId) {
         if (actionName === 'START') {
-          this.notificationsService.notifyRole({
-            companyId,
-            role: 'PLANT_HEAD',
-            type: 'PRODUCTION_STARTED',
-            title: 'Production Started',
-            message: `${woWithDetails.workOrderNumber} — Production has started for ${orderNumber}.`,
-            route: '/plant-head/planning',
-            entityType: 'WorkOrder',
-            entityId: woWithDetails.id,
-            eventKeyPrefix: `WORK_ORDER:${woWithDetails.id}:STARTED`,
-          }).catch((err) =>
-            console.warn('[WorkOrdersService Notification] Failed to notify PLANT_HEAD:', err.message),
-          );
+          this.notificationsService
+            .notifyRole({
+              companyId,
+              role: 'PLANT_HEAD',
+              type: 'PRODUCTION_STARTED',
+              title: 'Production Started',
+              message: `${woWithDetails.workOrderNumber} — Production has started for ${orderNumber}.`,
+              route: '/plant-head/planning',
+              entityType: 'WorkOrder',
+              entityId: woWithDetails.id,
+              eventKeyPrefix: `WORK_ORDER:${woWithDetails.id}:STARTED`,
+            })
+            .catch((err) =>
+              console.warn(
+                '[WorkOrdersService Notification] Failed to notify PLANT_HEAD:',
+                err.message,
+              ),
+            );
         } else if (actionName === 'COMPLETE') {
-          this.notificationsService.notifyRole({
-            companyId,
-            role: 'QC_INSPECTOR',
-            type: 'QC_REQUIRED',
-            title: 'QC Inspection Required',
-            message: `${woWithDetails.workOrderNumber} — Production is complete and ready for QC inspection.`,
-            route: '/qc/pending',
-            entityType: 'WorkOrder',
-            entityId: woWithDetails.id,
-            eventKeyPrefix: `WORK_ORDER:${woWithDetails.id}:QC_REQUIRED`,
-          }).catch((err) =>
-            console.warn('[WorkOrdersService Notification] Failed to notify QC_INSPECTOR:', err.message),
-          );
+          this.notificationsService
+            .notifyRole({
+              companyId,
+              role: 'QC_INSPECTOR',
+              type: 'QC_REQUIRED',
+              title: 'QC Inspection Required',
+              message: `${woWithDetails.workOrderNumber} — Production is complete and ready for QC inspection.`,
+              route: '/qc/pending',
+              entityType: 'WorkOrder',
+              entityId: woWithDetails.id,
+              eventKeyPrefix: `WORK_ORDER:${woWithDetails.id}:QC_REQUIRED`,
+            })
+            .catch((err) =>
+              console.warn(
+                '[WorkOrdersService Notification] Failed to notify QC_INSPECTOR:',
+                err.message,
+              ),
+            );
         }
       }
     }
@@ -273,7 +300,9 @@ export class WorkOrdersService {
     const rawId = String(id || '').trim();
     const cleanId = rawId.replace(/^fg-wo-/, '').replace(/^fg-so-/, '');
     let baseUuid = cleanId;
-    const uuidMatch = cleanId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    const uuidMatch = cleanId.match(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+    );
     if (uuidMatch) {
       baseUuid = uuidMatch[0];
     }
@@ -297,7 +326,9 @@ export class WorkOrdersService {
       },
       include: {
         salesOrderItem: { include: { product: true } },
-        productionPlan: { include: { salesOrder: { include: { customer: true } } } },
+        productionPlan: {
+          include: { salesOrder: { include: { customer: true } } },
+        },
       },
     });
 
@@ -318,18 +349,21 @@ export class WorkOrdersService {
       });
 
       if (this.notificationsService) {
-        const companyId = (wo as any).companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
-        this.notificationsService.notifyRole({
-          companyId,
-          role: 'DISPATCH_EXECUTIVE',
-          type: 'DISPATCH_ORDER_READY',
-          title: 'Order Ready for Dispatch',
-          message: `${wo.workOrderNumber} — Production completed and sent to Dispatch.`,
-          route: '/dispatch/orders',
-          entityType: 'WorkOrder',
-          entityId: wo.id,
-          eventKeyPrefix: `WORK_ORDER:${wo.id}:READY_FOR_DISPATCH`,
-        }).catch(() => {});
+        const companyId =
+          (wo as any).companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+        this.notificationsService
+          .notifyRole({
+            companyId,
+            role: 'DISPATCH_EXECUTIVE',
+            type: 'DISPATCH_ORDER_READY',
+            title: 'Order Ready for Dispatch',
+            message: `${wo.workOrderNumber} — Production completed and sent to Dispatch.`,
+            route: '/dispatch/orders',
+            entityType: 'WorkOrder',
+            entityId: wo.id,
+            eventKeyPrefix: `WORK_ORDER:${wo.id}:READY_FOR_DISPATCH`,
+          })
+          .catch(() => {});
       }
 
       return updatedWo;
@@ -376,18 +410,21 @@ export class WorkOrdersService {
       });
 
       if (this.notificationsService) {
-        const companyId = so.customer?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
-        this.notificationsService.notifyRole({
-          companyId,
-          role: 'DISPATCH_EXECUTIVE',
-          type: 'DISPATCH_ORDER_READY',
-          title: 'Order Ready for Dispatch',
-          message: `${so.orderNumber} — Sent to Dispatch.`,
-          route: '/dispatch/orders',
-          entityType: 'SalesOrder',
-          entityId: so.id,
-          eventKeyPrefix: `SALES_ORDER:${so.id}:READY_FOR_DISPATCH`,
-        }).catch(() => {});
+        const companyId =
+          so.customer?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+        this.notificationsService
+          .notifyRole({
+            companyId,
+            role: 'DISPATCH_EXECUTIVE',
+            type: 'DISPATCH_ORDER_READY',
+            title: 'Order Ready for Dispatch',
+            message: `${so.orderNumber} — Sent to Dispatch.`,
+            route: '/dispatch/orders',
+            entityType: 'SalesOrder',
+            entityId: so.id,
+            eventKeyPrefix: `SALES_ORDER:${so.id}:READY_FOR_DISPATCH`,
+          })
+          .catch(() => {});
       }
 
       return {
@@ -417,7 +454,9 @@ export class WorkOrdersService {
         product: true,
         workOrder: {
           include: {
-            productionPlan: { include: { salesOrder: { include: { customer: true } } } },
+            productionPlan: {
+              include: { salesOrder: { include: { customer: true } } },
+            },
           },
         },
       },
@@ -442,18 +481,21 @@ export class WorkOrdersService {
       });
 
       if (this.notificationsService) {
-        const companyId = fg.product?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
-        this.notificationsService.notifyRole({
-          companyId,
-          role: 'DISPATCH_EXECUTIVE',
-          type: 'DISPATCH_ORDER_READY',
-          title: 'Finished Goods Ready for Dispatch',
-          message: `${fg.product?.name || 'Item'} — Sent to Dispatch Queue.`,
-          route: '/dispatch/orders',
-          entityType: 'FinishedGoods',
-          entityId: fg.id,
-          eventKeyPrefix: `FINISHED_GOODS:${fg.id}:READY_FOR_DISPATCH`,
-        }).catch(() => {});
+        const companyId =
+          fg.product?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+        this.notificationsService
+          .notifyRole({
+            companyId,
+            role: 'DISPATCH_EXECUTIVE',
+            type: 'DISPATCH_ORDER_READY',
+            title: 'Finished Goods Ready for Dispatch',
+            message: `${fg.product?.name || 'Item'} — Sent to Dispatch Queue.`,
+            route: '/dispatch/orders',
+            entityType: 'FinishedGoods',
+            entityId: fg.id,
+            eventKeyPrefix: `FINISHED_GOODS:${fg.id}:READY_FOR_DISPATCH`,
+          })
+          .catch(() => {});
       }
 
       return updatedFg;
@@ -472,7 +514,9 @@ export class WorkOrdersService {
     const rawId = String(id || '').trim();
     const cleanId = rawId.replace(/^fg-wo-/, '').replace(/^fg-so-/, '');
     let baseUuid = cleanId;
-    const uuidMatch = cleanId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    const uuidMatch = cleanId.match(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+    );
     if (uuidMatch) {
       baseUuid = uuidMatch[0];
     }

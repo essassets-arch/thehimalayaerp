@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
@@ -7,7 +12,7 @@ export class LeaveService {
 
   private async getActiveCompanyId(companyId: string): Promise<string> {
     const companyExists = await this.prisma.company.findUnique({
-      where: { id: companyId }
+      where: { id: companyId },
     });
     if (companyExists) return companyId;
     const firstCompany = await this.prisma.company.findFirst();
@@ -21,7 +26,7 @@ export class LeaveService {
     // 1. Try to find by userId
     let employee: any = await this.prisma.employee.findFirst({
       where: { userId, companyId },
-      include: { department: true }
+      include: { department: true },
     });
 
     if (employee) return employee;
@@ -30,13 +35,13 @@ export class LeaveService {
     if (user.email) {
       employee = await this.prisma.employee.findFirst({
         where: { workEmail: user.email, companyId },
-        include: { department: true }
+        include: { department: true },
       });
       if (employee) {
         if (!employee.userId) {
           await this.prisma.employee.update({
             where: { id: employee.id },
-            data: { userId: user.id }
+            data: { userId: user.id },
           });
         }
         return employee;
@@ -45,40 +50,40 @@ export class LeaveService {
 
     // 3. Fallback: Find an existing employee without a userId or create an explicit employee for this user
     let dept = await this.prisma.department.findFirst({
-      where: { companyId }
+      where: { companyId },
     });
     if (!dept) {
       dept = await this.prisma.department.create({
         data: {
           companyId,
           name: 'General',
-          code: 'GEN'
-        }
+          code: 'GEN',
+        },
       });
     }
 
     let loc = await this.prisma.workLocation.findFirst({
-      where: { companyId }
+      where: { companyId },
     });
     if (!loc) {
       loc = await this.prisma.workLocation.create({
         data: {
           companyId,
           code: 'LOC-GEN',
-          name: 'Main Plant Location'
-        }
+          name: 'Main Plant Location',
+        },
       });
     }
 
     const unlinkedEmp = await this.prisma.employee.findFirst({
       where: { companyId, userId: null },
-      include: { department: true }
+      include: { department: true },
     });
     if (unlinkedEmp) {
       return await this.prisma.employee.update({
         where: { id: unlinkedEmp.id },
         data: { userId: user.id },
-        include: { department: true }
+        include: { department: true },
       });
     }
 
@@ -117,15 +122,18 @@ export class LeaveService {
           bankAccountEncrypted: 'enc_bank',
           bankAccountLastFour: '5678',
           bankAccountHash: `hash_bank_${shortId}`,
-          ifscCode: 'HDFC0000001'
+          ifscCode: 'HDFC0000001',
         } as any,
-        include: { department: true }
+        include: { department: true },
       });
     } catch (err) {
-      console.warn('Failed to create new employee record, returning fallback:', err?.message);
+      console.warn(
+        'Failed to create new employee record, returning fallback:',
+        err?.message,
+      );
       return await this.prisma.employee.findFirst({
         where: { companyId },
-        include: { department: true }
+        include: { department: true },
       });
     }
   }
@@ -135,26 +143,32 @@ export class LeaveService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true }
+      include: { role: true },
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const employee: any = await this.getOrCreateEmployeeForUser(userId, activeCompanyId);
-    if (!employee) throw new BadRequestException('Could not resolve employee record for user.');
+    const employee: any = await this.getOrCreateEmployeeForUser(
+      userId,
+      activeCompanyId,
+    );
+    if (!employee)
+      throw new BadRequestException(
+        'Could not resolve employee record for user.',
+      );
 
     let departmentId = employee.departmentId || body.departmentId;
 
     if (!departmentId) {
       let dept = await this.prisma.department.findFirst({
-        where: { companyId: activeCompanyId }
+        where: { companyId: activeCompanyId },
       });
       if (!dept) {
         dept = await this.prisma.department.create({
           data: {
             companyId: activeCompanyId,
             name: 'Sales & Marketing',
-            code: 'SALES'
-          }
+            code: 'SALES',
+          },
         });
       }
       departmentId = dept.id;
@@ -173,15 +187,18 @@ export class LeaveService {
     }
 
     const msPerDay = 24 * 60 * 60 * 1000;
-    const totalDays = Math.round((toDate.getTime() - fromDate.getTime()) / msPerDay) + 1;
+    const totalDays =
+      Math.round((toDate.getTime() - fromDate.getTime()) / msPerDay) + 1;
 
     const dept = await this.prisma.department.findUnique({
-      where: { id: departmentId }
+      where: { id: departmentId },
     });
     const deptCode = String(dept?.code || dept?.name || '').toUpperCase();
 
     const userRoleCode = String(user?.role?.code || '').toUpperCase();
-    const deptName = String(employee?.department?.name || dept?.name || '').toLowerCase();
+    const deptName = String(
+      employee?.department?.name || dept?.name || '',
+    ).toLowerCase();
     const jobTitle = String(employee?.jobTitle || '').toLowerCase();
     const isHrOrPlantHead =
       userRoleCode === 'HR' ||
@@ -193,14 +210,21 @@ export class LeaveService {
       jobTitle.includes('human resources') ||
       jobTitle.includes('plant head');
 
-    let status: 'PENDING_HR' | 'PENDING_PLANT_HEAD' | 'PENDING_SUPER_ADMIN' = 'PENDING_HR';
+    let status: 'PENDING_HR' | 'PENDING_PLANT_HEAD' | 'PENDING_SUPER_ADMIN' =
+      'PENDING_HR';
     let currentApprover = 'HR';
 
     const deptCodeUpper = deptCode.toUpperCase();
     const deptNameUpper = String(deptName || '').toUpperCase();
     const isProductionOrStoreOrDispatch =
-      deptCodeUpper.includes('PRODUCTION') || deptCodeUpper.includes('STORE') || deptCodeUpper.includes('DISPATCH') || deptCodeUpper.includes('OPERA') ||
-      deptNameUpper.includes('PRODUCTION') || deptNameUpper.includes('STORE') || deptNameUpper.includes('DISPATCH') || deptNameUpper.includes('OPERA');
+      deptCodeUpper.includes('PRODUCTION') ||
+      deptCodeUpper.includes('STORE') ||
+      deptCodeUpper.includes('DISPATCH') ||
+      deptCodeUpper.includes('OPERA') ||
+      deptNameUpper.includes('PRODUCTION') ||
+      deptNameUpper.includes('STORE') ||
+      deptNameUpper.includes('DISPATCH') ||
+      deptNameUpper.includes('OPERA');
 
     if (isHrOrPlantHead) {
       status = 'PENDING_SUPER_ADMIN';
@@ -223,7 +247,7 @@ export class LeaveService {
         attachment: body.attachment || null,
         status,
         currentApprover,
-      }
+      },
     });
 
     return leaveRequest;
@@ -231,7 +255,10 @@ export class LeaveService {
 
   async getMyLeaves(userId: string, companyId: string) {
     const activeCompanyId = await this.getActiveCompanyId(companyId);
-    const employee = await this.getOrCreateEmployeeForUser(userId, activeCompanyId);
+    const employee = await this.getOrCreateEmployeeForUser(
+      userId,
+      activeCompanyId,
+    );
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const userEmail = user?.email || '';
 
@@ -241,14 +268,14 @@ export class LeaveService {
         OR: [
           ...(employee?.id ? [{ employeeId: employee.id }] : []),
           { employee: { userId } },
-          ...(userEmail ? [{ employee: { workEmail: userEmail } }] : [])
-        ]
+          ...(userEmail ? [{ employee: { workEmail: userEmail } }] : []),
+        ],
       },
       include: {
         approvals: true,
-        department: { select: { name: true, code: true } }
+        department: { select: { name: true, code: true } },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     return leaves;
@@ -256,7 +283,10 @@ export class LeaveService {
 
   async getLeaveBalance(userId: string, companyId: string) {
     const activeCompanyId = await this.getActiveCompanyId(companyId);
-    const employee = await this.getOrCreateEmployeeForUser(userId, activeCompanyId);
+    const employee = await this.getOrCreateEmployeeForUser(
+      userId,
+      activeCompanyId,
+    );
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const userEmail = user?.email || '';
 
@@ -266,10 +296,10 @@ export class LeaveService {
         OR: [
           ...(employee?.id ? [{ employeeId: employee.id }] : []),
           { employee: { userId } },
-          ...(userEmail ? [{ employee: { workEmail: userEmail } }] : [])
+          ...(userEmail ? [{ employee: { workEmail: userEmail } }] : []),
         ],
-        status: 'APPROVED'
-      }
+        status: 'APPROVED',
+      },
     });
 
     const used = approvedLeaves.reduce((acc, curr) => acc + curr.totalDays, 0);
@@ -283,11 +313,13 @@ export class LeaveService {
     const activeCompanyId = await this.getActiveCompanyId(companyId);
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true }
+      include: { role: true },
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const roleCode = String(user.role?.code || user.role?.name || '').toUpperCase();
+    const roleCode = String(
+      user.role?.code || user.role?.name || '',
+    ).toUpperCase();
     let statusFilter: any = 'PENDING_HR';
 
     if (roleCode.includes('HR')) {
@@ -303,7 +335,9 @@ export class LeaveService {
     const leaves = await this.prisma.leaveRequest.findMany({
       where: {
         companyId: activeCompanyId,
-        ...(Array.isArray(statusFilter) ? { status: { in: statusFilter } } : { status: statusFilter })
+        ...(Array.isArray(statusFilter)
+          ? { status: { in: statusFilter } }
+          : { status: statusFilter }),
       },
       include: {
         employee: {
@@ -317,47 +351,59 @@ export class LeaveService {
               select: {
                 name: true,
                 email: true,
-                role: { select: { code: true } }
-              }
-            }
-          }
+                role: { select: { code: true } },
+              },
+            },
+          },
         },
         department: { select: { name: true, code: true } },
-        approvals: true
+        approvals: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     if (roleCode.includes('HR')) {
-      return leaves.filter(l => {
+      return leaves.filter((l) => {
         const emp = l.employee;
         const dept = String(emp?.department?.name || '').toLowerCase();
         const desig = String(emp?.jobTitle || '').toLowerCase();
         const rCode = String(emp?.user?.role?.code || '').toLowerCase();
         return !(
-          dept.includes('hr') || dept.includes('human resources') ||
+          dept.includes('hr') ||
+          dept.includes('human resources') ||
           dept.includes('plant head') ||
-          desig.includes('hr') || desig.includes('human resources') ||
+          desig.includes('hr') ||
+          desig.includes('human resources') ||
           desig.includes('plant head') ||
-          rCode.includes('hr') || rCode.includes('plant_head')
+          rCode.includes('hr') ||
+          rCode.includes('plant_head')
         );
       });
     }
 
     if (roleCode.includes('PLANT')) {
-      return leaves.filter(l => {
+      return leaves.filter((l) => {
         const emp = l.employee;
-        const dept = String(emp?.department?.name || l.department?.name || '').toLowerCase();
-        const isProdStoreDisp = dept.includes('production') || dept.includes('store') || dept.includes('dispatch') || dept.includes('opera');
+        const dept = String(
+          emp?.department?.name || l.department?.name || '',
+        ).toLowerCase();
+        const isProdStoreDisp =
+          dept.includes('production') ||
+          dept.includes('store') ||
+          dept.includes('dispatch') ||
+          dept.includes('opera');
         const deptName = String(emp?.department?.name || '').toLowerCase();
         const desig = String(emp?.jobTitle || '').toLowerCase();
         const rCode = String(emp?.user?.role?.code || '').toLowerCase();
         const isHrOrPH =
-          deptName.includes('hr') || deptName.includes('human resources') ||
+          deptName.includes('hr') ||
+          deptName.includes('human resources') ||
           deptName.includes('plant head') ||
-          desig.includes('hr') || desig.includes('human resources') ||
+          desig.includes('hr') ||
+          desig.includes('human resources') ||
           desig.includes('plant head') ||
-          rCode.includes('hr') || rCode.includes('plant_head');
+          rCode.includes('hr') ||
+          rCode.includes('plant_head');
         return isProdStoreDisp && !isHrOrPH;
       });
     }
@@ -369,14 +415,14 @@ export class LeaveService {
     const activeCompanyId = await this.getActiveCompanyId(companyId);
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true }
+      include: { role: true },
     });
     if (!user) throw new NotFoundException('User not found');
 
     const roleCode = String(user.role?.code || '').toUpperCase();
     const leave = await this.prisma.leaveRequest.findUnique({
       where: { id },
-      include: { employee: true }
+      include: { employee: true },
     });
     if (!leave) throw new NotFoundException('Leave request not found');
 
@@ -389,14 +435,20 @@ export class LeaveService {
       }
     } else if (roleCode.includes('PLANT')) {
       if (leave.status !== 'PENDING_PLANT_HEAD') {
-        throw new BadRequestException('Request is not pending Plant Head approval.');
+        throw new BadRequestException(
+          'Request is not pending Plant Head approval.',
+        );
       }
     } else if (roleCode.includes('SUPER_ADMIN') || roleCode.includes('ADMIN')) {
       if (leave.status !== 'PENDING_SUPER_ADMIN') {
-        throw new BadRequestException('Request is not pending Super Admin approval.');
+        throw new BadRequestException(
+          'Request is not pending Super Admin approval.',
+        );
       }
     } else {
-      throw new ForbiddenException('You do not have permission to approve leaves.');
+      throw new ForbiddenException(
+        'You do not have permission to approve leaves.',
+      );
     }
 
     // Save approval entry
@@ -406,8 +458,8 @@ export class LeaveService {
         approverId: userId,
         approverRole: roleCode,
         action: 'APPROVED',
-        remarks: body.remarks || 'Approved'
-      }
+        remarks: body.remarks || 'Approved',
+      },
     });
 
     // Update request
@@ -418,8 +470,8 @@ export class LeaveService {
         currentApprover: nextApprover,
         approvedBy: user.name,
         approvedAt: new Date(),
-        remarks: body.remarks || leave.remarks
-      }
+        remarks: body.remarks || leave.remarks,
+      },
     });
 
     return updated;
@@ -429,13 +481,13 @@ export class LeaveService {
     const activeCompanyId = await this.getActiveCompanyId(companyId);
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true }
+      include: { role: true },
     });
     if (!user) throw new NotFoundException('User not found');
 
     const roleCode = String(user.role?.code || '').toUpperCase();
     const leave = await this.prisma.leaveRequest.findUnique({
-      where: { id }
+      where: { id },
     });
     if (!leave) throw new NotFoundException('Leave request not found');
 
@@ -446,8 +498,8 @@ export class LeaveService {
         approverId: userId,
         approverRole: roleCode,
         action: 'REJECTED',
-        remarks: body.remarks || 'Rejected'
-      }
+        remarks: body.remarks || 'Rejected',
+      },
     });
 
     const updated = await this.prisma.leaveRequest.update({
@@ -455,8 +507,8 @@ export class LeaveService {
       data: {
         status: 'REJECTED',
         currentApprover: null,
-        remarks: body.remarks || 'Rejected'
-      }
+        remarks: body.remarks || 'Rejected',
+      },
     });
 
     return updated;
@@ -464,10 +516,10 @@ export class LeaveService {
 
   async getAllLeaves(userId: string, companyId: string) {
     const activeCompanyId = await this.getActiveCompanyId(companyId);
-    
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true }
+      include: { role: true },
     });
     const roleCode = String(user?.role?.code || '').toUpperCase();
 
@@ -485,47 +537,59 @@ export class LeaveService {
               select: {
                 name: true,
                 email: true,
-                role: { select: { code: true } }
-              }
-            }
-          }
+                role: { select: { code: true } },
+              },
+            },
+          },
         },
         department: { select: { name: true, code: true } },
-        approvals: true
+        approvals: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     if (roleCode.includes('HR')) {
-      return leaves.filter(l => {
+      return leaves.filter((l) => {
         const emp = l.employee;
         const dept = String(emp?.department?.name || '').toLowerCase();
         const desig = String(emp?.jobTitle || '').toLowerCase();
         const rCode = String(emp?.user?.role?.code || '').toLowerCase();
         return !(
-          dept.includes('hr') || dept.includes('human resources') ||
+          dept.includes('hr') ||
+          dept.includes('human resources') ||
           dept.includes('plant head') ||
-          desig.includes('hr') || desig.includes('human resources') ||
+          desig.includes('hr') ||
+          desig.includes('human resources') ||
           desig.includes('plant head') ||
-          rCode.includes('hr') || rCode.includes('plant_head')
+          rCode.includes('hr') ||
+          rCode.includes('plant_head')
         );
       });
     }
 
     if (roleCode.includes('PLANT')) {
-      return leaves.filter(l => {
+      return leaves.filter((l) => {
         const emp = l.employee;
-        const dept = String(emp?.department?.name || l.department?.name || '').toLowerCase();
-        const isProdStoreDisp = dept.includes('production') || dept.includes('store') || dept.includes('dispatch') || dept.includes('opera');
+        const dept = String(
+          emp?.department?.name || l.department?.name || '',
+        ).toLowerCase();
+        const isProdStoreDisp =
+          dept.includes('production') ||
+          dept.includes('store') ||
+          dept.includes('dispatch') ||
+          dept.includes('opera');
         const deptName = String(emp?.department?.name || '').toLowerCase();
         const desig = String(emp?.jobTitle || '').toLowerCase();
         const rCode = String(emp?.user?.role?.code || '').toLowerCase();
         const isHrOrPH =
-          deptName.includes('hr') || deptName.includes('human resources') ||
+          deptName.includes('hr') ||
+          deptName.includes('human resources') ||
           deptName.includes('plant head') ||
-          desig.includes('hr') || desig.includes('human resources') ||
+          desig.includes('hr') ||
+          desig.includes('human resources') ||
           desig.includes('plant head') ||
-          rCode.includes('hr') || rCode.includes('plant_head');
+          rCode.includes('hr') ||
+          rCode.includes('plant_head');
         return isProdStoreDisp && !isHrOrPH;
       });
     }

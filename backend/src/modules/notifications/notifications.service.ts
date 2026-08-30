@@ -50,19 +50,52 @@ export class NotificationsService {
    * this service supplies a consistent module and urgency when a caller does
    * not explicitly override them. Keep all delivery concerns here.
    */
-  private describeEvent(type?: string): { module: string; priority: NotificationPriority } {
+  private describeEvent(type?: string): {
+    module: string;
+    priority: NotificationPriority;
+  } {
     const event = String(type || 'GENERAL').toUpperCase();
     const moduleByPrefix: Array<[string, string]> = [
-      ['LEAD_', 'SALES'], ['SAMPLE_', 'SALES'], ['QUOTATION_', 'SALES'], ['SALES_ORDER_', 'SALES'],
-      ['FULFILLMENT_', 'PLANT_HEAD'], ['WORK_ORDER_', 'PRODUCTION'], ['PRODUCTION_', 'PRODUCTION'],
-      ['QC_', 'QC'], ['REWORK_', 'PRODUCTION'], ['DISPATCH', 'DISPATCH'], ['VEHICLE_', 'DISPATCH'],
-      ['PAYMENT_', 'FINANCE'], ['PO_', 'PROCUREMENT'], ['MATERIAL_', 'STORE'], ['INVENTORY_', 'STORE'],
-      ['LEAVE_', 'HR'], ['ATTENDANCE_', 'HR'], ['PAYROLL_', 'HR'], ['RETURN_', 'DISPATCH'],
-      ['REPLACEMENT_', 'DISPATCH'], ['BROADCAST', 'ADMIN'],
+      ['LEAD_', 'SALES'],
+      ['SAMPLE_', 'SALES'],
+      ['QUOTATION_', 'SALES'],
+      ['SALES_ORDER_', 'SALES'],
+      ['FULFILLMENT_', 'PLANT_HEAD'],
+      ['WORK_ORDER_', 'PRODUCTION'],
+      ['PRODUCTION_', 'PRODUCTION'],
+      ['QC_', 'QC'],
+      ['REWORK_', 'PRODUCTION'],
+      ['DISPATCH', 'DISPATCH'],
+      ['VEHICLE_', 'DISPATCH'],
+      ['PAYMENT_', 'FINANCE'],
+      ['PO_', 'PROCUREMENT'],
+      ['MATERIAL_', 'STORE'],
+      ['INVENTORY_', 'STORE'],
+      ['LEAVE_', 'HR'],
+      ['ATTENDANCE_', 'HR'],
+      ['PAYROLL_', 'HR'],
+      ['RETURN_', 'DISPATCH'],
+      ['REPLACEMENT_', 'DISPATCH'],
+      ['BROADCAST', 'ADMIN'],
     ];
-    const module = moduleByPrefix.find(([prefix]) => event.startsWith(prefix))?.[1] || 'SYSTEM';
-    const critical = ['QC_FAILED', 'PAYMENT_OVERDUE', 'LOW_STOCK', 'PRODUCTION_BLOCKED', 'SYSTEM_ALERT'];
-    const high = ['APPROVAL_REQUIRED', 'INSPECTION_REQUIRED', 'VERIFICATION_REQUIRED', 'DISPATCH_REQUIRED', 'PRODUCTION_REQUIRED', 'REJECTED'];
+    const module =
+      moduleByPrefix.find(([prefix]) => event.startsWith(prefix))?.[1] ||
+      'SYSTEM';
+    const critical = [
+      'QC_FAILED',
+      'PAYMENT_OVERDUE',
+      'LOW_STOCK',
+      'PRODUCTION_BLOCKED',
+      'SYSTEM_ALERT',
+    ];
+    const high = [
+      'APPROVAL_REQUIRED',
+      'INSPECTION_REQUIRED',
+      'VERIFICATION_REQUIRED',
+      'DISPATCH_REQUIRED',
+      'PRODUCTION_REQUIRED',
+      'REJECTED',
+    ];
     return {
       module,
       priority: critical.some((part) => event.includes(part))
@@ -101,7 +134,9 @@ export class NotificationsService {
         where: { eventKey },
       });
       if (existing) {
-        this.logger.log(`Notification with eventKey "${eventKey}" already exists. Skipping duplicate creation.`);
+        this.logger.log(
+          `Notification with eventKey "${eventKey}" already exists. Skipping duplicate creation.`,
+        );
         return existing;
       }
     }
@@ -192,7 +227,9 @@ export class NotificationsService {
         }
       }
     } catch (err: any) {
-      this.logger.error(`Synchronous FCM dispatch failed for notification ${notification.id}: ${err?.message || err}`);
+      this.logger.error(
+        `Synchronous FCM dispatch failed for notification ${notification.id}: ${err?.message || err}`,
+      );
       try {
         await this.prisma.notification.update({
           where: { id: notification.id },
@@ -204,7 +241,9 @@ export class NotificationsService {
           },
         });
       } catch (dbErr) {
-        this.logger.error(`Failed to update FCM error status in database: ${dbErr}`);
+        this.logger.error(
+          `Failed to update FCM error status in database: ${dbErr}`,
+        );
       }
     }
 
@@ -276,7 +315,10 @@ export class NotificationsService {
     return createdNotifications;
   }
 
-  private async resolveCompanyId(userId: string, companyId?: string): Promise<string> {
+  private async resolveCompanyId(
+    userId: string,
+    companyId?: string,
+  ): Promise<string> {
     if (companyId) return companyId;
     if (!userId) return '';
     const user = await this.prisma.user.findUnique({
@@ -286,7 +328,12 @@ export class NotificationsService {
     return user?.companyId || '';
   }
 
-  async getNotifications(userId: string, companyId?: string, limit = 20, offset = 0) {
+  async getNotifications(
+    userId: string,
+    companyId?: string,
+    limit = 20,
+    offset = 0,
+  ) {
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     const [items, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
@@ -384,7 +431,11 @@ export class NotificationsService {
     });
   }
 
-  async removeDeviceToken(userId: string, companyId: string | undefined, token: string) {
+  async removeDeviceToken(
+    userId: string,
+    companyId: string | undefined,
+    token: string,
+  ) {
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     return this.prisma.fcmDeviceToken.deleteMany({
       where: {
@@ -485,9 +536,10 @@ export class NotificationsService {
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     const payload = {
       title: 'FCM Verification 🚀',
-      message: 'Dual-channel push notifications are fully configured and functional!',
+      message:
+        'Dual-channel push notifications are fully configured and functional!',
       route: '/plant-head/incoming-orders',
-      type: 'TEST'
+      type: 'TEST',
     };
 
     // 1. Create PostgreSQL Notification first (Source of Truth) so diagnostics has log
@@ -523,18 +575,25 @@ export class NotificationsService {
       return {
         success: true,
         pushDelivered: false,
-        message: 'Test bell notification created. No registered FCM device token was found.',
+        message:
+          'Test bell notification created. No registered FCM device token was found.',
         notificationId: notification.id,
         tokensCount: 0,
       };
     }
 
     try {
-      const fcmResult = await this.firebasePushService.sendPushToUser(userId, resolvedCompanyId, payload.title, payload.message, {
-        notificationId: notification.id,
-        type: payload.type,
-        route: payload.route
-      });
+      const fcmResult = await this.firebasePushService.sendPushToUser(
+        userId,
+        resolvedCompanyId,
+        payload.title,
+        payload.message,
+        {
+          notificationId: notification.id,
+          type: payload.type,
+          route: payload.route,
+        },
+      );
 
       if (fcmResult) {
         const successCount = fcmResult.successCount || 0;
@@ -561,7 +620,12 @@ export class NotificationsService {
         });
       }
 
-      return { success: true, message: 'Test push notification triggered successfully.', tokensCount: tokens.length, fcmResult };
+      return {
+        success: true,
+        message: 'Test push notification triggered successfully.',
+        tokensCount: tokens.length,
+        fcmResult,
+      };
     } catch (e: any) {
       try {
         await this.prisma.notification.update({
@@ -580,7 +644,7 @@ export class NotificationsService {
 
   async getPushStatus(userId: string, companyId?: string) {
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
-    
+
     const lastToken = await this.prisma.fcmDeviceToken.findFirst({
       where: { userId, companyId: resolvedCompanyId },
       orderBy: { lastSeenAt: 'desc' },
@@ -588,7 +652,11 @@ export class NotificationsService {
     });
 
     const lastAttempt = await this.prisma.notification.findFirst({
-      where: { userId, companyId: resolvedCompanyId, fcmAttemptedAt: { not: null } },
+      where: {
+        userId,
+        companyId: resolvedCompanyId,
+        fcmAttemptedAt: { not: null },
+      },
       orderBy: { fcmAttemptedAt: 'desc' },
       select: { fcmAttemptedAt: true, fcmStatus: true },
     });
@@ -606,13 +674,15 @@ export class NotificationsService {
       firebaseAdminInitialized: isConfigured,
       firebaseProjectId: projectId,
       userAuthenticated: true,
-      registeredDeviceTokens: await this.prisma.fcmDeviceToken.count({ where: { userId, companyId: resolvedCompanyId } }),
+      registeredDeviceTokens: await this.prisma.fcmDeviceToken.count({
+        where: { userId, companyId: resolvedCompanyId },
+      }),
       activeDeviceTokens: await this.prisma.fcmDeviceToken.count({
         where: {
           userId,
           companyId: resolvedCompanyId,
-          lastSeenAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
-        }
+          lastSeenAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        },
       }),
       serviceWorkerExpected: '/firebase-messaging-sw.js',
       permission: 'UNKNOWN_ON_SERVER',

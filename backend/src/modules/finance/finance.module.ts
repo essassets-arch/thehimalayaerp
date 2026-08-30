@@ -33,7 +33,13 @@ import { WorkflowModule } from '../workflow/workflow.module';
     FinanceSalesAnalyticsMetricService,
     FinanceReportsService,
   ],
-  exports: [LedgerService, CreditService, FinanceSalesAnalyticsService, PaymentFollowupEngineService, PaymentsService, FinanceReportsService],
+  exports: [
+    LedgerService,
+    CreditService,
+    FinanceSalesAnalyticsService,
+    PaymentFollowupEngineService,
+    PaymentsService,
+    FinanceReportsService,
+  ],
 })
 export class FinanceModule {}
-

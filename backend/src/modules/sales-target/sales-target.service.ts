@@ -100,14 +100,27 @@ export class SalesTargetService {
 
     // 3. For salesperson scoped roles, measure achievement for their own user ID.
     // For admin/manager roles, measure achievement for the salesperson the target is assigned to.
-    const roleCode = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const isSalesperson = ['SUPER_SALES', 'SALES_EXECUTIVE', 'SALES_INTERN'].includes(roleCode);
+    const roleCode = String(role || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    const isSalesperson = [
+      'SUPER_SALES',
+      'SALES_EXECUTIVE',
+      'SALES_INTERN',
+    ].includes(roleCode);
     const targetSalespersonId = isSalesperson ? userId : target.salespersonId;
     const achieved = await this.prisma.salesOrder.aggregate({
       _sum: { totalAmount: true },
       where: {
         AND: [
-          targetSalespersonId ? { OR: [{ createdById: targetSalespersonId }, { salesExecutiveId: targetSalespersonId }] } : {},
+          targetSalespersonId
+            ? {
+                OR: [
+                  { createdById: targetSalespersonId },
+                  { salesExecutiveId: targetSalespersonId },
+                ],
+              }
+            : {},
           {
             status: {
               in: [
@@ -118,7 +131,7 @@ export class SalesTargetService {
                 'READY_FOR_PRODUCTION',
                 'IN_PRODUCTION',
                 'READY_FOR_DISPATCH',
-                'COMPLETED'
+                'COMPLETED',
               ],
             },
           },

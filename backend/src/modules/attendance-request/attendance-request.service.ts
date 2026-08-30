@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { getKolkataDate } from '../attendance/attendance.service';
 
@@ -8,7 +13,7 @@ export class AttendanceRequestService {
 
   private async getActiveCompanyId(companyId: string): Promise<string> {
     const companyExists = await this.prisma.company.findUnique({
-      where: { id: companyId }
+      where: { id: companyId },
     });
     if (companyExists) return companyId;
     const firstCompany = await this.prisma.company.findFirst();
@@ -17,17 +22,17 @@ export class AttendanceRequestService {
 
   private async getEmployee(userId: string, companyId: string) {
     const activeCompanyId = await this.getActiveCompanyId(companyId);
-    
+
     // 1. Try direct find
     let employee = await this.prisma.employee.findFirst({
-      where: { userId }
+      where: { userId },
     });
     if (employee && employee.companyId === activeCompanyId) return employee;
 
     // 2. Try linking by user details
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { employee: true, role: true }
+      include: { employee: true, role: true },
     });
     if (!user) {
       throw new BadRequestException('User not found.');
@@ -37,7 +42,7 @@ export class AttendanceRequestService {
       if (user.employee.companyId !== activeCompanyId) {
         employee = await this.prisma.employee.update({
           where: { id: user.employee.id },
-          data: { companyId: activeCompanyId }
+          data: { companyId: activeCompanyId },
         });
       } else {
         employee = user.employee;
@@ -132,7 +137,11 @@ export class AttendanceRequestService {
     return createdEmployee;
   }
 
-  async createRequest(userId: string, companyId: string, body: { date: string; reason: string }) {
+  async createRequest(
+    userId: string,
+    companyId: string,
+    body: { date: string; reason: string },
+  ) {
     const employee = await this.getEmployee(userId, companyId);
     if (!body?.date || !body?.reason?.trim()) {
       throw new BadRequestException('Attendance date and reason are required.');
@@ -140,25 +149,36 @@ export class AttendanceRequestService {
 
     // Date-only browser values are interpreted as a Kolkata calendar date.
     if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
-      throw new BadRequestException('Attendance date must be a valid calendar date.');
+      throw new BadRequestException(
+        'Attendance date must be a valid calendar date.',
+      );
     }
     const requestDate = new Date(`${body.date}T00:00:00.000+05:30`);
-    if (Number.isNaN(requestDate.getTime()) || requestDate > getKolkataDate().endOfDay) {
-      throw new BadRequestException('Manual attendance cannot be requested for a future date.');
+    if (
+      Number.isNaN(requestDate.getTime()) ||
+      requestDate > getKolkataDate().endOfDay
+    ) {
+      throw new BadRequestException(
+        'Manual attendance cannot be requested for a future date.',
+      );
     }
 
-    const existingPending = await this.prisma.manualAttendanceRequest.findFirst({
-      where: {
-        employeeId: employee.id,
-        date: {
-          gte: getKolkataDate(requestDate).startOfDay,
-          lte: getKolkataDate(requestDate).endOfDay,
+    const existingPending = await this.prisma.manualAttendanceRequest.findFirst(
+      {
+        where: {
+          employeeId: employee.id,
+          date: {
+            gte: getKolkataDate(requestDate).startOfDay,
+            lte: getKolkataDate(requestDate).endOfDay,
+          },
+          status: 'PENDING',
         },
-        status: 'PENDING',
       },
-    });
+    );
     if (existingPending) {
-      throw new BadRequestException('A manual attendance request for this date is already pending.');
+      throw new BadRequestException(
+        'A manual attendance request for this date is already pending.',
+      );
     }
 
     // Create the manual request
@@ -170,8 +190,8 @@ export class AttendanceRequestService {
         status: 'PENDING',
       },
       include: {
-        employee: true
-      }
+        employee: true,
+      },
     });
 
     return request;
@@ -181,17 +201,19 @@ export class AttendanceRequestService {
     const employee = await this.getEmployee(userId, companyId);
     return this.prisma.manualAttendanceRequest.findMany({
       where: { employeeId: employee.id },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   async getPendingRequests(userId: string, companyId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true }
+      include: { role: true },
     });
     if (!user || !user.role || !user.role.code.toUpperCase().includes('HR')) {
-      throw new ForbiddenException('Only HR has permission to view pending attendance requests.');
+      throw new ForbiddenException(
+        'Only HR has permission to view pending attendance requests.',
+      );
     }
 
     const activeCompanyId = await this.getActiveCompanyId(companyId);
@@ -199,27 +221,29 @@ export class AttendanceRequestService {
       where: {
         status: 'PENDING',
         employee: {
-          companyId: activeCompanyId
-        }
+          companyId: activeCompanyId,
+        },
       },
       include: {
         employee: {
           include: {
-            department: true
-          }
-        }
+            department: true,
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   async getAuditHistory(userId: string, companyId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true }
+      include: { role: true },
     });
     if (!user || !user.role || !user.role.code.toUpperCase().includes('HR')) {
-      throw new ForbiddenException('Only HR has permission to view attendance request history.');
+      throw new ForbiddenException(
+        'Only HR has permission to view attendance request history.',
+      );
     }
 
     const activeCompanyId = await this.getActiveCompanyId(companyId);
@@ -227,24 +251,29 @@ export class AttendanceRequestService {
       where: {
         status: { in: ['APPROVED', 'REJECTED'] },
         employee: {
-          companyId: activeCompanyId
-        }
+          companyId: activeCompanyId,
+        },
       },
       include: {
         employee: {
           include: {
-            department: true
-          }
-        }
+            department: true,
+          },
+        },
       },
-      orderBy: { updatedAt: 'desc' }
+      orderBy: { updatedAt: 'desc' },
     });
   }
 
-  async approveRequest(id: string, userId: string, companyId: string, body: { remarks?: string }) {
+  async approveRequest(
+    id: string,
+    userId: string,
+    companyId: string,
+    body: { remarks?: string },
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true }
+      include: { role: true },
     });
     if (!user || !user.role || !user.role.code.toUpperCase().includes('HR')) {
       throw new ForbiddenException('Only HR can approve attendance requests.');
@@ -292,10 +321,15 @@ export class AttendanceRequestService {
     });
   }
 
-  async rejectRequest(id: string, userId: string, companyId: string, body: { remarks?: string }) {
+  async rejectRequest(
+    id: string,
+    userId: string,
+    companyId: string,
+    body: { remarks?: string },
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true }
+      include: { role: true },
     });
     if (!user || !user.role || !user.role.code.toUpperCase().includes('HR')) {
       throw new ForbiddenException('Only HR can reject attendance requests.');
@@ -316,8 +350,8 @@ export class AttendanceRequestService {
       where: { id },
       data: {
         status: 'REJECTED',
-        remarks: body.remarks?.trim() || 'Rejected by HR'
-      }
+        remarks: body.remarks?.trim() || 'Rejected by HR',
+      },
     });
   }
 }

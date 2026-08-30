@@ -10,7 +10,11 @@ import {
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { LocationService, ONLINE_THRESHOLD_SECONDS, RECENT_THRESHOLD_SECONDS } from './location.service';
+import {
+  LocationService,
+  ONLINE_THRESHOLD_SECONDS,
+  RECENT_THRESHOLD_SECONDS,
+} from './location.service';
 import { UpdateLocationDto } from './dto/location-update.dto';
 import { CreateDeviceSessionDto } from './dto/device-session.dto';
 import { UpdateLocationPermissionDto } from './dto/location-permission.dto';
@@ -24,7 +28,9 @@ import { UsePipes, ValidationPipe, Logger } from '@nestjs/common';
   transports: ['websocket', 'polling'],
   namespace: '/',
 })
-export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class LocationGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   private readonly logger = new Logger(LocationGateway.name);
 
   @WebSocketServer()
@@ -41,18 +47,23 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
    */
   async handleConnection(socket: Socket) {
     try {
-      let rawToken =
+      const rawToken =
         socket.handshake.auth?.token ||
         socket.handshake.query?.token ||
         socket.handshake.headers?.authorization;
 
       if (!rawToken) {
-        this.logger.warn(`Connection attempt without token: socket id ${socket.id}`);
+        this.logger.warn(
+          `Connection attempt without token: socket id ${socket.id}`,
+        );
         socket.disconnect(true);
         return;
       }
 
-      const token = typeof rawToken === 'string' ? rawToken.replace(/^Bearer\s+/i, '').trim() : rawToken;
+      const token =
+        typeof rawToken === 'string'
+          ? rawToken.replace(/^Bearer\s+/i, '').trim()
+          : rawToken;
       const secret =
         this.configService.get<string>('jwt.accessSecret') ||
         process.env.JWT_ACCESS_SECRET ||
@@ -72,37 +83,60 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
       const { role, companyId, permissions } = socket.data.user;
 
       // Check if user is Super Admin, Admin, or has live map permission
-      const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
-      const isSuperAdmin = normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'SUPER_ADMIN_ROLE' || normalizedRole === 'SUPER_ADMIN_PORTAL';
-      const isAdmin = isSuperAdmin || normalizedRole === 'ADMIN' || normalizedRole.includes('ADMIN') || normalizedRole.includes('PLANT_HEAD') || normalizedRole.includes('HR') || normalizedRole.includes('DIRECTOR') || normalizedRole.includes('MANAGEMENT');
-      const hasMapPermission = (permissions && permissions.includes('LIVE_USER_MAP_VIEW')) || isAdmin;
+      const normalizedRole = String(role || '')
+        .toUpperCase()
+        .replace(/[\s-]+/g, '_');
+      const isSuperAdmin =
+        normalizedRole === 'SUPER_ADMIN' ||
+        normalizedRole === 'SUPER_ADMIN_ROLE' ||
+        normalizedRole === 'SUPER_ADMIN_PORTAL';
+      const isAdmin =
+        isSuperAdmin ||
+        normalizedRole === 'ADMIN' ||
+        normalizedRole.includes('ADMIN') ||
+        normalizedRole.includes('PLANT_HEAD') ||
+        normalizedRole.includes('HR') ||
+        normalizedRole.includes('DIRECTOR') ||
+        normalizedRole.includes('MANAGEMENT');
+      const hasMapPermission =
+        (permissions && permissions.includes('LIVE_USER_MAP_VIEW')) || isAdmin;
 
       if (hasMapPermission) {
         if (companyId) {
           const roomName = `company:${companyId}:live-users`;
           await socket.join(roomName);
-          this.logger.log(`Admin ${socket.data.user.email} joined real-time dashboard room: ${roomName}`);
+          this.logger.log(
+            `Admin ${socket.data.user.email} joined real-time dashboard room: ${roomName}`,
+          );
         }
 
         if (isSuperAdmin || !companyId) {
           await socket.join('global:live-users');
-          this.logger.log(`Super Admin ${socket.data.user.email} joined global real-time room: global:live-users`);
+          this.logger.log(
+            `Super Admin ${socket.data.user.email} joined global real-time room: global:live-users`,
+          );
         }
       }
 
-      this.logger.log(`User connected: ${socket.data.user.email} (${socket.id})`);
+      this.logger.log(
+        `User connected: ${socket.data.user.email} (${socket.id})`,
+      );
     } catch (err: any) {
-      this.logger.warn(`WebSocket connection authentication failed: ${err.message}`);
+      this.logger.warn(
+        `WebSocket connection authentication failed: ${err.message}`,
+      );
       socket.disconnect(true);
     }
   }
 
   handleDisconnect(socket: Socket) {
     if (socket.data.user) {
-      this.logger.log(`User disconnected: ${socket.data.user.email} (${socket.id})`);
+      this.logger.log(
+        `User disconnected: ${socket.data.user.email} (${socket.id})`,
+      );
       // Update disconnect logs but rely on lastSeenAt for offline determination
       const companyId = socket.data.user.companyId;
-      
+
       const disconnectData = {
         userId: socket.data.user.userId,
         socketId: socket.id,
@@ -113,7 +147,9 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
         const roomName = `company:${companyId}:live-users`;
         this.server.to(roomName).emit('device:disconnected', disconnectData);
       }
-      this.server.to('global:live-users').emit('device:disconnected', disconnectData);
+      this.server
+        .to('global:live-users')
+        .emit('device:disconnected', disconnectData);
     }
   }
 
@@ -130,7 +166,11 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (!user) return;
 
     try {
-      const result = await this.locationService.registerSession(user.userId, user.companyId, dto);
+      const result = await this.locationService.registerSession(
+        user.userId,
+        user.companyId,
+        dto,
+      );
       socket.data.sessionId = result.sessionId;
 
       const payload = {
@@ -172,7 +212,8 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() body: { sessionId: string },
   ) {
     const user = socket.data.user;
-    if (!user || !body?.sessionId) return { success: false, error: 'Session ID required' };
+    if (!user || !body?.sessionId)
+      return { success: false, error: 'Session ID required' };
 
     try {
       await this.locationService.heartbeat(user.userId, body.sessionId);
@@ -208,11 +249,21 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (!user) return { success: false, error: 'Unauthenticated' };
 
     try {
-      const loc = await this.locationService.updateLocation(user.userId, user.companyId, dto);
+      const loc = await this.locationService.updateLocation(
+        user.userId,
+        user.companyId,
+        dto,
+      );
 
       if (loc?.isSuspiciousJump) {
-        this.logger.warn(`Filtered suspicious jump broadcast for user ${user.userId}`);
-        return { success: true, filtered: true, message: 'Suspicious GPS jump filtered' };
+        this.logger.warn(
+          `Filtered suspicious jump broadcast for user ${user.userId}`,
+        );
+        return {
+          success: true,
+          filtered: true,
+          message: 'Suspicious GPS jump filtered',
+        };
       }
 
       const roomName = `company:${user.companyId}:live-users`;
@@ -252,7 +303,11 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (!user) return { success: false, error: 'Unauthenticated' };
 
     try {
-      await this.locationService.updatePermission(user.userId, dto.sessionId, dto.locationPermission);
+      await this.locationService.updatePermission(
+        user.userId,
+        dto.sessionId,
+        dto.locationPermission,
+      );
 
       const roomName = `company:${user.companyId}:live-users`;
       const payload = {
@@ -263,7 +318,9 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
       };
 
       this.server.to(roomName).emit('device:permission:update', payload);
-      this.server.to('global:live-users').emit('device:permission:update', payload);
+      this.server
+        .to('global:live-users')
+        .emit('device:permission:update', payload);
 
       return { success: true };
     } catch (err: any) {

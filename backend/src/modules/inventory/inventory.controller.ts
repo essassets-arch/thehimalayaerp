@@ -1,7 +1,16 @@
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { UseGuards, Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import {
+  UseGuards,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+} from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -11,7 +20,19 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
-  @RequirePermissions('inventory.inventory.create', 'inventory.create', 'store.inventory.create', 'store.create', 'store.materials.create', 'procurement.grns.create', 'inventory.stock.read', 'store.read', 'store.rawinventory.read', 'planthead.read', 'plant-head.read')
+  @RequirePermissions(
+    'inventory.inventory.create',
+    'inventory.create',
+    'store.inventory.create',
+    'store.create',
+    'store.materials.create',
+    'procurement.grns.create',
+    'inventory.stock.read',
+    'store.read',
+    'store.rawinventory.read',
+    'planthead.read',
+    'plant-head.read',
+  )
   @Post(['transactions', 'stock-transaction'])
   createTransaction(
     @CurrentUser() user: any,
@@ -20,7 +41,21 @@ export class InventoryController {
     return this.inventoryService.createTransaction(user.companyId, dto);
   }
 
-  @RequirePermissions('inventory.inventory.read', 'store.inventory.read', 'store.read', 'store.view', 'store.materials.read', 'store.rawinventory.read', 'inventory.read', 'inventory.stock.read', 'store.dashboard.read', 'logistics.dispatches.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
+  @RequirePermissions(
+    'inventory.inventory.read',
+    'store.inventory.read',
+    'store.read',
+    'store.view',
+    'store.materials.read',
+    'store.rawinventory.read',
+    'inventory.read',
+    'inventory.stock.read',
+    'store.dashboard.read',
+    'logistics.dispatches.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+  )
   @Get('transactions')
   getTransactions(
     @CurrentUser() user: any,
@@ -34,7 +69,21 @@ export class InventoryController {
     );
   }
 
-  @RequirePermissions('inventory.inventory.read', 'store.inventory.read', 'store.read', 'store.view', 'store.materials.read', 'store.rawinventory.read', 'inventory.read', 'inventory.stock.read', 'store.dashboard.read', 'logistics.dispatches.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
+  @RequirePermissions(
+    'inventory.inventory.read',
+    'store.inventory.read',
+    'store.read',
+    'store.view',
+    'store.materials.read',
+    'store.rawinventory.read',
+    'inventory.read',
+    'inventory.stock.read',
+    'store.dashboard.read',
+    'logistics.dispatches.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+  )
   @Get('stock-levels')
   getStockLevels(
     @CurrentUser() user: any,
@@ -43,13 +92,39 @@ export class InventoryController {
     return this.inventoryService.getStockLevels(user.companyId, warehouseId);
   }
 
-  @RequirePermissions('inventory.inventory.read', 'store.inventory.read', 'store.read', 'store.view', 'store.materials.read', 'store.rawinventory.read', 'inventory.read', 'inventory.stock.read', 'store.dashboard.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
+  @RequirePermissions(
+    'inventory.inventory.read',
+    'store.inventory.read',
+    'store.read',
+    'store.view',
+    'store.materials.read',
+    'store.rawinventory.read',
+    'inventory.read',
+    'inventory.stock.read',
+    'store.dashboard.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+  )
   @Get('dashboard')
   getDashboardData(@CurrentUser() user: any) {
     return this.inventoryService.getDashboardData(user.companyId);
   }
 
-  @RequirePermissions('inventory.inventory.read', 'store.inventory.read', 'store.read', 'store.view', 'store.materials.read', 'store.rawinventory.read', 'inventory.read', 'inventory.stock.read', 'store.dashboard.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read')
+  @RequirePermissions(
+    'inventory.inventory.read',
+    'store.inventory.read',
+    'store.read',
+    'store.view',
+    'store.materials.read',
+    'store.rawinventory.read',
+    'inventory.read',
+    'inventory.stock.read',
+    'store.dashboard.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+  )
   @Get('low-stock')
   getLowStockItems(@CurrentUser() user: any) {
     return this.inventoryService.getLowStockItems(user.companyId);
@@ -62,10 +137,7 @@ export class InventoryController {
 
   @RequirePermissions('inventory.inventory.update', 'store.inventory.update')
   @Patch('items/:id')
-  updateItemBalance(
-    @Param('id') id: string,
-    @Body('balance') balance: number,
-  ) {
+  updateItemBalance(@Param('id') id: string, @Body('balance') balance: number) {
     return this.inventoryService.updateItemBalance(id, balance);
   }
 }

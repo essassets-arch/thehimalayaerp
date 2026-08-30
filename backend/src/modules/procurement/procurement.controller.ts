@@ -40,57 +40,141 @@ export class ProcurementController {
   /** Store's low-stock worklist. `minimumStock` is supplied by the material master/UI. */
   @RequirePermissions('procurement.procurement.read')
   @Get('low-stock-alerts')
-  @Roles('STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER')
+  @Roles(
+    'STORE',
+    'STORE_MANAGER',
+    'PLANT_HEAD',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'PURCHASE_MANAGER',
+    'PRODUCTION_MANAGER',
+  )
   lowStock(@Req() r: any, @Query() q: any) {
     return this.service.lowStock(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('store/indent-history')
-  @Roles('STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER')
+  @Roles(
+    'STORE',
+    'STORE_MANAGER',
+    'PLANT_HEAD',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'PURCHASE_MANAGER',
+    'PRODUCTION_MANAGER',
+  )
   indentHistoryList(@Req() r: any, @Query() q: any) {
     return this.service.indentHistoryList(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('plant-head/material-indents')
-  @Roles('PLANT_HEAD', 'PLANT_HEAD_MANAGER', 'STORE', 'STORE_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER')
+  @Roles(
+    'PLANT_HEAD',
+    'PLANT_HEAD_MANAGER',
+    'STORE',
+    'STORE_MANAGER',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'PURCHASE_MANAGER',
+  )
   plantHeadQueue(@Req() r: any, @Query() q: any) {
     return this.service.indentQueue(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('plant-head/purchase-approvals')
-  @Roles('PLANT_HEAD', 'PLANT_HEAD_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER')
+  @Roles(
+    'PLANT_HEAD',
+    'PLANT_HEAD_MANAGER',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'PURCHASE_MANAGER',
+  )
   plantHeadPurchaseQueue(@Req() r: any, @Query() q: any) {
     return this.service.plantHeadPurchaseQueue(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('plant-head/purchase-history')
-  @Roles('PLANT_HEAD', 'PLANT_HEAD_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER')
+  @Roles(
+    'PLANT_HEAD',
+    'PLANT_HEAD_MANAGER',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'PURCHASE_MANAGER',
+  )
   plantHeadPurchaseHistory(@Req() r: any, @Query() q: any) {
     return this.service.plantHeadPurchaseHistory(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('finance/po-requests')
-  @Roles('FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER', 'STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'PURCHASE_MANAGER')
+  @Roles(
+    'FINANCE',
+    'FINANCE_EXECUTIVE',
+    'FINANCE_MANAGER',
+    'STORE',
+    'STORE_MANAGER',
+    'PLANT_HEAD',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'PURCHASE_MANAGER',
+  )
   financeQueue(@Req() r: any, @Query() q: any) {
     return this.service.purchaseOrderQueue(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('finance/eligible-indents')
-  @Roles('FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER', 'ADMIN', 'SUPER_ADMIN')
+  @Roles(
+    'FINANCE',
+    'FINANCE_EXECUTIVE',
+    'FINANCE_MANAGER',
+    'ADMIN',
+    'SUPER_ADMIN',
+  )
   financeEligibleIndents(@Req() r: any, @Query() q: any) {
     return this.service.financeEligibleIndents(r.user?.companyId, q);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('super-admin/po-requests')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PLANT_HEAD', 'STORE', 'STORE_MANAGER')
+  @Roles(
+    'SUPER_ADMIN',
+    'ADMIN',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'PLANT_HEAD',
+    'STORE',
+    'STORE_MANAGER',
+  )
   adminQueue(@Req() r: any, @Query() q: any) {
     const rawRole = r.user?.role;
-    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
-    const isSuperAdmin = roleCode.toUpperCase().includes('SUPER_ADMIN') || roleCode.toUpperCase().includes('ADMIN');
+    const roleCode =
+      typeof rawRole === 'string'
+        ? rawRole
+        : rawRole?.code || rawRole?.name || '';
+    const isSuperAdmin =
+      roleCode.toUpperCase().includes('SUPER_ADMIN') ||
+      roleCode.toUpperCase().includes('ADMIN');
     const targetCompanyId = isSuperAdmin ? undefined : r.user?.companyId;
     return this.service.purchaseOrderQueue(targetCompanyId, {
       ...q,
-      status: q.status || { in: ['PENDING_SUPER_ADMIN_APPROVAL', 'PENDING_APPROVAL', 'SUBMITTED', 'PENDING_FINANCE', 'DRAFT', 'PENDING'] },
+      status: q.status || {
+        in: [
+          'PENDING_SUPER_ADMIN_APPROVAL',
+          'PENDING_APPROVAL',
+          'SUBMITTED',
+          'PENDING_FINANCE',
+          'DRAFT',
+          'PENDING',
+        ],
+      },
     });
   }
   @RequirePermissions('procurement.procurement.read')
@@ -98,20 +182,45 @@ export class ProcurementController {
   @Roles('SUPER_ADMIN', 'ADMIN')
   adminHistory(@Req() r: any, @Query() q: any) {
     const rawRole = r.user?.role;
-    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
-    const isSuperAdmin = roleCode.toUpperCase().includes('SUPER_ADMIN') || roleCode.toUpperCase().includes('ADMIN');
+    const roleCode =
+      typeof rawRole === 'string'
+        ? rawRole
+        : rawRole?.code || rawRole?.name || '';
+    const isSuperAdmin =
+      roleCode.toUpperCase().includes('SUPER_ADMIN') ||
+      roleCode.toUpperCase().includes('ADMIN');
     const targetCompanyId = isSuperAdmin ? undefined : r.user?.companyId;
     return this.service.superAdminPurchaseOrderHistory(targetCompanyId, q);
   }
   @Post('indents')
   @RequirePermissions('procurement.indents.create')
-  @Roles('STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'PLANT_HEAD_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER')
+  @Roles(
+    'STORE',
+    'STORE_MANAGER',
+    'PLANT_HEAD',
+    'PLANT_HEAD_MANAGER',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'PURCHASE_MANAGER',
+  )
   createIndent(@Body() d: any, @Req() r: any) {
     return this.service.createIndent(d, r.user?.sub);
   }
   @Post('indents/:id/:action')
   @RequirePermissions('procurement.indents.update')
-  @Roles('PLANT_HEAD', 'PLANT_HEAD_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'STORE', 'STORE_MANAGER', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER')
+  @Roles(
+    'PLANT_HEAD',
+    'PLANT_HEAD_MANAGER',
+    'SUPER_ADMIN',
+    'ADMIN',
+    'STORE',
+    'STORE_MANAGER',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'PURCHASE_MANAGER',
+  )
   indentAction(
     @Param('id') id: string,
     @Param('action') a: string,
@@ -119,8 +228,13 @@ export class ProcurementController {
     @Req() r: any,
   ) {
     const rawRole = r.user?.role;
-    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
-    const isSuperAdmin = roleCode.toUpperCase().includes('SUPER_ADMIN') || roleCode.toUpperCase().includes('ADMIN');
+    const roleCode =
+      typeof rawRole === 'string'
+        ? rawRole
+        : rawRole?.code || rawRole?.name || '';
+    const isSuperAdmin =
+      roleCode.toUpperCase().includes('SUPER_ADMIN') ||
+      roleCode.toUpperCase().includes('ADMIN');
     const isPlantHead = roleCode.toUpperCase().includes('PLANT_HEAD');
     const overrideSod =
       isSuperAdmin ||
@@ -234,13 +348,29 @@ export class ProcurementController {
   /** Verifies one partial/full delivery, posts accepted stock and creates its GRN atomically. Verified & updated. */
   @RequirePermissions('procurement.procurement.create')
   @Post('store/deliveries/verify')
-  @Roles('STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'PURCHASE_MANAGER')
+  @Roles(
+    'STORE',
+    'STORE_MANAGER',
+    'PLANT_HEAD',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'FINANCE',
+    'PURCHASE_MANAGER',
+  )
   verifyDelivery(@Body() d: any, @Req() r: any) {
     return this.service.verifyDelivery(d, r.user?.sub, r.user?.companyId);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('store/deliveries')
-  @Roles('STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'PURCHASE_MANAGER')
+  @Roles(
+    'STORE',
+    'STORE_MANAGER',
+    'PLANT_HEAD',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'FINANCE',
+    'PURCHASE_MANAGER',
+  )
   deliveries(@Req() r: any, @Query() q: any) {
     return this.service.deliveryHistory(
       r.user?.companyId,
@@ -325,20 +455,52 @@ export class ProcurementController {
 
   @RequirePermissions('procurement.procurement.read')
   @Get('reports/po')
-  @Roles('STORE', 'STORE_MANAGER', 'FINANCE', 'FINANCE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER')
+  @Roles(
+    'STORE',
+    'STORE_MANAGER',
+    'FINANCE',
+    'FINANCE_MANAGER',
+    'PLANT_HEAD',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'PURCHASE_MANAGER',
+    'PRODUCTION_MANAGER',
+  )
   getPOReport(@Req() r: any) {
     return this.poReportService.getPOReport(r.user?.companyId);
   }
 
   @RequirePermissions('procurement.procurement.read')
   @Get('material-rejections')
-  @Roles('STORE', 'FINANCE', 'STORE_MANAGER', 'FINANCE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER', 'QUALITY_MANAGER')
+  @Roles(
+    'STORE',
+    'FINANCE',
+    'STORE_MANAGER',
+    'FINANCE_MANAGER',
+    'PLANT_HEAD',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'PURCHASE_MANAGER',
+    'PRODUCTION_MANAGER',
+    'QUALITY_MANAGER',
+  )
   listRejections(@Req() r: any) {
     return this.rejectionService.list(r.user?.companyId);
   }
   @RequirePermissions('procurement.procurement.read')
   @Get('material-rejections/:id')
-  @Roles('STORE', 'FINANCE', 'STORE_MANAGER', 'FINANCE_MANAGER', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN', 'PURCHASE_MANAGER', 'PRODUCTION_MANAGER', 'QUALITY_MANAGER')
+  @Roles(
+    'STORE',
+    'FINANCE',
+    'STORE_MANAGER',
+    'FINANCE_MANAGER',
+    'PLANT_HEAD',
+    'ADMIN',
+    'SUPER_ADMIN',
+    'PURCHASE_MANAGER',
+    'PRODUCTION_MANAGER',
+    'QUALITY_MANAGER',
+  )
   getRejection(@Param('id') id: string) {
     return this.rejectionService.getById(id);
   }

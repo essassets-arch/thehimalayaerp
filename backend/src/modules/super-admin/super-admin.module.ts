@@ -8,6 +8,6 @@ import { LocationModule } from '../location/location.module';
   imports: [PrismaModule, LocationModule],
   controllers: [SuperAdminController],
   providers: [SuperAdminService],
-  exports: [SuperAdminService]
+  exports: [SuperAdminService],
 })
 export class SuperAdminModule {}

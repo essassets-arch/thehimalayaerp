@@ -24,7 +24,11 @@ import {
   AuthenticatedRequest,
 } from '../../common/types/security.types';
 
-const loginLimit = (process.env.NODE_ENV === 'test' || process.env.DATABASE_URL?.includes('_browser_test')) ? 1000 : 5;
+const loginLimit =
+  process.env.NODE_ENV === 'test' ||
+  process.env.DATABASE_URL?.includes('_browser_test')
+    ? 1000
+    : 5;
 
 @Controller('auth')
 export class AuthController {

@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequestSalesReturnDto } from './dto/request-sales-return.dto';
-import { getReturnSalesScope, isSalespersonScopedRole } from '../../common/utils/rbac.util';
+import {
+  getReturnSalesScope,
+  isSalespersonScopedRole,
+} from '../../common/utils/rbac.util';
 
 @Injectable()
 export class SalesReturnsService {
@@ -32,7 +35,12 @@ export class SalesReturnsService {
 
       const delivered = order.dispatches
         .filter((dispatch) =>
-          ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'COMPLETED'].includes(dispatch.status),
+          [
+            'DELIVERED',
+            'POD_RECEIVED',
+            'DISPATCH_CLOSED',
+            'COMPLETED',
+          ].includes(dispatch.status),
         )
         .flatMap((dispatch) => dispatch.items)
         .filter(
@@ -104,7 +112,12 @@ export class SalesReturnsService {
                 .productId,
               deliveredQuantity: order.dispatches
                 .filter((dispatch) =>
-                  ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'COMPLETED'].includes(dispatch.status),
+                  [
+                    'DELIVERED',
+                    'POD_RECEIVED',
+                    'DISPATCH_CLOSED',
+                    'COMPLETED',
+                  ].includes(dispatch.status),
                 )
                 .flatMap((dispatch) => dispatch.items)
                 .filter(

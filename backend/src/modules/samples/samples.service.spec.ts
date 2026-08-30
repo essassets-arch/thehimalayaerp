@@ -3,6 +3,8 @@ import { SamplesService } from './samples.service';
 import { PrismaService } from '../../database/prisma.service';
 import { createMockPrismaService } from '../../../test/mocks/prisma.mock';
 
+import { SequenceService } from '../../common/sequence/sequence.service';
+
 describe('SamplesService', () => {
   let service: SamplesService;
 
@@ -11,6 +13,7 @@ describe('SamplesService', () => {
       providers: [
         SamplesService,
         { provide: PrismaService, useValue: createMockPrismaService() },
+        { provide: SequenceService, useValue: { generate: jest.fn() } },
       ],
     }).compile();
 

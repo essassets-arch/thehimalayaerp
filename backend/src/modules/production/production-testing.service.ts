@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { randomUUID } from 'crypto';
 
@@ -29,13 +33,16 @@ export class ProductionTestingService {
     };
   }
 
-  async createTestingRecord(dto: {
-    productName: string;
-    quantity: number;
-    status?: string;
-    remarks?: string;
-    testedBy?: string;
-  }, userId?: string) {
+  async createTestingRecord(
+    dto: {
+      productName: string;
+      quantity: number;
+      status?: string;
+      remarks?: string;
+      testedBy?: string;
+    },
+    userId?: string,
+  ) {
     if (!dto.productName || !dto.productName.trim()) {
       throw new BadRequestException('Product / Material Name is required');
     }
@@ -68,7 +75,12 @@ export class ProductionTestingService {
 
   async updateTestingRecord(
     id: string,
-    dto: { productName?: string; quantity?: number; status?: string; remarks?: string },
+    dto: {
+      productName?: string;
+      quantity?: number;
+      status?: string;
+      remarks?: string;
+    },
   ) {
     const record = await this.getTestingRecord(id);
     const updated = await this.prisma.productionTestingRecord.update({

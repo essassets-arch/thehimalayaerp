@@ -27,7 +27,11 @@ export class PaymentsService {
    * Returns live summary counts and fully evaluated order rows with server-side filters.
    */
   async getVerificationQueue(query: any = {}, userId?: string, role?: string) {
-    const isSalesperson = ['SALES_EXECUTIVE', 'SALES_REP', 'SALESPERSON'].includes(String(role || '').toUpperCase());
+    const isSalesperson = [
+      'SALES_EXECUTIVE',
+      'SALES_REP',
+      'SALESPERSON',
+    ].includes(String(role || '').toUpperCase());
     const salesScope = isSalesperson ? { createdById: userId } : {};
 
     const orders = await this.prisma.salesOrder.findMany({
@@ -80,8 +84,12 @@ export class PaymentsService {
             salespersonName: order.salesExecutive?.name || 'Sales Executive',
             paymentTerms: order.paymentTerms || '15 Days',
             paymentTermDays: order.paymentTermDays || 15,
-            paymentTermStartDate: (order.paymentTermStartDate || order.createdAt).toISOString(),
-            paymentDueDate: (order.paymentDueDate || order.createdAt).toISOString(),
+            paymentTermStartDate: (
+              order.paymentTermStartDate || order.createdAt
+            ).toISOString(),
+            paymentDueDate: (
+              order.paymentDueDate || order.createdAt
+            ).toISOString(),
             daysElapsed: 0,
             daysRemaining: 0,
             daysOverdue: 0,
@@ -89,7 +97,9 @@ export class PaymentsService {
             dueDay: 15,
             orderTotal: Number(order.totalAmount || 0),
             verifiedPaidAmount: Number(order.paidAmount || 0),
-            outstandingAmount: Number(order.outstandingAmount ?? order.totalAmount ?? 0),
+            outstandingAmount: Number(
+              order.outstandingAmount ?? order.totalAmount ?? 0,
+            ),
             paymentStatus: order.paymentStatus || 'PENDING',
             verificationStatus: 'NO_PAYMENTS',
             dueState: 'UPCOMING' as const,
@@ -98,9 +108,12 @@ export class PaymentsService {
           };
 
       const pendingPayments = (order.customerPayments || []).filter((p) =>
-        ['SUBMITTED', 'UNDER_VERIFICATION', 'PENDING_VERIFICATION', 'RECEIVED'].includes(
-          String(p.status || '').toUpperCase(),
-        ),
+        [
+          'SUBMITTED',
+          'UNDER_VERIFICATION',
+          'PENDING_VERIFICATION',
+          'RECEIVED',
+        ].includes(String(p.status || '').toUpperCase()),
       );
 
       const latestPayment = order.customerPayments?.[0];
@@ -114,7 +127,9 @@ export class PaymentsService {
         customerName: order.customer?.companyName || 'Customer',
         salespersonId: order.salesExecutiveId || order.createdById,
         salespersonName: order.salesExecutive?.name || 'Sales Executive',
-        orderDate: order.orderDate ? new Date(order.orderDate).toISOString() : order.createdAt.toISOString(),
+        orderDate: order.orderDate
+          ? new Date(order.orderDate).toISOString()
+          : order.createdAt.toISOString(),
         pendingPayments: pendingPayments.map((p) => ({
           id: p.id,
           paymentNo: p.paymentNo,
@@ -185,27 +200,49 @@ export class PaymentsService {
     let filtered = [...evaluatedRows];
 
     // Tab filter
-    const activeTab = String(query.tab || 'All').trim().toLowerCase();
-    if (activeTab === 'pending verification' || activeTab === 'pending_verification') {
+    const activeTab = String(query.tab || 'All')
+      .trim()
+      .toLowerCase();
+    if (
+      activeTab === 'pending verification' ||
+      activeTab === 'pending_verification'
+    ) {
       filtered = filtered.filter((r) => r.pendingVerificationCount > 0);
     } else if (activeTab === 'due soon' || activeTab === 'due_soon') {
-      filtered = filtered.filter((r) => r.dueState === 'DUE_SOON' && r.outstandingAmount > 0);
+      filtered = filtered.filter(
+        (r) => r.dueState === 'DUE_SOON' && r.outstandingAmount > 0,
+      );
     } else if (activeTab === 'due today' || activeTab === 'due_today') {
-      filtered = filtered.filter((r) => r.dueState === 'DUE_TODAY' && r.outstandingAmount > 0);
+      filtered = filtered.filter(
+        (r) => r.dueState === 'DUE_TODAY' && r.outstandingAmount > 0,
+      );
     } else if (activeTab === 'overdue') {
-      filtered = filtered.filter((r) => r.dueState === 'OVERDUE' && r.outstandingAmount > 0);
-    } else if (activeTab === 'partially paid' || activeTab === 'partially_paid') {
-      filtered = filtered.filter((r) => r.verifiedPaidAmount > 0 && r.outstandingAmount > 0);
+      filtered = filtered.filter(
+        (r) => r.dueState === 'OVERDUE' && r.outstandingAmount > 0,
+      );
+    } else if (
+      activeTab === 'partially paid' ||
+      activeTab === 'partially_paid'
+    ) {
+      filtered = filtered.filter(
+        (r) => r.verifiedPaidAmount > 0 && r.outstandingAmount > 0,
+      );
     } else if (activeTab === 'verified') {
-      filtered = filtered.filter((r) => r.verifiedPaidAmount > 0 || r.paymentStatus === 'PAID');
+      filtered = filtered.filter(
+        (r) => r.verifiedPaidAmount > 0 || r.paymentStatus === 'PAID',
+      );
     } else if (activeTab === 'rejected') {
-      filtered = filtered.filter((r) => r.payments.some((p) => p.status === 'REJECTED'));
+      filtered = filtered.filter((r) =>
+        r.payments.some((p) => p.status === 'REJECTED'),
+      );
     }
 
     // Payment terms filter
     if (query.paymentTerms && query.paymentTerms !== 'All') {
       const qTerms = String(query.paymentTerms).toLowerCase();
-      filtered = filtered.filter((r) => r.paymentTerms.toLowerCase().includes(qTerms));
+      filtered = filtered.filter((r) =>
+        r.paymentTerms.toLowerCase().includes(qTerms),
+      );
     }
 
     // Due state filter
@@ -216,7 +253,9 @@ export class PaymentsService {
 
     // Salesperson filter
     if (query.salespersonId && query.salespersonId !== 'All') {
-      filtered = filtered.filter((r) => r.salespersonId === query.salespersonId);
+      filtered = filtered.filter(
+        (r) => r.salespersonId === query.salespersonId,
+      );
     }
 
     // Customer filter
@@ -233,9 +272,10 @@ export class PaymentsService {
           r.customerName.toLowerCase().includes(q) ||
           r.salespersonName?.toLowerCase().includes(q) ||
           r.paymentReference?.toLowerCase().includes(q) ||
-          r.payments.some((p) =>
-            p.paymentNo?.toLowerCase().includes(q) ||
-            p.transactionReference?.toLowerCase().includes(q),
+          r.payments.some(
+            (p) =>
+              p.paymentNo?.toLowerCase().includes(q) ||
+              p.transactionReference?.toLowerCase().includes(q),
           ),
       );
     }
@@ -248,8 +288,14 @@ export class PaymentsService {
       LOW: 4,
     };
     filtered.sort((a, b) => {
-      const wA = a.pendingVerificationCount > 0 && a.priority !== 'CRITICAL' ? 2 : (priorityWeight[a.priority] || 5);
-      const wB = b.pendingVerificationCount > 0 && b.priority !== 'CRITICAL' ? 2 : (priorityWeight[b.priority] || 5);
+      const wA =
+        a.pendingVerificationCount > 0 && a.priority !== 'CRITICAL'
+          ? 2
+          : priorityWeight[a.priority] || 5;
+      const wB =
+        b.pendingVerificationCount > 0 && b.priority !== 'CRITICAL'
+          ? 2
+          : priorityWeight[b.priority] || 5;
       if (wA !== wB) return wA - wB;
       return new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime();
     });
@@ -313,7 +359,9 @@ export class PaymentsService {
       : {
           orderTotal: Number(order.totalAmount || 0),
           verifiedPaidAmount: Number(order.paidAmount || 0),
-          outstandingAmount: Number(order.outstandingAmount ?? order.totalAmount ?? 0),
+          outstandingAmount: Number(
+            order.outstandingAmount ?? order.totalAmount ?? 0,
+          ),
           paymentStatus: order.paymentStatus || 'PENDING',
           dueState: 'UPCOMING' as const,
         };
@@ -361,7 +409,8 @@ export class PaymentsService {
         customerName: order.customer?.companyName || 'Customer',
         salespersonName: order.salesExecutive?.name || 'Sales Executive',
         orderDate: order.orderDate,
-        paymentTerms: order.paymentTerms || `${order.paymentTermDays || 15} Days`,
+        paymentTerms:
+          order.paymentTerms || `${order.paymentTermDays || 15} Days`,
         paymentTermStartDate: order.paymentTermStartDate,
         paymentDueDate: order.paymentDueDate,
         totalAmount: Number(order.totalAmount || 0),
@@ -373,7 +422,13 @@ export class PaymentsService {
         orderTotal: Number(order.totalAmount || 0),
         verifiedPaid: evaluation.verifiedPaidAmount,
         pendingVerification: order.customerPayments
-          .filter((p) => ['SUBMITTED', 'UNDER_VERIFICATION', 'PENDING_VERIFICATION'].includes(p.status))
+          .filter((p) =>
+            [
+              'SUBMITTED',
+              'UNDER_VERIFICATION',
+              'PENDING_VERIFICATION',
+            ].includes(p.status),
+          )
           .reduce((sum, p) => sum + Number(p.amount || 0), 0),
         outstandingAmount: evaluation.outstandingAmount,
       },
@@ -508,35 +563,62 @@ export class PaymentsService {
 
       const invoice = order.invoices?.[0];
       const invoiceDate = invoice?.createdAt || deliveredAt || order.createdAt;
-      const rawPaymentTerms = order.paymentTerms || order.quotation?.paymentTerms || '';
-      const isAdvance = String(rawPaymentTerms).toLowerCase().includes('advance');
-      const paymentTermsDays = isAdvance ? 0 : (order.paymentTermDays ?? order.paymentTermsDays ?? order.quotation?.paymentTermDays ?? 15);
-      const paymentTerms = isAdvance ? 'Advance' : (rawPaymentTerms || `${paymentTermsDays} Days`);
+      const rawPaymentTerms =
+        order.paymentTerms || order.quotation?.paymentTerms || '';
+      const isAdvance = String(rawPaymentTerms)
+        .toLowerCase()
+        .includes('advance');
+      const paymentTermsDays = isAdvance
+        ? 0
+        : (order.paymentTermDays ??
+          order.paymentTermsDays ??
+          order.quotation?.paymentTermDays ??
+          15);
+      const paymentTerms = isAdvance
+        ? 'Advance'
+        : rawPaymentTerms || `${paymentTermsDays} Days`;
 
       let dueDate: Date | null = null;
       if (order.paymentDueDate) {
         dueDate = order.paymentDueDate;
       } else if (invoiceDate) {
-        dueDate = isAdvance ? new Date(invoiceDate) : new Date(new Date(invoiceDate).getTime() + paymentTermsDays * 86400000);
+        dueDate = isAdvance
+          ? new Date(invoiceDate)
+          : new Date(
+              new Date(invoiceDate).getTime() + paymentTermsDays * 86400000,
+            );
       }
 
       // Calculate verified paid amount from verified payments
-      const verifiedPaidAmount = order.customerPayments
-        ?.filter((cp) => ['VERIFIED', 'FINANCE_VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(String(cp.status || '').toUpperCase()))
-        ?.reduce((sum, cp) => sum + Number(cp.amount || 0), 0) || Number(order.paidAmount || 0);
+      const verifiedPaidAmount =
+        order.customerPayments
+          ?.filter((cp) =>
+            [
+              'VERIFIED',
+              'FINANCE_VERIFIED',
+              'PARTIALLY_ALLOCATED',
+              'ALLOCATED',
+            ].includes(String(cp.status || '').toUpperCase()),
+          )
+          ?.reduce((sum, cp) => sum + Number(cp.amount || 0), 0) ||
+        Number(order.paidAmount || 0);
 
       const totalAmount = Number(order.totalAmount || 0);
       const balanceAmount = Math.max(0, totalAmount - verifiedPaidAmount);
 
       const isDelivered = deliveredDispatches.length > 0;
-      const dispatchStatus = isDelivered ? 'DELIVERED' : (order.dispatches?.[0]?.status || 'PENDING');
+      const dispatchStatus = isDelivered
+        ? 'DELIVERED'
+        : order.dispatches?.[0]?.status || 'PENDING';
 
       return {
         id: order.id,
         orderNo: order.orderNumber,
         orderId: order.orderNumber,
         invoiceNo: invoice?.invoiceNumber || `INV-${order.orderNumber}`,
-        invoiceDate: invoiceDate ? new Date(invoiceDate).toISOString() : undefined,
+        invoiceDate: invoiceDate
+          ? new Date(invoiceDate).toISOString()
+          : undefined,
         paymentTerms,
         paymentTermsDays,
         paymentDueDate: dueDate ? dueDate.toISOString() : undefined,
@@ -675,10 +757,13 @@ export class PaymentsService {
     const combinedRemarks = remarksParts.join(' | ') || undefined;
 
     try {
-      const payment = await this.createPayment({
-        ...dto,
-        remarks: combinedRemarks,
-      }, userId);
+      const payment = await this.createPayment(
+        {
+          ...dto,
+          remarks: combinedRemarks,
+        },
+        userId,
+      );
       return this.submitForVerification(payment.id, userId);
     } catch (e) {
       return {
@@ -706,19 +791,21 @@ export class PaymentsService {
       const formattedAmount = `₹${Number(res.amount || 0).toLocaleString('en-IN')}`;
 
       if (customer?.companyId) {
-        await this.notificationsService.notifyRole({
-          companyId: customer.companyId,
-          role: 'FINANCE_MANAGER',
-          roles: ['FINANCE_MANAGER', 'FINANCE_EXECUTIVE'],
-          type: 'FINANCE_PAYMENT_PENDING_VERIFICATION',
-          title: 'Finance — Payment Pending Verification',
-          message: `Payment for Order ${ref} has been submitted and is pending Finance verification. Amount: ${formattedAmount}. Please verify the payment.`,
-          route: '/finance/payment-verification',
-          entityType: 'CustomerPayment',
-          entityId: id,
-          priority: NotificationPriority.HIGH,
-          eventKeyPrefix: `PAYMENT:${id}:SUBMITTED`,
-        }).catch(() => {});
+        await this.notificationsService
+          .notifyRole({
+            companyId: customer.companyId,
+            role: 'FINANCE_MANAGER',
+            roles: ['FINANCE_MANAGER', 'FINANCE_EXECUTIVE'],
+            type: 'FINANCE_PAYMENT_PENDING_VERIFICATION',
+            title: 'Finance — Payment Pending Verification',
+            message: `Payment for Order ${ref} has been submitted and is pending Finance verification. Amount: ${formattedAmount}. Please verify the payment.`,
+            route: '/finance/payment-verification',
+            entityType: 'CustomerPayment',
+            entityId: id,
+            priority: NotificationPriority.HIGH,
+            eventKeyPrefix: `PAYMENT:${id}:SUBMITTED`,
+          })
+          .catch(() => {});
       }
     }
     return res;
@@ -739,11 +826,17 @@ export class PaymentsService {
       if (!payment) throw new NotFoundException('Payment not found');
 
       // 2. Concurrency check: prevent double verification or verifying rejected payment
-      if (['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(payment.status)) {
+      if (
+        ['VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(
+          payment.status,
+        )
+      ) {
         throw new BadRequestException('Payment has already been verified');
       }
       if (payment.status === 'REJECTED') {
-        throw new BadRequestException('Payment has already been rejected and cannot be verified');
+        throw new BadRequestException(
+          'Payment has already been rejected and cannot be verified',
+        );
       }
 
       // 3. Update workflow state if configured
@@ -786,7 +879,7 @@ export class PaymentsService {
       let newOutstanding = 0;
       let orderNumber = 'N/A';
       let salespersonId: string | null = null;
-      let companyId = verifiedPayment.customer?.companyId;
+      const companyId = verifiedPayment.customer?.companyId;
 
       if (payment.salesOrderId) {
         const order = await tx.salesOrder.findUnique({
@@ -805,7 +898,10 @@ export class PaymentsService {
             select: { amount: true },
           });
 
-          newPaidAmount = allVerified.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+          newPaidAmount = allVerified.reduce(
+            (sum, p) => sum + Number(p.amount || 0),
+            0,
+          );
           const orderTotal = Number(order.totalAmount || 0);
           newOutstanding = Math.max(0, orderTotal - newPaidAmount);
           isFullPaid = newOutstanding <= 0 && orderTotal > 0;
@@ -813,8 +909,8 @@ export class PaymentsService {
           const newPaymentStatus = isFullPaid
             ? 'PAID'
             : newPaidAmount > 0
-            ? 'PARTIALLY_PAID'
-            : 'PENDING';
+              ? 'PARTIALLY_PAID'
+              : 'PENDING';
 
           await tx.salesOrder.update({
             where: { id: order.id },
@@ -913,37 +1009,42 @@ export class PaymentsService {
 
     // 8. Multi-channel notifications post-commit
     if (result?.companyId && this.notificationsService) {
-      const recipientId = result.salespersonId || result.verifiedPayment.createdById;
+      const recipientId =
+        result.salespersonId || result.verifiedPayment.createdById;
       const formattedAmount = `₹${Number(result.verifiedPayment.amount).toLocaleString('en-IN')}`;
 
       if (recipientId) {
-        await this.notificationsService.notifyUser({
-          companyId: result.companyId,
-          userId: recipientId,
-          type: 'PAYMENT_VERIFIED',
-          title: 'Payment Verified',
-          message: `${result.verifiedPayment.paymentNo} — Payment of ${formattedAmount} for Order ${result.orderNumber} has been verified by Finance.`,
-          route: '/supersales/payment-followup',
-          entityType: 'CustomerPayment',
-          entityId: id,
-          priority: NotificationPriority.HIGH,
-          eventKey: `PAYMENT:${id}:VERIFIED`,
-        }).catch(() => {});
+        await this.notificationsService
+          .notifyUser({
+            companyId: result.companyId,
+            userId: recipientId,
+            type: 'PAYMENT_VERIFIED',
+            title: 'Payment Verified',
+            message: `${result.verifiedPayment.paymentNo} — Payment of ${formattedAmount} for Order ${result.orderNumber} has been verified by Finance.`,
+            route: '/supersales/payment-followup',
+            entityType: 'CustomerPayment',
+            entityId: id,
+            priority: NotificationPriority.HIGH,
+            eventKey: `PAYMENT:${id}:VERIFIED`,
+          })
+          .catch(() => {});
       }
 
       if (result.isFullPaid && recipientId) {
-        await this.notificationsService.notifyUser({
-          companyId: result.companyId,
-          userId: recipientId,
-          type: 'ORDER_FULL_PAID',
-          title: 'Order Fully Paid',
-          message: `Order ${result.orderNumber} is now FULLY PAID. Payment follow-up completed.`,
-          route: '/sales/orders',
-          entityType: 'SalesOrder',
-          entityId: result.verifiedPayment.salesOrderId || id,
-          priority: NotificationPriority.HIGH,
-          eventKey: `ORDER:${result.verifiedPayment.salesOrderId}:FULL_PAID`,
-        }).catch(() => {});
+        await this.notificationsService
+          .notifyUser({
+            companyId: result.companyId,
+            userId: recipientId,
+            type: 'ORDER_FULL_PAID',
+            title: 'Order Fully Paid',
+            message: `Order ${result.orderNumber} is now FULLY PAID. Payment follow-up completed.`,
+            route: '/sales/orders',
+            entityType: 'SalesOrder',
+            entityId: result.verifiedPayment.salesOrderId || id,
+            priority: NotificationPriority.HIGH,
+            eventKey: `ORDER:${result.verifiedPayment.salesOrderId}:FULL_PAID`,
+          })
+          .catch(() => {});
       }
     }
 
@@ -961,7 +1062,9 @@ export class PaymentsService {
     userId?: string,
   ) {
     if (!dto?.rejectionReason || !dto.rejectionReason.trim()) {
-      throw new BadRequestException('A rejection reason is mandatory to reject a payment.');
+      throw new BadRequestException(
+        'A rejection reason is mandatory to reject a payment.',
+      );
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -972,7 +1075,9 @@ export class PaymentsService {
       if (!payment) throw new NotFoundException('Payment not found');
 
       if (['VERIFIED', 'ALLOCATED'].includes(payment.status)) {
-        throw new BadRequestException('Cannot reject a payment that has already been verified.');
+        throw new BadRequestException(
+          'Cannot reject a payment that has already been verified.',
+        );
       }
 
       let nextStateId = payment.workflowStateId;
@@ -1027,7 +1132,10 @@ export class PaymentsService {
       });
 
       const orderNumber = payment.salesOrder?.orderNumber || 'Order';
-      const salespersonId = payment.salesOrder?.salesExecutiveId || payment.salesOrder?.createdById || payment.createdById;
+      const salespersonId =
+        payment.salesOrder?.salesExecutiveId ||
+        payment.salesOrder?.createdById ||
+        payment.createdById;
       const companyId = payment.customer?.companyId;
 
       return {
@@ -1038,20 +1146,26 @@ export class PaymentsService {
       };
     });
 
-    if (result?.companyId && this.notificationsService && result.salespersonId) {
+    if (
+      result?.companyId &&
+      this.notificationsService &&
+      result.salespersonId
+    ) {
       const formattedAmount = `₹${Number(result.rejectedPayment.amount).toLocaleString('en-IN')}`;
-      await this.notificationsService.notifyUser({
-        companyId: result.companyId,
-        userId: result.salespersonId,
-        type: 'PAYMENT_REJECTED',
-        title: 'Payment Rejected',
-        message: `${result.rejectedPayment.paymentNo} — Payment proof of ${formattedAmount} for Order ${result.orderNumber} was rejected by Finance. Reason: ${dto.rejectionReason.trim()}`,
-        route: '/supersales/payment-followup',
-        entityType: 'CustomerPayment',
-        entityId: id,
-        priority: NotificationPriority.HIGH,
-        eventKey: `PAYMENT:${id}:REJECTED`,
-      }).catch(() => {});
+      await this.notificationsService
+        .notifyUser({
+          companyId: result.companyId,
+          userId: result.salespersonId,
+          type: 'PAYMENT_REJECTED',
+          title: 'Payment Rejected',
+          message: `${result.rejectedPayment.paymentNo} — Payment proof of ${formattedAmount} for Order ${result.orderNumber} was rejected by Finance. Reason: ${dto.rejectionReason.trim()}`,
+          route: '/supersales/payment-followup',
+          entityType: 'CustomerPayment',
+          entityId: id,
+          priority: NotificationPriority.HIGH,
+          eventKey: `PAYMENT:${id}:REJECTED`,
+        })
+        .catch(() => {});
     }
 
     return result.rejectedPayment;
@@ -1062,7 +1176,9 @@ export class PaymentsService {
    */
   async runDailyFollowUpScan(companyId?: string) {
     if (!this.engineService) {
-      throw new BadRequestException('PaymentFollowupEngineService not available');
+      throw new BadRequestException(
+        'PaymentFollowupEngineService not available',
+      );
     }
     return this.engineService.runDailyFollowUpScan(companyId);
   }
@@ -1388,19 +1504,25 @@ export class PaymentsService {
     }
 
     const updated = await this.getPayment(id);
-    if (updated.createdById && updated.customer?.companyId && this.notificationsService) {
-      this.notificationsService.notifyUser({
-        companyId: updated.customer.companyId,
-        userId: updated.createdById,
-        type: 'PAYMENT_REJECTED',
-        title: 'Payment Rejected',
-        message: `${updated.paymentNo} — Finance rejected the payment proof. Action required.`,
-        route: '/supersales/payment-followup',
-        entityType: 'CustomerPayment',
-        entityId: id,
-        priority: NotificationPriority.HIGH,
-        eventKey: `PAYMENT:${id}:REJECTED`,
-      }).catch(() => {});
+    if (
+      updated.createdById &&
+      updated.customer?.companyId &&
+      this.notificationsService
+    ) {
+      this.notificationsService
+        .notifyUser({
+          companyId: updated.customer.companyId,
+          userId: updated.createdById,
+          type: 'PAYMENT_REJECTED',
+          title: 'Payment Rejected',
+          message: `${updated.paymentNo} — Finance rejected the payment proof. Action required.`,
+          route: '/supersales/payment-followup',
+          entityType: 'CustomerPayment',
+          entityId: id,
+          priority: NotificationPriority.HIGH,
+          eventKey: `PAYMENT:${id}:REJECTED`,
+        })
+        .catch(() => {});
     }
 
     return updated;

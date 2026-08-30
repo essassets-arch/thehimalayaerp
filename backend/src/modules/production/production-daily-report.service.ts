@@ -54,15 +54,18 @@ export class ProductionDailyReportService {
       };
     }
 
-    const productIds = Array.from(new Set(items.map((i) => i.productId).filter(Boolean)));
-    const products = productIds.length > 0
-      ? await this.prisma.product.findMany({
-          where: {
-            id: { in: productIds as string[] },
-            companyId,
-          },
-        })
-      : [];
+    const productIds = Array.from(
+      new Set(items.map((i) => i.productId).filter(Boolean)),
+    );
+    const products =
+      productIds.length > 0
+        ? await this.prisma.product.findMany({
+            where: {
+              id: { in: productIds as string[] },
+              companyId,
+            },
+          })
+        : [];
 
     const productMap = new Map(products.map((p) => [p.id, p]));
 
@@ -75,7 +78,8 @@ export class ProductionDailyReportService {
 
     const processedItems = items.map((item, index) => {
       const product = item.productId ? productMap.get(item.productId) : null;
-      const customProductName = item.customProductName || (!product ? item.productId : null);
+      const customProductName =
+        item.customProductName || (!product ? item.productId : null);
 
       const srNo = item.srNo || index + 1;
       const size = item.size || product?.size || product?.variantDetails || '';
@@ -101,7 +105,8 @@ export class ProductionDailyReportService {
         item.actualCoverWeight !== undefined && item.actualCoverWeight !== null
           ? Number(item.actualCoverWeight)
           : null;
-      const coverWeight = actualCoverWeight !== null ? actualCoverWeight : calculatedCoverWeight;
+      const coverWeight =
+        actualCoverWeight !== null ? actualCoverWeight : calculatedCoverWeight;
 
       // Frame weight calculation (with optional actual weight override)
       const calculatedFrameWeight = frameQty * frameUnitWeight;
@@ -109,7 +114,8 @@ export class ProductionDailyReportService {
         item.actualFrameWeight !== undefined && item.actualFrameWeight !== null
           ? Number(item.actualFrameWeight)
           : null;
-      const frameWeight = actualFrameWeight !== null ? actualFrameWeight : calculatedFrameWeight;
+      const frameWeight =
+        actualFrameWeight !== null ? actualFrameWeight : calculatedFrameWeight;
 
       const totalWeight = coverWeight + frameWeight;
 
@@ -118,7 +124,8 @@ export class ProductionDailyReportService {
       const framesPerSet = Math.max(1, product?.framesPerSet || 1);
 
       const setsFromCovers = Math.floor(coverQty / coversPerSet);
-      const setsFromFrames = frameQty > 0 ? Math.floor(frameQty / framesPerSet) : 0;
+      const setsFromFrames =
+        frameQty > 0 ? Math.floor(frameQty / framesPerSet) : 0;
       const setQty =
         item.setQty !== undefined && item.setQty !== null
           ? Math.max(0, Math.floor(Number(item.setQty)))
@@ -127,12 +134,15 @@ export class ProductionDailyReportService {
       const extraCoverQty =
         item.extraCoverQty !== undefined && item.extraCoverQty !== null
           ? Math.max(0, Math.floor(Number(item.extraCoverQty)))
-          : Math.max(0, coverQty - (setQty * coversPerSet));
+          : Math.max(0, coverQty - setQty * coversPerSet);
 
       const extraFrameQty =
         item.extraFrameQty !== undefined && item.extraFrameQty !== null
           ? Math.max(0, Math.floor(Number(item.extraFrameQty)))
-          : Math.max(0, frameQty - (setQty * (framesPerSet > 0 ? framesPerSet : 0)));
+          : Math.max(
+              0,
+              frameQty - setQty * (framesPerSet > 0 ? framesPerSet : 0),
+            );
 
       totalCovers += coverQty;
       totalFrames += frameQty;
@@ -151,11 +161,17 @@ export class ProductionDailyReportService {
         coverQty,
         coverUnitWeight: new Prisma.Decimal(coverUnitWeight),
         coverWeight: new Prisma.Decimal(coverWeight),
-        actualCoverWeight: actualCoverWeight !== null ? new Prisma.Decimal(actualCoverWeight) : null,
+        actualCoverWeight:
+          actualCoverWeight !== null
+            ? new Prisma.Decimal(actualCoverWeight)
+            : null,
         frameQty,
         frameUnitWeight: new Prisma.Decimal(frameUnitWeight),
         frameWeight: new Prisma.Decimal(frameWeight),
-        actualFrameWeight: actualFrameWeight !== null ? new Prisma.Decimal(actualFrameWeight) : null,
+        actualFrameWeight:
+          actualFrameWeight !== null
+            ? new Prisma.Decimal(actualFrameWeight)
+            : null,
         weightOverrideReason: item.weightOverrideReason || null,
         setQty,
         extraCoverQty,
@@ -230,7 +246,15 @@ export class ProductionDailyReportService {
         end.setHours(23, 59, 59, 999);
       } else if (presetLower === 'this month' || presetLower === 'this_month') {
         start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+        end = new Date(
+          today.getFullYear(),
+          today.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999,
+        );
       }
     } else {
       if (query.startDate) {
@@ -250,7 +274,8 @@ export class ProductionDailyReportService {
 
     // Search or Product/Type/Capacity filter
     if (query.search || query.product || query.type || query.capacity) {
-      const searchItemConditions: Prisma.ProductionDailyReportItemWhereInput[] = [];
+      const searchItemConditions: Prisma.ProductionDailyReportItemWhereInput[] =
+        [];
 
       if (query.product) {
         searchItemConditions.push({
@@ -264,11 +289,15 @@ export class ProductionDailyReportService {
       }
 
       if (query.type) {
-        searchItemConditions.push({ type: { contains: query.type, mode: 'insensitive' } });
+        searchItemConditions.push({
+          type: { contains: query.type, mode: 'insensitive' },
+        });
       }
 
       if (query.capacity) {
-        searchItemConditions.push({ capacity: { contains: query.capacity, mode: 'insensitive' } });
+        searchItemConditions.push({
+          capacity: { contains: query.capacity, mode: 'insensitive' },
+        });
       }
 
       if (query.search) {
@@ -373,7 +402,9 @@ export class ProductionDailyReportService {
     });
 
     if (!report) {
-      throw new NotFoundException(`Daily Production Report '${idOrReportNo}' not found`);
+      throw new NotFoundException(
+        `Daily Production Report '${idOrReportNo}' not found`,
+      );
     }
 
     return report;
@@ -383,14 +414,23 @@ export class ProductionDailyReportService {
    * Create a new Daily Production Report in DRAFT state.
    * Multiple reports per day and shift are supported.
    */
-  async createReport(companyId: string, userId: string, dto: CreateDailyReportDto) {
+  async createReport(
+    companyId: string,
+    userId: string,
+    dto: CreateDailyReportDto,
+  ) {
     const reportDate = new Date(dto.reportDate);
     reportDate.setHours(0, 0, 0, 0);
 
     const { key, prefix } = this.getSequencePrefix(reportDate);
 
     return this.prisma.$transaction(async (tx) => {
-      const reportNo = await this.sequenceService.generateNextWithTx(tx, key, prefix, 6);
+      const reportNo = await this.sequenceService.generateNextWithTx(
+        tx,
+        key,
+        prefix,
+        6,
+      );
       const {
         processedItems,
         totalCovers,
@@ -459,10 +499,14 @@ export class ProductionDailyReportService {
       }
 
       if (report.status === 'APPROVED') {
-        throw new ForbiddenException(`Cannot edit an APPROVED production report`);
+        throw new ForbiddenException(
+          `Cannot edit an APPROVED production report`,
+        );
       }
 
-      const reportDate = dto.reportDate ? new Date(dto.reportDate) : new Date(report.reportDate);
+      const reportDate = dto.reportDate
+        ? new Date(dto.reportDate)
+        : new Date(report.reportDate);
       reportDate.setHours(0, 0, 0, 0);
 
       let itemsUpdate: any = {};
@@ -480,7 +524,7 @@ export class ProductionDailyReportService {
 
       if (isSubmitted) {
         const existingItems = await tx.productionDailyReportItem.findMany({
-          where: { reportId: id }
+          where: { reportId: id },
         });
         for (const item of existingItems) {
           if (item.productId) {
@@ -513,7 +557,10 @@ export class ProductionDailyReportService {
           for (const item of processed.processedItems) {
             if (item.productId) {
               const current = newItemsMap.get(item.productId) || 0;
-              newItemsMap.set(item.productId, current + Number(item.setQty || 0));
+              newItemsMap.set(
+                item.productId,
+                current + Number(item.setQty || 0),
+              );
             }
           }
 
@@ -532,7 +579,7 @@ export class ProductionDailyReportService {
                 null,
                 report.reportNo,
                 userId,
-                `Adjustment (+${diff}) from Daily Report update`
+                `Adjustment (+${diff}) from Daily Report update`,
               );
             } else if (diff < 0) {
               await this.inventoryService.stockOutFinishedGoods(
@@ -546,7 +593,7 @@ export class ProductionDailyReportService {
                 report.reportNo,
                 userId,
                 `Adjustment (${diff}) from Daily Report update`,
-                'PRODUCTION_REVERSAL'
+                'PRODUCTION_REVERSAL',
               );
             }
             oldItemsMap.delete(productId);
@@ -566,7 +613,7 @@ export class ProductionDailyReportService {
                 report.reportNo,
                 userId,
                 `Adjustment (-${oldQty}) - product removed from Daily Report`,
-                'PRODUCTION_REVERSAL'
+                'PRODUCTION_REVERSAL',
               );
             }
           }
@@ -579,7 +626,9 @@ export class ProductionDailyReportService {
           reportDate,
           shift: dto.shift !== undefined ? dto.shift : report.shift,
           supervisorName:
-            dto.supervisorName !== undefined ? dto.supervisorName : report.supervisorName,
+            dto.supervisorName !== undefined
+              ? dto.supervisorName
+              : report.supervisorName,
           totalCovers,
           totalFrames,
           totalSets,
@@ -624,7 +673,10 @@ export class ProductionDailyReportService {
       where: { id },
     });
 
-    return { success: true, message: `Report ${report.reportNo} deleted successfully` };
+    return {
+      success: true,
+      message: `Report ${report.reportNo} deleted successfully`,
+    };
   }
 
   /**
@@ -646,40 +698,58 @@ export class ProductionDailyReportService {
       }
 
       if (report.status === 'SUBMITTED' || report.stockPostedAt !== null) {
-        throw new BadRequestException(`Report ${report.reportNo} is already submitted and stock has been posted.`);
+        throw new BadRequestException(
+          `Report ${report.reportNo} is already submitted and stock has been posted.`,
+        );
       }
 
       if (report.status !== 'DRAFT' && report.status !== 'REOPENED') {
-        throw new BadRequestException(`Only DRAFT or REOPENED reports can be submitted (current status: ${report.status})`);
+        throw new BadRequestException(
+          `Only DRAFT or REOPENED reports can be submitted (current status: ${report.status})`,
+        );
       }
 
       // Fetch items for validation and submission
       const items = await tx.productionDailyReportItem.findMany({
-        where: { reportId: id }
+        where: { reportId: id },
       });
 
       if (items.length === 0) {
-        throw new BadRequestException(`Cannot submit an empty report with no production rows`);
+        throw new BadRequestException(
+          `Cannot submit an empty report with no production rows`,
+        );
       }
 
       // Validate rows
       for (const item of items) {
         if (item.coverQty < 0 || item.frameQty < 0 || item.setQty < 0) {
-          throw new BadRequestException(`Invalid negative quantity found in line item Sr #${item.srNo}`);
+          throw new BadRequestException(
+            `Invalid negative quantity found in line item Sr #${item.srNo}`,
+          );
         }
         if (Number(item.totalWeight) < 0) {
-          throw new BadRequestException(`Invalid negative weight found in line item Sr #${item.srNo}`);
+          throw new BadRequestException(
+            `Invalid negative weight found in line item Sr #${item.srNo}`,
+          );
         }
       }
 
       // Group items by productId for transactional stock posting and extra combination
-      const allProductIds = Array.from(new Set(items.map((i) => i.productId).filter(Boolean))) as string[];
+      const allProductIds = Array.from(
+        new Set(items.map((i) => i.productId).filter(Boolean)),
+      ) as string[];
 
       for (const productId of allProductIds) {
         const prodItems = items.filter((i) => i.productId === productId);
         const directSets = prodItems.reduce((s, i) => s + (i.setQty || 0), 0);
-        const newExtraCovers = prodItems.reduce((s, i) => s + (i.extraCoverQty || 0), 0);
-        const newExtraFrames = prodItems.reduce((s, i) => s + (i.extraFrameQty || 0), 0);
+        const newExtraCovers = prodItems.reduce(
+          (s, i) => s + (i.extraCoverQty || 0),
+          0,
+        );
+        const newExtraFrames = prodItems.reduce(
+          (s, i) => s + (i.extraFrameQty || 0),
+          0,
+        );
 
         // 1. Post direct complete sets
         if (directSets > 0) {
@@ -693,7 +763,7 @@ export class ProductionDailyReportService {
             null,
             report.reportNo,
             userId,
-            `Production Report submission ${report.reportNo}`
+            `Production Report submission ${report.reportNo}`,
           );
         }
 
@@ -704,7 +774,12 @@ export class ProductionDailyReportService {
             companyId,
             productId,
             event: {
-              in: ['EXTRA_COVER_IN', 'EXTRA_COVER_REVERSAL', 'EXTRA_FRAME_IN', 'EXTRA_FRAME_REVERSAL'],
+              in: [
+                'EXTRA_COVER_IN',
+                'EXTRA_COVER_REVERSAL',
+                'EXTRA_FRAME_IN',
+                'EXTRA_FRAME_REVERSAL',
+              ],
             },
           },
           _sum: { quantity: true },
@@ -714,8 +789,16 @@ export class ProductionDailyReportService {
         let curExtFrame = 0;
         for (const ce of currentExtras) {
           const q = Number(ce._sum.quantity || 0);
-          if (ce.event === 'EXTRA_COVER_IN' || ce.event === 'EXTRA_COVER_REVERSAL') curExtCover += q;
-          if (ce.event === 'EXTRA_FRAME_IN' || ce.event === 'EXTRA_FRAME_REVERSAL') curExtFrame += q;
+          if (
+            ce.event === 'EXTRA_COVER_IN' ||
+            ce.event === 'EXTRA_COVER_REVERSAL'
+          )
+            curExtCover += q;
+          if (
+            ce.event === 'EXTRA_FRAME_IN' ||
+            ce.event === 'EXTRA_FRAME_REVERSAL'
+          )
+            curExtFrame += q;
         }
 
         // 3. Post new extra covers if any
@@ -755,7 +838,10 @@ export class ProductionDailyReportService {
         }
 
         // 5. Automatic Transactional Extra Combination Check:
-        const autoPairedSets = Math.min(Math.max(0, curExtCover), Math.max(0, curExtFrame));
+        const autoPairedSets = Math.min(
+          Math.max(0, curExtCover),
+          Math.max(0, curExtFrame),
+        );
         if (autoPairedSets > 0) {
           // Post auto-paired sets into Finished Goods
           await this.inventoryService.stockInFinishedGoods(
@@ -768,7 +854,7 @@ export class ProductionDailyReportService {
             null,
             report.reportNo,
             userId,
-            `Auto-combination of ${autoPairedSets} Extra Cover + ${autoPairedSets} Extra Frame into complete Set (${report.reportNo})`
+            `Auto-combination of ${autoPairedSets} Extra Cover + ${autoPairedSets} Extra Frame into complete Set (${report.reportNo})`,
           );
 
           // Deduct the consumed extra covers and extra frames from extra ledger
@@ -839,7 +925,9 @@ export class ProductionDailyReportService {
     }
 
     if (report.status !== 'SUBMITTED') {
-      throw new BadRequestException(`Only SUBMITTED reports can be approved (current status: ${report.status})`);
+      throw new BadRequestException(
+        `Only SUBMITTED reports can be approved (current status: ${report.status})`,
+      );
     }
 
     const updated = await this.prisma.productionDailyReport.update({
@@ -882,7 +970,9 @@ export class ProductionDailyReportService {
       }
 
       if (report.status !== 'SUBMITTED' && report.status !== 'APPROVED') {
-        throw new BadRequestException(`Cannot reopen report in ${report.status} status`);
+        throw new BadRequestException(
+          `Cannot reopen report in ${report.status} status`,
+        );
       }
 
       // Fetch items to reverse stock
@@ -936,7 +1026,9 @@ export class ProductionDailyReportService {
       }
 
       if (report.status !== 'SUBMITTED' && report.status !== 'APPROVED') {
-        throw new BadRequestException(`Only SUBMITTED or APPROVED reports can be cancelled (current status: ${report.status})`);
+        throw new BadRequestException(
+          `Only SUBMITTED or APPROVED reports can be cancelled (current status: ${report.status})`,
+        );
       }
 
       // Fetch items to reverse stock
@@ -993,7 +1085,10 @@ export class ProductionDailyReportService {
     const prodInByProduct = new Map<string, number>();
     for (const h of reportHistories) {
       if (h.event === 'PRODUCTION_IN' && Number(h.quantity) > 0) {
-        prodInByProduct.set(h.productId, (prodInByProduct.get(h.productId) || 0) + Number(h.quantity));
+        prodInByProduct.set(
+          h.productId,
+          (prodInByProduct.get(h.productId) || 0) + Number(h.quantity),
+        );
       }
     }
 
@@ -1005,16 +1100,22 @@ export class ProductionDailyReportService {
         FOR UPDATE
       `;
 
-      const totalAvail = fgRecords.reduce((sum, r) => sum + Number(r.availableQuantity || 0), 0);
+      const totalAvail = fgRecords.reduce(
+        (sum, r) => sum + Number(r.availableQuantity || 0),
+        0,
+      );
       if (qtyToDeduct > totalAvail) {
         throw new BadRequestException(
-          `Cannot cancel or reopen report. Reversing production for product ID ${productId} would result in negative available stock. Available: ${totalAvail}, Required: ${qtyToDeduct}.`
+          `Cannot cancel or reopen report. Reversing production for product ID ${productId} would result in negative available stock. Available: ${totalAvail}, Required: ${qtyToDeduct}.`,
         );
       }
 
       let remainingToDeduct = qtyToDeduct;
-      let beforeQtyTotal = fgRecords.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
-      let beforeAvailTotal = totalAvail;
+      const beforeQtyTotal = fgRecords.reduce(
+        (sum, r) => sum + Number(r.quantity || 0),
+        0,
+      );
+      const beforeAvailTotal = totalAvail;
 
       for (const fg of fgRecords) {
         if (remainingToDeduct <= 0) break;
@@ -1088,7 +1189,10 @@ export class ProductionDailyReportService {
             remarks: `Cancellation reversal of Extra Frame (-${h.quantity}) from ${report.reportNo}`,
           },
         });
-      } else if (h.event === 'EXTRA_COVER_REVERSAL' && h.sourceType === 'PRODUCTION_REPORT_EXTRA_COMBINE') {
+      } else if (
+        h.event === 'EXTRA_COVER_REVERSAL' &&
+        h.sourceType === 'PRODUCTION_REPORT_EXTRA_COMBINE'
+      ) {
         // Restore consumed extra cover
         await tx.stockHistory.create({
           data: {
@@ -1103,7 +1207,10 @@ export class ProductionDailyReportService {
             remarks: `Cancellation restoration of Extra Cover (+${Math.abs(Number(h.quantity))}) from ${report.reportNo}`,
           },
         });
-      } else if (h.event === 'EXTRA_FRAME_REVERSAL' && h.sourceType === 'PRODUCTION_REPORT_EXTRA_COMBINE') {
+      } else if (
+        h.event === 'EXTRA_FRAME_REVERSAL' &&
+        h.sourceType === 'PRODUCTION_REPORT_EXTRA_COMBINE'
+      ) {
         // Restore consumed extra frame
         await tx.stockHistory.create({
           data: {

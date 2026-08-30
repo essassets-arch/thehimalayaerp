@@ -63,7 +63,11 @@ export class LocationController {
     @CurrentUser() user: any,
     @Body() dto: UpdateLocationPermissionDto,
   ) {
-    return this.locationService.updatePermission(user.sub, dto.sessionId, dto.locationPermission);
+    return this.locationService.updatePermission(
+      user.sub,
+      dto.sessionId,
+      dto.locationPermission,
+    );
   }
 
   /**
@@ -71,8 +75,11 @@ export class LocationController {
    */
   @Get('live-users')
   async getLiveUsers(@CurrentUser() user: any): Promise<LiveUserResponse[]> {
-    const normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const isSuperAdmin = normalizedRole.includes('SUPER_ADMIN') || normalizedRole === 'ADMIN';
+    const normalizedRole = String(user.role || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    const isSuperAdmin =
+      normalizedRole.includes('SUPER_ADMIN') || normalizedRole === 'ADMIN';
 
     if (isSuperAdmin) {
       return this.locationService.getLiveUsers();

@@ -47,14 +47,19 @@ export class SearchService {
       return { query: queryStr, count: 0, groups: [] };
     }
 
-    const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
+    const normalizedRole = String(role)
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
     const panelPrefix = this.getPanelPrefix(panel || normalizedRole);
 
     // Derive strictly allowed entity types for the CURRENT PANEL
     const panelAllowedTypes = this.getPanelAllowedTypes(panel, normalizedRole);
 
     const allowedTypes = requestedTypes
-      ? requestedTypes.split(',').map((t) => t.trim().toUpperCase()).filter((t) => panelAllowedTypes.includes(t))
+      ? requestedTypes
+          .split(',')
+          .map((t) => t.trim().toUpperCase())
+          .filter((t) => panelAllowedTypes.includes(t))
       : panelAllowedTypes;
 
     const groups: SearchResultGroup[] = [];
@@ -63,7 +68,12 @@ export class SearchService {
     // 1. LEADS
     if (
       shouldSearch('LEAD') &&
-      this.canAccessDomain(normalizedRole, ['SUPER_SALES', 'SALES', 'ADMIN', 'SUPER_ADMIN'])
+      this.canAccessDomain(normalizedRole, [
+        'SUPER_SALES',
+        'SALES',
+        'ADMIN',
+        'SUPER_ADMIN',
+      ])
     ) {
       try {
         const salesScope = getSalesScope(userId, role, 'Lead');
@@ -110,7 +120,13 @@ export class SearchService {
     // 2. QUOTATIONS
     if (
       shouldSearch('QUOTATION') &&
-      this.canAccessDomain(normalizedRole, ['SUPER_SALES', 'SALES', 'FINANCE', 'ADMIN', 'SUPER_ADMIN'])
+      this.canAccessDomain(normalizedRole, [
+        'SUPER_SALES',
+        'SALES',
+        'FINANCE',
+        'ADMIN',
+        'SUPER_ADMIN',
+      ])
     ) {
       try {
         const salesScope = getSalesScope(userId, role, 'Quotation');
@@ -121,8 +137,16 @@ export class SearchService {
             deletedAt: null,
             OR: [
               { quotationNumber: { contains: queryStr, mode: 'insensitive' } },
-              { lead: { companyName: { contains: queryStr, mode: 'insensitive' } } },
-              { lead: { leadNumber: { contains: queryStr, mode: 'insensitive' } } },
+              {
+                lead: {
+                  companyName: { contains: queryStr, mode: 'insensitive' },
+                },
+              },
+              {
+                lead: {
+                  leadNumber: { contains: queryStr, mode: 'insensitive' },
+                },
+              },
             ],
           },
           include: { lead: true, workflowState: true },
@@ -138,7 +162,9 @@ export class SearchService {
               id: q.id,
               title: q.quotationNumber,
               subtitle: q.lead?.companyName || 'Quotation',
-              meta: q.total ? `₹${Number(q.total).toLocaleString('en-IN')}` : '',
+              meta: q.total
+                ? `₹${Number(q.total).toLocaleString('en-IN')}`
+                : '',
               status: q.workflowState?.name || 'DRAFT',
               route: `${panelPrefix}/quotations`,
             })),
@@ -152,7 +178,16 @@ export class SearchService {
     // 3. SALES ORDERS
     if (
       shouldSearch('SALES_ORDER') &&
-      this.canAccessDomain(normalizedRole, ['SUPER_SALES', 'SALES', 'PLANT_HEAD', 'PRODUCTION', 'DISPATCH', 'FINANCE', 'ADMIN', 'SUPER_ADMIN'])
+      this.canAccessDomain(normalizedRole, [
+        'SUPER_SALES',
+        'SALES',
+        'PLANT_HEAD',
+        'PRODUCTION',
+        'DISPATCH',
+        'FINANCE',
+        'ADMIN',
+        'SUPER_ADMIN',
+      ])
     ) {
       try {
         const salesScope = getSalesScope(userId, role, 'SalesOrder');
@@ -163,8 +198,17 @@ export class SearchService {
             deletedAt: null,
             OR: [
               { orderNumber: { contains: queryStr, mode: 'insensitive' } },
-              { customerPurchaseOrderNo: { contains: queryStr, mode: 'insensitive' } },
-              { customer: { companyName: { contains: queryStr, mode: 'insensitive' } } },
+              {
+                customerPurchaseOrderNo: {
+                  contains: queryStr,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                customer: {
+                  companyName: { contains: queryStr, mode: 'insensitive' },
+                },
+              },
             ],
           },
           include: { customer: true, workflowState: true },
@@ -173,13 +217,17 @@ export class SearchService {
         });
 
         if (orders.length > 0) {
-          const orderRoute = (panel && panel.includes('plant-head')) || normalizedRole === 'PLANT_HEAD'
-            ? '/plant-head/incoming-orders'
-            : (panel && panel.includes('production')) || normalizedRole.startsWith('PRODUCTION')
-            ? '/production/incoming-orders'
-            : (panel && panel.includes('dispatch')) || normalizedRole.startsWith('DISPATCH')
-            ? '/dispatch/orders'
-            : `${panelPrefix}/orders`;
+          const orderRoute =
+            (panel && panel.includes('plant-head')) ||
+            normalizedRole === 'PLANT_HEAD'
+              ? '/plant-head/incoming-orders'
+              : (panel && panel.includes('production')) ||
+                  normalizedRole.startsWith('PRODUCTION')
+                ? '/production/incoming-orders'
+                : (panel && panel.includes('dispatch')) ||
+                    normalizedRole.startsWith('DISPATCH')
+                  ? '/dispatch/orders'
+                  : `${panelPrefix}/orders`;
 
           groups.push({
             type: 'SALES_ORDER',
@@ -188,7 +236,9 @@ export class SearchService {
               id: o.id,
               title: o.orderNumber,
               subtitle: o.customer?.companyName || 'Sales Order',
-              meta: o.customerPurchaseOrderNo ? `PO: ${o.customerPurchaseOrderNo}` : '',
+              meta: o.customerPurchaseOrderNo
+                ? `PO: ${o.customerPurchaseOrderNo}`
+                : '',
               status: o.workflowState?.name || o.status || 'CONFIRMED',
               route: orderRoute,
             })),
@@ -202,7 +252,13 @@ export class SearchService {
     // 4. SAMPLES
     if (
       shouldSearch('SAMPLE') &&
-      this.canAccessDomain(normalizedRole, ['SUPER_SALES', 'SALES', 'DISPATCH', 'ADMIN', 'SUPER_ADMIN'])
+      this.canAccessDomain(normalizedRole, [
+        'SUPER_SALES',
+        'SALES',
+        'DISPATCH',
+        'ADMIN',
+        'SUPER_ADMIN',
+      ])
     ) {
       try {
         const salesScope = getSalesScope(userId, role, 'SampleRequest');
@@ -213,8 +269,16 @@ export class SearchService {
             deletedAt: null,
             OR: [
               { sampleNumber: { contains: queryStr, mode: 'insensitive' } },
-              { customer: { companyName: { contains: queryStr, mode: 'insensitive' } } },
-              { lead: { companyName: { contains: queryStr, mode: 'insensitive' } } },
+              {
+                customer: {
+                  companyName: { contains: queryStr, mode: 'insensitive' },
+                },
+              },
+              {
+                lead: {
+                  companyName: { contains: queryStr, mode: 'insensitive' },
+                },
+              },
             ],
           },
           include: { customer: true, lead: true },
@@ -229,10 +293,17 @@ export class SearchService {
             results: samples.map((s) => ({
               id: s.id,
               title: s.sampleNumber,
-              subtitle: s.customer?.companyName || s.lead?.companyName || 'Sample Request',
+              subtitle:
+                s.customer?.companyName ||
+                s.lead?.companyName ||
+                'Sample Request',
               meta: s.status || '',
               status: s.status || 'CREATED',
-              route: (panel && panel.includes('dispatch')) || normalizedRole.startsWith('DISPATCH') ? '/dispatch/sample-dispatch' : `${panelPrefix}/samples`,
+              route:
+                (panel && panel.includes('dispatch')) ||
+                normalizedRole.startsWith('DISPATCH')
+                  ? '/dispatch/sample-dispatch'
+                  : `${panelPrefix}/samples`,
             })),
           });
         }
@@ -244,7 +315,13 @@ export class SearchService {
     // 5. CUSTOMERS
     if (
       shouldSearch('CUSTOMER') &&
-      this.canAccessDomain(normalizedRole, ['SUPER_SALES', 'SALES', 'FINANCE', 'ADMIN', 'SUPER_ADMIN'])
+      this.canAccessDomain(normalizedRole, [
+        'SUPER_SALES',
+        'SALES',
+        'FINANCE',
+        'ADMIN',
+        'SUPER_ADMIN',
+      ])
     ) {
       try {
         const customers = await this.prisma.customer.findMany({
@@ -286,7 +363,13 @@ export class SearchService {
     // 6. WORK ORDERS
     if (
       shouldSearch('WORK_ORDER') &&
-      this.canAccessDomain(normalizedRole, ['PLANT_HEAD', 'PRODUCTION', 'QC', 'ADMIN', 'SUPER_ADMIN'])
+      this.canAccessDomain(normalizedRole, [
+        'PLANT_HEAD',
+        'PRODUCTION',
+        'QC',
+        'ADMIN',
+        'SUPER_ADMIN',
+      ])
     ) {
       try {
         const workOrders = await this.prisma.workOrder.findMany({
@@ -300,11 +383,13 @@ export class SearchService {
         });
 
         if (workOrders.length > 0) {
-          const woRoute = (panel && panel.includes('plant-head')) || normalizedRole === 'PLANT_HEAD'
-            ? '/plant-head/planning'
-            : (panel && panel.includes('qc')) || normalizedRole === 'QC'
-            ? '/qc/pending'
-            : '/production/work-orders';
+          const woRoute =
+            (panel && panel.includes('plant-head')) ||
+            normalizedRole === 'PLANT_HEAD'
+              ? '/plant-head/planning'
+              : (panel && panel.includes('qc')) || normalizedRole === 'QC'
+                ? '/qc/pending'
+                : '/production/work-orders';
 
           groups.push({
             type: 'WORK_ORDER',
@@ -327,7 +412,13 @@ export class SearchService {
     // 7. PRODUCTS / MATERIALS
     if (
       shouldSearch('PRODUCT') &&
-      this.canAccessDomain(normalizedRole, ['PLANT_HEAD', 'PRODUCTION', 'STORE', 'SUPER_ADMIN', 'ADMIN'])
+      this.canAccessDomain(normalizedRole, [
+        'PLANT_HEAD',
+        'PRODUCTION',
+        'STORE',
+        'SUPER_ADMIN',
+        'ADMIN',
+      ])
     ) {
       try {
         const products = await this.prisma.product.findMany({
@@ -345,11 +436,13 @@ export class SearchService {
         });
 
         if (products.length > 0) {
-          const prodRoute = (panel && panel.includes('store')) || normalizedRole === 'STORE'
-            ? '/store/raw-inventory'
-            : (panel && panel.includes('plant-head')) || normalizedRole === 'PLANT_HEAD'
-            ? '/plant-head/products'
-            : '/production/all-stock';
+          const prodRoute =
+            (panel && panel.includes('store')) || normalizedRole === 'STORE'
+              ? '/store/raw-inventory'
+              : (panel && panel.includes('plant-head')) ||
+                  normalizedRole === 'PLANT_HEAD'
+                ? '/plant-head/products'
+                : '/production/all-stock';
 
           groups.push({
             type: 'PRODUCT',
@@ -372,7 +465,13 @@ export class SearchService {
     // 8. MATERIAL REQUESTS
     if (
       shouldSearch('MATERIAL_REQUEST') &&
-      this.canAccessDomain(normalizedRole, ['PLANT_HEAD', 'PRODUCTION', 'STORE', 'ADMIN', 'SUPER_ADMIN'])
+      this.canAccessDomain(normalizedRole, [
+        'PLANT_HEAD',
+        'PRODUCTION',
+        'STORE',
+        'ADMIN',
+        'SUPER_ADMIN',
+      ])
     ) {
       try {
         const matReqs = await this.prisma.materialRequest.findMany({
@@ -397,7 +496,11 @@ export class SearchService {
               subtitle: 'Material Requisition',
               meta: m.priority || '',
               status: m.status || 'PENDING',
-              route: (panel && panel.includes('plant-head')) || normalizedRole === 'PLANT_HEAD' ? '/plant-head/material-approvals' : '/store/material-requests',
+              route:
+                (panel && panel.includes('plant-head')) ||
+                normalizedRole === 'PLANT_HEAD'
+                  ? '/plant-head/material-approvals'
+                  : '/store/material-requests',
             })),
           });
         }
@@ -409,7 +512,12 @@ export class SearchService {
     // 9. DISPATCHES
     if (
       shouldSearch('DISPATCH') &&
-      this.canAccessDomain(normalizedRole, ['DISPATCH', 'PLANT_HEAD', 'SUPER_ADMIN', 'ADMIN'])
+      this.canAccessDomain(normalizedRole, [
+        'DISPATCH',
+        'PLANT_HEAD',
+        'SUPER_ADMIN',
+        'ADMIN',
+      ])
     ) {
       try {
         const dispatches = await this.prisma.dispatch.findMany({
@@ -477,7 +585,10 @@ export class SearchService {
               subtitle: `${e.employeeCode} · ${e.jobTitle || 'Staff'}`,
               meta: e.phoneNumber || e.workEmail || '',
               status: e.status || 'ACTIVE',
-              route: (panel && panel.includes('hr')) || normalizedRole === 'HR' ? '/hr/employees' : '/super-admin/employees',
+              route:
+                (panel && panel.includes('hr')) || normalizedRole === 'HR'
+                  ? '/hr/employees'
+                  : '/super-admin/employees',
             })),
           });
         }
@@ -497,7 +608,9 @@ export class SearchService {
             companyId,
             OR: [
               { poNumber: { contains: queryStr, mode: 'insensitive' } },
-              { supplier: { name: { contains: queryStr, mode: 'insensitive' } } },
+              {
+                supplier: { name: { contains: queryStr, mode: 'insensitive' } },
+              },
             ],
           },
           include: { supplier: true },
@@ -513,7 +626,9 @@ export class SearchService {
               id: p.id,
               title: p.poNumber || p.publicId || 'PO',
               subtitle: p.supplier?.name || 'Purchase Order',
-              meta: p.totalAmount ? `₹${Number(p.totalAmount).toLocaleString('en-IN')}` : '',
+              meta: p.totalAmount
+                ? `₹${Number(p.totalAmount).toLocaleString('en-IN')}`
+                : '',
               status: p.status || 'DRAFT',
               route: '/finance/po-requests',
             })),
@@ -528,8 +643,12 @@ export class SearchService {
 
     groups.forEach((g) => {
       g.results.sort((a, b) => {
-        const aExact = a.title.toLowerCase() === queryStr.toLowerCase() || a.subtitle.toLowerCase().includes(queryStr.toLowerCase());
-        const bExact = b.title.toLowerCase() === queryStr.toLowerCase() || b.subtitle.toLowerCase().includes(queryStr.toLowerCase());
+        const aExact =
+          a.title.toLowerCase() === queryStr.toLowerCase() ||
+          a.subtitle.toLowerCase().includes(queryStr.toLowerCase());
+        const bExact =
+          b.title.toLowerCase() === queryStr.toLowerCase() ||
+          b.subtitle.toLowerCase().includes(queryStr.toLowerCase());
         if (aExact && !bExact) return -1;
         if (!aExact && bExact) return 1;
         return 0;
@@ -550,14 +669,24 @@ export class SearchService {
     let activePanel = '';
     if (rawPanel.includes('supersales')) activePanel = 'supersales';
     else if (rawPanel.includes('sales')) activePanel = 'sales';
-    else if (rawPanel.includes('plant-head') || rawPanel.includes('plant_head') || rawPanel.includes('planthead')) activePanel = 'plant_head';
+    else if (
+      rawPanel.includes('plant-head') ||
+      rawPanel.includes('plant_head') ||
+      rawPanel.includes('planthead')
+    )
+      activePanel = 'plant_head';
     else if (rawPanel.includes('production')) activePanel = 'production';
     else if (rawPanel.includes('store')) activePanel = 'store';
     else if (rawPanel.includes('qc')) activePanel = 'qc';
     else if (rawPanel.includes('dispatch')) activePanel = 'dispatch';
     else if (rawPanel.includes('finance')) activePanel = 'finance';
     else if (rawPanel.includes('hr')) activePanel = 'hr';
-    else if (rawPanel.includes('super-admin') || rawPanel.includes('super_admin') || rawPanel.includes('admin')) activePanel = 'super_admin';
+    else if (
+      rawPanel.includes('super-admin') ||
+      rawPanel.includes('super_admin') ||
+      rawPanel.includes('admin')
+    )
+      activePanel = 'super_admin';
 
     if (!activePanel) {
       if (rawRole.includes('supersales')) activePanel = 'supersales';
@@ -575,10 +704,25 @@ export class SearchService {
     switch (activePanel) {
       case 'supersales':
       case 'sales':
-        return ['LEAD', 'QUOTATION', 'SALES_ORDER', 'SAMPLE', 'CUSTOMER', 'CUSTOMER_COMPLAINT', 'REMINDER'];
+        return [
+          'LEAD',
+          'QUOTATION',
+          'SALES_ORDER',
+          'SAMPLE',
+          'CUSTOMER',
+          'CUSTOMER_COMPLAINT',
+          'REMINDER',
+        ];
 
       case 'plant_head':
-        return ['SALES_ORDER', 'WORK_ORDER', 'MATERIAL_REQUEST', 'PURCHASE_INDENT', 'PRODUCT', 'DISPATCH'];
+        return [
+          'SALES_ORDER',
+          'WORK_ORDER',
+          'MATERIAL_REQUEST',
+          'PURCHASE_INDENT',
+          'PRODUCT',
+          'DISPATCH',
+        ];
 
       case 'production':
         return ['SALES_ORDER', 'WORK_ORDER', 'MATERIAL_REQUEST', 'PRODUCT'];
@@ -593,13 +737,32 @@ export class SearchService {
         return ['DISPATCH', 'SALES_ORDER', 'SAMPLE'];
 
       case 'finance':
-        return ['SALES_ORDER', 'QUOTATION', 'CUSTOMER_PAYMENT', 'PURCHASE_ORDER', 'VENDOR_INVOICE', 'CUSTOMER'];
+        return [
+          'SALES_ORDER',
+          'QUOTATION',
+          'CUSTOMER_PAYMENT',
+          'PURCHASE_ORDER',
+          'VENDOR_INVOICE',
+          'CUSTOMER',
+        ];
 
       case 'hr':
         return ['EMPLOYEE'];
 
       case 'super_admin':
-        return ['LEAD', 'QUOTATION', 'SALES_ORDER', 'SAMPLE', 'CUSTOMER', 'WORK_ORDER', 'PRODUCT', 'MATERIAL_REQUEST', 'DISPATCH', 'EMPLOYEE', 'PURCHASE_ORDER'];
+        return [
+          'LEAD',
+          'QUOTATION',
+          'SALES_ORDER',
+          'SAMPLE',
+          'CUSTOMER',
+          'WORK_ORDER',
+          'PRODUCT',
+          'MATERIAL_REQUEST',
+          'DISPATCH',
+          'EMPLOYEE',
+          'PURCHASE_ORDER',
+        ];
 
       default:
         return ['LEAD', 'QUOTATION', 'SALES_ORDER', 'SAMPLE', 'CUSTOMER'];
@@ -607,7 +770,9 @@ export class SearchService {
   }
 
   private getPanelPrefix(normalizedRoleOrPanel: string): string {
-    const raw = String(normalizedRoleOrPanel).toUpperCase().replace(/[\s-]+/g, '_');
+    const raw = String(normalizedRoleOrPanel)
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
     if (raw.includes('SUPERSALES')) return '/supersales';
     if (raw.includes('SALES')) return '/sales';
     if (raw.includes('PLANT')) return '/plant-head';
@@ -622,15 +787,26 @@ export class SearchService {
   }
 
   private canAccessDomain(role: string, allowedCategories: string[]): boolean {
-    if (role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'SUPER_USER') return true;
+    if (role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'SUPER_USER')
+      return true;
     for (const cat of allowedCategories) {
       if (cat === 'SUPER_SALES' && role === 'SUPER_SALES') return true;
-      if (cat === 'SALES' && (role.includes('SALES') || role === 'SUPER_SALES')) return true;
+      if (cat === 'SALES' && (role.includes('SALES') || role === 'SUPER_SALES'))
+        return true;
       if (cat === 'PLANT_HEAD' && role === 'PLANT_HEAD') return true;
-      if (cat === 'PRODUCTION' && (role.includes('PRODUCTION') || role === 'PLANT_HEAD')) return true;
-      if (cat === 'STORE' && (role.includes('STORE') || role === 'PLANT_HEAD')) return true;
+      if (
+        cat === 'PRODUCTION' &&
+        (role.includes('PRODUCTION') || role === 'PLANT_HEAD')
+      )
+        return true;
+      if (cat === 'STORE' && (role.includes('STORE') || role === 'PLANT_HEAD'))
+        return true;
       if (cat === 'QC' && (role === 'QC' || role === 'PLANT_HEAD')) return true;
-      if (cat === 'DISPATCH' && (role.includes('DISPATCH') || role === 'PLANT_HEAD')) return true;
+      if (
+        cat === 'DISPATCH' &&
+        (role.includes('DISPATCH') || role === 'PLANT_HEAD')
+      )
+        return true;
       if (cat === 'FINANCE' && role.includes('FINANCE')) return true;
       if (cat === 'HR' && role === 'HR') return true;
     }

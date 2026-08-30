@@ -16,7 +16,9 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
     };
 
     mockWorkflow = {
-      processAction: jest.fn().mockResolvedValue({ nextStateId: 'state-verified' }),
+      processAction: jest
+        .fn()
+        .mockResolvedValue({ nextStateId: 'state-verified' }),
       getInitialState: jest.fn().mockResolvedValue({ id: 'state-initial' }),
     };
 
@@ -52,11 +54,16 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
       salesExecutiveId: 'sales-rep-1',
     };
 
-    let mockVerifiedPayments: any[] = [];
-    let auditLogs: any[] = [];
-    let customerLedgers: any[] = [];
-    let followUpTasks: any[] = [
-      { id: 'task-1', moduleId: 'order-001', moduleType: 'Payment', status: 'Pending' },
+    const mockVerifiedPayments: any[] = [];
+    const auditLogs: any[] = [];
+    const customerLedgers: any[] = [];
+    const followUpTasks: any[] = [
+      {
+        id: 'task-1',
+        moduleId: 'order-001',
+        moduleType: 'Payment',
+        status: 'Pending',
+      },
     ];
 
     const txClient = {
@@ -88,7 +95,10 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
       },
       customerLedger: {
         findFirst: jest.fn().mockImplementation(async ({ where }) => {
-          return customerLedgers.find((l) => l.referenceId === where.referenceId) || null;
+          return (
+            customerLedgers.find((l) => l.referenceId === where.referenceId) ||
+            null
+          );
         }),
         create: jest.fn().mockImplementation(async ({ data }) => {
           customerLedgers.push(data);
@@ -131,7 +141,10 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
       },
     };
 
-    engineService = new PaymentFollowupEngineService(mockPrisma, mockNotifications);
+    engineService = new PaymentFollowupEngineService(
+      mockPrisma,
+      mockNotifications,
+    );
     paymentsService = new PaymentsService(
       mockPrisma,
       mockWorkflow,
@@ -143,7 +156,10 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
 
   describe('1. Concurrency Protection & Double Verification Prevention', () => {
     it('successfully verifies an unverified payment on the first attempt', async () => {
-      const result = await paymentsService.verifyPayment('pay-001', 'finance-user-1');
+      const result = await paymentsService.verifyPayment(
+        'pay-001',
+        'finance-user-1',
+      );
 
       expect(result.status).toBe('VERIFIED');
       expect(result.verifiedById).toBe('finance-user-1');
@@ -168,7 +184,10 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
       // Set payment amount to full ₹100,000
       mockPrisma._state.getPayment().amount = 100000;
 
-      const result = await paymentsService.verifyPayment('pay-001', 'finance-user-1');
+      const result = await paymentsService.verifyPayment(
+        'pay-001',
+        'finance-user-1',
+      );
 
       expect(result.status).toBe('VERIFIED');
       expect(mockPrisma._state.getOrder().paidAmount).toBe(100000);
@@ -191,7 +210,11 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
   describe('3. Payment Rejection Handling', () => {
     it('requires a mandatory rejection reason', async () => {
       await expect(
-        paymentsService.rejectPayment('pay-001', { rejectionReason: '' }, 'finance-user-1'),
+        paymentsService.rejectPayment(
+          'pay-001',
+          { rejectionReason: '' },
+          'finance-user-1',
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -203,7 +226,9 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
       );
 
       expect(result.status).toBe('REJECTED');
-      expect(result.rejectionReason).toBe('Transaction UTR mismatch on bank statement');
+      expect(result.rejectionReason).toBe(
+        'Transaction UTR mismatch on bank statement',
+      );
       expect(result.rejectedById).toBe('finance-user-1');
 
       // Balance remains unchanged
@@ -214,7 +239,9 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
       expect(mockNotifications.notifyUser).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'PAYMENT_REJECTED',
-          message: expect.stringContaining('Transaction UTR mismatch on bank statement'),
+          message: expect.stringContaining(
+            'Transaction UTR mismatch on bank statement',
+          ),
         }),
       );
     });
@@ -243,24 +270,40 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
 
       // Run daily scan 1st time for the date (Day 5 - DUE_SOON)
       const targetDate = new Date('2026-08-05T00:00:00Z');
-      const res1 = await engineService.runDailyFollowUpScan('comp-1', targetDate);
+      const res1 = await engineService.runDailyFollowUpScan(
+        'comp-1',
+        targetDate,
+      );
       expect(res1.processedCount).toBe(1);
 
       // Run 2nd time on same date: multi-instance lock skips duplicate run
-      mockPrisma.auditLog.findFirst = jest.fn().mockResolvedValue({ id: 'audit-scan-lock' });
-      const res2 = await engineService.runDailyFollowUpScan('comp-1', targetDate);
+      mockPrisma.auditLog.findFirst = jest
+        .fn()
+        .mockResolvedValue({ id: 'audit-scan-lock' });
+      const res2 = await engineService.runDailyFollowUpScan(
+        'comp-1',
+        targetDate,
+      );
       expect(res2.skipped).toBe(true);
 
       // Run 3rd time with forceScan (e.g. manual admin refresh): executes with deterministic eventKey
-      const res3 = await engineService.runDailyFollowUpScan('comp-1', targetDate, true);
+      const res3 = await engineService.runDailyFollowUpScan(
+        'comp-1',
+        targetDate,
+        true,
+      );
       expect(res3.processedCount).toBe(1);
 
       // Every notifyUser call was passed eventKey with YYYY-MM-DD
       const calls = mockNotifications.notifyUser.mock.calls;
-      const dueSoonCalls = calls.filter((c: any) => c[0].type === 'SALES_PAYMENT_DUE_SOON');
+      const dueSoonCalls = calls.filter(
+        (c: any) => c[0].type === 'SALES_PAYMENT_DUE_SOON',
+      );
 
       expect(dueSoonCalls.length).toBeGreaterThan(0);
-      expect(dueSoonCalls[0][0].eventKey).toBe('SALES_PAYMENT_DUE_SOON:ord-123:2026-08-05:user-sales-1');
+      expect(dueSoonCalls[0][0].eventKey).toBe(
+        'SALES_PAYMENT_DUE_SOON:ord-123:2026-08-05:user-sales-1',
+      );
     });
   });
 });

@@ -33,7 +33,12 @@ export class FinanceSalesAnalyticsService {
   private sanitizeCsv(val: any): string {
     if (val === null || val === undefined) return '';
     let str = String(val).trim();
-    if (str.startsWith('=') || str.startsWith('+') || str.startsWith('-') || str.startsWith('@')) {
+    if (
+      str.startsWith('=') ||
+      str.startsWith('+') ||
+      str.startsWith('-') ||
+      str.startsWith('@')
+    ) {
       str = `'${str}`;
     }
     return str;
@@ -46,7 +51,12 @@ export class FinanceSalesAnalyticsService {
     const roleWhere: any = {
       role: {
         code: {
-          in: ['SALES_EXECUTIVE', 'SALES_MANAGER', 'SALES_ADMIN', 'SALES_INTERN'],
+          in: [
+            'SALES_EXECUTIVE',
+            'SALES_MANAGER',
+            'SALES_ADMIN',
+            'SALES_INTERN',
+          ],
         },
       },
     };
@@ -119,7 +129,12 @@ export class FinanceSalesAnalyticsService {
     const [totalLeads, newLeads, lostLeads] = await Promise.all([
       this.prisma.lead.count({ where: leadWhere }),
       this.prisma.lead.count({
-        where: { ...leadWhere, createdAt: hasDateFilter ? dateFilter : { gte: new Date(Date.now() - 7 * 86400000) } },
+        where: {
+          ...leadWhere,
+          createdAt: hasDateFilter
+            ? dateFilter
+            : { gte: new Date(Date.now() - 7 * 86400000) },
+        },
       }),
       this.prisma.lead.count({
         where: { ...leadWhere, lostReason: { not: null } },
@@ -129,7 +144,10 @@ export class FinanceSalesAnalyticsService {
     const qualifiedLeads = await this.prisma.lead.count({
       where: {
         ...leadWhere,
-        OR: [{ workflowState: { code: { contains: 'QUALIFIED' } } }, { convertedAt: { not: null } }],
+        OR: [
+          { workflowState: { code: { contains: 'QUALIFIED' } } },
+          { convertedAt: { not: null } },
+        ],
       },
     });
 
@@ -152,9 +170,14 @@ export class FinanceSalesAnalyticsService {
     const totalQuotations = quotations.length;
     // Exclude revision duplicates from total value
     const uniqueQuotations = quotations.filter((q) => !q.parentQuotationId);
-    const quotationValue = uniqueQuotations.reduce((sum, q) => sum + this.toNum(q.total), 0);
+    const quotationValue = uniqueQuotations.reduce(
+      (sum, q) => sum + this.toNum(q.total),
+      0,
+    );
     const acceptedQuotations = quotations.filter(
-      (q) => q.salesOrder !== null || (q.workflowState && q.workflowState.code.includes('ACCEPTED')),
+      (q) =>
+        q.salesOrder !== null ||
+        (q.workflowState && q.workflowState.code.includes('ACCEPTED')),
     ).length;
 
     const quotationToOrderRate = this.metricService.calculateConversionRate(
@@ -185,8 +208,12 @@ export class FinanceSalesAnalyticsService {
     });
 
     const totalSalesOrders = orders.length;
-    const confirmedSalesValue = orders.reduce((sum, o) => sum + this.toNum(o.totalAmount), 0);
-    const averageOrderValue = totalSalesOrders > 0 ? confirmedSalesValue / totalSalesOrders : 0;
+    const confirmedSalesValue = orders.reduce(
+      (sum, o) => sum + this.toNum(o.totalAmount),
+      0,
+    );
+    const averageOrderValue =
+      totalSalesOrders > 0 ? confirmedSalesValue / totalSalesOrders : 0;
 
     // 5. Delivered Sales Value
     const dispatches = await this.prisma.dispatch.findMany({
@@ -213,7 +240,10 @@ export class FinanceSalesAnalyticsService {
       where: paymentWhere,
       select: { amount: true, salesOrderId: true, customerId: true },
     });
-    const totalCollectedAmount = payments.reduce((sum, p) => sum + this.toNum(p.amount), 0);
+    const totalCollectedAmount = payments.reduce(
+      (sum, p) => sum + this.toNum(p.amount),
+      0,
+    );
 
     // 7. Finance Receivables & Overdue (Invoice / Ledger source of truth)
     const postedInvoices = await this.prisma.salesInvoice.findMany({
@@ -237,7 +267,10 @@ export class FinanceSalesAnalyticsService {
     if (postedInvoices.length > 0) {
       for (const inv of postedInvoices) {
         const invTotal = this.toNum(inv.totalAmount);
-        const invAllocated = inv.paymentAllocations.reduce((s, a) => s + this.toNum(a.amount), 0);
+        const invAllocated = inv.paymentAllocations.reduce(
+          (s, a) => s + this.toNum(a.amount),
+          0,
+        );
         const invOutstanding = Math.max(0, invTotal - invAllocated);
 
         outstandingReceivable += invOutstanding;
@@ -252,41 +285,57 @@ export class FinanceSalesAnalyticsService {
       }
     } else {
       // Fallback: SalesOrder total - CustomerPayment amount
-      outstandingReceivable = Math.max(0, confirmedSalesValue - totalCollectedAmount);
+      outstandingReceivable = Math.max(
+        0,
+        confirmedSalesValue - totalCollectedAmount,
+      );
     }
 
-    const collectionEfficiency = this.metricService.calculateCollectionEfficiency(
-      totalCollectedAmount,
-      confirmedSalesValue,
-    );
+    const collectionEfficiency =
+      this.metricService.calculateCollectionEfficiency(
+        totalCollectedAmount,
+        confirmedSalesValue,
+      );
 
     // 8. Activities & Follow-ups
     const activityWhere: any = {};
     if (hasDateFilter) activityWhere.createdAt = dateFilter;
     if (query.salespersonId) activityWhere.createdById = query.salespersonId;
 
-    const [totalActivities, pendingFollowUps, overdueFollowUps] = await Promise.all([
-      this.prisma.leadActivity.count({ where: activityWhere }),
-      this.prisma.followUp.count({
-        where: { reminderAt: { gte: now }, ...(query.salespersonId ? { createdById: query.salespersonId } : {}) },
-      }),
-      this.prisma.followUp.count({
-        where: { reminderAt: { lt: now }, ...(query.salespersonId ? { createdById: query.salespersonId } : {}) },
-      }),
-    ]);
+    const [totalActivities, pendingFollowUps, overdueFollowUps] =
+      await Promise.all([
+        this.prisma.leadActivity.count({ where: activityWhere }),
+        this.prisma.followUp.count({
+          where: {
+            reminderAt: { gte: now },
+            ...(query.salespersonId
+              ? { createdById: query.salespersonId }
+              : {}),
+          },
+        }),
+        this.prisma.followUp.count({
+          where: {
+            reminderAt: { lt: now },
+            ...(query.salespersonId
+              ? { createdById: query.salespersonId }
+              : {}),
+          },
+        }),
+      ]);
 
     // 9. After-sales (Complaints, Returns, Replacements)
-    const [complaintsRaised, returnsRequested, replacementsRequested] = await Promise.all([
-      this.prisma.customerComplaint.count({
-        where: { ...(hasDateFilter ? { complaintDate: dateFilter } : {}) },
-      }),
-      this.prisma.salesReturn.count({
-        where: { ...(hasDateFilter ? { requestedAt: dateFilter } : {}) },
-      }),
-      this.prisma.replacementRequest.count({
-        where: { ...(hasDateFilter ? { requestedAt: dateFilter } : {}) },
-      }),
-    ]);
+    const [complaintsRaised, returnsRequested, replacementsRequested] =
+      await Promise.all([
+        this.prisma.customerComplaint.count({
+          where: { ...(hasDateFilter ? { complaintDate: dateFilter } : {}) },
+        }),
+        this.prisma.salesReturn.count({
+          where: { ...(hasDateFilter ? { requestedAt: dateFilter } : {}) },
+        }),
+        this.prisma.replacementRequest.count({
+          where: { ...(hasDateFilter ? { requestedAt: dateFilter } : {}) },
+        }),
+      ]);
 
     const leadConversionRate = this.metricService.calculateConversionRate(
       qualifiedLeads,
@@ -357,13 +406,22 @@ export class FinanceSalesAnalyticsService {
           deletedAt: null,
           ...(hasDateFilter ? { createdAt: dateFilter } : {}),
         },
-        select: { id: true, convertedAt: true, lostReason: true, workflowState: true },
+        select: {
+          id: true,
+          convertedAt: true,
+          lostReason: true,
+          workflowState: true,
+        },
       });
 
       const totalLeads = leads.length;
-      const newLeads = leads.filter((l) => !l.convertedAt && !l.lostReason).length;
+      const newLeads = leads.filter(
+        (l) => !l.convertedAt && !l.lostReason,
+      ).length;
       const qualifiedLeads = leads.filter(
-        (l) => l.convertedAt || (l.workflowState && l.workflowState.code.includes('QUALIFIED')),
+        (l) =>
+          l.convertedAt ||
+          (l.workflowState && l.workflowState.code.includes('QUALIFIED')),
       ).length;
       const lostLeads = leads.filter((l) => l.lostReason !== null).length;
 
@@ -376,7 +434,9 @@ export class FinanceSalesAnalyticsService {
         select: { id: true, status: true },
       });
       const samplesCreated = samples.length;
-      const samplesDelivered = samples.filter((s) => s.status === 'DELIVERED' || s.status === 'COMPLETED').length;
+      const samplesDelivered = samples.filter(
+        (s) => s.status === 'DELIVERED' || s.status === 'COMPLETED',
+      ).length;
 
       // Quotations created
       const quotations = await this.prisma.quotation.findMany({
@@ -385,15 +445,26 @@ export class FinanceSalesAnalyticsService {
           deletedAt: null,
           ...(hasDateFilter ? { createdAt: dateFilter } : {}),
         },
-        select: { id: true, total: true, workflowState: true, salesOrder: true, parentQuotationId: true },
+        select: {
+          id: true,
+          total: true,
+          workflowState: true,
+          salesOrder: true,
+          parentQuotationId: true,
+        },
       });
 
       const quotationsCreated = quotations.length;
       const uniqueQuots = quotations.filter((q) => !q.parentQuotationId);
-      const quotationValue = uniqueQuots.reduce((s, q) => s + this.toNum(q.total), 0);
+      const quotationValue = uniqueQuots.reduce(
+        (s, q) => s + this.toNum(q.total),
+        0,
+      );
       const quotationsSent = quotations.length;
       const quotationsAccepted = quotations.filter(
-        (q) => q.salesOrder !== null || (q.workflowState && q.workflowState.code.includes('ACCEPTED')),
+        (q) =>
+          q.salesOrder !== null ||
+          (q.workflowState && q.workflowState.code.includes('ACCEPTED')),
       ).length;
 
       // Sales Orders attributed to salesperson via ownership chain
@@ -422,9 +493,16 @@ export class FinanceSalesAnalyticsService {
       });
 
       const ordersGenerated = orders.length;
-      const confirmedSalesValue = orders.reduce((s, o) => s + this.toNum(o.totalAmount), 0);
+      const confirmedSalesValue = orders.reduce(
+        (s, o) => s + this.toNum(o.totalAmount),
+        0,
+      );
       const deliveredSalesValue = orders
-        .filter((o) => o.dispatches.some((d) => ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status)))
+        .filter((o) =>
+          o.dispatches.some((d) =>
+            ['DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED'].includes(d.status),
+          ),
+        )
         .reduce((s, o) => s + this.toNum(o.totalAmount), 0);
 
       // Payments attributed to salesperson's orders
@@ -437,7 +515,10 @@ export class FinanceSalesAnalyticsService {
         },
         select: { amount: true },
       });
-      const collectedAmount = payments.reduce((s, p) => s + this.toNum(p.amount), 0);
+      const collectedAmount = payments.reduce(
+        (s, p) => s + this.toNum(p.amount),
+        0,
+      );
 
       let outstandingAmount = 0;
       let overdueAmount = 0;
@@ -447,7 +528,10 @@ export class FinanceSalesAnalyticsService {
         if (o.invoices && o.invoices.length > 0) {
           for (const inv of o.invoices) {
             const invTotal = this.toNum(inv.totalAmount);
-            const invAlloc = inv.paymentAllocations.reduce((s, a) => s + this.toNum(a.amount), 0);
+            const invAlloc = inv.paymentAllocations.reduce(
+              (s, a) => s + this.toNum(a.amount),
+              0,
+            );
             const invBal = Math.max(0, invTotal - invAlloc);
             outstandingAmount += invBal;
 
@@ -462,10 +546,23 @@ export class FinanceSalesAnalyticsService {
         }
       }
 
-      const averageOrderValue = ordersGenerated > 0 ? confirmedSalesValue / ordersGenerated : 0;
-      const leadToQuotationRate = this.metricService.calculateConversionRate(quotationsCreated, totalLeads, 1);
-      const quotationToOrderRate = this.metricService.calculateConversionRate(ordersGenerated, quotationsSent, 1);
-      const collectionEfficiency = this.metricService.calculateCollectionEfficiency(collectedAmount, confirmedSalesValue);
+      const averageOrderValue =
+        ordersGenerated > 0 ? confirmedSalesValue / ordersGenerated : 0;
+      const leadToQuotationRate = this.metricService.calculateConversionRate(
+        quotationsCreated,
+        totalLeads,
+        1,
+      );
+      const quotationToOrderRate = this.metricService.calculateConversionRate(
+        ordersGenerated,
+        quotationsSent,
+        1,
+      );
+      const collectionEfficiency =
+        this.metricService.calculateCollectionEfficiency(
+          collectedAmount,
+          confirmedSalesValue,
+        );
 
       // Activities
       const activities = await this.prisma.leadActivity.findMany({
@@ -477,29 +574,49 @@ export class FinanceSalesAnalyticsService {
       });
       const totalActivities = activities.length;
       const calls = activities.filter((a) => a.activityType === 'CALL').length;
-      const meetings = activities.filter((a) => a.activityType === 'MEETING').length;
-      const emails = activities.filter((a) => a.activityType === 'EMAIL').length;
-      const visits = activities.filter((a) => a.activityType === 'VISIT' || a.activityType === 'SITE_VISIT').length;
+      const meetings = activities.filter(
+        (a) => a.activityType === 'MEETING',
+      ).length;
+      const emails = activities.filter(
+        (a) => a.activityType === 'EMAIL',
+      ).length;
+      const visits = activities.filter(
+        (a) => a.activityType === 'VISIT' || a.activityType === 'SITE_VISIT',
+      ).length;
 
       // Followups
       const [pendingFollowups, overdueFollowups] = await Promise.all([
-        this.prisma.followUp.count({ where: { createdById: sp.id, reminderAt: { gte: now } } }),
-        this.prisma.followUp.count({ where: { createdById: sp.id, reminderAt: { lt: now } } }),
+        this.prisma.followUp.count({
+          where: { createdById: sp.id, reminderAt: { gte: now } },
+        }),
+        this.prisma.followUp.count({
+          where: { createdById: sp.id, reminderAt: { lt: now } },
+        }),
       ]);
 
       // Complaints, Returns, Replacements
-      const complaints = await this.prisma.customerComplaint.count({ where: { createdBy: sp.id } });
-      const returns = await this.prisma.salesReturn.count({ where: { requestedById: sp.id } });
-      const replacements = await this.prisma.replacementRequest.count({ where: { requestedById: sp.id } });
+      const complaints = await this.prisma.customerComplaint.count({
+        where: { createdBy: sp.id },
+      });
+      const returns = await this.prisma.salesReturn.count({
+        where: { requestedById: sp.id },
+      });
+      const replacements = await this.prisma.replacementRequest.count({
+        where: { requestedById: sp.id },
+      });
 
-      const lastAct = activities.length > 0
-        ? activities.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0].createdAt
-        : null;
+      const lastAct =
+        activities.length > 0
+          ? activities.sort(
+              (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+            )[0].createdAt
+          : null;
 
       results.push({
         id: sp.id,
         salesperson: sp.name,
-        employeeId: sp.employee?.employeeCode || `EMP-${sp.id.slice(0, 5).toUpperCase()}`,
+        employeeId:
+          sp.employee?.employeeCode || `EMP-${sp.id.slice(0, 5).toUpperCase()}`,
         email: sp.email,
         team: sp.role.name,
         branch: sp.employee?.workLocation?.name || 'Headquarters',
@@ -548,7 +665,9 @@ export class FinanceSalesAnalyticsService {
       if (typeof valA === 'number' && typeof valB === 'number') {
         return isDesc ? valB - valA : valA - valB;
       }
-      return isDesc ? String(valB).localeCompare(String(valA)) : String(valA).localeCompare(String(valB));
+      return isDesc
+        ? String(valB).localeCompare(String(valA))
+        : String(valA).localeCompare(String(valB));
     });
 
     // Pagination
@@ -571,7 +690,10 @@ export class FinanceSalesAnalyticsService {
   /**
    * Single Salesperson Detailed Analytics API
    */
-  async getSalespersonDetail(salespersonId: string, query: FinanceSalesAnalyticsQueryDto) {
+  async getSalespersonDetail(
+    salespersonId: string,
+    query: FinanceSalesAnalyticsQueryDto,
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: salespersonId },
       include: {
@@ -587,7 +709,9 @@ export class FinanceSalesAnalyticsService {
     });
 
     if (!user) {
-      throw new NotFoundException(`Salesperson with ID ${salespersonId} not found.`);
+      throw new NotFoundException(
+        `Salesperson with ID ${salespersonId} not found.`,
+      );
     }
 
     const { startDate, endDate } = this.metricService.getDateRangeBoundary(
@@ -633,10 +757,16 @@ export class FinanceSalesAnalyticsService {
 
     const customerList = customers.map((c) => {
       const totalOrders = c.salesOrders.length;
-      const totalSales = c.salesOrders.reduce((s, o) => s + this.toNum(o.totalAmount), 0);
-      const lastOrderDate = c.salesOrders.length > 0
-        ? c.salesOrders.sort((a, b) => b.orderDate.getTime() - a.orderDate.getTime())[0].orderDate
-        : null;
+      const totalSales = c.salesOrders.reduce(
+        (s, o) => s + this.toNum(o.totalAmount),
+        0,
+      );
+      const lastOrderDate =
+        c.salesOrders.length > 0
+          ? c.salesOrders.sort(
+              (a, b) => b.orderDate.getTime() - a.orderDate.getTime(),
+            )[0].orderDate
+          : null;
 
       return {
         id: c.id,
@@ -655,12 +785,17 @@ export class FinanceSalesAnalyticsService {
         id: user.id,
         name: user.name,
         email: user.email,
-        employeeId: user.employee?.employeeCode || `EMP-${user.id.slice(0, 5).toUpperCase()}`,
+        employeeId:
+          user.employee?.employeeCode ||
+          `EMP-${user.id.slice(0, 5).toUpperCase()}`,
         designation: user.employee?.jobTitle || user.role.name,
         team: user.role.name,
-        reportingManager: user.employee?.reportingManager?.fullName || 'Sales Director',
+        reportingManager:
+          user.employee?.reportingManager?.fullName || 'Sales Director',
         branch: user.employee?.workLocation?.name || 'Headquarters',
-        joiningDate: user.employee?.joiningDate ? user.employee.joiningDate.toISOString() : user.createdAt.toISOString(),
+        joiningDate: user.employee?.joiningDate
+          ? user.employee.joiningDate.toISOString()
+          : user.createdAt.toISOString(),
         isActive: user.isActive,
       },
       kpis: spMetrics,
@@ -671,7 +806,10 @@ export class FinanceSalesAnalyticsService {
   /**
    * Real Chronological Activity Timeline API for Salesperson
    */
-  async getSalespersonTimeline(salespersonId: string, query: FinanceSalesAnalyticsQueryDto) {
+  async getSalespersonTimeline(
+    salespersonId: string,
+    query: FinanceSalesAnalyticsQueryDto,
+  ) {
     const { startDate, endDate } = this.metricService.getDateRangeBoundary(
       query.datePreset,
       query.from,
@@ -682,30 +820,47 @@ export class FinanceSalesAnalyticsService {
     if (endDate) dateFilter.lte = endDate;
 
     // Combine Lead Activities, Follow-ups, Audit Logs, Workflow History
-    const [activities, followups, auditLogs, workflowHistory] = await Promise.all([
-      this.prisma.leadActivity.findMany({
-        where: { createdById: salespersonId, ...(startDate || endDate ? { createdAt: dateFilter } : {}) },
-        include: { lead: { select: { leadNumber: true, companyName: true } } },
-        orderBy: { createdAt: 'desc' },
-        take: 30,
-      }),
-      this.prisma.followUp.findMany({
-        where: { createdById: salespersonId, ...(startDate || endDate ? { createdAt: dateFilter } : {}) },
-        include: { lead: { select: { leadNumber: true, companyName: true } } },
-        orderBy: { createdAt: 'desc' },
-        take: 30,
-      }),
-      this.prisma.auditLog.findMany({
-        where: { actorUserId: salespersonId, ...(startDate || endDate ? { createdAt: dateFilter } : {}) },
-        orderBy: { createdAt: 'desc' },
-        take: 30,
-      }),
-      this.prisma.workflowHistory.findMany({
-        where: { userId: salespersonId, ...(startDate || endDate ? { createdAt: dateFilter } : {}) },
-        orderBy: { createdAt: 'desc' },
-        take: 30,
-      }),
-    ]);
+    const [activities, followups, auditLogs, workflowHistory] =
+      await Promise.all([
+        this.prisma.leadActivity.findMany({
+          where: {
+            createdById: salespersonId,
+            ...(startDate || endDate ? { createdAt: dateFilter } : {}),
+          },
+          include: {
+            lead: { select: { leadNumber: true, companyName: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+        }),
+        this.prisma.followUp.findMany({
+          where: {
+            createdById: salespersonId,
+            ...(startDate || endDate ? { createdAt: dateFilter } : {}),
+          },
+          include: {
+            lead: { select: { leadNumber: true, companyName: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+        }),
+        this.prisma.auditLog.findMany({
+          where: {
+            actorUserId: salespersonId,
+            ...(startDate || endDate ? { createdAt: dateFilter } : {}),
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+        }),
+        this.prisma.workflowHistory.findMany({
+          where: {
+            userId: salespersonId,
+            ...(startDate || endDate ? { createdAt: dateFilter } : {}),
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+        }),
+      ]);
 
     const timeline: any[] = [];
 
@@ -728,7 +883,9 @@ export class FinanceSalesAnalyticsService {
         timestamp: f.createdAt.toISOString(),
         entity: f.lead ? `Lead ${f.lead.leadNumber}` : 'General Customer',
         notes: f.notes || 'Follow-up reminder set',
-        outcome: f.reminderAt ? `Reminder at ${f.reminderAt.toISOString().split('T')[0]}` : 'Set',
+        outcome: f.reminderAt
+          ? `Reminder at ${f.reminderAt.toISOString().split('T')[0]}`
+          : 'Set',
         referenceId: f.leadId || f.id,
       });
     });
@@ -757,7 +914,10 @@ export class FinanceSalesAnalyticsService {
       });
     });
 
-    timeline.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    timeline.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    );
 
     return {
       salespersonId,
@@ -774,13 +934,26 @@ export class FinanceSalesAnalyticsService {
 
     // Monthly Sales Value vs Collection Trend (last 6 months)
     const monthlyTrend: any[] = [];
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     const now = new Date();
 
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const mLabel = `${monthNames[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`;
-      
+
       const mStart = new Date(d.getFullYear(), d.getMonth(), 1);
       const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
 
@@ -800,8 +973,14 @@ export class FinanceSalesAnalyticsService {
         select: { amount: true },
       });
 
-      const salesVal = mOrders.reduce((acc, o) => acc + this.toNum(o.totalAmount), 0);
-      const collVal = mPayments.reduce((acc, p) => acc + this.toNum(p.amount), 0);
+      const salesVal = mOrders.reduce(
+        (acc, o) => acc + this.toNum(o.totalAmount),
+        0,
+      );
+      const collVal = mPayments.reduce(
+        (acc, p) => acc + this.toNum(p.amount),
+        0,
+      );
 
       monthlyTrend.push({
         month: mLabel,
@@ -823,7 +1002,10 @@ export class FinanceSalesAnalyticsService {
     // Order Status Distribution
     const orderStatuses = [
       { name: 'Confirmed', value: Math.round(s.totalSalesOrders * 0.4) || 2 },
-      { name: 'In Production', value: Math.round(s.totalSalesOrders * 0.3) || 1 },
+      {
+        name: 'In Production',
+        value: Math.round(s.totalSalesOrders * 0.3) || 1,
+      },
       { name: 'Dispatched', value: Math.round(s.totalSalesOrders * 0.2) || 1 },
       { name: 'Delivered', value: Math.round(s.totalSalesOrders * 0.1) || 1 },
     ];
@@ -833,11 +1015,26 @@ export class FinanceSalesAnalyticsService {
       funnel,
       orderStatuses,
       receivableAgeing: [
-        { bucket: 'Not Due', amount: Math.round(s.outstandingReceivable * 0.5) },
-        { bucket: '1-30 Days Overdue', amount: Math.round(s.overdueReceivable * 0.4) },
-        { bucket: '31-60 Days Overdue', amount: Math.round(s.overdueReceivable * 0.3) },
-        { bucket: '61-90 Days Overdue', amount: Math.round(s.overdueReceivable * 0.2) },
-        { bucket: '>90 Days Overdue', amount: Math.round(s.overdueReceivable * 0.1) },
+        {
+          bucket: 'Not Due',
+          amount: Math.round(s.outstandingReceivable * 0.5),
+        },
+        {
+          bucket: '1-30 Days Overdue',
+          amount: Math.round(s.overdueReceivable * 0.4),
+        },
+        {
+          bucket: '31-60 Days Overdue',
+          amount: Math.round(s.overdueReceivable * 0.3),
+        },
+        {
+          bucket: '61-90 Days Overdue',
+          amount: Math.round(s.overdueReceivable * 0.2),
+        },
+        {
+          bucket: '>90 Days Overdue',
+          amount: Math.round(s.overdueReceivable * 0.1),
+        },
       ],
     };
   }
@@ -859,7 +1056,9 @@ export class FinanceSalesAnalyticsService {
 
     const bestConversion = [...list]
       .filter((sp) => sp.totalLeads >= 2)
-      .sort((a, b) => (b.leadToQuotationRate || 0) - (a.leadToQuotationRate || 0))
+      .sort(
+        (a, b) => (b.leadToQuotationRate || 0) - (a.leadToQuotationRate || 0),
+      )
       .slice(0, 5);
 
     const bestCollectionEfficiency = [...list]
@@ -914,7 +1113,11 @@ export class FinanceSalesAnalyticsService {
     };
   }
 
-  async getLeads(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
+  async getLeads(
+    query: FinanceSalesAnalyticsQueryDto,
+    userId?: string,
+    role?: string,
+  ) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const scope = getSalesScope(userId, role, 'Lead');
@@ -952,14 +1155,26 @@ export class FinanceSalesAnalyticsService {
           status: 'Active',
           convertedAt: l.convertedAt ? l.convertedAt.toISOString() : null,
         })),
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch {
-      return { leads: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } };
+      return {
+        leads: [],
+        pagination: { total: 0, page: 1, limit, totalPages: 0 },
+      };
     }
   }
 
-  async getSamples(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
+  async getSamples(
+    query: FinanceSalesAnalyticsQueryDto,
+    userId?: string,
+    role?: string,
+  ) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const scope = getSalesScope(userId, role, 'SampleRequest');
@@ -987,14 +1202,26 @@ export class FinanceSalesAnalyticsService {
           requestedDate: s.createdAt.toISOString(),
           status: s.status || 'PENDING',
         })),
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch {
-      return { samples: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } };
+      return {
+        samples: [],
+        pagination: { total: 0, page: 1, limit, totalPages: 0 },
+      };
     }
   }
 
-  async getQuotations(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
+  async getQuotations(
+    query: FinanceSalesAnalyticsQueryDto,
+    userId?: string,
+    role?: string,
+  ) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const scope = getSalesScope(userId, role, 'Quotation');
@@ -1032,14 +1259,26 @@ export class FinanceSalesAnalyticsService {
           convertedOrder: null,
           isLatestRevision: !q.parentQuotationId,
         })),
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch {
-      return { quotations: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } };
+      return {
+        quotations: [],
+        pagination: { total: 0, page: 1, limit, totalPages: 0 },
+      };
     }
   }
 
-  async getOrders(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
+  async getOrders(
+    query: FinanceSalesAnalyticsQueryDto,
+    userId?: string,
+    role?: string,
+  ) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const scope = getSalesScope(userId, role, 'SalesOrder');
@@ -1077,14 +1316,26 @@ export class FinanceSalesAnalyticsService {
           collectedAmount: 0,
           outstandingAmount: this.toNum(o.totalAmount),
         })),
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch {
-      return { orders: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } };
+      return {
+        orders: [],
+        pagination: { total: 0, page: 1, limit, totalPages: 0 },
+      };
     }
   }
 
-  async getCollections(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
+  async getCollections(
+    query: FinanceSalesAnalyticsQueryDto,
+    userId?: string,
+    role?: string,
+  ) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const scope = getSalesScope(userId, role, 'CustomerPayment');
@@ -1114,14 +1365,26 @@ export class FinanceSalesAnalyticsService {
           receivedAt: p.createdAt.toISOString(),
           status: p.status,
         })),
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch {
-      return { collections: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } };
+      return {
+        collections: [],
+        pagination: { total: 0, page: 1, limit, totalPages: 0 },
+      };
     }
   }
 
-  async getCustomers(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
+  async getCustomers(
+    query: FinanceSalesAnalyticsQueryDto,
+    userId?: string,
+    role?: string,
+  ) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const scope = getSalesScope(userId, role, 'Customer');
@@ -1156,14 +1419,26 @@ export class FinanceSalesAnalyticsService {
           totalSales: 0,
           status: c.status,
         })),
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch {
-      return { customers: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } };
+      return {
+        customers: [],
+        pagination: { total: 0, page: 1, limit, totalPages: 0 },
+      };
     }
   }
 
-  async getActivities(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
+  async getActivities(
+    query: FinanceSalesAnalyticsQueryDto,
+    userId?: string,
+    role?: string,
+  ) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const scope = getSalesScope(userId, role, 'Lead');
@@ -1191,14 +1466,26 @@ export class FinanceSalesAnalyticsService {
           notes: a.notes || 'Activity logged',
           createdAt: a.createdAt.toISOString(),
         })),
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch {
-      return { activities: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } };
+      return {
+        activities: [],
+        pagination: { total: 0, page: 1, limit, totalPages: 0 },
+      };
     }
   }
 
-  async getComplaints(query: FinanceSalesAnalyticsQueryDto, userId?: string, role?: string) {
+  async getComplaints(
+    query: FinanceSalesAnalyticsQueryDto,
+    userId?: string,
+    role?: string,
+  ) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const scope = getSalesScope(userId, role, 'CustomerComplaint');
@@ -1221,12 +1508,22 @@ export class FinanceSalesAnalyticsService {
           customerName: 'Client',
           type: 'Customer Issue',
           status: c.status || 'OPEN',
-          complaintDate: c.createdAt ? c.createdAt.toISOString() : new Date().toISOString(),
+          complaintDate: c.createdAt
+            ? c.createdAt.toISOString()
+            : new Date().toISOString(),
         })),
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch {
-      return { complaints: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } };
+      return {
+        complaints: [],
+        pagination: { total: 0, page: 1, limit, totalPages: 0 },
+      };
     }
   }
 
@@ -1252,12 +1549,22 @@ export class FinanceSalesAnalyticsService {
           quantity: 1,
           reason: 'Sales return requested',
           status: r.status || 'PENDING',
-          requestedAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString(),
+          requestedAt: r.createdAt
+            ? r.createdAt.toISOString()
+            : new Date().toISOString(),
         })),
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch {
-      return { returns: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } };
+      return {
+        returns: [],
+        pagination: { total: 0, page: 1, limit, totalPages: 0 },
+      };
     }
   }
 
@@ -1284,12 +1591,18 @@ export class FinanceSalesAnalyticsService {
           status: r.status || 'PENDING',
           requestedAt: new Date().toISOString(),
         })),
-        pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       };
     } catch {
-      return { replacements: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } };
+      return {
+        replacements: [],
+        pagination: { total: 0, page: 1, limit, totalPages: 0 },
+      };
     }
   }
 }
-
-

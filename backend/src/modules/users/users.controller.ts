@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -10,14 +20,30 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @RequirePermissions('user.read', 'finance.read', 'sales.orders.read', 'admin.read', 'hr.read', 'store.read', 'super-admin.read', 'plant.read')
+  @RequirePermissions(
+    'user.read',
+    'finance.read',
+    'sales.orders.read',
+    'admin.read',
+    'hr.read',
+    'store.read',
+    'super-admin.read',
+    'plant.read',
+  )
   async findAll(@Req() req: any) {
     // Standardize to use req.user for audit logging if needed, or row-level ownership checks
     return this.usersService.findAll();
   }
 
   @Get('roles')
-  @RequirePermissions('user.read', 'admin.read', 'hr.read', 'super-admin.read', 'finance.read', 'sales.orders.read')
+  @RequirePermissions(
+    'user.read',
+    'admin.read',
+    'hr.read',
+    'super-admin.read',
+    'finance.read',
+    'sales.orders.read',
+  )
   async getRoles() {
     return this.usersService.getRoles();
   }
@@ -36,14 +62,18 @@ export class UsersController {
 
   @Post(':id/reset-password')
   @RequirePermissions('user.update')
-  async resetPassword(@Param('id') id: string, @Body('new_password') newPassword: string) {
+  async resetPassword(
+    @Param('id') id: string,
+    @Body('new_password') newPassword: string,
+  ) {
     return this.usersService.resetPassword(id, newPassword);
   }
 
   @Post(':id/toggle-status')
   @RequirePermissions('user.update')
   async toggleStatus(@Param('id') id: string, @Body('status') status: string) {
-    const isActive = status === 'Active' || status === 'true' || status === 'active';
+    const isActive =
+      status === 'Active' || status === 'true' || status === 'active';
     return this.usersService.toggleStatus(id, isActive);
   }
 

@@ -55,10 +55,7 @@ export class FilesController {
    * GET /api/v1/files/serve/:filename
    */
   @Get('serve/:filename')
-  serveFlatFile(
-    @Param('filename') filename: string,
-    @Res() res: any,
-  ) {
+  serveFlatFile(@Param('filename') filename: string, @Res() res: any) {
     const resolved = this.filesService.resolveFile(filename);
     if (!resolved) {
       return res.status(HttpStatus.NOT_FOUND).json({
@@ -83,10 +80,7 @@ export class FilesController {
    * GET /api/v1/files/:fileId
    */
   @Get(':fileId')
-  serveByFileId(
-    @Param('fileId') fileId: string,
-    @Res() res: any,
-  ) {
+  serveByFileId(@Param('fileId') fileId: string, @Res() res: any) {
     const resolved = this.filesService.resolveFile(fileId);
     if (!resolved) {
       return res.status(HttpStatus.NOT_FOUND).json({

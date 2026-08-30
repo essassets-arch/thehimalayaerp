@@ -13,7 +13,12 @@ import {
 } from '../../common/utils/database.util';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { SampleStatus } from '@prisma/client';
-import { getSampleSalesScope, getLeadSalesScope, isSalespersonScopedRole, canAssignSalesOwner } from '../../common/utils/rbac.util';
+import {
+  getSampleSalesScope,
+  getLeadSalesScope,
+  isSalespersonScopedRole,
+  canAssignSalesOwner,
+} from '../../common/utils/rbac.util';
 
 @Injectable()
 export class SamplesService {
@@ -22,7 +27,11 @@ export class SamplesService {
     private readonly sequenceService: SequenceService,
   ) {}
 
-  async create(createSampleDto: CreateSampleDto, userId: string = 'system', role?: string) {
+  async create(
+    createSampleDto: CreateSampleDto,
+    userId: string = 'system',
+    role?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       if (!createSampleDto.leadId && !createSampleDto.customerId) {
         throw new BadRequestException(
@@ -64,23 +73,34 @@ export class SamplesService {
         const leadObj = await tx.lead.findFirst({
           where: {
             id: createSampleDto.leadId,
-            ...(createSampleDto.companyId ? { companyId: createSampleDto.companyId } : {}),
+            ...(createSampleDto.companyId
+              ? { companyId: createSampleDto.companyId }
+              : {}),
             ...getLeadSalesScope(userId, role),
           },
-          select: { salesExecutiveId: true, assignedToId: true, createdById: true },
+          select: {
+            salesExecutiveId: true,
+            assignedToId: true,
+            createdById: true,
+          },
         });
         if (!leadObj && isSalespersonScopedRole(role)) {
           throw new NotFoundException('Lead not found');
         }
         if (leadObj) {
-          leadSalesExecutiveId = leadObj.salesExecutiveId || leadObj.assignedToId || leadObj.createdById;
+          leadSalesExecutiveId =
+            leadObj.salesExecutiveId ||
+            leadObj.assignedToId ||
+            leadObj.createdById;
         }
       }
 
       const isManager = canAssignSalesOwner(role);
       const salesExecutiveId = isManager
-        ? ((createSampleDto as any).salesExecutiveId || leadSalesExecutiveId || userId)
-        : (leadSalesExecutiveId || userId);
+        ? (createSampleDto as any).salesExecutiveId ||
+          leadSalesExecutiveId ||
+          userId
+        : leadSalesExecutiveId || userId;
 
       const sample = await tx.sampleRequest.create({
         data: {
@@ -148,7 +168,14 @@ export class SamplesService {
             product: { select: { id: true, name: true, sku: true } },
           },
         },
-        lead: { select: { id: true, companyName: true, leadNumber: true, salesExecutive: { select: { id: true, name: true, email: true } } } },
+        lead: {
+          select: {
+            id: true,
+            companyName: true,
+            leadNumber: true,
+            salesExecutive: { select: { id: true, name: true, email: true } },
+          },
+        },
         customer: {
           select: { id: true, companyName: true, customerCode: true },
         },
@@ -168,7 +195,14 @@ export class SamplesService {
             product: { select: { id: true, name: true, sku: true } },
           },
         },
-        lead: { select: { id: true, companyName: true, leadNumber: true, salesExecutive: { select: { id: true, name: true, email: true } } } },
+        lead: {
+          select: {
+            id: true,
+            companyName: true,
+            leadNumber: true,
+            salesExecutive: { select: { id: true, name: true, email: true } },
+          },
+        },
         customer: {
           select: { id: true, companyName: true, customerCode: true },
         },
@@ -192,19 +226,32 @@ export class SamplesService {
     userId: string = 'system',
     role?: string,
   ) {
-    const { expectedVersion, items, dispatchDetails, deliveryState, retrievalStatus, returnRequestedDate, ...updateData } = updateDto;
+    const {
+      expectedVersion,
+      items,
+      dispatchDetails,
+      deliveryState,
+      retrievalStatus,
+      returnRequestedDate,
+      ...updateData
+    } = updateDto;
 
     // ensure it exists and user owns it
     await this.findOne(id, companyId, userId, role);
 
     const prismaUpdateData: any = { ...updateData };
     if (dispatchDetails) {
-      if (dispatchDetails.vehicleNo) prismaUpdateData.vehicleNo = dispatchDetails.vehicleNo;
-      if (dispatchDetails.driverName) prismaUpdateData.driverName = dispatchDetails.driverName;
-      if (dispatchDetails.driverPhone) prismaUpdateData.driverPhone = dispatchDetails.driverPhone;
+      if (dispatchDetails.vehicleNo)
+        prismaUpdateData.vehicleNo = dispatchDetails.vehicleNo;
+      if (dispatchDetails.driverName)
+        prismaUpdateData.driverName = dispatchDetails.driverName;
+      if (dispatchDetails.driverPhone)
+        prismaUpdateData.driverPhone = dispatchDetails.driverPhone;
       if (dispatchDetails.lrNo) prismaUpdateData.lrNo = dispatchDetails.lrNo;
-      if (dispatchDetails.transport) prismaUpdateData.transportMode = dispatchDetails.transport;
-      if (dispatchDetails.cost) prismaUpdateData.transportCost = dispatchDetails.cost;
+      if (dispatchDetails.transport)
+        prismaUpdateData.transportMode = dispatchDetails.transport;
+      if (dispatchDetails.cost)
+        prismaUpdateData.transportCost = dispatchDetails.cost;
       if (dispatchDetails.dispatchDate) {
         prismaUpdateData.dispatchDate = new Date(dispatchDetails.dispatchDate);
       } else {

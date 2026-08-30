@@ -71,10 +71,10 @@ describe('Location & Presence Module (e2e)', () => {
     const loginRes = await api(app)
       .post('/auth/login')
       .send({ email: superAdminEmail, password: 'Password@123' })
-      .catch(() => 
+      .catch(() =>
         api(app)
           .post('/auth/login')
-          .send({ email: superAdminEmail, password: 'Admin@123456' })
+          .send({ email: superAdminEmail, password: 'Admin@123456' }),
       );
 
     const body = loginRes.body as ResponseBody;
@@ -96,13 +96,14 @@ describe('Location & Presence Module (e2e)', () => {
       const salesLoginRes = await api(app)
         .post('/auth/login')
         .send({ email: salesUser.email, password: 'Password@123' })
-        .catch(() => 
+        .catch(() =>
           api(app)
             .post('/auth/login')
-            .send({ email: salesUser.email, password: 'Admin@123456' })
+            .send({ email: salesUser.email, password: 'Admin@123456' }),
         );
       const salesBody = salesLoginRes.body as ResponseBody;
-      normalUserToken = salesBody.data?.accessToken || salesBody.accessToken || '';
+      normalUserToken =
+        salesBody.data?.accessToken || salesBody.accessToken || '';
     }
 
     // Login as Admin of Company 2 (for leakage tests)
@@ -122,13 +123,14 @@ describe('Location & Presence Module (e2e)', () => {
         const otherLoginRes = await api(app)
           .post('/auth/login')
           .send({ email: otherAdmin.email, password: 'Password@123' })
-          .catch(() => 
+          .catch(() =>
             api(app)
               .post('/auth/login')
-              .send({ email: otherAdmin.email, password: 'Admin@123456' })
+              .send({ email: otherAdmin.email, password: 'Admin@123456' }),
           );
         const otherBody = otherLoginRes.body as ResponseBody;
-        otherCompanyAdminToken = otherBody.data?.accessToken || otherBody.accessToken || '';
+        otherCompanyAdminToken =
+          otherBody.data?.accessToken || otherBody.accessToken || '';
       }
     }
   });
@@ -144,9 +146,7 @@ describe('Location & Presence Module (e2e)', () => {
 
   describe('REST Scoping Checks', () => {
     it('should block unauthenticated requests to GET /super-admin/live-users', async () => {
-      await api(app)
-        .get('/super-admin/live-users')
-        .expect(401);
+      await api(app).get('/super-admin/live-users').expect(401);
     });
 
     it('should block non-super admin requests to GET /super-admin/live-users', async () => {
@@ -166,7 +166,9 @@ describe('Location & Presence Module (e2e)', () => {
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
 
-      const data = Array.isArray(res.body) ? res.body : (res.body.data || res.body.items);
+      const data = Array.isArray(res.body)
+        ? res.body
+        : res.body.data || res.body.items;
       expect(Array.isArray(data)).toBe(true);
     });
 
@@ -181,12 +183,21 @@ describe('Location & Presence Module (e2e)', () => {
       const perm = await prisma.permission.upsert({
         where: { code: 'LIVE_USER_MAP_VIEW' },
         update: {},
-        create: { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View', publicId: 'PERM-LUMV' },
+        create: {
+          code: 'LIVE_USER_MAP_VIEW',
+          name: 'Live User Map View',
+          publicId: 'PERM-LUMV',
+        },
       });
 
       // 2. Link permission to user's role
       await prisma.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: userRecord!.roleId, permissionId: perm.id } },
+        where: {
+          roleId_permissionId: {
+            roleId: userRecord!.roleId,
+            permissionId: perm.id,
+          },
+        },
         update: {},
         create: { roleId: userRecord!.roleId, permissionId: perm.id },
       });
@@ -196,13 +207,14 @@ describe('Location & Presence Module (e2e)', () => {
         const normalLoginRes = await api(app)
           .post('/auth/login')
           .send({ email: userRecord!.email, password: 'Password@123' })
-          .catch(() => 
+          .catch(() =>
             api(app)
               .post('/auth/login')
-              .send({ email: userRecord!.email, password: 'Admin@123456' })
+              .send({ email: userRecord!.email, password: 'Admin@123456' }),
           );
         const normalBody = normalLoginRes.body as ResponseBody;
-        const privilegedUserToken = normalBody.data?.accessToken || normalBody.accessToken || '';
+        const privilegedUserToken =
+          normalBody.data?.accessToken || normalBody.accessToken || '';
 
         // 4. Request live users with updated token
         const res = await api(app)
@@ -210,13 +222,22 @@ describe('Location & Presence Module (e2e)', () => {
           .set('Authorization', `Bearer ${privilegedUserToken}`)
           .expect(200);
 
-        const data = Array.isArray(res.body) ? res.body : (res.body.data || res.body.items);
+        const data = Array.isArray(res.body)
+          ? res.body
+          : res.body.data || res.body.items;
         expect(Array.isArray(data)).toBe(true);
       } finally {
         // 5. Cleanup relation in DB
-        await prisma.rolePermission.delete({
-          where: { roleId_permissionId: { roleId: userRecord!.roleId, permissionId: perm.id } },
-        }).catch(() => {});
+        await prisma.rolePermission
+          .delete({
+            where: {
+              roleId_permissionId: {
+                roleId: userRecord!.roleId,
+                permissionId: perm.id,
+              },
+            },
+          })
+          .catch(() => {});
       }
     });
   });
@@ -394,11 +415,15 @@ describe('Location & Presence Module (e2e)', () => {
 
       // Register session for user A over websocket
       const regRes = await new Promise<any>((resolve) => {
-        clientSocketUserA.emit('device:register', {
-          deviceId: 'socket-device-id',
-          deviceType: 'MOBILE',
-          browser: 'Chrome',
-        }, (res) => resolve(res));
+        clientSocketUserA.emit(
+          'device:register',
+          {
+            deviceId: 'socket-device-id',
+            deviceType: 'MOBILE',
+            browser: 'Chrome',
+          },
+          (res) => resolve(res),
+        );
       });
 
       expect(regRes.success).toBe(true);
@@ -429,11 +454,15 @@ describe('Location & Presence Module (e2e)', () => {
 
       // Register session for normal user
       const regRes = await new Promise<any>((resolve) => {
-        clientSocketUserA.emit('device:register', {
-          deviceId: 'socket-device-id',
-          deviceType: 'MOBILE',
-          browser: 'Chrome',
-        }, (res) => resolve(res));
+        clientSocketUserA.emit(
+          'device:register',
+          {
+            deviceId: 'socket-device-id',
+            deviceType: 'MOBILE',
+            browser: 'Chrome',
+          },
+          (res) => resolve(res),
+        );
       });
 
       // Register session for Admin A to trigger coordinates broadcast
@@ -451,7 +480,9 @@ describe('Location & Presence Module (e2e)', () => {
 
     it('should isolate tenants: Admin B (Company B) should NOT receive Company A location broadcasts', async () => {
       if (!superAdminToken || !normalUserToken || !otherCompanyAdminToken) {
-        console.warn('Skipping isolation test: other company admin token missing.');
+        console.warn(
+          'Skipping isolation test: other company admin token missing.',
+        );
         return;
       }
 
@@ -466,11 +497,15 @@ describe('Location & Presence Module (e2e)', () => {
 
       // Register User A
       const regRes = await new Promise<any>((resolve) => {
-        clientSocketUserA.emit('device:register', {
-          deviceId: 'socket-device-id',
-          deviceType: 'MOBILE',
-          browser: 'Chrome',
-        }, (res) => resolve(res));
+        clientSocketUserA.emit(
+          'device:register',
+          {
+            deviceId: 'socket-device-id',
+            deviceType: 'MOBILE',
+            browser: 'Chrome',
+          },
+          (res) => resolve(res),
+        );
       });
 
       // User A submits update
@@ -524,7 +559,9 @@ describe('Location & Presence Module (e2e)', () => {
       if (!normalUserToken) return;
 
       const res = await api(app)
-        .get(`/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${mockSessionId}&date=2026-08-19`)
+        .get(
+          `/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${mockSessionId}&date=2026-08-19`,
+        )
         .set('Authorization', `Bearer ${normalUserToken}`);
 
       expect(res.status).toBe(403);
@@ -535,11 +572,15 @@ describe('Location & Presence Module (e2e)', () => {
       if (!superAdminToken) return;
 
       const res = await api(app)
-        .get(`/super-admin/live-users/${targetUserId}/location-history?date=2026-08-19`)
+        .get(
+          `/super-admin/live-users/${targetUserId}/location-history?date=2026-08-19`,
+        )
         .set('Authorization', `Bearer ${superAdminToken}`);
 
       expect(res.status).toBe(400);
-      expect(res.body.error.message).toContain('deviceSessionId query parameter is required');
+      expect(res.body.error.message).toContain(
+        'deviceSessionId query parameter is required',
+      );
     });
 
     it('should enforce date OR from/to parameters', async () => {
@@ -547,30 +588,42 @@ describe('Location & Presence Module (e2e)', () => {
 
       // Both date and from/to provided
       const res1 = await api(app)
-        .get(`/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${mockSessionId}&date=2026-08-19&from=2026-08-19&to=2026-08-19`)
+        .get(
+          `/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${mockSessionId}&date=2026-08-19&from=2026-08-19&to=2026-08-19`,
+        )
         .set('Authorization', `Bearer ${superAdminToken}`);
 
       expect(res1.status).toBe(400);
-      expect(res1.body.error.message).toContain('Provide either "date" OR ("from" and "to") parameters, not both');
+      expect(res1.body.error.message).toContain(
+        'Provide either "date" OR ("from" and "to") parameters, not both',
+      );
 
       // Incomplete custom range
       const res2 = await api(app)
-        .get(`/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${mockSessionId}&from=2026-08-19`)
+        .get(
+          `/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${mockSessionId}&from=2026-08-19`,
+        )
         .set('Authorization', `Bearer ${superAdminToken}`);
 
       expect(res2.status).toBe(400);
-      expect(res2.body.error.message).toContain('Both "from" and "to" parameters must be provided');
+      expect(res2.body.error.message).toContain(
+        'Both "from" and "to" parameters must be provided',
+      );
     });
 
     it('should enforce date range limit of 7 days', async () => {
       if (!superAdminToken) return;
 
       const res = await api(app)
-        .get(`/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${mockSessionId}&from=2026-08-01&to=2026-08-10`)
+        .get(
+          `/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${mockSessionId}&from=2026-08-01&to=2026-08-10`,
+        )
         .set('Authorization', `Bearer ${superAdminToken}`);
 
       expect(res.status).toBe(400);
-      expect(res.body.error.message).toContain('Maximum date range is limited to 7 days');
+      expect(res.body.error.message).toContain(
+        'Maximum date range is limited to 7 days',
+      );
     });
 
     it('should sample coordinates and protect against stale/poor-accuracy history entries', async () => {
@@ -624,7 +677,9 @@ describe('Location & Presence Module (e2e)', () => {
 
       // Fetch history and verify only 2 points are returned (Update 1 and Update 5)
       const historyRes = await api(app)
-        .get(`/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${mockSessionId}&date=2026-08-19`)
+        .get(
+          `/super-admin/live-users/${targetUserId}/location-history?deviceSessionId=${mockSessionId}&date=2026-08-19`,
+        )
         .set('Authorization', `Bearer ${superAdminToken}`);
 
       expect(historyRes.status).toBe(200);

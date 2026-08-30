@@ -8,7 +8,12 @@ import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { BadRequestException, ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 describe('Master Production Acceptance & Certification Suite (11 Core Production Areas)', () => {
   let followupService: PaymentFollowupEngineService;
@@ -40,7 +45,10 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
     mockNotificationsService = {
       createNotification: jest.fn().mockImplementation((dto) => {
         mockNotifications.push(dto);
-        return Promise.resolve({ id: `notif-${mockNotifications.length}`, ...dto });
+        return Promise.resolve({
+          id: `notif-${mockNotifications.length}`,
+          ...dto,
+        });
       }),
       sendNotification: jest.fn().mockResolvedValue(true),
     };
@@ -54,13 +62,17 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
       }),
       salesOrder: {
         findUnique: jest.fn().mockImplementation(({ where }) => {
-          return Promise.resolve(mockOrders.find((o) => o.id === where.id) || null);
+          return Promise.resolve(
+            mockOrders.find((o) => o.id === where.id) || null,
+          );
         }),
         findMany: jest.fn().mockImplementation(() => {
           return Promise.resolve(
             mockOrders.map((o) => ({
               ...o,
-              customerPayments: mockPayments.filter((p) => p.salesOrderId === o.id),
+              customerPayments: mockPayments.filter(
+                (p) => p.salesOrderId === o.id,
+              ),
             })),
           );
         }),
@@ -89,7 +101,9 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
         findFirst: jest.fn().mockImplementation(({ where }) => {
           return Promise.resolve(
             mockAuditLogs.find((a) => {
-              const entityMatch = a.entityType === where.entityType && a.entityId === where.entityId;
+              const entityMatch =
+                a.entityType === where.entityType &&
+                a.entityId === where.entityId;
               if (!entityMatch) return false;
               if (where.action) {
                 if (typeof where.action === 'object' && where.action.in) {
@@ -115,28 +129,47 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
       },
       deviceSession: {
         findUnique: jest.fn().mockImplementation(({ where }) => {
-          return Promise.resolve(mockSessions.find((s) => s.sessionId === where.sessionId || s.id === where.id) || null);
+          return Promise.resolve(
+            mockSessions.find(
+              (s) => s.sessionId === where.sessionId || s.id === where.id,
+            ) || null,
+          );
         }),
         findFirst: jest.fn().mockImplementation(({ where }) => {
-          return Promise.resolve(mockSessions.find((s) => s.userId === where.userId) || null);
+          return Promise.resolve(
+            mockSessions.find((s) => s.userId === where.userId) || null,
+          );
         }),
         create: jest.fn().mockImplementation(({ data }) => {
-          const s = { id: `ds-${mockSessions.length + 1}`, sessionId: `sess-${mockSessions.length + 1}`, ...data };
+          const s = {
+            id: `ds-${mockSessions.length + 1}`,
+            sessionId: `sess-${mockSessions.length + 1}`,
+            ...data,
+          };
           mockSessions.push(s);
           return Promise.resolve(s);
         }),
         update: jest.fn().mockImplementation(({ where, data }) => {
-          const s = mockSessions.find((sess) => sess.id === where.id || sess.sessionId === where.sessionId);
+          const s = mockSessions.find(
+            (sess) =>
+              sess.id === where.id || sess.sessionId === where.sessionId,
+          );
           if (s) Object.assign(s, data);
           return Promise.resolve(s);
         }),
       },
       latestUserLocation: {
         findUnique: jest.fn().mockImplementation(({ where }) => {
-          return Promise.resolve(mockLocations.find((l) => l.deviceSessionId === where.deviceSessionId) || null);
+          return Promise.resolve(
+            mockLocations.find(
+              (l) => l.deviceSessionId === where.deviceSessionId,
+            ) || null,
+          );
         }),
         upsert: jest.fn().mockImplementation(({ where, create, update }) => {
-          let loc = mockLocations.find((l) => l.deviceSessionId === where.deviceSessionId);
+          let loc = mockLocations.find(
+            (l) => l.deviceSessionId === where.deviceSessionId,
+          );
           if (!loc) {
             loc = { id: `loc-${mockLocations.length + 1}`, ...create };
             mockLocations.push(loc);
@@ -159,18 +192,26 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
                 .filter((s) => s.userId === u.id)
                 .map((s) => ({
                   ...s,
-                  latestLocation: mockLocations.find((l) => l.deviceSessionId === s.id) || null,
+                  latestLocation:
+                    mockLocations.find((l) => l.deviceSessionId === s.id) ||
+                    null,
                 })),
             })),
           );
         }),
         findUnique: jest.fn().mockImplementation(({ where }) => {
-          return Promise.resolve(mockUsers.find((u) => u.id === where.id) || null);
+          return Promise.resolve(
+            mockUsers.find((u) => u.id === where.id) || null,
+          );
         }),
       },
       permission: {
         findUnique: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: `p-${Date.now()}`, ...data })),
+        create: jest
+          .fn()
+          .mockImplementation(({ data }) =>
+            Promise.resolve({ id: `p-${Date.now()}`, ...data }),
+          ),
       },
       rolePermission: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -187,12 +228,22 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
         UsersService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: NotificationsService, useValue: mockNotificationsService },
-        { provide: WorkflowService, useValue: { triggerEvent: jest.fn().mockResolvedValue(true) } },
-        { provide: SequenceService, useValue: { getNextSequence: jest.fn().mockResolvedValue('PAY-2026-001') } },
+        {
+          provide: WorkflowService,
+          useValue: { triggerEvent: jest.fn().mockResolvedValue(true) },
+        },
+        {
+          provide: SequenceService,
+          useValue: {
+            getNextSequence: jest.fn().mockResolvedValue('PAY-2026-001'),
+          },
+        },
       ],
     }).compile();
 
-    followupService = module.get<PaymentFollowupEngineService>(PaymentFollowupEngineService);
+    followupService = module.get<PaymentFollowupEngineService>(
+      PaymentFollowupEngineService,
+    );
     paymentsService = module.get<PaymentsService>(PaymentsService);
     filesService = module.get<FilesService>(FilesService);
     locationService = module.get<LocationService>(LocationService);
@@ -211,7 +262,11 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
         paymentTerms: '7 Days',
         paymentDueDate: new Date('2026-08-05'),
         paymentStatus: 'DUE_TODAY',
-        salesExecutive: { id: 'sales-1', name: 'Sales Guy', email: 'sales@erp.com' },
+        salesExecutive: {
+          id: 'sales-1',
+          name: 'Sales Guy',
+          email: 'sales@erp.com',
+        },
         customer: { id: 'cust-1', name: 'Acme Corp', companyId: 'comp-1' },
       });
 
@@ -231,7 +286,9 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
       expect(resC.reason).toBe('ALREADY_COMPLETED_TODAY');
 
       // Verify audit lock was recorded
-      const locks = mockAuditLogs.filter((a) => a.action === 'DAILY_PAYMENT_SCAN_COMPLETED');
+      const locks = mockAuditLogs.filter(
+        (a) => a.action === 'DAILY_PAYMENT_SCAN_COMPLETED',
+      );
       expect(locks.length).toBe(1);
 
       // Running 4 subsequent sequential scans on the same date should all be skipped
@@ -270,11 +327,17 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
         payment.status = 'VERIFIED';
         const order = mockOrders.find((o) => o.id === 'ord-concurrent-pay');
         order.paidAmount += payment.amount;
-        order.outstandingAmount = Math.max(0, order.totalAmount - order.paidAmount);
+        order.outstandingAmount = Math.max(
+          0,
+          order.totalAmount - order.paidAmount,
+        );
         return { success: true, instanceId, order };
       };
 
-      const [res1, res2] = await Promise.all([verifyAction('Instance-1'), verifyAction('Instance-2')]);
+      const [res1, res2] = await Promise.all([
+        verifyAction('Instance-1'),
+        verifyAction('Instance-2'),
+      ]);
 
       const successCount = [res1, res2].filter((r) => r.success).length;
       expect(successCount).toBe(1);
@@ -315,19 +378,27 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
   // AREA 5: Real JWT RBAC Authorization Matrix
   describe('Area 5: Real RBAC Authorization Matrix', () => {
     it('verifies Super Admin and Finance roles have access while Sales and Unauthenticated are forbidden', () => {
-      const isSuperAdmin = (role: string) => ['SUPER_ADMIN', 'ADMIN'].includes(role.toUpperCase());
-      const isFinance = (role: string) => ['FINANCE_MANAGER', 'FINANCE', 'FINANCE_EXECUTIVE'].includes(role.toUpperCase());
+      const isSuperAdmin = (role: string) =>
+        ['SUPER_ADMIN', 'ADMIN'].includes(role.toUpperCase());
+      const isFinance = (role: string) =>
+        ['FINANCE_MANAGER', 'FINANCE', 'FINANCE_EXECUTIVE'].includes(
+          role.toUpperCase(),
+        );
       const canVerifyPayment = (role?: string) => {
         if (!role) throw new UnauthorizedException('Authentication required');
         const norm = role.toUpperCase();
         if (isSuperAdmin(norm) || isFinance(norm)) return true;
-        throw new ForbiddenException('Insufficient role privileges for payment verification');
+        throw new ForbiddenException(
+          'Insufficient role privileges for payment verification',
+        );
       };
 
       expect(canVerifyPayment('SUPER_ADMIN')).toBe(true);
       expect(canVerifyPayment('FINANCE_MANAGER')).toBe(true);
       expect(canVerifyPayment('FINANCE_EXECUTIVE')).toBe(true);
-      expect(() => canVerifyPayment('SALES_EXECUTIVE')).toThrow(ForbiddenException);
+      expect(() => canVerifyPayment('SALES_EXECUTIVE')).toThrow(
+        ForbiddenException,
+      );
       expect(() => canVerifyPayment('SUPER_SALES')).toThrow(ForbiddenException);
       expect(() => canVerifyPayment(undefined)).toThrow(UnauthorizedException);
     });
@@ -356,7 +427,9 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
 
       // Leap-year calculation: Feb 28, 2028 (leap year) + 15 days = March 14, 2028
       const feb28Leap = new Date('2028-02-28T00:00:00Z');
-      const dueDateLeap = new Date(feb28Leap.getTime() + 15 * 24 * 60 * 60 * 1000);
+      const dueDateLeap = new Date(
+        feb28Leap.getTime() + 15 * 24 * 60 * 60 * 1000,
+      );
       expect(dueDateLeap.toISOString().split('T')[0]).toBe('2028-03-14');
     });
   });
@@ -395,12 +468,18 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
       const today = new Date('2026-08-05T00:00:00Z');
 
       // Cold start: scan runs and creates lock
-      const start1 = await followupService.runDailyFollowUpScan('comp-1', today);
+      const start1 = await followupService.runDailyFollowUpScan(
+        'comp-1',
+        today,
+      );
       expect(start1.success).toBe(true);
       expect(start1.skipped).toBeUndefined();
 
       // Restart 10 minutes later: scan detects lock and skips
-      const restart = await followupService.runDailyFollowUpScan('comp-1', today);
+      const restart = await followupService.runDailyFollowUpScan(
+        'comp-1',
+        today,
+      );
       expect(restart.skipped).toBe(true);
       expect(restart.reason).toBe('ALREADY_COMPLETED_TODAY');
     });
@@ -417,29 +496,41 @@ describe('Master Production Acceptance & Certification Suite (11 Core Production
   // AREA 10 & 11: Real-Time Multi-User GPS Tracking & Jump Filtering
   describe('Area 10 & 11: Real-Time Multi-User GPS Tracking & Jump Filtering', () => {
     it('tracks multiple simultaneous users and filters impossible supersonic GPS jumps', async () => {
-      const reg = await locationService.registerSession('user-gps-multi', 'comp-1', {
-        deviceId: 'dev-multi-1',
-        deviceType: 'MOBILE',
-      });
+      const reg = await locationService.registerSession(
+        'user-gps-multi',
+        'comp-1',
+        {
+          deviceId: 'dev-multi-1',
+          deviceType: 'MOBILE',
+        },
+      );
 
       // Valid GPS fix
-      const loc1 = await locationService.updateLocation('user-gps-multi', 'comp-1', {
-        sessionId: reg.sessionId,
-        latitude: 23.0225,
-        longitude: 72.5714,
-        accuracy: 8,
-        capturedAt: new Date(Date.now() - 3000).toISOString(),
-      });
+      const loc1 = await locationService.updateLocation(
+        'user-gps-multi',
+        'comp-1',
+        {
+          sessionId: reg.sessionId,
+          latitude: 23.0225,
+          longitude: 72.5714,
+          accuracy: 8,
+          capturedAt: new Date(Date.now() - 3000).toISOString(),
+        },
+      );
       expect(loc1.latitude).toBe(23.0225);
 
       // Impossible jump (> 1000 km in 2s)
-      const locJump = await locationService.updateLocation('user-gps-multi', 'comp-1', {
-        sessionId: reg.sessionId,
-        latitude: 12.9716, // Bangalore
-        longitude: 77.5946,
-        accuracy: 8,
-        capturedAt: new Date().toISOString(),
-      });
+      const locJump = await locationService.updateLocation(
+        'user-gps-multi',
+        'comp-1',
+        {
+          sessionId: reg.sessionId,
+          latitude: 12.9716, // Bangalore
+          longitude: 77.5946,
+          accuracy: 8,
+          capturedAt: new Date().toISOString(),
+        },
+      );
 
       expect(locJump.isSuspiciousJump).toBe(true);
       expect(locJump.latitude).toBe(23.0225); // Coordinates untouched

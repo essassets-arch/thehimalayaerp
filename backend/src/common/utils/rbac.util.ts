@@ -2,7 +2,9 @@ import { UnauthorizedException } from '@nestjs/common';
 
 export function isRestrictedRole(role?: string): boolean {
   if (!role) return true;
-  const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
+  const normalizedRole = String(role)
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
   const restrictedRoles = [
     'SALES_EXECUTIVE',
     'SALES_INTERN',
@@ -19,32 +21,50 @@ export function isRestrictedRole(role?: string): boolean {
 
 export function isSalespersonScopedRole(role?: string): boolean {
   if (!role) return false;
-  const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
-  return ['SALES_EXECUTIVE', 'SALES_INTERN', 'SUPER_SALES'].includes(normalizedRole);
+  const normalizedRole = String(role)
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
+  return ['SALES_EXECUTIVE', 'SALES_INTERN', 'SUPER_SALES'].includes(
+    normalizedRole,
+  );
 }
 
 export function canAssignSalesOwner(role?: string): boolean {
   if (!role) return false;
-  const normalizedRole = String(role).toUpperCase().replace(/[\s-]+/g, '_');
+  const normalizedRole = String(role)
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
   const allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'SUPER_USER', 'SALES_MANAGER'];
   return allowedRoles.includes(normalizedRole);
 }
 
-export function getLeadSalesScope(userId?: string, role?: string): Record<string, any> {
+export function getLeadSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
   return { OR: [{ salesExecutiveId: userId }, { createdById: userId }] };
 }
 
-export function getQuotationSalesScope(userId?: string, role?: string): Record<string, any> {
+export function getQuotationSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
   return { OR: [{ salesExecutiveId: userId }, { createdById: userId }] };
 }
 
-export function getOrderSalesScope(userId?: string, role?: string): Record<string, any> {
+export function getOrderSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
   return {
     OR: [
       { createdById: userId },
@@ -58,45 +78,37 @@ export function getOrderSalesScope(userId?: string, role?: string): Record<strin
   };
 }
 
-export function getSampleSalesScope(userId?: string, role?: string): Record<string, any> {
+export function getSampleSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
   return {
-    OR: [
-      { createdById: userId },
-      { salesExecutiveId: userId },
-    ],
+    OR: [{ createdById: userId }, { salesExecutiveId: userId }],
   };
 }
 
-export function getComplaintSalesScope(userId?: string, role?: string): Record<string, any> {
+export function getComplaintSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
   return {
-    OR: [
-      { createdBy: userId },
-      { salesExecutiveId: userId },
-    ],
+    OR: [{ createdBy: userId }, { salesExecutiveId: userId }],
   };
 }
 
-export function getReturnSalesScope(userId?: string, role?: string): Record<string, any> {
+export function getReturnSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
-  return {
-    OR: [
-      { requestedById: userId },
-      { salesOrder: { salesExecutiveId: userId } },
-      { salesOrder: { createdById: userId } },
-      { salesOrder: { quotation: { salesExecutiveId: userId } } },
-      { salesOrder: { sourceQuotation: { salesExecutiveId: userId } } },
-    ],
-  };
-}
-
-export function getReplacementSalesScope(userId?: string, role?: string): Record<string, any> {
-  if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
   return {
     OR: [
       { requestedById: userId },
@@ -108,9 +120,31 @@ export function getReplacementSalesScope(userId?: string, role?: string): Record
   };
 }
 
-export function getPaymentSalesScope(userId?: string, role?: string): Record<string, any> {
+export function getReplacementSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
+  return {
+    OR: [
+      { requestedById: userId },
+      { salesOrder: { salesExecutiveId: userId } },
+      { salesOrder: { createdById: userId } },
+      { salesOrder: { quotation: { salesExecutiveId: userId } } },
+      { salesOrder: { sourceQuotation: { salesExecutiveId: userId } } },
+    ],
+  };
+}
+
+export function getPaymentSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
   return {
     OR: [
       { createdById: userId },
@@ -122,15 +156,25 @@ export function getPaymentSalesScope(userId?: string, role?: string): Record<str
   };
 }
 
-export function getFollowUpSalesScope(userId?: string, role?: string): Record<string, any> {
+export function getFollowUpSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
-  return { OR: [{ lead: { salesExecutiveId: userId } }, { createdById: userId }] };
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
+  return {
+    OR: [{ lead: { salesExecutiveId: userId } }, { createdById: userId }],
+  };
 }
 
-export function getDispatchSalesScope(userId?: string, role?: string): Record<string, any> {
+export function getDispatchSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
   return {
     OR: [
       { createdById: userId },
@@ -142,9 +186,13 @@ export function getDispatchSalesScope(userId?: string, role?: string): Record<st
   };
 }
 
-export function getProductionPlanSalesScope(userId?: string, role?: string): Record<string, any> {
+export function getProductionPlanSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
   return {
     OR: [
       { assignedToId: userId },
@@ -153,14 +201,15 @@ export function getProductionPlanSalesScope(userId?: string, role?: string): Rec
   };
 }
 
-export function getWorkOrderSalesScope(userId?: string, role?: string): Record<string, any> {
+export function getWorkOrderSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
   return {
-    OR: [
-      { createdById: userId },
-      { productionPlan: { assignedToId: userId } },
-    ],
+    OR: [{ createdById: userId }, { productionPlan: { assignedToId: userId } }],
   };
 }
 
@@ -204,10 +253,21 @@ export function getAdvancedScope(
 export function getSalesScope(
   userId?: string,
   role?: string,
-  targetModel: 'Lead' | 'Quotation' | 'SalesOrder' | 'SampleRequest' | 'CustomerPayment' | 'ProductionPlan' | 'Dispatch' | 'WorkOrder' | 'Customer' | string = 'createdById',
+  targetModel:
+    | 'Lead'
+    | 'Quotation'
+    | 'SalesOrder'
+    | 'SampleRequest'
+    | 'CustomerPayment'
+    | 'ProductionPlan'
+    | 'Dispatch'
+    | 'WorkOrder'
+    | 'Customer'
+    | string = 'createdById',
 ): Record<string, any> {
   if (!isSalespersonScopedRole(role)) return {};
-  if (!userId) throw new UnauthorizedException('User ID required for sales scoping');
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
 
   if (targetModel === 'Lead' || targetModel === 'assignedToId') {
     return getLeadSalesScope(userId, role);
@@ -311,4 +371,3 @@ export function getDispatchScope(
     DISPATCH: companyId ? { companyId } : {},
   });
 }
-
