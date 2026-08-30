@@ -454,11 +454,11 @@ export default function DispatchOrdersPage() {
   }, [pendingItems, userDispatchCat, productsMap, search]);
 
   const handleCreateDispatch = (item: UnifiedPendingDispatchItem) => {
-    if (item.itemType === "WORK_ORDER" && item.workOrderId) {
-      router.push(`${basePath}/create-dispatch?workOrderId=${item.workOrderId}`);
-    } else if (item.salesOrderId) {
-      router.push(`${basePath}/create-dispatch?salesOrderId=${item.salesOrderId}`);
-    }
+    const params = new URLSearchParams();
+    if (item.salesOrderId) params.set("salesOrderId", item.salesOrderId);
+    if (item.workOrderId) params.set("workOrderId", item.workOrderId);
+    if (item.salesOrderItemId) params.set("salesOrderItemId", item.salesOrderItemId);
+    router.push(`${basePath}/create-dispatch?${params.toString()}`);
   };
 
   const handleExportCsv = () => {
