@@ -424,115 +424,197 @@ export default function OutstandingView() {
   };
 
   return (
-    <div className="w-full pb-12" style={{ fontFamily: "var(--font-main), 'Plus Jakarta Sans', sans-serif" }}>
-      <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        
-        {/* Header Title & Actions */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', background: '#ffffff', padding: '20px 24px', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <DollarSign className="text-blue-600" size={24} />
-              <h1 style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                Outstanding Collections & Receivables
-              </h1>
-            </div>
-            <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>
-              Live monitoring of customer balances, aging brackets, collection follow-ups, and payment records
-            </p>
-          </div>
+    <div className="finance-outstanding-page">
+      <style>{`
+        .finance-outstanding-page {
+          width: 100%;
+          max-width: 100%;
+          padding: clamp(12px, 2.5vw, 24px);
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          font-family: var(--font-main), 'Plus Jakarta Sans', sans-serif;
+        }
 
+        .finance-outstanding-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 14px;
+          background: #FFFFFF;
+          border: 1px solid #E2E8F0;
+          border-radius: 16px;
+          padding: clamp(14px, 2.5vw, 20px);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .finance-outstanding-kpi-grid {
+          display: grid !important;
+          grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+          gap: 12px !important;
+          width: 100% !important;
+          box-sizing: border-box;
+        }
+
+        @media (max-width: 1300px) {
+          .finance-outstanding-kpi-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .finance-outstanding-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .finance-outstanding-kpi-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        .finance-outstanding-kpi-card {
+          background: #FFFFFF;
+          padding: 16px 18px;
+          border-radius: 14px;
+          border: 1px solid #E2E8F0;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+          min-width: 0;
+          box-sizing: border-box;
+        }
+
+        .finance-outstanding-kpi-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+
+        .finance-outstanding-table-card {
+          background: #FFFFFF;
+          padding: 20px 24px;
+          border-radius: 16px;
+          border: 1px solid #E2E8F0;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          width: 100%;
+          box-sizing: border-box;
+        }
+      `}</style>
+
+      {/* Header Title & Actions */}
+      <div className="finance-outstanding-header">
+        <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              onClick={handleExportCSV}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 16px',
-                background: '#ffffff',
-                color: '#334155',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: '700',
-                cursor: 'pointer'
-              }}
-            >
-              <Download size={15} /> Export CSV
-            </button>
-            <button
-              onClick={handleRefreshAll}
-              disabled={ordersFetching || paymentsFetching}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 16px',
-                background: '#2563eb',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
-              }}
-            >
-              <RefreshCw size={14} className={ordersFetching || paymentsFetching ? 'animate-spin' : ''} />
-              Refresh Dues
-            </button>
+            <DollarSign className="text-blue-600" size={24} />
+            <h1 style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+              Outstanding Collections & Receivables
+            </h1>
           </div>
+          <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>
+            Live monitoring of customer balances, aging brackets, collection follow-ups, and payment records
+          </p>
         </div>
 
-        {/* KPI Summary Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-          
-          {/* Total Outstanding */}
-          <div style={{ background: '#ffffff', padding: '18px 20px', borderRadius: '14px', border: '1px solid #e2e8f0', borderLeft: '4px solid #2563eb' }}>
-            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Outstanding</span>
-            <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>{formatINR(agingStats.total)}</h3>
-            <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>{outstandingList.length} total pending accounts</span>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            onClick={handleExportCSV}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              background: '#ffffff',
+              color: '#334155',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer'
+            }}
+          >
+            <Download size={15} /> Export CSV
+          </button>
+          <button
+            onClick={handleRefreshAll}
+            disabled={ordersFetching || paymentsFetching}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              background: '#2563eb',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
+            }}
+          >
+            <RefreshCw size={14} className={ordersFetching || paymentsFetching ? 'animate-spin' : ''} />
+            Refresh Dues
+          </button>
+        </div>
+      </div>
 
-          {/* Not Due / Current */}
-          <div style={{ background: '#ffffff', padding: '18px 20px', borderRadius: '14px', border: '1px solid #e2e8f0', borderLeft: '4px solid #10b981' }}>
-            <span style={{ fontSize: '11px', color: '#10b981', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Not Due (Within Term)</span>
-            <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#10b981' }}>{formatINR(agingStats.current)}</h3>
-            <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>Upcoming due dates</span>
-          </div>
-
-          {/* 1-30 Days */}
-          <div style={{ background: '#ffffff', padding: '18px 20px', borderRadius: '14px', border: '1px solid #e2e8f0', borderLeft: '4px solid #f59e0b' }}>
-            <span style={{ fontSize: '11px', color: '#d97706', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>1-30 Days Overdue</span>
-            <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#d97706' }}>{formatINR(agingStats.bracket1_30)}</h3>
-            <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>Early stage overdue</span>
-          </div>
-
-          {/* 31-60 Days */}
-          <div style={{ background: '#ffffff', padding: '18px 20px', borderRadius: '14px', border: '1px solid #e2e8f0', borderLeft: '4px solid #f97316' }}>
-            <span style={{ fontSize: '11px', color: '#ea580c', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>31-60 Days Overdue</span>
-            <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#ea580c' }}>{formatINR(agingStats.bracket31_60)}</h3>
-            <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>Requires follow-up</span>
-          </div>
-
-          {/* 61-90 Days */}
-          <div style={{ background: '#ffffff', padding: '18px 20px', borderRadius: '14px', border: '1px solid #e2e8f0', borderLeft: '4px solid #e11d48' }}>
-            <span style={{ fontSize: '11px', color: '#e11d48', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>61-90 Days Overdue</span>
-            <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#e11d48' }}>{formatINR(agingStats.bracket61_90)}</h3>
-            <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>High priority follow-up</span>
-          </div>
-
-          {/* 90+ Days */}
-          <div style={{ background: '#ffffff', padding: '18px 20px', borderRadius: '14px', border: '1px solid #e2e8f0', borderLeft: '4px solid #dc2626' }}>
-            <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>90+ Days Critical</span>
-            <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#dc2626' }}>{formatINR(agingStats.bracket90_plus)}</h3>
-            <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>Critical recovery action</span>
-          </div>
-
+      {/* KPI Summary Cards */}
+      <div className="finance-outstanding-kpi-grid">
+        
+        {/* Total Outstanding */}
+        <div className="finance-outstanding-kpi-card" style={{ borderLeft: '4px solid #2563eb' }}>
+          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Outstanding</span>
+          <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>{formatINR(agingStats.total)}</h3>
+          <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>{outstandingList.length} total pending accounts</span>
         </div>
 
-        {/* Main Table Container */}
-        <div style={{ background: '#ffffff', padding: '20px 24px', borderRadius: '16px', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* Not Due / Current */}
+        <div className="finance-outstanding-kpi-card" style={{ borderLeft: '4px solid #10b981' }}>
+          <span style={{ fontSize: '11px', color: '#10b981', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Not Due (Within Term)</span>
+          <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#10b981' }}>{formatINR(agingStats.current)}</h3>
+          <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>Upcoming due dates</span>
+        </div>
+
+        {/* 1-30 Days */}
+        <div className="finance-outstanding-kpi-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+          <span style={{ fontSize: '11px', color: '#d97706', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>1-30 Days Overdue</span>
+          <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#d97706' }}>{formatINR(agingStats.bracket1_30)}</h3>
+          <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>Early stage overdue</span>
+        </div>
+
+        {/* 31-60 Days */}
+        <div className="finance-outstanding-kpi-card" style={{ borderLeft: '4px solid #f97316' }}>
+          <span style={{ fontSize: '11px', color: '#ea580c', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>31-60 Days Overdue</span>
+          <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#ea580c' }}>{formatINR(agingStats.bracket31_60)}</h3>
+          <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>Requires follow-up</span>
+        </div>
+
+        {/* 61-90 Days */}
+        <div className="finance-outstanding-kpi-card" style={{ borderLeft: '4px solid #e11d48' }}>
+          <span style={{ fontSize: '11px', color: '#e11d48', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>61-90 Days Overdue</span>
+          <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#e11d48' }}>{formatINR(agingStats.bracket61_90)}</h3>
+          <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>High priority follow-up</span>
+        </div>
+
+        {/* 90+ Days */}
+        <div className="finance-outstanding-kpi-card" style={{ borderLeft: '4px solid #dc2626' }}>
+          <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>90+ Days Critical</span>
+          <h3 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#dc2626' }}>{formatINR(agingStats.bracket90_plus)}</h3>
+          <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>Critical recovery action</span>
+        </div>
+
+      </div>
+
+      {/* Main Table Container */}
+      <div className="finance-outstanding-table-card">
           
           {/* Error Banner if any */}
           {(ordersError || paymentsError) && (
@@ -853,7 +935,6 @@ export default function OutstandingView() {
 
         </div>
 
-      </div>
     </div>
   );
 }
