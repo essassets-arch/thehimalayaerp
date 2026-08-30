@@ -182,16 +182,61 @@ export default function CreateDispatchPage() {
         ? payload.data
         : [];
 
-      // If workOrderId param is provided and not found in READY_FOR_DISPATCH list, fetch it directly
+      // 1. Direct Sales Order Lookup if salesOrderId param is provided
+      if (salesOrderId) {
+        const soPayload = await backendFetch<any>(`/api/backend/sales/orders/${salesOrderId}`).catch(() => null);
+        const so = soPayload?.order || soPayload?.data || soPayload;
+        if (so && so.id) {
+          const items = Array.isArray(so.items) ? so.items : [];
+          items.forEach((item: any) => {
+            const alreadyDispatched = Array.isArray(item.dispatchItems)
+              ? item.dispatchItems.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0)
+              : 0;
+            const remaining = Math.max(0, Number(item.orderedQuantity || item.quantity || 1) - alreadyDispatched);
+            const initialQty = remaining > 0 ? remaining : Number(item.orderedQuantity || item.quantity || 1);
+
+            const syntheticWO: WorkOrder = {
+              id: `so-wo-${item.id}`,
+              workOrderNumber: so.orderNumber || so.orderNo || so.orderId || "SO-DISPATCH",
+              quantity: initialQty,
+              status: "READY_FOR_DISPATCH",
+              salesOrderItemId: item.id,
+              productionPlan: {
+                id: `pp-${so.id}`,
+                salesOrder: {
+                  id: so.id,
+                  orderNumber: so.orderNumber || so.orderId || so.orderNo || "N/A",
+                  freightAmount: so.freightAmount,
+                  shippingAddress: so.shippingAddress,
+                  customer: so.customer || { id: so.customerId, companyName: so.customerName || "N/A" },
+                },
+              },
+              salesOrderItem: {
+                id: item.id,
+                productId: item.productId,
+                productNameSnapshot: item.productName || item.productNameSnapshot || item.name || item.product?.name || "Product",
+                orderedQuantity: Number(item.orderedQuantity || item.quantity || 1),
+                unitPrice: Number(item.unitPrice || 0),
+                dispatchItems: item.dispatchItems,
+                product: item.product,
+              },
+              qcInspections: [{ approvedQuantity: initialQty, approvedAt: new Date().toISOString(), createdAt: new Date().toISOString() }],
+            };
+            list.unshift(syntheticWO);
+          });
+        }
+      }
+
+      // 2. Direct Work Order Lookup if workOrderId param is provided
       if (workOrderId && !list.some((wo) => wo.id === workOrderId)) {
         const woSinglePayload = await backendFetch<any>(`/api/backend/production/work-orders/${workOrderId}`).catch(() => null);
         const fetchedWo = woSinglePayload?.data || woSinglePayload;
         if (fetchedWo && fetchedWo.id) {
-          list.push(fetchedWo);
+          list.unshift(fetchedWo);
         }
       }
 
-      // Fallback: If list is empty, fetch all work orders without status filter
+      // 3. Fallback: If list is empty, fetch all work orders without status filter
       if (list.length === 0) {
         const allWoPayload = await backendFetch<any>("/api/backend/production/work-orders").catch(() => null);
         const allWoList: WorkOrder[] = Array.isArray(allWoPayload)
@@ -265,7 +310,7 @@ export default function CreateDispatchPage() {
         list.push(fallbackWO);
       }
 
-      // Final fallback if list is still completely empty and no workOrderId was given
+      // Final fallback if list is still completely empty
       if (list.length === 0) {
         const defaultWO: WorkOrder = {
           id: "default-wo-001",
@@ -293,48 +338,6 @@ export default function CreateDispatchPage() {
         list.push(defaultWO);
       }
 
-      if (salesOrderId && !list.some((wo) => wo.productionPlan?.salesOrder?.id === salesOrderId)) {
-        const soPayload = await backendFetch<any>(`/api/backend/sales/orders/${salesOrderId}`).catch(() => null);
-        const so = soPayload?.order || soPayload;
-        if (so && so.id) {
-          const items = Array.isArray(so.items) ? so.items : [];
-          items.forEach((item: any) => {
-            const alreadyDispatched = Array.isArray(item.dispatchItems)
-              ? item.dispatchItems.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0)
-              : 0;
-            const remaining = Math.max(0, Number(item.orderedQuantity || item.quantity || 1) - alreadyDispatched);
-
-            const syntheticWO: WorkOrder = {
-              id: `so-wo-${item.id}`,
-              workOrderNumber: so.orderNumber || so.orderNo || so.orderId || "TRADING",
-              quantity: remaining,
-              status: "READY_FOR_DISPATCH",
-              salesOrderItemId: item.id,
-              productionPlan: {
-                id: `pp-${so.id}`,
-                salesOrder: {
-                  id: so.id,
-                  orderNumber: so.orderNumber || so.orderId || so.orderNo || "N/A",
-                  freightAmount: so.freightAmount,
-                  shippingAddress: so.shippingAddress,
-                  customer: so.customer || { id: so.customerId, companyName: so.customerName || "N/A" },
-                },
-              },
-              salesOrderItem: {
-                id: item.id,
-                productId: item.productId,
-                productNameSnapshot: item.productName || item.productNameSnapshot || item.name || "Trading Product",
-                orderedQuantity: Number(item.orderedQuantity || item.quantity || 1),
-                unitPrice: Number(item.unitPrice || 0),
-                dispatchItems: item.dispatchItems,
-                product: item.product,
-              },
-              qcInspections: [{ approvedQuantity: remaining, approvedAt: new Date().toISOString(), createdAt: new Date().toISOString() }],
-            };
-            list.push(syntheticWO);
-          });
-        }
-      }
       return list;
     },
   });
@@ -345,7 +348,20 @@ export default function CreateDispatchPage() {
   const userDispatchCat = isDispatch2 ? "D2" : "D1";
 
   const filteredWorkOrders = React.useMemo(() => {
-    return workOrders.filter((wo) => {
+    // If a specific salesOrderId or workOrderId was requested in URL params, ALWAYS prioritize matching it
+    const targetedList = workOrders.filter((wo) => {
+      if (workOrderId && (wo.id === workOrderId || wo.salesOrderItemId === workOrderId)) return true;
+      if (salesOrderId && (wo.productionPlan?.salesOrder?.id === salesOrderId || String(wo.id).includes(salesOrderId))) return true;
+      return false;
+    });
+
+    const baseList = targetedList.length > 0 ? targetedList : workOrders;
+
+    const filtered = baseList.filter((wo) => {
+      // If this item was specifically targeted via URL param, do not filter it out
+      if (salesOrderId && wo.productionPlan?.salesOrder?.id === salesOrderId) return true;
+      if (workOrderId && wo.id === workOrderId) return true;
+
       // Find matching product
       const productObj = productsMap.get(wo.salesOrderItem?.productId) || 
                          productsMap.get(wo.salesOrderItem?.product?.id) ||
@@ -355,7 +371,9 @@ export default function CreateDispatchPage() {
                          productObj?.dispatch_category ||
                          wo.salesOrderItem?.product?.dispatchCategory ||
                          wo.salesOrderItem?.product?.dispatch_category ||
-                         "D1"; // default to D1 if not specified
+                         "";
+      
+      if (!productCat) return true; // Include if category is not explicitly constrained
       
       const c1 = String(productCat).trim().toUpperCase();
       const c2 = String(userDispatchCat).trim().toUpperCase();
@@ -366,16 +384,20 @@ export default function CreateDispatchPage() {
       
       return false;
     });
-  }, [workOrders, userDispatchCat, productsMap]);
+
+    return filtered.length > 0 ? filtered : baseList;
+  }, [workOrders, userDispatchCat, productsMap, workOrderId, salesOrderId]);
 
   useEffect(() => {
     if (!filteredWorkOrders.length || initialSelectionSet.current) return;
     const initial =
       filteredWorkOrders.find((row) => row.id === workOrderId || row.productionPlan?.salesOrder?.id === salesOrderId) || filteredWorkOrders[0];
-    setSelectedIds([initial.id]);
-    setDispatchQuantities({ [initial.id]: availableQuantity(initial) });
-    initialSelectionSet.current = true;
-  }, [filteredWorkOrders, searchParams]);
+    if (initial) {
+      setSelectedIds([initial.id]);
+      setDispatchQuantities({ [initial.id]: availableQuantity(initial) });
+      initialSelectionSet.current = true;
+    }
+  }, [filteredWorkOrders, searchParams, workOrderId, salesOrderId]);
 
   const selectedWorkOrders = React.useMemo(
     () => filteredWorkOrders.filter((row) => selectedIds.includes(row.id)),
