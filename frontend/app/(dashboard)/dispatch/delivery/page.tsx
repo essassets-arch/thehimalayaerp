@@ -217,6 +217,9 @@ export default function DeliveryRunPage() {
       toast.success(`Shipment ${selectedDispatch.dispatchNo} marked as Delivered`);
       setSelectedDispatch(null);
       queryClient.invalidateQueries({ queryKey: ["delivery-run-dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-history-dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-dispatch-unified-items"] });
       router.push(`${basePath}/history`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to confirm delivery");

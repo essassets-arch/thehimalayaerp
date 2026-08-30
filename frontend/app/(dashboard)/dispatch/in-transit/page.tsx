@@ -131,6 +131,9 @@ export default function InTransitPage() {
       );
       toast.success("Delivery run started — redirecting to delivery board");
       queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-run-dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-history-dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-dispatch-unified-items"] });
       router.push(`${basePath}/delivery`);
     } catch (err: unknown) {
       toast.error(

@@ -846,7 +846,10 @@ export default function CreateDispatchPage() {
           ? "Dispatch created and marked In Transit"
           : `${orderGroups.size} sales orders added to this dispatch run`,
       );
+      queryClient.invalidateQueries({ queryKey: ["pending-dispatch-unified-items"] });
       queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-run-dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-history-dispatches"] });
       router.push(`${basePath}/in-transit`);
     } catch (err: any) {
       console.error(

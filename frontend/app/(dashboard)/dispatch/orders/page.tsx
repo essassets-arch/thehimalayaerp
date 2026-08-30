@@ -197,11 +197,12 @@ export default function DispatchOrdersPage() {
         return [];
       };
 
-      const [workOrdersPayload, salesOrdersPayload, finishedGoodsPayload, queuePayload] = await Promise.allSettled([
+      const [workOrdersPayload, salesOrdersPayload, finishedGoodsPayload, queuePayload, activeDispatchesPayload] = await Promise.allSettled([
         backendFetch<any>("/api/backend/production/work-orders?status=READY_FOR_DISPATCH"),
         backendFetch<any>("/api/backend/sales/orders?status=READY_FOR_DISPATCH"),
         backendFetch<any>("/api/backend/production/finished-goods"),
         backendFetch<any>("/api/backend/logistics/dispatches/queue"),
+        backendFetch<any>("/api/backend/logistics/dispatches"),
       ]);
 
       const workOrders: WorkOrder[] =
@@ -419,12 +420,58 @@ export default function DispatchOrdersPage() {
         }
       };
 
+      const rawActiveDispatches =
+        activeDispatchesPayload.status === "fulfilled" ? extractArray(activeDispatchesPayload.value) : [];
+
+      const dispatchedOrderIds = new Set<string>();
+      const dispatchedOrderNumbers = new Set<string>();
+      const dispatchedWorkOrderIds = new Set<string>();
+      const dispatchedItemIds = new Set<string>();
+
+      rawActiveDispatches.forEach((d: any) => {
+        const st = String(d.status || "").toUpperCase();
+        if (["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "DISPATCHED", "SHIPPED", "COMPLETED"].includes(st)) {
+          if (d.salesOrderId) dispatchedOrderIds.add(String(d.salesOrderId));
+          if (d.salesOrder?.id) dispatchedOrderIds.add(String(d.salesOrder.id));
+          if (d.salesOrder?.orderNumber) {
+            const rawNo = String(d.salesOrder.orderNumber).trim().toUpperCase();
+            dispatchedOrderNumbers.add(rawNo);
+            dispatchedOrderNumbers.add(rawNo.replace(/\s+/g, ""));
+          }
+          if (d.dispatchNo) {
+            const rawNo = String(d.dispatchNo).trim().toUpperCase();
+            dispatchedOrderNumbers.add(rawNo);
+            dispatchedOrderNumbers.add(rawNo.replace(/\s+/g, ""));
+          }
+          if (Array.isArray(d.items)) {
+            d.items.forEach((it: any) => {
+              if (it.salesOrderItemId) dispatchedItemIds.add(String(it.salesOrderItemId));
+              if (it.workOrderId) dispatchedWorkOrderIds.add(String(it.workOrderId));
+              if (it.salesOrderItem?.id) dispatchedItemIds.add(String(it.salesOrderItem.id));
+            });
+          }
+        }
+      });
+
       unifiedWorkOrders.forEach(addOrMerge);
       unifiedFinishedGoods.forEach(addOrMerge);
       unifiedDirectDispatches.forEach(addOrMerge);
       unifiedSalesOrders.forEach(addOrMerge);
 
-      return combined;
+      const isAlreadyDispatched = (item: UnifiedPendingDispatchItem): boolean => {
+        if (item.salesOrderId && dispatchedOrderIds.has(String(item.salesOrderId))) return true;
+        if (item.workOrderId && dispatchedWorkOrderIds.has(String(item.workOrderId))) return true;
+        if (item.salesOrderItemId && dispatchedItemIds.has(String(item.salesOrderItemId))) return true;
+        
+        const cleanOrderNo = String(item.orderNumber || "").trim().toUpperCase();
+        const cleanOrderNoNoSpaces = cleanOrderNo.replace(/\s+/g, "");
+        if (cleanOrderNo && dispatchedOrderNumbers.has(cleanOrderNo)) return true;
+        if (cleanOrderNoNoSpaces && dispatchedOrderNumbers.has(cleanOrderNoNoSpaces)) return true;
+
+        return false;
+      };
+
+      return combined.filter((item) => !isAlreadyDispatched(item));
     },
   });
 
