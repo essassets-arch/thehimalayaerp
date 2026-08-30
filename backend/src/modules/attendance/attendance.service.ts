@@ -191,6 +191,11 @@ export class AttendanceService {
       throw new BadRequestException('Camera selfie verification is required');
     }
 
+    const savedSelfieUrl = saveBase64Image(selfie, 'attendance');
+    if (!savedSelfieUrl) {
+      throw new BadRequestException('Invalid selfie format');
+    }
+
     const testMode = process.env.ATTENDANCE_TEST_MODE === 'true' || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
 
     if (body.isBiometricCard && !testMode) {
@@ -206,14 +211,6 @@ export class AttendanceService {
       if (accuracyVal <= 0) {
         throw new BadRequestException('GPS accuracy must be a positive number.');
       }
-      if (accuracyVal > 50 && !testMode) {
-        throw new BadRequestException(`GPS accuracy of ${Math.round(accuracyVal)}m exceeds the 50m maximum threshold. Please wait for a stronger GPS signal.`);
-      }
-    }
-
-    const savedSelfieUrl = saveBase64Image(selfie, 'attendance');
-    if (!savedSelfieUrl) {
-      throw new BadRequestException('Invalid selfie format');
     }
 
     const now = new Date();
@@ -249,21 +246,21 @@ export class AttendanceService {
         userId,
         employeeId,
         attendanceDate: startOfDay,
+        status: 'PUNCHED_IN',
         punchInAt: now,
         punchInLatitude: latitude,
         punchInLongitude: longitude,
-        punchInAccuracy: accuracy,
-        punchInAddress: address,
+        punchInAccuracy: accuracy ? Number(accuracy) : null,
+        punchInAddress: address || 'Recorded Attendance Location',
         punchInSelfieUrl: savedSelfieUrl,
         lateMinutes,
-        status: 'PUNCHED_IN',
       },
     });
 
     return this.mapTodayAttendance(attendance);
   }
 
-  // Centralized punch-out (Updates SAME attendance record)
+  // Centralized punch-out (Atomic)
   async punchOut(userId: string, companyId: string, body: any) {
     const employeeId = await this.getLinkedEmployeeId(userId);
 
@@ -277,6 +274,11 @@ export class AttendanceService {
     }
     if (!selfie) {
       throw new BadRequestException('Camera selfie verification is required');
+    }
+
+    const savedSelfieUrl = saveBase64Image(selfie, 'attendance');
+    if (!savedSelfieUrl) {
+      throw new BadRequestException('Invalid selfie format');
     }
 
     const testMode = process.env.ATTENDANCE_TEST_MODE === 'true' || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
@@ -294,14 +296,6 @@ export class AttendanceService {
       if (accuracyVal <= 0) {
         throw new BadRequestException('GPS accuracy must be a positive number.');
       }
-      if (accuracyVal > 50 && !testMode) {
-        throw new BadRequestException(`GPS accuracy of ${Math.round(accuracyVal)}m exceeds the 50m maximum threshold. Please wait for a stronger GPS signal.`);
-      }
-    }
-
-    const savedSelfieUrl = saveBase64Image(selfie, 'attendance');
-    if (!savedSelfieUrl) {
-      throw new BadRequestException('Invalid selfie format');
     }
 
     const now = new Date();

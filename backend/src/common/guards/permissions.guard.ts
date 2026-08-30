@@ -415,6 +415,8 @@ export class PermissionsGuard implements CanActivate {
       'hr.recruitment.requests.read.all': ['hr.recruitment.requests.read.all', 'hr.recruitment.requests.read.own', 'hr.recruitment.read', 'hr.read', 'admin.read', 'super-admin.read'],
       'hr.recruitment.requests.read.own': ['hr.recruitment.requests.read.own', 'hr.recruitment.requests.read.all', 'hr.recruitment.read', 'hr.read', 'user.read', 'admin.read', 'super-admin.read'],
       'hr.payroll.read': ['hr.payroll.read', 'hr.salary.read', 'hr.read', 'admin.read', 'super-admin.read'],
+      'production.reports.read': ['production.reports.read', 'production.productionworkflow.read', 'production.workorder.read', 'production.floor.read', 'production.plan.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'admin.read', 'super-admin.read', 'user.read'],
+      'admin.productionreports.read': ['production.reports.read', 'production.productionworkflow.read', 'production.workorder.read', 'production.floor.read', 'production.plan.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'admin.read', 'super-admin.read', 'user.read'],
     };
 
     const hasSinglePermission = (reqPerm: string): boolean => {
