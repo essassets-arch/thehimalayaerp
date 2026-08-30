@@ -284,7 +284,9 @@ function getDefaultPath(role: string): string {
     'Back Office': '/back-office/daily-report',
     'BACK_OFFICE': '/back-office/daily-report',
     'back-office': '/back-office/daily-report',
-    'Admin': '/admin/dashboard',
+    'Back Office / Admin': '/back-office/daily-report',
+    'Admin': '/back-office/daily-report',
+    'ADMIN': '/back-office/daily-report',
     'Super Admin': '/super-admin/dashboard',
   };
   return map[role] || '/sales/dashboard';
