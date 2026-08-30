@@ -182,15 +182,23 @@ export default function PaymentFollowupERPView({ orders = [] }) {
 
     if (!formValues) return;
     try {
+      const orderNo = order.order_number || order.orderNo || order.id;
+      const custName = order.customer_name || order.customerName || 'Customer';
+      const balAmt = Number(order.balance_amount ?? (Number(order.grand_total || 0) - Number(order.verified_paid_amount || 0)));
+
       await remindersService.create({
         moduleType: 'Payment',
         moduleId: String(order.id),
-        title: 'Payment Follow-up',
+        sourceType: 'Payment',
+        sourceId: String(order.id),
+        customerName: custName,
+        title: `Payment Follow-up: ${orderNo}`,
         description: formValues.note,
         reminderDate: formValues.nextDate,
         reminderTime: '10:00',
         reminderType: 'Payment Follow-up',
-        priority: 'Medium',
+        priority: 'High',
+        amount: balAmt,
         remarks: formValues.note
       });
       await Promise.all([refreshFollowups(), refreshPending()]);

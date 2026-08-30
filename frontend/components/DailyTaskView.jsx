@@ -91,14 +91,13 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
       if (activeTab === 'Payments') return ['PAYMENT', 'PAYMENT_FOLLOWUP', 'INVOICE'].includes(sType);
       if (activeTab === 'Orders') return ['ORDER', 'SALESORDER'].includes(sType);
       return true;
-    } else if (module === 'Sales') {
-      const isSalesType = ['LEAD', 'QUOTATION', 'SAMPLE', 'SAMPLEREQUEST'].includes(sType);
-      if (!isSalesType) return false;
-
+    } else if (module === 'Sales' || module === 'SuperSales') {
       if (activeTab === 'All') return true;
       if (activeTab === 'Leads') return sType === 'LEAD';
       if (activeTab === 'Quotations') return sType === 'QUOTATION';
       if (activeTab === 'Samples') return sType === 'SAMPLE' || sType === 'SAMPLEREQUEST';
+      if (activeTab === 'Payments') return ['PAYMENT', 'PAYMENT_FOLLOWUP', 'INVOICE'].includes(sType);
+      if (activeTab === 'Orders') return ['ORDER', 'SALESORDER'].includes(sType);
       return true;
     }
 
@@ -559,8 +558,6 @@ export default function DailyTaskView({ state, dispatch, navigate, showToast, mo
             ].filter(tab => {
               if (module === 'Finance') {
                 return ['All', 'Payments', 'Orders'].includes(tab.id);
-              } else if (module === 'Sales') {
-                return ['All', 'Leads', 'Quotations', 'Samples'].includes(tab.id);
               }
               return true;
             }).map(tab => {

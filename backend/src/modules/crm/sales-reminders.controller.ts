@@ -32,7 +32,7 @@ export class SalesRemindersController {
     const moduleTypeFilter = isFinance
       ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
       : isSales
-      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION'] }
+      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
       : undefined;
 
     const moduleWhere = moduleTypeFilter ? { moduleType: moduleTypeFilter } : {};
@@ -60,13 +60,14 @@ export class SalesRemindersController {
       ...moduleWhere,
     };
 
-    if (status) {
+    if (status && status !== 'All') {
       whereClause.status = status;
     }
+
     if (sourceType && sourceType !== 'All') {
-      const norm = normalizeSourceType(sourceType);
-      whereClause.moduleType = norm.moduleType;
+      whereClause.moduleType = sourceType;
     }
+
     if (dateQuery) {
       whereClause.reminderDate = dateQuery;
     }
@@ -97,7 +98,15 @@ export class SalesRemindersController {
         const quote = await this.prisma.quotation.findUnique({ where: { id: r.moduleId } });
         referenceNo = quote?.quotationNumber || 'N/A';
       } else if ((r.moduleType === 'Payment' || r.moduleType === 'SalesOrder') && r.moduleId) {
-        const order = await this.prisma.salesOrder.findUnique({ where: { id: r.moduleId } });
+        const order = await this.prisma.salesOrder.findFirst({
+          where: {
+            OR: [
+              { id: r.moduleId },
+              { orderNumber: r.moduleId },
+              { orderNumber: r.moduleId.replace(/^#/, '') },
+            ],
+          },
+        });
         referenceNo = order?.orderNumber || 'N/A';
       }
 
@@ -150,7 +159,7 @@ export class SalesRemindersController {
     const moduleTypeFilter = isFinance
       ? { in: ['Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'Finance', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
       : isSales
-      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION'] }
+      ? { in: ['Lead', 'Sample', 'SampleRequest', 'Quotation', 'Payment', 'PaymentFollowup', 'SalesOrder', 'Order', 'Invoice', 'LEAD', 'SAMPLE', 'SAMPLEREQUEST', 'QUOTATION', 'PAYMENT', 'PAYMENT_FOLLOWUP', 'SALESORDER', 'ORDER', 'INVOICE'] }
       : undefined;
 
     const whereClause: any = {
@@ -417,8 +426,17 @@ async function validateSourceOwnership(
     sourceRecord = await tx.sampleRequest.findUnique({ where: { id: moduleId } });
   } else if (typeUpper === 'QUOTATION') {
     sourceRecord = await tx.quotation.findUnique({ where: { id: moduleId } });
-  } else if (typeUpper === 'PAYMENT_FOLLOWUP' || typeUpper === 'PAYMENT' || typeUpper === 'SALESORDER') {
-    sourceRecord = await tx.salesOrder.findUnique({ where: { id: moduleId } });
+  } else if (typeUpper === 'PAYMENT_FOLLOWUP' || typeUpper === 'PAYMENT' || typeUpper === 'SALESORDER' || typeUpper === 'ORDER') {
+    sourceRecord = await tx.salesOrder.findFirst({
+      where: {
+        OR: [
+          { id: moduleId },
+          { orderNumber: moduleId },
+          { orderNumber: moduleId.replace(/^#/, '') },
+          { orderNumber: `ORD-${moduleId}` },
+        ],
+      },
+    });
   }
 
   if (!sourceRecord) {
