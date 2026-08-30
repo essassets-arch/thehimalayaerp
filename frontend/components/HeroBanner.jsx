@@ -591,6 +591,15 @@ export default function HeroBanner({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
+      // Allow touches and clicks inside notification dropdown whether portaled or inline
+      const notifEl = document.getElementById('notificationDropdown');
+      const bellBtn = document.getElementById('notificationBellBtn');
+      if (notifEl && (notifEl.contains(e.target) || notifEl === e.target)) {
+        return;
+      }
+      if (bellBtn && (bellBtn.contains(e.target) || bellBtn === e.target)) {
+        return;
+      }
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setShowNotifications(false);
       }
@@ -601,7 +610,11 @@ export default function HeroBanner({
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   // Manage body class for mobile scroll locking
@@ -1012,6 +1025,9 @@ export default function HeroBanner({
             const dropdownEl = (
               <div
                 id="notificationDropdown"
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 style={{
                   position: isMobile ? 'fixed' : 'absolute',
                   top: isMobile ? '76px' : 'calc(100% + 12px)',
