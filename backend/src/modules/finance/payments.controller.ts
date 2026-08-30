@@ -94,9 +94,11 @@ export class PaymentsController {
       customerId: string;
       salesOrderId: string;
       amount: number;
-      proofUrl: string;
+      proofUrl?: string;
       method?: string;
       transactionReference?: string;
+      bankName?: string;
+      paymentDate?: string;
       remarks?: string;
     },
     @Req() req: any,

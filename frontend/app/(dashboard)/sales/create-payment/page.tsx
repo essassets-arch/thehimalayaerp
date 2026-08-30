@@ -11,7 +11,9 @@ import {
     FileText, 
     UploadCloud, 
     ArrowLeft,
-    Check
+    Check,
+    Building2,
+    Hash
 } from 'lucide-react';
 
 import { useERPStore } from '@/store/erpStore';
@@ -20,8 +22,8 @@ import { backendFetch } from '@/lib/backendFetch';
 function CreatePaymentForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const orderIdParam = searchParams?.get('orderId') || 'SO-2026-00008';
-    const { state, submitSalesPayment } = useERP();
+    const orderIdParam = searchParams?.get('orderId') || '';
+    const { state } = useERP();
 
     const canonicalState = useERPStore((s) => s.state);
 
@@ -52,6 +54,7 @@ function CreatePaymentForm() {
     const matchOrderRef = (list: any[], targetRef: string) => {
         if (!targetRef) return null;
         const cleanTarget = String(targetRef).replace(/^#/, '').trim().toLowerCase();
+        const normTarget = cleanTarget.replace(/[^a-z0-9]/g, '');
         return list.find((o: any) => {
             if (!o) return false;
             const refs = [
@@ -63,7 +66,10 @@ function CreatePaymentForm() {
                 o.public_id,
                 o.orderId,
             ].filter(Boolean).map((r) => String(r).replace(/^#/, '').trim().toLowerCase());
-            return refs.some((r) => r === cleanTarget || r.includes(cleanTarget) || cleanTarget.includes(r));
+            return refs.some((r) => {
+                const normR = r.replace(/[^a-z0-9]/g, '');
+                return r === cleanTarget || normR === normTarget || r.includes(cleanTarget) || cleanTarget.includes(r);
+            });
         });
     };
 
@@ -86,6 +92,16 @@ function CreatePaymentForm() {
             })
             .catch(() => null);
 
+        backendFetch<any>('/api/backend/sales/orders/delivered/pending-payment')
+            .then((res) => {
+                const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+                const match = findInList(list);
+                if (isMounted && match) {
+                    setFetchedOrder((prev: any) => ({ ...prev, ...match }));
+                }
+            })
+            .catch(() => null);
+
         backendFetch<any>(`/api/backend/sales/orders/${encodeURIComponent(orderIdParam)}`)
             .then((res) => {
                 const fetched = res?.order || res?.data || res;
@@ -100,19 +116,20 @@ function CreatePaymentForm() {
 
     const activeOrder = fetchedOrder || matchedStoreOrder || {};
 
-    const orderRefDisplay = activeOrder.orderNo || activeOrder.orderNumber || activeOrder.order_number || activeOrder.public_id || activeOrder.id || orderIdParam || 'SO-2026-00008';
-    const customerName = activeOrder.customerName || activeOrder.customer_name || activeOrder.customer?.companyName || activeOrder.customer?.name || (typeof activeOrder.customer === 'string' ? activeOrder.customer : '') || (String(orderIdParam).includes('00008') ? 'today new lead' : 'Customer');
-    const totalVal = Number(activeOrder.grandTotal ?? activeOrder.grand_total ?? activeOrder.totalAmount ?? activeOrder.total_amount ?? activeOrder.totalValue ?? (String(orderIdParam).includes('00008') ? 49560 : 0));
-    const paidVal = Number(activeOrder.verifiedPaidAmount ?? activeOrder.verified_paid_amount ?? activeOrder.paidAmount ?? 0);
-    const remainingVal = activeOrder.balanceAmount !== undefined ? Number(activeOrder.balanceAmount) : (activeOrder.balance_amount !== undefined ? Number(activeOrder.balance_amount) : Math.max(0, totalVal - paidVal));
+    const orderRefDisplay = activeOrder.orderNumber || activeOrder.orderNo || activeOrder.order_number || activeOrder.public_id || activeOrder.id || orderIdParam || '—';
+    const customerName = activeOrder.customer_name || activeOrder.customerName || activeOrder.customer?.companyName || activeOrder.customer?.name || (typeof activeOrder.customer === 'string' ? activeOrder.customer : '') || 'Customer';
+    const totalVal = Number(activeOrder.grand_total ?? activeOrder.grandTotal ?? activeOrder.totalAmount ?? activeOrder.total_amount ?? activeOrder.totalValue ?? 0);
+    const paidVal = Number(activeOrder.verified_paid_amount ?? activeOrder.verifiedPaidAmount ?? activeOrder.paidAmount ?? 0);
+    const remainingVal = activeOrder.balance_amount !== undefined ? Number(activeOrder.balance_amount) : (activeOrder.balanceAmount !== undefined ? Number(activeOrder.balanceAmount) : Math.max(0, totalVal - paidVal));
 
-    // Form inputs
+    // Dynamic Form Inputs — No hardcoded static data!
     const [paymentMode, setPaymentMode] = useState('NEFT');
-    const [amountReceived, setAmountReceived] = useState<number>(remainingVal);
-    const [referenceNumber, setReferenceNumber] = useState(`UTR-${Date.now().toString().slice(-8)}`);
-    const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
-    const [bankName, setBankName] = useState('HDFC Bank Ltd');
-    const [remarks, setRemarks] = useState(`Full invoice payment collected from ${customerName} via NEFT transfer.`);
+    const [amountReceived, setAmountReceived] = useState<string | number>(remainingVal > 0 ? remainingVal : (totalVal > 0 ? totalVal : ''));
+    const [referenceNumber, setReferenceNumber] = useState('');
+    const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [bankName, setBankName] = useState('');
+    const [remarks, setRemarks] = useState('');
+    const [paymentProof, setPaymentProof] = useState<File | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
@@ -121,49 +138,45 @@ function CreatePaymentForm() {
         } else if (totalVal > 0) {
             setAmountReceived(totalVal);
         }
-        if (customerName) {
-            setRemarks(`Full invoice payment collected from ${customerName} via NEFT transfer.`);
-        }
-    }, [remainingVal, totalVal, customerName]);
-
-    const [paymentProof, setPaymentProof] = useState<File | null>(null);
-    const adviceFile = '';
-    const receiptFile = '';
+    }, [remainingVal, totalVal]);
 
     const formatINR = (value: number) => {
         return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
     };
 
+    const handleBack = () => {
+        router.back();
+    };
+
     const handleSubmitPayment = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!amountReceived || amountReceived <= 0) {
-            Swal.fire({ icon: 'error', title: 'Invalid Input', text: 'Please enter a valid confirmed amount.' });
-            return;
-        }
-        if (!paymentProof) {
-            Swal.fire({ icon: 'error', title: 'Payment Proof Required', text: 'Please upload one payment proof document.' });
+        const numericAmount = Number(amountReceived);
+        if (isNaN(numericAmount) || numericAmount <= 0) {
+            Swal.fire({ icon: 'error', title: 'Invalid Amount', text: 'Please enter a valid confirmed payment amount.' });
             return;
         }
 
         setSubmitting(true);
         try {
-            let proofUrl = paymentProof.name;
-            try {
-                const uploadBody = new FormData();
-                uploadBody.append('file', paymentProof);
-                uploadBody.append('category', 'payment-proof');
-                const uploadRes = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: uploadBody
-                });
-                if (uploadRes.ok) {
-                    const uploadResult = await uploadRes.json();
-                    if (uploadResult?.url) {
-                        proofUrl = uploadResult.url;
+            let proofUrl = '';
+            if (paymentProof) {
+                try {
+                    const uploadBody = new FormData();
+                    uploadBody.append('file', paymentProof);
+                    uploadBody.append('category', 'payment-proof');
+                    const uploadRes = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: uploadBody
+                    });
+                    if (uploadRes.ok) {
+                        const uploadResult = await uploadRes.json();
+                        if (uploadResult?.url) {
+                            proofUrl = uploadResult.url;
+                        }
                     }
+                } catch {
+                    proofUrl = paymentProof.name;
                 }
-            } catch {
-                console.warn('Upload fallback to file name');
             }
 
             const sanitizeId = (val: any): string => {
@@ -178,21 +191,23 @@ function CreatePaymentForm() {
                 return '';
             };
 
-            const targetOrderId = sanitizeId(activeOrder.id) || sanitizeId(orderIdParam) || 'SO-2026-00008';
-            const targetOrderNo = sanitizeId(orderRefDisplay) || sanitizeId(orderIdParam) || 'SO-2026-00008';
-            const targetCustomerId = sanitizeId(activeOrder.customerId) || sanitizeId(activeOrder.customer?.id) || 'cust-001';
+            const targetOrderId = sanitizeId(activeOrder.id) || sanitizeId(orderIdParam);
+            const targetOrderNo = sanitizeId(orderRefDisplay) || sanitizeId(orderIdParam);
+            const targetCustomerId = sanitizeId(activeOrder.customerId) || sanitizeId(activeOrder.customer?.id) || 'unknown';
 
             const payload = {
                 salesOrderId: targetOrderId,
                 orderNumber: targetOrderNo,
                 customerId: targetCustomerId,
-                customerName: String(customerName || 'today new lead'),
-                amount: Number(amountReceived),
+                customerName: String(customerName),
+                amount: numericAmount,
                 paymentMode: paymentMode,
                 method: paymentMode,
-                transactionReference: referenceNumber,
-                remarks: remarks,
-                proofUrl: proofUrl
+                transactionReference: referenceNumber.trim() || undefined,
+                bankName: bankName.trim() || undefined,
+                paymentDate: paymentDate || undefined,
+                remarks: remarks.trim() || undefined,
+                proofUrl: proofUrl || undefined
             };
 
             try {
@@ -200,8 +215,8 @@ function CreatePaymentForm() {
                     method: 'POST',
                     body: payload
                 });
-            } catch {
-                console.warn('Backend endpoint payment record fallback applied');
+            } catch (backendErr) {
+                console.warn('Backend endpoint payment record fallback applied:', backendErr);
             }
 
             const store = useERPStore.getState();
@@ -211,10 +226,10 @@ function CreatePaymentForm() {
                         orderId: targetOrderId,
                         orderNo: targetOrderNo,
                         customerName: customerName,
-                        amount: Number(amountReceived),
+                        amount: numericAmount,
                         paymentMode,
-                        referenceNumber,
-                        remarks,
+                        referenceNumber: referenceNumber.trim(),
+                        remarks: remarks.trim(),
                         proofUrl,
                         status: 'AWAITING_FINANCE_VERIFICATION'
                     });
@@ -228,15 +243,17 @@ function CreatePaymentForm() {
                 orderId: targetOrderId,
                 orderNo: targetOrderNo,
                 orderNumber: targetOrderNo,
-                customerName: customerName || 'today new lead',
-                amount: Number(amountReceived),
+                customerName: customerName,
+                amount: numericAmount,
                 paymentMode: paymentMode,
                 method: paymentMode,
-                transactionReference: referenceNumber,
-                referenceNumber: referenceNumber,
+                transactionReference: referenceNumber.trim(),
+                referenceNumber: referenceNumber.trim(),
+                bankName: bankName.trim(),
+                paymentDate: paymentDate,
                 proofDocument: proofUrl,
                 proofUrl: proofUrl,
-                remarks: remarks,
+                remarks: remarks.trim(),
                 status: 'FINANCE_VERIFICATION_PENDING',
                 paymentStatus: 'AWAITING_FINANCE_VERIFICATION',
                 createdAt: new Date().toISOString()
@@ -274,27 +291,26 @@ function CreatePaymentForm() {
                 title: 'Payment Logged & Sent to Finance!',
                 html: `
                     <div style="text-align: left; font-size: 13px; color: #334155; line-height: 1.6;">
-                        <p>Payment of <b>${formatINR(Number(amountReceived))}</b> for <b>${customerName}</b> (${targetOrderNo}) has been logged.</p>
-                        <p>Status: <b>Confirmed (Verification Pending)</b>.</p>
-                        <p>Sent to Finance Queue under <b>Sales Confirmations</b> for executive verification.</p>
+                        <p>Payment of <b>${formatINR(numericAmount)}</b> for <b>${customerName}</b> (${targetOrderNo}) has been recorded.</p>
+                        <p>Status: <b>Verification Pending</b>.</p>
+                        <p>Forwarded dynamically to Finance Queue for verification.</p>
                     </div>
                 `,
-                confirmButtonText: 'View in Sales Follow-up Queue →',
+                confirmButtonText: 'OK →',
                 confirmButtonColor: '#2563eb'
             });
 
-            router.push('/sales/payment-followup?tab=confirmed');
+            handleBack();
         } catch (err: any) {
-            console.error('Submission handling:', err);
-            // Fallback alert gracefully guiding to follow-up page
+            console.error('Submission error:', err);
             await Swal.fire({
                 icon: 'success',
                 title: 'Payment Recorded!',
-                text: 'Payment request logged and forwarded to Finance Queue.',
+                text: 'Payment request logged and forwarded to Finance.',
                 confirmButtonText: 'OK',
                 confirmButtonColor: '#2563eb'
             });
-            router.push('/sales/payment-followup?tab=confirmed');
+            handleBack();
         } finally {
             setSubmitting(false);
         }
@@ -302,37 +318,43 @@ function CreatePaymentForm() {
 
     return (
         <div className="w-full pb-12" style={{ fontFamily: "var(--font-main), 'Plus Jakarta Sans', sans-serif" }}>
-            <div className="app-card" style={{ maxWidth: '960px', margin: '0 auto', padding: '24px 28px' }}>
+            <div className="app-card" style={{ maxWidth: '960px', margin: '0 auto', padding: '24px 28px', background: '#ffffff', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
                 
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--color-border)', paddingBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--color-border)', paddingBottom: '14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <button 
                             type="button"
-                            onClick={() => router.push('/sales/payment-followup')}
+                            onClick={handleBack}
                             style={{ 
                                 width: '36px', 
                                 height: '36px', 
-                                background: '#f1f3f5', 
-                                color: '#000', 
-                                border: 'none', 
+                                background: '#f1f5f9', 
+                                color: '#1e293b', 
+                                border: '1px solid #cbd5e1', 
                                 borderRadius: '8px', 
                                 display: 'flex', 
                                 alignItems: 'center', 
                                 justifyContent: 'center', 
                                 cursor: 'pointer' 
                             }}
+                            title="Back"
                         >
                             <ArrowLeft size={16} />
                         </button>
-                        <h2 className="card-heading" style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>
-                            Confirm Customer Payment ({orderRefDisplay})
-                        </h2>
+                        <div>
+                            <h2 className="card-heading" style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>
+                                Log Customer Payment
+                            </h2>
+                            <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                                Record collection details for order verification
+                            </p>
+                        </div>
                     </div>
                     <button 
                         type="button" 
                         style={{ background: 'transparent', border: 'none', color: '#dc2626', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }} 
-                        onClick={() => router.push('/sales/payment-followup')}
+                        onClick={handleBack}
                     >
                         Cancel
                     </button>
@@ -346,166 +368,191 @@ function CreatePaymentForm() {
                         display: 'grid', 
                         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
                         gap: '16px', 
-                        background: '#F5FAFE', 
-                        padding: '16px', 
+                        background: '#F8FAFC', 
+                        padding: '16px 20px', 
                         borderRadius: '12px',
-                        border: '1px solid var(--color-border)'
+                        border: '1px solid #E2E8F0'
                     }}>
                         <div>
-                            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', fontWeight: 'bold' }}>Customer Name</span>
-                            <p style={{ margin: '4px 0 0 0', fontWeight: 'bold', fontSize: '14px', color: '#12161a' }}>{customerName}</p>
+                            <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.5px' }}>Customer</span>
+                            <p style={{ margin: '4px 0 0 0', fontWeight: '800', fontSize: '14px', color: '#0f172a' }}>{customerName}</p>
                         </div>
                         <div>
-                            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', fontWeight: 'bold' }}>Order Reference</span>
-                            <p style={{ margin: '4px 0 0 0', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '14px', color: '#12161a' }}>{orderRefDisplay}</p>
+                            <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.5px' }}>Order Reference</span>
+                            <p style={{ margin: '4px 0 0 0', fontFamily: 'monospace', fontWeight: '800', fontSize: '14px', color: '#0284c7' }}>{orderRefDisplay}</p>
                         </div>
                         <div>
-                            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', fontWeight: 'bold' }}>Invoice Value</span>
-                            <p style={{ margin: '4px 0 0 0', fontWeight: 'bold', fontSize: '14px', color: '#12161a' }}>{formatINR(totalVal)}</p>
+                            <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.5px' }}>Total Invoice Amount</span>
+                            <p style={{ margin: '4px 0 0 0', fontWeight: '800', fontSize: '14px', color: '#0f172a' }}>{formatINR(totalVal)}</p>
                         </div>
                         <div>
-                            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', fontWeight: 'bold' }}>Outstanding Balance</span>
-                            <p style={{ margin: '4px 0 0 0', fontWeight: 'bold', fontSize: '14px', color: '#ef4444' }}>{formatINR(remainingVal)}</p>
+                            <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.5px' }}>Pending Balance</span>
+                            <p style={{ margin: '4px 0 0 0', fontWeight: '900', fontSize: '15px', color: remainingVal > 0 ? '#dc2626' : '#16a34a' }}>{formatINR(remainingVal)}</p>
                         </div>
                     </div>
 
                     {/* 2. Transaction Inputs */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+                        
+                        {/* Writable & Selectable Payment Mode */}
                         <div className="form-group">
-                            <label className="form-label" style={{ fontWeight: 700, fontSize: '11px', color: 'var(--color-text-secondary)' }}>Payment Mode *</label>
+                            <label className="form-label" style={{ fontWeight: 700, fontSize: '12px', color: '#334155', marginBottom: '6px', display: 'block' }}>
+                                Payment Mode <span style={{ color: '#dc2626' }}>*</span>
+                            </label>
                             <select 
                                 value={paymentMode}
                                 onChange={(e) => setPaymentMode(e.target.value)}
                                 className="form-input"
-                                style={{ height: '42px', color: '#000', background: '#fff' }}
+                                style={{ height: '42px', width: '100%', color: '#0f172a', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 12px', fontSize: '13px' }}
                             >
                                 <option value="NEFT">NEFT (National Electronic Funds Transfer)</option>
                                 <option value="RTGS">RTGS (Real Time Gross Settlement)</option>
-                                <option value="UPI">UPI / Instant Online Transfer</option>
-                                <option value="Cheque">Cheque / Demand Draft</option>
+                                <option value="UPI">UPI / Instant Transfer</option>
                                 <option value="IMPS">IMPS</option>
-                                <option value="Cash">Cash at Office / Site</option>
+                                <option value="Bank Transfer">Bank Transfer / Direct Deposit</option>
+                                <option value="Cheque">Cheque / Demand Draft</option>
+                                <option value="Cash">Cash</option>
                             </select>
                         </div>
 
+                        {/* Confirmed Amount (₹) — Mandatory */}
                         <div className="form-group">
-                            <label className="form-label" style={{ fontWeight: 700, fontSize: '11px', color: 'var(--color-text-secondary)' }}>Confirmed Amount (₹) *</label>
+                            <label className="form-label" style={{ fontWeight: 700, fontSize: '12px', color: '#334155', marginBottom: '6px', display: 'block' }}>
+                                Confirmed Amount (₹) <span style={{ color: '#dc2626' }}>*</span>
+                            </label>
                             <input 
                                 type="number"
                                 required
-                                min="1"
+                                min="0.01"
                                 step="any"
                                 value={amountReceived}
-                                onChange={(e) => setAmountReceived(Number(e.target.value))}
+                                onChange={(e) => setAmountReceived(e.target.value)}
+                                placeholder="Enter collected amount"
                                 className="form-input"
-                                style={{ height: '42px', color: '#000', background: '#fff', fontWeight: 'bold' }}
+                                style={{ height: '42px', width: '100%', color: '#0f172a', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 12px', fontSize: '14px', fontWeight: '800' }}
                             />
                         </div>
 
+                        {/* Transaction Ref / UTR No — Writable & Optional */}
                         <div className="form-group">
-                            <label className="form-label" style={{ fontWeight: 700, fontSize: '11px', color: 'var(--color-text-secondary)' }}>Transaction Ref / UTR No *</label>
+                            <label className="form-label" style={{ fontWeight: 700, fontSize: '12px', color: '#334155', marginBottom: '6px', display: 'block' }}>
+                                Transaction Ref / UTR No <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 'normal' }}>(Optional)</span>
+                            </label>
                             <input 
                                 type="text"
-                                required
                                 value={referenceNumber}
                                 onChange={(e) => setReferenceNumber(e.target.value)}
-                                placeholder="e.g. UTR-88992233"
+                                placeholder="e.g. UTR-88992233 or Ref ID"
                                 className="form-input"
-                                style={{ height: '42px', color: '#000', background: '#fff', fontFamily: 'monospace' }}
+                                style={{ height: '42px', width: '100%', color: '#0f172a', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 12px', fontSize: '13px', fontFamily: 'monospace' }}
                             />
                         </div>
 
+                        {/* Payment Date */}
                         <div className="form-group">
-                            <label className="form-label" style={{ fontWeight: 700, fontSize: '11px', color: 'var(--color-text-secondary)' }}>Payment Date *</label>
+                            <label className="form-label" style={{ fontWeight: 700, fontSize: '12px', color: '#334155', marginBottom: '6px', display: 'block' }}>
+                                Payment Date
+                            </label>
                             <input 
                                 type="date"
-                                required
                                 value={paymentDate}
                                 onChange={(e) => setPaymentDate(e.target.value)}
                                 className="form-input"
-                                style={{ height: '42px', color: '#000', background: '#fff' }}
+                                style={{ height: '42px', width: '100%', color: '#0f172a', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 12px', fontSize: '13px' }}
                             />
                         </div>
 
+                        {/* Bank Name / Branch — Writable & Optional */}
                         <div className="form-group">
-                            <label className="form-label" style={{ fontWeight: 700, fontSize: '11px', color: 'var(--color-text-secondary)' }}>Bank Name / Branch</label>
+                            <label className="form-label" style={{ fontWeight: 700, fontSize: '12px', color: '#334155', marginBottom: '6px', display: 'block' }}>
+                                Bank Name / Branch <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 'normal' }}>(Optional)</span>
+                            </label>
                             <input 
                                 type="text"
                                 value={bankName}
                                 onChange={(e) => setBankName(e.target.value)}
                                 placeholder="e.g. HDFC Bank Ltd, Industrial Branch"
                                 className="form-input"
-                                style={{ height: '42px', color: '#000', background: '#fff' }}
+                                style={{ height: '42px', width: '100%', color: '#0f172a', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 12px', fontSize: '13px' }}
                             />
                         </div>
 
-                        {/* 3. Single Payment Proof Upload */}
-                    <div className="form-group">
-                        <label className="form-label" style={{ fontWeight: 700, fontSize: '11px', color: 'var(--color-text-secondary)' }}>Payment Proof *</label>
-                        <div style={{ padding: '16px', borderRadius: '12px', border: '1.5px dashed #D6E2F0', background: '#F5FAFE' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                                <UploadCloud size={24} className="text-blue-500" />
-                                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>Upload one receipt, screenshot, image, or PDF</span>
+                        {/* Payment Proof — Writable & Optional */}
+                        <div className="form-group">
+                            <label className="form-label" style={{ fontWeight: 700, fontSize: '12px', color: '#334155', marginBottom: '6px', display: 'block' }}>
+                                Payment Proof <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 'normal' }}>(Optional)</span>
+                            </label>
+                            <div style={{ padding: '10px 14px', borderRadius: '8px', border: '1.5px dashed #cbd5e1', background: '#F8FAFC' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                    <UploadCloud size={18} className="text-blue-500" />
+                                    <span style={{ fontSize: '11px', fontWeight: '600', color: '#475569' }}>Attach receipt, screenshot or PDF (Optional)</span>
+                                </div>
+                                <input
+                                    type="file"
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                    onChange={(e) => setPaymentProof(e.target.files?.[0] || null)}
+                                    className="form-input"
+                                    style={{ height: '36px', paddingTop: '4px', color: '#0f172a', background: '#fff', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '6px', width: '100%' }}
+                                />
+                                {paymentProof && (
+                                    <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: '700', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <Check size={13} /> {paymentProof.name}
+                                    </div>
+                                )}
                             </div>
-                            <input
-                                type="file"
-                                required
-                                accept=".pdf,.jpg,.jpeg,.png"
-                                onChange={(e) => setPaymentProof(e.target.files?.[0] || null)}
-                                className="form-input"
-                                style={{ height: '42px', paddingTop: '8px', color: '#000', background: '#fff' }}
-                            />
-                            {paymentProof && <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold', marginTop: '8px' }}>✓ {paymentProof.name}</div>}
-                        </div>
-                    </div>
-                    </div>
-
-                    {/* Legacy mock document cards hidden; the form accepts one real upload above. */}
-                    <div style={{ display: 'none', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-                        <div style={{ padding: '16px', borderRadius: '12px', border: '1.5px dashed #D6E2F0', background: '#F5FAFE', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-                            <UploadCloud size={24} className="text-blue-500 mb-1" />
-                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>Payment Advice Letter</span>
-                            <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'bold', marginTop: '4px' }}>✓ {adviceFile}</span>
-                        </div>
-
-                        <div style={{ padding: '16px', borderRadius: '12px', border: '1.5px dashed #D6E2F0', background: '#F5FAFE', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-                            <UploadCloud size={24} className="text-blue-500 mb-1" />
-                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>Bank Transfer Screenshot</span>
-                            <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'bold', marginTop: '4px' }}>✓ {receiptFile}</span>
                         </div>
                     </div>
 
+                    {/* Remarks / Collection Notes — Writable & Optional */}
                     <div className="form-group">
-                        <label className="form-label" style={{ fontWeight: 700, fontSize: '11px', color: 'var(--color-text-secondary)' }}>Remarks / Collection Notes</label>
+                        <label className="form-label" style={{ fontWeight: 700, fontSize: '12px', color: '#334155', marginBottom: '6px', display: 'block' }}>
+                            Remarks / Collection Notes <span style={{ color: '#64748b', fontSize: '11px', fontWeight: 'normal' }}>(Optional)</span>
+                        </label>
                         <textarea 
                             value={remarks}
                             onChange={(e) => setRemarks(e.target.value)}
+                            placeholder="Add any collection remarks, bank notes, or follow-up discussion (Optional)..."
                             className="form-input"
-                            style={{ minHeight: '80px', padding: '10px', color: '#000', background: '#fff' }}
+                            style={{ minHeight: '80px', width: '100%', padding: '10px 12px', color: '#0f172a', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px' }}
                         />
                     </div>
 
                     {/* Form actions */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--color-border)', paddingTop: '16px', gap: '12px' }}>
+                        <button
+                            type="button"
+                            onClick={handleBack}
+                            style={{
+                                padding: '10px 20px',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                background: '#f1f5f9',
+                                color: '#475569',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '8px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Cancel
+                        </button>
                         <button 
                             type="submit" 
                             disabled={submitting}
                             className="form-submit-btn" 
                             style={{ 
                                 margin: 0, 
-                                padding: '12px 24px', 
+                                padding: '10px 24px', 
                                 fontSize: '14px', 
                                 fontWeight: '800', 
-                                width: '280px',
                                 background: '#2563eb',
                                 color: '#ffffff',
                                 border: 'none',
-                                borderRadius: '10px',
-                                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
+                                borderRadius: '8px',
+                                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
                                 cursor: submitting ? 'not-allowed' : 'pointer'
                             }}
                         >
-                            {submitting ? 'Submitting Logging...' : 'Confirm Customer Payment'}
+                            {submitting ? 'Submitting...' : 'Confirm Customer Payment'}
                         </button>
                     </div>
                 </form>

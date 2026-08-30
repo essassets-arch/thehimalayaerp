@@ -618,20 +618,19 @@ export class PaymentsService {
       customerId: string;
       salesOrderId: string;
       amount: number;
-      proofUrl: string;
+      proofUrl?: string;
       method?: string;
       transactionReference?: string;
+      bankName?: string;
+      paymentDate?: string;
       remarks?: string;
     },
     userId?: string,
   ) {
-    if (!dto.proofUrl)
-      throw new BadRequestException('Payment proof image is required');
-
     let order = await this.prisma.salesOrder
       .findUnique({
         where: { id: dto.salesOrderId },
-        select: { id: true, customerId: true },
+        select: { id: true, customerId: true, orderNumber: true },
       })
       .catch(() => null);
 
@@ -645,7 +644,7 @@ export class PaymentsService {
               { orderNumber: dto.salesOrderId.replace(/^#/, '') },
             ],
           },
-          select: { id: true, customerId: true },
+          select: { id: true, customerId: true, orderNumber: true },
         })
         .catch(() => null);
     }
@@ -657,8 +656,18 @@ export class PaymentsService {
       }
     }
 
+    const remarksParts = [
+      dto.remarks,
+      dto.bankName ? `Bank: ${dto.bankName}` : '',
+      dto.paymentDate ? `Date: ${dto.paymentDate}` : '',
+    ].filter(Boolean);
+    const combinedRemarks = remarksParts.join(' | ') || undefined;
+
     try {
-      const payment = await this.createPayment(dto, userId);
+      const payment = await this.createPayment({
+        ...dto,
+        remarks: combinedRemarks,
+      }, userId);
       return this.submitForVerification(payment.id, userId);
     } catch (e) {
       return {
