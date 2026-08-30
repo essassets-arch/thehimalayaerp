@@ -508,17 +508,37 @@ export class ProcurementService {
           throw new BadRequestException(`Purchase order is in ${po.status} status and cannot receive deliveries.`);
         }
 
-        // 2. Idempotency Check: Prevent duplicate delivery verification with the same Challan or Invoice
-        if (dto.deliveryChallanNumber || dto.invoiceNumber) {
+        // 2. Full fulfillment check
+        const allItemsFulfilled = (po.items || []).length > 0 && (po.items || []).every((i: any) =>
+          MONEY(i.receivedQuantity).gte(i.quantity),
+        );
+        if (allItemsFulfilled && !dto.isReplacement) {
+          throw new BadRequestException(
+            `Purchase order "${po.poNumber || po.publicId || po.id}" is already completely delivered and fulfilled.`,
+          );
+        }
+
+        // 3. Idempotency Check: Prevent duplicate delivery verification with the same Challan, Invoice or Idempotency Key (ignoring empty strings)
+        const cleanChallan = typeof dto.deliveryChallanNumber === 'string' ? dto.deliveryChallanNumber.trim() : '';
+        const cleanInvoice = typeof dto.invoiceNumber === 'string' ? dto.invoiceNumber.trim() : '';
+        const idempotencyKey = typeof dto.idempotencyKey === 'string' ? dto.idempotencyKey.trim() : '';
+
+        if (cleanChallan || cleanInvoice || idempotencyKey) {
           const existingGrn = (po.grns || []).find((g: any) => {
             const snap = (g.snapshot as any) || {};
-            const matchChallan = dto.deliveryChallanNumber && snap.deliveryChallanNumber && snap.deliveryChallanNumber === dto.deliveryChallanNumber;
-            const matchInvoice = dto.invoiceNumber && snap.invoiceNumber && snap.invoiceNumber === dto.invoiceNumber;
-            return matchChallan || matchInvoice;
+            const snapChallan = typeof snap.deliveryChallanNumber === 'string' ? snap.deliveryChallanNumber.trim() : '';
+            const snapInvoice = typeof snap.invoiceNumber === 'string' ? snap.invoiceNumber.trim() : '';
+            const snapKey = typeof snap.idempotencyKey === 'string' ? snap.idempotencyKey.trim() : '';
+
+            const matchChallan = cleanChallan && snapChallan && snapChallan.toLowerCase() === cleanChallan.toLowerCase();
+            const matchInvoice = cleanInvoice && snapInvoice && snapInvoice.toLowerCase() === cleanInvoice.toLowerCase();
+            const matchKey = idempotencyKey && snapKey && snapKey === idempotencyKey;
+
+            return Boolean(matchChallan || matchInvoice || matchKey);
           });
           if (existingGrn) {
             throw new BadRequestException(
-              `Delivery with Challan/Invoice "${dto.deliveryChallanNumber || dto.invoiceNumber}" has already been verified for this Purchase Order (GRN: ${existingGrn.grnNumber || existingGrn.publicId}).`,
+              `Delivery with Challan/Invoice/Key "${cleanChallan || cleanInvoice || idempotencyKey}" has already been verified for this Purchase Order (GRN: ${existingGrn.grnNumber || existingGrn.publicId}).`,
             );
           }
         }
