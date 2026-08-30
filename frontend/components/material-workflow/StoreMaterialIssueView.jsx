@@ -33,10 +33,21 @@ export default function StoreMaterialIssueView() {
       await updateStatus.mutateAsync({
         id: request.id,
         status: 'STORE_APPROVED',
-        items: request.items.map(item => ({ ...item, issuedQty: item.approvedQty })),
+        items: request.items.map(item => ({ ...item, issuedQty: item.issuedQty || 0 })),
         metadata: { storeApprovedBy: actor },
       });
-      await Swal.fire('Store Approved', 'Request moved to Store Releases. Inventory has not been deducted.', 'success');
+      const result = await Swal.fire({
+        title: 'Store Approved!',
+        text: `Material Request ${request.requestNo || request.publicId || request.id} approved and moved to Store Releases. Store user can now issue materials.`,
+        icon: 'success',
+        showCancelButton: true,
+        confirmButtonText: 'Go to Store Releases ➔',
+        cancelButtonText: 'Stay on this page',
+        confirmButtonColor: '#0f766e',
+      });
+      if (result.isConfirmed) {
+        window.location.href = '/store/store-releases';
+      }
     } catch (error) {
       await Swal.fire('Cannot approve', error.message, 'error');
     }

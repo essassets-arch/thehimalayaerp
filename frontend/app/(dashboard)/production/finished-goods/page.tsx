@@ -154,9 +154,9 @@ export default function FinishedGoodsPage() {
 
     setDispatchSendingMap((prev) => ({ ...prev, [rowKey]: true }));
     try {
-      const woId = row.workOrder?.id || row.workOrderId || row.salesOrderId || row.salesOrder?.id || row.id;
-      if (!woId) throw new Error("Order identifier missing");
-      await backendFetch(`/api/backend/production/work-orders/${woId}/send-to-dispatch`, {
+      const targetId = row.workOrder?.id || row.workOrderId || row.salesOrderId || row.salesOrder?.id || row.id || row.jobNo;
+      if (!targetId) throw new Error("Order identifier missing");
+      await backendFetch(`/api/backend/production/work-orders/${encodeURIComponent(targetId)}/send-to-dispatch`, {
         method: "POST",
       });
       toast.success("Order sent to Dispatch successfully!");

@@ -933,6 +933,148 @@ export class DispatchService {
       });
     }
 
+    // 3. Also fetch WorkOrders marked as READY_FOR_DISPATCH
+    try {
+      const readyWorkOrders = await this.prisma.workOrder.findMany({
+        where: {
+          OR: [
+            { status: 'READY_FOR_DISPATCH' },
+            { productionStatus: 'READY_FOR_DISPATCH' },
+            { sentToDispatchAt: { not: null } },
+          ],
+        },
+        include: {
+          salesOrderItem: { include: { product: true } },
+          productionPlan: { include: { salesOrder: { include: { customer: true } } } },
+        },
+      });
+
+      for (const wo of readyWorkOrders) {
+        const salesOrder = wo.productionPlan?.salesOrder;
+        const customer = salesOrder?.customer;
+        const product = wo.salesOrderItem?.product;
+        const dispatchCat = product?.dispatchCategory || 'D1';
+
+        if (userCategory) {
+          const c1 = String(dispatchCat).trim().toUpperCase();
+          const c2 = String(userCategory).trim().toUpperCase();
+          let matches = c1 === c2;
+          if ((c1 === 'D1' || c1 === 'DISPATCH 1') && (c2 === 'D1' || c2 === 'DISPATCH 1')) matches = true;
+          if ((c1 === 'D2' || c1 === 'DISPATCH 2') && (c2 === 'D2' || c2 === 'DISPATCH 2')) matches = true;
+          if (!matches) continue;
+        }
+
+        const key = salesOrder?.id || wo.id;
+        if (!ordersMap.has(key)) {
+          ordersMap.set(key, {
+            id: `wo-${wo.id}`,
+            orderId: salesOrder?.orderNumber || wo.workOrderNumber,
+            orderNo: salesOrder?.orderNumber || wo.workOrderNumber,
+            salesOrderId: salesOrder?.id || null,
+            workOrderId: wo.id,
+            batchId: product?.sku || wo.workOrderNumber || 'FG-PROD',
+            customerName: customer?.companyName || customer?.name || 'Production Dispatch',
+            deliveryAddress: typeof salesOrder?.shippingAddress === 'string'
+              ? salesOrder.shippingAddress
+              : (salesOrder?.shippingAddress ? JSON.stringify(salesOrder.shippingAddress) : 'Factory Staging Area'),
+            status: 'READY_FOR_DISPATCH',
+            items: [],
+          });
+        }
+
+        const orderRow = ordersMap.get(key);
+        const existingItem = orderRow.items.find((i: any) => i.workOrderId === wo.id || (i.productId === (product?.id || wo.productId)));
+        if (!existingItem) {
+          orderRow.items.push({
+            allocationId: `wo-${wo.id}`,
+            workOrderId: wo.id,
+            salesOrderItemId: wo.salesOrderItemId,
+            productId: product?.id || wo.productId,
+            productCode: wo.salesOrderItem?.productCodeSnapshot || product?.sku || product?.publicId || '',
+            productName: wo.salesOrderItem?.productNameSnapshot || product?.name || 'Finished Product',
+            approvedQuantity: Number(wo.quantity || 1),
+            dispatchableQuantity: Number(wo.quantity || 1),
+            unit: wo.salesOrderItem?.unit || product?.unit || 'PCS',
+            dispatchCategory: dispatchCat,
+          });
+        }
+      }
+    } catch (woErr) {
+      console.warn('[getDispatchQueue] Failed to query ready work orders:', woErr);
+    }
+
+    // 4. Also fetch FinishedGoods with status READY_FOR_DISPATCH
+    try {
+      const readyFinishedGoods = await this.prisma.finishedGoods.findMany({
+        where: {
+          status: 'READY_FOR_DISPATCH',
+        },
+        include: {
+          product: true,
+          workOrder: {
+            include: {
+              salesOrderItem: { include: { product: true } },
+              productionPlan: { include: { salesOrder: { include: { customer: true } } } },
+            },
+          },
+        },
+      });
+
+      for (const fg of readyFinishedGoods) {
+        const wo = fg.workOrder;
+        const salesOrder = wo?.productionPlan?.salesOrder;
+        const customer = salesOrder?.customer;
+        const product = fg.product || wo?.salesOrderItem?.product;
+        const dispatchCat = product?.dispatchCategory || 'D1';
+
+        if (userCategory) {
+          const c1 = String(dispatchCat).trim().toUpperCase();
+          const c2 = String(userCategory).trim().toUpperCase();
+          let matches = c1 === c2;
+          if ((c1 === 'D1' || c1 === 'DISPATCH 1') && (c2 === 'D1' || c2 === 'DISPATCH 1')) matches = true;
+          if ((c1 === 'D2' || c1 === 'DISPATCH 2') && (c2 === 'D2' || c2 === 'DISPATCH 2')) matches = true;
+          if (!matches) continue;
+        }
+
+        const key = salesOrder?.id || fg.id;
+        if (!ordersMap.has(key)) {
+          ordersMap.set(key, {
+            id: `fg-${fg.id}`,
+            orderId: salesOrder?.orderNumber || fg.jobNo || 'FG-DISPATCH',
+            orderNo: salesOrder?.orderNumber || fg.jobNo || 'FG-DISPATCH',
+            salesOrderId: salesOrder?.id || null,
+            workOrderId: fg.workOrderId || null,
+            batchId: product?.sku || fg.jobNo || 'FG-STOCK',
+            customerName: customer?.companyName || customer?.name || 'Factory Finished Goods',
+            deliveryAddress: typeof salesOrder?.shippingAddress === 'string'
+              ? salesOrder.shippingAddress
+              : (salesOrder?.shippingAddress ? JSON.stringify(salesOrder.shippingAddress) : 'Factory Staging Area'),
+            status: 'READY_FOR_DISPATCH',
+            items: [],
+          });
+        }
+
+        const orderRow = ordersMap.get(key);
+        const existingItem = orderRow.items.find((i: any) => i.fgId === fg.id || i.productId === (product?.id || fg.productId));
+        if (!existingItem) {
+          orderRow.items.push({
+            allocationId: `fg-${fg.id}`,
+            fgId: fg.id,
+            workOrderId: fg.workOrderId,
+            productId: product?.id || fg.productId,
+            productCode: product?.sku || product?.publicId || '',
+            productName: product?.name || 'Finished Product',
+            approvedQuantity: Number(fg.quantity || 1),
+            dispatchableQuantity: Number(fg.availableQuantity ?? fg.quantity ?? 1),
+            unit: fg.unit || product?.unit || 'PCS',
+            dispatchCategory: dispatchCat,
+          });
+        }
+      }
+    } catch (fgErr) {
+      console.warn('[getDispatchQueue] Failed to query ready finished goods:', fgErr);
+    }
+
     return Array.from(ordersMap.values());
   }
 }

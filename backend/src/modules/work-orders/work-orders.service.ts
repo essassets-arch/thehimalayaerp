@@ -271,21 +271,33 @@ export class WorkOrdersService {
 
   async sendToDispatch(id: string, userId: string) {
     const rawId = String(id || '').trim();
-    const cleanId = rawId.replace(/^fg-wo-/, '').replace(/^fg-so-/, '').split('-')[0] || rawId;
+    const cleanId = rawId.replace(/^fg-wo-/, '').replace(/^fg-so-/, '');
+    let baseUuid = cleanId;
+    const uuidMatch = cleanId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    if (uuidMatch) {
+      baseUuid = uuidMatch[0];
+    }
 
-    // 1. Try finding WorkOrder by direct ID, cleanId, or workOrderNumber
+    // 1. Try finding WorkOrder by direct ID, cleanId, baseUuid, or workOrderNumber
     const wo = await this.prisma.workOrder.findFirst({
       where: {
         OR: [
           { id: rawId },
           { id: cleanId },
+          { id: baseUuid },
           { workOrderNumber: rawId },
           { workOrderNumber: cleanId },
           { productionPlan: { salesOrderId: rawId } },
           { productionPlan: { salesOrderId: cleanId } },
+          { productionPlan: { salesOrderId: baseUuid } },
           { salesOrderItem: { salesOrderId: rawId } },
           { salesOrderItem: { salesOrderId: cleanId } },
+          { salesOrderItem: { salesOrderId: baseUuid } },
         ],
+      },
+      include: {
+        salesOrderItem: { include: { product: true } },
+        productionPlan: { include: { salesOrder: { include: { customer: true } } } },
       },
     });
 
@@ -295,7 +307,7 @@ export class WorkOrdersService {
         data: { status: 'READY_FOR_DISPATCH' },
       });
 
-      return this.prisma.workOrder.update({
+      const updatedWo = await this.prisma.workOrder.update({
         where: { id: wo.id },
         data: {
           status: 'READY_FOR_DISPATCH',
@@ -304,18 +316,37 @@ export class WorkOrdersService {
           sentToDispatchById: userId,
         },
       });
+
+      if (this.notificationsService) {
+        const companyId = (wo as any).companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+        this.notificationsService.notifyRole({
+          companyId,
+          role: 'DISPATCH_EXECUTIVE',
+          type: 'DISPATCH_ORDER_READY',
+          title: 'Order Ready for Dispatch',
+          message: `${wo.workOrderNumber} — Production completed and sent to Dispatch.`,
+          route: '/dispatch/orders',
+          entityType: 'WorkOrder',
+          entityId: wo.id,
+          eventKeyPrefix: `WORK_ORDER:${wo.id}:READY_FOR_DISPATCH`,
+        }).catch(() => {});
+      }
+
+      return updatedWo;
     }
 
-    // 2. Try finding SalesOrder by direct ID or cleanId
+    // 2. Try finding SalesOrder by direct ID, cleanId, baseUuid, or orderNumber
     const so = await this.prisma.salesOrder.findFirst({
       where: {
         OR: [
           { id: rawId },
           { id: cleanId },
+          { id: baseUuid },
           { orderNumber: rawId },
           { orderNumber: cleanId },
         ],
       },
+      include: { customer: true },
     });
 
     if (so) {
@@ -344,6 +375,21 @@ export class WorkOrdersService {
         data: { status: 'READY_FOR_DISPATCH' },
       });
 
+      if (this.notificationsService) {
+        const companyId = so.customer?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+        this.notificationsService.notifyRole({
+          companyId,
+          role: 'DISPATCH_EXECUTIVE',
+          type: 'DISPATCH_ORDER_READY',
+          title: 'Order Ready for Dispatch',
+          message: `${so.orderNumber} — Sent to Dispatch.`,
+          route: '/dispatch/orders',
+          entityType: 'SalesOrder',
+          entityId: so.id,
+          eventKeyPrefix: `SALES_ORDER:${so.id}:READY_FOR_DISPATCH`,
+        }).catch(() => {});
+      }
+
       return {
         id: so.id,
         salesOrderId: so.id,
@@ -354,12 +400,15 @@ export class WorkOrdersService {
       };
     }
 
-    // 3. Try finding FinishedGoods by ID
+    // 3. Try finding FinishedGoods by ID, cleanId, baseUuid, or jobNo
     const fg = await this.prisma.finishedGoods.findFirst({
       where: {
         OR: [
           { id: rawId },
           { id: cleanId },
+          { id: baseUuid },
+          { jobNo: rawId },
+          { jobNo: cleanId },
         ],
       },
     });
@@ -376,19 +425,27 @@ export class WorkOrdersService {
 
   async dispatchOrder(id: string, userId: string) {
     const rawId = String(id || '').trim();
-    const cleanId = rawId.replace(/^fg-wo-/, '').replace(/^fg-so-/, '').split('-')[0] || rawId;
+    const cleanId = rawId.replace(/^fg-wo-/, '').replace(/^fg-so-/, '');
+    let baseUuid = cleanId;
+    const uuidMatch = cleanId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    if (uuidMatch) {
+      baseUuid = uuidMatch[0];
+    }
 
     const wo = await this.prisma.workOrder.findFirst({
       where: {
         OR: [
           { id: rawId },
           { id: cleanId },
+          { id: baseUuid },
           { workOrderNumber: rawId },
           { workOrderNumber: cleanId },
           { productionPlan: { salesOrderId: rawId } },
           { productionPlan: { salesOrderId: cleanId } },
+          { productionPlan: { salesOrderId: baseUuid } },
           { salesOrderItem: { salesOrderId: rawId } },
           { salesOrderItem: { salesOrderId: cleanId } },
+          { salesOrderItem: { salesOrderId: baseUuid } },
         ],
       },
     });
@@ -415,6 +472,7 @@ export class WorkOrdersService {
         OR: [
           { id: rawId },
           { id: cleanId },
+          { id: baseUuid },
           { orderNumber: rawId },
           { orderNumber: cleanId },
         ],

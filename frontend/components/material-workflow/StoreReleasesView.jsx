@@ -56,29 +56,43 @@ export default function StoreReleasesView() {
     setPage(1);
   }, [activeTab]);
 
-  // Combine real backend requests
+  // Combine real backend requests (only store-approved or issued)
   const combinedRequests = useMemo(() => {
     const map = new Map();
     (allRequests || []).forEach(req => {
-      if (['PLANT_HEAD_APPROVED', 'STORE_APPROVED', 'ISSUED_TO_PRODUCTION'].includes(req.status)) {
+      if (['STORE_APPROVED', 'ISSUED_TO_PRODUCTION', 'RECEIVED', 'CONSUMING'].includes(req.status)) {
         map.set(req.id, req);
       }
     });
     return Array.from(map.values());
   }, [allRequests]);
 
-  // Group requests order-wise
+  const getOrderKey = (req) => req.workOrderNo || req.orderId || req.requestNo || req.publicId || req.id;
+
+  // Group requests order-wise or request-wise
   const orderIds = useMemo(() => {
-    return [...new Set(combinedRequests.map((req) => req.orderId))];
+    return [...new Set(combinedRequests.map(getOrderKey))];
   }, [combinedRequests]);
 
   // Helper to calculate quantities for a specific item
   const getItemQtyDetails = (request, item, idx) => {
     const itemKey = `${request.id}-${item.materialId || idx}`;
-    const approvedQty = Number(item.approvedQty || 0);
-    const cumulativeIssued = issuedQuantities[itemKey] !== undefined
-      ? Number(issuedQuantities[itemKey])
-      : Number(item.issuedQty || 0);
+    const approvedQty = Number(item.approvedQty || item.quantity || 0);
+    
+    let cumulativeIssued = 0;
+    if (issuedQuantities[itemKey] !== undefined) {
+      cumulativeIssued = Number(issuedQuantities[itemKey]);
+    } else if (request.status === 'ISSUED_TO_PRODUCTION' || request.status === 'RECEIVED' || request.status === 'CONSUMING' || request.status === 'CLOSED') {
+      cumulativeIssued = Number(item.issuedQty || approvedQty);
+    } else if (request.status === 'STORE_APPROVED') {
+      cumulativeIssued = Number(item.issuedQty || 0);
+      if (cumulativeIssued >= approvedQty && !request.metadata?.issueReference) {
+        cumulativeIssued = 0;
+      }
+    } else {
+      cumulativeIssued = Number(item.issuedQty || 0);
+    }
+
     const totalRemaining = Math.max(0, approvedQty - cumulativeIssued);
 
     const rawInput = inputQuantities[itemKey];
@@ -111,7 +125,7 @@ export default function StoreReleasesView() {
   // Filter orders by active tab (pending vs history)
   const visibleOrderIds = useMemo(() => {
     return orderIds.filter((orderId) => {
-      const requests = combinedRequests.filter((req) => req.orderId === orderId);
+      const requests = combinedRequests.filter((req) => getOrderKey(req) === orderId);
       
       let anyIssued = false;
       let allFullyIssued = true;
@@ -234,6 +248,93 @@ export default function StoreReleasesView() {
     }
   };
 
+  const issueAllMaterialsForGroup = async (orderId, visibleRequests) => {
+    const itemsToIssue = [];
+    visibleRequests.forEach((req) => {
+      req.items.forEach((item, idx) => {
+        const details = getItemQtyDetails(req, item, idx);
+        if (details.currentInput > 0) {
+          itemsToIssue.push({
+            request: req,
+            item,
+            index: idx,
+            qty: details.currentInput,
+            dept: rowDepartments[details.itemKey] || req.metadata?.itemDepartments?.[item.id] || req.metadata?.issuedToDepartment || req.department || 'Production',
+            details
+          });
+        }
+      });
+    });
+
+    if (itemsToIssue.length === 0) {
+      await Swal.fire('No Quantity to Issue', 'Please specify issue quantities greater than 0.', 'warning');
+      return;
+    }
+
+    const totalQty = itemsToIssue.reduce((sum, it) => sum + it.qty, 0);
+    const result = await Swal.fire({
+      title: 'Issue All Materials to Production?',
+      html: `Are you sure you want to issue <strong>${itemsToIssue.length} item(s)</strong> (Total: <strong>${totalQty} units</strong>) to Production?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Issue All',
+      confirmButtonColor: '#0f766e',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      for (const req of visibleRequests) {
+        const reqItemsToIssue = itemsToIssue.filter(it => it.request.id === req.id);
+        if (reqItemsToIssue.length === 0) continue;
+
+        const reference = `ISS-${req.publicId || req.id}-${Date.now()}`;
+        const newIssuedState = { ...issuedQuantities };
+        const newInputState = { ...inputQuantities };
+
+        const patchedItems = req.items.map(item => {
+          const match = reqItemsToIssue.find(it => it.item.id === item.id);
+          const currentCum = Number(issuedQuantities[`${req.id}-${item.materialId || item.id}`] ?? item.issuedQty ?? 0);
+          const addQty = match ? match.qty : 0;
+          const newCum = currentCum + addQty;
+          newIssuedState[`${req.id}-${item.materialId || item.id}`] = newCum;
+          newInputState[`${req.id}-${item.materialId || item.id}`] = Math.max(0, Number(item.approvedQty || item.quantity || 0) - newCum);
+          return {
+            id: item.id,
+            issuedQty: newCum
+          };
+        });
+
+        setIssuedQuantities(newIssuedState);
+        setInputQuantities(newInputState);
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('store_issued_quantities', JSON.stringify(newIssuedState));
+          } catch (e) {}
+        }
+
+        await updateStatus.mutateAsync({
+          id: req.id,
+          status: 'ISSUED_TO_PRODUCTION',
+          items: patchedItems,
+          metadata: {
+            issueReference: reference,
+            issuedBy: user?.name || 'Store',
+            issuedToDepartment: 'Production',
+            issuedAt: new Date().toISOString()
+          }
+        });
+      }
+
+      await Swal.fire('All Materials Issued!', 'Materials have been successfully released to Production floor.', 'success');
+    } catch (err) {
+      console.error('Failed to issue all materials:', err);
+      await Swal.fire('Error', 'Failed to issue materials. Please try again.', 'error');
+    }
+  };
+
   return (
     <div className="store-releases">
       {/* Top Heading + Tabs */}
@@ -276,7 +377,7 @@ export default function StoreReleasesView() {
 
       {/* Orders Cards List */}
       {paginatedVisibleOrderIds.map((orderId) => {
-        const visibleRequests = combinedRequests.filter((request) => request.orderId === orderId);
+        const visibleRequests = combinedRequests.filter((request) => getOrderKey(request) === orderId);
 
         // Calculate card aggregate state
         let cardTotalSending = 0;
@@ -301,26 +402,50 @@ export default function StoreReleasesView() {
         return (
           <section key={orderId} className="store-release-card">
             {/* Meta Header */}
-            <div className="store-release-card__meta">
-              <span><strong>Order ID:</strong> {orderId || '—'}</span>
-              <span className="store-release-card__request"><strong>Request ID:</strong> {visibleRequests.map((request) => request.requestNo || request.publicId || request.id).join(', ')}</span>
-              <span><strong>Materials:</strong> {visibleRequests.reduce((sum, request) => sum + request.items.length, 0)}</span>
-              <span>
-                <strong>Status:</strong>{' '}
-                <span
+            <div className="store-release-card__meta" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                <span><strong>{visibleRequests[0]?.workOrderNo ? 'Order ID:' : 'Requisition:'}</strong> {orderId || '—'}</span>
+                <span className="store-release-card__request"><strong>Request ID:</strong> {visibleRequests.map((request) => request.requestNo || request.publicId || request.id).join(', ')}</span>
+                <span><strong>Materials:</strong> {visibleRequests.reduce((sum, request) => sum + request.items.length, 0)}</span>
+                <span>
+                  <strong>Status:</strong>{' '}
+                  <span
+                    style={{
+                      background: cardTotalRemaining === 0 ? '#f0fdf4' : cardAnyIssued ? '#eff6ff' : '#fef3c7',
+                      color: cardTotalRemaining === 0 ? '#15803d' : cardAnyIssued ? '#1d4ed8' : '#d97706',
+                      border: `1px solid ${cardTotalRemaining === 0 ? '#bbf7d0' : cardAnyIssued ? '#bfdbfe' : '#fde68a'}`,
+                      padding: '2px 10px',
+                      borderRadius: '6px',
+                      fontWeight: '700',
+                      fontSize: '12px'
+                    }}
+                  >
+                    {releaseStatus}
+                  </span>
+                </span>
+              </div>
+              {activeTab === 'pending' && cardTotalRemaining > 0 && (
+                <button
+                  type="button"
+                  onClick={() => issueAllMaterialsForGroup(orderId, visibleRequests)}
                   style={{
-                    background: cardTotalRemaining === 0 ? '#f0fdf4' : cardAnyIssued ? '#eff6ff' : '#fef3c7',
-                    color: cardTotalRemaining === 0 ? '#15803d' : cardAnyIssued ? '#1d4ed8' : '#d97706',
-                    border: `1px solid ${cardTotalRemaining === 0 ? '#bbf7d0' : cardAnyIssued ? '#bfdbfe' : '#fde68a'}`,
-                    padding: '2px 10px',
-                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    background: '#0f766e',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
                     fontWeight: '700',
-                    fontSize: '12px'
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 4px rgba(15, 118, 110, 0.2)'
                   }}
                 >
-                  {releaseStatus}
-                </span>
-              </span>
+                  ⚡ Issue All Materials to Production
+                </button>
+              )}
             </div>
 
             {/* Table wrap */}
@@ -431,8 +556,19 @@ export default function StoreReleasesView() {
                               disabled={details.currentInput <= 0}
                               onClick={() => issueRowItem(request, item, index, currentDept, details.currentInput)}
                               className="store-release-btn"
+                              style={{
+                                background: details.currentInput > 0 ? '#0f766e' : '#cbd5e1',
+                                color: '#fff',
+                                border: 'none',
+                                padding: '8px 14px',
+                                borderRadius: '6px',
+                                fontWeight: '700',
+                                fontSize: '12px',
+                                cursor: details.currentInput > 0 ? 'pointer' : 'not-allowed',
+                                whiteSpace: 'nowrap'
+                              }}
                             >
-                              Issue to Production
+                              📦 Issue to Production
                             </button>
                           </td>
                         )}
@@ -444,12 +580,36 @@ export default function StoreReleasesView() {
             </div>
 
             {/* Footer */}
-            <div className="store-release-card__footer">
+            <div className="store-release-card__footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
               {activeTab === 'pending' ? (
-                <div className="store-release-card__proceed">
-                  <strong>Order can proceed.</strong>
-                  <p>Materials will be planned and arranged by the Production and Store teams.</p>
-                </div>
+                <>
+                  <div className="store-release-card__proceed">
+                    <strong>Ready for Release:</strong>
+                    <p>Enter issue quantities above and click &quot;Issue to Production&quot; or issue all line items together.</p>
+                  </div>
+                  {cardTotalRemaining > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => issueAllMaterialsForGroup(orderId, visibleRequests)}
+                      style={{
+                        padding: '10px 20px',
+                        background: '#0f766e',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 4px rgba(15, 118, 110, 0.2)'
+                      }}
+                    >
+                      ⚡ Confirm & Issue All ({cardTotalSending} Units) to Production
+                    </button>
+                  )}
+                </>
               ) : (
                 <div className="store-release-card__proceed" style={{ background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1' }}>
                   <strong>Material Issue Completed</strong>
