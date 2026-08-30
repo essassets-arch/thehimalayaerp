@@ -29,6 +29,7 @@ import MaterialRejections from '../components/MaterialRejections';
 import IndentHistory from '../components/IndentHistory';
 import POReport from '../components/POReport';
 import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
+import { purchaseIndentService } from '../../../services/procurement/purchaseIndentService';
 import BrandAnalysisRequests from '../components/BrandAnalysisRequests';
 
 const safeText = (val, fallback = '—') => {
@@ -632,11 +633,26 @@ export default function StorePortal() {
     }
   }, []);
 
+  // Server indents state for robust retention on refresh
+  const [serverIndents, setServerIndents] = useState([]);
+  const fetchServerIndents = useCallback(async () => {
+    try {
+      const response = await purchaseIndentService.list({ limit: 500 });
+      const data = Array.isArray(response) ? response : (response?.data || []);
+      setServerIndents(data);
+    } catch (error) {
+      console.warn('Unable to load purchase indents in Store portal:', error);
+    }
+  }, []);
+
   useEffect(() => {
     if (currentView === 'raw-inventory' || currentView === 'dashboard' || currentView === 'low-stock-alerts' || currentView === 'edit-material') {
       fetchRawInventory();
     }
-  }, [currentView, fetchRawInventory]);
+    if (currentView === 'low-stock-alerts' || currentView === 'dashboard') {
+      fetchServerIndents();
+    }
+  }, [currentView, fetchRawInventory, fetchServerIndents]);
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
   const [showAddStockModal, setShowAddStockModal] = useState(false);
   const [showEditMaterialModal, setShowEditMaterialModal] = useState(false);
@@ -690,8 +706,15 @@ export default function StorePortal() {
   const [indentPriority, setIndentPriority] = useState('Medium');
   const [indentRemarks, setIndentRemarks] = useState('');
   const [indentTargetDate, setIndentTargetDate] = useState('');
-  const [indentSubmitting, setIndentSubmitting] = useState(false);
-  const [submittedIndents, setSubmittedIndents] = useState({}); // materialId -> indentId
+  const [submittedIndents, setSubmittedIndents] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('store_submitted_indents');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return {};
+  });
   const [selectedDepartments, setSelectedDepartments] = useState({});
 
 
@@ -2325,13 +2348,15 @@ export default function StorePortal() {
   const renderLowStockAlerts = () => {
     const rawIndents = [
       ...(state.procurement?.materialIndents || []),
-      ...(state.purchaseIndents || [])
+      ...(state.purchaseIndents || []),
+      ...(state.materialIndents || []),
+      ...serverIndents
     ];
 
     const uniqueIndentsMap = new Map();
     rawIndents.forEach(ind => {
-      if (ind && (ind.id || ind.publicId)) {
-        uniqueIndentsMap.set(ind.id || ind.publicId, ind);
+      if (ind && (ind.id || ind.publicId || ind.indentNo)) {
+        uniqueIndentsMap.set(ind.id || ind.publicId || ind.indentNo, ind);
       }
     });
 
@@ -2430,6 +2455,7 @@ export default function StorePortal() {
         // Head (or the real history) to review.
         const res = await createMaterialIndent(payload);
         await syncData().catch(() => {});
+        await fetchServerIndents().catch(() => {});
 
         const newIndentId = res?.publicId || res?.id || `INDENT-${Date.now()}`;
         const newIndentRecord = {
@@ -2457,15 +2483,25 @@ export default function StorePortal() {
           });
         }
 
-        // Immediately update local submittedIndents state so action button changes to "✓ Indent Created" and counter updates
+        // Immediately update local submittedIndents state and localStorage so it never disappears on refresh
         if (indentTargetMaterial) {
-          setSubmittedIndents(prev => ({
-            ...prev,
+          const matNameLower = (indentTargetMaterial.material || '').toLowerCase().trim();
+          const matCodeLower = (indentTargetMaterial.code || '').toLowerCase().trim();
+          const updatedSubmitted = {
+            ...submittedIndents,
             [indentTargetMaterial.id]: newIndentId,
             [indentTargetMaterial.code]: newIndentId,
             [indentTargetMaterial.material]: newIndentId,
+            [matNameLower]: newIndentId,
+            [matCodeLower]: newIndentId,
             [newIndentId]: newIndentId
-          }));
+          };
+          setSubmittedIndents(updatedSubmitted);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('store_submitted_indents', JSON.stringify(updatedSubmitted));
+            } catch {}
+          }
         }
 
         await Swal.fire({
@@ -2655,10 +2691,48 @@ export default function StorePortal() {
                   ) : paginatedLowStockItems.map(item => {
                     const requiredQty = Math.max(0, item.minStock - item.stock);
                     const isOutOfStock = item.stock === 0;
-                    const isIndented = materialIndents.some(ind => 
-                      (ind.materialId === item.id || ind.materialCode === item.code || (ind.materialName || ind.material || '').toLowerCase() === (item.material || '').toLowerCase()) && 
-                      ind.status !== 'REJECTED' && ind.status !== 'PLANT_HEAD_REJECTED'
-                    ) || Boolean(submittedIndents[item.id] || submittedIndents[item.code] || submittedIndents[item.material]);
+                    const itemMatName = (item.material || '').toLowerCase().trim();
+                    const itemCode = (item.code || '').toLowerCase().trim();
+                    const itemId = String(item.id || '').trim();
+
+                    const isIndented = Boolean(
+                      submittedIndents[item.id] ||
+                      submittedIndents[item.code] ||
+                      submittedIndents[item.material] ||
+                      submittedIndents[itemMatName] ||
+                      submittedIndents[itemCode]
+                    ) || materialIndents.some(ind => {
+                      if (!ind) return false;
+                      const status = String(ind.status || '').toUpperCase();
+                      if (['REJECTED', 'PLANT_HEAD_REJECTED', 'SUPER_ADMIN_REJECTED', 'CANCELLED', 'INDENT_CANCELLED'].includes(status)) {
+                        return false;
+                      }
+
+                      const indMatId = String(ind.materialId || ind.productId || '').trim();
+                      const indMatCode = String(ind.materialCode || '').toLowerCase().trim();
+                      const indMatName = String(ind.materialName || ind.material || '').toLowerCase().trim();
+
+                      if (indMatId && (indMatId === itemId || indMatId.toLowerCase() === itemCode)) return true;
+                      if (indMatCode && (indMatCode === itemCode || indMatCode === itemId.toLowerCase())) return true;
+                      if (indMatName && itemMatName && (indMatName === itemMatName || indMatName.includes(itemMatName) || itemMatName.includes(indMatName))) return true;
+
+                      if (Array.isArray(ind.items)) {
+                        return ind.items.some(it => {
+                          if (!it) return false;
+                          const itProdId = String(it.productId || it.materialId || it.id || '').trim();
+                          const itProdCode = String(it.materialCode || it.product?.sku || it.product?.code || '').toLowerCase().trim();
+                          const itProdName = String(it.materialName || it.material || it.product?.name || '').toLowerCase().trim();
+
+                          if (itProdId && (itProdId === itemId || itProdId.toLowerCase() === itemCode)) return true;
+                          if (itProdCode && (itProdCode === itemCode || itProdCode === itemId.toLowerCase())) return true;
+                          if (itProdName && itemMatName && (itProdName === itemMatName || itProdName.includes(itemMatName) || itemMatName.includes(itProdName))) return true;
+
+                          return false;
+                        });
+                      }
+
+                      return false;
+                    });
 
                     return (
                       <tr key={item.id}>
@@ -2723,11 +2797,48 @@ export default function StorePortal() {
               ) : (
                 paginatedLowStockItems.map(item => {
                   const requiredQty = Math.max(0, item.minStock - item.stock);
-                  const isOutOfStock = item.stock === 0;
-                  const isIndented = materialIndents.some(ind => 
-                    (ind.materialId === item.id || ind.materialCode === item.code || (ind.materialName || ind.material || '').toLowerCase() === (item.material || '').toLowerCase()) && 
-                    ind.status !== 'REJECTED' && ind.status !== 'PLANT_HEAD_REJECTED'
-                  ) || Boolean(submittedIndents[item.id] || submittedIndents[item.code] || submittedIndents[item.material]);
+                  const itemMatName = (item.material || '').toLowerCase().trim();
+                  const itemCode = (item.code || '').toLowerCase().trim();
+                  const itemId = String(item.id || '').trim();
+
+                  const isIndented = Boolean(
+                    submittedIndents[item.id] ||
+                    submittedIndents[item.code] ||
+                    submittedIndents[item.material] ||
+                    submittedIndents[itemMatName] ||
+                    submittedIndents[itemCode]
+                  ) || materialIndents.some(ind => {
+                    if (!ind) return false;
+                    const status = String(ind.status || '').toUpperCase();
+                    if (['REJECTED', 'PLANT_HEAD_REJECTED', 'SUPER_ADMIN_REJECTED', 'CANCELLED', 'INDENT_CANCELLED'].includes(status)) {
+                      return false;
+                    }
+
+                    const indMatId = String(ind.materialId || ind.productId || '').trim();
+                    const indMatCode = String(ind.materialCode || '').toLowerCase().trim();
+                    const indMatName = String(ind.materialName || ind.material || '').toLowerCase().trim();
+
+                    if (indMatId && (indMatId === itemId || indMatId.toLowerCase() === itemCode)) return true;
+                    if (indMatCode && (indMatCode === itemCode || indMatCode === itemId.toLowerCase())) return true;
+                    if (indMatName && itemMatName && (indMatName === itemMatName || indMatName.includes(itemMatName) || itemMatName.includes(indMatName))) return true;
+
+                    if (Array.isArray(ind.items)) {
+                      return ind.items.some(it => {
+                        if (!it) return false;
+                        const itProdId = String(it.productId || it.materialId || it.id || '').trim();
+                        const itProdCode = String(it.materialCode || it.product?.sku || it.product?.code || '').toLowerCase().trim();
+                        const itProdName = String(it.materialName || it.material || it.product?.name || '').toLowerCase().trim();
+
+                        if (itProdId && (itProdId === itemId || itProdId.toLowerCase() === itemCode)) return true;
+                        if (itProdCode && (itProdCode === itemCode || itProdCode === itemId.toLowerCase())) return true;
+                        if (itProdName && itemMatName && (itProdName === itemMatName || itProdName.includes(itemMatName) || itemMatName.includes(itProdName))) return true;
+
+                        return false;
+                      });
+                    }
+
+                    return false;
+                  });
 
                   return (
                     <div
