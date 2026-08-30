@@ -194,12 +194,9 @@ export default function ProductionOperationsDashboard({ workOrders = [], initial
     ['Completed', completedWOs, 'Finished orders in period', '#10b981'],
     ['Pending', pendingWOs, 'Orders waiting to start', '#3b82f6'],
     ['Total Planned', metrics.planned, 'Target production quantity', '#2563eb'],
-    ['Period Output', `${metrics.produced} units`, 'Recorded output in period', '#06b6d4'],
-    ['Items Under Testing', `${derivedStats.underTesting ?? 0} units`, 'Currently under quality test', '#8b5cf6'],
     ['Passed Qty', `${derivedStats.passedQty ?? 0} units`, 'Cleared by testing', '#10b981'],
     ['QC Pending', qcPendingCount, 'Work orders awaiting QC', '#8b5cf6'],
     ['Rework', metrics.rework, `${metrics.reworkRate.toFixed(1)}% rework rate`, '#f97316'],
-    ['Scrap / Wastage', metrics.scrap, `${metrics.wasteRate.toFixed(1)}% wastage rate`, '#ef4444'],
     ['Finished Goods Stock', `${derivedStats.finishedGoods ?? 0} units`, 'Finished goods in warehouse', '#2563eb'],
     ['Testing Success %', `${derivedStats.testingSuccess ?? '100.0'}%`, `Failure rate: ${derivedStats.testingFailure ?? '0.0'}%`, '#10b981'],
     ['Production Efficiency', derivedStats.productionEfficiency != null ? `${derivedStats.productionEfficiency}%` : (metrics.efficiency == null ? 'No data' : `${metrics.efficiency.toFixed(1)}%`), 'Actual good ÷ target × 100', '#06b6d4']

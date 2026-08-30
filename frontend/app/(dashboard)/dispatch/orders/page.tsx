@@ -640,9 +640,6 @@ export default function DispatchOrdersPage() {
 
   return (
     <DispatchPageShell>
-      {/* Navigation Tabs */}
-      <DispatchNavigationTabs />
-
       {/* Page Header */}
       <DispatchPageHeader
         title={activeTab === "pending" ? "Pending Dispatches" : "Dispatch History & POD"}
