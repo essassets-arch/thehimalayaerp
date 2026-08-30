@@ -436,10 +436,7 @@ export class PaymentsService {
     const orders = await this.prisma.salesOrder.findMany({
       where: {
         deletedAt: null,
-        dispatches: {
-          some: { status: { in: completedStatuses } },
-          none: { status: { notIn: completedStatuses } },
-        },
+        status: { not: 'CANCELLED' },
       },
       include: {
         customer: true,
@@ -490,7 +487,7 @@ export class PaymentsService {
     );
 
     return orders.map((order) => {
-      const deliveredDispatches = order.dispatches.filter((dispatch) =>
+      const deliveredDispatches = (order.dispatches || []).filter((dispatch) =>
         completedStatuses.includes(dispatch.status),
       );
       const deliveredAt = deliveredDispatches
@@ -515,10 +512,13 @@ export class PaymentsService {
       // Calculate verified paid amount from verified payments
       const verifiedPaidAmount = order.customerPayments
         ?.filter((cp) => ['VERIFIED', 'FINANCE_VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(String(cp.status || '').toUpperCase()))
-        ?.reduce((sum, cp) => sum + Number(cp.amount || 0), 0) || 0;
+        ?.reduce((sum, cp) => sum + Number(cp.amount || 0), 0) || Number(order.paidAmount || 0);
 
       const totalAmount = Number(order.totalAmount || 0);
       const balanceAmount = Math.max(0, totalAmount - verifiedPaidAmount);
+
+      const isDelivered = deliveredDispatches.length > 0;
+      const dispatchStatus = isDelivered ? 'DELIVERED' : (order.dispatches?.[0]?.status || 'PENDING');
 
       return {
         id: order.id,
@@ -537,7 +537,7 @@ export class PaymentsService {
         totalAmount: totalAmount,
         verifiedPaidAmount,
         balanceAmount,
-        dispatchStatus: 'DELIVERED',
+        dispatchStatus,
         deliveredAt: deliveredAt?.toISOString(),
         podUrl: deliveredDispatches.find((dispatch) => dispatch.podUrl)?.podUrl,
         status: order.status,
