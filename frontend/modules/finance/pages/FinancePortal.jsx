@@ -2447,6 +2447,26 @@ export default function FinancePortal({ initialView, forceView }) {
 
     const handleDownloadPOPdf = (po) => {
       if (!po) return;
+      const poItems = (po.items && po.items.length > 0)
+        ? po.items
+        : (po.material ? [{ name: po.material, quantity: po.quantity || 1, unitPrice: po.unitPrice || po.rate || po.price || 0, unit: po.unit || 'Units' }] : []);
+
+      const subtotal = poItems.reduce((acc, i) => {
+        const qty = Number(i.quantity ?? i.orderedQty ?? i.qty ?? 0);
+        const rate = Number(i.unitPrice ?? i.unitRate ?? i.rate ?? i.price ?? 0);
+        return acc + (qty * rate);
+      }, 0) || Number(po.subtotal || 0);
+
+      const gstPercent = Number(po.gstPercent ?? po.gst ?? (po.hasGst === false ? 0 : 18));
+      const gstAmount = (po.gstAmount !== undefined && po.gstAmount !== null)
+        ? Number(po.gstAmount)
+        : (po.taxAmount !== undefined && po.taxAmount !== null)
+        ? Number(po.taxAmount)
+        : (subtotal * (gstPercent / 100));
+
+      const freight = Number(po.freight || po.freightAmount || po.transportationCost || 0);
+      const grandTotal = Number(po.totalAmount || po.grandTotal) || (subtotal + gstAmount + freight);
+
       const htmlContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -2490,15 +2510,15 @@ export default function FinancePortal({ initialView, forceView }) {
   <div class="grid">
     <div class="box">
       <div class="box-title">Vendor & Supplier Details</div>
-      <div style="font-size: 16px; font-weight: 800; color: #24345C;">${po.vendorName || 'Vendor'}</div>
+      <div style="font-size: 16px; font-weight: 800; color: #24345C;">${po.vendorName || po.supplier?.name || 'Vendor'}</div>
       <div style="font-size: 13px; color: #475569; margin-top: 4px;">GSTIN: ${po.gstin || '27AADCS1234F1Z8'}</div>
-      <div style="font-size: 13px; color: #475569;">Email: orders@${(po.vendorName || 'vendor').toLowerCase().replace(/[^a-z]/g, '')}.com</div>
+      <div style="font-size: 13px; color: #475569;">Email: orders@${(po.vendorName || po.supplier?.name || 'vendor').toLowerCase().replace(/[^a-z]/g, '')}.com</div>
     </div>
     <div class="box" style="background: #f0fdf4; border-color: #bbf7d0;">
       <div class="box-title" style="color: #15803d;">Approval Authorization</div>
       <div style="font-size: 14px; font-weight: 700; color: #166534;">Approved By: ${po.approvedBy || 'Super Admin'}</div>
       <div style="font-size: 13px; color: #166534; margin-top: 4px;">Date: ${po.approvedAt ? new Date(po.approvedAt).toLocaleString() : new Date().toLocaleDateString()}</div>
-      <div style="font-size: 13px; color: #15803d; font-style: italic; margin-top: 4px;">"${po.superAdminRemarks || 'Approved after technical review.'}"</div>
+      <div style="font-size: 13px; color: #15803d; font-style: italic; margin-top: 4px;">"${po.superAdminRemarks || po.remarks || 'Approved after technical review.'}"</div>
     </div>
   </div>
 
@@ -2512,22 +2532,26 @@ export default function FinancePortal({ initialView, forceView }) {
       </tr>
     </thead>
     <tbody>
-      ${(po.items || []).map(i => `
+      ${poItems.map(i => {
+        const qty = Number(i.quantity ?? i.orderedQty ?? i.qty ?? 0);
+        const rate = Number(i.unitPrice ?? i.unitRate ?? i.rate ?? i.price ?? 0);
+        const total = qty * rate;
+        return `
         <tr>
-          <td style="font-weight: 700;">${i.name || i.material || 'Material'}</td>
-          <td style="text-align: right; font-weight: 700; color: #0284c7;">${i.quantity || 0} ${i.unit || 'Units'}</td>
-          <td style="text-align: right;">₹${(i.rate || i.price || 0).toLocaleString()}</td>
-          <td style="text-align: right; font-weight: 700;">₹${(i.total || ((i.quantity || 0) * (i.rate || i.price || 0))).toLocaleString()}</td>
+          <td style="font-weight: 700;">${i.product?.name || i.name || i.material || 'Material'}</td>
+          <td style="text-align: right; font-weight: 700; color: #0284c7;">${qty} ${i.product?.unit || i.unit || 'Units'}</td>
+          <td style="text-align: right;">₹${rate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td style="text-align: right; font-weight: 700;">₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
         </tr>
-      `).join('')}
+      `;}).join('')}
     </tbody>
   </table>
 
   <div class="totals">
-    <div class="total-row"><span>Subtotal:</span> <strong>₹${(po.subtotal || 0).toLocaleString()}</strong></div>
-    <div class="total-row"><span>GST (18%):</span> <strong>₹${(po.gstAmount || Math.round(((po.grandTotal || 0) - (po.subtotal || 0)) || 0)).toLocaleString()}</strong></div>
-    <div class="total-row"><span>Freight:</span> <strong>₹${(po.freight || 0).toLocaleString()}</strong></div>
-    <div class="total-row grand-total"><span>Grand Total:</span> <span>₹${(po.grandTotal || 0).toLocaleString()}</span></div>
+    <div class="total-row"><span>Subtotal:</span> <strong>₹${subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></div>
+    <div class="total-row"><span>GST (${gstPercent}%):</span> <strong>₹${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></div>
+    <div class="total-row"><span>Freight:</span> <strong>₹${freight.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></div>
+    <div class="total-row grand-total"><span>Grand Total:</span> <span>₹${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
   </div>
 
   <div class="footer">
@@ -2631,7 +2655,7 @@ export default function FinancePortal({ initialView, forceView }) {
                 const gstVal = calculatedGst > 0 ? calculatedGst : (row.gstAmount !== undefined && row.gstAmount !== null ? Number(row.gstAmount) : Math.round(subVal * 0.18));
                 const grandVal = Number(row.totalAmount || row.grandTotal) || (subVal + gstVal + freightVal + Number(row.otherCharges || 0));
                 
-                return <span style={{ fontWeight: 800, color: '#16a34a' }}>{grandVal ? `₹${grandVal.toLocaleString()}` : '₹0'}</span>;
+                return <span style={{ fontWeight: 800, color: '#16a34a' }}>{grandVal ? `₹${grandVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00'}</span>;
             } },
             { header: 'Approval Authority', accessor: 'status', render: row => {
               const total = Number(row.totalAmount || row.grandTotal || row.value || 0);
@@ -2646,134 +2670,171 @@ export default function FinancePortal({ initialView, forceView }) {
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }
           ]}
           data={displayedPOs}
-          actions={row => approvedPOsSubTab === 'Approved' ? (
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              <button 
-                onClick={() => { setSelectedApprovedPO(row); setShowPOPdfModal(true); }}
-                style={{ padding: '7px 12px', border: '1.5px solid #D6E2F0', background: '#ffffff', color: '#334155', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                <FileText size={15} /> View / PDF
-              </button>
-              <button 
-                onClick={() => { setSelectedApprovedPO(row); setShowPlaceOrderModal(true); }}
-                style={{ padding: '7px 15px', border: 'none', background: '#0284c7', color: '#ffffff', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)' }}
-              >
-                <CheckCircle2 size={15} /> Place Order Manually
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              <button 
-                onClick={() => { setSelectedApprovedPO(row); setShowPOPdfModal(true); }}
-                style={{ padding: '7px 12px', border: '1.5px solid #D6E2F0', background: '#ffffff', color: '#334155', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                <FileText size={15} /> View / PDF
-              </button>
-            </div>
-          )}
+          actions={row => {
+            const isOrderPlaced = ['PO_ORDERED', 'ORDERED', 'PLACED', 'ORDER_PLACED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED', 'PO_CLOSED', 'PURCHASE_COMPLETED', 'FINANCE_AUDIT_APPROVED', 'VENDOR_ACCEPTED', 'PO_ISSUED'].includes(String(row.status || '').toUpperCase());
+            const canPlaceOrder = approvedPOsSubTab === 'Approved' && !isOrderPlaced && ['APPROVED', 'SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED', 'DIRECTLY_APPROVED'].includes(String(row.status || '').toUpperCase());
+
+            return (
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button 
+                  onClick={() => { setSelectedApprovedPO(row); setShowPOPdfModal(true); }}
+                  style={{ padding: '7px 12px', border: '1.5px solid #D6E2F0', background: '#ffffff', color: '#334155', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <FileText size={15} /> View / PDF
+                </button>
+                {canPlaceOrder && (
+                  <button 
+                    onClick={() => { setSelectedApprovedPO(row); setShowPlaceOrderModal(true); }}
+                    style={{ padding: '7px 15px', border: 'none', background: '#0284c7', color: '#ffffff', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)' }}
+                  >
+                    <CheckCircle2 size={15} /> Place Order Manually
+                  </button>
+                )}
+              </div>
+            );
+          }}
           emptyMessage={approvedPOsSubTab === 'Approved' ? "No approved POs awaiting manual order placement." : "No history found."}
         />
 
         {/* PO Details & PDF Modal */}
-        {selectedApprovedPO && showPOPdfModal && (
-          <div 
-            onClick={() => setShowPOPdfModal(false)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
-          >
+        {selectedApprovedPO && showPOPdfModal && (() => {
+          const po = selectedApprovedPO;
+          const poItems = (po.items && po.items.length > 0)
+            ? po.items
+            : (po.material ? [{ name: po.material, quantity: po.quantity || 1, unitPrice: po.unitPrice || po.rate || po.price || 0, unit: po.unit || 'Units' }] : []);
+
+          const subtotal = poItems.reduce((acc, i) => {
+            const qty = Number(i.quantity ?? i.orderedQty ?? i.qty ?? 0);
+            const rate = Number(i.unitPrice ?? i.unitRate ?? i.rate ?? i.price ?? 0);
+            return acc + (qty * rate);
+          }, 0) || Number(po.subtotal || 0);
+
+          const gstPercent = Number(po.gstPercent ?? po.gst ?? (po.hasGst === false ? 0 : 18));
+          const gstAmount = (po.gstAmount !== undefined && po.gstAmount !== null)
+            ? Number(po.gstAmount)
+            : (po.taxAmount !== undefined && po.taxAmount !== null)
+            ? Number(po.taxAmount)
+            : (subtotal * (gstPercent / 100));
+
+          const freight = Number(po.freight || po.freightAmount || po.transportationCost || 0);
+          const grandTotal = Number(po.totalAmount || po.grandTotal) || (subtotal + gstAmount + freight);
+
+          const isOrderPlaced = ['PO_ORDERED', 'ORDERED', 'PLACED', 'ORDER_PLACED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED', 'PO_CLOSED', 'PURCHASE_COMPLETED', 'FINANCE_AUDIT_APPROVED', 'VENDOR_ACCEPTED', 'PO_ISSUED'].includes(String(po.status || '').toUpperCase());
+          const canPlaceOrder = !isOrderPlaced && ['APPROVED', 'SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED', 'DIRECTLY_APPROVED'].includes(String(po.status || '').toUpperCase());
+
+          return (
             <div 
-              onClick={e => e.stopPropagation()}
-              style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '820px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #D6E2F0', overflow: 'hidden' }}
+              onClick={() => setShowPOPdfModal(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
             >
-              <div style={{ background: '#24345C', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff' }}>
-                <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#ffffff' }}>Purchase Order PDF Preview ({selectedApprovedPO.id})</h3>
-                  <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '3px' }}>Indent Ref: {selectedApprovedPO.indentId || 'PI-REF'} • Status: {selectedApprovedPO.status}</div>
-                </div>
-                <button onClick={() => setShowPOPdfModal(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#ffffff', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px' }}>✕</button>
-              </div>
-
-              <div style={{ padding: '28px', overflowY: 'auto', flex: 1, background: '#ffffff', fontFamily: `'Inter', sans-serif` }} id="po-pdf-print-area">
-                <div style={{ borderBottom: '2px solid #DCE5F0', paddingBottom: '20px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div 
+                onClick={e => e.stopPropagation()}
+                style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '820px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #D6E2F0', overflow: 'hidden' }}
+              >
+                <div style={{ background: '#24345C', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff' }}>
                   <div>
-                    <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#24345C', margin: 0 }}>PURCHASE ORDER</h2>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#0284c7', marginTop: '4px' }}>{selectedApprovedPO.poNumber || selectedApprovedPO.id}</div>
+                    <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#ffffff' }}>Purchase Order PDF Preview ({po.id})</h3>
+                    <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '3px' }}>Indent Ref: {po.indentId || po.purchaseIndentId || 'PI-REF'} • Status: <span style={{ color: isOrderPlaced ? '#4ade80' : '#38bdf8', fontWeight: 800 }}>{po.status}</span></div>
                   </div>
-                  <div style={{ textAlign: 'right', fontSize: '13px', color: '#5E6B82' }}>
-                    <div><strong>Order Date:</strong> {new Date(selectedApprovedPO.createdAt || Date.now()).toLocaleDateString()}</div>
-                    <div><strong>Payment Terms:</strong> {selectedApprovedPO.paymentTerms || 'Standard 30 Days Net'}</div>
-                  </div>
+                  <button onClick={() => setShowPOPdfModal(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#ffffff', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px' }}>✕</button>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
-                  <div style={{ background: '#F5FAFE', padding: '16px', borderRadius: '12px', border: '1px solid #DCE5F0' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase' }}>Vendor & GST Details</div>
-                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#24345C', marginTop: '6px' }}>{selectedApprovedPO.vendorName || 'Vendor'}</div>
-                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>GSTIN: {selectedApprovedPO.gstin || '27AADCS1234F1Z8'}</div>
-                    <div style={{ fontSize: '13px', color: '#475569' }}>Email: orders@{selectedApprovedPO.vendorName?.toLowerCase().replace(/[^a-z]/g, '') || 'vendor'}.com</div>
+                <div style={{ padding: '28px', overflowY: 'auto', flex: 1, background: '#ffffff', fontFamily: `'Inter', sans-serif` }} id="po-pdf-print-area">
+                  <div style={{ borderBottom: '2px solid #DCE5F0', paddingBottom: '20px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#24345C', margin: 0 }}>PURCHASE ORDER</h2>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#0284c7', marginTop: '4px' }}>{po.poNumber || po.id}</div>
+                    </div>
+                    <div style={{ textAlign: 'right', fontSize: '13px', color: '#5E6B82' }}>
+                      <div><strong>Order Date:</strong> {new Date(po.createdAt || Date.now()).toLocaleDateString()}</div>
+                      <div><strong>Payment Terms:</strong> {po.paymentTerms || 'Standard 30 Days Net'}</div>
+                    </div>
                   </div>
 
-                  <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', textTransform: 'uppercase' }}>Super Admin Approval Details</div>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#166534', marginTop: '6px' }}>Approved By: {selectedApprovedPO.approvedBy || 'Super Admin'}</div>
-                    <div style={{ fontSize: '13px', color: '#166534', marginTop: '4px' }}>Date: {selectedApprovedPO.approvedAt ? new Date(selectedApprovedPO.approvedAt).toLocaleString() : new Date().toLocaleDateString()}</div>
-                    <div style={{ fontSize: '13px', color: '#15803d', fontStyle: 'italic', marginTop: '4px' }}>"{selectedApprovedPO.superAdminRemarks || 'Approved after technical review.'}"</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+                    <div style={{ background: '#F5FAFE', padding: '16px', borderRadius: '12px', border: '1px solid #DCE5F0' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase' }}>Vendor & GST Details</div>
+                      <div style={{ fontSize: '16px', fontWeight: 800, color: '#24345C', marginTop: '6px' }}>{po.vendorName || po.supplier?.name || 'Vendor'}</div>
+                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>GSTIN: {po.gstin || '27AADCS1234F1Z8'}</div>
+                      <div style={{ fontSize: '13px', color: '#475569' }}>Email: orders@{(po.vendorName || po.supplier?.name || 'vendor').toLowerCase().replace(/[^a-z]/g, '')}.com</div>
+                    </div>
+
+                    <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', textTransform: 'uppercase' }}>Approval Authorization</div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#166534', marginTop: '6px' }}>Approved By: {po.approvedBy || 'Super Admin'}</div>
+                      <div style={{ fontSize: '13px', color: '#166534', marginTop: '4px' }}>Date: {po.approvedAt ? new Date(po.approvedAt).toLocaleString() : new Date().toLocaleDateString()}</div>
+                      <div style={{ fontSize: '13px', color: '#15803d', fontStyle: 'italic', marginTop: '4px' }}>"{po.superAdminRemarks || po.remarks || 'Approved after technical review.'}"</div>
+                    </div>
                   </div>
-                </div>
 
-                <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#24345C', marginBottom: '12px' }}>Materials & Quantities</h4>
-                <div style={{ border: '1px solid #DCE5F0', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-                    <thead style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#5E6B82', fontSize: '12px', fontWeight: 700 }}>
-                      <tr>
-                        <th style={{ padding: '12px 16px' }}>Material</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>Qty</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>Unit Rate</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(selectedApprovedPO.items || []).map((item, idx) => {
-                        const qty = Number(item.quantity || 0);
-                        const rate = Number(item.unitPrice || item.unitRate || item.rate || 0);
-                        return (
-                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '12px 16px', fontWeight: 700, color: '#24345C' }}>{item.product?.name || item.name || item.material || 'Unknown Material'}</td>
-                            <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>{qty} {item.product?.unit || item.unit || 'Units'}</td>
-                            <td style={{ padding: '12px 16px', textAlign: 'right' }}>₹{rate.toLocaleString()}</td>
-                            <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800 }}>₹{(qty * rate).toLocaleString()}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                  <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#24345C', marginBottom: '12px' }}>Materials & Quantities</h4>
+                  <div style={{ border: '1px solid #DCE5F0', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                      <thead style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#5E6B82', fontSize: '12px', fontWeight: 700 }}>
+                        <tr>
+                          <th style={{ padding: '12px 16px' }}>Material</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'right' }}>Qty</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'right' }}>Unit Rate</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {poItems.map((item, idx) => {
+                          const qty = Number(item.quantity ?? item.orderedQty ?? item.qty ?? 0);
+                          const rate = Number(item.unitPrice ?? item.unitRate ?? item.rate ?? item.price ?? 0);
+                          const total = qty * rate;
+                          return (
+                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '12px 16px', fontWeight: 700, color: '#24345C' }}>{item.product?.name || item.name || item.material || 'Unknown Material'}</td>
+                              <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>{qty} {item.product?.unit || item.unit || 'Units'}</td>
+                              <td style={{ padding: '12px 16px', textAlign: 'right' }}>₹{rate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                              <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800 }}>₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <div style={{ width: '280px', display: 'grid', gap: '8px', fontSize: '14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82' }}>Subtotal:</span> <strong>₹{selectedApprovedPO.subtotal?.toLocaleString() || '0'}</strong></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82' }}>GST (18%):</span> <strong>₹{selectedApprovedPO.gstAmount?.toLocaleString() || Math.round((selectedApprovedPO.grandTotal - selectedApprovedPO.subtotal) || 0).toLocaleString()}</strong></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82' }}>Freight:</span> <strong>₹{selectedApprovedPO.freight?.toLocaleString() || '0'}</strong></div>
-                    <div style={{ borderTop: '2px solid #D6E2F0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 900, color: '#16a34a' }}>
-                      <span>Grand Total:</span> <span>₹{selectedApprovedPO.grandTotal?.toLocaleString() || '0'}</span>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{ width: '300px', display: 'grid', gap: '8px', fontSize: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#5E6B82', fontWeight: 600 }}>Subtotal:</span>
+                        <strong style={{ color: '#0F172A' }}>₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#5E6B82', fontWeight: 600 }}>GST ({gstPercent}%):</span>
+                        <strong style={{ color: '#0F172A' }}>₹{gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#5E6B82', fontWeight: 600 }}>Freight:</span>
+                        <strong style={{ color: '#0F172A' }}>₹{freight.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                      <div style={{ borderTop: '2px solid #D6E2F0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 900, color: '#16a34a' }}>
+                        <span>Grand Total:</span>
+                        <span>₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div style={{ background: '#F5FAFE', padding: '16px 24px', borderTop: '1px solid #DCE5F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button onClick={() => setShowPOPdfModal(false)} style={{ padding: '10px 20px', border: '1.5px solid #D6E2F0', background: '#ffffff', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Close</button>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button onClick={() => handleDownloadPOPdf(selectedApprovedPO)} style={{ padding: '10px 22px', border: '1.5px solid #D6E2F0', background: '#f1f5f9', color: '#24345C', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <Download size={16} /> Download PDF
-                  </button>
-                  <button onClick={() => { setShowPOPdfModal(false); setShowPlaceOrderModal(true); }} style={{ padding: '10px 24px', border: 'none', background: '#0284c7', color: '#ffffff', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <CheckCircle2 size={16} /> Place Order Manually
-                  </button>
+                <div style={{ background: '#F5FAFE', padding: '16px 24px', borderTop: '1px solid #DCE5F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button onClick={() => setShowPOPdfModal(false)} style={{ padding: '10px 20px', border: '1.5px solid #D6E2F0', background: '#ffffff', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Close</button>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button onClick={() => handleDownloadPOPdf(po)} style={{ padding: '10px 22px', border: '1.5px solid #D6E2F0', background: '#f1f5f9', color: '#24345C', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <Download size={16} /> Download PDF
+                    </button>
+                    {canPlaceOrder && (
+                      <button onClick={() => { setShowPOPdfModal(false); setShowPlaceOrderModal(true); }} style={{ padding: '10px 24px', border: 'none', background: '#0284c7', color: '#ffffff', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <CheckCircle2 size={16} /> Place Order Manually
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Place Order Manually Confirmation Form Modal */}
         {selectedApprovedPO && showPlaceOrderModal && (
