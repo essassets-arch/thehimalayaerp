@@ -2797,6 +2797,7 @@ export default function StorePortal() {
               ) : (
                 paginatedLowStockItems.map(item => {
                   const requiredQty = Math.max(0, item.minStock - item.stock);
+                  const isOutOfStock = (item.stock ?? 0) <= 0;
                   const itemMatName = (item.material || '').toLowerCase().trim();
                   const itemCode = (item.code || '').toLowerCase().trim();
                   const itemId = String(item.id || '').trim();

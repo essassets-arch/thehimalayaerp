@@ -220,6 +220,7 @@ export class PermissionsGuard implements CanActivate {
         'store.brand-analysis.read', 'store.brand-analysis.create', 'admin.storereports.read',
         'procurement.grns.read', 'procurement.grns.create', 'procurement.grns.update', 'procurement.suppliers.read', 'procurement.indents.read', 'procurement.indents.create', 'procurement.indents.update', 'procurement.purchase_orders.read', 'procurement.purchase-orders.read', 'procurement.procurement.read', 'procurement.procurement.create', 'procurement.audit.read', 'audit.read', 'admin.audit.read',
         'production.workorder.read', 'logistics.dispatches.read', 'sales.returns.read', 'sales.returns.update', 'sales-returns.read', 'user.read',
+        'qc.inspection.read', 'qc.inspections.read', 'production.qc.read',
       ].forEach(p => userPermSet.add(p));
     }
 
@@ -297,9 +298,9 @@ export class PermissionsGuard implements CanActivate {
       'suppliers.read': ['procurement.suppliers.read', 'suppliers.read', 'vendors.read', 'store.read', 'finance.read', 'admin.read', 'super-admin.read', 'production.productionworkflow.read', 'production.workorder.read', 'production.work_orders.manage', 'production.plan.read', 'production.floor.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read'],
       'inventory.inventory.read': ['inventory.inventory.read', 'inventory.stock.read', 'store.read', 'finance.read', 'admin.read', 'super-admin.read', 'production.productionworkflow.read', 'production.workorder.read', 'production.work_orders.manage', 'admin.planthead.read', 'planthead.read', 'plant-head.read'],
       'inventory.stock.read': ['inventory.inventory.read', 'inventory.stock.read', 'store.read', 'finance.read', 'admin.read', 'super-admin.read', 'production.productionworkflow.read', 'production.workorder.read', 'production.work_orders.manage', 'admin.planthead.read', 'planthead.read', 'plant-head.read'],
-      'production.qc.read': ['production.qc.read', 'qc.inspection.read', 'qc.inspections.read'],
-      'qc.inspection.read': ['production.qc.read', 'qc.inspection.read', 'qc.inspections.read'],
-      'qc.inspections.read': ['production.qc.read', 'qc.inspection.read', 'qc.inspections.read'],
+      'production.qc.read': ['production.qc.read', 'qc.inspection.read', 'qc.inspections.read', 'store.read', 'inventory.stock.read', 'admin.read', 'super-admin.read', 'planthead.read', 'plant-head.read', 'admin.planthead.read'],
+      'qc.inspection.read': ['production.qc.read', 'qc.inspection.read', 'qc.inspections.read', 'store.read', 'inventory.stock.read', 'admin.read', 'super-admin.read', 'planthead.read', 'plant-head.read', 'admin.planthead.read'],
+      'qc.inspections.read': ['production.qc.read', 'qc.inspection.read', 'qc.inspections.read', 'store.read', 'inventory.stock.read', 'admin.read', 'super-admin.read', 'planthead.read', 'plant-head.read', 'admin.planthead.read'],
       'production.productionworkflow.read': ['production.productionworkflow.read', 'production.finishedgoods.read', 'production.qc.read', 'qc.inspection.read', 'production.plan.read', 'production.plans.read', 'production.workorder.read', 'production.work_orders.manage', 'admin.planthead.read', 'planthead.read', 'plant-head.read'],
       'production.productionworkflow.create': ['production.productionworkflow.create', 'production.productionworkflow.read', 'production.floor.create', 'production.floor.update', 'production.work_orders.manage', 'production.workorder.manage', 'production.plan.create', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'admin.read', 'super-admin.read'],
       'production.floor.create': ['production.floor.create', 'production.floor.update', 'production.productionworkflow.create', 'production.productionworkflow.read', 'production.work_orders.manage', 'production.workorder.manage', 'production.plan.create', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'admin.read', 'super-admin.read'],
