@@ -1443,6 +1443,41 @@ textarea {
   color: var(--color-text-primary);
 }
 
+/* ── PLANT HEAD TABS HORIZONTAL SCROLL ── */
+.plant-tabs-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.plant-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.plant-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  width: max-content;
+  min-width: max-content;
+  gap: 8px;
+}
+
+.plant-tabs > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 .teachers-list {
   display: flex;
   flex-direction: column;

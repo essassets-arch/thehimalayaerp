@@ -3231,31 +3231,33 @@ export default function PlantHeadPortal() {
           </div>
         </div>
 
-        <div style={{ marginBottom: '12px', width: '100%' }}>
-          <div className="tab-filters-row" style={{ background: '#f1f3f5', display: 'flex', width: '100%', marginBottom: '10px', overflowX: 'auto', padding: '4px', borderRadius: '8px', boxSizing: 'border-box' }}>
-            {incomingTabs.map(tab => (
-              <button
-                key={tab.key}
-                className={`filter-pill ${incomingStatusFilter === tab.key ? 'active' : ''}`}
-                style={{
-                  flex: isMobile ? 1 : 'none',
-                  textAlign: 'center',
-                  color: incomingStatusFilter === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                  padding: '8px 12px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  border: 'none',
-                  background: incomingStatusFilter === tab.key ? '#fff' : 'transparent',
-                  borderRadius: '6px',
-                  boxShadow: (isMobile && incomingStatusFilter === tab.key) ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-                onClick={() => setIncomingStatusFilter(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
+        <div style={{ marginBottom: '12px', width: '100%', minWidth: 0 }}>
+          <div className="plant-tabs-scroll w-full overflow-x-auto overflow-y-hidden scrollbar-hide" style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+            <div className="plant-tabs flex w-max min-w-max flex-nowrap gap-2" style={{ display: 'flex', flexWrap: 'nowrap', width: 'max-content', minWidth: 'max-content', gap: '8px', background: '#f1f3f5', padding: '4px', borderRadius: '8px', boxSizing: 'border-box' }}>
+              {incomingTabs.map(tab => (
+                <button
+                  key={tab.key}
+                  className={`filter-pill shrink-0 whitespace-nowrap ${incomingStatusFilter === tab.key ? 'active' : ''}`}
+                  style={{
+                    flex: '0 0 auto',
+                    whiteSpace: 'nowrap',
+                    textAlign: 'center',
+                    color: incomingStatusFilter === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                    padding: '8px 16px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    border: 'none',
+                    background: incomingStatusFilter === tab.key ? '#fff' : 'transparent',
+                    borderRadius: '6px',
+                    boxShadow: incomingStatusFilter === tab.key ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setIncomingStatusFilter(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -3647,38 +3649,40 @@ export default function PlantHeadPortal() {
               type="text"
               placeholder="Search order, customer, product…"
               value={planningSearch}
-              onChange={e => setIncomingSearch(e.target.value)}
+              onChange={e => setPlanningSearch(e.target.value)}
               style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', color: 'var(--color-text-primary)', width: '100%' }}
             />
             {planningSearch && <X size={13} style={{ cursor: 'pointer', color: 'var(--color-text-secondary)', flexShrink: 0 }} onClick={() => setPlanningSearch('')} />}
           </div>
         </div>
 
-        <div style={{ marginBottom: '12px', width: '100%' }}>
-          <div className="tab-filters-row" style={{ background: '#f1f3f5', display: 'flex', width: '100%', marginBottom: '10px', overflowX: 'auto', padding: '4px', borderRadius: '8px', boxSizing: 'border-box' }}>
-            {planningTabs.map(tab => (
-              <button
-                key={tab.key}
-                className={`filter-pill ${planningViewTab === tab.key ? 'active' : ''}`}
-                style={{
-                  flex: isMobile ? 1 : 'none',
-                  textAlign: 'center',
-                  color: planningViewTab === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                  padding: '8px 12px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  border: 'none',
-                  background: planningViewTab === tab.key ? '#fff' : 'transparent',
-                  borderRadius: '6px',
-                  boxShadow: (isMobile && planningViewTab === tab.key) ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-                onClick={() => setPlanningViewTab(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
+        <div style={{ marginBottom: '12px', width: '100%', minWidth: 0 }}>
+          <div className="plant-tabs-scroll w-full overflow-x-auto overflow-y-hidden scrollbar-hide" style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+            <div className="plant-tabs flex w-max min-w-max flex-nowrap gap-2" style={{ display: 'flex', flexWrap: 'nowrap', width: 'max-content', minWidth: 'max-content', gap: '8px', background: '#f1f3f5', padding: '4px', borderRadius: '8px', boxSizing: 'border-box' }}>
+              {planningTabs.map(tab => (
+                <button
+                  key={tab.key}
+                  className={`filter-pill shrink-0 whitespace-nowrap ${planningViewTab === tab.key ? 'active' : ''}`}
+                  style={{
+                    flex: '0 0 auto',
+                    whiteSpace: 'nowrap',
+                    textAlign: 'center',
+                    color: planningViewTab === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                    padding: '8px 16px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    border: 'none',
+                    background: planningViewTab === tab.key ? '#fff' : 'transparent',
+                    borderRadius: '6px',
+                    boxShadow: planningViewTab === tab.key ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setPlanningViewTab(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
