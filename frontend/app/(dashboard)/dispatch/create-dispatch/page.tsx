@@ -5,6 +5,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Truck, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
+import Swal from "sweetalert2";
 
 import { backendFetch } from "@/lib/backendFetch";
 import styles from "./create-dispatch.module.css";
@@ -492,10 +493,14 @@ export default function CreateDispatchPage() {
       let hasChanges = false;
       const updated = { ...current };
       for (const order of selectedSalesOrders) {
-        if (updated[order.id] === undefined) {
-          updated[order.id] = formatAddressValue(order.shippingAddress) ||
+        if (updated[order.id] === undefined || !updated[order.id].trim()) {
+          const resolvedAddr = formatAddressValue(order.shippingAddress) ||
             formatAddressValue(order.customer?.shippingAddress) ||
-            formatAddressValue(order.customer?.billingAddress) || "";
+            formatAddressValue(order.customer?.billingAddress) ||
+            formatAddressValue((order.customer as any)?.address) ||
+            formatAddressValue((order as any)?.deliveryAddress) ||
+            "Customer Designated Delivery Site";
+          updated[order.id] = resolvedAddr;
           hasChanges = true;
         }
       }
@@ -758,9 +763,17 @@ export default function CreateDispatchPage() {
       for (const group of orderGroups.values()) {
         const groupAddress = deliveryAddresses[group.salesOrder.id] || "";
         if (!groupAddress.trim()) {
-          throw new Error(
-            `Delivery address is missing for ${group.salesOrder.orderNumber}`,
-          );
+          await Swal.fire({
+            icon: "warning",
+            title: "Delivery Address Required",
+            text: `Please enter the delivery address for Order #${group.salesOrder.orderNumber}`,
+            confirmButtonColor: "#2563eb",
+            confirmButtonText: "OK",
+            customClass: {
+              popup: "swal-rounded-modal",
+            },
+          });
+          return;
         }
       }
 
@@ -781,7 +794,7 @@ export default function CreateDispatchPage() {
           }, new Map<string, { salesOrderItemId: string; quantity: number; workOrderIds: string[] }>())
           .values(),
         );
-        const groupAddress = deliveryAddresses[group.salesOrder.id] || "";
+        const groupAddress = deliveryAddresses[group.salesOrder.id] || "Customer Designated Delivery Site";
 
         const payload = {
             salesOrderId: group.salesOrder.id,
@@ -817,6 +830,17 @@ export default function CreateDispatchPage() {
           });
       }
 
+      await Swal.fire({
+        icon: "success",
+        title: "Dispatch Created",
+        text: orderGroups.size === 1
+          ? "Dispatch created successfully and marked In Transit."
+          : `${orderGroups.size} sales orders added to this dispatch run.`,
+        confirmButtonColor: "#2563eb",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+
       toast.success(
         orderGroups.size === 1
           ? "Dispatch created and marked In Transit"
@@ -833,12 +857,19 @@ export default function CreateDispatchPage() {
             "Unknown error")
       );
 
-      alert(
+      const errorMsg =
         err?.details?.message?.join?.("\n") ||
-          err?.details?.message ||
-          err?.message ||
-          "Failed to create dispatch"
-      );
+        err?.details?.message ||
+        err?.message ||
+        "Failed to create dispatch";
+
+      await Swal.fire({
+        icon: "error",
+        title: "Dispatch Creation Failed",
+        text: errorMsg,
+        confirmButtonColor: "#2563eb",
+        confirmButtonText: "OK",
+      });
     }
   };
 
