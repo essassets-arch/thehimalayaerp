@@ -83,10 +83,29 @@ export default function InTransitPage() {
     refetchInterval: 30000,
   });
 
+  // Group & deduplicate by Sales Order: keep only the latest active dispatch per Sales Order
+  const dedupedDispatches = React.useMemo(() => {
+    const orderMap = new Map<string, Dispatch>();
+    const sorted = [...dispatches].sort((a, b) => {
+      const tA = new Date(a.dispatchedAt || (a as any).createdAt || 0).getTime();
+      const tB = new Date(b.dispatchedAt || (b as any).createdAt || 0).getTime();
+      if (tB !== tA) return tB - tA;
+      return String(b.dispatchNo || "").localeCompare(String(a.dispatchNo || ""));
+    });
+
+    for (const d of sorted) {
+      const soKey = d.salesOrder?.id || d.salesOrder?.orderNumber || d.id;
+      if (!orderMap.has(soKey)) {
+        orderMap.set(soKey, d);
+      }
+    }
+    return Array.from(orderMap.values());
+  }, [dispatches]);
+
   const filteredDispatches = React.useMemo(() => {
     const targetCat = isDispatch2 ? "D2" : "D1";
-    const categoryFiltered = dispatches.filter((d) => {
-      const cat = String(d.dispatchCategory || d.dispatch_category || "D1").toUpperCase();
+    const categoryFiltered = dedupedDispatches.filter((d) => {
+      const cat = String((d as any).dispatchCategory || (d as any).dispatch_category || "D1").toUpperCase();
       if (targetCat === "D1") return cat === "D1" || cat === "DISPATCH 1" || cat === "DISPATCH_1";
       if (targetCat === "D2") return cat === "D2" || cat === "DISPATCH 2" || cat === "DISPATCH_2";
       return true;
@@ -102,7 +121,7 @@ export default function InTransitPage() {
         d.driverName?.toLowerCase().includes(lower) ||
         d.vehicleNumber?.toLowerCase().includes(lower)
     );
-  }, [dispatches, search, isDispatch2]);
+  }, [dedupedDispatches, search, isDispatch2]);
 
   const handleStartDelivery = async (dispatchId: string) => {
     setLoadingId(dispatchId);
@@ -128,7 +147,7 @@ export default function InTransitPage() {
   const handleExportCsv = () => {
     if (!filteredDispatches.length) return;
     const exportRows = filteredDispatches.map((d) => ({
-      "Dispatch No": d.dispatchNo,
+      "Dispatch No": (d.dispatchNo || "").replace(/\s+/g, ""),
       "Sales Order": d.salesOrder?.orderNumber || "—",
       Customer: d.salesOrder?.customer?.companyName || "—",
       "Driver Name": d.driverName || "—",
@@ -152,6 +171,11 @@ export default function InTransitPage() {
     link.click();
   };
 
+  const formatCleanNo = (num?: string | null) => {
+    if (!num) return "—";
+    return num.replace(/\s*-\s*/g, "-").replace(/\s+/g, "");
+  };
+
   return (
     <DispatchPageShell>
       {/* Navigation Tabs */}
@@ -164,7 +188,7 @@ export default function InTransitPage() {
         eyebrow="Logistics Operations"
         icon={Navigation}
         stats={[
-          { label: "Active In-Transit", value: dispatches.length, icon: Truck, color: "bg-sky-50 text-sky-600" },
+          { label: "Active In-Transit", value: filteredDispatches.length, icon: Truck, color: "bg-sky-50 text-sky-600" },
         ]}
         onRefresh={() => refetch()}
         isRefreshing={isRefetching}
@@ -177,7 +201,7 @@ export default function InTransitPage() {
         searchPlaceholder="Search dispatch no, sales order, customer, driver or vehicle..."
         onExportCsv={filteredDispatches.length > 0 ? handleExportCsv : undefined}
         title="Transit Queue"
-        subtitle={`Auto-refreshes every 30s · Showing ${filteredDispatches.length} shipment${filteredDispatches.length !== 1 ? "s" : ""}`}
+        subtitle={`Auto-refreshes every 30s · Showing ${filteredDispatches.length} active shipment${filteredDispatches.length !== 1 ? "s" : ""}`}
       />
 
       {/* Loading State */}
@@ -207,29 +231,29 @@ export default function InTransitPage() {
             <DispatchTableCard minTableWidth={1150}>
               <table className="w-full text-sm text-left border-collapse no-mobile-stack">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[180px]">
+                  <tr className="bg-slate-50/80 border-b border-slate-200">
+                    <th className="text-left text-xs font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap min-w-[180px]">
                       Dispatch No.
                     </th>
-                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[160px]">
+                    <th className="text-left text-xs font-bold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[160px]">
                       Sales Order
                     </th>
-                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[200px]">
+                    <th className="text-left text-xs font-bold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[200px]">
                       Customer
                     </th>
-                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[200px]">
+                    <th className="text-left text-xs font-bold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[220px]">
                       Driver / Vehicle
                     </th>
-                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[180px]">
+                    <th className="text-left text-xs font-bold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[180px]">
                       Dispatched At
                     </th>
-                    <th className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[170px]">
+                    <th className="text-left text-xs font-bold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[170px]">
                       Expected Delivery
                     </th>
-                    <th className="text-center text-xs font-semibold uppercase tracking-wider text-slate-500 px-4 py-4 whitespace-nowrap min-w-[140px]">
+                    <th className="text-center text-xs font-bold uppercase tracking-wider text-slate-500 px-4 py-4 whitespace-nowrap min-w-[140px]">
                       Status
                     </th>
-                    <th className="text-right text-xs font-semibold uppercase tracking-wider text-slate-500 px-5 py-4 whitespace-nowrap min-w-[170px]">
+                    <th className="text-right text-xs font-bold uppercase tracking-wider text-slate-500 px-6 py-4 whitespace-nowrap min-w-[170px]">
                       Actions
                     </th>
                   </tr>
@@ -238,57 +262,71 @@ export default function InTransitPage() {
                   {filteredDispatches.map((dispatchItem) => {
                     const expectedDate = getExpectedDelivery(dispatchItem);
                     const isOverdue = expectedDate && new Date(expectedDate) < new Date();
+                    const cleanDispNo = formatCleanNo(dispatchItem.dispatchNo);
+                    const cleanSoNo = formatCleanNo(dispatchItem.salesOrder?.orderNumber);
+
                     return (
                       <tr
                         key={dispatchItem.id}
-                        className="hover:bg-slate-50 transition-colors group"
+                        className="hover:bg-slate-50/90 transition-colors group"
                       >
                         {/* Dispatch No */}
-                        <td className="px-5 py-4.5 whitespace-nowrap align-middle">
-                          <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
+                        <td className="px-6 py-4 whitespace-nowrap align-middle">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50/80 border border-indigo-200 text-indigo-700 font-bold text-xs tracking-tight shadow-2xs font-mono">
+                            <Truck className="w-3.5 h-3.5 text-indigo-500" />
+                            #{cleanDispNo}
+                          </span>
                         </td>
 
                         {/* Sales Order */}
-                        <td className="px-5 py-4.5 whitespace-nowrap align-middle">
-                          <span className="font-semibold text-slate-900 text-sm">
-                            #{dispatchItem.salesOrder?.orderNumber}
+                        <td className="px-5 py-4 whitespace-nowrap align-middle">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-800 font-bold text-xs font-mono">
+                            #{cleanSoNo}
                           </span>
                         </td>
 
                         {/* Customer */}
-                        <td className="px-5 py-4.5 whitespace-nowrap align-middle">
-                          <span
-                            className="font-semibold text-slate-900 text-sm tracking-tight block max-w-[220px] truncate"
-                            title={dispatchItem.salesOrder?.customer?.companyName || "—"}
-                          >
-                            {dispatchItem.salesOrder?.customer?.companyName || "—"}
-                          </span>
+                        <td className="px-5 py-4 whitespace-nowrap align-middle">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center uppercase">
+                              {(dispatchItem.salesOrder?.customer?.companyName || "C")[0]}
+                            </div>
+                            <span
+                              className="font-bold text-slate-900 text-sm tracking-tight block max-w-[200px] truncate"
+                              title={dispatchItem.salesOrder?.customer?.companyName || "—"}
+                            >
+                              {dispatchItem.salesOrder?.customer?.companyName || "—"}
+                            </span>
+                          </div>
                         </td>
 
                         {/* Driver / Vehicle */}
-                        <td className="px-5 py-4.5 whitespace-nowrap align-middle">
-                          <div className="flex flex-col">
-                            <span className="text-slate-900 font-semibold text-sm">
+                        <td className="px-5 py-4 whitespace-nowrap align-middle">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-slate-900 font-bold text-sm">
                               {dispatchItem.driverName || "—"}
                             </span>
-                            <div className="flex items-center gap-2 mt-0.5">
+                            <div className="flex items-center gap-1.5">
                               {dispatchItem.vehicleNumber && (
-                                <span className="text-indigo-600 font-mono text-xs font-bold">
+                                <span className="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 font-mono text-xs font-bold">
                                   {dispatchItem.vehicleNumber}
                                 </span>
                               )}
                               {dispatchItem.driverPhone && (
-                                <span className="text-slate-500 text-xs font-mono">
+                                <a
+                                  href={`tel:${dispatchItem.driverPhone}`}
+                                  className="text-slate-500 hover:text-blue-600 text-xs font-mono transition-colors"
+                                >
                                   · {dispatchItem.driverPhone}
-                                </span>
+                                </a>
                               )}
                             </div>
                           </div>
                         </td>
 
                         {/* Dispatched At */}
-                        <td className="px-5 py-4.5 whitespace-nowrap align-middle">
-                          <span className="text-slate-700 text-sm font-medium">
+                        <td className="px-5 py-4 whitespace-nowrap align-middle">
+                          <span className="text-slate-700 text-xs font-semibold">
                             {dispatchItem.dispatchedAt
                               ? new Date(dispatchItem.dispatchedAt).toLocaleString("en-IN", {
                                   day: "2-digit",
@@ -301,10 +339,12 @@ export default function InTransitPage() {
                         </td>
 
                         {/* Expected Delivery */}
-                        <td className="px-5 py-4.5 whitespace-nowrap align-middle">
+                        <td className="px-5 py-4 whitespace-nowrap align-middle">
                           <span
-                            className={`text-sm font-semibold ${
-                              isOverdue ? "text-red-600 font-bold" : "text-slate-800"
+                            className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${
+                              isOverdue
+                                ? "bg-red-50 text-red-700 border border-red-200"
+                                : "bg-emerald-50 text-emerald-800 border border-emerald-200"
                             }`}
                           >
                             {expectedDate
@@ -318,19 +358,24 @@ export default function InTransitPage() {
                         </td>
 
                         {/* Status */}
-                        <td className="px-4 py-4.5 whitespace-nowrap text-center align-middle">
-                          <DispatchStatusBadge status={dispatchItem.status} />
+                        <td className="px-4 py-4 whitespace-nowrap text-center align-middle">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-xs font-bold tracking-wide">
+                            <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
+                            IN TRANSIT
+                          </span>
                         </td>
 
                         {/* Action Button */}
-                        <td className="px-5 py-4.5 whitespace-nowrap text-right align-middle">
-                          <DispatchActionButton
-                            label="Start Delivery"
-                            icon={Play}
+                        <td className="px-6 py-4 whitespace-nowrap text-right align-middle">
+                          <button
+                            type="button"
                             onClick={() => handleStartDelivery(dispatchItem.id)}
-                            loading={loadingId === dispatchItem.id}
-                            variant="primary"
-                          />
+                            disabled={loadingId === dispatchItem.id}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            <Play className={`w-3.5 h-3.5 fill-current ${loadingId === dispatchItem.id ? "animate-spin" : ""}`} />
+                            <span>Start Delivery</span>
+                          </button>
                         </td>
                       </tr>
                     );
@@ -345,72 +390,63 @@ export default function InTransitPage() {
             {filteredDispatches.map((dispatchItem) => {
               const expectedDate = getExpectedDelivery(dispatchItem);
               const isOverdue = expectedDate && new Date(expectedDate) < new Date();
+              const cleanDispNo = formatCleanNo(dispatchItem.dispatchNo);
+              const cleanSoNo = formatCleanNo(dispatchItem.salesOrder?.orderNumber);
+
               return (
-                <div key={dispatchItem.id} className="dsp-card">
+                <div key={dispatchItem.id} className="dsp-card bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3">
                   {/* Card Header */}
-                  <div className="dsp-card-head">
-                    <div className="dsp-card-head-row">
-                      <SalesOrderNumberBadge orderNumber={dispatchItem.dispatchNo} />
-                      <DispatchStatusBadge status={dispatchItem.status} />
-                    </div>
-                    {dispatchItem.salesOrder?.orderNumber && (
-                      <span className="dsp-card-so">
-                        Sales Order: #{dispatchItem.salesOrder.orderNumber}
-                      </span>
-                    )}
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <span className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs font-mono">
+                      #{cleanDispNo}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-xs font-bold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+                      IN TRANSIT
+                    </span>
                   </div>
 
                   {/* Card Body */}
-                  <div className="dsp-card-body">
-                    {/* Customer */}
-                    <div className="dsp-card-row">
-                      <div className="dsp-card-icon">
-                        <User className="w-4 h-4" />
+                  <div className="space-y-2.5 text-xs">
+                    {cleanSoNo && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">Sales Order</span>
+                        <span className="font-bold text-slate-800 font-mono">#{cleanSoNo}</span>
                       </div>
-                      <div className="dsp-card-info">
-                        <p className="dsp-card-label">Customer</p>
-                        <p className="dsp-card-value truncate max-w-[240px]">
-                          {dispatchItem.salesOrder?.customer?.companyName || "—"}
-                        </p>
+                    )}
+
+                    {/* Customer */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 font-medium">Customer</span>
+                      <span className="font-bold text-slate-900 truncate max-w-[180px]">
+                        {dispatchItem.salesOrder?.customer?.companyName || "—"}
+                      </span>
+                    </div>
+
+                    {/* Driver & Vehicle */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 font-medium">Driver / Vehicle</span>
+                      <div className="text-right">
+                        <p className="font-bold text-slate-900 m-0">{dispatchItem.driverName || "—"}</p>
+                        {dispatchItem.vehicleNumber && (
+                          <p className="text-2xs font-mono font-bold text-blue-600 m-0">{dispatchItem.vehicleNumber}</p>
+                        )}
                       </div>
                     </div>
 
                     {/* Delivery Address */}
                     {dispatchItem.deliveryAddress && (
-                      <div className="dsp-card-row">
-                        <div className="dsp-card-icon">
-                          <MapPin className="w-4 h-4" />
-                        </div>
-                        <div className="dsp-card-info">
-                          <p className="dsp-card-label">Delivery Address</p>
-                          <p className="dsp-card-value dsp-card-addr leading-relaxed">{dispatchItem.deliveryAddress}</p>
-                        </div>
+                      <div className="pt-2 border-t border-slate-100">
+                        <p className="text-slate-500 font-medium mb-0.5">Delivery Address</p>
+                        <p className="text-slate-700 font-normal leading-relaxed">{dispatchItem.deliveryAddress}</p>
                       </div>
                     )}
 
-                    {/* Driver & Vehicle */}
-                    <div className="dsp-card-row">
-                      <div className="dsp-card-icon">
-                        <Truck className="w-4 h-4" />
-                      </div>
-                      <div className="dsp-card-info">
-                        <p className="dsp-card-label">Driver / Vehicle</p>
-                        <p className="dsp-card-value">
-                          {dispatchItem.driverName || "—"} {dispatchItem.driverPhone ? `· ${dispatchItem.driverPhone}` : ""}
-                        </p>
-                        {dispatchItem.vehicleNumber && (
-                          <p className="text-xs font-bold text-indigo-600 font-mono m-0 mt-1">
-                            {dispatchItem.vehicleNumber}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
                     {/* Dates */}
-                    <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-slate-100">
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                       <div>
-                        <p className="dsp-card-label">Dispatched</p>
-                        <p className="text-sm font-semibold text-slate-700 m-0 mt-0.5">
+                        <p className="text-slate-500 font-medium m-0">Dispatched</p>
+                        <p className="font-bold text-slate-800 m-0 mt-0.5">
                           {dispatchItem.dispatchedAt
                             ? new Date(dispatchItem.dispatchedAt).toLocaleDateString("en-IN", {
                                 day: "2-digit",
@@ -420,8 +456,8 @@ export default function InTransitPage() {
                         </p>
                       </div>
                       <div>
-                        <p className="dsp-card-label">Expected Delivery</p>
-                        <p className={`text-sm font-semibold m-0 mt-0.5 ${isOverdue ? "text-red-600" : "text-slate-700"}`}>
+                        <p className="text-slate-500 font-medium m-0">Expected Delivery</p>
+                        <p className={`font-bold m-0 mt-0.5 ${isOverdue ? "text-red-600" : "text-slate-800"}`}>
                           {expectedDate
                             ? new Date(expectedDate).toLocaleDateString("en-IN", {
                                 day: "2-digit",
@@ -434,14 +470,14 @@ export default function InTransitPage() {
                   </div>
 
                   {/* Card Footer */}
-                  <div className="dsp-card-foot">
+                  <div className="pt-2 border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => handleStartDelivery(dispatchItem.id)}
                       disabled={loadingId === dispatchItem.id}
-                      className="dsp-confirm-btn disabled:opacity-50"
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-sm active:scale-98 transition-all cursor-pointer disabled:opacity-50"
                     >
-                      <Play className={`w-4 h-4 ${loadingId === dispatchItem.id ? "animate-spin" : ""}`} />
+                      <Play className={`w-3.5 h-3.5 fill-current ${loadingId === dispatchItem.id ? "animate-spin" : ""}`} />
                       <span>Start Delivery</span>
                     </button>
                   </div>
