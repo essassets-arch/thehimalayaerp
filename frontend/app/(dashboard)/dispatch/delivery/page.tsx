@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -144,6 +144,23 @@ export default function DeliveryRunPage() {
     );
   }, [dispatches, search, isDispatch2]);
 
+  const isMobileValid = /^[6-9]\d{9}$/.test(receiverMobile);
+  const mobileValidationMessage = useMemo(() => {
+    if (!receiverMobile) return null;
+    if (receiverMobile.length < 10) {
+      return `${10 - receiverMobile.length} more digit${10 - receiverMobile.length > 1 ? "s" : ""} required`;
+    }
+    if (!/^[6-9]/.test(receiverMobile)) {
+      return "Must start with 6, 7, 8, or 9";
+    }
+    return "✓ Valid 10-digit mobile";
+  }, [receiverMobile]);
+
+  const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+    setReceiverMobile(digits);
+  };
+
   /* Handlers */
   const openModal = (item: Dispatch) => {
     setSelectedDispatch(item);
@@ -155,7 +172,21 @@ export default function DeliveryRunPage() {
   const handleConfirmDelivery = async () => {
     if (!selectedDispatch) return;
     if (!receiverName.trim()) { toast.error("Receiver Name is mandatory"); return; }
-    if (!receiverMobile.trim()) { toast.error("Receiver Mobile is mandatory"); return; }
+    
+    const cleanMobile = receiverMobile.replace(/\D/g, "");
+    if (!cleanMobile) {
+      toast.error("Receiver Mobile is mandatory");
+      return;
+    }
+    if (cleanMobile.length !== 10) {
+      toast.error(`Receiver Mobile must be exactly 10 digits (currently ${cleanMobile.length})`);
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      toast.error("Receiver Mobile must be a valid 10-digit number starting with 6, 7, 8, or 9");
+      return;
+    }
+
     if (!deliveryImage) { toast.error("Delivery POD image is mandatory"); return; }
 
     setIsSubmitting(true);
@@ -175,7 +206,7 @@ export default function DeliveryRunPage() {
           method: "POST",
           body: {
             receiverName: receiverName.trim(),
-            receiverPhone: receiverMobile.trim(),
+            receiverPhone: cleanMobile,
             podImageUrl: uploadResult.url,
             version: selectedDispatch.version || 1,
           },
@@ -480,18 +511,59 @@ export default function DeliveryRunPage() {
                 </div>
 
                 <div className="dsp-field">
-                  <label htmlFor="dsp-receiver-mobile" className="dsp-label">
-                    Receiver Mobile <span className="dsp-required">*</span>
-                  </label>
-                  <input
-                    id="dsp-receiver-mobile"
-                    type="tel"
-                    value={receiverMobile}
-                    onChange={(e) => setReceiverMobile(e.target.value)}
-                    placeholder="+91-9999999999"
-                    className="dsp-input"
-                    autoComplete="off"
-                  />
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <label htmlFor="dsp-receiver-mobile" className="dsp-label">
+                      Receiver Mobile <span className="dsp-required">*</span>
+                    </label>
+                    {receiverMobile && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: isMobileValid ? "#16a34a" : "#dc2626",
+                        }}
+                      >
+                        {mobileValidationMessage}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ position: "relative", display: "flex", alignItems: "center", width: "100%" }}>
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: 12,
+                        color: "#64748b",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        pointerEvents: "none",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      +91
+                    </span>
+                    <input
+                      id="dsp-receiver-mobile"
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={10}
+                      value={receiverMobile}
+                      onChange={handleMobileChange}
+                      placeholder="9876543210"
+                      className="dsp-input"
+                      style={{
+                        paddingLeft: 46,
+                        fontFamily: "monospace",
+                        letterSpacing: "0.05em",
+                        fontWeight: 600,
+                        borderColor: receiverMobile ? (isMobileValid ? "#86efac" : "#fca5a5") : undefined,
+                      }}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <span style={{ fontSize: 11, color: "#64748b", marginTop: 4, display: "block" }}>
+                    Enter exactly 10-digit Indian mobile number (e.g. 9876543210)
+                  </span>
                 </div>
               </div>
 
@@ -524,7 +596,7 @@ export default function DeliveryRunPage() {
                     <div className="dsp-pod-placeholder">
                       <Upload size={28} />
                       <span className="dsp-pod-title">Upload delivery proof image</span>
-                      <span className="dsp-pod-hint">JPG, PNG or WebP Â· max 5 MB</span>
+                      <span className="dsp-pod-hint">JPG, PNG or WebP · max 5 MB</span>
                     </div>
                   )}
                 </label>
@@ -543,12 +615,13 @@ export default function DeliveryRunPage() {
               </button>
               <button
                 type="button"
-                disabled={!receiverName || !receiverMobile || !deliveryImage || isSubmitting}
+                disabled={!receiverName.trim() || !isMobileValid || !deliveryImage || isSubmitting}
                 onClick={handleConfirmDelivery}
                 className="dsp-btn-confirm"
+                style={{ opacity: !receiverName.trim() || !isMobileValid || !deliveryImage ? 0.6 : 1 }}
               >
                 <CheckSquare size={15} />
-                <span>{isSubmitting ? "Confirmingâ€¦" : "Confirm Delivery"}</span>
+                <span>{isSubmitting ? "Confirming…" : "Confirm Delivery"}</span>
               </button>
             </div>
           </div>
