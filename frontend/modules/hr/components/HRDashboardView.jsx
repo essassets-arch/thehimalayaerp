@@ -14,7 +14,7 @@ import {
 import ResponsiveChartWrapper from '../../../shared/components/ResponsiveChartWrapper';
 import { employeesService } from '../../../services/hr/employeesService';
 import { payrollService } from '../../../services/payroll/payrollService';
-import { backendFetch } from '../../../../lib/backendFetch';
+import { backendFetch } from '@/lib/backendFetch';
 
 // Curated harmonious color palette for departments
 const DEPT_COLORS = [
