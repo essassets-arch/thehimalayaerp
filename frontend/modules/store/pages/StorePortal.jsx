@@ -356,61 +356,116 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
   );
 }
 
-function PaginationControl({ currentPage, totalPages, totalItems, pageSize, onPageChange, themeColor = '#2F4375' }) {
-  if (totalPages <= 1) return null;
+function PaginationControl({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  themeColor = '#2F4375',
+  pageSizeOptions = [25, 50, 100, 200]
+}) {
+  if (!totalItems || totalItems === 0) return null;
+
+  const startEntry = (currentPage - 1) * pageSize + 1;
+  const endEntry = Math.min(currentPage * pageSize, totalItems);
 
   return (
-    <div className="store-pagination-control store-pagination-wrap" style={{ padding: '16px 20px', background: '#FFFFFF', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-      <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
-        Showing <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> to <span style={{ fontWeight: 700, color: '#0F172A' }}>{Math.min(currentPage * pageSize, totalItems)}</span> of <span style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems}</span> entries (Page {currentPage} of {totalPages})
-      </div>
+    <div className="store-pagination-control store-pagination-wrap" style={{
+      padding: '12px 20px',
+      background: '#FFFFFF',
+      borderTop: '1px solid #E2E8F0',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: '12px'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
+          Showing <span style={{ fontWeight: 800, color: '#0F172A' }}>{startEntry}</span> to <span style={{ fontWeight: 800, color: '#0F172A' }}>{endEntry}</span> of <span style={{ fontWeight: 800, color: '#0F172A' }}>{totalItems}</span> entries {totalPages > 1 && `(Page ${currentPage} of ${totalPages})`}
+        </div>
 
-      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-        <button 
-          type="button"
-          disabled={currentPage === 1}
-          onClick={() => onPageChange(currentPage - 1)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === 1 ? '#F1F5F9' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === 1 ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600 }}
-        >
-          <ChevronLeft size={16} /> Previous
-        </button>
-
-        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-          let pNum = i + 1;
-          if (totalPages > 5 && currentPage > 3) {
-            pNum = currentPage - 2 + i;
-            if (pNum > totalPages) pNum = totalPages - (4 - i);
-          }
-          return (
-            <button
-              type="button"
-              key={pNum}
-              onClick={() => onPageChange(pNum)}
+        {onPageSizeChange && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', color: '#64748B' }}>
+            <span>Show:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                onPageSizeChange(Number(e.target.value));
+                onPageChange(1);
+              }}
               style={{
-                padding: '6px 12px',
+                padding: '4px 8px',
                 borderRadius: '6px',
-                fontSize: '13px',
-                fontWeight: 600,
+                border: '1px solid #CBD5E1',
+                background: '#FFFFFF',
+                fontSize: '12.5px',
+                fontWeight: 700,
+                color: '#1E293B',
                 cursor: 'pointer',
-                border: currentPage === pNum ? 'none' : '1px solid #CBD5E1',
-                background: currentPage === pNum ? themeColor : '#FFFFFF',
-                color: currentPage === pNum ? '#FFFFFF' : '#334155'
+                outline: 'none'
               }}
             >
-              {pNum}
-            </button>
-          );
-        })}
-
-        <button 
-          type="button"
-          disabled={currentPage === totalPages}
-          onClick={() => onPageChange(currentPage + 1)}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === totalPages ? '#F1F5F9' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === totalPages ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600 }}
-        >
-          Next <ChevronRight size={16} />
-        </button>
+              {pageSizeOptions.map(opt => (
+                <option key={opt} value={opt}>{opt} rows</option>
+              ))}
+              <option value={9999}>All ({totalItems})</option>
+            </select>
+          </div>
+        )}
       </div>
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <button 
+            type="button"
+            disabled={currentPage === 1}
+            onClick={() => onPageChange(currentPage - 1)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === 1 ? '#F8FAFC' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === 1 ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '12.5px', fontWeight: 600 }}
+          >
+            <ChevronLeft size={15} /> Previous
+          </button>
+
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            let pNum = i + 1;
+            if (totalPages > 5 && currentPage > 3) {
+              pNum = currentPage - 2 + i;
+              if (pNum > totalPages) pNum = totalPages - (4 - i);
+            }
+            return (
+              <button
+                type="button"
+                key={pNum}
+                onClick={() => onPageChange(pNum)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: currentPage === pNum ? 'none' : '1px solid #CBD5E1',
+                  background: currentPage === pNum ? themeColor : '#FFFFFF',
+                  color: currentPage === pNum ? '#FFFFFF' : '#334155',
+                  minWidth: '32px'
+                }}
+              >
+                {pNum}
+              </button>
+            );
+          })}
+
+          <button 
+            type="button"
+            disabled={currentPage === totalPages}
+            onClick={() => onPageChange(currentPage + 1)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: currentPage === totalPages ? '#F8FAFC' : '#FFFFFF', border: '1px solid #CBD5E1', color: currentPage === totalPages ? '#94A3B8' : '#334155', borderRadius: '6px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '12.5px', fontWeight: 600 }}
+          >
+            Next <ChevronRight size={15} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -506,8 +561,11 @@ export default function StorePortal() {
 
   // Pagination states
   const [rawInvPage, setRawInvPage] = useState(1);
+  const [rawInvPageSize, setRawInvPageSize] = useState(25);
   const [issuedHistoryPage, setIssuedHistoryPage] = useState(1);
+  const [issuedHistoryPageSize, setIssuedHistoryPageSize] = useState(25);
   const [lowStockPage, setLowStockPage] = useState(1);
+  const [lowStockPageSize, setLowStockPageSize] = useState(25);
 
   // Unified Raw Inventory UI states
   const [dbRawInventory, setDbRawInventory] = useState([]);
@@ -1385,7 +1443,6 @@ export default function StorePortal() {
       return 0;
     });
 
-    const rawInvPageSize = 25;
     const rawInvTotalPages = Math.ceil(sortedFilteredItems.length / rawInvPageSize) || 1;
     const paginatedRawInvItems = sortedFilteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
     const totalMaterials = mappedInventory.length;
@@ -1772,6 +1829,7 @@ export default function StorePortal() {
           totalItems={filteredItems.length}
           pageSize={rawInvPageSize}
           onPageChange={setRawInvPage}
+          onPageSizeChange={setRawInvPageSize}
           themeColor="#0f766e"
         />
 
@@ -1975,7 +2033,6 @@ export default function StorePortal() {
       return acc;
     }, {});
     const orderGroups = Object.entries(groupedByOrder);
-    const issuedHistoryPageSize = 25;
     const issuedHistoryTotalPages = Math.ceil(orderGroups.length / issuedHistoryPageSize);
     const paginatedOrderGroups = orderGroups.slice((issuedHistoryPage - 1) * issuedHistoryPageSize, issuedHistoryPage * issuedHistoryPageSize);
 
@@ -2231,6 +2288,7 @@ export default function StorePortal() {
           totalItems={orderGroups.length}
           pageSize={issuedHistoryPageSize}
           onPageChange={setIssuedHistoryPage}
+          onPageSizeChange={setIssuedHistoryPageSize}
           themeColor="#0f766e"
         />
       </div>
@@ -2325,7 +2383,6 @@ export default function StorePortal() {
         ? lowStockItemsOnly
         : allAlertItems;
 
-    const lowStockPageSize = 25;
     const lowStockTotalPages = Math.ceil(sortedLowStockItems.length / lowStockPageSize);
     const paginatedLowStockItems = sortedLowStockItems.slice((lowStockPage - 1) * lowStockPageSize, lowStockPage * lowStockPageSize);
 
@@ -2736,6 +2793,7 @@ export default function StorePortal() {
               totalItems={sortedLowStockItems.length}
               pageSize={lowStockPageSize}
               onPageChange={setLowStockPage}
+              onPageSizeChange={setLowStockPageSize}
               themeColor="#2F4375"
             />
           </>
