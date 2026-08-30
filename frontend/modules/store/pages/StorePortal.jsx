@@ -1385,7 +1385,7 @@ export default function StorePortal() {
       return 0;
     });
 
-    const rawInvPageSize = 15;
+    const rawInvPageSize = 25;
     const rawInvTotalPages = Math.ceil(sortedFilteredItems.length / rawInvPageSize) || 1;
     const paginatedRawInvItems = sortedFilteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
     const totalMaterials = mappedInventory.length;
@@ -1975,7 +1975,7 @@ export default function StorePortal() {
       return acc;
     }, {});
     const orderGroups = Object.entries(groupedByOrder);
-    const issuedHistoryPageSize = 30;
+    const issuedHistoryPageSize = 25;
     const issuedHistoryTotalPages = Math.ceil(orderGroups.length / issuedHistoryPageSize);
     const paginatedOrderGroups = orderGroups.slice((issuedHistoryPage - 1) * issuedHistoryPageSize, issuedHistoryPage * issuedHistoryPageSize);
 
@@ -2325,7 +2325,7 @@ export default function StorePortal() {
         ? lowStockItemsOnly
         : allAlertItems;
 
-    const lowStockPageSize = 30;
+    const lowStockPageSize = 25;
     const lowStockTotalPages = Math.ceil(sortedLowStockItems.length / lowStockPageSize);
     const paginatedLowStockItems = sortedLowStockItems.slice((lowStockPage - 1) * lowStockPageSize, lowStockPage * lowStockPageSize);
 

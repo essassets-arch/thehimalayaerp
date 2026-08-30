@@ -74,7 +74,7 @@ export default function BrandAnalysisRequests() {
 
   // Pagination State
   const [page, setPage] = useState(1);
-  const pageSize = 30;
+  const pageSize = 25;
 
   // Reset page when tab changes
   useEffect(() => {

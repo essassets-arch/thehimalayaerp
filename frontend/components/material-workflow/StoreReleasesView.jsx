@@ -49,7 +49,7 @@ export default function StoreReleasesView() {
 
   // Pagination states
   const [page, setPage] = useState(1);
-  const pageSize = 30;
+  const pageSize = 25;
 
   // Reset page when activeTab changes
   useEffect(() => {
