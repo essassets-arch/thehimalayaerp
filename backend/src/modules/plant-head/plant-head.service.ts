@@ -915,8 +915,17 @@ export class PlantHeadService {
             throw new BadRequestException(`Item ${item.salesOrderItemId} not found in this sales order.`);
           }
 
-          const directDispatchQty = Number(item.directDispatchQty || 0);
-          const productionQty = Number(item.productionQty || 0);
+          const isTradingItem =
+            (orderItem.product?.productType || '').toUpperCase() === 'TRADING' ||
+            (orderItem.product?.category || '').toUpperCase().includes('TRADING');
+
+          let directDispatchQty = Number(item.directDispatchQty || 0);
+          let productionQty = Number(item.productionQty || 0);
+
+          if (isTradingItem) {
+            directDispatchQty = directDispatchQty + productionQty;
+            productionQty = 0;
+          }
 
           if (directDispatchQty <= 0 && productionQty <= 0) {
             continue;
@@ -955,7 +964,7 @@ export class PlantHeadService {
             );
           }
 
-          if (directDispatchQty > totalFgAvailable) {
+          if (!isTradingItem && directDispatchQty > totalFgAvailable) {
             throw new BadRequestException(
               `Finished Goods availability changed for ${orderItem.productNameSnapshot}. Requested: ${directDispatchQty} UNITS, Available: ${totalFgAvailable} UNITS. Please refresh the fulfillment decision.`
             );
@@ -971,43 +980,53 @@ export class PlantHeadService {
 
         // 4. Commit allocations
         console.log(`[FULFILLMENT_PLAN:${orderId}] Step 4: Committing allocations`);
+        let totalProductionCreated = 0;
         for (const item of planDto.items) {
           const orderItem = salesOrder.items.find(i => i.id === item.salesOrderItemId);
           if (!orderItem) continue;
 
-          const directDispatchQty = Number(item.directDispatchQty || 0);
-          const productionQty = Number(item.productionQty || 0);
+          const isTradingItem =
+            (orderItem.product?.productType || '').toUpperCase() === 'TRADING' ||
+            (orderItem.product?.category || '').toUpperCase().includes('TRADING');
+
+          let directDispatchQty = Number(item.directDispatchQty || 0);
+          let productionQty = isTradingItem ? 0 : Number(item.productionQty || 0);
+          if (isTradingItem) {
+            directDispatchQty = directDispatchQty + Number(item.productionQty || 0);
+          }
 
           // A. Direct Dispatch Allocation
           if (directDispatchQty > 0) {
-            const fgRecords = await tx.finishedGoods.findMany({
-              where: { productId: orderItem.productId },
-            });
-
-            let remainingToReserve = directDispatchQty;
-            for (const fg of fgRecords) {
-              if (remainingToReserve <= 0) break;
-              const currentAvail = Number(fg.availableQuantity || 0);
-              if (currentAvail <= 0) continue;
-
-              const deduct = Math.min(currentAvail, remainingToReserve);
-              const updated = await tx.finishedGoods.updateMany({
-                where: {
-                  id: fg.id,
-                  availableQuantity: { gte: deduct },
-                },
-                data: {
-                  availableQuantity: { decrement: deduct },
-                  reservedQuantity: { increment: deduct },
-                },
+            if (!isTradingItem) {
+              const fgRecords = await tx.finishedGoods.findMany({
+                where: { productId: orderItem.productId },
               });
 
-              if (updated.count === 0) {
-                throw new BadRequestException(
-                  `Insufficient finished goods available stock due to concurrent updates. Please refresh and try again.`,
-                );
+              let remainingToReserve = directDispatchQty;
+              for (const fg of fgRecords) {
+                if (remainingToReserve <= 0) break;
+                const currentAvail = Number(fg.availableQuantity || 0);
+                if (currentAvail <= 0) continue;
+
+                const deduct = Math.min(currentAvail, remainingToReserve);
+                const updated = await tx.finishedGoods.updateMany({
+                  where: {
+                    id: fg.id,
+                    availableQuantity: { gte: deduct },
+                  },
+                  data: {
+                    availableQuantity: { decrement: deduct },
+                    reservedQuantity: { increment: deduct },
+                  },
+                });
+
+                if (updated.count === 0) {
+                  throw new BadRequestException(
+                    `Insufficient finished goods available stock due to concurrent updates. Please refresh and try again.`,
+                  );
+                }
+                remainingToReserve -= deduct;
               }
-              remainingToReserve -= deduct;
             }
 
             // Create FINISHED_GOODS_RESERVATION allocation
@@ -1035,8 +1054,9 @@ export class PlantHeadService {
             });
           }
 
-          // B. Production Allocation & Work Order
-          if (productionQty > 0) {
+          // B. Production Allocation & Work Order (Only for manufactured items)
+          if (productionQty > 0 && !isTradingItem) {
+            totalProductionCreated += productionQty;
             console.log(`[FULFILLMENT_PLAN:${orderId}] Step 5: Handling production quantity ${productionQty}`);
             if (item.targetDate) {
               plannedEndDateVal = new Date(item.targetDate);
@@ -1111,6 +1131,7 @@ export class PlantHeadService {
                 salesOrderItemId: item.salesOrderItemId,
                 allocationType: 'PRODUCTION_REQUIRED',
                 requiredQuantity: productionQty,
+                reservedQuantity: 0,
                 productionQuantity: productionQty,
                 workOrderId: wo.id,
               },
@@ -1118,9 +1139,20 @@ export class PlantHeadService {
           }
         }
 
-        // Update SalesOrder status to PLANT_APPROVED
+        // Update SalesOrder status
         console.log(`[FULFILLMENT_PLAN:${orderId}] Step 6: Updating SalesOrder status`);
-        if (salesOrder.status === 'SENT_TO_PLANT_HEAD' || salesOrder.status === 'SENT_TO_PLANT') {
+        if (totalProductionCreated === 0) {
+          const readyState = await tx.workflowState.findFirst({
+            where: { workflow: { code: 'SALES_ORDER' }, code: 'READY_FOR_DISPATCH' },
+          });
+          await tx.salesOrder.update({
+            where: { id: orderId },
+            data: {
+              status: 'READY_FOR_DISPATCH',
+              workflowStateId: readyState?.id || salesOrder.workflowStateId,
+            },
+          });
+        } else if (salesOrder.status === 'SENT_TO_PLANT_HEAD' || salesOrder.status === 'SENT_TO_PLANT') {
           const approvedState = await tx.workflowState.findFirst({
             where: { code: 'PLANT_APPROVED' },
           });

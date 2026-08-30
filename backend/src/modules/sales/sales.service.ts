@@ -581,9 +581,15 @@ export class SalesService {
           }
         } else {
           // 100% Trading order -> Bypass Plant Head factory production & route directly to Dispatch User
+          const readyDispatchState = await tx.workflowState.findFirst({
+            where: { workflow: { code: 'SALES_ORDER' }, code: 'READY_FOR_DISPATCH' },
+          });
           await tx.salesOrder.update({
             where: { id: order.id },
-            data: { status: SalesOrderStatus.READY_FOR_DISPATCH },
+            data: {
+              status: SalesOrderStatus.READY_FOR_DISPATCH,
+              ...(readyDispatchState ? { workflowStateId: readyDispatchState.id } : {}),
+            },
           });
         }
       }

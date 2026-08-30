@@ -182,6 +182,10 @@ export function mapSalesOrder(
       const dispatchMap = fulfillmentData?.dispatchMap;
       const allocationMap = fulfillmentData?.allocationMap;
 
+      const isTrading =
+        ((item as any).product?.productType || (item as any).productType || '').toUpperCase() === 'TRADING' ||
+        ((item as any).product?.category || '').toUpperCase().includes('TRADING');
+
       const orderedQty = Number(item.orderedQuantity);
       const alreadyDispatchedQty = dispatchMap ? (dispatchMap.get(item.id) || 0) : 0;
       const activeReservedQty = allocationMap ? (allocationMap.get(item.id)?.reserved || 0) : 0;
@@ -189,11 +193,13 @@ export function mapSalesOrder(
 
       const remainingUnallocatedQty = Math.max(0, orderedQty - alreadyDispatchedQty - activeReservedQty - activeProductionCommittedQty);
       const availableFG = fgMap ? (fgMap.get(item.productId) || 0) : 0;
-      const fgAllocatableQty = Math.min(availableFG, remainingUnallocatedQty);
-      const productionRequiredQty = Math.max(0, remainingUnallocatedQty - fgAllocatableQty);
+      
+      // Trading products never require factory floor manufacturing
+      const fgAllocatableQty = isTrading ? remainingUnallocatedQty : Math.min(availableFG, remainingUnallocatedQty);
+      const productionRequiredQty = isTrading ? 0 : Math.max(0, remainingUnallocatedQty - fgAllocatableQty);
 
-      const pendingDirectDispatchQty = fgAllocatableQty;
-      const pendingProductionQty = productionRequiredQty;
+      const pendingDirectDispatchQty = isTrading ? remainingUnallocatedQty : fgAllocatableQty;
+      const pendingProductionQty = isTrading ? 0 : productionRequiredQty;
 
       let fulfillmentState = 'PENDING_DECISION';
       if (pendingDirectDispatchQty === 0 && pendingProductionQty === 0) {
@@ -219,6 +225,7 @@ export function mapSalesOrder(
         pendingDirectDispatchQty,
         pendingProductionQty,
         fulfillmentState,
+        isTrading,
       };
 
       return {
@@ -226,6 +233,8 @@ export function mapSalesOrder(
         productId: item.productId,
         productName: item.productNameSnapshot,
         productCode: item.productCodeSnapshot,
+        productType: (item as any).product?.productType || (isTrading ? 'TRADING' : 'MANUFACTURING'),
+        isTrading,
         orderedQuantity: Number(item.orderedQuantity),
         deliveredQuantity,
         returnedQuantity,
