@@ -279,6 +279,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
           padding: 16px 20px;
           border-bottom: 1px solid #e2e8f0;
           background: #ffffff;
+          flex-shrink: 0;
         }
 
         @media (max-width: 640px) {
@@ -299,6 +300,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
           padding: 14px 20px;
           border-bottom: 1px solid #e2e8f0;
           background: #f8fafc;
+          flex-shrink: 0;
         }
 
         .reports-date-group {
@@ -432,7 +434,12 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
           border-bottom: 1px solid #e2e8f0;
           background: #ffffff;
           box-sizing: border-box;
-          padding: 8px 16px;
+          padding: 10px 16px;
+          flex: 0 0 auto;
+          flex-shrink: 0;
+          min-height: 56px;
+          display: flex;
+          align-items: center;
         }
         .reports-tabs-scroll::-webkit-scrollbar {
           display: none;
@@ -444,6 +451,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
           width: max-content;
           min-width: max-content;
           gap: 8px;
+          align-items: center;
         }
 
         .reports-tabs > * {
@@ -455,7 +463,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
           display: inline-flex;
           align-items: center;
           gap: 7px;
-          padding: 8px 14px;
+          padding: 8px 16px;
           border-radius: 8px;
           font-size: 13px;
           font-weight: 700;
@@ -468,10 +476,14 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
           flex-shrink: 0;
           transition: all 0.2s ease;
           user-select: none;
+          line-height: 1;
+          height: 38px;
+          box-sizing: border-box;
         }
         .reports-tab-pill:hover {
           background: #f1f5f9;
           color: #0f172a;
+          border-color: #cbd5e1;
         }
         .reports-tab-pill.active {
           background: #002e5d;
