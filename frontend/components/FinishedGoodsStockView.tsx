@@ -217,8 +217,27 @@ export default function FinishedGoodsStockView({
         };
       })
       .filter((row: StockRow) => {
-        const type = String(row.productType || '').toUpperCase();
-        if (type === 'RAW_MATERIAL') {
+        const origType = String(row.productType || '').toUpperCase();
+        const family = String(row.category || '').toLowerCase();
+        const code = String(row.productCode || '').toUpperCase();
+        const name = String(row.productName || '').toLowerCase();
+
+        if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') {
+          return false;
+        }
+        if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(family)) {
+          return false;
+        }
+        if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
+          return false;
+        }
+        const rawKeywords = [
+          'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
+          'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
+          'clamp', 'hammer', 'bucket', 'ghamela', 'carbon', 'pva', 'wax', 'polish', 
+          'resin', 'cobalt', 'catalyst', 'fly ash', 'admixture'
+        ];
+        if (rawKeywords.some((keyword) => name.includes(keyword))) {
           return false;
         }
         return true;

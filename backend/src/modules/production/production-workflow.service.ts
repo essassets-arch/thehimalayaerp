@@ -869,6 +869,33 @@ export class ProductionWorkflowService {
       }
     }
 
+    const isCatalogProduct = (item: any) => {
+      const origType = String(item?.productType || item?.product_type || item?.product?.productType || item?.product?.product_type || '').toUpperCase();
+      const family = String(item?.category || item?.product_family || item?.product?.category || item?.product?.product_family || '').toLowerCase();
+      const code = String(item?.sku || item?.productCode || item?.product_code || item?.publicId || item?.product?.sku || item?.product?.publicId || '').toUpperCase();
+      const name = String(item?.name || item?.productName || item?.product_name || item?.product?.name || item?.product?.product_name || '').toLowerCase();
+
+      if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') {
+        return false;
+      }
+      if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(family)) {
+        return false;
+      }
+      if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
+        return false;
+      }
+      const rawKeywords = [
+        'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
+        'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
+        'clamp', 'hammer', 'bucket', 'ghamela', 'carbon', 'pva', 'wax', 'polish', 
+        'resin', 'cobalt', 'catalyst', 'fly ash', 'admixture'
+      ];
+      if (rawKeywords.some((keyword) => name.includes(keyword))) {
+        return false;
+      }
+      return true;
+    };
+
     const allProductsWhere: any = {
       isActive: true,
     };
@@ -883,6 +910,8 @@ export class ProductionWorkflowService {
       where: allProductsWhere,
       orderBy: { name: 'asc' },
     });
+
+    const validCatalogProducts = allCatalogProducts.filter(isCatalogProduct);
 
     const coveredProductIds = new Set<string>();
     for (const r of mappedExisting) {
@@ -899,7 +928,7 @@ export class ProductionWorkflowService {
     }
 
     const catalogSyntheticRecords: any[] = [];
-    for (const prod of allCatalogProducts) {
+    for (const prod of validCatalogProducts) {
       if (!coveredProductIds.has(String(prod.id))) {
         catalogSyntheticRecords.push({
           id: `fg-prod-${prod.id}`,
@@ -926,7 +955,7 @@ export class ProductionWorkflowService {
       }
     }
 
-    const rawList = [...mappedExisting, ...syntheticRecords, ...soSyntheticRecords, ...catalogSyntheticRecords];
+    const rawList = [...mappedExisting, ...syntheticRecords, ...soSyntheticRecords, ...catalogSyntheticRecords].filter(isCatalogProduct);
 
     const stockHistorySums = await this.prisma.stockHistory.groupBy({
       by: ['productId', 'event'],
