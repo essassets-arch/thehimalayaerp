@@ -985,24 +985,97 @@ export class ProcurementService {
     userId?: string,
     role?: string,
   ) {
-    const scope = getAdvancedScope(userId, role, {
-      STORE: { receivedById: userId },
-    });
     const { page, limit, skip } = this.page(query);
-    const where: any = { ...(companyId && { companyId }), ...scope };
-    const [data, total] = await this.prisma.$transaction([
+    const search = (query?.search || '').trim();
+    const status = query?.status;
+    const fromDate = query?.from ? new Date(query.from) : undefined;
+    const toDate = query?.to ? new Date(query.to) : undefined;
+
+    const where: any = {
+      ...(companyId ? { companyId } : {}),
+      ...(status && status !== 'ALL' && status !== 'All' ? { status } : {}),
+      ...(fromDate || toDate
+        ? {
+            receivedAt: {
+              ...(fromDate ? { gte: fromDate } : {}),
+              ...(toDate ? { lte: toDate } : {}),
+            },
+          }
+        : {}),
+      ...(search
+        ? {
+            OR: [
+              { grnNumber: { contains: search, mode: 'insensitive' } },
+              { publicId: { contains: search, mode: 'insensitive' } },
+              { purchaseOrder: { poNumber: { contains: search, mode: 'insensitive' } } },
+              { purchaseOrder: { publicId: { contains: search, mode: 'insensitive' } } },
+              { purchaseOrder: { supplier: { name: { contains: search, mode: 'insensitive' } } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [rawGrns, total] = await this.prisma.$transaction([
       this.prisma.goodsReceiptNote.findMany({
         where,
         skip,
         take: limit,
         orderBy: { receivedAt: 'desc' },
         include: {
-          purchaseOrder: { include: { supplier: true } },
-          items: { include: { product: true } },
+          purchaseOrder: {
+            include: {
+              supplier: true,
+            },
+          },
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          warehouse: true,
         },
       }),
       this.prisma.goodsReceiptNote.count({ where }),
     ]);
+
+    // Enrich with receiver user names
+    const receiverIds = Array.from(
+      new Set(rawGrns.map((g) => g.receivedById).filter(Boolean) as string[]),
+    );
+    const users = receiverIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: receiverIds } },
+          select: { id: true, name: true, email: true },
+        })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const data = rawGrns.map((grn) => {
+      const receiver = grn.receivedById ? userMap.get(grn.receivedById) : null;
+      const snapshot: any = grn.snapshot || {};
+      return {
+        ...grn,
+        receivedBy: receiver
+          ? { id: receiver.id, name: receiver.name || receiver.email, email: receiver.email }
+          : null,
+        challanNumber: snapshot.deliveryChallanNumber || snapshot.challanNo || null,
+        invoiceNumber: snapshot.invoiceNumber || snapshot.invoiceNo || null,
+        remarks: snapshot.remarks || null,
+        totalAcceptedQty: (grn.items || []).reduce(
+          (sum, item) => sum + Number(item.acceptedQuantity || 0),
+          0,
+        ),
+        totalRejectedQty: (grn.items || []).reduce(
+          (sum, item) => sum + Number(item.rejectedQuantity || 0),
+          0,
+        ),
+        totalReceivedQty: (grn.items || []).reduce(
+          (sum, item) => sum + Number(item.receivedQuantity || 0),
+          0,
+        ),
+      };
+    });
+
     return { data, meta: { page, limit, total } };
   }
 

@@ -26,6 +26,7 @@ import CreateMaterialIndent from '../../procurement/store/CreateMaterialIndent';
 import VerifyPODelivery from '../../procurement/store/VerifyPODelivery';
 import ReceiveReplacement from '../../procurement/store/ReceiveReplacement';
 import MaterialRejections from '../components/MaterialRejections';
+import DeliveryHistory from '../components/DeliveryHistory';
 import IndentHistory from '../components/IndentHistory';
 import POReport from '../components/POReport';
 import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
@@ -3935,7 +3936,7 @@ export default function StorePortal() {
         }}>
           {(!activeTab || activeTab === 'Create Request')   && <CreateMaterialIndent />}
           {activeTab === 'Verify Delivery'                  && <VerifyPODelivery />}
-          {activeTab === 'Delivery History'                 && renderPOListTab()}
+          {activeTab === 'Delivery History'                 && <DeliveryHistory />}
           {activeTab === 'GRN History'                      && <GoodsReceiptNote />}
           {activeTab === 'Material Rejections'              && <MaterialRejections />}
           {activeTab === 'Replacement Deliveries'           && <ReceiveReplacement />}
