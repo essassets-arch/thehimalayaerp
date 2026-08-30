@@ -180,7 +180,7 @@ export class PermissionsGuard implements CanActivate {
         'production.floor.read', 'production.floor.create', 'production.floor.update', 'production.productionworkflow.read', 'production.productionworkflow.create', 'production.finishedgoods.read',
         'qc.inspections.read', 'qc.inspections.create', 'qc.inspections.approve', 'qc.inspections.reject', 'production.qc.read', 'production.qc.approve', 'production.qc.reject',
         'inventory.stock.read', 'inventory.inventory.read', 'inventory.warehouses.read', 'admin.products.read', 'products.read', 'procurement.suppliers.read',
-        'procurement.indents.read', 'procurement.indents.approve', 'procurement.purchase_orders.read', 'procurement.purchase-orders.read',
+        'procurement.indents.read', 'procurement.indents.create', 'procurement.indents.update', 'procurement.indents.approve', 'procurement.indents.reject', 'procurement.indents.override', 'procurement.purchase_orders.read', 'procurement.purchase-orders.read', 'procurement.purchase_orders.update', 'procurement.purchase_orders.approve', 'procurement.grns.read', 'procurement.grns.update', 'procurement.procurement.read', 'procurement.procurement.create', 'procurement.procurement.reject',
         'sales.orders.read', 'sales.orders.update', 'sales.orders.approve', 'user.read',
       ].forEach(p => userPermSet.add(p));
     }
@@ -218,7 +218,7 @@ export class PermissionsGuard implements CanActivate {
         'materialrequests.read', 'materialrequests.create', 'materialrequests.approve', 'materialrequests.reject', 'materialrequests.update',
         'inventory.stock.read', 'inventory.inventory.read', 'inventory.warehouses.read', 'admin.products.read', 'products.read',
         'store.brand-analysis.read', 'store.brand-analysis.create', 'admin.storereports.read',
-        'procurement.grns.read', 'procurement.suppliers.read', 'procurement.indents.read', 'procurement.purchase_orders.read', 'procurement.purchase-orders.read',
+        'procurement.grns.read', 'procurement.grns.create', 'procurement.grns.update', 'procurement.suppliers.read', 'procurement.indents.read', 'procurement.indents.create', 'procurement.indents.update', 'procurement.purchase_orders.read', 'procurement.purchase-orders.read', 'procurement.procurement.read', 'procurement.procurement.create',
         'production.workorder.read', 'logistics.dispatches.read', 'sales.returns.read', 'sales.returns.update', 'sales-returns.read', 'user.read',
       ].forEach(p => userPermSet.add(p));
     }
@@ -231,8 +231,8 @@ export class PermissionsGuard implements CanActivate {
         'finance.sales-analytics.read', 'finance.sales-analytics.activity.read', 'finance.sales-analytics.receivables.read', 'finance.sales-analytics.export',
         'finance.salary.manage', 'finance.salary.view', 'finance.salary.read', 'finance.salary.disburse', 'finance.reports.read',
         'sales.orders.read', 'sales.customers.read', 'logistics.dispatches.read',
-        'procurement.purchase_orders.read', 'procurement.purchase-orders.read', 'procurement.grns.read', 'procurement.invoices.read', 'procurement.payments.read', 'procurement.suppliers.read',
-        'procurement.vendor_invoices.read', 'procurement.vendor-invoices.read', 'procurement.vendor_payments.read', 'procurement.vendor-payments.read',
+        'procurement.indents.read', 'procurement.indents.update', 'procurement.indents.approve', 'procurement.purchase_orders.read', 'procurement.purchase-orders.read', 'procurement.purchase_orders.create', 'procurement.purchase_orders.update', 'procurement.purchase_orders.approve', 'procurement.grns.read', 'procurement.grns.update', 'procurement.invoices.read', 'procurement.payments.read', 'procurement.suppliers.read',
+        'procurement.vendor_invoices.read', 'procurement.vendor-invoices.read', 'procurement.vendor_payments.read', 'procurement.vendor-payments.read', 'procurement.vendor_invoices.create', 'procurement.vendor-invoices.create', 'procurement.vendor_invoices.update', 'procurement.vendor-invoices.update', 'procurement.vendor_payments.create', 'procurement.vendor-payments.create', 'procurement.vendor_payments.update', 'procurement.vendor-payments.update', 'procurement.procurement.read', 'procurement.procurement.create',
         'inventory.stock.read', 'inventory.inventory.read', 'user.read',
       ].forEach(p => userPermSet.add(p));
     }
@@ -371,8 +371,14 @@ export class PermissionsGuard implements CanActivate {
       'crm.quotations.convert': ['crm.quotations.convert', 'crm.quotation.convert', 'crm.quotations.update', 'sales.orders.create'],
       'crm.quotations.accept': ['crm.quotations.accept', 'crm.quotation.accept', 'crm.quotations.update', 'sales.orders.create'],
       'procurement.indents.read': ['procurement.indents.read', 'procurement.procurement.read', 'procurement.read', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'inventory.stock.read', 'inventory.inventory.read', 'store.read', 'finance.read', 'finance.invoices.read', 'admin.read', 'super-admin.read'],
+      'procurement.indents.create': ['procurement.indents.create', 'procurement.indents.update', 'procurement.procurement.create', 'procurement.procurement.read', 'store.materialrequests.create', 'store.create', 'store.read', 'admin.planthead.create', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'admin.read', 'super-admin.read'],
+      'procurement.indents.update': ['procurement.indents.update', 'procurement.indents.approve', 'procurement.indents.reject', 'procurement.indents.create', 'procurement.indents.manage', 'procurement.procurement.read', 'admin.planthead.create', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'store.read', 'finance.read', 'admin.read', 'super-admin.read'],
+      'procurement.indents.approve': ['procurement.indents.approve', 'procurement.indents.update', 'admin.planthead.create', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'admin.read', 'super-admin.read'],
+      'procurement.indents.reject': ['procurement.indents.reject', 'procurement.indents.update', 'admin.planthead.create', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'admin.read', 'super-admin.read'],
       'procurement.purchase_orders.read': ['procurement.purchase_orders.read', 'procurement.purchase-orders.read', 'procurement.po.read', 'procurement.procurement.read', 'procurement.read', 'store.read', 'finance.read', 'admin.read', 'super-admin.read', 'admin.planthead.read', 'planthead.read'],
       'procurement.purchase-orders.read': ['procurement.purchase_orders.read', 'procurement.purchase-orders.read', 'procurement.po.read', 'procurement.procurement.read', 'procurement.read', 'store.read', 'finance.read', 'admin.read', 'super-admin.read', 'admin.planthead.read', 'planthead.read'],
+      'procurement.purchase_orders.create': ['procurement.purchase_orders.create', 'procurement.purchase-orders.create', 'procurement.po.create', 'procurement.purchase_orders.update', 'finance.invoices.create', 'finance.read', 'admin.read', 'super-admin.read'],
+      'procurement.purchase_orders.update': ['procurement.purchase_orders.update', 'procurement.purchase-orders.update', 'procurement.purchase_orders.approve', 'procurement.purchase-orders.approve', 'procurement.po.update', 'procurement.po.approve', 'finance.read', 'finance.invoices.update', 'admin.planthead.read', 'planthead.read', 'plant-head.read', 'admin.read', 'super-admin.read'],
       'procurement.grns.read': ['procurement.grns.read', 'procurement.grn.read', 'procurement.procurement.read', 'procurement.read', 'inventory.stock.read', 'inventory.inventory.read', 'store.read', 'admin.planthead.read', 'planthead.read', 'finance.read', 'finance.invoices.read', 'admin.read', 'super-admin.read'],
       'procurement.invoices.read': ['procurement.invoices.read', 'procurement.invoice.read', 'procurement.vendor-invoices.read', 'procurement.vendor_invoices.read', 'procurement.procurement.read', 'procurement.read', 'finance.invoices.read', 'finance.invoice.read', 'finance.read', 'admin.read', 'super-admin.read', 'store.read', 'admin.planthead.read', 'planthead.read'],
       'procurement.vendor-invoices.read': ['procurement.vendor-invoices.read', 'procurement.vendor_invoices.read', 'procurement.invoices.read', 'procurement.invoice.read', 'procurement.procurement.read', 'procurement.read', 'finance.invoices.read', 'finance.invoice.read', 'finance.read', 'admin.read', 'super-admin.read', 'store.read', 'admin.planthead.read', 'planthead.read'],

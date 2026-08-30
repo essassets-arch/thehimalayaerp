@@ -105,19 +105,26 @@ export class ProcurementController {
   }
   @Post('indents')
   @RequirePermissions('procurement.indents.create')
+  @Roles('STORE', 'STORE_MANAGER', 'PLANT_HEAD', 'PLANT_HEAD_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER')
   createIndent(@Body() d: any, @Req() r: any) {
     return this.service.createIndent(d, r.user?.sub);
   }
   @Post('indents/:id/:action')
   @RequirePermissions('procurement.indents.update')
+  @Roles('PLANT_HEAD', 'PLANT_HEAD_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'STORE', 'STORE_MANAGER', 'FINANCE', 'FINANCE_MANAGER', 'PURCHASE_MANAGER')
   indentAction(
     @Param('id') id: string,
     @Param('action') a: string,
     @Body() d: any,
     @Req() r: any,
   ) {
+    const rawRole = r.user?.role;
+    const roleCode = typeof rawRole === 'string' ? rawRole : rawRole?.code || rawRole?.name || '';
+    const isSuperAdmin = roleCode.toUpperCase().includes('SUPER_ADMIN') || roleCode.toUpperCase().includes('ADMIN');
+    const isPlantHead = roleCode.toUpperCase().includes('PLANT_HEAD');
     const overrideSod =
-      r.user?.role === 'SUPER_ADMIN' ||
+      isSuperAdmin ||
+      isPlantHead ||
       Boolean(r.user?.permissions?.includes('procurement.indents.override'));
     return this.service.indentAction(id, a, d, r.user?.sub, overrideSod);
   }
