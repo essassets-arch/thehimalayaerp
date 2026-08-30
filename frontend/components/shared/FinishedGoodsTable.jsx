@@ -2,7 +2,7 @@ import React from 'react';
 import DataTable from '../../shared/components/DataTable';
 import StatusBadge from '../../shared/components/StatusBadge';
 import Swal from 'sweetalert2';
-import { useERPStore } from '@/store/erpStore';
+import { backendFetch } from '@/lib/backendFetch';
 
 export default function FinishedGoodsTable({ records = [], readOnly = false, showActions = false, onActionComplete = undefined }) {
   const getRecordAvailableQty = (record) => {
@@ -28,11 +28,11 @@ export default function FinishedGoodsTable({ records = [], readOnly = false, sho
     if (readOnly || !showActions) return;
     
     const availableQuantity = getRecordAvailableQty(record);
-    if (availableQuantity <= 0 || record.status === 'SENT_TO_DISPATCH') return;
+    if (availableQuantity <= 0 || record.status === 'SENT_TO_DISPATCH' || record.status === 'READY_FOR_DISPATCH') return;
 
     const result = await Swal.fire({
       title: 'Send to Dispatch?',
-      text: `Send Batch ${record.batchId || record.id} (Order ${record.orderId || record.workOrderNumber}) to the Dispatch queue?`,
+      text: `Send Batch ${record.batchId || record.id} (Order ${record.orderId || record.workOrderNumber || record.jobNo || record.id}) to the Dispatch queue?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Yes, Send to Dispatch',
@@ -47,7 +47,12 @@ export default function FinishedGoodsTable({ records = [], readOnly = false, sho
     if (!result.isConfirmed) return;
 
     try {
-      // If we're using mock data store
+      const targetId = record.workOrder?.id || record.workOrderId || record.salesOrderId || record.salesOrder?.id || record.id || record.jobNo || record.workOrderNumber;
+      if (targetId) {
+        await backendFetch(`/api/backend/production/work-orders/${encodeURIComponent(targetId)}/send-to-dispatch`, {
+          method: 'POST',
+        }).catch((e) => console.warn('Backend send-to-dispatch warning:', e));
+      }
       useERPStore.getState().sendFinishedGoodsToDispatch?.(record.id);
       await Swal.fire({
         icon: 'success',

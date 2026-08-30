@@ -239,13 +239,11 @@ export default function DispatchOrdersPage() {
       const unifiedFinishedGoods: UnifiedPendingDispatchItem[] = rawFinishedGoods
         .filter((fg) => {
           const s = String(fg.status || "").toUpperCase();
-          const jobNoStr = String(fg.jobNo || fg.workOrderId || fg.id || "");
-          const isWoStock = jobNoStr.startsWith("WO-STOCK-") || jobNoStr.includes("WO-STOCK-");
           const qtyVal = fg.availableQuantity ?? fg.quantity ?? 0;
           const qty = typeof qtyVal === "number" ? qtyVal : parseFloat(String(qtyVal)) || 0;
 
-          if (isWoStock || qty <= 0) return false;
-          return ["AVAILABLE", "READY_FOR_DISPATCH", "QC_APPROVED", "PASSED", "STAGED", "IN_STAGING"].includes(s);
+          if (qty <= 0) return false;
+          return ["AVAILABLE", "READY_FOR_DISPATCH", "QC_APPROVED", "PASSED", "STAGED", "IN_STAGING", "PENDING_HANDOFF"].includes(s);
         })
         .map((fg) => {
           const wo = fg.workOrder;

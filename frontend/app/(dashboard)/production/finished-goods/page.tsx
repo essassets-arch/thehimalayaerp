@@ -366,6 +366,7 @@ export default function FinishedGoodsPage() {
         const isSending = Boolean(dispatchSendingMap[rowKey]);
         const statusUpper = String(item.status || item.productionStatus || item.workOrder?.status || '').toUpperCase();
         const isAlreadySent =
+          statusUpper === 'READY_FOR_DISPATCH' ||
           statusUpper === 'SENT_TO_DISPATCH' ||
           statusUpper === 'DISPATCHED' ||
           statusUpper === 'IN_TRANSIT' ||
