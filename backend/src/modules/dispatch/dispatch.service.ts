@@ -973,7 +973,7 @@ export class DispatchService {
             salesOrderId: salesOrder?.id || null,
             workOrderId: wo.id,
             batchId: product?.sku || wo.workOrderNumber || 'FG-PROD',
-            customerName: customer?.companyName || customer?.name || 'Production Dispatch',
+            customerName: customer?.companyName || (customer as any)?.name || 'Production Dispatch',
             deliveryAddress: typeof salesOrder?.shippingAddress === 'string'
               ? salesOrder.shippingAddress
               : (salesOrder?.shippingAddress ? JSON.stringify(salesOrder.shippingAddress) : 'Factory Staging Area'),
@@ -983,13 +983,13 @@ export class DispatchService {
         }
 
         const orderRow = ordersMap.get(key);
-        const existingItem = orderRow.items.find((i: any) => i.workOrderId === wo.id || (i.productId === (product?.id || wo.productId)));
+        const existingItem = orderRow.items.find((i: any) => i.workOrderId === wo.id || (product?.id && i.productId === product.id));
         if (!existingItem) {
           orderRow.items.push({
             allocationId: `wo-${wo.id}`,
             workOrderId: wo.id,
             salesOrderItemId: wo.salesOrderItemId,
-            productId: product?.id || wo.productId,
+            productId: product?.id || (wo as any).productId || '',
             productCode: wo.salesOrderItem?.productCodeSnapshot || product?.sku || product?.publicId || '',
             productName: wo.salesOrderItem?.productNameSnapshot || product?.name || 'Finished Product',
             approvedQuantity: Number(wo.quantity || 1),
@@ -1040,12 +1040,12 @@ export class DispatchService {
         if (!ordersMap.has(key)) {
           ordersMap.set(key, {
             id: `fg-${fg.id}`,
-            orderId: salesOrder?.orderNumber || fg.jobNo || 'FG-DISPATCH',
-            orderNo: salesOrder?.orderNumber || fg.jobNo || 'FG-DISPATCH',
+            orderId: salesOrder?.orderNumber || wo?.workOrderNumber || 'FG-DISPATCH',
+            orderNo: salesOrder?.orderNumber || wo?.workOrderNumber || 'FG-DISPATCH',
             salesOrderId: salesOrder?.id || null,
             workOrderId: fg.workOrderId || null,
-            batchId: product?.sku || fg.jobNo || 'FG-STOCK',
-            customerName: customer?.companyName || customer?.name || 'Factory Finished Goods',
+            batchId: product?.sku || wo?.workOrderNumber || 'FG-STOCK',
+            customerName: customer?.companyName || (customer as any)?.name || 'Factory Finished Goods',
             deliveryAddress: typeof salesOrder?.shippingAddress === 'string'
               ? salesOrder.shippingAddress
               : (salesOrder?.shippingAddress ? JSON.stringify(salesOrder.shippingAddress) : 'Factory Staging Area'),
@@ -1055,13 +1055,13 @@ export class DispatchService {
         }
 
         const orderRow = ordersMap.get(key);
-        const existingItem = orderRow.items.find((i: any) => i.fgId === fg.id || i.productId === (product?.id || fg.productId));
+        const existingItem = orderRow.items.find((i: any) => i.fgId === fg.id || (product?.id && i.productId === product.id));
         if (!existingItem) {
           orderRow.items.push({
             allocationId: `fg-${fg.id}`,
             fgId: fg.id,
             workOrderId: fg.workOrderId,
-            productId: product?.id || fg.productId,
+            productId: product?.id || (fg as any).productId || '',
             productCode: product?.sku || product?.publicId || '',
             productName: product?.name || 'Finished Product',
             approvedQuantity: Number(fg.quantity || 1),

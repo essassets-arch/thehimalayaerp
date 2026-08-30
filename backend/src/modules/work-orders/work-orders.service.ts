@@ -400,15 +400,13 @@ export class WorkOrdersService {
       };
     }
 
-    // 3. Try finding FinishedGoods by ID, cleanId, baseUuid, or jobNo
+    // 3. Try finding FinishedGoods by ID, cleanId, or baseUuid
     const fg = await this.prisma.finishedGoods.findFirst({
       where: {
         OR: [
           { id: rawId },
           { id: cleanId },
           { id: baseUuid },
-          { jobNo: rawId },
-          { jobNo: cleanId },
         ],
       },
     });

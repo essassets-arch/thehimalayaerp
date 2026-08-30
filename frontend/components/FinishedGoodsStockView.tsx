@@ -382,10 +382,11 @@ export default function FinishedGoodsStockView({
         await backendFetch("/api/backend/production/finished-goods/stock-in", {
           method: "POST",
           body: {
-            productId: row.productId,
+            productId: row.productId || row.id,
             productCode: row.productCode,
             productName: row.productName,
             quantity: Number(qty),
+            unit: row.unit || "PCS",
             reference: "Manual Stock In",
           },
         });
@@ -427,10 +428,11 @@ export default function FinishedGoodsStockView({
         await backendFetch("/api/backend/production/finished-goods/stock-out", {
           method: "POST",
           body: {
-            productId: row.productId,
+            productId: row.productId || row.id,
             productCode: row.productCode,
             productName: row.productName,
             quantity: Number(qty),
+            unit: row.unit || "PCS",
             reason: "Manual Stock Issue",
           },
         });
@@ -483,10 +485,11 @@ export default function FinishedGoodsStockView({
         await backendFetch("/api/backend/production/finished-goods/adjust", {
           method: "POST",
           body: {
-            productId: row.productId,
+            productId: row.productId || row.id,
             productCode: row.productCode,
             productName: row.productName,
             newPhysicalStock: formValues.newPhysicalStock,
+            unit: row.unit || "PCS",
             reason: formValues.reason,
           },
         });

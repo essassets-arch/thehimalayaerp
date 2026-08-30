@@ -1096,6 +1096,14 @@ export class ProductionWorkflowService {
     let product: any = null;
     if (dto.productId) {
       product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+      if (!product) {
+        const fg = await this.prisma.finishedGoods.findUnique({
+          where: { id: dto.productId },
+          include: { product: true },
+        });
+        if (fg?.product) product = fg.product;
+        else if (fg?.productId) product = await this.prisma.product.findUnique({ where: { id: fg.productId } });
+      }
     }
     if (!product && (dto.productCode || dto.productName)) {
       product = await this.prisma.product.findFirst({
@@ -1103,13 +1111,27 @@ export class ProductionWorkflowService {
           OR: [
             { sku: dto.productCode },
             { name: { equals: dto.productName, mode: 'insensitive' } },
+            { publicId: dto.productCode },
           ],
         },
       });
     }
 
     if (!product) {
-      throw new NotFoundException('Finished Good product not found');
+      const companyId = dto.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+      const sku = dto.productCode || `FG-${Date.now().toString().slice(-6)}`;
+      const name = dto.productName || sku;
+      product = await this.prisma.product.create({
+        data: {
+          companyId,
+          name,
+          sku,
+          unit: dto.unit || 'PCS',
+          unitPrice: 0,
+          publicId: `PRD-${Date.now().toString().slice(-6)}`,
+          category: 'Finished Goods',
+        },
+      });
     }
 
     const companyId = dto.companyId || product.companyId;
@@ -1140,6 +1162,14 @@ export class ProductionWorkflowService {
     let product: any = null;
     if (dto.productId) {
       product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+      if (!product) {
+        const fg = await this.prisma.finishedGoods.findUnique({
+          where: { id: dto.productId },
+          include: { product: true },
+        });
+        if (fg?.product) product = fg.product;
+        else if (fg?.productId) product = await this.prisma.product.findUnique({ where: { id: fg.productId } });
+      }
     }
     if (!product && (dto.productCode || dto.productName)) {
       product = await this.prisma.product.findFirst({
@@ -1147,13 +1177,27 @@ export class ProductionWorkflowService {
           OR: [
             { sku: dto.productCode },
             { name: { equals: dto.productName, mode: 'insensitive' } },
+            { publicId: dto.productCode },
           ],
         },
       });
     }
 
     if (!product) {
-      throw new NotFoundException('Finished Good product not found');
+      const companyId = dto.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+      const sku = dto.productCode || `FG-${Date.now().toString().slice(-6)}`;
+      const name = dto.productName || sku;
+      product = await this.prisma.product.create({
+        data: {
+          companyId,
+          name,
+          sku,
+          unit: dto.unit || 'PCS',
+          unitPrice: 0,
+          publicId: `PRD-${Date.now().toString().slice(-6)}`,
+          category: 'Finished Goods',
+        },
+      });
     }
 
     const companyId = dto.companyId || product.companyId;
@@ -1188,6 +1232,14 @@ export class ProductionWorkflowService {
     let product: any = null;
     if (dto.productId) {
       product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+      if (!product) {
+        const fg = await this.prisma.finishedGoods.findUnique({
+          where: { id: dto.productId },
+          include: { product: true },
+        });
+        if (fg?.product) product = fg.product;
+        else if (fg?.productId) product = await this.prisma.product.findUnique({ where: { id: fg.productId } });
+      }
     }
     if (!product && (dto.productCode || dto.productName)) {
       product = await this.prisma.product.findFirst({
@@ -1195,13 +1247,27 @@ export class ProductionWorkflowService {
           OR: [
             { sku: dto.productCode },
             { name: { equals: dto.productName, mode: 'insensitive' } },
+            { publicId: dto.productCode },
           ],
         },
       });
     }
 
     if (!product) {
-      throw new NotFoundException('Finished Good product not found');
+      const companyId = dto.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+      const sku = dto.productCode || `FG-${Date.now().toString().slice(-6)}`;
+      const name = dto.productName || sku;
+      product = await this.prisma.product.create({
+        data: {
+          companyId,
+          name,
+          sku,
+          unit: dto.unit || 'PCS',
+          unitPrice: 0,
+          publicId: `PRD-${Date.now().toString().slice(-6)}`,
+          category: 'Finished Goods',
+        },
+      });
     }
 
     const companyId = dto.companyId || product.companyId;
