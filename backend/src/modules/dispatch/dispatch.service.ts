@@ -677,12 +677,13 @@ export class DispatchService {
       }
 
       // 2. Mark dispatch as DELIVERED
+      const deliveredAtDate = dto.deliveredAt ? new Date(dto.deliveredAt) : new Date();
       const updatedDispatch = await tx.dispatch.update({
         where: { id },
         data: {
           status: 'DELIVERED',
           version: { increment: 1 },
-          deliveredAt: dto.deliveredAt ? new Date(dto.deliveredAt) : new Date(),
+          deliveredAt: deliveredAtDate,
           deliveredQuantity: dispatch.items.reduce(
             (sum, item) => sum + Number(item.quantity),
             0,
@@ -726,10 +727,26 @@ export class DispatchService {
         });
       }
 
+      // 4. Update sales order status, start payment terms clock from delivery date
+      const so = await tx.salesOrder.findUnique({
+        where: { id: dispatch.salesOrderId },
+        include: { quotation: true },
+      });
+
+      const termDays = so?.paymentTermDays || so?.paymentTermsDays || so?.quotation?.paymentTermDays || 15;
+      const dueDate = new Date(deliveredAtDate.getTime() + termDays * 86400000);
+      const paid = Number(so?.paidAmount || 0);
+      const total = Number(so?.totalAmount || 0);
+      const outstanding = Math.max(0, total - paid);
+
       await tx.salesOrder.update({
         where: { id: dispatch.salesOrderId },
         data: {
           status: 'COMPLETED',
+          paymentTermStartDate: deliveredAtDate,
+          paymentDueDate: dueDate,
+          outstandingAmount: outstanding,
+          paymentStatus: paid >= total && total > 0 ? 'PAID' : paid > 0 ? 'PARTIALLY_PAID' : 'PENDING',
         },
       });
 
@@ -748,6 +765,22 @@ export class DispatchService {
         entityType: 'Dispatch',
         entityId: dispatch.id,
         eventKey: `DISPATCH:${dispatch.id}:DELIVERED`,
+      }).catch(() => {});
+    }
+
+    // Notify Finance Team to begin payment verification & receivables tracking
+    if (this.notificationsService) {
+      const companyId = dispatch.salesOrder?.customer?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+      this.notificationsService.notifyRole({
+        companyId,
+        role: 'FINANCE_MANAGER',
+        type: 'ORDER_DELIVERED_START_PAYMENT_TERM',
+        title: 'Order Delivered — Payment Terms Started',
+        message: `${dispatch.salesOrder?.orderNumber} delivered to ${dispatch.salesOrder?.customer?.companyName}. Payment terms started (Due: ${new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN')}).`,
+        route: '/finance/payment-verification',
+        entityType: 'SalesOrder',
+        entityId: dispatch.salesOrderId,
+        eventKeyPrefix: `DISPATCH:${dispatch.id}:FINANCE_TERMS_START`,
       }).catch(() => {});
     }
 

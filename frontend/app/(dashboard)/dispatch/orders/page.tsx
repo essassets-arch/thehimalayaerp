@@ -345,22 +345,83 @@ export default function DispatchOrdersPage() {
         }
       });
 
-      const combined = [...unifiedWorkOrders];
-      unifiedFinishedGoods.forEach((fg) => {
-        if (!combined.some((c) => c.workOrderId === fg.workOrderId || c.id === fg.id)) {
-          combined.push(fg);
+      const isSamePendingItem = (a: UnifiedPendingDispatchItem, b: UnifiedPendingDispatchItem): boolean => {
+        if (!a || !b) return false;
+        if (a.id === b.id) return true;
+
+        // 1. Exact Work Order Match
+        if (a.workOrderId && b.workOrderId && a.workOrderId === b.workOrderId) return true;
+
+        // 2. Exact Sales Order Item Match
+        if (a.salesOrderItemId && b.salesOrderItemId && a.salesOrderItemId === b.salesOrderItemId) return true;
+
+        // 3. Same Sales Order AND Same Product
+        if (a.salesOrderId && b.salesOrderId && a.salesOrderId === b.salesOrderId) {
+          if (a.productId && b.productId && a.productId === b.productId) return true;
+          const pA = String(a.productName || '').trim().toLowerCase();
+          const pB = String(b.productName || '').trim().toLowerCase();
+          if (pA && pB && pA === pB) return true;
         }
-      });
-      unifiedDirectDispatches.forEach((dd) => {
-        if (!combined.some((c) => (c.salesOrderId === dd.salesOrderId && c.salesOrderItemId === dd.salesOrderItemId) || c.id === dd.id)) {
-          combined.push(dd);
+
+        // 4. Same Canonical Order Number AND Same Product
+        const oA = String(a.orderNumber || '').trim().toUpperCase();
+        const oB = String(b.orderNumber || '').trim().toUpperCase();
+        const genericOrderNos = ['N/A', 'SO-DIRECT', 'WO-FG', 'WO-STOCK', '—', ''];
+        if (oA && oB && !genericOrderNos.includes(oA) && oA === oB) {
+          if (a.productId && b.productId && a.productId === b.productId) return true;
+          const pA = String(a.productName || '').trim().toLowerCase();
+          const pB = String(b.productName || '').trim().toLowerCase();
+          if (pA && pB && pA === pB) return true;
         }
-      });
-      unifiedSalesOrders.forEach((so) => {
-        if (!combined.some((c) => (c.salesOrderId === so.salesOrderId && c.salesOrderItemId === so.salesOrderItemId) || c.id === so.id)) {
-          combined.push(so);
+
+        return false;
+      };
+
+      const mergePendingItem = (existing: UnifiedPendingDispatchItem, incoming: UnifiedPendingDispatchItem): UnifiedPendingDispatchItem => {
+        const hasSpecificAddress = (addr?: string) =>
+          addr && addr !== 'N/A' && addr !== 'Factory Staging Area' && addr.trim().length > 5;
+
+        const deliveryAddress = hasSpecificAddress(incoming.deliveryAddress)
+          ? incoming.deliveryAddress
+          : hasSpecificAddress(existing.deliveryAddress)
+          ? existing.deliveryAddress
+          : incoming.deliveryAddress || existing.deliveryAddress;
+
+        const customerName = (incoming.customerName && incoming.customerName !== 'N/A' && incoming.customerName !== 'Factory Stock Staging')
+          ? incoming.customerName
+          : existing.customerName;
+
+        return {
+          ...existing,
+          ...incoming,
+          deliveryAddress,
+          customerName,
+          salesOrderId: incoming.salesOrderId || existing.salesOrderId,
+          salesOrderItemId: incoming.salesOrderItemId || existing.salesOrderItemId,
+          workOrderId: incoming.workOrderId || existing.workOrderId,
+          workOrderNumber: incoming.workOrderNumber || existing.workOrderNumber,
+          productId: incoming.productId || existing.productId,
+          productName: incoming.productName || existing.productName,
+          dispatchCategory: incoming.dispatchCategory || existing.dispatchCategory || 'D1',
+          approvedQuantity: incoming.approvedQuantity || existing.approvedQuantity,
+        };
+      };
+
+      const combined: UnifiedPendingDispatchItem[] = [];
+
+      const addOrMerge = (item: UnifiedPendingDispatchItem) => {
+        const existingIdx = combined.findIndex((c) => isSamePendingItem(c, item));
+        if (existingIdx >= 0) {
+          combined[existingIdx] = mergePendingItem(combined[existingIdx], item);
+        } else {
+          combined.push(item);
         }
-      });
+      };
+
+      unifiedWorkOrders.forEach(addOrMerge);
+      unifiedFinishedGoods.forEach(addOrMerge);
+      unifiedDirectDispatches.forEach(addOrMerge);
+      unifiedSalesOrders.forEach(addOrMerge);
 
       return combined;
     },

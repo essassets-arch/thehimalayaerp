@@ -31,6 +31,9 @@ export interface PaymentCalculationResult {
   pendingVerificationCount: number;
   lastPaymentDate?: string;
   paymentReference?: string;
+  isDelivered?: boolean;
+  deliveredAt?: string | null;
+  podUrl?: string | null;
 }
 
 @Injectable()
@@ -307,9 +310,19 @@ export class PaymentFollowupEngineService implements OnApplicationBootstrap, OnM
       order.quotation?.paymentTerms ||
       (termDays ? `${termDays} Days` : '15 Days');
 
-    // Use persisted agreed start date; fallback to orderDate or createdAt
+    // Payment terms start clock begins once delivered (or fallback to paymentTermStartDate / orderDate)
+    const deliveredDispatch = (order.dispatches || []).find(
+      (d: any) => d.status === 'DELIVERED' || d.deliveredAt
+    );
+    const latestDispatch = (order.dispatches || [])[0];
+    const dispatchDeliveryDate =
+      order.deliveredAt ||
+      deliveredDispatch?.deliveredAt ||
+      latestDispatch?.deliveredAt;
+
     const startDate =
       order.paymentTermStartDate ||
+      dispatchDeliveryDate ||
       order.customerPurchaseOrderDate ||
       order.orderDate ||
       order.createdAt ||
@@ -337,6 +350,8 @@ export class PaymentFollowupEngineService implements OnApplicationBootstrap, OnM
         ? latestPayment.status
         : 'NO_PAYMENTS';
 
+    const isDelivered = Boolean(dispatchDeliveryDate || order.status === 'DELIVERED' || order.status === 'COMPLETED');
+
     return {
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -358,6 +373,9 @@ export class PaymentFollowupEngineService implements OnApplicationBootstrap, OnM
       outstandingAmount: evaluation.outstandingAmount,
       paymentStatus: evaluation.paymentStatus,
       verificationStatus,
+      isDelivered,
+      deliveredAt: dispatchDeliveryDate ? new Date(dispatchDeliveryDate).toISOString() : null,
+      podUrl: deliveredDispatch?.podUrl || latestDispatch?.podUrl || null,
       dueState: evaluation.dueState,
       priority: evaluation.priority,
       pendingVerificationCount: pendingPayments.length,

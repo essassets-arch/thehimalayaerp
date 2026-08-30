@@ -119,14 +119,21 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     (backendReadyWorkOrders || []).forEach((wo) => {
       const id = `fg-wo-${wo.id}`;
       const woNo = wo.workOrderNumber || wo.jobNo || `WO-${wo.id}`;
-      const exists = Array.from(map.values()).some((fg) => fg.workOrderId === wo.id || fg.jobNo === woNo);
+      const soNo = wo.productionPlan?.salesOrder?.orderNumber;
+      const prodName = wo.salesOrderItem?.product?.name || wo.productName;
+      const exists = Array.from(map.values()).some(
+        (fg) =>
+          fg.workOrderId === wo.id ||
+          fg.jobNo === woNo ||
+          (soNo && fg.salesOrderNumber === soNo && (!prodName || fg.productName === prodName))
+      );
       if (!exists) {
         const qty = Number(wo.quantity || 1);
         map.set(id, {
           id,
           workOrderId: wo.id,
           jobNo: woNo,
-          productName: wo.salesOrderItem?.product?.name || wo.productName || 'Finished Product Batch',
+          productName: prodName || 'Finished Product Batch',
           productCode: wo.salesOrderItem?.product?.sku || wo.productCode || 'FG-STOCK',
           customerName: wo.productionPlan?.salesOrder?.customer?.companyName || wo.productionPlan?.salesOrder?.customer?.name || 'Factory Staging Area',
           quantity: qty,

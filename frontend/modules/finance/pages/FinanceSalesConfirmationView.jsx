@@ -603,9 +603,16 @@ export default function FinanceSalesConfirmationView() {
                     <tr key={r.orderId + idx} style={{ borderBottom: '1px solid #F1F5F9', background: hasPending ? '#FFFBEB' : '#FFFFFF' }}>
                       {/* Order Number */}
                       <td style={{ padding: '12px 14px' }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '12.5px', color: '#1E3A8A' }}>
-                          {r.orderNumber}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '12.5px', color: '#1E3A8A' }}>
+                            {r.orderNumber}
+                          </span>
+                          {r.deliveredAt && (
+                            <span style={{ fontSize: '10.5px', color: '#15803D', fontWeight: 600 }}>
+                              Delivered: {String(r.deliveredAt).split('T')[0]}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Customer */}
@@ -642,7 +649,16 @@ export default function FinanceSalesConfirmationView() {
 
                       {/* Start Date */}
                       <td style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>
-                        {r.paymentTermStartDate ? String(r.paymentTermStartDate).split('T')[0] : '—'}
+                        <div style={{ fontWeight: 600, color: '#1E293B' }}>
+                          {r.paymentTermStartDate ? String(r.paymentTermStartDate).split('T')[0] : '—'}
+                        </div>
+                        {r.isDelivered ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 800, color: '#16A34A', background: '#DCFCE7', padding: '1px 6px', borderRadius: '4px', marginTop: '2px' }}>
+                            ✓ Delivered
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '10px', color: '#94A3B8' }}>From Order</span>
+                        )}
                       </td>
 
                       {/* Due Date */}
