@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Users, UserPlus, Clock, ClipboardList, FileText, CreditCard, AlertTriangle, 
   CheckCircle, XCircle, Search, Calendar, ChevronRight, TrendingUp, TrendingDown,
-  ArrowUpRight, AlertCircle, ShieldAlert, Cake, DollarSign, Layers, ChevronDown, Check, ExternalLink, RefreshCw,
+  ArrowUpRight, AlertCircle, ShieldAlert, DollarSign, Layers, ChevronDown, Check, ExternalLink, RefreshCw,
   Briefcase, UserCheck, CheckCheck, Sparkles, Building2, UserX
 } from 'lucide-react';
 import { 
@@ -100,6 +100,16 @@ export default function HRDashboardView({
     return { selectedMonthIndex: monthIdx, selectedYear: yearNum || new Date().getFullYear() };
   }, [selectedMonth]);
 
+  // Safe fetch helper that catches permission/network errors gracefully
+  const safeFetch = async (fetcher, fallback = null) => {
+    try {
+      const res = await fetcher();
+      return res;
+    } catch {
+      return fallback;
+    }
+  };
+
   // Fetch live dashboard telemetry
   const fetchLiveTelemetry = useCallback(async () => {
     setIsRefreshing(true);
@@ -112,18 +122,22 @@ export default function HRDashboardView({
         payrollRes,
         recruitmentRes,
         draftsRes,
-        expensesRes,
-        auditLogsRes
+        expensesRes
       ] = await Promise.allSettled([
-        employeesService.listEmployees({ page: 1, limit: 200 }),
-        backendFetch('/api/backend/attendance/summary'),
-        backendFetch('/api/backend/attendance-requests/pending'),
-        backendFetch('/api/backend/leaves'),
-        employeesService.getPayrollOverview({ month: selectedMonthIndex, year: selectedYear }),
-        backendFetch('/api/backend/hr/recruitment-requests'),
-        employeesService.listDrafts(),
-        backendFetch('/api/backend/expenses'),
-        backendFetch('/api/backend/admin/audit-logs?limit=25')
+        safeFetch(() => employeesService.listEmployees({ page: 1, limit: 200 }), { items: [] }),
+        safeFetch(() => backendFetch('/api/backend/attendance/summary'), null),
+        safeFetch(() => backendFetch('/api/backend/attendance-requests/pending'), []),
+        safeFetch(() => backendFetch('/api/backend/leaves'), []),
+        safeFetch(() => employeesService.getPayrollOverview({ month: selectedMonthIndex, year: selectedYear }), []),
+        safeFetch(async () => {
+          try {
+            return await backendFetch('/api/backend/hr/recruitment-requests/my-requests');
+          } catch {
+            return [];
+          }
+        }, []),
+        safeFetch(() => employeesService.listDrafts(), []),
+        safeFetch(() => backendFetch('/api/backend/expenses'), [])
       ]);
 
       setLiveData({
@@ -135,7 +149,7 @@ export default function HRDashboardView({
         recruitmentRequests: recruitmentRes.status === 'fulfilled' && Array.isArray(recruitmentRes.value) ? recruitmentRes.value : (recruitmentRes.value?.items || []),
         drafts: draftsRes.status === 'fulfilled' && Array.isArray(draftsRes.value) ? draftsRes.value : [],
         liveExpenses: expensesRes.status === 'fulfilled' && Array.isArray(expensesRes.value) ? expensesRes.value : (expensesRes.value?.items || []),
-        liveAuditLogs: auditLogsRes.status === 'fulfilled' && Array.isArray(auditLogsRes.value?.data) ? auditLogsRes.value.data : (Array.isArray(auditLogsRes.value) ? auditLogsRes.value : [])
+        liveAuditLogs: []
       });
     } catch (err) {
       console.warn('Dashboard telemetry fetch notice:', err);
@@ -588,47 +602,6 @@ export default function HRDashboardView({
     }
     return dynamicEvents;
   }, [allAuditLogs, pendingLeavesList, slipsGeneratedCount, selectedMonth, allEmployees, exitsCount]);
-
-  // ── 8. DYNAMIC UPCOMING BIRTHDAYS DATA ──
-  const upcomingBirthdays = useMemo(() => {
-    if (allEmployees.length === 0) return [];
-    
-    const now = new Date();
-    const currentYear = now.getFullYear();
-
-    const withDob = allEmployees
-      .filter(e => e.dob || e.dateOfBirth)
-      .map(e => {
-        const dobDate = new Date(e.dob || e.dateOfBirth);
-        if (isNaN(dobDate.getTime())) return null;
-
-        // Next birthday this year or next
-        let nextBday = new Date(currentYear, dobDate.getMonth(), dobDate.getDate());
-        if (nextBday < new Date(currentYear, now.getMonth(), now.getDate())) {
-          nextBday = new Date(currentYear + 1, dobDate.getMonth(), dobDate.getDate());
-        }
-
-        const diffDays = Math.ceil((nextBday - now) / (1000 * 60 * 60 * 24));
-        const monthDay = nextBday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const name = e.name || e.fullName || `${e.firstName || ''} ${e.lastName || ''}`.trim() || 'Employee';
-        const empCode = e.id || e.employeeCode || e.empCode || '';
-
-        return {
-          type: 'birthday',
-          icon: Cake,
-          emp: `${empCode} ${name}`.trim(),
-          title: 'Birthday',
-          date: diffDays === 0 ? 'Today 🎉' : diffDays === 1 ? 'Tomorrow' : monthDay,
-          diffDays,
-          tag: '🎂 Birthday'
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.diffDays - b.diffDays)
-      .slice(0, 6);
-
-    return withDob;
-  }, [allEmployees]);
 
   return (
     <div className="hr-dash-wrapper">
@@ -1542,56 +1515,6 @@ export default function HRDashboardView({
           </div>
         </div>
 
-      </div>
-
-      {/* ── 7. UPCOMING BIRTHDAYS (SECTION 11) ── */}
-      <div className="hr-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Cake size={18} style={{ color: '#ec4899' }} /> Upcoming Birthdays
-            </h3>
-            <span style={{ fontSize: '12px', color: '#64748b' }}>Employee birthdays & celebrations</span>
-          </div>
-
-          <span style={{ fontSize: '11px', fontWeight: '700', color: '#ec4899', background: '#fdf2f8', border: '1px solid #fbcfe8', padding: '4px 12px', borderRadius: '20px' }}>
-            🎂 Birthday Calendar
-          </span>
-        </div>
-
-        {upcomingBirthdays.length > 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginTop: '6px' }}>
-            {upcomingBirthdays.map((ev, index) => {
-              const IconComp = ev.icon;
-              return (
-                <div 
-                  key={index}
-                  style={{
-                    background: '#f8fafc',
-                    borderRadius: '10px',
-                    padding: '14px',
-                    border: '1px solid #e2e8f0',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#ec4899' }}>{ev.tag}</span>
-                    <IconComp size={16} style={{ color: '#ec4899' }} />
-                  </div>
-                  <strong style={{ fontSize: '13px', color: '#0f172a' }}>{ev.emp}</strong>
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>{ev.title}</span>
-                  <span style={{ fontSize: '10px', fontWeight: '700', color: '#10b981', marginTop: '2px' }}>📅 {ev.date}</span>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
-            No upcoming employee birthdays recorded in this period.
-          </div>
-        )}
       </div>
 
     </div>

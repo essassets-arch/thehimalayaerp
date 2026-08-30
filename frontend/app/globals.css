@@ -1478,6 +1478,60 @@ textarea {
   display: none;
 }
 
+/* Attendance tabs - horizontal scroll on small screens */
+.attendance-tabs-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.attendance-tabs-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+.attendance-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  width: max-content;
+  min-width: max-content;
+  gap: 8px;
+}
+
+.attendance-tabs > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Reports tabs - horizontal scroll on small screens */
+.reports-tabs-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.reports-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.reports-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  width: max-content;
+  min-width: max-content;
+  gap: 8px;
+}
+
+.reports-tabs > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .teachers-list {
   display: flex;
   flex-direction: column;

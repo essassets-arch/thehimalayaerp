@@ -241,11 +241,17 @@ export class PermissionsGuard implements CanActivate {
     if (normalizedRole === 'HR' || normalizedRole.includes('HR') || normalizedRole === 'HR_MANAGER' || normalizedRole === 'HR_EXECUTIVE') {
       [
         'hr.read', 'hr.employees.read', 'hr.employees.create', 'hr.employees.update',
+        'hr.departments.read', 'hr.locations.read',
         'hr.recruitment.read', 'hr.recruitment.create', 'hr.recruitment.update',
+        'hr.recruitment.requests.read.all', 'hr.recruitment.requests.read.own', 'hr.recruitment.requests.create', 'hr.recruitment.requests.update',
         'hr.attendance.read', 'hr.attendance.update', 'hr.attendance.approve',
         'hr.leaves.read', 'hr.leaves.update', 'hr.leaves.approve', 'hr.leaves.create',
-        'hr.salary.read', 'hr.salary.prepare', 'hr.salary.create', 'hr.salary.edit', 'hr.salary-structure.read', 'hr.salary-structure.create', 'hr.salary-structure.update',
+        'hr.salary.read', 'hr.salary.prepare', 'hr.salary.create', 'hr.salary.edit', 'hr.salary.submit', 'hr.salary.update',
+        'hr.payroll.read', 'hr.payroll.prepare', 'hr.payroll.create', 'hr.payroll.edit', 'hr.payroll.submit', 'hr.payroll.update',
+        'hr.salary-structure.read', 'hr.salary-structure.create', 'hr.salary-structure.update',
         'hr.roles.read', 'hr.roles.create', 'hr.roles.update',
+        'hr.exit.read', 'hr.exit.update',
+        'audit.read', 'admin.audit.read',
         'user.read', 'user.create', 'user.update',
       ].forEach(p => userPermSet.add(p));
     }
@@ -402,6 +408,11 @@ export class PermissionsGuard implements CanActivate {
       'procurement.procurement.read': ['procurement.procurement.read', 'procurement.indents.read', 'procurement.po.read', 'procurement.grn.read', 'procurement.invoices.read', 'procurement.payments.read', 'procurement.read', 'inventory.stock.read', 'inventory.inventory.read', 'finance.read', 'store.read', 'admin.read', 'super-admin.read'],
       'procurement.procurement.create': ['procurement.procurement.create', 'procurement.indents.create', 'procurement.po.create', 'procurement.create'],
       'procurement.procurement.reject': ['procurement.procurement.reject', 'procurement.indents.reject', 'procurement.po.reject', 'procurement.reject'],
+      'hr.departments.read': ['hr.departments.read', 'hr.employees.read', 'hr.read', 'user.read', 'admin.read', 'super-admin.read'],
+      'hr.locations.read': ['hr.locations.read', 'hr.employees.read', 'hr.read', 'user.read', 'admin.read', 'super-admin.read'],
+      'hr.recruitment.requests.read.all': ['hr.recruitment.requests.read.all', 'hr.recruitment.requests.read.own', 'hr.recruitment.read', 'hr.read', 'admin.read', 'super-admin.read'],
+      'hr.recruitment.requests.read.own': ['hr.recruitment.requests.read.own', 'hr.recruitment.requests.read.all', 'hr.recruitment.read', 'hr.read', 'user.read', 'admin.read', 'super-admin.read'],
+      'hr.payroll.read': ['hr.payroll.read', 'hr.salary.read', 'hr.read', 'admin.read', 'super-admin.read'],
     };
 
     const hasSinglePermission = (reqPerm: string): boolean => {

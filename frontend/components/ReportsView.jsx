@@ -267,7 +267,6 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
           display: flex;
           flex-direction: column;
           min-height: 80vh;
-          overflow: hidden;
           width: 100%;
           box-sizing: border-box;
         }
@@ -378,28 +377,36 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
         @media (max-width: 640px) {
           .reports-filter-bar {
             padding: 12px 14px;
-            gap: 10px;
+            gap: 12px;
+            flex-direction: column;
+            align-items: stretch;
           }
           .reports-date-group {
             width: 100%;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
           }
           .reports-date-inputs-wrapper {
             width: 100%;
             display: grid;
-            grid-template-columns: 1fr auto 1fr auto;
+            grid-template-columns: 1fr auto 1fr;
             gap: 6px;
             align-items: center;
           }
           .reports-date-input {
             width: 100%;
             min-width: 0;
-            padding: 6px 8px;
-            font-size: 12px;
+            padding: 8px 6px;
+            font-size: 11.5px;
+            box-sizing: border-box;
           }
           .reports-apply-btn {
-            padding: 6px 10px;
-            font-size: 12px;
-            white-space: nowrap;
+            width: 100%;
+            justify-content: center;
+            padding: 9px 12px;
+            font-size: 13px;
+            margin-top: 2px;
           }
           .reports-export-group {
             width: 100%;
@@ -414,26 +421,41 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
           }
         }
 
-        .reports-tabs-bar {
-          padding: 10px 20px;
+        /* Reports tabs - horizontal scroll on small screens */
+        .reports-tabs-scroll {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: auto;
+          overflow-y: hidden;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
           border-bottom: 1px solid #e2e8f0;
           background: #ffffff;
+          box-sizing: border-box;
+          padding: 8px 16px;
+        }
+        .reports-tabs-scroll::-webkit-scrollbar {
+          display: none;
+        }
+
+        .reports-tabs {
           display: flex;
-          align-items: center;
-          overflow-x: auto;
-          scrollbar-width: none;
-          -webkit-overflow-scrolling: touch;
+          flex-wrap: nowrap;
+          width: max-content;
+          min-width: max-content;
           gap: 8px;
         }
-        .reports-tabs-bar::-webkit-scrollbar {
-          display: none;
+
+        .reports-tabs > * {
+          flex: 0 0 auto;
+          white-space: nowrap;
         }
 
         .reports-tab-pill {
           display: inline-flex;
           align-items: center;
           gap: 7px;
-          padding: 7px 14px;
+          padding: 8px 14px;
           border-radius: 8px;
           font-size: 13px;
           font-weight: 700;
@@ -442,8 +464,10 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
           color: #475569;
           cursor: pointer;
           white-space: nowrap;
+          flex: 0 0 auto;
           flex-shrink: 0;
           transition: all 0.2s ease;
+          user-select: none;
         }
         .reports-tab-pill:hover {
           background: #f1f5f9;
@@ -618,15 +642,15 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
               onChange={(e) => setDateTo(e.target.value)}
               className="reports-date-input"
             />
-            <button
-              onClick={fetchReports}
-              disabled={isReportsLoading}
-              className="reports-apply-btn"
-            >
-              <RefreshCw size={13} className={isReportsLoading ? 'animate-spin' : ''} />
-              Apply
-            </button>
           </div>
+          <button
+            onClick={fetchReports}
+            disabled={isReportsLoading}
+            className="reports-apply-btn"
+          >
+            <RefreshCw size={13} className={isReportsLoading ? 'animate-spin' : ''} />
+            Apply
+          </button>
         </div>
 
         <div className="reports-export-group">
@@ -663,17 +687,19 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       </div>
 
       {/* Swipeable Tabs Bar */}
-      <div className="reports-tabs-bar">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`reports-tab-pill ${activeTab === tab.id ? 'active' : ''}`}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
-          </button>
-        ))}
+      <div className="reports-tabs-scroll w-full max-w-full overflow-x-auto overflow-y-hidden scrollbar-hide">
+        <div className="reports-tabs flex w-max min-w-max flex-nowrap gap-2">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`reports-tab-pill shrink-0 whitespace-nowrap ${activeTab === tab.id ? 'active' : ''}`}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Main View Area */}

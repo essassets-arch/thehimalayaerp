@@ -410,110 +410,91 @@ export default function AttendanceView({ employees: propEmployees }) {
         </div>
       </div>
 
-      {/* Roster tab navigation bar */}
+      {/* Attendance tabs - horizontal scroll on small screens */}
       <div 
-        className="erp-tab-scroll-bar hr-attendance-subtabs" 
+        className="attendance-tabs-wrapper w-full max-w-full overflow-x-auto overflow-y-hidden scrollbar-hide"
         style={{ 
-          display: 'flex', 
           borderBottom: '2px solid #E2E8F0', 
-          gap: '8px', 
-          marginBottom: '8px', 
-          overflowX: 'auto', 
-          WebkitOverflowScrolling: 'touch', 
-          minWidth: 0, 
-          width: '100%', 
-          boxSizing: 'border-box', 
-          paddingBottom: '2px',
-          paddingRight: '32px',
-          scrollBehavior: 'smooth',
-          touchAction: 'pan-x',
-          cursor: 'grab'
-        }}
-        onWheel={(e) => {
-          if (e.deltaY !== 0) {
-            e.currentTarget.scrollLeft += e.deltaY * 0.8;
-          }
-        }}
-        onMouseDown={(e) => {
-          const el = e.currentTarget;
-          el.dataset.isDown = 'true';
-          el.dataset.startX = String(e.pageX - el.offsetLeft);
-          el.dataset.scrollLeft = String(el.scrollLeft);
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.dataset.isDown = 'false';
-        }}
-        onMouseUp={(e) => {
-          e.currentTarget.dataset.isDown = 'false';
-        }}
-        onMouseMove={(e) => {
-          const el = e.currentTarget;
-          if (el.dataset.isDown !== 'true') return;
-          e.preventDefault();
-          const x = e.pageX - el.offsetLeft;
-          const startX = Number(el.dataset.startX || 0);
-          const scrollLeft = Number(el.dataset.scrollLeft || 0);
-          const walk = (x - startX) * 1.5;
-          el.scrollLeft = scrollLeft - walk;
+          marginBottom: '8px',
+          width: '100%',
+          maxWidth: '100%',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none'
         }}
       >
-        <button
-          onClick={() => setAttendanceSubTab('register')}
+        <div 
+          className="attendance-tabs flex w-max min-w-max flex-nowrap gap-2"
           style={{
-            padding: '10px 14px',
-            border: 'none',
-            background: 'transparent',
-            fontSize: '13px',
-            fontWeight: '800',
-            cursor: 'pointer',
-            color: attendanceSubTab === 'register' ? '#4F46E5' : '#64748B',
-            borderBottom: attendanceSubTab === 'register' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-            userSelect: 'none'
+            display: 'flex',
+            flexWrap: 'nowrap',
+            width: 'max-content',
+            minWidth: 'max-content',
+            gap: '8px'
           }}
         >
-          Attendance Register
-        </button>
-        <button
-          onClick={() => setAttendanceSubTab('policies')}
-          style={{
-            padding: '10px 14px',
-            border: 'none',
-            background: 'transparent',
-            fontSize: '13px',
-            fontWeight: '800',
-            cursor: 'pointer',
-            color: attendanceSubTab === 'policies' ? '#4F46E5' : '#64748B',
-            borderBottom: attendanceSubTab === 'policies' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-            userSelect: 'none'
-          }}
-        >
-          Shift &amp; Grace Policy Manager
-        </button>
-        <button
-          onClick={() => setAttendanceSubTab('shifts')}
-          style={{
-            padding: '10px 14px',
-            border: 'none',
-            background: 'transparent',
-            fontSize: '13px',
-            fontWeight: '800',
-            cursor: 'pointer',
-            color: attendanceSubTab === 'shifts' ? '#4F46E5' : '#64748B',
-            borderBottom: attendanceSubTab === 'shifts' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-            userSelect: 'none'
-          }}
-        >
-          Staff Shift Schedules Board
-        </button>
+          <button
+            onClick={() => setAttendanceSubTab('register')}
+            className="shrink-0 whitespace-nowrap"
+            style={{
+              padding: '10px 14px',
+              border: 'none',
+              background: 'transparent',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              color: attendanceSubTab === 'register' ? '#4F46E5' : '#64748B',
+              borderBottom: attendanceSubTab === 'register' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap',
+              flex: '0 0 auto',
+              userSelect: 'none'
+            }}
+          >
+            Attendance Register
+          </button>
+          <button
+            onClick={() => setAttendanceSubTab('policies')}
+            className="shrink-0 whitespace-nowrap"
+            style={{
+              padding: '10px 14px',
+              border: 'none',
+              background: 'transparent',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              color: attendanceSubTab === 'policies' ? '#4F46E5' : '#64748B',
+              borderBottom: attendanceSubTab === 'policies' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap',
+              flex: '0 0 auto',
+              userSelect: 'none'
+            }}
+          >
+            Shift &amp; Grace Policy Management
+          </button>
+          <button
+            onClick={() => setAttendanceSubTab('shifts')}
+            className="shrink-0 whitespace-nowrap"
+            style={{
+              padding: '10px 14px',
+              border: 'none',
+              background: 'transparent',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              color: attendanceSubTab === 'shifts' ? '#4F46E5' : '#64748B',
+              borderBottom: attendanceSubTab === 'shifts' ? '2.5px solid #4F46E5' : '2.5px solid transparent',
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap',
+              flex: '0 0 auto',
+              userSelect: 'none'
+            }}
+          >
+            Staff Shift Schedules Board
+          </button>
+        </div>
       </div>
 
       {/* SUB TAB: SHIFT & GRACE POLICY MANAGER */}

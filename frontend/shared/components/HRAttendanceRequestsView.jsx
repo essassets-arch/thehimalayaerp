@@ -253,54 +253,41 @@ export default function HRAttendanceRequestsView() {
 
       {/* ── Tabs ── */}
       <div 
-        className="erp-tab-scroll-bar hr-att-tab-bar"
+        className="attendance-tabs-wrapper w-full max-w-full overflow-x-auto overflow-y-hidden scrollbar-hide"
         style={{
-          ...S.tabBar,
-          scrollBehavior: 'smooth',
-          touchAction: 'pan-x',
-          cursor: 'grab',
-          paddingRight: '16px'
-        }}
-        onWheel={(e) => {
-          if (e.deltaY !== 0) {
-            e.currentTarget.scrollLeft += e.deltaY * 0.8;
-          }
-        }}
-        onMouseDown={(e) => {
-          const el = e.currentTarget;
-          el.dataset.isDown = 'true';
-          el.dataset.startX = String(e.pageX - el.offsetLeft);
-          el.dataset.scrollLeft = String(el.scrollLeft);
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.dataset.isDown = 'false';
-        }}
-        onMouseUp={(e) => {
-          e.currentTarget.dataset.isDown = 'false';
-        }}
-        onMouseMove={(e) => {
-          const el = e.currentTarget;
-          if (el.dataset.isDown !== 'true') return;
-          e.preventDefault();
-          const x = e.pageX - el.offsetLeft;
-          const startX = Number(el.dataset.startX || 0);
-          const scrollLeft = Number(el.dataset.scrollLeft || 0);
-          const walk = (x - startX) * 1.5;
-          el.scrollLeft = scrollLeft - walk;
+          borderBottom: '2px solid #f1f5f9',
+          width: '100%',
+          maxWidth: '100%',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none'
         }}
       >
-        {[
-          { key: 'pending', label: 'Pending HR Review',   count: requests.length },
-          { key: 'audit',   label: 'Processed Audit Log', count: auditLogs.length },
-        ].map(({ key, label, count }) => (
-          <button
-            key={key}
-            style={{
-              ...S.tab(activeTab === key),
-              userSelect: 'none'
-            }}
-            onClick={() => { setActiveTab(key); setSearch(''); setDeptFilter(''); }}
-          >
+        <div 
+          className="attendance-tabs flex w-max min-w-max flex-nowrap gap-2"
+          style={{
+            display: 'flex',
+            flexWrap: 'nowrap',
+            width: 'max-content',
+            minWidth: 'max-content',
+            gap: '8px'
+          }}
+        >
+          {[
+            { key: 'pending', label: 'Pending HR Review',   count: requests.length },
+            { key: 'audit',   label: 'Processed Audit Log', count: auditLogs.length },
+          ].map(({ key, label, count }) => (
+            <button
+              key={key}
+              className="shrink-0 whitespace-nowrap"
+              style={{
+                ...S.tab(activeTab === key),
+                userSelect: 'none',
+                flex: '0 0 auto'
+              }}
+              onClick={() => { setActiveTab(key); setSearch(''); setDeptFilter(''); }}
+            >
             <span>{label}</span>
             <span style={{
               marginLeft: '6px',
@@ -311,6 +298,7 @@ export default function HRAttendanceRequestsView() {
             }}>{count}</span>
           </button>
         ))}
+        </div>
       </div>
 
       {/* ── Toolbar ── */}
