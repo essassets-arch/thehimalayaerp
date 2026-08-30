@@ -11,6 +11,7 @@ import SecureImage from './SecureImage';
 import DataTable from './DataTable';
 import StatusBadge from './StatusBadge';
 import { exportToCSV } from '../../services/export.service';
+import Swal from 'sweetalert2';
 import { 
   Clock, MapPin, Camera, Shield, Edit3, Download, Users, UserPlus, Eye, Calendar, RefreshCw
 } from 'lucide-react';
@@ -319,6 +320,89 @@ export default function AttendanceView({ employees: propEmployees }) {
     }
     return list;
   }, [simLogs, rosterEmployeeFilter, employeeSearch]);
+
+  const handleExportAttendanceCSV = () => {
+    if (!formattedLogs || formattedLogs.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'No Logs to Export',
+        text: 'There are no attendance records matching the current filter criteria.',
+        confirmButtonColor: '#2563eb'
+      });
+      return;
+    }
+
+    try {
+      const headers = [
+        'Employee Code',
+        'Employee Name',
+        'Department',
+        'Role / Designation',
+        'Attendance Date',
+        'Punch In Time',
+        'Punch Out Time',
+        'Attendance Status',
+        'GPS Coordinates',
+        'Location / Address',
+        'Verification Type',
+        'Timestamp'
+      ];
+
+      const rows = formattedLogs.map(l => {
+        const rawCode = String(l.employeeCode || l.employeeId || l.id || '').trim();
+        const code = rawCode && rawCode !== '—' && rawCode.length <= 10 && !rawCode.includes('-')
+          ? rawCode
+          : `EMP-${rawCode.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase()}`;
+
+        const verification = (l.punchInSelfieUrl || l.punchOutSelfieUrl || l.selfieUrl)
+          ? 'Biometric Selfie Verified'
+          : 'Biometric ID Card';
+
+        return [
+          `"${code}"`,
+          `"${(l.name || 'Staff Member').replace(/"/g, '""')}"`,
+          `"${(l.department || 'Operations').replace(/"/g, '""')}"`,
+          `"${(l.role || 'Staff Member').replace(/"/g, '""')}"`,
+          `"${l.date || 'Today'}"`,
+          `"${l.punchIn || '—'}"`,
+          `"${l.punchOut || '—'}"`,
+          `"${(l.status || 'PUNCHED_IN').replace(/"/g, '""')}"`,
+          `"${l.coords && l.coords !== '—' ? l.coords : 'Campus GPS'}"`,
+          `"${(l.location || 'Factory Campus, GIDC').replace(/"/g, '""')}"`,
+          `"${verification}"`,
+          `"${l.timestamp || ''}"`
+        ];
+      });
+
+      const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const filename = `Attendance_Audit_Logs_${filterPeriod}_${new Date().toISOString().slice(0, 10)}.csv`;
+      
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Attendance CSV Exported!',
+        text: `Successfully exported ${rows.length} log records to ${filename}`,
+        timer: 2200,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      console.error('[AttendanceView] CSV Export error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Export Failed',
+        text: 'An error occurred while generating the attendance CSV file.'
+      });
+    }
+  };
 
   let activePreview = null;
   if (selectedLogPreview) {
@@ -734,10 +818,7 @@ export default function AttendanceView({ employees: propEmployees }) {
                     )}
 
                     <button 
-                      onClick={() => {
-                        const csvContent = formattedLogs.map(l => `${l.name},${l.id},${l.punchIn},${l.punchOut},${l.status},${l.location || 'N/A'}`).join('\n');
-                        exportToCSV(csvContent, 'attendance-audit-logs.csv');
-                      }} 
+                      onClick={handleExportAttendanceCSV} 
                       className="hr-attendance-export-btn"
                       style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: '#475569' }}
                     >
