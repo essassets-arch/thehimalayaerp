@@ -165,7 +165,8 @@ export const navigationConfig = {
         { id: 'pending-dispatch', label: 'Pending Dispatch', path: '/dispatch/orders' },
         { id: 'new-dispatch', label: 'Create Dispatch', path: '/dispatch/create-dispatch' },
         { id: 'in-transit', label: 'In Transit', path: '/dispatch/in-transit' },
-        { id: 'delivered', label: 'Delivered', path: '/dispatch/delivery' },
+        { id: 'delivered', label: 'Out for Delivery', path: '/dispatch/delivery' },
+        { id: 'dispatch-history', label: 'Dispatch History', path: '/dispatch/history' },
       ],
     },
     {
@@ -200,7 +201,7 @@ export const navigationConfig = {
     },
     { id: 'daily-report', label: 'Daily Dispatch Report', icon: FileText, path: '/dispatch/daily-report', group: 'Logistics' },
     { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch/remaining' },
-    { id: 'history', label: 'Dispatch History', icon: Clock, path: '/dispatch/history' },
+    { id: 'history', label: 'Dispatch History', icon: History, path: '/dispatch/history', group: 'Logistics' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/dispatch/profile' }
   ],
 
@@ -217,7 +218,8 @@ export const navigationConfig = {
         { id: 'pending-dispatch', label: 'Pending Dispatch', path: '/dispatch-2/orders' },
         { id: 'new-dispatch', label: 'Create Dispatch', path: '/dispatch-2/create-dispatch' },
         { id: 'in-transit', label: 'In Transit', path: '/dispatch-2/in-transit' },
-        { id: 'delivered', label: 'Delivered', path: '/dispatch-2/delivery' },
+        { id: 'delivered', label: 'Out for Delivery', path: '/dispatch-2/delivery' },
+        { id: 'dispatch-history', label: 'Dispatch History', path: '/dispatch-2/history' },
       ],
     },
     {
@@ -252,7 +254,7 @@ export const navigationConfig = {
     },
     { id: 'daily-report', label: 'Daily Dispatch Report', icon: FileText, path: '/dispatch-2/daily-report', group: 'Logistics' },
     { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch-2/remaining' },
-    { id: 'history', label: 'Dispatch History', icon: Clock, path: '/dispatch-2/history' },
+    { id: 'history', label: 'Dispatch History', icon: History, path: '/dispatch-2/history', group: 'Logistics' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/dispatch-2/profile' }
   ],
 

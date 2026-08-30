@@ -9,6 +9,7 @@ import {
   Search,
   Download,
   RotateCw,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -239,6 +240,15 @@ export default function InTransitPage() {
             >
               <Download className="w-4 h-4" />
               <span>Export CSV</span>
+            </button>
+
+            <button
+              type="button"
+              className={styles.transitExport}
+              onClick={() => router.push(`${basePath}/history`)}
+            >
+              <History className="w-4 h-4" />
+              <span>History</span>
             </button>
           </div>
         </section>

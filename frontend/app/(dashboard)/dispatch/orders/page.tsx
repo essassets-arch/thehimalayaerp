@@ -9,6 +9,7 @@ import {
   User,
   MapPin,
   Package,
+  History,
 } from "lucide-react";
 
 import { backendFetch } from "@/lib/backendFetch";
@@ -518,7 +519,17 @@ export default function DispatchOrdersPage() {
         onExportCsv={filteredPendingItems.length > 0 ? handleExportCsv : undefined}
         title="Pending Queue"
         subtitle={`Showing ${filteredPendingItems.length} order${filteredPendingItems.length !== 1 ? "s" : ""} ready for dispatch`}
-      />
+      >
+        <button
+          type="button"
+          onClick={() => router.push(`${basePath}/history`)}
+          className="dispatch-export-btn"
+          style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}
+        >
+          <History size={14} />
+          <span>History</span>
+        </button>
+      </DispatchToolbar>
 
 
       {/* Loading State */}

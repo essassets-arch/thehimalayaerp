@@ -12,6 +12,7 @@ import {
   MapPin,
   X,
   Package,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -270,7 +271,7 @@ export default function DeliveryRunPage() {
         isRefreshing={isRefetching}
       />
 
-      {/* â”€â”€ Toolbar â”€â”€ */}
+      {/* ── Toolbar ── */}
       <DispatchToolbar
         searchValue={search}
         onSearchChange={setSearch}
@@ -278,7 +279,17 @@ export default function DeliveryRunPage() {
         onExportCsv={activeDeliveryQueue.length > 0 ? handleExportCsv : undefined}
         title="Delivery Run Queue"
         subtitle={`Showing ${activeDeliveryQueue.length} shipment${activeDeliveryQueue.length !== 1 ? "s" : ""} out for delivery`}
-      />
+      >
+        <button
+          type="button"
+          onClick={() => router.push(`${basePath}/history`)}
+          className="dispatch-export-btn"
+          style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}
+        >
+          <History size={14} />
+          <span>History</span>
+        </button>
+      </DispatchToolbar>
 
       {/* â”€â”€ States â”€â”€ */}
       {isLoading && <DispatchLoadingState count={5} />}
