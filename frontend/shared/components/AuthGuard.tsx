@@ -21,22 +21,22 @@ import { useAuthStore } from '@/store/authStore';
  * Empty array means any authenticated user can access.
  */
 const ROUTE_ROLE_MAP: Record<string, string[]> = {
-  'super-admin':    ['Super Admin', 'SUPER_ADMIN'],
+  'super-admin':    ['Super Admin', 'SUPER_ADMIN', 'ADMIN', 'Admin'],
   'admin':          ['Admin', 'Super Admin', 'ADMIN', 'SUPER_ADMIN'],
   'sales':          ['Sales', 'Sales Admin', 'Sales Executive', 'Sales Manager', 'SuperSales', 'SuperSales 1', 'SuperSales 2', 'SUPER_SALES', 'Super Admin', 'SALES', 'SALES_EXECUTIVE', 'SALES_MANAGER', 'ADMIN', 'SUPER_ADMIN'],
   'supersales':     ['SuperSales', 'SuperSales 1', 'SuperSales 2', 'SUPER_SALES', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
   'plant-head':     ['Plant Head', 'Super Admin', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN'],
-  'production':     ['Production', 'Production Planner', 'Production Operator', 'Plant Head', 'Super Admin', 'PRODUCTION', 'PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'ADMIN', 'SUPER_ADMIN'],
-  'store':          ['Store', 'Store Manager', 'Plant Head', 'Super Admin', 'STORE', 'STORE_MANAGER', 'ADMIN', 'SUPER_ADMIN'],
-  'qc':             ['QC', 'Plant Head', 'Super Admin', 'QC_INSPECTOR', 'ADMIN', 'SUPER_ADMIN'],
-  'dispatch':       ['Dispatch', 'Dispatch 1', 'Dispatch Executive', 'DISPATCH_EXECUTIVE', 'Super Admin', 'Plant Head', 'Production Manager', 'Production Planner', 'Production Operator', 'Production', 'QC', 'ADMIN', 'SUPER_ADMIN'],
-  'dispatch-2':     ['Dispatch', 'Dispatch 2', 'Dispatch Executive', 'DISPATCH_EXECUTIVE', 'DISPATCH_2', 'Super Admin', 'Plant Head', 'ADMIN', 'SUPER_ADMIN'],
-  'finance-executive': ['Finance Executive', 'FINANCE_EXECUTIVE', 'Finance Manager', 'Finance Lead', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
-  'finance':        ['Finance', 'Finance Manager', 'Finance Lead', 'FINANCE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
-  'hr':             ['HR', 'Super Admin', 'ADMIN', 'SUPER_ADMIN'],
+  'production':     ['Production', 'Production Planner', 'Production Operator', 'Plant Head', 'Super Admin', 'PRODUCTION', 'PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'ADMIN', 'SUPER_ADMIN', 'PLANT_HEAD'],
+  'store':          ['Store', 'Store Manager', 'Plant Head', 'Super Admin', 'STORE', 'STORE_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'PLANT_HEAD'],
+  'qc':             ['QC', 'QC Inspector', 'Plant Head', 'Super Admin', 'QC_INSPECTOR', 'ADMIN', 'SUPER_ADMIN', 'QC', 'PLANT_HEAD'],
+  'dispatch':       ['Dispatch', 'Dispatch 1', 'Dispatch 2', 'Dispatch Executive', 'DISPATCH', 'DISPATCH_1', 'DISPATCH_2', 'DISPATCH_EXECUTIVE', 'Super Admin', 'Plant Head', 'PLANT_HEAD', 'Production Manager', 'Production Planner', 'Production Operator', 'Production', 'QC', 'ADMIN', 'SUPER_ADMIN'],
+  'dispatch-2':     ['Dispatch', 'Dispatch 1', 'Dispatch 2', 'Dispatch Executive', 'DISPATCH', 'DISPATCH_1', 'DISPATCH_2', 'DISPATCH_EXECUTIVE', 'Super Admin', 'Plant Head', 'PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN'],
+  'finance-executive': ['Finance Executive', 'FINANCE_EXECUTIVE', 'Finance Manager', 'Finance Lead', 'Finance', 'FINANCE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
+  'finance':        ['Finance', 'Finance Executive', 'FINANCE_EXECUTIVE', 'Finance Manager', 'Finance Lead', 'FINANCE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
+  'hr':             ['HR', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN', 'HR_MANAGER', 'HR_EXECUTIVE'],
   'back-office':    ['Back Office', 'BACK_OFFICE', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
   'crm':            ['Sales', 'Sales Admin', 'Sales Executive', 'Sales Manager', 'SuperSales', 'SuperSales 1', 'SuperSales 2', 'SUPER_SALES', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
-  'orders':         ['Sales', 'Sales Admin', 'Sales Executive', 'Sales Manager', 'SuperSales', 'SuperSales 1', 'SuperSales 2', 'SUPER_SALES', 'Plant Head', 'PLANT_HEAD', 'Production', 'PRODUCTION', 'Dispatch', 'DISPATCH_EXECUTIVE', 'DISPATCH_2', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
+  'orders':         ['Sales', 'Sales Admin', 'Sales Executive', 'Sales Manager', 'SuperSales', 'SuperSales 1', 'SuperSales 2', 'SUPER_SALES', 'Plant Head', 'PLANT_HEAD', 'Production', 'PRODUCTION', 'Dispatch', 'Dispatch 1', 'Dispatch 2', 'Dispatch Executive', 'DISPATCH', 'DISPATCH_1', 'DISPATCH_2', 'DISPATCH_EXECUTIVE', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
   'employee':       ['HR', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN', 'Employee', 'EMPLOYEE'],
 };
 
@@ -120,27 +120,40 @@ function getUserRoleName(rawRole: any): string {
   if (!rawRole) return '';
   if (typeof rawRole === 'string') return rawRole;
   if (typeof rawRole === 'object') {
+    const rawVal = rawRole.code || rawRole.role || rawRole.name || '';
+    const codeMap: Record<string, string> = {
+      SUPER_ADMIN: 'Super Admin',
+      ADMIN: 'Admin',
+      SUPER_SALES: 'SuperSales',
+      SALES_EXECUTIVE: 'Sales Executive',
+      SALES_MANAGER: 'Sales Manager',
+      SALES: 'Sales',
+      PLANT_HEAD: 'Plant Head',
+      PRODUCTION_PLANNER: 'Production Planner',
+      PRODUCTION_OPERATOR: 'Production Operator',
+      PRODUCTION: 'Production',
+      QC_INSPECTOR: 'QC Inspector',
+      QC: 'QC',
+      DISPATCH_EXECUTIVE: 'Dispatch Executive',
+      DISPATCH_1: 'Dispatch 1',
+      DISPATCH_2: 'Dispatch 2',
+      DISPATCH: 'Dispatch',
+      FINANCE_EXECUTIVE: 'Finance Executive',
+      FINANCE_MANAGER: 'Finance Manager',
+      FINANCE_LEAD: 'Finance Lead',
+      FINANCE: 'Finance',
+      STORE_MANAGER: 'Store Manager',
+      STORE: 'Store',
+      HR: 'HR',
+      HR_MANAGER: 'HR',
+      HR_EXECUTIVE: 'HR',
+      BACK_OFFICE: 'Back Office',
+      EMPLOYEE: 'Employee',
+    };
+    const key = String(rawVal).trim().toUpperCase();
+    if (codeMap[key]) return codeMap[key];
     if (rawRole.name) return String(rawRole.name);
-    if (rawRole.code) {
-      const codeMap: Record<string, string> = {
-        SUPER_ADMIN: 'Super Admin',
-        ADMIN: 'Admin',
-        SUPER_SALES: 'SuperSales',
-        SALES_EXECUTIVE: 'Sales Executive',
-        SALES_MANAGER: 'Sales Manager',
-        PLANT_HEAD: 'Plant Head',
-        PRODUCTION_PLANNER: 'Production Planner',
-        PRODUCTION_OPERATOR: 'Production Operator',
-        QC_INSPECTOR: 'QC Inspector',
-        DISPATCH_EXECUTIVE: 'Dispatch Executive',
-        FINANCE_EXECUTIVE: 'Finance Executive',
-        FINANCE_MANAGER: 'Finance Manager',
-        STORE_MANAGER: 'Store Manager',
-        HR: 'HR',
-        BACK_OFFICE: 'Back Office',
-      };
-      if (codeMap[rawRole.code]) return codeMap[rawRole.code];
-    }
+    if (rawRole.code) return String(rawRole.code);
   }
   return String(rawRole);
 }
@@ -165,13 +178,32 @@ function getUserRoleName(rawRole: any): string {
 
     if (allowedRoles && allowedRoles.length > 0) {
       const activeRoleName = getUserRoleName(role || user?.role);
+      const rawUserRole = typeof role === 'object' ? (role?.code || role?.role || role?.name) : (typeof user?.role === 'object' ? (user.role?.code || user.role?.role || user.role?.name) : (role || user?.role));
+      const rawRoleString = String(rawUserRole || '').trim().toUpperCase();
+      const activeNameUpper = String(activeRoleName || '').trim().toUpperCase();
       
       // Super Admin and Admin bypass route checks
-      if (activeRoleName === 'Super Admin' || activeRoleName === 'Admin') {
+      if (
+        activeRoleName === 'Super Admin' ||
+        activeRoleName === 'Admin' ||
+        rawRoleString === 'SUPER_ADMIN' ||
+        rawRoleString === 'ADMIN'
+      ) {
         return;
       }
 
-      if (!activeRoleName || !allowedRoles.includes(activeRoleName)) {
+      const isAllowed = allowedRoles.some((r) => {
+        const rUpper = r.trim().toUpperCase();
+        return (
+          rUpper === activeNameUpper ||
+          rUpper === rawRoleString ||
+          (rawRoleString.startsWith('DISPATCH') && rUpper.startsWith('DISPATCH')) ||
+          (rawRoleString.startsWith('FINANCE') && rUpper.startsWith('FINANCE')) ||
+          (rawRoleString.startsWith('SUPER_SALES') && rUpper.startsWith('SUPER'))
+        );
+      });
+
+      if (!isAllowed) {
         // Block render & redirect to role default path
         const defaultPath = getDefaultPath(activeRoleName);
         if (typeof window !== 'undefined') {
