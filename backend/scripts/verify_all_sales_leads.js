@@ -13,7 +13,11 @@ async function run() {
           'sales3@himalayaerp.com',
           'sales4@himalayaerp.com',
           'sales5@himalayaerp.com',
-          'sales6@himalayaerp.com'
+          'sales6@himalayaerp.com',
+          'sales11@himalayaerp.com',
+          'sales12@himalayaerp.com',
+          'sales13@himalayaerp.com',
+          'sales14@himalayaerp.com'
         ]
       }
     },
