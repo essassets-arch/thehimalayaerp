@@ -166,8 +166,8 @@ export function getNavigationForPath(pathname, role) {
     'Super Admin': '/super-admin'
   }[activeModuleKey] || '/sales';
 
-  // Inject My Profile if not present
-  if (!resultNav.some(item => item.id === 'profile')) {
+  // Inject My Profile if not present (except for Super Admin)
+  if (activeModuleKey !== 'Super Admin' && !resultNav.some(item => item.id === 'profile')) {
     resultNav.push({
       id: 'profile',
       label: 'My Profile',
@@ -185,6 +185,11 @@ export function getNavigationForPath(pathname, role) {
       icon: 'CreditCard',
       path: `${prefix}/expense-management`
     });
+  }
+
+  // Ensure My Profile is explicitly filtered out for Super Admin
+  if (activeModuleKey === 'Super Admin') {
+    return resultNav.filter(item => item.id !== 'profile');
   }
 
   return resultNav;
