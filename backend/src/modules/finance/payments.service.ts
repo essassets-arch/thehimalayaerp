@@ -150,12 +150,21 @@ export class PaymentsService {
     let dueTodayCount = 0;
     let overdueCount = 0;
     let partiallyPaidCount = 0;
+    let verifiedCount = 0;
+    let rejectedCount = 0;
     let totalOutstanding = 0;
     let totalVerified = 0;
 
     evaluatedRows.forEach((r) => {
       pendingVerificationCount += r.pendingVerificationCount;
       totalVerified += r.verifiedPaidAmount;
+
+      if (r.verifiedPaidAmount > 0 || r.paymentStatus === 'PAID') {
+        verifiedCount++;
+      }
+      if (r.payments.some((p) => p.status === 'REJECTED')) {
+        rejectedCount++;
+      }
 
       if (r.outstandingAmount > 0) {
         totalOutstanding += r.outstandingAmount;
@@ -252,6 +261,8 @@ export class PaymentsService {
         dueTodayCount,
         overdueCount,
         partiallyPaidCount,
+        verifiedCount,
+        rejectedCount,
         totalOutstanding,
         totalVerified,
       },

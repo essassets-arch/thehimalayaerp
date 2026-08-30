@@ -204,27 +204,33 @@ export default function FinanceSalesConfirmationView() {
           box-shadow: 0 1px 3px rgba(0,0,0,0.03);
         }
 
-        .finance-kpi-grid {
-          display: grid;
-          grid-template-columns: repeat(6, 1fr);
-          gap: 12px;
-          width: 100%;
+        .payment-verification-kpi-grid {
+          display: grid !important;
+          grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+          gap: 14px !important;
+          width: 100% !important;
         }
 
-        @media (max-width: 1200px) {
-          .finance-kpi-grid {
-            grid-template-columns: repeat(3, 1fr);
+        @media (max-width: 1300px) {
+          .payment-verification-kpi-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
           }
         }
 
-        @media (max-width: 640px) {
-          .finance-kpi-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+        @media (max-width: 768px) {
+          .payment-verification-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px !important;
           }
         }
 
-        .finance-kpi-card {
+        @media (max-width: 480px) {
+          .payment-verification-kpi-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        .payment-verification-kpi-card {
           background: #FFFFFF;
           border-radius: 14px;
           padding: 14px 16px;
@@ -233,6 +239,9 @@ export default function FinanceSalesConfirmationView() {
           gap: 12px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.03);
           transition: transform 0.15s ease, box-shadow 0.15s ease;
+          min-height: 78px;
+          box-sizing: border-box;
+          min-width: 0;
         }
 
         .finance-verification-tabs {
@@ -377,9 +386,9 @@ export default function FinanceSalesConfirmationView() {
       </div>
 
       {/* ── Top Summary KPI Cards (Section 13) ──────────────────────────────── */}
-      <div className="finance-kpi-grid">
+      <div className="payment-verification-kpi-grid">
         {/* Pending Verification */}
-        <div className="finance-kpi-card" style={{ border: '1px solid #FDE68A', background: '#FFFDF5' }}>
+        <div className="payment-verification-kpi-card" style={{ border: '1px solid #FDE68A', background: '#FFFDF5' }}>
           <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706', flexShrink: 0 }}>
             <Clock className="w-5 h-5" />
           </div>
@@ -392,7 +401,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Due Soon */}
-        <div className="finance-kpi-card" style={{ border: '1px solid #E2E8F0' }}>
+        <div className="payment-verification-kpi-card" style={{ border: '1px solid #E2E8F0' }}>
           <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', flexShrink: 0 }}>
             <Calendar className="w-5 h-5" />
           </div>
@@ -405,7 +414,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Due Today */}
-        <div className="finance-kpi-card" style={{ border: '1px solid #FED7AA', background: '#FFFDFB' }}>
+        <div className="payment-verification-kpi-card" style={{ border: '1px solid #FED7AA', background: '#FFFDFB' }}>
           <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#FFEDD5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EA580C', flexShrink: 0 }}>
             <AlertTriangle className="w-5 h-5" />
           </div>
@@ -418,7 +427,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Overdue */}
-        <div className="finance-kpi-card" style={{ border: '1px solid #FECACA', background: '#FEF9F9' }}>
+        <div className="payment-verification-kpi-card" style={{ border: '1px solid #FECACA', background: '#FEF9F9' }}>
           <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626', flexShrink: 0 }}>
             <AlertCircle className="w-5 h-5" />
           </div>
@@ -431,7 +440,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Partially Paid */}
-        <div className="finance-kpi-card" style={{ border: '1px solid #BFDBFE', background: '#F8FAFF' }}>
+        <div className="payment-verification-kpi-card" style={{ border: '1px solid #BFDBFE', background: '#F8FAFF' }}>
           <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB', flexShrink: 0 }}>
             <TrendingDown className="w-5 h-5" />
           </div>
@@ -444,7 +453,7 @@ export default function FinanceSalesConfirmationView() {
         </div>
 
         {/* Total Outstanding */}
-        <div className="finance-kpi-card" style={{ border: '1px solid #E2E8F0' }}>
+        <div className="payment-verification-kpi-card" style={{ border: '1px solid #E2E8F0' }}>
           <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F172A', flexShrink: 0 }}>
             <DollarSign className="w-5 h-5" />
           </div>
@@ -469,8 +478,8 @@ export default function FinanceSalesConfirmationView() {
             { id: 'Due Today', label: `Due Today (${summary.dueTodayCount || 0})` },
             { id: 'Overdue', label: `Overdue (${summary.overdueCount || 0})` },
             { id: 'Partially Paid', label: `Partially Paid (${summary.partiallyPaidCount || 0})` },
-            { id: 'Verified', label: 'Verified' },
-            { id: 'Rejected', label: 'Rejected' },
+            { id: 'Verified', label: `Verified (${summary.verifiedCount || 0})` },
+            { id: 'Rejected', label: `Rejected (${summary.rejectedCount || 0})` },
           ].map((tab) => (
             <button
               key={tab.id}
