@@ -7513,7 +7513,7 @@ export default function SuperAdminPortal() {
 
   return (
     <SuperAdminFilterProvider>
-      <div className="super-admin-theme-container">
+      <div className="super-admin-portal-root super-admin-theme-container" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       {renderActiveView()}
 
       {/* Ã¢â€â‚¬Ã¢â€â‚¬ PRODUCT CREATION/EDIT MODAL Ã¢â€â‚¬Ã¢â€â‚¬ */}
