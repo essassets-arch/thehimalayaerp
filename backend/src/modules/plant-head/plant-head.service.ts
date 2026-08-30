@@ -1727,6 +1727,110 @@ export class PlantHeadService {
       targetDate: d.eta ? d.eta.toISOString().slice(0, 10) : 'Today'
     }));
 
+    // ── 9.1 Production Daily Floor Reports (Submitted via /production/daily-report) ──
+    const prodDailyReports = await this.prisma.productionDailyReport.findMany({
+      where: {
+        ...companyFilter,
+        OR: [
+          { reportDate: { gte: todayStart, lte: todayEnd } },
+          { createdAt: { gte: todayStart, lte: todayEnd } }
+        ]
+      },
+      include: {
+        createdBy: { select: { id: true, name: true, email: true } },
+        approvedBy: { select: { id: true, name: true, email: true } },
+        items: {
+          include: {
+            product: { select: { id: true, name: true, sku: true } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const prodReportSubmittedCount = prodDailyReports.filter(r => r.status === 'SUBMITTED' || r.status === 'APPROVED').length;
+    const prodReportTotalSets = prodDailyReports.reduce((s, r) => s + Number(r.totalSets || 0), 0);
+    const prodReportTotalCovers = prodDailyReports.reduce((s, r) => s + Number(r.totalCovers || 0), 0);
+    const prodReportTotalFrames = prodDailyReports.reduce((s, r) => s + Number(r.totalFrames || 0), 0);
+    const prodReportTotalWeight = prodDailyReports.reduce((s, r) => s + Number(r.totalWeight || 0), 0);
+
+    const productionReportsList = prodDailyReports.map(r => ({
+      id: r.id,
+      reportNo: r.reportNo,
+      reportDate: r.reportDate.toISOString().slice(0, 10),
+      shift: r.shift || 'General Shift',
+      supervisorName: r.supervisorName || r.createdBy?.name || 'Production Supervisor',
+      status: r.status,
+      totalSets: Number(r.totalSets || 0),
+      totalCovers: Number(r.totalCovers || 0),
+      totalFrames: Number(r.totalFrames || 0),
+      totalWeight: Number(r.totalWeight || 0),
+      itemsCount: r.items?.length || 0,
+      submittedAt: r.submittedAt ? r.submittedAt.toISOString() : null,
+      items: r.items?.map(it => ({
+        id: it.id,
+        productName: it.product?.name || it.customProductName || 'Product',
+        size: it.size || '',
+        type: it.type || '',
+        coverQty: Number(it.coverQty || 0),
+        frameQty: Number(it.frameQty || 0),
+        setQty: Number(it.setQty || 0),
+        totalWeight: Number(it.totalWeight || 0)
+      }))
+    }));
+
+    // ── 9.2 Dispatch Daily Reports (Submitted via /dispatch/daily-report) ──
+    const dispatchDailyReports = await this.prisma.dispatchDailyReport.findMany({
+      where: {
+        ...companyFilter,
+        OR: [
+          { reportDate: { gte: todayStart, lte: todayEnd } },
+          { createdAt: { gte: todayStart, lte: todayEnd } }
+        ]
+      },
+      include: {
+        createdBy: { select: { id: true, name: true, email: true } },
+        items: {
+          include: {
+            product: { select: { id: true, name: true, sku: true } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const dispatchReportSubmittedCount = dispatchDailyReports.filter(r => r.status === 'SUBMITTED' || r.status === 'APPROVED').length;
+    const dispatchReportTotalSets = dispatchDailyReports.reduce((s, r) => s + Number(r.totalSets || 0), 0);
+    const dispatchReportTotalCovers = dispatchDailyReports.reduce((s, r) => s + Number(r.totalCovers || 0), 0);
+    const dispatchReportTotalFrames = dispatchDailyReports.reduce((s, r) => s + Number(r.totalFrames || 0), 0);
+    const dispatchReportTotalWeight = dispatchDailyReports.reduce((s, r) => s + Number(r.totalWeight || 0), 0);
+
+    const dispatchReportsList = dispatchDailyReports.map(r => ({
+      id: r.id,
+      reportNo: r.reportNo,
+      reportDate: r.reportDate.toISOString().slice(0, 10),
+      shift: r.shift || 'General Shift',
+      dispatchType: r.dispatchType === 'DISPATCH_2' ? 'Dispatch Unit 2' : 'Dispatch Unit 1',
+      dispatchExecutive: r.dispatchExecutive || r.createdBy?.name || 'Dispatch Executive',
+      status: r.status,
+      totalSets: Number(r.totalSets || 0),
+      totalCovers: Number(r.totalCovers || 0),
+      totalFrames: Number(r.totalFrames || 0),
+      totalWeight: Number(r.totalWeight || 0),
+      itemsCount: r.items?.length || 0,
+      submittedAt: r.submittedAt ? r.submittedAt.toISOString() : null,
+      items: r.items?.map(it => ({
+        id: it.id,
+        productName: it.product?.name || it.customProductName || 'Product',
+        size: it.size || '',
+        type: it.type || '',
+        coverQty: Number(it.coverQty || 0),
+        frameQty: Number(it.frameQty || 0),
+        setQty: Number(it.setQty || 0),
+        totalWeight: Number(it.totalWeight || 0)
+      }))
+    }));
+
     // ── 10. Replacements & Returns ──
     const replacements = await this.prisma.replacementRequest.findMany({ orderBy: { requestedAt: 'desc' } });
     const procReplacements = await this.prisma.procurementReplacementRequest.findMany({ orderBy: { createdAt: 'desc' } });
@@ -2029,6 +2133,24 @@ export class PlantHeadService {
         returnsNew,
         returnsPending,
         returnsApproved
+      },
+      productionDailyReports: {
+        totalReports: prodDailyReports.length,
+        submittedCount: prodReportSubmittedCount,
+        totalSets: prodReportTotalSets,
+        totalCovers: prodReportTotalCovers,
+        totalFrames: prodReportTotalFrames,
+        totalWeight: prodReportTotalWeight,
+        list: productionReportsList
+      },
+      dispatchDailyReports: {
+        totalReports: dispatchDailyReports.length,
+        submittedCount: dispatchReportSubmittedCount,
+        totalSets: dispatchReportTotalSets,
+        totalCovers: dispatchReportTotalCovers,
+        totalFrames: dispatchReportTotalFrames,
+        totalWeight: dispatchReportTotalWeight,
+        list: dispatchReportsList
       },
       activityTimeline,
       comparison

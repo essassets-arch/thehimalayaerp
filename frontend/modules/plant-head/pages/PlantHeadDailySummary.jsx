@@ -650,6 +650,58 @@ export const PlantHeadDailySummary = () => {
             <div style={{ fontSize: '18px', fontWeight: '900', color: '#dc2626' }}>{data?.production?.prodDelayed || 0}</div>
           </div>
         </div>
+
+        {/* Submitted Production Floor Daily Reports */}
+        <div style={{ marginTop: '18px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13.5px', fontWeight: '900', color: '#312e81' }}>🏭 Production Daily Shift Submissions</span>
+              <span style={{ background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '800' }}>
+                {data?.productionDailyReports?.submittedCount || 0} Submitted
+              </span>
+            </div>
+            <button onClick={() => router.push('/plant-head/daily-reports')} style={{ background: 'transparent', border: '1px solid #4338ca', color: '#4338ca', padding: '3px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer' }}>View All Shift Reports</button>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', color: '#475569', textTransform: 'uppercase', fontSize: '10.5px' }}>
+                  <th style={{ padding: '6px 8px', textAlign: 'left' }}>Report No</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Shift</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'left' }}>Supervisor</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Sets</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Covers</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Frames</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Total Wt (Kg)</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.productionDailyReports?.list && data.productionDailyReports.list.length > 0 ? (
+                  data.productionDailyReports.list.map((r, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '6px 8px', fontWeight: '800', color: '#4338ca' }}>{r.reportNo}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', color: '#475569', fontWeight: '700' }}>{r.shift}</td>
+                      <td style={{ padding: '6px 8px', color: '#334155' }}>{r.supervisorName}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: '800', color: '#0f172a' }}>{r.totalSets}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', color: '#64748b' }}>{r.totalCovers}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', color: '#64748b' }}>{r.totalFrames}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{Number(r.totalWeight || 0).toLocaleString()}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                        <span style={{ background: r.status === 'APPROVED' ? '#dcfce7' : (r.status === 'SUBMITTED' ? '#e0f2fe' : '#fef3c7'), color: r.status === 'APPROVED' ? '#15803d' : (r.status === 'SUBMITTED' ? '#0369a1' : '#b45309'), padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: '800' }}>
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={8} style={{ padding: '12px', textAlign: 'center', color: '#94a3b8' }}>No production daily reports submitted for this date.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* ── SECTION 4 — MATERIAL REQUESTS ── */}
@@ -1009,6 +1061,58 @@ export const PlantHeadDailySummary = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Submitted Dispatch Daily Reports */}
+        <div style={{ marginTop: '18px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13.5px', fontWeight: '900', color: '#0e7490' }}>🚚 Dispatch Daily Delivery Submissions</span>
+              <span style={{ background: '#cffafe', color: '#0891b2', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '800' }}>
+                {data?.dispatchDailyReports?.submittedCount || 0} Submitted
+              </span>
+            </div>
+            <button onClick={() => router.push('/plant-head/daily-reports')} style={{ background: 'transparent', border: '1px solid #0891b2', color: '#0891b2', padding: '3px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer' }}>View All Dispatch Reports</button>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', color: '#475569', textTransform: 'uppercase', fontSize: '10.5px' }}>
+                  <th style={{ padding: '6px 8px', textAlign: 'left' }}>Report No</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Unit / Type</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'left' }}>Executive</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Sets</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Covers</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Frames</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>Total Wt (Kg)</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.dispatchDailyReports?.list && data.dispatchDailyReports.list.length > 0 ? (
+                  data.dispatchDailyReports.list.map((r, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '6px 8px', fontWeight: '800', color: '#0891b2' }}>{r.reportNo}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', color: '#475569', fontWeight: '700' }}>{r.dispatchType}</td>
+                      <td style={{ padding: '6px 8px', color: '#334155' }}>{r.dispatchExecutive}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: '800', color: '#0f172a' }}>{r.totalSets}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', color: '#64748b' }}>{r.totalCovers}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center', color: '#64748b' }}>{r.totalFrames}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{Number(r.totalWeight || 0).toLocaleString()}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                        <span style={{ background: r.status === 'APPROVED' ? '#dcfce7' : (r.status === 'SUBMITTED' ? '#cffafe' : '#fef3c7'), color: r.status === 'APPROVED' ? '#15803d' : (r.status === 'SUBMITTED' ? '#0891b2' : '#b45309'), padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: '800' }}>
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={8} style={{ padding: '12px', textAlign: 'center', color: '#94a3b8' }}>No dispatch daily reports submitted for this date.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* ── SECTION 10 & 11 — REPLACEMENTS & RETURNS (COLLAPSIBLE) ── */}
@@ -1347,7 +1451,88 @@ export const PlantHeadDailySummary = () => {
               </table>
             </div>
 
-            {/* 4. Plant Sign-off (Right Side Bottom) */}
+            {/* 4. Production & Dispatch Daily Shift Submissions */}
+            <div style={{ marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '13px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', marginBottom: '8px', borderLeft: '4px solid #6366f1', paddingLeft: '8px' }}>4. Production & Dispatch Daily Shift Submissions</h3>
+              
+              {/* 4.1 Production Daily Floor Reports */}
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: '800', color: '#4338ca', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>🏭 Production Floor Shift Reports ({data?.productionDailyReports?.submittedCount || 0} Submitted)</span>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '700' }}>Total: {data?.productionDailyReports?.totalSets || 0} Sets | {data?.productionDailyReports?.totalCovers || 0} Covers | {data?.productionDailyReports?.totalFrames || 0} Frames | {data?.productionDailyReports?.totalWeight || 0} Kg</span>
+                </div>
+                <table className="report-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #c7d2fe' }}>
+                  <thead>
+                    <tr style={{ background: '#eef2ff', borderBottom: '1.5px solid #c7d2fe', color: '#3730a3', textTransform: 'uppercase', fontSize: '10px' }}>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', width: '20%', border: '1px solid #c7d2fe' }}>Report No</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'center', width: '14%', border: '1px solid #c7d2fe' }}>Shift</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', width: '20%', border: '1px solid #c7d2fe' }}>Supervisor</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'center', width: '10%', border: '1px solid #c7d2fe' }}>Sets</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'center', width: '10%', border: '1px solid #c7d2fe' }}>Covers</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'center', width: '10%', border: '1px solid #c7d2fe' }}>Frames</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'right', width: '16%', border: '1px solid #c7d2fe' }}>Total Wt (Kg)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data?.productionDailyReports?.list && data.productionDailyReports.list.length > 0 ? (
+                      data.productionDailyReports.list.map((r, i) => (
+                        <tr key={i}>
+                          <td style={{ padding: '6px 8px', fontWeight: '800', color: '#0f172a', border: '1px solid #cbd5e1' }}>{r.reportNo}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: '700', color: '#475569', border: '1px solid #cbd5e1' }}>{r.shift}</td>
+                          <td style={{ padding: '6px 8px', color: '#334155', border: '1px solid #cbd5e1' }}>{r.supervisorName}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: '800', color: '#4338ca', border: '1px solid #cbd5e1' }}>{r.totalSets}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', color: '#334155', border: '1px solid #cbd5e1' }}>{r.totalCovers}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', color: '#334155', border: '1px solid #cbd5e1' }}>{r.totalFrames}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0f172a', border: '1px solid #cbd5e1' }}>{Number(r.totalWeight || 0).toLocaleString()}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={7} style={{ padding: '8px 10px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1', fontSize: '10.5px' }}>No Production Daily Floor Reports submitted for this date.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 4.2 Dispatch Daily Reports */}
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: '800', color: '#0891b2', textTransform: 'uppercase', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>🚚 Dispatch Daily Delivery Reports ({data?.dispatchDailyReports?.submittedCount || 0} Submitted)</span>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '700' }}>Total: {data?.dispatchDailyReports?.totalSets || 0} Sets | {data?.dispatchDailyReports?.totalCovers || 0} Covers | {data?.dispatchDailyReports?.totalFrames || 0} Frames | {data?.dispatchDailyReports?.totalWeight || 0} Kg</span>
+                </div>
+                <table className="report-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #a5f3fc' }}>
+                  <thead>
+                    <tr style={{ background: '#ecfeff', borderBottom: '1.5px solid #a5f3fc', color: '#0e7490', textTransform: 'uppercase', fontSize: '10px' }}>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', width: '20%', border: '1px solid #a5f3fc' }}>Report No</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'center', width: '14%', border: '1px solid #a5f3fc' }}>Unit / Type</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', width: '20%', border: '1px solid #a5f3fc' }}>Executive</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'center', width: '10%', border: '1px solid #a5f3fc' }}>Sets</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'center', width: '10%', border: '1px solid #a5f3fc' }}>Covers</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'center', width: '10%', border: '1px solid #a5f3fc' }}>Frames</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'right', width: '16%', border: '1px solid #a5f3fc' }}>Total Wt (Kg)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data?.dispatchDailyReports?.list && data.dispatchDailyReports.list.length > 0 ? (
+                      data.dispatchDailyReports.list.map((r, i) => (
+                        <tr key={i}>
+                          <td style={{ padding: '6px 8px', fontWeight: '800', color: '#0f172a', border: '1px solid #cbd5e1' }}>{r.reportNo}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: '700', color: '#475569', border: '1px solid #cbd5e1' }}>{r.dispatchType}</td>
+                          <td style={{ padding: '6px 8px', color: '#334155', border: '1px solid #cbd5e1' }}>{r.dispatchExecutive}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: '800', color: '#0891b2', border: '1px solid #cbd5e1' }}>{r.totalSets}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', color: '#334155', border: '1px solid #cbd5e1' }}>{r.totalCovers}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'center', color: '#334155', border: '1px solid #cbd5e1' }}>{r.totalFrames}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0f172a', border: '1px solid #cbd5e1' }}>{Number(r.totalWeight || 0).toLocaleString()}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={7} style={{ padding: '8px 10px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1', fontSize: '10.5px' }}>No Dispatch Daily Reports submitted for this date.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 5. Plant Sign-off (Right Side Bottom) */}
             <div style={{ borderTop: '2px dashed #cbd5e1', paddingTop: '20px', marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
               <div style={{ textAlign: 'right', borderTop: '2px solid #0f172a', paddingTop: '8px', minWidth: '200px' }}>
                 <div style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.02em' }}>sana konda reddy</div>
