@@ -22,6 +22,8 @@ import {
   ShieldCheck,
   Building2,
   RefreshCw,
+  X,
+  CreditCard,
 } from "lucide-react";
 import { backendFetch } from "@/lib/backendFetch";
 
@@ -157,6 +159,7 @@ export default function OrderDetailPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [selectedPodImage, setSelectedPodImage] = useState<string | null>(null);
 
   const fetchOrderDetails = async () => {
     if (!decodedOrderId) {
@@ -191,7 +194,7 @@ export default function OrderDetailPage() {
         }
       }
 
-      // 3. Fallback to list search
+      // 3. Fallback to search list
       if (!foundOrder || !foundOrder.id) {
         try {
           const res = await backendFetch<any>("/api/backend/sales/orders?limit=200");
@@ -215,13 +218,13 @@ export default function OrderDetailPage() {
           const allDispatches = Array.isArray(dispRes) ? dispRes : Array.isArray(dispRes?.data) ? dispRes.data : [];
           const matched = allDispatches.filter((d: any) => {
             const sId = d.salesOrderId || d.salesOrder?.id;
-            const sNo = d.salesOrder?.orderNumber;
+            const sNo = d.salesOrder?.orderNumber || d.salesOrderNo;
             return (
               (sId && String(sId) === String(foundOrder.id)) ||
               (sNo && String(sNo).trim().toUpperCase() === String(foundOrder.orderNumber).trim().toUpperCase())
             );
           });
-          setDispatches(matched);
+          setDispatches(matched.length > 0 ? matched : (foundOrder.dispatches || []));
         } catch {
           setDispatches(foundOrder.dispatches || []);
         }
@@ -311,7 +314,6 @@ export default function OrderDetailPage() {
   const workflowStatus = order.dispatchStatus || order.status || "ORDER_CONFIRMED";
   const totalAmount = Number(order.totalAmount || order.grandTotal || 0);
   const items = Array.isArray(order.items) ? order.items : [];
-  const latestDispatch = dispatches[0] || null;
 
   const fmtDate = (d: any) =>
     d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -327,6 +329,13 @@ export default function OrderDetailPage() {
     if (norm === "IN_PRODUCTION" || norm === "PRODUCTION_STARTED") return 1;
     return 0;
   })();
+
+  const resolvePodUrl = (url: string) => {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    if (url.startsWith("/")) return url;
+    return `/${url}`;
+  };
 
   return (
     <div style={{ padding: "20px 24px 40px", maxWidth: 1200, margin: "0 auto", fontFamily: "Inter, system-ui, sans-serif" }}>
@@ -578,7 +587,7 @@ export default function OrderDetailPage() {
                   <tr key={disp.id} className="hover:bg-slate-50">
                     <td style={{ padding: "12px 14px" }}>
                       <span style={{ fontFamily: "monospace", fontWeight: 800, color: "#2563eb", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "3px 8px", borderRadius: 6 }}>
-                        #{disp.dispatchNo}
+                        #{disp.dispatchNo || disp.dispatchNumber || disp.id?.slice(0, 8)}
                       </span>
                     </td>
                     <td style={{ padding: "12px 14px" }}>
@@ -601,15 +610,26 @@ export default function OrderDetailPage() {
                     </td>
                     <td style={{ padding: "12px 14px", textAlign: "center" }}>
                       {disp.podUrl ? (
-                        <a
-                          href={disp.podUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 6, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: 11, fontWeight: 700, textDecoration: "none" }}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPodImage(resolvePodUrl(disp.podUrl))}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            padding: "5px 10px",
+                            borderRadius: 6,
+                            background: "#f0fdf4",
+                            border: "1px solid #bbf7d0",
+                            color: "#166534",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
                         >
-                          <ImageIcon size={12} />
+                          <ImageIcon size={13} />
                           <span>View POD</span>
-                        </a>
+                        </button>
                       ) : (
                         <span style={{ color: "#94a3b8", fontSize: 11, fontStyle: "italic" }}>No POD</span>
                       )}
@@ -628,6 +648,66 @@ export default function OrderDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── POD Image Lightbox Modal ── */}
+      {selectedPodImage && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(15, 23, 42, 0.85)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+          onClick={() => setSelectedPodImage(null)}
+        >
+          <div
+            style={{
+              position: "relative",
+              maxWidth: 700,
+              width: "100%",
+              background: "#fff",
+              borderRadius: 16,
+              overflow: "hidden",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid #e2e8f0" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Proof of Delivery (POD)</div>
+              <button
+                type="button"
+                onClick={() => setSelectedPodImage(null)}
+                style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: 28, height: 28, display: "grid", placeItems: "center", cursor: "pointer" }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ padding: 16, textAlign: "center", maxHeight: "75vh", overflow: "auto" }}>
+              <img
+                src={selectedPodImage}
+                alt="Proof of Delivery"
+                style={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: 8, border: "1px solid #e2e8f0" }}
+              />
+            </div>
+            <div style={{ padding: "12px 20px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <a
+                href={selectedPodImage}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#2563eb", color: "#fff", textDecoration: "none", padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700 }}
+              >
+                <ExternalLink size={13} /> Open in New Tab
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
