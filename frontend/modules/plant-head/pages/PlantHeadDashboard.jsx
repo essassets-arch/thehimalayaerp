@@ -415,20 +415,20 @@ export const PlantHeadDashboard = () => {
   };
 
   return (
-    <div style={{ padding: 'clamp(12px, 3vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#1e293b', width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
+    <div className="plant-head-dashboard-root" style={{ padding: 'clamp(12px, 3vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#1e293b', width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
 
       {/* ── Page Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="plant-head-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', padding: '10px', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)' }}>
+            <div style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', padding: '10px', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)', flexShrink: 0 }}>
               <Factory size={24} />
             </div>
             <div>
-              <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
+              <h1 className="plant-head-header-title" style={{ fontSize: 'clamp(18px, 4vw, 24px)', fontWeight: '900', color: '#0f172a', margin: 0, letterSpacing: '-0.02em', wordBreak: 'break-word' }}>
                 Plant Head | Executive Production &amp; Operational Dashboard
               </h1>
-              <p style={{ fontSize: '13px', color: '#64748b', margin: '2px 0 0 0' }}>
+              <p className="plant-head-header-subtitle" style={{ fontSize: '13px', color: '#64748b', margin: '2px 0 0 0' }}>
                 Real-time plant capacity utilization, OEE metrics, production planning, machine performance, delay analysis &amp; material analytics
               </p>
             </div>
@@ -436,7 +436,7 @@ export const PlantHeadDashboard = () => {
         </div>
 
         {/* Date Filter & Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div className="plant-head-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           
           {/* Date Selector */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ffffff', border: '1px solid #cbd5e1', padding: '8px 12px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}>

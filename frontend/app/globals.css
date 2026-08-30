@@ -14964,4 +14964,276 @@ body, #root, .app-container {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   PLANT HEAD MODULE COMPREHENSIVE MOBILE RESPONSIVENESS & TOUCH OPTIMIZATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.plant-head-portal-root,
+.plant-head-dashboard-root {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+}
+
+/* ── Header Responsive Wrapping ── */
+.plant-head-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  width: 100%;
+}
+
+.plant-head-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .plant-head-dashboard-root {
+    padding: 12px 10px !important;
+  }
+
+  .plant-head-header-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .plant-head-header-title {
+    font-size: 19px !important;
+    line-height: 1.25 !important;
+  }
+
+  .plant-head-header-subtitle {
+    font-size: 12px !important;
+  }
+
+  .plant-head-header-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .plant-head-header-actions > * {
+    width: 100% !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+  }
+
+  .plant-head-header-actions button {
+    width: 100% !important;
+    justify-content: center !important;
+    min-height: 40px !important;
+    font-size: 12.5px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .plant-head-header-actions {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── 10 Executive KPI Grid Mobile Layout ── */
+@media (max-width: 1024px) {
+  .plant-head-dashboard-root .erp-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .plant-head-dashboard-root .erp-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .plant-head-dashboard-root .erp-kpi-grid > div {
+    padding: 12px 10px !important;
+    border-radius: 10px !important;
+  }
+
+  .plant-head-dashboard-root .erp-kpi-grid > div > div:first-child,
+  .plant-head-dashboard-root .erp-kpi-grid > div > span:first-child {
+    font-size: 10.5px !important;
+    line-height: 1.2 !important;
+  }
+
+  .plant-head-dashboard-root .erp-kpi-grid > div > div:nth-child(2) {
+    font-size: 17px !important;
+    margin: 3px 0 !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .plant-head-dashboard-root .erp-kpi-grid > div > div:last-child {
+    font-size: 10px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .plant-head-dashboard-root .erp-kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Horizontal Scrollable Tab Bar for Mobile Touch ── */
+.plant-head-dashboard-root .erp-tab-scroll-bar,
+.plant-head-portal-root .erp-tab-scroll-bar {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-x !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  gap: 8px !important;
+  padding: 8px !important;
+  scrollbar-width: none !important;
+}
+
+.plant-head-dashboard-root .erp-tab-scroll-bar::-webkit-scrollbar,
+.plant-head-portal-root .erp-tab-scroll-bar::-webkit-scrollbar {
+  display: none !important;
+}
+
+.plant-head-dashboard-root .erp-tab-scroll-bar button,
+.plant-head-portal-root .erp-tab-scroll-bar button {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  padding: 8px 14px !important;
+  font-size: 12px !important;
+  border-radius: 8px !important;
+}
+
+/* ── Tables & Containers in Plant Head ── */
+.plant-head-portal-root .erp-table-responsive,
+.plant-head-portal-root .crm-table-container,
+.plant-head-portal-root .ph-table-wrap,
+.plant-head-dashboard-root .ph-table-wrap,
+.plant-head-dashboard-root table {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.plant-head-portal-root table,
+.plant-head-dashboard-root table {
+  border-collapse: collapse !important;
+}
+
+@media (max-width: 768px) {
+  .plant-head-portal-root .ph-table-wrap,
+  .plant-head-dashboard-root .ph-table-wrap,
+  .plant-head-portal-root .erp-table-responsive,
+  .plant-head-portal-root .crm-table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 10px !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  .plant-head-portal-root table th,
+  .plant-head-portal-root table td,
+  .plant-head-dashboard-root table th,
+  .plant-head-dashboard-root table td {
+    padding: 9px 10px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* ── Charts & Recharts in Plant Head ── */
+@media (max-width: 768px) {
+  .plant-head-dashboard-root .recharts-responsive-container,
+  .plant-head-portal-root .recharts-responsive-container {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .plant-head-dashboard-root .recharts-wrapper,
+  .plant-head-portal-root .recharts-wrapper {
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+}
+
+/* ── Indents & Order Cards on Mobile ── */
+@media (max-width: 768px) {
+  .plant-head-portal-root .plant-head-indent-card,
+  .plant-head-portal-root > div > div > div {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Indents Card Action Footer */
+  .plant-head-portal-root div[style*="justify-content: flex-end"][style*="borderTop"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding: 12px 14px !important;
+  }
+
+  .plant-head-portal-root div[style*="justify-content: flex-end"][style*="borderTop"] button {
+    width: 100% !important;
+    justify-content: center !important;
+    min-height: 42px !important;
+    font-size: 13px !important;
+  }
+
+  /* Indent line item quantity inputs */
+  .plant-head-portal-root input[id^="aq-"] {
+    width: 80px !important;
+    height: 38px !important;
+    font-size: 14px !important;
+  }
+}
+
+/* ── Planning & Fulfillment Modal Responsiveness ── */
+@media (max-width: 768px) {
+  .plant-head-portal-root .erp-modal-box,
+  .plant-head-portal-root .modal-box {
+    width: calc(100vw - 16px) !important;
+    max-width: 100vw !important;
+    padding: 16px 12px !important;
+    margin: 8px auto !important;
+    max-height: 94vh !important;
+    border-radius: 14px !important;
+  }
+
+  .plant-head-portal-root .modal-header-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  .plant-head-portal-root .modal-header-row > div:last-child {
+    width: 100% !important;
+    justify-content: center !important;
+    min-height: 38px !important;
+  }
+
+  .plant-head-portal-root form > div:last-child {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 10px !important;
+  }
+
+  .plant-head-portal-root form > div:last-child button {
+    width: 100% !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+  }
+}
+
 

@@ -5657,7 +5657,7 @@ export default function PlantHeadPortal() {
   );
 
   return (
-    <>
+    <div className="plant-head-portal-root" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       <O2PWorkflowBanner accentColor="#8b5cf6" />
       {(currentView === 'dashboard' || currentView === '') && <PlantHeadDashboard />}
       {currentView === 'daily-summary' && <PlantHeadDailySummary />}
@@ -6014,6 +6014,6 @@ export default function PlantHeadPortal() {
           onClose={() => setSelectedOrderDetails(null)}
         />
       )}
-    </>
+    </div>
   );
 }
