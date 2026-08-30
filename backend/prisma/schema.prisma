@@ -427,6 +427,13 @@ model InventoryTransaction {
   product       Product?     @relation(fields: [productId], references: [id])
   rawMaterial   RawMaterial? @relation(fields: [rawMaterialId], references: [id])
   warehouse     Warehouse    @relation(fields: [warehouseId], references: [id])
+
+  @@index([companyId, productId])
+  @@index([companyId, rawMaterialId])
+  @@index([companyId, type])
+  @@index([companyId, referenceId, referenceType])
+  @@index([warehouseId])
+  @@index([createdAt])
 }
 
 model Supplier {
@@ -1970,6 +1977,9 @@ model GoodsReceiptNote {
   delivery           ProcurementDelivery?
 
   @@index([status])
+  @@index([companyId, purchaseOrderId])
+  @@index([purchaseOrderId])
+  @@index([companyId, createdAt])
 }
 
 model GoodsReceiptNoteItem {
