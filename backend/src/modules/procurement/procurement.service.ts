@@ -502,6 +502,28 @@ export class ProcurementService {
           throw new NotFoundException(`Purchase order "${dto.purchaseOrderId}" was not found`);
         }
 
+        // 1. Terminal status check
+        const terminalStatuses = ['CLOSED', 'PO_CLOSED', 'CANCELLED'];
+        if (terminalStatuses.includes(po.status)) {
+          throw new BadRequestException(`Purchase order is in ${po.status} status and cannot receive deliveries.`);
+        }
+
+        // 2. Idempotency Check: Prevent duplicate delivery verification with the same Challan or Invoice
+        if (dto.deliveryChallanNumber || dto.invoiceNumber) {
+          const existingGrn = (po.grns || []).find((g: any) => {
+            const snap = (g.snapshot as any) || {};
+            const matchChallan = dto.deliveryChallanNumber && snap.deliveryChallanNumber && snap.deliveryChallanNumber === dto.deliveryChallanNumber;
+            const matchInvoice = dto.invoiceNumber && snap.invoiceNumber && snap.invoiceNumber === dto.invoiceNumber;
+            return matchChallan || matchInvoice;
+          });
+          if (existingGrn) {
+            throw new BadRequestException(
+              `Delivery with Challan/Invoice "${dto.deliveryChallanNumber || dto.invoiceNumber}" has already been verified for this Purchase Order (GRN: ${existingGrn.grnNumber || existingGrn.publicId}).`,
+            );
+          }
+        }
+
+        // 3. Resolve warehouse
         let warehouseId = dto.warehouseId;
         let whExists: any = null;
         if (warehouseId) {
@@ -539,62 +561,216 @@ export class ProcurementService {
           if (u) validActorId = actorId;
         }
 
+        // 4. Validate items, match material catalog and prepare stock updates
         const grnItems: any[] = [];
+        const stockUpdates: any[] = [];
+
         for (const input of dto.items) {
+          const deliveredNum = Number(input.deliveredQuantity ?? input.receivedQuantity ?? 0);
+          if (deliveredNum < 0) {
+            throw new BadRequestException('Delivered quantity cannot be negative.');
+          }
+
+          let acceptedNum = input.acceptedQuantity !== undefined ? Number(input.acceptedQuantity) : deliveredNum;
+          let rejectedNum = Number(input.rejectedQuantity || 0);
+
+          if (acceptedNum < 0 || rejectedNum < 0) {
+            throw new BadRequestException('Accepted and rejected quantities must be non-negative.');
+          }
+
+          if (acceptedNum + rejectedNum !== deliveredNum) {
+            acceptedNum = Math.max(0, deliveredNum - rejectedNum);
+          }
+
+          const delivered = MONEY(deliveredNum);
+          const accepted = MONEY(acceptedNum);
+          const rejected = MONEY(rejectedNum);
+
           const poItem = (po.items || []).find(
             (x: any) =>
               x.id === input.purchaseOrderItemId ||
-              x.productId === input.productId,
+              x.productId === input.productId ||
+              (x.materialCode && x.materialCode === input.materialCode) ||
+              (x.materialName && x.materialName.toLowerCase() === (input.materialName || '').toLowerCase()),
           ) || po.items?.[0];
 
-          let productId = poItem?.productId || input.productId;
-          let prodExists: any = null;
-          if (productId) {
-            prodExists = await tx.product.findFirst({
+          let searchId = poItem?.productId || input.productId;
+          let searchCode = input.materialCode || poItem?.materialCode;
+          let searchName = input.materialName || poItem?.materialName;
+
+          // Find or sync in RawMaterial & Product catalogs
+          let rawMaterial: any = null;
+          let product: any = null;
+
+          if (searchId) {
+            rawMaterial = await tx.rawMaterial.findFirst({
               where: {
-                OR: [{ id: productId }, { publicId: productId }],
+                companyId: po.companyId,
+                OR: [
+                  { id: searchId },
+                  { publicId: searchId },
+                  { sku: searchId },
+                  ...(searchCode ? [{ sku: searchCode }] : []),
+                  ...(searchName ? [{ name: { equals: searchName, mode: 'insensitive' as any } }] : []),
+                ],
+              },
+            });
+            product = await tx.product.findFirst({
+              where: {
+                companyId: po.companyId,
+                OR: [
+                  { id: searchId },
+                  { publicId: searchId },
+                  { sku: searchId },
+                  ...(searchCode ? [{ sku: searchCode }] : []),
+                  ...(searchName ? [{ name: { equals: searchName, mode: 'insensitive' as any } }] : []),
+                ],
               },
             });
           }
-          if (prodExists) {
-            productId = prodExists.id;
-          } else {
-            let defaultProd = await tx.product.findFirst({
-              where: { companyId: po.companyId },
+
+          if (!rawMaterial && (searchCode || searchName)) {
+            rawMaterial = await tx.rawMaterial.findFirst({
+              where: {
+                companyId: po.companyId,
+                OR: [
+                  ...(searchCode ? [{ sku: searchCode }] : []),
+                  ...(searchName ? [{ name: { equals: searchName, mode: 'insensitive' as any } }] : []),
+                ],
+              },
             });
-            if (!defaultProd) {
-              defaultProd = await tx.product.create({
+          }
+
+          if (!product && (searchCode || searchName)) {
+            product = await tx.product.findFirst({
+              where: {
+                companyId: po.companyId,
+                OR: [
+                  ...(searchCode ? [{ sku: searchCode }] : []),
+                  ...(searchName ? [{ name: { equals: searchName, mode: 'insensitive' as any } }] : []),
+                ],
+              },
+            });
+          }
+
+          const matName = searchName || product?.name || rawMaterial?.name || 'Raw Material';
+          const matSku = searchCode || rawMaterial?.sku || product?.sku || `RM-${Date.now().toString().slice(-6)}`;
+          const matUnit = input.unit || rawMaterial?.unit || product?.unit || 'Kg';
+
+          if (!rawMaterial && !product) {
+            const randomId = this.id('RM');
+            rawMaterial = await tx.rawMaterial.create({
+              data: {
+                publicId: randomId,
+                companyId: po.companyId,
+                name: matName,
+                sku: matSku,
+                category: 'Raw Material',
+                unit: matUnit,
+                minimumStock: 0,
+              },
+            });
+            product = await tx.product.create({
+              data: {
+                publicId: this.id('PROD'),
+                companyId: po.companyId,
+                name: matName,
+                sku: matSku,
+                category: 'Raw Material',
+                productType: 'RAW_MATERIAL',
+                unit: matUnit,
+                unitPrice: MONEY(100),
+                minimumStock: 0,
+              },
+            });
+          } else if (rawMaterial && !product) {
+            product = await tx.product.findFirst({
+              where: { companyId: po.companyId, sku: rawMaterial.sku },
+            });
+            if (!product) {
+              product = await tx.product.create({
                 data: {
                   publicId: this.id('PROD'),
                   companyId: po.companyId,
-                  name: input.materialName || 'Raw Material',
-                  sku: `SKU-${Date.now().toString().slice(-6)}`,
-                  unit: 'Kg',
+                  name: rawMaterial.name,
+                  sku: rawMaterial.sku || matSku,
+                  category: rawMaterial.category || 'Raw Material',
+                  productType: 'RAW_MATERIAL',
+                  unit: rawMaterial.unit || matUnit,
                   unitPrice: MONEY(100),
+                  minimumStock: rawMaterial.minimumStock || 0,
                 },
               });
             }
-            productId = defaultProd.id;
+          } else if (product && !rawMaterial) {
+            rawMaterial = await tx.rawMaterial.findFirst({
+              where: { companyId: po.companyId, sku: product.sku },
+            });
+            if (!rawMaterial) {
+              rawMaterial = await tx.rawMaterial.create({
+                data: {
+                  publicId: this.id('RM'),
+                  companyId: po.companyId,
+                  name: product.name,
+                  sku: product.sku || matSku,
+                  category: product.category || 'Raw Material',
+                  unit: product.unit || matUnit,
+                  minimumStock: product.minimumStock || 0,
+                },
+              });
+            }
           }
 
-          const delivered = MONEY(input.deliveredQuantity || input.receivedQuantity || 1);
-          let accepted = MONEY(input.acceptedQuantity !== undefined ? input.acceptedQuantity : delivered);
-          let rejected = MONEY(input.rejectedQuantity || 0);
-
-          if (!accepted.add(rejected).eq(delivered)) {
-            accepted = delivered.sub(rejected).gte(0) ? delivered.sub(rejected) : MONEY(0);
-          }
+          const targetProductId = product ? product.id : (rawMaterial ? rawMaterial.id : null);
+          const targetRawMaterialId = rawMaterial ? rawMaterial.id : null;
 
           grnItems.push({
-            productId,
+            productId: targetProductId,
             purchaseOrderItemId: poItem?.id || null,
             receivedQuantity: delivered,
             acceptedQuantity: accepted,
             rejectedQuantity: rejected,
             inspectionRemarks: input.remarks || input.inspectionRemarks || '',
           });
+
+          // Calculate current balance before this delivery
+          const prevTxs = await tx.inventoryTransaction.findMany({
+            where: {
+              companyId: po.companyId,
+              OR: [
+                ...(targetProductId ? [{ productId: targetProductId }] : []),
+                ...(targetRawMaterialId ? [{ rawMaterialId: targetRawMaterialId }] : []),
+              ],
+            },
+          });
+          let balanceBefore = 0;
+          for (const t of prevTxs) {
+            const tType = (t.type || '').toUpperCase().trim();
+            const tQty = Number(t.quantity || 0);
+            if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN', 'PURCHASE_DELIVERY'].includes(tType)) {
+              balanceBefore += tQty;
+            } else if (['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(tType)) {
+              balanceBefore -= tQty;
+            } else if (tType === 'ADJUSTMENT') {
+              balanceBefore += tQty;
+            }
+          }
+          const balanceAfter = balanceBefore + acceptedNum;
+
+          stockUpdates.push({
+            productId: targetProductId,
+            rawMaterialId: targetRawMaterialId,
+            acceptedQuantity: accepted,
+            acceptedNum,
+            balanceBefore,
+            balanceAfter,
+            materialName: matName,
+            materialSku: matSku,
+            unit: matUnit,
+          });
         }
 
+        // 5. Generate unique GRN number
         const currentYear = new Date().getFullYear();
         const seqKey = `${po.companyId}_GOODS_RECEIPT_${currentYear}`;
         const prefix = `GRN-${currentYear}-`;
@@ -615,6 +791,7 @@ export class ProcurementService {
           }
         }
 
+        // 6. Create Goods Receipt Note marked as VERIFIED
         const grn = await tx.goodsReceiptNote.create({
           data: {
             publicId: grnNo,
@@ -623,7 +800,8 @@ export class ProcurementService {
             purchaseOrderId: po.id,
             warehouseId,
             receivedById: validActorId,
-            status: 'PENDING_FINANCE_AUDIT',
+            status: 'VERIFIED',
+            inventoryPostedAt: new Date(),
             receivedAt: dto.deliveryDate
               ? new Date(dto.deliveryDate)
               : new Date(),
@@ -639,8 +817,46 @@ export class ProcurementService {
           },
           include: { items: true },
         });
-        // Store has physically received the replacement.  Move the rejection
-        // out of the Store delivery queue before Finance performs the audit.
+
+        // 7. Atomic Inventory Transaction & Stock History logging
+        for (const itemStock of stockUpdates) {
+          if (itemStock.acceptedNum > 0) {
+            // Inventory Transaction record (used by getStockLevels() & raw inventory calculation)
+            await tx.inventoryTransaction.create({
+              data: {
+                companyId: po.companyId,
+                warehouseId,
+                productId: itemStock.productId || null,
+                rawMaterialId: itemStock.rawMaterialId || null,
+                type: 'IN',
+                quantity: itemStock.acceptedQuantity,
+                referenceId: po.poNumber || po.publicId || po.id,
+                referenceType: 'PURCHASE_DELIVERY',
+              },
+            });
+
+            // Stock History record (ledger with Balance Before and Balance After)
+            await tx.stockHistory.create({
+              data: {
+                companyId: po.companyId,
+                productId: itemStock.productId || itemStock.rawMaterialId || 'PROD',
+                quantity: itemStock.acceptedQuantity,
+                event: 'STOCK_IN',
+                actor: validActorId || 'Store Operator',
+                beforeQuantity: MONEY(itemStock.balanceBefore),
+                afterQuantity: MONEY(itemStock.balanceAfter),
+                beforeAvailableQuantity: MONEY(itemStock.balanceBefore),
+                afterAvailableQuantity: MONEY(itemStock.balanceAfter),
+                sourceType: 'PURCHASE_DELIVERY',
+                sourceId: grn.id,
+                referenceNumber: po.poNumber || po.publicId || po.id,
+                remarks: `Purchase Delivery Verified: ${itemStock.acceptedNum} ${itemStock.unit} received for PO ${po.poNumber || po.publicId || po.id}`,
+              },
+            });
+          }
+        }
+
+        // 8. Handle Material Rejection if replacement
         if (dto.isReplacement && dto.materialRejectionId) {
           await tx.materialRejection.updateMany({
             where: {
@@ -651,6 +867,8 @@ export class ProcurementService {
             data: { status: 'REPLACEMENT_RECEIVED' },
           });
         }
+
+        // 9. Update Purchase Order Items received/accepted quantities
         for (const item of grn.items) {
           await tx.purchaseOrderItem.updateMany({
             where: { purchaseOrderId: po.id, productId: item.productId },
@@ -660,23 +878,27 @@ export class ProcurementService {
             },
           });
         }
+
+        // 10. Update PO status
         const latestItems = await tx.purchaseOrderItem.findMany({
           where: { purchaseOrderId: po.id },
         });
         const complete = latestItems.every((i) =>
           MONEY(i.receivedQuantity).gte(i.quantity),
         );
-        const status = complete ? 'DELIVERY_PENDING_FINANCE_AUDIT' : 'PARTIALLY_DELIVERED_PENDING_AUDIT';
+        const status = complete ? 'FULLY_RECEIVED' : 'PARTIALLY_DELIVERED';
         const updated = await tx.purchaseOrder.update({
           where: { id: po.id },
           data: { status, version: { increment: 1 } },
         });
+
         if (po.purchaseIndentId) {
           await tx.purchaseIndent.update({
             where: { id: po.purchaseIndentId },
             data: { status, version: { increment: 1 } },
           });
         }
+
         await tx.gRNStatusHistory.create({
           data: {
             goodsReceiptNoteId: grn.id,
@@ -685,6 +907,7 @@ export class ProcurementService {
             remarks: dto.remarks,
           },
         });
+
         await tx.purchaseOrderStatusHistory.create({
           data: {
             purchaseOrderId: po.id,
@@ -694,30 +917,38 @@ export class ProcurementService {
             remarks: `Delivery verified: ${grn.grnNumber}`,
           },
         });
+
         await tx.auditLog.create({
           data: {
             actorUserId: validActorId,
             companyId: po.companyId,
-            action: 'DELIVERY_VERIFIED_AND_GRN_GENERATED',
+            action: 'DELIVERY_VERIFIED_AND_STOCK_INCREMENTED',
             entityType: 'GoodsReceiptNote',
             entityId: grn.id,
             after: {
               purchaseOrderId: po.id,
               status: grn.status,
               purchaseOrderStatus: updated.status,
+              items: stockUpdates,
             },
           },
         });
+
         await this.notifyRole(
           tx,
           po.companyId,
-          ['FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER'],
-          'Delivery verified',
-          `${grn.grnNumber} was generated for ${po.publicId}.`,
+          ['FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER', 'STORE', 'STORE_MANAGER'],
+          'Purchase Delivery Verified',
+          `${grn.grnNumber} was verified for ${po.publicId || po.poNumber}. Raw inventory stock updated.`,
           'GoodsReceiptNote',
           grn.id,
         );
-        return { delivery: grn, purchaseOrderStatus: updated.status };
+
+        return {
+          delivery: grn,
+          purchaseOrderStatus: updated.status,
+          stockUpdates,
+        };
       });
     } catch (error: any) {
       console.error('[verifyDelivery Exception]', error);

@@ -194,7 +194,10 @@ export default function VerifyPODelivery() {
       }
       
       await verifyPODelivery(selectedPO.id, grnPayload, 'Store Operator');
-      await Swal.fire('Success', 'Delivery verified and GRN submitted for Finance Audit.', 'success');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('inventory-updated'));
+      }
+      await Swal.fire('Success', 'Delivery verified successfully! Raw Inventory stock has been automatically updated.', 'success');
       setSelectedPOId(null);
       setSelectedReplacement(null);
     } catch (err) {

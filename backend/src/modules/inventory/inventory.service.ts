@@ -73,7 +73,31 @@ export class InventoryService {
     if (txType === 'STOCK IN' || txType === 'STOCK_IN') txType = 'IN';
     if (txType === 'STOCK OUT' || txType === 'STOCK_OUT') txType = 'OUT';
 
-    return this.prisma.inventoryTransaction.create({
+    const prevTxs = await this.prisma.inventoryTransaction.findMany({
+      where: {
+        companyId,
+        OR: [
+          ...(productId ? [{ productId }] : []),
+          ...(rawMaterialId ? [{ rawMaterialId }] : []),
+        ],
+      },
+    });
+    let balanceBefore = 0;
+    for (const t of prevTxs) {
+      const tType = (t.type || '').toUpperCase().trim();
+      const tQty = Number(t.quantity || 0);
+      if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN', 'PURCHASE_DELIVERY'].includes(tType)) {
+        balanceBefore += tQty;
+      } else if (['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(tType)) {
+        balanceBefore -= tQty;
+      } else if (tType === 'ADJUSTMENT') {
+        balanceBefore += tQty;
+      }
+    }
+    const qtyNum = Number(dto.quantity);
+    const balanceAfter = txType === 'IN' || txType === 'ADJUSTMENT' ? balanceBefore + qtyNum : balanceBefore - qtyNum;
+
+    const createdTx = await this.prisma.inventoryTransaction.create({
       data: {
         companyId,
         productId,
@@ -85,6 +109,30 @@ export class InventoryService {
         referenceType: dto.referenceType || 'MANUAL',
       },
     });
+
+    try {
+      await this.prisma.stockHistory.create({
+        data: {
+          companyId,
+          productId: productId || rawMaterialId || 'PROD',
+          quantity: Number(dto.quantity),
+          event: txType === 'OUT' ? 'DISPATCH_OUT' : 'STOCK_IN',
+          actor: (dto as any).actor || 'Store User',
+          beforeQuantity: balanceBefore,
+          afterQuantity: balanceAfter,
+          beforeAvailableQuantity: balanceBefore,
+          afterAvailableQuantity: balanceAfter,
+          sourceType: dto.referenceType || 'MANUAL',
+          sourceId: createdTx.id,
+          referenceNumber: dto.referenceId || null,
+          remarks: (dto as any).remarks || `${txType} transaction: ${dto.quantity} units`,
+        },
+      });
+    } catch (e) {
+      console.warn('[StockHistory Create Error]', e);
+    }
+
+    return createdTx;
   }
 
   async getStockLevels(companyId: string, warehouseId?: string) {
@@ -121,7 +169,7 @@ export class InventoryService {
       const qty = Number(row._sum.quantity || 0);
 
       const typeUpper = (row.type || '').toUpperCase().trim();
-      if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN'].includes(typeUpper)) {
+      if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN', 'PURCHASE_DELIVERY'].includes(typeUpper)) {
         item.quantity += qty;
       } else if (['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(typeUpper)) {
         item.quantity -= qty;

@@ -652,6 +652,18 @@ export default function StorePortal() {
     if (currentView === 'low-stock-alerts' || currentView === 'dashboard') {
       fetchServerIndents();
     }
+
+    const handleInventoryUpdated = () => {
+      fetchRawInventory();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('inventory-updated', handleInventoryUpdated);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('inventory-updated', handleInventoryUpdated);
+      }
+    };
   }, [currentView, fetchRawInventory, fetchServerIndents]);
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
   const [showAddStockModal, setShowAddStockModal] = useState(false);
