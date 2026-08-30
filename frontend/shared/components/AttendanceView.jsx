@@ -755,28 +755,63 @@ export default function AttendanceView({ employees: propEmployees }) {
                         header: 'Biometric Photo', 
                         accessor: 'selfieUrl',
                         render: (row) => (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
                             {row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl ? (
-                              <SecureImage src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} alt="Selfie preview" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7' }} fallbackText="N/A" allowZoom={false} />
+                              <SecureImage src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} alt="Selfie preview" style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7', flexShrink: 0 }} fallbackText="N/A" allowZoom={false} />
                             ) : (
-                              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1' }}>
+                              <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1', flexShrink: 0 }}>
                                 <Camera size={14} color="#64748b" />
                               </div>
                             )}
-                            <span style={{ fontSize: '11.5px', fontWeight: '700', color: (row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl) ? '#0284c7' : '#64748b' }}>
-                              {(row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl) ? '📸 Verified Photo' : 'Simulated Face'}
+                            <span style={{ fontSize: '11.5px', fontWeight: '700', color: (row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl) ? '#0284c7' : '#64748b', whiteSpace: 'nowrap' }}>
+                              {(row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl) ? '📸 Verified' : 'Biometric ID'}
                             </span>
                           </div>
                         )
                       },
-                      { header: 'ID', accessor: 'id' },
-                      { header: 'Employee', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
+                      { 
+                        header: 'ID', 
+                        accessor: 'employeeCode',
+                        render: (row) => {
+                          const raw = String(row.employeeCode || row.employeeId || row.id || '').trim();
+                          const isClean = raw && raw !== '—' && raw.length <= 10 && !raw.includes('-');
+                          const displayCode = isClean ? raw : `EMP-${raw.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase()}`;
+                          return (
+                            <span style={{ 
+                              fontFamily: 'monospace', 
+                              fontWeight: '800', 
+                              color: '#2563eb', 
+                              fontSize: '11.5px', 
+                              whiteSpace: 'nowrap',
+                              background: '#eff6ff',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #bfdbfe',
+                              display: 'inline-block'
+                            }}>
+                              {displayCode}
+                            </span>
+                          );
+                        }
+                      },
+                      { 
+                        header: 'Employee', 
+                        accessor: 'name', 
+                        render: (row) => (
+                          <div style={{ whiteSpace: 'nowrap' }}>
+                            <strong style={{ color: '#0f172a', fontSize: '13px', display: 'block' }}>{row.name}</strong>
+                            {row.role && row.role !== '—' && (
+                              <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '600' }}>{row.role}</span>
+                            )}
+                          </div>
+                        )
+                      },
                       { 
                         header: 'Date', 
                         accessor: 'date', 
                         render: (row) => (
-                          <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
-                            {row.date || 'Saturday, 15 August 2026'}
+                          <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569', whiteSpace: 'nowrap' }}>
+                            {row.date || 'Today'}
                           </span>
                         )
                       },
@@ -784,7 +819,7 @@ export default function AttendanceView({ employees: propEmployees }) {
                         header: 'Punch In', 
                         accessor: 'punchIn', 
                         render: (row) => (
-                          <span style={{ fontWeight: '800', color: row.punchIn !== '—' ? '#16A34A' : '#64748B', fontFamily: 'monospace', fontSize: '12px' }}>
+                          <span style={{ fontWeight: '800', color: row.punchIn !== '—' ? '#16A34A' : '#64748B', fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap' }}>
                             {row.punchIn}
                           </span>
                         )
@@ -793,25 +828,25 @@ export default function AttendanceView({ employees: propEmployees }) {
                         header: 'Punch Out', 
                         accessor: 'punchOut', 
                         render: (row) => (
-                          <span style={{ fontWeight: '800', color: row.punchOut !== '—' ? '#DC2626' : '#64748B', fontFamily: 'monospace', fontSize: '12px' }}>
+                          <span style={{ fontWeight: '800', color: row.punchOut !== '—' ? '#DC2626' : '#64748B', fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap' }}>
                             {row.punchOut}
                           </span>
                         )
                       },
                       { 
                         header: 'GPS Location', 
-                        accessor: 'location',
-                        render: (row) => row.coords ? (
-                          <span style={{ color: '#0284c7', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11.5px' }} title={`${row.location} (${row.coords})`}>
+                        accessor: 'location', 
+                        render: (row) => row.coords && row.coords !== '—' ? (
+                          <span style={{ color: '#0284c7', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', whiteSpace: 'nowrap' }} title={`${row.location} (${row.coords})`}>
                             <MapPin size={12} /> Verified
                           </span>
                         ) : (
-                          <span style={{ color: '#94A3B8', fontSize: '11px' }}>No GPS</span>
+                          <span style={{ color: '#94A3B8', fontSize: '11px', whiteSpace: 'nowrap' }}>Campus</span>
                         )
                       },
                       { 
                         header: 'Roster Status', 
-                        accessor: 'status',
+                        accessor: 'status', 
                         render: (row) => {
                           const isLate = row.status?.includes('Late');
                           const isEarly = row.status?.includes('Early');
@@ -839,7 +874,8 @@ export default function AttendanceView({ employees: propEmployees }) {
                           return (
                             <span style={{ 
                               padding: '3.5px 9px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800',
-                              background: bg, color: color, border: `1px solid ${border}`
+                              background: bg, color: color, border: `1px solid ${border}`,
+                              whiteSpace: 'nowrap', display: 'inline-block'
                             }}>
                               {row.status}
                             </span>
@@ -847,7 +883,7 @@ export default function AttendanceView({ employees: propEmployees }) {
                         }
                       }
                     ]}
-                    data={formattedLogs}
+                    data={formattedLogs}                 data={formattedLogs}
                     searchQuery=""
                     searchField="name"
                     onRowClick={(row) => setSelectedLogPreview(row)}
