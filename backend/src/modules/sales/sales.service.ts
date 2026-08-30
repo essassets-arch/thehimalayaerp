@@ -114,16 +114,41 @@ export class SalesService {
   async getOrder(id: string, userId?: string, role?: string) {
     const isOperationalScope = role === 'DISPATCH_EXECUTIVE' || role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'PLANT_HEAD' || role === 'FINANCE_MANAGER' || role === 'FINANCE_EXECUTIVE';
     const scope = isOperationalScope ? {} : getOrderSalesScope(userId, role);
+    const rawId = String(id || '').trim();
+    let decodedId = rawId;
+    try {
+      decodedId = decodeURIComponent(rawId);
+    } catch {
+      decodedId = rawId;
+    }
+    const cleanId = decodedId.replace(/^#/, '').trim();
+
+    const orConditions: any[] = [
+      { id: decodedId },
+      { id: rawId },
+      { id: cleanId },
+      { orderNumber: decodedId },
+      { orderNumber: rawId },
+      { orderNumber: cleanId },
+      { orderNumber: `#${cleanId}` },
+      { orderNumber: `ORD-${cleanId}` },
+      { orderNumber: { equals: cleanId, mode: 'insensitive' } },
+      { orderNumber: { equals: decodedId, mode: 'insensitive' } },
+    ];
+
+    if (cleanId.includes('/')) {
+      orConditions.push({ orderNumber: cleanId.replace(/\//g, '-') });
+      orConditions.push({ orderNumber: cleanId.replace(/\//g, ' ') });
+    }
+    if (cleanId.includes('-')) {
+      orConditions.push({ orderNumber: cleanId.replace(/-/g, '/') });
+    }
+
     const order = await this.prisma.salesOrder.findFirst({
       where: {
         AND: [
           {
-            OR: [
-              { id },
-              { orderNumber: id },
-              { orderNumber: `ORD-${id}` },
-              { orderNumber: id.replace(/^#/, '') },
-            ],
+            OR: orConditions,
           },
           scope,
           { deletedAt: null },
