@@ -9,7 +9,7 @@ import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
 import { formatCurrency, formatNumber } from '../utils/financialCalculations';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import './SalesAnalyticsPage.css';
-import { exportSalesReportPDF } from '../../../services/export.service';
+import { exportSalesReportPDF, exportToExcel } from '../../../services/export.service';
 
 import ResponsiveChart from '../../../shared/components/ResponsiveChart';
 
@@ -97,7 +97,7 @@ export default function SalesAnalyticsPage() {
     return (
       <div className="sales-analytics-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
         <Lucide.Loader size={36} className="animate-spin" style={{ color: '#6366f1', marginBottom: 12 }} />
-        <p style={{ color: '#64748b', fontWeight: 'bold' }}>Loading Sales & Revenue Telemetry...</p>
+        <p style={{ color: '#64748b', fontWeight: 'bold' }}>Loading Sales &amp; Revenue Telemetry...</p>
       </div>
     );
   }
@@ -105,6 +105,7 @@ export default function SalesAnalyticsPage() {
   const {
     summary = {},
     funnel = {},
+    pipeline = {},
     salespersonPerformance = {},
     leads = {},
     samples = {},
@@ -121,8 +122,45 @@ export default function SalesAnalyticsPage() {
   const orderValue = summary.orders?.value ?? 0;
   const collectedAmount = summary.revenue?.collected ?? 0;
 
-  const handleExport = (format) => {
-    alert(`Exporting Sales Analytics data as ${format.toUpperCase()}...`);
+  const handleExport = async (format) => {
+    if (format === 'pdf') {
+      try {
+        await exportSalesReportPDF({
+          startDate: activeDates?.dateFrom,
+          endDate: activeDates?.dateTo,
+          branchId: filters?.branch
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    } else if (format === 'excel') {
+      const exportRows = (salespersonPerformance.leaderboard || []).map(sp => ({
+        'Rank': sp.rank,
+        'Salesperson Name': sp.salespersonName,
+        'Email': sp.email,
+        'Role': sp.role,
+        'Total Leads': sp.leads?.total || 0,
+        'Active Leads': sp.leads?.active || 0,
+        'Converted Leads': sp.leads?.converted || 0,
+        'Total Quotations': sp.quotations?.total || 0,
+        'Quotations Value (INR)': sp.quotations?.value || 0,
+        'Confirmed Orders': sp.orders?.confirmed || 0,
+        'Confirmed Orders Value (INR)': sp.orders?.confirmedValue || 0,
+        'Delivered Orders': sp.orders?.delivered || 0,
+        'Closed Orders': sp.orders?.closed || 0,
+        'Verified Collections (INR)': sp.payments?.verifiedCollected || 0,
+        'Outstanding Receivables (INR)': sp.payments?.outstanding || 0,
+        'Overdue Amount (INR)': sp.payments?.overdue || 0,
+        'Fully Paid Orders': sp.payments?.fullyPaidOrders || 0,
+        'Collection Rate %': sp.payments?.collectionRate != null ? `${sp.payments.collectionRate}%` : 'N/A',
+        'Lead to Order Conversion %': `${sp.conversion?.leadToOrder || 0}%`,
+        'Overall Score': sp.scores?.overall || 0
+      }));
+      exportToExcel(
+        exportRows.length > 0 ? exportRows : [{ 'Status': 'No salesperson records found in selected period' }], 
+        `sales-performance-report-${new Date().toISOString().split('T')[0]}.xls`
+      );
+    }
   };
 
   const customFilters = (
@@ -722,9 +760,9 @@ export default function SalesAnalyticsPage() {
             emptySubtitle="Open quotes, leads and confirmed orders will populate this chart."
           >
             <BarChart data={[
-              { name: 'Leads Potential', val: Math.max(0, quoteValue * 1.5) },
-              { name: 'Open Quotes', val: Math.max(0, quoteValue) },
-              { name: 'Confirmed Orders', val: Math.max(0, orderValue) }
+              { name: 'Leads Potential', val: pipeline.leadsPotential ?? Math.max(0, quoteValue) },
+              { name: 'Open Quotes', val: pipeline.openQuotes ?? Math.max(0, quoteValue) },
+              { name: 'Confirmed Orders', val: pipeline.confirmedOrders ?? Math.max(0, orderValue) }
             ]}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
               <XAxis dataKey="name" stroke="#64748b" style={{ fontSize: '11px' }} />

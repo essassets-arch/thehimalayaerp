@@ -4947,10 +4947,72 @@ export class SuperAdminService {
       ? Number((globalTotalCollectionDays / globalCollectionDaysCount).toFixed(1)) 
       : null;
 
+    // Calculate dynamic on-time fulfillment rate
+    const ordersWithDelivery = filteredOrders.filter(o => o.requestedDeliveryDate && (o.status === 'COMPLETED' || (o.dispatches && o.dispatches.some(d => d.status === 'DELIVERED'))));
+    const onTimeOrders = ordersWithDelivery.filter(o => {
+      const reqDate = new Date(o.requestedDeliveryDate || o.orderDate || now);
+      const deliveredDispatch = o.dispatches?.find(d => d.status === 'DELIVERED');
+      const deliveredDate = deliveredDispatch?.createdAt || o.updatedAt;
+      return new Date(deliveredDate) <= reqDate;
+    });
+    const onTimeFulfillmentRate = ordersWithDelivery.length > 0
+      ? Number(((onTimeOrders.length / ordersWithDelivery.length) * 100).toFixed(1))
+      : (confirmedOrders > 0 ? 100 : 0);
+
+    // Dynamic samples effectiveness
+    const sampleEffectiveness = [
+      { metric: 'Samples Requested', count: filteredSamples.length },
+      { metric: 'Samples Dispatched', count: filteredSamples.filter(s => s.status === 'DELIVERED' || s.status === 'DISPATCHED').length },
+      { metric: 'Samples Approved', count: filteredSamples.filter(s => s.status === 'APPROVED').length },
+      { metric: 'Converted to Orders', count: filteredSamples.filter(s => s.lead?.convertedCustomerId || filteredOrders.some(o => o.customerId === s.customerId)).length }
+    ];
+
+    // Dynamic complaints breakdown
+    const complaintReasonsMap = new Map<string, number>();
+    filteredComplaints.forEach((c: any) => {
+      const r = c.type || c.category || c.reason || 'General Quality';
+      complaintReasonsMap.set(r, (complaintReasonsMap.get(r) || 0) + 1);
+    });
+    const complaintReasons = Array.from(complaintReasonsMap.entries()).map(([reason, count]) => ({ reason, count }));
+
+    // Dynamic overdue payments list
+    const overduePaymentsList: any[] = [];
+    invoices.forEach(inv => {
+      const invPaid = inv.paymentAllocations
+        .filter(pa => pa.payment?.status === 'VERIFIED')
+        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
+      const invOutstanding = Math.max(0, toNumber(inv.totalAmount) - invPaid);
+      if (invOutstanding > 0) {
+        const termDays = inv.salesOrder?.paymentTermsDays || 30;
+        const dueDate = new Date(inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000);
+        if (dueDate < now) {
+          overduePaymentsList.push({
+            customer: inv.salesOrder?.customer?.companyName || 'Corporate Client',
+            invoiceNo: inv.invoiceNumber,
+            amount: invOutstanding,
+            dueDate: dueDate.toISOString().slice(0, 10),
+            daysOverdue: Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)),
+            salesperson: inv.salesOrder?.salesExecutive?.name || 'Unassigned'
+          });
+        }
+      }
+    });
+
+    // Dynamic pipeline valuation
+    const avgOrderVal = confirmedOrders > 0 ? (orderValue / confirmedOrders) : 50000;
+    const leadsEstimatedValue = Math.round(activeLeads * avgOrderVal);
+    const openQuotesVal = filteredQuotations
+      .filter(q => q.workflowState?.name !== 'REJECTED' && q.workflowState?.name !== 'CONVERTED')
+      .reduce((sum, q) => sum + toNumber(q.total), 0);
+
     return {
       summary: {
         leads: { total: totalLeads, active: activeLeads },
-        samples: { total: filteredSamples.length, converted: filteredSamples.filter(s => s.status === 'APPROVED').length },
+        samples: { 
+          total: filteredSamples.length, 
+          dispatched: filteredSamples.filter(s => s.status === 'DELIVERED' || s.status === 'DISPATCHED').length,
+          converted: filteredSamples.filter(s => s.status === 'APPROVED').length 
+        },
         quotations: { total: totalQuotes, value: quoteValue },
         orders: { total: confirmedOrders, value: orderValue },
         revenue: { confirmed: orderValue, collected: collectedAmount, outstanding: outstandingAmount, overdue: overdueAmount }
@@ -4962,6 +5024,11 @@ export class SuperAdminService {
           quoteToOrder: totalQuotes > 0 ? percentage(confirmedOrders, totalQuotes) : 0,
           leadToOrder: conversionRate
         }
+      },
+      pipeline: {
+        leadsPotential: leadsEstimatedValue > 0 ? leadsEstimatedValue : (quoteValue > 0 ? quoteValue : orderValue),
+        openQuotes: openQuotesVal > 0 ? openQuotesVal : quoteValue,
+        confirmedOrders: orderValue
       },
       salespersonPerformance: {
         mode: performanceView,
@@ -4979,8 +5046,12 @@ export class SuperAdminService {
         sources: leadSources
       },
       samples: {
-        summary: { total: filteredSamples.length, delivered: filteredSamples.filter(s => s.status === 'DELIVERED').length },
-        effectiveness: []
+        summary: { 
+          total: filteredSamples.length, 
+          dispatched: filteredSamples.filter(s => s.status === 'DELIVERED' || s.status === 'DISPATCHED').length,
+          delivered: filteredSamples.filter(s => s.status === 'DELIVERED').length 
+        },
+        effectiveness: sampleEffectiveness
       },
       quotations: {
         summary: { total: totalQuotes, value: quoteValue },
@@ -5000,18 +5071,18 @@ export class SuperAdminService {
       },
       complaints: {
         summary: { open: openComplaints, resolved: filteredComplaints.filter(c => c.status === 'APPROVED' || c.status === 'REJECTED').length },
-        reasons: []
+        reasons: complaintReasons
       },
       risks: {
         customerCommitments,
-        overduePayments: []
+        overduePayments: overduePaymentsList
       },
       performance: {
         leadToQuoteRate: totalLeads > 0 ? percentage(totalQuotes, totalLeads) : 0,
         quoteToOrderRate: totalQuotes > 0 ? percentage(confirmedOrders, totalQuotes) : 0,
         leadToOrderRate: conversionRate,
         repeatCustomerRate: percentage(allCustomers.filter(c => filteredOrders.filter(o => o.customerId === c.id).length >= 2).length, allCustomers.length || 1),
-        onTimeFulfillmentRate: 90
+        onTimeFulfillmentRate: onTimeFulfillmentRate
       },
       alerts: alertsList,
       filters: {
