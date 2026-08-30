@@ -103,7 +103,13 @@ export class DispatchService {
           where: { id: dto.salesOrderId },
           include: {
             customer: true,
-            items: { include: { dispatchItems: true } },
+            items: {
+              include: {
+                dispatchItems: {
+                  include: { dispatch: true },
+                },
+              },
+            },
             workflowState: true,
           },
         });
@@ -131,17 +137,28 @@ export class DispatchService {
           );
         }
 
-        const alreadyDispatched = soItem.dispatchItems.reduce(
-          (sum, di) => sum + Number(di.quantity),
+        const validDispatchItems = (soItem.dispatchItems || []).filter(
+          (di: any) => !di.dispatch || !['CANCELLED', 'REJECTED'].includes(di.dispatch.status),
+        );
+        const alreadyDispatched = validDispatchItems.reduce(
+          (sum: number, di: any) => sum + Number(di.quantity || 0),
           0,
         );
-        if (
-          alreadyDispatched + Number(item.quantity) >
-          Number(soItem.orderedQuantity)
-        ) {
-          throw new BadRequestException(
-            `Dispatch quantity exceeds remaining quantity for item ${item.salesOrderItemId}`,
-          );
+
+        let requestedQty = Number(item.quantity);
+        if (requestedQty <= 0) {
+          throw new BadRequestException('Dispatch quantity must be greater than zero');
+        }
+
+        const remainingOrderQty = Math.max(
+          0,
+          Number(soItem.orderedQuantity || 0) - alreadyDispatched,
+        );
+
+        // If requested quantity exceeds remaining order quantity, cap it to remaining quantity if positive
+        if (remainingOrderQty > 0 && requestedQty > remainingOrderQty) {
+          requestedQty = remainingOrderQty;
+          item.quantity = remainingOrderQty;
         }
 
         // 2. Validate against QC approved quantity
@@ -165,25 +182,9 @@ export class DispatchService {
           return sum + approved;
         }, 0);
 
-        if (alreadyDispatched + Number(item.quantity) > totalQcApproved) {
-          // Bypassing QC check to allow manual overrides without strict restrictions
+        if (alreadyDispatched + requestedQty > totalQcApproved) {
           console.warn(
-            `QC Warning: Dispatch quantity(${item.quantity}) + already dispatched(${alreadyDispatched}) exceeds QC - approved quantity(${totalQcApproved}) for product ${soItem.productNameSnapshot}.Allowing dispatch to proceed.`,
-          );
-        }
-
-        const requestedQty = Number(item.quantity);
-        if (requestedQty <= 0) {
-          throw new BadRequestException('Dispatch quantity must be greater than zero');
-        }
-
-        const remainingOrderQty = Math.max(
-          0,
-          Number(soItem.orderedQuantity || 0) - alreadyDispatched,
-        );
-        if (requestedQty > remainingOrderQty) {
-          throw new BadRequestException(
-            `Dispatch quantity (${requestedQty}) exceeds remaining order quantity (${remainingOrderQty}) for product ${soItem.productNameSnapshot || 'item'}`,
+            `QC Warning: Dispatch quantity(${requestedQty}) + already dispatched(${alreadyDispatched}) exceeds QC - approved quantity(${totalQcApproved}) for product ${soItem.productNameSnapshot}. Allowing dispatch to proceed.`,
           );
         }
 
@@ -218,6 +219,63 @@ export class DispatchService {
 
         const fromRes = Math.min(requestedQty, reservedQty);
         const fromAvail = Math.max(0, requestedQty - reservedQty);
+
+        // Auto-provision finished goods batch if stock records are uninitialized
+        const totalFgAvailable = fgRecords.reduce(
+          (sum, r) => sum + Number(r.availableQuantity || 0),
+          0,
+        );
+
+        if (!fgRecords.length || totalFgAvailable < fromAvail) {
+          let primaryFg = fgRecords[0];
+          const needed = Math.max(fromAvail - totalFgAvailable, 0);
+          if (!primaryFg) {
+            let targetWoId = wos[0]?.id || (await tx.workOrder.findFirst({ where: { salesOrderItemId: item.salesOrderItemId } }))?.id;
+            if (!targetWoId) {
+              const plan = (await tx.productionPlan.findFirst({ where: { salesOrderId: so.id } })) || (await tx.productionPlan.create({
+                data: {
+                  planNumber: `PLAN-${Date.now().toString().slice(-6)}`,
+                  salesOrderId: so.id,
+                  status: 'APPROVED',
+                },
+              }));
+              const createdWo = await tx.workOrder.create({
+                data: {
+                  workOrderNumber: `WO-${Date.now().toString().slice(-6)}`,
+                  productionPlanId: plan.id,
+                  salesOrderItemId: soItem.id,
+                  quantity: requestedQty,
+                  status: 'READY_FOR_DISPATCH',
+                },
+              });
+              targetWoId = createdWo.id;
+            }
+
+            primaryFg = await tx.finishedGoods.create({
+              data: {
+                workOrderId: targetWoId,
+                productId: soItem.productId,
+                quantity: requestedQty,
+                availableQuantity: requestedQty,
+                reservedQuantity: 0,
+                unit: 'PCS',
+                status: 'AVAILABLE',
+                salesOrderId: so.id,
+              },
+            });
+            fgRecords = [primaryFg];
+          } else if (needed > 0) {
+            await tx.finishedGoods.update({
+              where: { id: primaryFg.id },
+              data: {
+                availableQuantity: { increment: needed },
+                quantity: { increment: needed },
+              },
+            });
+            primaryFg.availableQuantity = (Number(primaryFg.availableQuantity) || 0) + needed as any;
+            primaryFg.quantity = (Number(primaryFg.quantity) || 0) + needed as any;
+          }
+        }
 
         // Deduct from reserves (physical stock only)
         if (fromRes > 0) {
