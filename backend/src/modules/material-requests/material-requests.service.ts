@@ -14,11 +14,30 @@ export class MaterialRequestsService {
     private readonly notificationsService?: NotificationsService,
   ) {}
 
-  private map(request: any) {
+  private formatPublicId(publicId: string, index?: number): string {
+    if (!publicId) return `MR-${String((index ?? 0) + 1).padStart(4, '0')}`;
+    const clean = String(publicId).trim();
+    if (/^MR-\d{4,5}$/i.test(clean)) {
+      return clean.toUpperCase();
+    }
+    const digits = clean.replace(/\D/g, '');
+    if (digits.length >= 8) {
+      const num = parseInt(digits.slice(-4), 10) || ((index ?? 0) + 1);
+      return `MR-${String(num).padStart(4, '0')}`;
+    }
+    if (digits) {
+      const num = parseInt(digits, 10);
+      return `MR-${String(num).padStart(4, '0')}`;
+    }
+    return `MR-${String((index ?? 0) + 1).padStart(4, '0')}`;
+  }
+
+  private map(request: any, index?: number) {
     return {
       id: request.id,
-      requestNo: request.publicId,
-      requestDate: request.requestDate.toISOString().slice(0, 10),
+      requestNo: this.formatPublicId(request.publicId, index),
+      rawPublicId: request.publicId,
+      requestDate: request.requestDate ? request.requestDate.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
       workOrderNo: request.workOrderNo,
       orderId: request.workOrderNo,
       department: 'Production',
@@ -32,19 +51,19 @@ export class MaterialRequestsService {
       ...(request.metadata && typeof request.metadata === 'object'
         ? request.metadata
         : {}),
-      createdAt: request.createdAt.toISOString(),
-      items: request.items.map((item: any) => ({
+      createdAt: request.createdAt ? request.createdAt.toISOString() : new Date().toISOString(),
+      items: (request.items || []).map((item: any) => ({
         id: item.id,
         materialId: item.productId,
-        material: item.product.name,
-        materialName: item.product.name,
-        requestedQty: Number(item.quantity),
-        approvedQty: Number(item.approvedQuantity ?? item.quantity),
+        material: item.product?.name || item.materialName || 'Material Item',
+        materialName: item.product?.name || item.materialName || 'Material Item',
+        requestedQty: Number(item.quantity || 0),
+        approvedQty: Number(item.approvedQuantity ?? item.quantity ?? 0),
         issuedQty: Number(item.issuedQuantity ?? 0),
         receivedQty: Number(item.receivedQuantity ?? 0),
         consumedQty: Number(item.consumedQuantity ?? 0),
         returnedQty: Number(item.returnedQuantity ?? 0),
-        unit: item.unit || item.product.unit,
+        unit: item.unit || item.product?.unit || 'Units',
         status: item.status,
       })),
     };
@@ -57,14 +76,20 @@ export class MaterialRequestsService {
       include: { items: { include: { product: true } }, requestedBy: true },
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map((row) => this.map(row));
+    return rows.map((row, index) => this.map(row, index));
   }
 
   async create(dto: any, userId: string, companyId: string) {
     if (!Array.isArray(dto.items) || !dto.items.length) {
       throw new BadRequestException('At least one material is required.');
     }
-    const publicId = dto.requestNo || `MR-${Date.now()}`;
+    let publicId = dto.requestNo;
+    if (!publicId || /^MR-\d{6,}$/i.test(publicId)) {
+      const count = await this.prisma.materialRequest.count({
+        where: { companyId: companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015' },
+      });
+      publicId = `MR-${String(count + 1).padStart(4, '0')}`;
+    }
     const items = await Promise.all(
       dto.items.map(async (item: any, index: number) => {
         const name = String(item.materialName || item.material || '').trim();
@@ -145,8 +170,17 @@ export class MaterialRequestsService {
     userId: string,
     companyId: string,
   ) {
+    const cleanId = String(id || '').trim();
+    const digits = cleanId.replace(/\D/g, '');
     const current = await this.prisma.materialRequest.findFirst({
-      where: { companyId, OR: [{ id }, { publicId: id }] },
+      where: {
+        companyId,
+        OR: [
+          { id: cleanId },
+          { publicId: cleanId },
+          ...(digits ? [{ publicId: { contains: digits } }] : []),
+        ],
+      },
       include: { items: true },
     });
     if (!current) throw new NotFoundException('Material request not found.');
@@ -232,8 +266,17 @@ export class MaterialRequestsService {
     ]);
     if (!allowed.has(dto.status))
       throw new BadRequestException('Unsupported material request status.');
+    const cleanId = String(id || '').trim();
+    const digits = cleanId.replace(/\D/g, '');
     const current = await this.prisma.materialRequest.findFirst({
-      where: { companyId, OR: [{ id }, { publicId: id }] },
+      where: {
+        companyId,
+        OR: [
+          { id: cleanId },
+          { publicId: cleanId },
+          ...(digits ? [{ publicId: { contains: digits } }] : []),
+        ],
+      },
       include: { items: true },
     });
     if (!current) throw new NotFoundException('Material request not found.');

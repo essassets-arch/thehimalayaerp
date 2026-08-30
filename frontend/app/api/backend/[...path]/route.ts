@@ -14,6 +14,8 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   // was promoted from the logistics namespace to its canonical endpoint.
   const backendPathAliases: Record<string, string> = {
     '/logistics/dispatches/replacements': '/replacements',
+    '/logistics/dispatches/remaining': '/logistics/dispatches',
+    '/sales/sales-returns': '/sales-returns',
     '/reports/inventory/stock-levels': '/inventory/stock-levels',
     '/store/material-requests': '/material-requests',
     '/v1/plant-head/qc-failures': '/plant-head/qc-failures',

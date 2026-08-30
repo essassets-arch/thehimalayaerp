@@ -136,7 +136,7 @@ export class PermissionsGuard implements CanActivate {
       // Ignore DB lookup error and fall back to collected set
     }
 
-    // Plant Head and Production role default baseline permissions
+    // Role default baseline permissions
     if (normalizedRole === 'PLANT_HEAD' || normalizedRole.includes('PLANT_HEAD')) {
       [
         'admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read',
@@ -167,9 +167,62 @@ export class PermissionsGuard implements CanActivate {
       ].forEach(p => userPermSet.add(p));
     }
 
+    if (normalizedRole === 'DISPATCH_EXECUTIVE' || normalizedRole.includes('DISPATCH') || normalizedRole === 'LOGISTICS') {
+      [
+        'logistics.dispatches.read', 'logistics.dispatches.create', 'logistics.dispatches.update', 'logistics.dispatches.manage',
+        'logistics.dispatches.start-delivery', 'logistics.dispatches.confirm-delivery',
+        'dispatch.shipments.read', 'dispatch.shipments.create', 'dispatch.delivery.verify', 'dispatch.update',
+        'admin.samples.read', 'admin.samples.update', 'samples.read', 'samples.update', 'sales.samples.read',
+        'admin.salesreturns.read', 'sales.salesreturns.read', 'sales.returns.read', 'sales-returns.read', 'sales.returns.manage',
+        'sales.orders.read', 'inventory.stock.read', 'inventory.inventory.read', 'inventory.warehouses.read',
+        'production.finishedgoods.read', 'production.workorder.read', 'user.read',
+      ].forEach(p => userPermSet.add(p));
+    }
+
+    if (normalizedRole === 'SALES_EXECUTIVE' || normalizedRole.includes('SALES')) {
+      [
+        'sales.orders.read', 'sales.orders.create', 'sales.orders.update', 'sales.orders.approve',
+        'sales.leads.read', 'sales.leads.create', 'sales.leads.update', 'sales.leads.manage', 'crm.leads.read',
+        'sales.customers.read', 'sales.customers.create', 'sales.customers.update', 'crm.customers.read',
+        'sales.quotations.read', 'sales.quotations.create', 'sales.quotations.update', 'crm.quotations.read', 'crm.quotations.create', 'crm.quotations.update',
+        'admin.samples.read', 'admin.samples.create', 'admin.samples.update', 'samples.read', 'samples.create', 'samples.update', 'sales.samples.read', 'sales.samples.create',
+        'admin.salesreturns.read', 'admin.salesreturns.create', 'admin.salesreturns.update', 'sales.salesreturns.read', 'sales.salesreturns.create', 'sales.salesreturns.update', 'sales.returns.read', 'sales.returns.create', 'sales-returns.read', 'sales.returns.manage',
+        'sales.customercomplaints.read', 'sales.customercomplaints.create', 'sales.complaints.read', 'sales.complaints.create',
+        'logistics.dispatches.read', 'dispatch.shipments.read', 'inventory.stock.read', 'inventory.inventory.read', 'user.read',
+      ].forEach(p => userPermSet.add(p));
+    }
+
+    if (normalizedRole === 'STORE_MANAGER' || normalizedRole.includes('STORE')) {
+      [
+        'store.materialrequests.read', 'store.materialrequests.approve', 'store.materialrequests.create',
+        'admin.materialrequests.read', 'admin.materialrequests.create', 'admin.materialrequests.approve', 'admin.materialrequests.reject',
+        'materialrequests.read', 'materialrequests.create', 'materialrequests.approve', 'materialrequests.reject',
+        'inventory.stock.read', 'inventory.inventory.read', 'inventory.warehouses.read',
+        'procurement.grns.read', 'procurement.suppliers.read', 'procurement.indents.read', 'procurement.purchase_orders.read',
+        'production.workorder.read', 'logistics.dispatches.read', 'sales.returns.read', 'sales.returns.update', 'sales-returns.read', 'user.read',
+      ].forEach(p => userPermSet.add(p));
+    }
+
     const allUserPerms = Array.from(userPermSet);
 
     const PERMISSION_ALIASES: Record<string, string[]> = {
+      'logistics.dispatches.read': ['logistics.dispatches.read', 'dispatch.shipments.read', 'dispatch.delivery.verify', 'dispatch.update', 'production.workorder.read', 'production.work_orders.manage', 'sales.orders.read', 'admin.read', 'super-admin.read'],
+      'logistics.dispatches.create': ['logistics.dispatches.create', 'dispatch.shipments.create', 'dispatch.update', 'production.workorder.complete', 'admin.read', 'super-admin.read'],
+      'logistics.dispatches.start-delivery': ['logistics.dispatches.start-delivery', 'logistics.dispatches.read', 'dispatch.update', 'dispatch.delivery.verify', 'admin.read', 'super-admin.read'],
+      'logistics.dispatches.confirm-delivery': ['logistics.dispatches.confirm-delivery', 'logistics.dispatches.read', 'dispatch.update', 'dispatch.delivery.verify', 'admin.read', 'super-admin.read'],
+      'dispatch.shipments.read': ['logistics.dispatches.read', 'dispatch.shipments.read', 'dispatch.delivery.verify', 'dispatch.update', 'production.workorder.read', 'sales.orders.read', 'admin.read', 'super-admin.read'],
+      'dispatch.shipments.create': ['logistics.dispatches.create', 'dispatch.shipments.create', 'dispatch.update', 'admin.read', 'super-admin.read'],
+      'dispatch.delivery.verify': ['logistics.dispatches.confirm-delivery', 'logistics.dispatches.read', 'dispatch.delivery.verify', 'dispatch.update', 'admin.read', 'super-admin.read'],
+      'dispatch.update': ['logistics.dispatches.update', 'logistics.dispatches.read', 'dispatch.update', 'dispatch.delivery.verify', 'admin.read', 'super-admin.read'],
+      'sales.salesreturns.read': ['sales.salesreturns.read', 'admin.salesreturns.read', 'sales.returns.read', 'sales-returns.read', 'sales.returns.manage', 'sales.orders.read', 'logistics.dispatches.read', 'admin.read', 'super-admin.read'],
+      'sales.salesreturns.create': ['sales.salesreturns.create', 'admin.salesreturns.create', 'sales.returns.create', 'sales-returns.create', 'sales.orders.create', 'sales.orders.read', 'admin.read', 'super-admin.read'],
+      'sales.salesreturns.approve': ['sales.salesreturns.approve', 'admin.salesreturns.approve', 'sales.returns.approve', 'sales.orders.approve', 'admin.read', 'super-admin.read'],
+      'sales.salesreturns.reject': ['sales.salesreturns.reject', 'admin.salesreturns.reject', 'sales.returns.reject', 'sales.orders.reject', 'admin.read', 'super-admin.read'],
+      'sales.salesreturns.update': ['sales.salesreturns.update', 'admin.salesreturns.update', 'sales.returns.update', 'sales.returns.manage', 'logistics.dispatches.read', 'admin.read', 'super-admin.read'],
+      'admin.samples.read': ['admin.samples.read', 'samples.read', 'sales.samples.read', 'logistics.dispatches.read', 'dispatch.shipments.read', 'sales.leads.read', 'sales.orders.read', 'admin.read', 'super-admin.read'],
+      'admin.samples.create': ['admin.samples.create', 'samples.create', 'sales.samples.create', 'sales.leads.create', 'sales.orders.create', 'admin.read', 'super-admin.read'],
+      'admin.samples.update': ['admin.samples.update', 'samples.update', 'sales.samples.update', 'logistics.dispatches.read', 'dispatch.shipments.read', 'sales.leads.update', 'admin.read', 'super-admin.read'],
+      'samples.read': ['admin.samples.read', 'samples.read', 'sales.samples.read', 'logistics.dispatches.read', 'dispatch.shipments.read', 'sales.leads.read', 'sales.orders.read', 'admin.read', 'super-admin.read'],
       'admin.planthead.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read', 'production.plans.read', 'production.workorder.read', 'production.work_orders.manage', 'sales.orders.read'],
       'planthead.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read', 'production.plans.read', 'production.workorder.read', 'production.work_orders.manage', 'sales.orders.read'],
       'plant-head.read': ['admin.planthead.read', 'planthead.read', 'plant-head.read', 'planthead.dashboard.read', 'production.productionworkflow.read', 'production.plan.read', 'production.plans.read', 'production.workorder.read', 'production.work_orders.manage', 'sales.orders.read'],
