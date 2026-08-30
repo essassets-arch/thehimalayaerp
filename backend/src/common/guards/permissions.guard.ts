@@ -60,14 +60,13 @@ export class PermissionsGuard implements CanActivate {
 
     // Normalized Role Check from JWT
     let normalizedRole = String(user.role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    if (normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'SUPERADMIN' || normalizedRole === 'ADMIN' || normalizedRole.includes('SUPER_ADMIN') || normalizedRole.includes('SUPERADMIN')) {
+      return true;
+    }
     if (normalizedRole.startsWith('SUPER_SALES') || normalizedRole.startsWith('SUPERSALES')) {
       normalizedRole = 'SUPER_SALES';
     } else if (normalizedRole.startsWith('SALES_EXEC') || normalizedRole === 'SALES') {
       normalizedRole = 'SALES_EXECUTIVE';
-    }
-
-    if (['SUPER_ADMIN', 'ADMIN'].includes(normalizedRole)) {
-      return true;
     }
 
     // Merge permissions from JWT payload AND live Database
@@ -117,15 +116,15 @@ export class PermissionsGuard implements CanActivate {
 
       if (dbRole) {
         let dbRoleCode = String(dbRole.code || '').toUpperCase().replace(/[\s-]+/g, '_');
+        if (dbRoleCode === 'SUPER_ADMIN' || dbRoleCode === 'SUPERADMIN' || dbRoleCode === 'ADMIN' || dbRoleCode.includes('SUPER_ADMIN') || dbRoleCode.includes('SUPERADMIN')) {
+          return true;
+        }
         if (dbRoleCode.startsWith('SUPER_SALES') || dbRoleCode.startsWith('SUPERSALES')) {
           dbRoleCode = 'SUPER_SALES';
         } else if (dbRoleCode.startsWith('SALES_EXEC') || dbRoleCode === 'SALES') {
           dbRoleCode = 'SALES_EXECUTIVE';
         }
 
-        if (['SUPER_ADMIN', 'ADMIN'].includes(dbRoleCode)) {
-          return true;
-        }
         for (const rp of dbRole.rolePermissions || []) {
           if (rp.permission?.code) {
             userPermSet.add(rp.permission.code);
@@ -148,7 +147,8 @@ export class PermissionsGuard implements CanActivate {
         'admin.salesreturns.read', 'admin.salesreturns.create', 'admin.salesreturns.update', 'sales.salesreturns.read', 'sales.salesreturns.create', 'sales.salesreturns.update', 'sales.returns.read', 'sales.returns.create', 'sales-returns.read', 'sales.returns.manage',
         'sales.customercomplaints.read', 'sales.customercomplaints.create', 'sales.complaints.read', 'sales.complaints.create',
         'admin.replacements.read', 'admin.replacements.create', 'admin.replacements.update', 'admin.replacements.approve',
-        'sales.salesreports.read', 'logistics.dispatches.read', 'dispatch.shipments.read', 'inventory.stock.read', 'inventory.inventory.read', 'finance.read', 'finance.sales-analytics.read', 'user.read',
+        'sales.salesreports.read', 'logistics.dispatches.read', 'dispatch.shipments.read', 'inventory.stock.read', 'inventory.inventory.read', 
+        'finance.read', 'finance.payment.read', 'finance.payments.read', 'finance.payment.update', 'finance.payments.update', 'finance.payment.verify', 'finance.payment.reject', 'finance.payments.manage', 'finance.sales-analytics.read', 'user.read',
       ].forEach(p => userPermSet.add(p));
     }
 
@@ -163,6 +163,7 @@ export class PermissionsGuard implements CanActivate {
         'admin.salesreturns.read', 'admin.salesreturns.create', 'admin.salesreturns.update', 'sales.salesreturns.read', 'sales.salesreturns.create', 'sales.salesreturns.update', 'sales.returns.read', 'sales.returns.create', 'sales-returns.read', 'sales.returns.manage',
         'sales.customercomplaints.read', 'sales.customercomplaints.create', 'sales.complaints.read', 'sales.complaints.create',
         'admin.replacements.read', 'admin.replacements.create',
+        'finance.payment.read', 'finance.payments.read', 'finance.payment.create',
         'logistics.dispatches.read', 'dispatch.shipments.read', 'inventory.stock.read', 'inventory.inventory.read', 'user.read',
       ].forEach(p => userPermSet.add(p));
     }
@@ -222,15 +223,16 @@ export class PermissionsGuard implements CanActivate {
       ].forEach(p => userPermSet.add(p));
     }
 
-    if (normalizedRole === 'FINANCE' || normalizedRole.includes('FINANCE') || normalizedRole === 'FINANCE_MANAGER' || normalizedRole === 'FINANCE_EXECUTIVE' || normalizedRole === 'ACCOUNTANT') {
+    if (normalizedRole === 'FINANCE' || normalizedRole.includes('FINANCE') || normalizedRole === 'FINANCE_MANAGER' || normalizedRole === 'FINANCE_EXECUTIVE' || normalizedRole === 'ACCOUNTANT' || normalizedRole === 'FINANCE_USER') {
       [
-        'finance.read', 'finance.payment.read', 'finance.payments.read', 'finance.payment.verify', 'finance.payment.reject', 'finance.payment.create', 'finance.payments.manage',
-        'finance.invoices.read', 'finance.invoices.create', 'finance.invoices.update', 'finance.ledger.read',
+        'finance.read', 'finance.payment.read', 'finance.payments.read', 'finance.payment.verify', 'finance.payment.reject', 'finance.payment.create', 'finance.payments.manage', 'finance.payment.update', 'finance.payments.update',
+        'finance.invoices.read', 'finance.invoices.create', 'finance.invoices.update', 'finance.invoice.read', 'finance.invoice.create', 'finance.invoice.update', 'finance.ledger.read',
         'finance.brand-analysis.read', 'finance.brand-analysis.start', 'finance.brand-analysis.complete',
         'finance.sales-analytics.read', 'finance.sales-analytics.activity.read', 'finance.sales-analytics.receivables.read', 'finance.sales-analytics.export',
         'finance.salary.manage', 'finance.salary.view', 'finance.salary.read', 'finance.salary.disburse', 'finance.reports.read',
         'sales.orders.read', 'sales.customers.read', 'logistics.dispatches.read',
         'procurement.purchase_orders.read', 'procurement.purchase-orders.read', 'procurement.grns.read', 'procurement.invoices.read', 'procurement.payments.read', 'procurement.suppliers.read',
+        'procurement.vendor_invoices.read', 'procurement.vendor-invoices.read', 'procurement.vendor_payments.read', 'procurement.vendor-payments.read',
         'inventory.stock.read', 'inventory.inventory.read', 'user.read',
       ].forEach(p => userPermSet.add(p));
     }
@@ -312,8 +314,22 @@ export class PermissionsGuard implements CanActivate {
       'user.read': ['user.read', 'store.read', 'finance.read', 'sales.orders.read', 'admin.read', 'hr.read', 'super-admin.read', 'plant.read', 'planthead.read', 'admin.planthead.read', 'plant-head.read', 'production.plans.read', 'production.plan.read', 'production.floor.read', 'production.work_orders.manage', 'common.dashboard.read'],
       'finance.brand-analysis.read': ['finance.brand-analysis.read', 'brand-analysis.read', 'store.brand-analysis.read', 'super-admin.brand-analysis.read', 'store.read', 'inventory.stock.read', 'inventory.inventory.read', 'finance.read', 'finance.payment.read', 'finance.invoices.read', 'finance.ledger.read', 'finance.payments.manage', 'finance.sales-analytics.read', 'admin.read', 'super-admin.read'],
       'finance.read': ['finance.read', 'finance.brand-analysis.read', 'finance.payment.read', 'finance.invoices.read', 'finance.ledger.read', 'finance.payments.manage', 'finance.sales-analytics.read', 'finance.salary.manage', 'finance.salary.view', 'admin.read', 'super-admin.read'],
-      'finance.payments.read': ['finance.payments.read', 'finance.payment.read', 'finance.payments.manage', 'finance.read', 'admin.read', 'super-admin.read'],
-      'finance.payment.read': ['finance.payments.read', 'finance.payment.read', 'finance.payments.manage', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.payments.read': ['finance.payments.read', 'finance.payment.read', 'finance.payments.manage', 'finance.payment.verify', 'finance.payment.update', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.payment.read': ['finance.payments.read', 'finance.payment.read', 'finance.payments.manage', 'finance.payment.verify', 'finance.payment.update', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.payment.create': ['finance.payment.create', 'finance.payments.create', 'finance.payment.verify', 'finance.payment.update', 'finance.payments.manage', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.payments.create': ['finance.payment.create', 'finance.payments.create', 'finance.payment.verify', 'finance.payment.update', 'finance.payments.manage', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.payment.update': ['finance.payment.update', 'finance.payments.update', 'finance.payment.verify', 'finance.payment.reject', 'finance.payments.manage', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.payments.update': ['finance.payment.update', 'finance.payments.update', 'finance.payment.verify', 'finance.payment.reject', 'finance.payments.manage', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.payments.manage': ['finance.payments.manage', 'finance.payment.update', 'finance.payments.update', 'finance.payment.verify', 'finance.payment.reject', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.payment.verify': ['finance.payment.verify', 'finance.payment.update', 'finance.payments.update', 'finance.payments.manage', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.payment.reject': ['finance.payment.reject', 'finance.payment.update', 'finance.payments.update', 'finance.payments.manage', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.invoice.read': ['finance.invoice.read', 'finance.invoices.read', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.invoices.read': ['finance.invoice.read', 'finance.invoices.read', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.invoice.create': ['finance.invoice.create', 'finance.invoices.create', 'finance.invoice.update', 'finance.invoices.update', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.invoices.create': ['finance.invoice.create', 'finance.invoices.create', 'finance.invoice.update', 'finance.invoices.update', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.invoice.update': ['finance.invoice.update', 'finance.invoices.update', 'finance.invoice.create', 'finance.invoices.create', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.invoices.update': ['finance.invoice.update', 'finance.invoices.update', 'finance.invoice.create', 'finance.invoices.create', 'finance.read', 'admin.read', 'super-admin.read'],
+      'finance.ledger.read': ['finance.ledger.read', 'finance.read', 'admin.read', 'super-admin.read'],
       'finance.brand-analysis.start': ['finance.brand-analysis.start', 'finance.brand-analysis.read', 'finance.read', 'admin.read', 'super-admin.read'],
       'finance.brand-analysis.complete': ['finance.brand-analysis.complete', 'finance.brand-analysis.read', 'finance.read', 'admin.read', 'super-admin.read'],
       'store.brand-analysis.read': ['finance.brand-analysis.read', 'brand-analysis.read', 'store.brand-analysis.read', 'super-admin.brand-analysis.read', 'store.read', 'inventory.stock.read', 'inventory.inventory.read', 'admin.read', 'super-admin.read'],
