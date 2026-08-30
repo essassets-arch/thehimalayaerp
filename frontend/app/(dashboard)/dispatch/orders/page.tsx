@@ -455,9 +455,15 @@ export default function DispatchOrdersPage() {
 
   const handleCreateDispatch = (item: UnifiedPendingDispatchItem) => {
     const params = new URLSearchParams();
-    if (item.salesOrderId) params.set("salesOrderId", item.salesOrderId);
-    if (item.workOrderId) params.set("workOrderId", item.workOrderId);
-    if (item.salesOrderItemId) params.set("salesOrderItemId", item.salesOrderItemId);
+    if (item.salesOrderId && !item.salesOrderId.includes("/")) {
+      params.set("salesOrderId", item.salesOrderId);
+    }
+    if (item.workOrderId && !item.workOrderId.includes("/") && item.workOrderId !== item.orderNumber) {
+      params.set("workOrderId", item.workOrderId);
+    }
+    if (item.salesOrderItemId && !item.salesOrderItemId.includes("/")) {
+      params.set("salesOrderItemId", item.salesOrderItemId);
+    }
     router.push(`${basePath}/create-dispatch?${params.toString()}`);
   };
 

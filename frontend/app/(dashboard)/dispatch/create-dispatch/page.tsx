@@ -228,8 +228,8 @@ export default function CreateDispatchPage() {
       }
 
       // 2. Direct Work Order Lookup if workOrderId param is provided
-      if (workOrderId && !list.some((wo) => wo.id === workOrderId)) {
-        const woSinglePayload = await backendFetch<any>(`/api/backend/production/work-orders/${workOrderId}`).catch(() => null);
+      if (workOrderId && !workOrderId.includes("/") && !workOrderId.includes("#") && !list.some((wo) => wo.id === workOrderId)) {
+        const woSinglePayload = await backendFetch<any>(`/api/backend/production/work-orders/${encodeURIComponent(workOrderId)}`).catch(() => null);
         const fetchedWo = woSinglePayload?.data || woSinglePayload;
         if (fetchedWo && fetchedWo.id) {
           list.unshift(fetchedWo);
