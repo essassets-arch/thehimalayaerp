@@ -722,7 +722,20 @@ export default function ProductMasterUI({ role }) {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px', fontSize: '12px', color: '#475569' }}>
                   <div>
                     <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Type</span>
-                    <span style={{ fontWeight: 600 }}>{p.product_type}</span>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      background: p.product_type === 'TRADING' ? '#ECFDF5' : '#EEF2FF',
+                      color: p.product_type === 'TRADING' ? '#047857' : '#4338CA',
+                      border: p.product_type === 'TRADING' ? '1px solid #A7F3D0' : '1px solid #C7D2FE'
+                    }}>
+                      {p.product_type === 'TRADING' ? '🛍️ Trading' : '🏭 Mfg'}
+                    </span>
                   </div>
                   <div>
                     <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Category</span>
@@ -881,8 +894,21 @@ export default function ProductMasterUI({ role }) {
   
                       {/* Type / Family */}
                       <td style={{ padding: '16px 20px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>{p.product_type}</div>
-                        <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>{p.product_family || '—'}</div>
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11.5px',
+                          fontWeight: 800,
+                          background: p.product_type === 'TRADING' ? '#ECFDF5' : '#EEF2FF',
+                          color: p.product_type === 'TRADING' ? '#047857' : '#4338CA',
+                          border: p.product_type === 'TRADING' ? '1px solid #A7F3D0' : '1px solid #C7D2FE'
+                        }}>
+                          {p.product_type === 'TRADING' ? '🛍️ Trading' : '🏭 Manufactured'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', fontWeight: 600 }}>{p.product_family || '—'}</div>
                       </td>
   
                       {/* Unit */}
@@ -1094,14 +1120,23 @@ export default function ProductMasterUI({ role }) {
                 </div>
                 
                 <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Type</label>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Type *</label>
                   <select 
                     value={formData.product_type} 
                     onChange={e => setFormData({ ...formData, product_type: e.target.value })} 
                     style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none' }}
                   >
-                    {productTypes.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                    {productTypes.map(({ value, label }) => (
+                      <option key={value} value={value}>
+                        {value === 'MANUFACTURING' ? '🏭 Manufactured (Factory Production)' : value === 'TRADING' ? '🛍️ Trading (Direct Dispatch)' : label}
+                      </option>
+                    ))}
                   </select>
+                  <span style={{ display: 'block', fontSize: '11px', color: formData.product_type === 'TRADING' ? '#059669' : '#4F46E5', marginTop: '4px', fontWeight: 600 }}>
+                    {formData.product_type === 'TRADING' 
+                      ? '⚡ Trading products bypass factory floor planning and go directly to Dispatch when ordered.'
+                      : '⚙️ Manufactured products create Plant Head Production Plans and factory Work Orders.'}
+                  </span>
                 </div>
 
                 <div>
