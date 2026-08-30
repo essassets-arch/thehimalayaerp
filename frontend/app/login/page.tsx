@@ -635,34 +635,46 @@ export default function LoginPage() {
           align-items: center;
           width: 100%;
           box-sizing: border-box;
+          margin-bottom: 2px;
         }
 
         .quick-search-icon {
           position: absolute;
-          left: 12px;
+          left: 14px;
           top: 50%;
           transform: translateY(-50%);
           color: #94A3B8;
           pointer-events: none;
           z-index: 2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
         }
 
         .quick-search-input {
           width: 100% !important;
-          padding: 10px 12px 10px 38px !important;
+          height: 42px !important;
+          min-height: 42px !important;
+          padding: 0 14px 0 42px !important;
           background: #F8FAFC !important;
           border: 1.5px solid #E2E8F0 !important;
           border-radius: 10px !important;
-          font-size: 12.5px !important;
+          font-size: 13px !important;
           color: #1E293B !important;
           font-family: 'Outfit', sans-serif !important;
           outline: none !important;
           box-sizing: border-box !important;
-          min-height: 40px !important;
+          transition: all 0.15s ease !important;
+        }
+        .quick-search-input::placeholder {
+          color: #94A3B8 !important;
         }
         .quick-search-input:focus {
-          border-color: #3BAEEB !important;
+          border-color: #2563EB !important;
           background: #FFFFFF !important;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
         }
 
         .accounts-grid {
@@ -1000,12 +1012,13 @@ export default function LoginPage() {
               <>
                 {/* Search Box */}
                 <div className="quick-search-box">
-                  <Search size={14} className="quick-search-icon" />
+                  <span className="quick-search-icon">
+                    <Search size={15} />
+                  </span>
                   <input
                     type="text"
                     className="quick-search-input"
                     placeholder="Search by role, name, or email..."
-                    style={{ paddingLeft: '38px' }}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
