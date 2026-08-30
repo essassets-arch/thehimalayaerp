@@ -18,6 +18,7 @@ import StatusBadge from '../../../shared/components/StatusBadge';
 import { FileText, ChevronRight, Edit2, CheckCircle2, XCircle, AlertTriangle, Check, X, Calendar, Download, RefreshCw, Trash2, Layers, Box } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { apiClient } from '../../../lib/apiClient';
+import { backendFetch } from '../../../lib/backendFetch';
 import { exportFinanceReportPDF, exportToCSV } from '../../../services/export.service';
 import PaymentVerificationView from '../../finance-executive/PaymentVerification/PaymentVerificationView';
 import FinanceExecutiveDashboardView from '../../finance-executive/Dashboard/DashboardView';
@@ -212,6 +213,12 @@ export default function FinancePortal({ initialView, forceView }) {
   const [agingReportData, setAgingReportData] = useState(null);
   const [livePayments, setLivePayments] = useState([]);
   const [liveExpenses, setLiveExpenses] = useState([]);
+  const [liveDeliveredOrders, setLiveDeliveredOrders] = useState([]);
+  const [liveSalesOrders, setLiveSalesOrders] = useState([]);
+  const [livePOs, setLivePOs] = useState([]);
+  const [liveVendorInvoices, setLiveVendorInvoices] = useState([]);
+  const [liveVendorPayments, setLiveVendorPayments] = useState([]);
+  const [liveInvoices, setLiveInvoices] = useState([]);
   const [isFinanceLoading, setIsFinanceLoading] = useState(false);
   const [finDateFrom, setFinDateFrom] = useState(() => {
     const d = new Date();
@@ -223,25 +230,53 @@ export default function FinancePortal({ initialView, forceView }) {
   const fetchFinanceReports = async () => {
     setIsFinanceLoading(true);
     try {
-      const [revExpRes, cashFlowRes, agingRes, pmtsRes, expsRes] = await Promise.all([
+      const [pmtsRes, delOrdersRes, salesOrdersRes, poRes, vInvRes, vPmtsRes, expsRes, invsRes, revExpRes, cashFlowRes] = await Promise.all([
+        backendFetch('/api/backend/finance/payments').catch(() => null),
+        backendFetch('/api/backend/finance/payments/delivered-orders').catch(() => null),
+        backendFetch('/api/backend/sales/orders').catch(() => null),
+        backendFetch('/api/backend/procurement/purchase-orders').catch(() => null),
+        backendFetch('/api/backend/procurement/vendor-invoices').catch(() => null),
+        backendFetch('/api/backend/procurement/vendor-payments').catch(() => null),
+        backendFetch('/api/backend/expenses').catch(() => null),
+        backendFetch('/api/backend/finance/invoices').catch(() => null),
         apiClient.get(`/reports/finance/revenue-expense?date_from=${finDateFrom}&date_to=${finDateTo}`).catch(() => null),
         apiClient.get(`/reports/finance/cash-flow?date_from=${finDateFrom}&date_to=${finDateTo}`).catch(() => null),
-        apiClient.get('/reports/finance/aging').catch(() => null),
-        apiClient.get('/finance/payments').catch(() => null),
-        apiClient.get('/expenses').catch(() => null),
       ]);
 
-      if (revExpRes?.data) setFinanceReportData(revExpRes.data);
-      if (cashFlowRes?.data) setCashFlowData(cashFlowRes.data);
-      if (agingRes?.data) setAgingReportData(agingRes.data);
       if (pmtsRes) {
         const raw = pmtsRes.data || pmtsRes;
         setLivePayments(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+      }
+      if (delOrdersRes) {
+        const raw = delOrdersRes.data || delOrdersRes;
+        setLiveDeliveredOrders(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+      }
+      if (salesOrdersRes) {
+        const raw = salesOrdersRes.data || salesOrdersRes;
+        setLiveSalesOrders(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+      }
+      if (poRes) {
+        const raw = poRes.data || poRes;
+        setLivePOs(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+      }
+      if (vInvRes) {
+        const raw = vInvRes.data || vInvRes;
+        setLiveVendorInvoices(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+      }
+      if (vPmtsRes) {
+        const raw = vPmtsRes.data || vPmtsRes;
+        setLiveVendorPayments(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
       }
       if (expsRes) {
         const raw = expsRes.data || expsRes;
         setLiveExpenses(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
       }
+      if (invsRes) {
+        const raw = invsRes.data || invsRes;
+        setLiveInvoices(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+      }
+      if (revExpRes?.data) setFinanceReportData(revExpRes.data);
+      if (cashFlowRes?.data) setCashFlowData(cashFlowRes.data);
     } catch (err) {
       console.error('Failed to fetch finance reports', err);
     } finally {
@@ -250,14 +285,8 @@ export default function FinancePortal({ initialView, forceView }) {
   };
 
   useEffect(() => {
-    // Only fetch if on reports tab/view
-    const currentTab = nextSearchParams?.get('tab');
-    
-    // In FinancePortal, reports is accessed via view === 'reports' or tab === 'reports'
-    if (params.view === 'reports' || currentTab === 'reports') {
-      fetchFinanceReports();
-    }
-  }, [params.view, nextSearchParams, finDateFrom, finDateTo]);
+    fetchFinanceReports();
+  }, [finDateFrom, finDateTo]);
 
   const tabParam = nextSearchParams?.get('tab');
 
@@ -1076,30 +1105,36 @@ export default function FinancePortal({ initialView, forceView }) {
   const renderReports = () => {
     const allPayments = livePayments.length > 0 ? livePayments : (state.payments || []);
     const allExpenses = liveExpenses.length > 0 ? liveExpenses : (state.expenses || []);
-    const allOrders = state.orders || [];
+    const allOrders = (liveDeliveredOrders.length > 0 || liveSalesOrders.length > 0)
+      ? [...liveDeliveredOrders, ...liveSalesOrders]
+      : (state.sales?.orders || state.orders || []);
+    const allPOs = livePOs.length > 0 ? livePOs : (purchaseOrders || []);
+    const allVendorInvoices = liveVendorInvoices.length > 0 ? liveVendorInvoices : [];
 
-    const fromDate = finDateFrom ? new Date(finDateFrom) : new Date(0);
+    const fromDate = finDateFrom ? new Date(finDateFrom + 'T00:00:00') : new Date(0);
     const toDate = finDateTo ? new Date(finDateTo + 'T23:59:59') : new Date();
 
     const periodPayments = allPayments.filter(p => {
-      if (!p.createdAt && !p.paymentDate) return true;
-      const d = new Date(p.createdAt || p.paymentDate);
-      return d >= fromDate && d <= toDate;
+      const d = new Date(p.receivedAt || p.createdAt || p.paymentDate || 0);
+      return !isNaN(d.getTime()) ? (d >= fromDate && d <= toDate) : true;
     });
 
     const periodExpenses = allExpenses.filter(e => {
-      if (!e.createdAt && !e.expenseDate) return true;
-      const d = new Date(e.createdAt || e.expenseDate);
-      return d >= fromDate && d <= toDate;
+      const d = new Date(e.expenseDate || e.createdAt || 0);
+      return !isNaN(d.getTime()) ? (d >= fromDate && d <= toDate) : true;
     });
 
-    const periodPOs = (purchaseOrders || []).filter(po => {
-      if (!po.createdAt) return true;
-      const d = new Date(po.createdAt);
-      return d >= fromDate && d <= toDate;
+    const periodPOs = allPOs.filter(po => {
+      const d = new Date(po.createdAt || po.issueDate || 0);
+      return !isNaN(d.getTime()) ? (d >= fromDate && d <= toDate) : true;
     });
 
-    // 1. Receivables Aging Buckets Summary (Dynamic)
+    const periodVendorInvoices = allVendorInvoices.filter(vi => {
+      const d = new Date(vi.invoiceDate || vi.createdAt || 0);
+      return !isNaN(d.getTime()) ? (d >= fromDate && d <= toDate) : true;
+    });
+
+    // 1. Receivables Aging Buckets Summary (100% Dynamic)
     const agingBuckets = {
       'Current': { total: 0, count: 0 },
       '1-30 Days': { total: 0, count: 0 },
@@ -1108,38 +1143,51 @@ export default function FinancePortal({ initialView, forceView }) {
     };
 
     const now = new Date();
-    const pendingInvoices = (invoices && invoices.length > 0) 
-      ? invoices.filter(inv => inv.status !== 'PAID' && inv.status !== 'CANCELLED')
-      : allOrders.filter(ord => ord.paymentStatus !== 'PAID' && ord.status !== 'CANCELLED');
+    const uniqueOrders = [];
+    const seenIds = new Set();
+    allOrders.forEach(ord => {
+      const idKey = String(ord.id || ord.orderNo || ord.orderNumber || '');
+      if (idKey && !seenIds.has(idKey)) {
+        seenIds.add(idKey);
+        uniqueOrders.push(ord);
+      }
+    });
 
-    if (pendingInvoices.length > 0) {
-      pendingInvoices.forEach(inv => {
-        const amount = Number(inv.totalAmount || inv.grandTotal || inv.amount || 0);
-        const created = new Date(inv.createdAt || inv.invoiceDate || now);
-        const diffDays = Math.floor((now.getTime() - created.getTime()) / (1000 * 3600 * 24));
+    uniqueOrders.forEach(ord => {
+      const totalAmount = Number(ord.grandTotal ?? ord.totalAmount ?? ord.totalValue ?? 0);
+      
+      const verifiedPaid = allPayments
+        .filter(p => {
+          const matchId = String(p.salesOrderId || p.salesOrder?.id || p.orderNumber || p.orderNo || p.orderId || '');
+          const isVerified = ['VERIFIED', 'FINANCE_VERIFIED', 'PARTIALLY_ALLOCATED', 'ALLOCATED'].includes(String(p.status || '').toUpperCase());
+          return isVerified && (matchId === String(ord.id) || matchId === String(ord.orderNo || ord.orderNumber));
+        })
+        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+      const paidAmount = Math.max(verifiedPaid, Number(ord.verifiedPaidAmount || ord.paidAmount || 0));
+      const balance = Math.max(0, totalAmount - paidAmount);
+
+      if (balance > 0) {
+        const dueDate = ord.paymentDueDate || ord.dueDate || ord.createdAt;
+        const diffDays = Math.floor((now.getTime() - new Date(dueDate).getTime()) / (1000 * 3600 * 24));
 
         if (diffDays <= 0) {
-          agingBuckets['Current'].total += amount;
+          agingBuckets['Current'].total += balance;
           agingBuckets['Current'].count += 1;
         } else if (diffDays <= 30) {
-          agingBuckets['1-30 Days'].total += amount;
+          agingBuckets['1-30 Days'].total += balance;
           agingBuckets['1-30 Days'].count += 1;
         } else if (diffDays <= 60) {
-          agingBuckets['31-60 Days'].total += amount;
+          agingBuckets['31-60 Days'].total += balance;
           agingBuckets['31-60 Days'].count += 1;
         } else {
-          agingBuckets['60+ Days'].total += amount;
+          agingBuckets['60+ Days'].total += balance;
           agingBuckets['60+ Days'].count += 1;
         }
-      });
-    } else {
-      agingBuckets['Current'] = { total: 4250000, count: 12 };
-      agingBuckets['1-30 Days'] = { total: 1820000, count: 5 };
-      agingBuckets['31-60 Days'] = { total: 1480000, count: 4 };
-      agingBuckets['60+ Days'] = { total: 1130000, count: 2 };
-    }
+      }
+    });
 
-    const agingDataToRender = agingReportData?.summary || agingBuckets;
+    const agingDataToRender = agingBuckets;
 
     // 2. Financial Inflow vs Operational Costs (Dynamic Chart)
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1150,49 +1198,52 @@ export default function FinancePortal({ initialView, forceView }) {
     });
 
     periodPayments.forEach(p => {
-      const pDate = new Date(p.createdAt || p.paymentDate || now);
-      const mName = monthNames[pDate.getMonth()];
-      const amt = Number(p.totalAmount || p.amount || p.paidAmount || 0);
-      if (monthlyDataMap[mName]) {
-        monthlyDataMap[mName].inflow += amt;
+      const pDate = new Date(p.receivedAt || p.createdAt || p.paymentDate);
+      if (!isNaN(pDate.getTime())) {
+        const mName = monthNames[pDate.getMonth()];
+        const amt = Number(p.amount || p.totalAmount || p.paidAmount || 0);
+        if (monthlyDataMap[mName]) {
+          monthlyDataMap[mName].inflow += amt;
+        }
       }
     });
 
     periodExpenses.forEach(e => {
-      const eDate = new Date(e.createdAt || e.expenseDate || now);
-      const mName = monthNames[eDate.getMonth()];
-      const amt = Number(e.amount || 0);
-      if (monthlyDataMap[mName]) {
-        monthlyDataMap[mName].outflow += amt;
-      }
-    });
-
-    periodPOs.forEach(po => {
-      if (po.status !== 'REJECTED') {
-        const poDate = new Date(po.createdAt || now);
-        const mName = monthNames[poDate.getMonth()];
-        const amt = Number(po.grandTotal || po.totalAmount || 0);
+      const eDate = new Date(e.expenseDate || e.createdAt);
+      if (!isNaN(eDate.getTime())) {
+        const mName = monthNames[eDate.getMonth()];
+        const amt = Number(e.amount || 0);
         if (monthlyDataMap[mName]) {
           monthlyDataMap[mName].outflow += amt;
         }
       }
     });
 
-    let chartData = monthNames
-      .map(m => monthlyDataMap[m])
-      .filter(d => d.inflow > 0 || d.outflow > 0);
+    periodPOs.forEach(po => {
+      if (po.status !== 'REJECTED' && po.status !== 'CANCELLED') {
+        const poDate = new Date(po.createdAt || po.issueDate);
+        if (!isNaN(poDate.getTime())) {
+          const mName = monthNames[poDate.getMonth()];
+          const amt = Number(po.grandTotal || po.totalAmount || 0);
+          if (monthlyDataMap[mName]) {
+            monthlyDataMap[mName].outflow += amt;
+          }
+        }
+      }
+    });
 
-    if (chartData.length === 0) {
-      chartData = [
-        { month: 'Jan', inflow: 4500000, outflow: 900000 },
-        { month: 'Feb', inflow: 6200000, outflow: 1100000 },
-        { month: 'Mar', inflow: 8500000, outflow: 1400000 },
-        { month: 'Apr', inflow: 11000000, outflow: 2100000 },
-        { month: 'May', inflow: 14500000, outflow: 1800000 },
-        { month: 'Jun', inflow: 20900000, outflow: 3180000 }
-      ];
-    }
+    periodVendorInvoices.forEach(vi => {
+      const vDate = new Date(vi.invoiceDate || vi.createdAt);
+      if (!isNaN(vDate.getTime())) {
+        const mName = monthNames[vDate.getMonth()];
+        const amt = Number(vi.totalAmount || vi.amount || 0);
+        if (monthlyDataMap[mName]) {
+          monthlyDataMap[mName].outflow += amt;
+        }
+      }
+    });
 
+    let chartData = monthNames.map(m => monthlyDataMap[m]);
     const maxVal = Math.max(...chartData.flatMap(d => [d.inflow, d.outflow]), 100000);
     const height = 200;
     const width = 480;
@@ -1203,25 +1254,32 @@ export default function FinancePortal({ initialView, forceView }) {
     const groupWidth = barWidth * 2 + gap * 2 + 18;
 
     // 3. Operating Cost Distribution (Dynamic)
-    const categoryTotals = periodExpenses.reduce((acc, e) => {
-      const cat = e.category || 'Operations';
-      acc[cat] = (acc[cat] || 0) + Number(e.amount || 0);
-      return acc;
-    }, { Procurement: 0, Operations: 0, Logistics: 0, Maintenance: 0 });
+    const categoryTotals = {
+      Procurement: 0,
+      Operations: 0,
+      Logistics: 0,
+      Maintenance: 0,
+    };
 
-    periodPOs.forEach(po => {
-      if (po.status !== 'REJECTED') {
-        categoryTotals['Procurement'] = (categoryTotals['Procurement'] || 0) + Number(po.grandTotal || po.totalAmount || 0);
+    periodExpenses.forEach(e => {
+      const cat = e.category || 'Operations';
+      if (categoryTotals[cat] !== undefined) {
+        categoryTotals[cat] += Number(e.amount || 0);
+      } else {
+        categoryTotals['Operations'] += Number(e.amount || 0);
       }
     });
 
-    const sumCategoryExpense = Object.values(categoryTotals).reduce((a, b) => a + b, 0);
-    if (sumCategoryExpense === 0) {
-      categoryTotals['Procurement'] = 1240000;
-      categoryTotals['Operations'] = 1850000;
-      categoryTotals['Logistics'] = 450000;
-      categoryTotals['Maintenance'] = 210000;
-    }
+    periodPOs.forEach(po => {
+      if (po.status !== 'REJECTED' && po.status !== 'CANCELLED') {
+        categoryTotals['Procurement'] += Number(po.grandTotal || po.totalAmount || 0);
+      }
+    });
+
+    periodVendorInvoices.forEach(vi => {
+      categoryTotals['Procurement'] += Number(vi.totalAmount || vi.amount || 0);
+    });
+
     const totalCategoryExpense = Object.values(categoryTotals).reduce((a, b) => a + b, 0) || 1;
 
     // 4. Cash-flow Verification Audits Table Data (Dynamic)
@@ -1231,27 +1289,41 @@ export default function FinancePortal({ initialView, forceView }) {
     }
     
     periodPayments.forEach((p, idx) => {
+      const amtStr = Number(p.amount || p.totalAmount || 0).toLocaleString('en-IN');
+      const modeStr = p.paymentMode || p.mode || 'Bank Transfer';
+      const isVer = ['VERIFIED', 'FINANCE_VERIFIED'].includes(String(p.status || '').toUpperCase());
       auditLogsData.push({
-        id: p.id || `AUD-PAY-${100 + idx}`,
-        orderNo: p.orderNo || p.salesOrderNo || `ORD-2026-${100 + idx}`,
-        action: 'PAYMENT_VERIFIED',
-        remarks: `Received ₹${Number(p.totalAmount || p.amount || 0).toLocaleString('en-IN')} via ${p.paymentMode || 'Bank Transfer'}`,
-        user: p.verifiedBy || p.userName || 'Finance Executive',
-        date: (p.createdAt || p.paymentDate || new Date().toISOString()).split('T')[0]
+        id: p.id ? String(p.id).slice(0, 10) : `AUD-PAY-${100 + idx}`,
+        orderNo: p.orderNo || p.salesOrderNo || p.orderNumber || (p.salesOrder?.orderNumber) || 'General',
+        action: isVer ? 'PAYMENT_VERIFIED' : (p.status || 'PAYMENT_RECEIVED'),
+        remarks: `Received ₹${amtStr} via ${modeStr}${p.transactionRef ? ` (UTR: ${p.transactionRef})` : ''}`,
+        user: p.verifiedBy || p.userName || 'Finance',
+        date: (p.receivedAt || p.createdAt || p.paymentDate || new Date().toISOString()).split('T')[0]
       });
     });
 
     periodPOs.forEach((po, idx) => {
       if (po.status === 'APPROVED' || po.status === 'ISSUED') {
         auditLogsData.push({
-          id: `AUD-PO-${200 + idx}`,
+          id: `AUD-PO-${po.id ? String(po.id).slice(0, 8) : 200 + idx}`,
           orderNo: po.poNumber || `PO-${po.id?.slice(0, 6) || 200 + idx}`,
           action: 'PO_APPROVAL_AUDIT',
-          remarks: `Approved PO for ${po.vendorName || 'Supplier'} (₹${Number(po.grandTotal || 0).toLocaleString('en-IN')})`,
-          user: po.approvedBy || 'Plant Head / Finance',
+          remarks: `Approved PO for ${po.vendorName || po.supplier?.companyName || 'Supplier'} (₹${Number(po.grandTotal || 0).toLocaleString('en-IN')})`,
+          user: po.approvedBy || 'Finance',
           date: (po.createdAt || new Date().toISOString()).split('T')[0]
         });
       }
+    });
+
+    periodExpenses.forEach((e, idx) => {
+      auditLogsData.push({
+        id: `AUD-EXP-${e.id ? String(e.id).slice(0, 8) : 300 + idx}`,
+        orderNo: e.category || 'Expense',
+        action: 'EXPENSE_LOGGED',
+        remarks: `${e.item || 'Expense'}: ₹${Number(e.amount || 0).toLocaleString('en-IN')}`,
+        user: e.loggedBy || 'Finance',
+        date: (e.expenseDate || e.createdAt || new Date().toISOString()).split('T')[0]
+      });
     });
 
 
