@@ -95,7 +95,7 @@ const QUICK_ACCOUNTS: QuickAccount[] = [
   // Super Admin & HR
   { email: 'super.admin@himalayaerp.com', password: 'SuperAdmin@hcppl', name: 'Super Admin', role: 'Super Admin', dept: 'Super Admin Department', category: 'Admin & HR', color: '#6366F1' },
   { email: 'nahin.v@himalayaerp.com', password: 'HR@hcppl', name: 'Nahin V', role: 'HR Manager', dept: 'HR Department', category: 'Admin & HR', color: '#EC4899' },
-  { email: 'abbas.b@himalayaerp.com', password: 'dataAnalyst#2101', name: 'Abbas B', role: 'Back Office / Admin', dept: 'Super Admin Dept', category: 'Admin & HR', color: '#8B5CF6' },
+  { email: 'abbas.b@himalayaerp.com', password: 'dataAnalyst#2101', name: 'Abbas B', role: 'Back Office', dept: 'Back Office Department', category: 'Admin & HR', color: '#0284c7' },
 
   // Sales & SuperSales
   { email: 'supersales1@himalayaerp.com', password: 'supersales123', name: 'SuperSales 1', role: 'SuperSales Lead', dept: 'Sales Department', category: 'Sales', color: '#F59E0B' },

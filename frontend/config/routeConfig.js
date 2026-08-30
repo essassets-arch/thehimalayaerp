@@ -25,6 +25,9 @@ export const DASHBOARD_REDIRECTS = {
   'Back Office':    '/back-office/daily-report',
   'BACK_OFFICE':    '/back-office/daily-report',
   'back-office':    '/back-office/daily-report',
+  'Back Office / Admin': '/back-office/daily-report',
+  'Back Office Lead': '/back-office/daily-report',
+  'Data Analyst & Back Office Lead': '/back-office/daily-report',
 };
 
 export const ROLE_ROUTES = {
