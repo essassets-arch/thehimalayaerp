@@ -542,8 +542,14 @@ export class AttendanceService {
   async listCompanyAttendance(companyId: string, query: any) {
     try {
       if (query.mode === 'logs') {
-        const fromDate = query.from ? new Date(query.from) : (query.date ? new Date(query.date) : null);
-        const toDate = query.to ? new Date(query.to) : (query.date ? new Date(query.date) : null);
+        const parseDate = (d: any) => {
+          if (!d) return null;
+          if (d === 'today') return new Date();
+          const parsed = new Date(d);
+          return isNaN(parsed.getTime()) ? null : parsed;
+        };
+        const fromDate = parseDate(query.from) || parseDate(query.date);
+        const toDate = parseDate(query.to) || parseDate(query.date);
 
         const where: any = { companyId };
         if (fromDate || toDate) {
@@ -560,6 +566,11 @@ export class AttendanceService {
                 department: true,
                 workLocation: true
               }
+            },
+            user: {
+              include: {
+                role: true
+              }
             }
           },
           orderBy: { punchInAt: 'desc' }
@@ -567,8 +578,11 @@ export class AttendanceService {
 
         return records.map(att => {
           const emp = att.employee;
+          const usr = att.user;
+          const empName = emp?.fullName || usr?.name || 'Staff Member';
+          const empCode = emp?.employeeCode || (usr ? `EMP-${usr.id.slice(0, 5).toUpperCase()}` : '—');
           const deptName = emp?.department?.name || 'Operations';
-          const roleName = emp?.jobTitle || 'Staff Member';
+          const roleName = emp?.jobTitle || usr?.role?.name || (typeof usr?.role === 'string' ? usr.role : 'Staff Member');
           const locationName = emp?.workLocation?.name || 'Ahmedabad Plant';
 
           const formatTime = (d: Date | null | undefined) => {
@@ -593,10 +607,13 @@ export class AttendanceService {
           };
 
           return {
-            id: emp?.id || att.employeeId,
-            employeeCode: emp?.employeeCode || '—',
-            employeeName: emp?.fullName || 'Unknown',
-            email: emp?.workEmail || '—',
+            id: att.id,
+            attendanceId: att.id,
+            employeeId: emp?.id || att.employeeId || att.userId,
+            employeeCode: empCode,
+            employeeName: empName,
+            name: empName,
+            email: emp?.workEmail || usr?.email || '—',
             department: deptName,
             role: roleName,
             workLocation: locationName,
@@ -610,6 +627,7 @@ export class AttendanceService {
             overtimeMinutes: att.overtimeMinutes || 0,
             status: att.status,
             punchInLocation: att.punchInAddress || locationName,
+            location: att.punchInAddress || locationName,
             coords: att.punchOutLatitude ? `${att.punchOutLatitude}, ${att.punchOutLongitude}` : (att.punchInLatitude ? `${att.punchInLatitude}, ${att.punchInLongitude}` : '—'),
             accuracy: att.punchOutAccuracy || att.punchInAccuracy || null,
             selfieUrl: att.punchOutSelfieUrl || att.punchInSelfieUrl || null,

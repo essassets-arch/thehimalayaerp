@@ -196,21 +196,28 @@ export default function AttendanceView({ employees: propEmployees }) {
   const loadPunchesErrCount = useRef(0);
 
   const loadPunches = async () => {
-    if (loadPunchesErrCount.current >= 4) return;
     try {
-      let apiPath = '/attendance';
+      const getKolkataDateStr = (dateObj = new Date()) => {
+        const offset = 330; // IST is UTC + 5:30 (330 mins)
+        const localTime = dateObj.getTime() + (dateObj.getTimezoneOffset() + offset) * 60000;
+        const istDate = new Date(localTime);
+        return istDate.toISOString().split('T')[0];
+      };
+
+      const todayStr = getKolkataDateStr(new Date());
+
+      let apiPath = `/attendance?mode=logs&from=${todayStr}&to=${todayStr}`;
       if (filterPeriod === 'today') {
-        apiPath = `/attendance?date=${rosterInspectDate}`;
+        apiPath = `/attendance?mode=logs&from=${todayStr}&to=${todayStr}`;
       } else if (filterPeriod === 'custom') {
-        apiPath = `/attendance?mode=logs&from=${customFilterDate}&to=${customFilterDate}`;
+        const cDate = customFilterDate || todayStr;
+        apiPath = `/attendance?mode=logs&from=${cDate}&to=${cDate}`;
       } else if (filterPeriod === 'weekly') {
-        const toDateStr = new Date().toISOString().slice(0, 10);
-        const fromDateStr = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        apiPath = `/attendance?mode=logs&from=${fromDateStr}&to=${toDateStr}`;
+        const fromDateStr = getKolkataDateStr(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+        apiPath = `/attendance?mode=logs&from=${fromDateStr}&to=${todayStr}`;
       } else if (filterPeriod === 'monthly') {
-        const toDateStr = new Date().toISOString().slice(0, 10);
-        const fromDateStr = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        apiPath = `/attendance?mode=logs&from=${fromDateStr}&to=${toDateStr}`;
+        const fromDateStr = getKolkataDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+        apiPath = `/attendance?mode=logs&from=${fromDateStr}&to=${todayStr}`;
       } else if (filterPeriod === 'all') {
         apiPath = '/attendance?mode=logs';
       }
@@ -230,44 +237,39 @@ export default function AttendanceView({ employees: propEmployees }) {
         }
       } catch (e) {
         loadPunchesErrCount.current += 1;
-        console.warn('[AttendanceView] Error fetching punches from DB (backoff active):', e?.message || e);
+        console.warn('[AttendanceView] Error fetching punches from DB:', e?.message || e);
       }
 
-      const mappedDbPunches = dbPunches.map(p => ({
-        id: p.employeeCode,
-        name: p.employeeName,
-        email: p.email,
-        department: p.department,
-        role: p.role,
-        action: p.punchOut !== '—' ? 'Check Out' : 'Check In',
-        time: p.punchOut !== '—' ? p.punchOut : p.punchIn,
-        punchIn: p.punchIn,
-        punchOut: p.punchOut,
-        date: p.date,
-        location: p.punchInLocation || '—',
-        coords: p.coords,
-        selfieUrl: p.selfieUrl,
-        punchInSelfieUrl: p.punchInSelfieUrl,
-        punchOutSelfieUrl: p.punchOutSelfieUrl,
-        status: p.status,
-        timestamp: p.timestamp,
+      const mappedDbPunches = dbPunches.map((p, idx) => ({
+        id: p.id || p.attendanceId || p.employeeCode || `att-${idx}`,
+        employeeCode: p.employeeCode || '—',
+        name: p.employeeName || p.name || 'Staff Member',
+        email: p.email || '—',
+        department: p.department || 'Operations',
+        role: p.role || 'Staff Member',
+        action: p.punchOut && p.punchOut !== '—' ? 'Check Out' : 'Check In',
+        time: (p.punchOut && p.punchOut !== '—') ? p.punchOut : (p.punchIn || '—'),
+        punchIn: p.punchIn || '—',
+        punchOut: p.punchOut || '—',
+        date: p.date || todayStr,
+        location: p.punchInLocation || p.location || '—',
+        coords: p.coords || '—',
+        selfieUrl: p.selfieUrl || p.punchInSelfieUrl || p.punchOutSelfieUrl || null,
+        punchInSelfieUrl: p.punchInSelfieUrl || null,
+        punchOutSelfieUrl: p.punchOutSelfieUrl || null,
+        status: p.status || (p.punchIn && p.punchIn !== '—' ? 'GPS Verified' : 'PUNCHED_IN'),
+        timestamp: p.timestamp || new Date().toISOString(),
         isRealPunch: true
       }));
 
-      const mergedMap = new Map();
-      mappedDbPunches.forEach(p => {
-        const key = `${p.id}_${p.date}`;
-        mergedMap.set(key, p);
-      });
-
-      const mergedList = Array.from(mergedMap.values());
-      mergedList.sort((a, b) => {
+      // Sort newest first
+      mappedDbPunches.sort((a, b) => {
         const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
         const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
         return bTime - aTime;
       });
 
-      setSimLogs(mergedList);
+      setSimLogs(mappedDbPunches);
     } catch (e) {
       console.error('Error loading punches in AttendanceView:', e);
     }
@@ -277,13 +279,13 @@ export default function AttendanceView({ employees: propEmployees }) {
     loadPunches();
     window.addEventListener('storage', loadPunches);
     window.addEventListener('himalaya:punch', loadPunches);
-    const interval = setInterval(loadPunches, 4000);
+    const interval = setInterval(loadPunches, 5000);
     return () => {
       window.removeEventListener('storage', loadPunches);
       window.removeEventListener('himalaya:punch', loadPunches);
       clearInterval(interval);
     };
-  }, [user, employees, rosterInspectDate, filterPeriod, customFilterDate]);
+  }, [user, filterPeriod, customFilterDate]);
 
   // Shift assignment modal/dropdown states
   const [editingShiftEmp, setEditingShiftEmp] = useState(null);
@@ -302,84 +304,21 @@ export default function AttendanceView({ employees: propEmployees }) {
     }
   };
 
-  // Re-map format for simulation/rendering
-  const grouped = {};
-  const sortedSimLogs = [...simLogs].sort((a, b) => {
-    const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-    const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-    return aTime - bTime;
-  });
-
-  sortedSimLogs.forEach(log => {
-    const isCheckIn = log.action === 'Check In' || ('punchIn' in log && log.punchIn !== '—');
-    const timeStr = isCheckIn ? (log.time || log.punchIn) : (log.time || log.punchOut);
-    const logDate = log.date || '2026-06-11';
-    const key = `${log.id}_${logDate}`;
-    const empDept = employees.find(e => e.id === log.id)?.department || 'Default';
-    const calculatedStatus = log.isRealPunch ? log.status : getPunchStatus(timeStr, isCheckIn, empDept);
-
-    if (!grouped[key]) {
-      grouped[key] = {
-        ...log,
-        punchIn: isCheckIn ? timeStr : '—',
-        punchOut: !isCheckIn ? timeStr : '—',
-        status: calculatedStatus,
-        date: logDate
-      };
-    } else {
-      if (isCheckIn) {
-        grouped[key].punchIn = timeStr;
-        if (log.selfieUrl) grouped[key].selfieUrl = log.selfieUrl;
-        if (log.punchInSelfieUrl) grouped[key].punchInSelfieUrl = log.punchInSelfieUrl;
-      } else {
-        grouped[key].punchOut = timeStr;
-        if (log.selfieUrl) grouped[key].selfieUrl = log.selfieUrl;
-        if (log.punchOutSelfieUrl) grouped[key].punchOutSelfieUrl = log.punchOutSelfieUrl;
-        if (log.isRealPunch) {
-          grouped[key].status = log.status;
-        } else if (calculatedStatus && calculatedStatus !== 'On Time' && calculatedStatus !== 'GPS Verified' && calculatedStatus !== '—') {
-          grouped[key].status = `${grouped[key].status} / ${calculatedStatus}`;
-        }
-      }
-    }
-  });
-
-  const rawFormattedLogs = Object.values(grouped).filter(log => log.punchIn !== '—' || log.punchOut !== '—');
-
-  const getFilteredLogs = (logs) => {
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    
-    let filtered = logs.filter(log => {
-      if (filterPeriod === 'all') return true;
-      
-      if (filterPeriod === 'today') {
-        return log.date === todayStr;
-      } else if (filterPeriod === 'custom') {
-        return log.date === customFilterDate;
-      } else if (filterPeriod === 'weekly') {
-        const logDate = new Date(log.date);
-        const now = new Date();
-        const diffTime = Math.abs(now - logDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays <= 7;
-      } else if (filterPeriod === 'monthly') {
-        const logDate = new Date(log.date);
-        const now = new Date();
-        const diffTime = Math.abs(now - logDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays <= 30;
-      }
-      return true;
-    });
-
+  const formattedLogs = useMemo(() => {
+    let list = simLogs;
     if (rosterEmployeeFilter && rosterEmployeeFilter !== 'All') {
-      filtered = filtered.filter(log => log.id === rosterEmployeeFilter);
+      list = list.filter(log => log.employeeCode === rosterEmployeeFilter || log.id === rosterEmployeeFilter);
     }
-
-    return filtered;
-  };
-
-  const formattedLogs = getFilteredLogs(rawFormattedLogs);
+    if (employeeSearch.trim()) {
+      const q = employeeSearch.toLowerCase();
+      list = list.filter(log => 
+        (log.name || '').toLowerCase().includes(q) || 
+        (log.employeeCode || '').toLowerCase().includes(q) || 
+        (log.department || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [simLogs, rosterEmployeeFilter, employeeSearch]);
 
   let activePreview = null;
   if (selectedLogPreview) {
