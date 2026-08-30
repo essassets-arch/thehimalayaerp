@@ -386,7 +386,7 @@ export default function LoginPage() {
         .login-form label {
           display: block;
           margin-bottom: 2px;
-          font-size: 12.5px;
+          font-size: 12px;
           font-weight: 700;
           line-height: 1.4;
           color: #334155;
@@ -452,7 +452,8 @@ export default function LoginPage() {
 
         /* Password input specific right padding */
         .login-input-pass {
-          padding-right: 48px !important;
+          padding-left: 46px !important;
+          padding-right: 46px !important;
         }
 
         /* Left icon */
@@ -489,8 +490,8 @@ export default function LoginPage() {
           top: 50% !important;
           transform: translateY(-50%) !important;
 
-          width: 30px !important;
-          height: 30px !important;
+          width: 28px !important;
+          height: 28px !important;
 
           display: flex !important;
           align-items: center !important;
@@ -510,13 +511,14 @@ export default function LoginPage() {
         .input-wrapper .password-toggle:hover,
         .login-input-wrap .pass-toggle:hover {
           color: #101828 !important;
-          background: rgba(0, 0, 0, 0.05) !important;
+          background: rgba(0, 0, 0, 0.06) !important;
         }
 
         .input-wrapper .password-toggle svg,
         .login-input-wrap .pass-toggle svg {
           width: 18px !important;
           height: 18px !important;
+          flex-shrink: 0 !important;
         }
 
         .login-divider {
@@ -804,17 +806,19 @@ export default function LoginPage() {
         @media (max-width: 767px) {
           .login-form {
             width: 100%;
-            max-width: none;
+            max-width: 100%;
+            gap: 14px;
           }
 
           .login-form .form-group,
           .form-group {
-            margin-bottom: 2px;
+            margin-bottom: 0;
+            gap: 5px;
           }
 
           .login-label,
           .login-form label {
-            margin-bottom: 3px;
+            margin-bottom: 2px;
             font-size: 12px;
           }
 
@@ -824,7 +828,7 @@ export default function LoginPage() {
             height: 46px !important;
             min-height: 46px !important;
 
-            /* Keep enough room for icons */
+            /* Generous padding for mobile preventing text overlap */
             padding-left: 44px !important;
             padding-right: 16px !important;
 
@@ -833,6 +837,7 @@ export default function LoginPage() {
           }
 
           .login-input-pass {
+            padding-left: 44px !important;
             padding-right: 44px !important;
           }
 
@@ -845,48 +850,113 @@ export default function LoginPage() {
 
           .input-wrapper .password-toggle,
           .login-input-wrap .pass-toggle {
-            right: 10px !important;
-            width: 30px !important;
-            height: 30px !important;
+            right: 11px !important;
+            width: 28px !important;
+            height: 28px !important;
           }
         }
 
         @media (max-width: 480px) {
-          .login-root { padding: 12px 10px 32px; }
-          .login-card { padding: 18px 14px; border-radius: 16px; width: 100%; box-sizing: border-box; }
-          .quick-card { padding: 16px 12px; border-radius: 16px; width: 100%; box-sizing: border-box; }
-          .accounts-grid { grid-template-columns: 1fr; max-height: 260px; }
-          .logo-box { padding: 6px 14px; }
-          .portal-title { font-size: 12px; }
+          .login-root {
+            padding: 12px 10px 32px;
+          }
+          .login-card {
+            padding: 20px 15px;
+            border-radius: 16px;
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .quick-card {
+            padding: 18px 14px;
+            border-radius: 16px;
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .accounts-grid {
+            grid-template-columns: 1fr;
+            max-height: 260px;
+          }
+          .logo-box {
+            padding: 6px 14px;
+          }
+          .portal-title {
+            font-size: 12px;
+          }
+
+          .input-wrapper input,
+          .login-input {
+            height: 46px !important;
+            min-height: 46px !important;
+            padding-left: 43px !important;
+            padding-right: 14px !important;
+            font-size: 13.5px !important;
+            border-radius: 10px !important;
+          }
+
+          .login-input-pass {
+            padding-left: 43px !important;
+            padding-right: 43px !important;
+          }
+
+          .input-wrapper .input-icon,
+          .login-input-wrap .login-icon {
+            left: 13px !important;
+            width: 17px !important;
+            height: 17px !important;
+          }
+
+          .input-wrapper .password-toggle,
+          .login-input-wrap .pass-toggle {
+            right: 10px !important;
+            width: 28px !important;
+            height: 28px !important;
+          }
         }
 
-        @media (max-width: 380px) {
+        @media (max-width: 360px) {
+          .login-root {
+            padding: 10px 8px 24px;
+          }
+          .login-card {
+            padding: 16px 12px;
+            border-radius: 14px;
+          }
+          .quick-card {
+            padding: 14px 10px;
+            border-radius: 14px;
+          }
+
           .login-form .form-group,
           .form-group {
-            margin-bottom: 2px;
+            margin-bottom: 0;
           }
 
           .input-wrapper input,
           .login-input {
             height: 44px !important;
             min-height: 44px !important;
-            padding-left: 42px !important;
-            padding-right: 14px !important;
+            padding-left: 40px !important;
+            padding-right: 12px !important;
             font-size: 13px !important;
           }
 
           .login-input-pass {
-            padding-right: 42px !important;
+            padding-left: 40px !important;
+            padding-right: 40px !important;
           }
 
           .input-wrapper .input-icon,
           .login-input-wrap .login-icon {
             left: 12px !important;
+            width: 16px !important;
+            height: 16px !important;
           }
 
           .input-wrapper .password-toggle,
           .login-input-wrap .pass-toggle {
             right: 8px !important;
+            width: 26px !important;
+            height: 26px !important;
           }
         }
       `}</style>
