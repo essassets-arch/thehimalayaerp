@@ -9,7 +9,7 @@ import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
 import { formatCurrency, formatNumber } from '../utils/financialCalculations';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import './SalesAnalyticsPage.css';
-import { exportSalesReportPDF, exportFinanceReportPDF, exportInventoryReportPDF } from '../../../services/export.service';
+import { exportSalesReportPDF } from '../../../services/export.service';
 
 import ResponsiveChart from '../../../shared/components/ResponsiveChart';
 
@@ -955,40 +955,6 @@ export default function SalesAnalyticsPage() {
             style={{ padding: '12px 14px', borderRadius: '8px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
           >
             <Lucide.FileText size={16} /> Sales Performance PDF
-          </button>
-
-          <button
-            onClick={async () => {
-              try {
-                await exportFinanceReportPDF({
-                  startDate: activeDates?.dateFrom,
-                  endDate: activeDates?.dateTo,
-                  branchId: filters?.branch
-                });
-              } catch (e) {
-                console.error(e);
-              }
-            }}
-            style={{ padding: '12px 14px', borderRadius: '8px', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
-          >
-            <Lucide.Landmark size={16} /> Finance & Inflows PDF
-          </button>
-
-          <button
-            onClick={async () => {
-              try {
-                await exportInventoryReportPDF({
-                  startDate: activeDates?.dateFrom,
-                  endDate: activeDates?.dateTo,
-                  branchId: filters?.branch
-                });
-              } catch (e) {
-                console.error(e);
-              }
-            }}
-            style={{ padding: '12px 14px', borderRadius: '8px', background: '#faf5ff', border: '1px solid #e9d5ff', color: '#6b21a8', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
-          >
-            <Lucide.Boxes size={16} /> Stock Levels & Store PDF
           </button>
         </div>
       </div>
