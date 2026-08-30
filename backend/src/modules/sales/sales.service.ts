@@ -234,12 +234,18 @@ export class SalesService {
       const balanceAmount = Math.max(0, totalAmount - verifiedPaidAmount);
 
       const deliveredDispatches = (order.dispatches || []).filter((d) =>
-        ['DELIVERED', 'COMPLETED'].includes(String(d.status || '').toUpperCase()),
+        ['DELIVERED', 'COMPLETED'].includes(String(d.status || '').toUpperCase()) || Boolean(d.deliveredAt),
       );
-      const deliveredAt = deliveredDispatches
-        .map((d) => d.deliveredAt)
-        .filter((date): date is Date => Boolean(date))
-        .sort((left, right) => right.getTime() - left.getTime())[0];
+      const deliveredAtDate =
+        deliveredDispatches
+          .map((d) => d.deliveredAt)
+          .filter((date): date is Date => Boolean(date))
+          .sort((left, right) => right.getTime() - left.getTime())[0] ||
+        (order as any).deliveredAt ||
+        order.paymentTermStartDate ||
+        (order.dispatches || []).map((d: any) => d.deliveredAt).filter(Boolean)[0];
+
+      const deliveredAt = deliveredAtDate ? new Date(deliveredAtDate) : null;
 
       return {
         id: order.id,
@@ -258,6 +264,8 @@ export class SalesService {
         balanceAmount,
         delivered_at: deliveredAt ? deliveredAt.toISOString() : undefined,
         deliveredAt: deliveredAt ? deliveredAt.toISOString() : undefined,
+        deliveryDate: deliveredAt ? deliveredAt.toISOString() : undefined,
+        delivery_date: deliveredAt ? deliveredAt.toISOString() : undefined,
         paymentTerms: order.paymentTerms || `${order.paymentTermDays || 15} Days`,
         paymentDueDate: order.paymentDueDate?.toISOString(),
         paymentStatus:

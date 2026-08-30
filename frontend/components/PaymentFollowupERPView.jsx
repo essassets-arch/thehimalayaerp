@@ -55,6 +55,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   const [showAgingDropdown, setShowAgingDropdown] = useState(false);
   const [pendingFilter, setPendingFilter] = useState('pending'); // pending | confirmed
   const [pendingCollection, setPendingCollection] = useState([]);
+  const [deliveredDispatches, setDeliveredDispatches] = useState([]);
   const [followups, setFollowups] = useState([]);
   const [loadingPending, setLoadingPending] = useState(true);
   const [loadingFollowups, setLoadingFollowups] = useState(true);
@@ -78,11 +79,22 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   const refreshPending = async () => {
     setLoadingPending(true);
     try {
-      const res = await apiClient.get('/sales/orders/delivered/pending-payment');
-      setPendingCollection(res?.success ? res.data : []);
+      const [resPending, resDispatches] = await Promise.allSettled([
+        apiClient.get('/sales/orders/delivered/pending-payment'),
+        backendFetch('/api/backend/logistics/dispatches?status=DELIVERED'),
+      ]);
+      const pendingData = resPending.status === 'fulfilled' && resPending.value?.success
+        ? resPending.value.data
+        : Array.isArray(resPending.value) ? resPending.value : [];
+      const dispData = resDispatches.status === 'fulfilled'
+        ? (Array.isArray(resDispatches.value) ? resDispatches.value : Array.isArray(resDispatches.value?.data) ? resDispatches.value.data : [])
+        : [];
+      setPendingCollection(pendingData);
+      setDeliveredDispatches(dispData);
     } catch (err) {
       console.error(err);
       setPendingCollection([]);
+      setDeliveredDispatches([]);
     } finally {
       setLoadingPending(false);
     }
@@ -350,6 +362,28 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     }
   };
 
+  const dispatchDeliveryMap = useMemo(() => {
+    const map = new Map();
+    (deliveredDispatches || []).forEach((d) => {
+      const dDate = d.deliveredAt || d.dispatchedAt || d.createdAt;
+      if (dDate) {
+        if (d.salesOrderId) map.set(String(d.salesOrderId).toLowerCase(), dDate);
+        if (d.salesOrder?.id) map.set(String(d.salesOrder.id).toLowerCase(), dDate);
+        if (d.salesOrder?.orderNumber) {
+          const rawNo = String(d.salesOrder.orderNumber).trim().toLowerCase();
+          map.set(rawNo, dDate);
+          map.set(rawNo.replace(/[^a-z0-9]/g, ''), dDate);
+        }
+        if (d.dispatchNo) {
+          const rawNo = String(d.dispatchNo).trim().toLowerCase();
+          map.set(rawNo, dDate);
+          map.set(rawNo.replace(/[^a-z0-9]/g, ''), dDate);
+        }
+      }
+    });
+    return map;
+  }, [deliveredDispatches]);
+
   const pendingRows = useMemo(() => {
     const apiRows = pendingCollection || [];
     const syntheticCandidates = localConfirmations.map((c) => ({
@@ -417,8 +451,26 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       const resolvedTotal = Number(consignment?.payableAmount ?? total) || total;
       const resolvedPaid = Math.max(paid, verifiedFromConfirmations);
       const resolvedBalance = Math.max(0, resolvedTotal - resolvedPaid);
-      const deliveredAt = consignment?.deliveredAt || o.delivered_at || o.deliveredAt ||
-        o.actualDeliveryDate || o.deliveredDate;
+
+      const cleanOrderKey = String(orderNo).trim().toLowerCase();
+      const cleanOrderNoNorm = cleanOrderKey.replace(/[^a-z0-9]/g, '');
+      const dispDeliveredDate =
+        dispatchDeliveryMap.get(cleanOrderKey) ||
+        dispatchDeliveryMap.get(cleanOrderNoNorm) ||
+        (o.id ? dispatchDeliveryMap.get(String(o.id).toLowerCase()) : null);
+
+      const deliveredAt =
+        consignment?.deliveredAt ||
+        o.delivered_at ||
+        o.deliveredAt ||
+        o.actualDeliveryDate ||
+        o.deliveredDate ||
+        o.deliveryDate ||
+        o.paymentTermStartDate ||
+        dispDeliveredDate ||
+        o.dispatches?.find((d) => d.deliveredAt)?.deliveredAt ||
+        o.dispatches?.[0]?.deliveredAt;
+
       const invoiceDate = o.invoiceDate || o.invoice_date || deliveredAt || o.createdAt || o.created_at;
       const rawPaymentTerms = o.paymentTerms || o.payment_terms || quotation?.paymentTerms || quotation?.payment_terms || '';
       const isAdvancePayment = String(rawPaymentTerms).toLowerCase().includes('advance') || String(o.payment_terms || '').toLowerCase().includes('advance');
@@ -477,6 +529,9 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       const existing = map.get(key);
       if (existing && existing.payment_status === 'AWAITING_FINANCE_VERIFICATION' && resolvedPaymentStatus !== 'AWAITING_FINANCE_VERIFICATION') {
         return;
+      }
+      if (!normalized.delivered_at && existing?.delivered_at) {
+        normalized.delivered_at = existing.delivered_at;
       }
       map.set(key, normalized);
     });
