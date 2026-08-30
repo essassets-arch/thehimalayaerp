@@ -397,28 +397,6 @@ export default function OrderDetailPage() {
             <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
             <span>Refresh</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => router.push(`/dispatch-2/create-dispatch?salesOrderId=${order.id}`)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "#2563eb",
-              border: "none",
-              borderRadius: 8,
-              padding: "8px 16px",
-              fontSize: 13,
-              fontWeight: 700,
-              color: "#ffffff",
-              cursor: "pointer",
-              boxShadow: "0 1px 3px rgba(37,99,235,0.3)",
-            }}
-          >
-            <Truck size={15} />
-            <span>Create Dispatch</span>
-          </button>
         </div>
       </div>
 
