@@ -355,11 +355,55 @@ export const navigationConfig = {
     { id: 'attendance-requests', label: 'Attendance Requests', icon: Clock, path: '/hr/attendance-requests' }
   ],
   'Back Office': [
-    { id: 'daily-report', label: 'Daily Report', icon: FileText, path: '/back-office/daily-report' },
+    { id: 'dashboard', label: 'Daily Reports Dashboard', icon: LayoutGrid, path: '/back-office/daily-report' },
+    { id: 'create-report', label: 'Submit Daily Report', icon: FileText, path: '/back-office/daily-report/create' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/back-office/profile' }
   ],
   'BACK_OFFICE': [
-    { id: 'daily-report', label: 'Daily Report', icon: FileText, path: '/back-office/daily-report' },
+    { id: 'dashboard', label: 'Daily Reports Dashboard', icon: LayoutGrid, path: '/back-office/daily-report' },
+    { id: 'create-report', label: 'Submit Daily Report', icon: FileText, path: '/back-office/daily-report/create' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/back-office/profile' }
+  ],
+  'Back Office / Admin': [
+    { type: 'badge', label: 'BACK OFFICE OPERATIONS' },
+    { id: 'daily-report', label: 'Daily Reports Dashboard', icon: LayoutGrid, path: '/back-office/daily-report' },
+    { id: 'create-report', label: 'Submit Daily Report', icon: FileText, path: '/back-office/daily-report/create' },
+    { id: 'backoffice-report', label: 'Back Office Audit & Reports', icon: FileCheck, path: '/super-admin/backoffice-report' },
+    { type: 'badge', label: 'ADMINISTRATION' },
+    { id: 'admin-dashboard', label: 'Admin Dashboard', icon: LayoutGrid, path: '/admin/dashboard' },
+    { id: 'users', label: 'Users & Roles', icon: Users, path: '/admin/users' },
+    { id: 'roles', label: 'Security Roles', icon: Shield, path: '/admin/roles' },
+    { id: 'products', label: 'Products Master', icon: Package, path: '/admin/products' },
+    { id: 'audit-logs', label: 'Audit Logs', icon: ClipboardList, path: '/admin/audit-logs' },
+    { id: 'reports', label: 'Business Reports', icon: BarChart3, path: '/admin/reports' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/back-office/profile' }
+  ],
+  'Admin': [
+    { type: 'badge', label: 'ADMINISTRATION' },
+    { id: 'dashboard', label: 'Admin Dashboard', icon: LayoutGrid, path: '/admin/dashboard' },
+    { id: 'users', label: 'Users & Roles', icon: Users, path: '/admin/users' },
+    { id: 'roles', label: 'Security Roles', icon: Shield, path: '/admin/roles' },
+    { id: 'products', label: 'Products Master', icon: Package, path: '/admin/products' },
+    { id: 'audit-logs', label: 'Audit Logs', icon: ClipboardList, path: '/admin/audit-logs' },
+    { id: 'reports', label: 'Business Reports', icon: BarChart3, path: '/admin/reports' },
+    { type: 'badge', label: 'BACK OFFICE' },
+    { id: 'daily-report', label: 'Back Office Daily Report', icon: FileText, path: '/back-office/daily-report' },
+    { id: 'create-report', label: 'Submit Daily Report', icon: FileText, path: '/back-office/daily-report/create' },
+    { id: 'backoffice-report', label: 'Back Office Audit Reports', icon: FileCheck, path: '/super-admin/backoffice-report' },
+    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/back-office/profile' }
+  ],
+  'ADMIN': [
+    { type: 'badge', label: 'ADMINISTRATION' },
+    { id: 'dashboard', label: 'Admin Dashboard', icon: LayoutGrid, path: '/admin/dashboard' },
+    { id: 'users', label: 'Users & Roles', icon: Users, path: '/admin/users' },
+    { id: 'roles', label: 'Security Roles', icon: Shield, path: '/admin/roles' },
+    { id: 'products', label: 'Products Master', icon: Package, path: '/admin/products' },
+    { id: 'audit-logs', label: 'Audit Logs', icon: ClipboardList, path: '/admin/audit-logs' },
+    { id: 'reports', label: 'Business Reports', icon: BarChart3, path: '/admin/reports' },
+    { type: 'badge', label: 'BACK OFFICE' },
+    { id: 'daily-report', label: 'Back Office Daily Report', icon: FileText, path: '/back-office/daily-report' },
+    { id: 'create-report', label: 'Submit Daily Report', icon: FileText, path: '/back-office/daily-report/create' },
+    { id: 'backoffice-report', label: 'Back Office Audit Reports', icon: FileCheck, path: '/super-admin/backoffice-report' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/back-office/profile' }
   ],
 

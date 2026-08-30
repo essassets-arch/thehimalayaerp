@@ -49,6 +49,11 @@ export function getNavigationForPath(pathname, role) {
       'SALES_EXECUTIVE': 'Sales',
       'SALES_MANAGER': 'Sales',
       'System Admin': 'Admin',
+      'Admin': 'Admin',
+      'ADMIN': 'Admin',
+      'Back Office / Admin': 'Back Office / Admin',
+      'Back Office Lead': 'Back Office / Admin',
+      'Data Analyst & Back Office Lead': 'Back Office / Admin',
       'HR Manager': 'HR',
       'HR_MANAGER': 'HR',
       'Production Manager': 'Production',
@@ -68,7 +73,6 @@ export function getNavigationForPath(pathname, role) {
       'Super Admin': 'Super Admin',
       'super-admin': 'Super Admin',
       'SUPER_ADMIN': 'Super Admin',
-      'ADMIN': 'Admin',
       'SUPER_SALES': 'SuperSales',
       'SuperSales': 'SuperSales',
       'SuperSales 1': 'SuperSales',
@@ -162,6 +166,7 @@ export function getNavigationForPath(pathname, role) {
     'Finance Executive': '/finance-executive',
     'Finance': '/finance',
     'HR': '/hr',
+    'Back Office': '/back-office',
     'Admin': '/admin',
     'Super Admin': '/super-admin'
   }[activeModuleKey] || '/sales';
