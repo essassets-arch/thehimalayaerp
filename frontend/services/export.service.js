@@ -8,9 +8,107 @@ import { clientLogos } from './logosBase64';
 import { resolveQuotationTerms } from './sales/quotationTerms';
 
 /**
+ * Universal safe file saver that works seamlessly on:
+ * - Desktop browsers (Blob URL / dynamic link)
+ * - Mobile / Flutter WebViews / Hybrid Apps (Web Share API / Base64 Data URL)
+ * Completely eliminates DioException 'No host specified in URI blob:https...'
+ */
+export const safeSaveFile = async (data, filename, mimeType = 'application/octet-stream') => {
+  let blob;
+  if (data instanceof Blob) {
+    blob = data;
+  } else if (data && typeof data.output === 'function') {
+    blob = data.output('blob');
+  } else if (typeof data === 'string') {
+    blob = new Blob([data], { type: mimeType });
+  } else {
+    blob = new Blob([data], { type: mimeType });
+  }
+
+  const isMobile = typeof navigator !== 'undefined' && /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '');
+
+  // 1. Try Web Share API with File (Native Android / iOS save/share drawer without triggering Dio download listeners)
+  if (isMobile && typeof navigator !== 'undefined' && navigator.canShare) {
+    try {
+      const file = new File([blob], filename, { type: mimeType || blob.type || 'application/octet-stream' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: filename,
+        });
+        return;
+      }
+    } catch (shareErr) {
+      if (shareErr && (shareErr.name === 'AbortError' || shareErr.message?.includes('abort'))) {
+        return; // User cancelled share sheet
+      }
+      console.warn('Web Share API fallback to data download:', shareErr);
+    }
+  }
+
+  // 2. Flutter InAppWebView JavaScript Channel handler (if registered)
+  if (typeof window !== 'undefined' && window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+    try {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result;
+        window.flutter_inappwebview.callHandler('downloadFile', {
+          filename,
+          mimeType,
+          data: base64data,
+        });
+      };
+      reader.readAsDataURL(blob);
+      return;
+    } catch (e) {
+      console.warn('Flutter webview handler error:', e);
+    }
+  }
+
+  // 3. For mobile devices, convert to Data URL (avoids blob: URI errors in Flutter Dio / native download listeners)
+  if (isMobile) {
+    try {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result;
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = filename;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          if (document.body.contains(link)) document.body.removeChild(link);
+        }, 500);
+      };
+      reader.readAsDataURL(blob);
+      return;
+    } catch (e) {
+      console.warn('Data URL download error:', e);
+    }
+  }
+
+  // 4. Standard desktop browser download
+  try {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      if (document.body.contains(link)) document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    }, 1000);
+  } catch (err) {
+    saveAs(blob, filename);
+  }
+};
+
+/**
  * Generate PDF from data
  */
-export const exportToPDF = (options = {}) => {
+export const exportToPDF = async (options = {}) => {
   const {
     title = 'Report',
     subtitle = '',
@@ -83,14 +181,14 @@ export const exportToPDF = (options = {}) => {
     doc.setTextColor(0, 0, 0);
   }
 
-  // Save PDF
-  doc.save(filename);
+  // Save PDF universally
+  await safeSaveFile(doc, filename, 'application/pdf');
 };
 
 /**
  * Export data to CSV
  */
-export const exportToCSV = (data, filename = 'report.csv') => {
+export const exportToCSV = async (data, filename = 'report.csv') => {
   if (!data || data.length === 0) {
     console.warn('No data to export');
     return;
@@ -112,20 +210,13 @@ export const exportToCSV = (data, filename = 'report.csv') => {
 
   const csv = csvRows.join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
+  await safeSaveFile(blob, filename, 'text/csv;charset=utf-8');
 };
 
 /**
  * Export data to Excel (.xls / .xlsx formatted HTML table)
  */
-export const exportToExcel = (data, filename = 'report.xls') => {
+export const exportToExcel = async (data, filename = 'report.xls') => {
   if (!data || data.length === 0) {
     alert('No data available to export to Excel');
     return;
@@ -156,15 +247,8 @@ export const exportToExcel = (data, filename = 'report.xls') => {
   xml += '</tbody></table></body></html>';
 
   const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
   const name = filename.endsWith('.xls') || filename.endsWith('.xlsx') ? filename : `${filename}.xls`;
-  link.download = name;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
+  await safeSaveFile(blob, name, 'application/vnd.ms-excel;charset=utf-8');
 };
 
 /**
@@ -406,7 +490,7 @@ export const exportAgingReportPDF = async () => {
     doc.setTextColor(0, 0, 0);
   }
 
-  doc.save(`aging-report-${new Date().toISOString().split('T')[0]}.pdf`);
+  await safeSaveFile(doc, `aging-report-${new Date().toISOString().split('T')[0]}.pdf`, 'application/pdf');
 };
 
 /**
@@ -530,13 +614,13 @@ export const exportInvoicePDF = async (invoiceId) => {
     doc.setTextColor(0, 0, 0);
   }
 
-  doc.save(`invoice-${invoice.invoice_number}.pdf`);
+  await safeSaveFile(doc, `invoice-${invoice.invoice_number}.pdf`, 'application/pdf');
 };
 
 /**
  * Export Executive Factory Report to PDF (⭐ NEW)
  */
-export const exportExecutiveReportPDF = (reportData, dateRangeLabel) => {
+export const exportExecutiveReportPDF = async (reportData, dateRangeLabel) => {
   const { summary, recommendations, metrics } = reportData;
   const { production, dispatch, store, qc, financial, categories = [], materials = [] } = metrics;
 
@@ -874,7 +958,7 @@ export const exportExecutiveReportPDF = (reportData, dateRangeLabel) => {
     doc.setTextColor(0, 0, 0);
   }
 
-  doc.save(`executive-report-${new Date().toISOString().split('T')[0]}.pdf`);
+  await safeSaveFile(doc, `executive-report-${new Date().toISOString().split('T')[0]}.pdf`, 'application/pdf');
 };
 
 
@@ -904,7 +988,7 @@ export const calculateQuotationTotals = (items = [], transportationCost = 0) => 
 };
 
 /** Generate a fixed-geometry, PDF-native A4 quotation. */
-export const exportQuotationPDF = (quotation, returnBlob = false) => {
+export const exportQuotationPDF = async (quotation, returnBlob = false) => {
   if (!quotation) return null;
 
   const doc = new jsPDF({
@@ -1319,7 +1403,7 @@ export const exportQuotationPDF = (quotation, returnBlob = false) => {
     return doc.output('blob');
   }
 
-  doc.save(`Quotation_${String(qNumber).replace(/[\/\\]/g, '_') || 'Draft'}.pdf`);
+  await safeSaveFile(doc, `Quotation_${String(qNumber).replace(/[\/\\]/g, '_') || 'Draft'}.pdf`, 'application/pdf');
   return true;
 };
 
@@ -1463,14 +1547,9 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
     try {
       const response = await fetch(dataUrl);
       const blob = await response.blob();
-      saveAs(blob, filename);
+      await safeSaveFile(blob, filename, 'image/png');
     } catch {
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      await safeSaveFile(dataUrl, filename, 'image/png');
     }
 
     return dataUrl;

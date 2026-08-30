@@ -10,6 +10,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { backendFetch } from '@/lib/backendFetch';
+import { safeSaveFile } from '@/services/export.service';
 import styles from './testing.module.css';
 
 export default function ProductionTestingPage() {
@@ -173,7 +174,7 @@ export default function ProductionTestingPage() {
     XLSX.writeFile(wb, `testing_log_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     const doc = new jsPDF();
     doc.text('Production Testing Log Register', 14, 15);
     autoTable(doc, {
@@ -189,7 +190,7 @@ export default function ProductionTestingPage() {
       ]),
       startY: 20,
     });
-    doc.save(`testing_log_${new Date().toISOString().split('T')[0]}.pdf`);
+    await safeSaveFile(doc, `testing_log_${new Date().toISOString().split('T')[0]}.pdf`, 'application/pdf');
   };
 
   const filtered = records.filter(r =>
