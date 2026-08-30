@@ -535,7 +535,7 @@ export class UsersService {
         where: { roleId },
         include: { permission: true },
       });
-      const activeCodes = new Set(currentRolePerms.map((rp) => rp.permission.code));
+      const activeCodes = new Set<string>(currentRolePerms.map((rp) => rp.permission.code));
 
       // 2. Provision any missing permission
       for (const item of targetPerms) {
@@ -574,7 +574,7 @@ export class UsersService {
         }
       }
 
-      return Array.from(activeCodes);
+      return Array.from(activeCodes) as string[];
     } catch (err) {
       console.warn(`[ensureDefaultPermissions] Non-fatal provisioning warning:`, err);
       // Fallback to currently assigned permissions if any error
