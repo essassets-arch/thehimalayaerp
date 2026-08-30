@@ -252,144 +252,726 @@ export const exportToExcel = async (data, filename = 'report.xls') => {
 };
 
 /**
- * Export Sales Report to PDF
+ * Export Sales Report to PDF (100% Dynamic with Active Filters and Live Reporting Metrics)
  */
 export const exportSalesReportPDF = async (filters = {}) => {
-  let data = null;
-  try {
-    const params = new URLSearchParams();
-    if (filters.startDate || filters.date_from || filters.from) params.append('startDate', filters.startDate || filters.date_from || filters.from);
-    if (filters.endDate || filters.date_to || filters.to) params.append('endDate', filters.endDate || filters.date_to || filters.to);
-    if (filters.branchId || filters.branch) params.append('branchId', filters.branchId || filters.branch);
-    if (filters.rangePreset) params.append('rangePreset', filters.rangePreset);
+  let salesData = null;
+  const startDate = filters.startDate || filters.date_from || filters.from || '';
+  const endDate = filters.endDate || filters.date_to || filters.to || '';
+  const branchId = filters.branchId || filters.branch || '';
+  const rangePreset = filters.rangePreset || '';
 
-    const response = await apiClient.get(`/backend/super-admin/reports?${params.toString()}`);
-    if (response && response.success && response.data) {
-      data = response.data;
+  const params = new URLSearchParams();
+  if (startDate) {
+    params.append('startDate', startDate);
+    params.append('from', startDate);
+  }
+  if (endDate) {
+    params.append('endDate', endDate);
+    params.append('to', endDate);
+  }
+  if (branchId && branchId !== 'All') {
+    params.append('branchId', branchId);
+    params.append('branch', branchId);
+  }
+  if (rangePreset) params.append('rangePreset', rangePreset);
+
+  // 1. Fetch live sales analytics data
+  try {
+    const res = await apiClient.get(`/backend/super-admin/analytics/sales?${params.toString()}`);
+    if (res && res.success && res.data) {
+      salesData = res.data;
+    } else if (res && res.data) {
+      salesData = res.data;
     }
   } catch (err) {
-    console.warn('Failed to fetch backend sales report data, using fallback:', err.message);
+    console.warn('Failed to fetch /backend/super-admin/analytics/sales, trying /reports:', err.message);
   }
 
-  if (!data) {
-    data = {
-      sales: { totalOrders: 11, totalOrdersChangePercent: 4.8, revenueCollected: 385000, leadsInFunnel: 3, activeQuotations: 10, samplesPending: 0, ordersClosedOrDispatched: 7 },
-      period: { label: 'This Month' }
-    };
+  // Fallback to /backend/super-admin/reports if needed
+  if (!salesData || !salesData.summary) {
+    try {
+      const resReports = await apiClient.get(`/backend/super-admin/reports?${params.toString()}`);
+      if (resReports && resReports.data) {
+        const d = resReports.data;
+        salesData = {
+          summary: {
+            totalOrders: d.sales?.totalOrders ?? 0,
+            revenueCollected: d.sales?.revenueCollected ?? 0,
+            pendingCollections: d.finance?.outstandingReceivables ?? 0,
+            leadsFunnel: d.sales?.leadsInFunnel ?? 0,
+            activeQuotations: d.sales?.activeQuotations ?? 0,
+            confirmedOrders: d.sales?.ordersClosedOrDispatched ?? 0,
+            ordersGrowth: d.sales?.totalOrdersChangePercent ?? 0,
+            fulfillmentRate: d.dispatch?.onTimeDeliveryRate ?? 100,
+            samplesApproved: d.qc?.approvedPassed ?? 0,
+            samplesPending: d.sales?.samplesPending ?? 0,
+          },
+          pipeline: {
+            leadsPotential: 0,
+            openQuotes: 0,
+            confirmedOrders: d.sales?.revenueCollected ?? 0
+          },
+          effectiveness: {
+            requested: d.sales?.samplesPending ?? 0,
+            dispatched: d.dispatch?.shipmentsDispatched ?? 0,
+            approved: d.qc?.approvedPassed ?? 0,
+            converted: d.sales?.totalOrders ?? 0
+          },
+          topCustomers: [],
+          overduePayments: []
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to fetch /backend/super-admin/reports:', e.message);
+    }
   }
 
-  const columns = ['Sales Performance KPI', 'Value'];
-  const rows = [
-    ['Total Confirmed Orders', `${data.sales?.totalOrders ?? 0} Orders`],
-    ['Gross Revenue Collected', `INR ${parseFloat(data.sales?.revenueCollected || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['Leads in Funnel', `${data.sales?.leadsInFunnel ?? 0} Leads`],
-    ['Active Quotations', `${data.sales?.activeQuotations ?? 0} Quotes`],
-    ['Samples Pending', `${data.sales?.samplesPending ?? 0} Samples`],
-    ['Orders Closed / Dispatched', `${data.sales?.ordersClosedOrDispatched ?? 0} Orders`],
-    ['Growth vs Prior Period', `${data.sales?.totalOrdersChangePercent >= 0 ? '↑' : '↓'} ${Math.abs(data.sales?.totalOrdersChangePercent ?? 0)}% vs Prior`]
+  const summary = salesData?.summary || {};
+  const pipeline = salesData?.pipeline || {};
+  const effectiveness = salesData?.effectiveness || {};
+  const overduePayments = salesData?.overduePayments || [];
+
+  const dateLabel = (startDate && endDate) ? `${startDate} to ${endDate}` : (rangePreset || 'Current Active Period');
+  const branchLabel = branchId && branchId !== 'All' ? branchId : 'All Company Branches';
+
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  let y = 14;
+
+  // Header Banner
+  doc.setFillColor(30, 58, 138); // #1e3a8a Navy
+  doc.rect(margin, y, pageWidth - (margin * 2), 22, 'F');
+
+  doc.setFontSize(14);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont(undefined, 'bold');
+  doc.text('THE HIMALAYA ENTERPRISE - EXECUTIVE SALES PERFORMANCE REPORT', margin + 6, y + 9);
+
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Active Scope: ${branchLabel}  |  Period: ${dateLabel}  |  Generated: ${new Date().toLocaleString()}`, margin + 6, y + 16);
+
+  y += 28;
+
+  // 1. Executive Summary KPIs Table
+  doc.setFontSize(11);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont(undefined, 'bold');
+  doc.text('1. Executive KPI Summary', margin, y);
+  y += 4;
+
+  const kpiColumns = ['Metric Indicator', 'Active Scope Value', 'Metric Indicator', 'Active Scope Value'];
+  const totalOrders = summary.totalOrders ?? 0;
+  const revenue = Number(summary.revenueCollected ?? summary.grossSales ?? 0);
+  const pending = Number(summary.pendingCollections ?? 0);
+  const growth = Number(summary.ordersGrowth ?? 0);
+  const fulfillment = Number(summary.fulfillmentRate ?? 100);
+  const leads = summary.leadsFunnel ?? 0;
+  const quotes = summary.activeQuotations ?? 0;
+
+  const kpiRows = [
+    [
+      'Total Confirmed Orders', `${totalOrders} Orders`,
+      'Gross Revenue Collected', `INR ${revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    ],
+    [
+      'Pending Receivables', `INR ${pending.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      'On-Time Fulfillment Rate', `${fulfillment}%`
+    ],
+    [
+      'Active Opportunity Leads', `${leads} Leads in Funnel`,
+      'Period-over-Period Growth', `${growth >= 0 ? '+' : ''}${growth}%`
+    ],
+    [
+      'Open Quotations in Funnel', `${quotes} Active Quotations`,
+      'Closed / Dispatched Orders', `${summary.confirmedOrders ?? totalOrders} Orders`
+    ]
   ];
 
-  exportToPDF({
-    title: 'Centralized Sales Performance Report',
-    subtitle: `Period: ${data.period?.label || 'This Month'}`,
-    columns,
-    rows,
-    orientation: 'landscape',
-    filename: `sales-performance-report-${new Date().toISOString().split('T')[0]}.pdf`
+  autoTable(doc, {
+    head: [kpiColumns],
+    body: kpiRows,
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 2.5 },
+    headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: {
+      0: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 65 },
+      1: { width: 65 },
+      2: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 65 },
+      3: { width: 74 }
+    },
+    margin: { left: margin, right: margin }
   });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // 2. Commercial Pipeline Valuation Table
+  doc.setFontSize(11);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont(undefined, 'bold');
+  doc.text('2. Commercial Opportunity Pipeline Valuation', margin, y);
+  y += 4;
+
+  const pipelineColumns = ['Pipeline Funnel Stage', 'Volume / Entity Count', 'Estimated Pipeline Valuation', 'Commercial Status'];
+  const pipelineRows = [
+    ['1. New Leads in Funnel', `${leads} Leads`, `INR ${Number(pipeline.leadsPotential || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Active Prospecting'],
+    ['2. Open Quotations', `${quotes} Quotes`, `INR ${Number(pipeline.openQuotes || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Price Negotiation / Proposal'],
+    ['3. Confirmed Orders', `${totalOrders} Orders`, `INR ${Number(pipeline.confirmedOrders || revenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Production & Fulfillment Queue']
+  ];
+
+  autoTable(doc, {
+    head: [pipelineColumns],
+    body: pipelineRows,
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 2.5 },
+    headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold' },
+    margin: { left: margin, right: margin }
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // 3. Sample Lifecycle & Quality Conversions
+  if (y > pageHeight - 50) {
+    doc.addPage();
+    y = 20;
+  }
+
+  doc.setFontSize(11);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont(undefined, 'bold');
+  doc.text('3. Sample Evaluation & Conversion Lifecycle', margin, y);
+  y += 4;
+
+  const sampleCols = ['Samples Requested', 'Samples Dispatched', 'Samples Approved by QC', 'Sample-to-Order Conversion Rate'];
+  const requested = effectiveness.requested ?? 0;
+  const dispatched = effectiveness.dispatched ?? 0;
+  const approved = effectiveness.approved ?? 0;
+  const convRate = requested > 0 ? ((approved / requested) * 100).toFixed(1) : '100.0';
+
+  autoTable(doc, {
+    head: [sampleCols],
+    body: [[`${requested} Requests`, `${dispatched} Dispatched`, `${approved} Approved`, `${convRate}% Conversion Rate`]],
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 3, halign: 'center' },
+    headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' },
+    margin: { left: margin, right: margin }
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // 4. Overdue Receivables Action Table (if any)
+  if (overduePayments && overduePayments.length > 0) {
+    if (y > pageHeight - 50) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont(undefined, 'bold');
+    doc.text('4. Critical Overdue Receivables Register', margin, y);
+    y += 4;
+
+    const overdueCols = ['Customer Account', 'Sales Representative', 'Due Date', 'Aging Days', 'Outstanding Amount (INR)'];
+    const overdueRows = overduePayments.slice(0, 8).map(op => [
+      op.customerName || 'N/A',
+      op.salespersonName || 'Unassigned',
+      op.dueDate ? new Date(op.dueDate).toLocaleDateString() : 'Overdue',
+      op.agingDays ? `${op.agingDays} days` : '> 30 days',
+      `INR ${Number(op.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    ]);
+
+    autoTable(doc, {
+      head: [overdueCols],
+      body: overdueRows,
+      startY: y,
+      theme: 'striped',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255], fontStyle: 'bold' },
+      margin: { left: margin, right: margin }
+    });
+  }
+
+  // Footer on all pages
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `The Himalaya ERP - Confidential Executive Report | Page ${i} of ${totalPages}`,
+      pageWidth / 2,
+      pageHeight - 8,
+      { align: 'center' }
+    );
+  }
+
+  await safeSaveFile(doc, `sales-performance-report-${new Date().toISOString().split('T')[0]}.pdf`, 'application/pdf');
 };
 
 /**
- * Export Finance Report to PDF
+ * Export Finance Report to PDF (100% Dynamic with Active Filters and Live Inflow / AR Aging Metrics)
  */
 export const exportFinanceReportPDF = async (filters = {}) => {
-  let data = null;
-  try {
-    const params = new URLSearchParams();
-    if (filters.startDate || filters.date_from || filters.from) params.append('startDate', filters.startDate || filters.date_from || filters.from);
-    if (filters.endDate || filters.date_to || filters.to) params.append('endDate', filters.endDate || filters.date_to || filters.to);
-    if (filters.branchId || filters.branch) params.append('branchId', filters.branchId || filters.branch);
-    if (filters.rangePreset) params.append('rangePreset', filters.rangePreset);
+  let finData = null;
+  const startDate = filters.startDate || filters.date_from || filters.from || '';
+  const endDate = filters.endDate || filters.date_to || filters.to || '';
+  const branchId = filters.branchId || filters.branch || '';
+  const rangePreset = filters.rangePreset || '';
 
-    const response = await apiClient.get(`/backend/super-admin/reports?${params.toString()}`);
-    if (response && response.success && response.data) {
-      data = response.data;
+  const params = new URLSearchParams();
+  if (startDate) {
+    params.append('startDate', startDate);
+    params.append('from', startDate);
+  }
+  if (endDate) {
+    params.append('endDate', endDate);
+    params.append('to', endDate);
+  }
+  if (branchId && branchId !== 'All') {
+    params.append('branchId', branchId);
+    params.append('branch', branchId);
+  }
+  if (rangePreset) params.append('rangePreset', rangePreset);
+
+  // 1. Fetch live finance analytics data
+  try {
+    const res = await apiClient.get(`/backend/super-admin/analytics/finance?${params.toString()}`);
+    if (res && res.success && res.data) {
+      finData = res.data;
+    } else if (res && res.data) {
+      finData = res.data;
     }
   } catch (err) {
-    console.warn('Failed to fetch backend finance report data, using fallback:', err.message);
+    console.warn('Failed to fetch /backend/super-admin/analytics/finance, trying /reports:', err.message);
   }
 
-  if (!data) {
-    data = {
-      finance: { revenueCollected: 385000, outstandingReceivables: 45000, advancePaymentsHeld: 15000, invoicesVerified: 14, pendingVerification: 2, collectionEfficiency: 89.5 },
-      period: { label: 'This Month' }
-    };
+  // Fallback to /backend/super-admin/reports if needed
+  if (!finData || !finData.summary) {
+    try {
+      const resReports = await apiClient.get(`/backend/super-admin/reports?${params.toString()}`);
+      if (resReports && resReports.data) {
+        const d = resReports.data;
+        finData = {
+          summary: {
+            revenueCollected: d.finance?.revenueCollected ?? 0,
+            outstandingReceivables: d.finance?.outstandingReceivables ?? 0,
+            advancePaymentsHeld: d.finance?.advancePaymentsHeld ?? 0,
+            invoicesVerified: d.finance?.invoicesVerified ?? 0,
+            pendingVerification: d.finance?.pendingVerification ?? 0,
+            collectionEfficiency: d.finance?.collectionEfficiency ?? 0,
+            grossInvoiced: (d.finance?.revenueCollected ?? 0) + (d.finance?.outstandingReceivables ?? 0),
+            overdueCritical: 0
+          },
+          agingBuckets: {
+            current: d.finance?.outstandingReceivables ?? 0,
+            days1to30: 0,
+            days31to60: 0,
+            days61to90: 0,
+            days90Plus: 0
+          },
+          overdueCustomers: [],
+          poSummary: { totalCommitted: d.store?.rawInventoryValue ?? 0 },
+          payrollSummary: { totalDisbursed: d.hr?.monthlyPayrollOutflow ?? 0 }
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to fetch /backend/super-admin/reports:', e.message);
+    }
   }
 
-  const columns = ['Finance & Cashflow KPI', 'Value'];
-  const rows = [
-    ['Gross Revenue Collected', `INR ${parseFloat(data.finance?.revenueCollected || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['Outstanding Receivables', `INR ${parseFloat(data.finance?.outstandingReceivables || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['Advance Payments Held', `INR ${parseFloat(data.finance?.advancePaymentsHeld || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['Invoices Verified', `${data.finance?.invoicesVerified ?? 0} Invoices`],
-    ['Pending Verification', `${data.finance?.pendingVerification ?? 0} Invoices`],
-    ['Collection Efficiency', `${data.finance?.collectionEfficiency ?? 0}%`]
+  const summary = finData?.summary || {};
+  const aging = finData?.agingBuckets || {};
+  const overdueCustomers = finData?.overdueCustomers || [];
+  const poSummary = finData?.poSummary || {};
+  const payrollSummary = finData?.payrollSummary || {};
+
+  const dateLabel = (startDate && endDate) ? `${startDate} to ${endDate}` : (rangePreset || 'Current Active Period');
+  const branchLabel = branchId && branchId !== 'All' ? branchId : 'All Company Branches';
+
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  let y = 14;
+
+  // Header Banner
+  doc.setFillColor(6, 95, 70); // #065f46 Deep Emerald Teal
+  doc.rect(margin, y, pageWidth - (margin * 2), 22, 'F');
+
+  doc.setFontSize(14);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont(undefined, 'bold');
+  doc.text('THE HIMALAYA ENTERPRISE - EXECUTIVE FINANCE & INFLOWS REPORT', margin + 6, y + 9);
+
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Active Scope: ${branchLabel}  |  Period: ${dateLabel}  |  Generated: ${new Date().toLocaleString()}`, margin + 6, y + 16);
+
+  y += 28;
+
+  // 1. Executive Finance & Liquidity Scorecard
+  doc.setFontSize(11);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont(undefined, 'bold');
+  doc.text('1. Core Financial & Liquidity Scorecard', margin, y);
+  y += 4;
+
+  const collected = Number(summary.revenueCollected ?? summary.collectedAmount ?? 0);
+  const outstanding = Number(summary.outstandingReceivables ?? summary.outstandingAmount ?? 0);
+  const invoiced = Number(summary.grossInvoiced ?? summary.invoiceValue ?? (collected + outstanding));
+  const efficiency = Number(summary.collectionEfficiency ?? (invoiced > 0 ? ((collected / invoiced) * 100).toFixed(1) : (collected > 0 ? 100 : 0)));
+  const verifiedInvoices = summary.invoicesVerified ?? 0;
+  const pendingInvoices = summary.pendingVerification ?? 0;
+  const advances = Number(summary.advancePaymentsHeld ?? 0);
+
+  const finKpiCols = ['Financial KPI Indicator', 'Active Scope Value', 'Financial KPI Indicator', 'Active Scope Value'];
+  const finKpiRows = [
+    [
+      'Gross Invoiced Sales', `INR ${invoiced.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      'Verified Cash Inflows / Collections', `INR ${collected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    ],
+    [
+      'Total Outstanding Receivables', `INR ${outstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      'Collection Efficiency Rate', `${efficiency}%`
+    ],
+    [
+      'Verified Invoices Count', `${verifiedInvoices} Invoices`,
+      'Advance Payments Held', `INR ${advances.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    ],
+    [
+      'Pending Verification Invoices', `${pendingInvoices} Invoices`,
+      'Net Operating Position', `INR ${(collected - Number(poSummary.totalCommitted || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    ]
   ];
 
-  exportToPDF({
-    title: 'Centralized Finance & Inflows Report',
-    subtitle: `Period: ${data.period?.label || 'This Month'}`,
-    columns,
-    rows,
-    orientation: 'landscape',
-    filename: `finance-inflows-report-${new Date().toISOString().split('T')[0]}.pdf`
+  autoTable(doc, {
+    head: [finKpiCols],
+    body: finKpiRows,
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 2.5 },
+    headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: {
+      0: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 65 },
+      1: { width: 65 },
+      2: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 65 },
+      3: { width: 74 }
+    },
+    margin: { left: margin, right: margin }
   });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // 2. Accounts Receivable Aging Table
+  doc.setFontSize(11);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont(undefined, 'bold');
+  doc.text('2. Accounts Receivable (AR) Aging Structure', margin, y);
+  y += 4;
+
+  const currentAmt = Number(aging.current || aging.days0to30 || (outstanding - Number(aging.days31to60 || 0) - Number(aging.days61to90 || 0) - Number(aging.days90Plus || 0)) || 0);
+  const days31to60Amt = Number(aging.days31to60 || 0);
+  const days61to90Amt = Number(aging.days61to90 || 0);
+  const days90PlusAmt = Number(aging.days90Plus || 0);
+
+  const agingCols = ['Aging Horizon', 'Outstanding Balance (INR)', 'Risk Category', 'Action Strategy'];
+  const agingRows = [
+    ['Current / 0 - 30 Days', `INR ${Math.max(0, currentAmt).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Low Risk', 'Standard invoicing cycle & routine reminders'],
+    ['31 - 60 Days Overdue', `INR ${days31to60Amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Moderate Risk', 'Direct sales representative follow-up'],
+    ['61 - 90 Days Overdue', `INR ${days61to90Amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'High Risk', 'Formal payment reminder notice & credit hold review'],
+    ['> 90 Days Critical', `INR ${days90PlusAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Critical Risk', 'Executive intervention & legal recovery procedure']
+  ];
+
+  autoTable(doc, {
+    head: [agingCols],
+    body: agingRows,
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 2.5 },
+    headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold' },
+    margin: { left: margin, right: margin }
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // 3. Operational Outflow Commitments (POs & Payroll)
+  if (y > pageHeight - 50) {
+    doc.addPage();
+    y = 20;
+  }
+
+  doc.setFontSize(11);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont(undefined, 'bold');
+  doc.text('3. Operating & Procurement Outflow Commitments', margin, y);
+  y += 4;
+
+  const outflowCols = ['Outflow Commitment Stream', 'Valuation / Amount (INR)', 'Commitment Status'];
+  const outflowRows = [
+    ['Purchase Order Procurement Commitments', `INR ${Number(poSummary.totalCommitted || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Active Vendor Indents & Contracts'],
+    ['Employee Payroll Disbursed / Due', `INR ${Number(payrollSummary.totalDisbursed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Monthly Staff Compensation Outflow']
+  ];
+
+  autoTable(doc, {
+    head: [outflowCols],
+    body: outflowRows,
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 2.5 },
+    headStyles: { fillColor: [13, 148, 136], textColor: [255, 255, 255], fontStyle: 'bold' },
+    margin: { left: margin, right: margin }
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // 4. Overdue Accounts Detail (if any)
+  if (overdueCustomers && overdueCustomers.length > 0) {
+    if (y > pageHeight - 50) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont(undefined, 'bold');
+    doc.text('4. Priority Overdue Customer Accounts Register', margin, y);
+    y += 4;
+
+    const overdueCols = ['Customer Account', 'Invoice #', 'Due Date', 'Days Overdue', 'Overdue Balance (INR)'];
+    const overdueRows = overdueCustomers.slice(0, 8).map(oc => [
+      oc.customerName || oc.name || 'N/A',
+      oc.invoiceNumber || 'INV-REF',
+      oc.dueDate ? new Date(oc.dueDate).toLocaleDateString() : 'Overdue',
+      oc.daysOverdue ? `${oc.daysOverdue} days` : '> 30 days',
+      `INR ${Number(oc.amount || oc.balanceDue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    ]);
+
+    autoTable(doc, {
+      head: [overdueCols],
+      body: overdueRows,
+      startY: y,
+      theme: 'striped',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255], fontStyle: 'bold' },
+      margin: { left: margin, right: margin }
+    });
+  }
+
+  // Footer on all pages
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `The Himalaya ERP - Confidential Executive Report | Page ${i} of ${totalPages}`,
+      pageWidth / 2,
+      pageHeight - 8,
+      { align: 'center' }
+    );
+  }
+
+  await safeSaveFile(doc, `finance-inflows-report-${new Date().toISOString().split('T')[0]}.pdf`, 'application/pdf');
 };
 
 /**
- * Export Inventory Report to PDF
+ * Export Inventory Report to PDF (100% Dynamic with Active Filters and Live Stock Valuation Metrics)
  */
 export const exportInventoryReportPDF = async (filters = {}) => {
-  let data = null;
-  try {
-    const params = new URLSearchParams();
-    if (filters.startDate || filters.date_from || filters.from) params.append('startDate', filters.startDate || filters.date_from || filters.from);
-    if (filters.endDate || filters.date_to || filters.to) params.append('endDate', filters.endDate || filters.date_to || filters.to);
-    if (filters.branchId || filters.branch) params.append('branchId', filters.branchId || filters.branch);
-    if (filters.rangePreset) params.append('rangePreset', filters.rangePreset);
+  let invData = null;
+  const startDate = filters.startDate || filters.date_from || filters.from || '';
+  const endDate = filters.endDate || filters.date_to || filters.to || '';
+  const branchId = filters.branchId || filters.branch || '';
+  const rangePreset = filters.rangePreset || '';
 
-    const response = await apiClient.get(`/backend/super-admin/reports?${params.toString()}`);
-    if (response && response.success && response.data) {
-      data = response.data;
+  const params = new URLSearchParams();
+  if (startDate) {
+    params.append('startDate', startDate);
+    params.append('from', startDate);
+  }
+  if (endDate) {
+    params.append('endDate', endDate);
+    params.append('to', endDate);
+  }
+  if (branchId && branchId !== 'All') {
+    params.append('branchId', branchId);
+    params.append('branch', branchId);
+  }
+  if (rangePreset) params.append('rangePreset', rangePreset);
+
+  // 1. Fetch live inventory analytics data
+  try {
+    const res = await apiClient.get(`/backend/super-admin/analytics/inventory?${params.toString()}`);
+    if (res && res.success && res.data) {
+      invData = res.data;
+    } else if (res && res.data) {
+      invData = res.data;
     }
   } catch (err) {
-    console.warn('Failed to fetch backend inventory report data, using fallback:', err.message);
+    console.warn('Failed to fetch /backend/super-admin/analytics/inventory, trying /reports:', err.message);
   }
 
-  if (!data) {
-    data = {
-      store: { totalRawStockItems: 212, rawInventoryValue: 1344000, lowStockAlerts: 2, poRequestsRaised: 4, materialIssuances: 18 },
-      period: { label: 'This Month' }
-    };
+  // Fallback to /backend/super-admin/reports if needed
+  if (!invData || !invData.summary) {
+    try {
+      const resReports = await apiClient.get(`/backend/super-admin/reports?${params.toString()}`);
+      if (resReports && resReports.data) {
+        const d = resReports.data;
+        invData = {
+          summary: {
+            totalRawStockItems: d.store?.totalRawStockItems ?? 0,
+            rawInventoryValue: d.store?.rawInventoryValue ?? 0,
+            lowStockAlerts: d.store?.lowStockAlerts ?? 0,
+            poRequestsRaised: d.store?.poRequestsRaised ?? 0,
+            materialIssuances: d.store?.materialIssuances ?? 0
+          },
+          criticalItems: []
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to fetch /backend/super-admin/reports:', e.message);
+    }
   }
 
-  const columns = ['Store & Inventory KPI', 'Value'];
-  const rows = [
-    ['Total Raw Stock Items', `${data.store?.totalRawStockItems ?? 0} Materials`],
-    ['Raw Inventory Valuation', `INR ${parseFloat(data.store?.rawInventoryValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['Low Stock Alerts', `${data.store?.lowStockAlerts ?? 0} Items`],
-    ['PO Requests Raised', `${data.store?.poRequestsRaised ?? 0} Requests`],
-    ['Material Issuances (Outflows)', `${data.store?.materialIssuances ?? 0} Outflows`]
+  const summary = invData?.summary || {};
+  const criticalItems = invData?.criticalItems || [];
+
+  const dateLabel = (startDate && endDate) ? `${startDate} to ${endDate}` : (rangePreset || 'Current Active Period');
+  const branchLabel = branchId && branchId !== 'All' ? branchId : 'All Company Branches';
+
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  let y = 14;
+
+  // Header Banner
+  doc.setFillColor(107, 33, 168); // #6b21a8 Deep Purple
+  doc.rect(margin, y, pageWidth - (margin * 2), 22, 'F');
+
+  doc.setFontSize(14);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont(undefined, 'bold');
+  doc.text('THE HIMALAYA ENTERPRISE - EXECUTIVE INVENTORY & STORE REPORT', margin + 6, y + 9);
+
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Active Scope: ${branchLabel}  |  Period: ${dateLabel}  |  Generated: ${new Date().toLocaleString()}`, margin + 6, y + 16);
+
+  y += 28;
+
+  // 1. Core Inventory KPIs
+  doc.setFontSize(11);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont(undefined, 'bold');
+  doc.text('1. Warehouse & Store Stock Valuation Scorecard', margin, y);
+  y += 4;
+
+  const totalItems = summary.totalRawStockItems ?? summary.totalStockItems ?? 0;
+  const valuation = Number(summary.rawInventoryValue ?? summary.inventoryValuation ?? 0);
+  const lowStock = summary.lowStockAlerts ?? 0;
+  const poCount = summary.poRequestsRaised ?? 0;
+  const issuances = summary.materialIssuances ?? 0;
+
+  const invCols = ['Store KPI Indicator', 'Active Scope Value', 'Store KPI Indicator', 'Active Scope Value'];
+  const invRows = [
+    [
+      'Total Catalog Materials / Items', `${totalItems} Stock Items`,
+      'Raw Inventory Valuation', `INR ${valuation.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    ],
+    [
+      'Critical Low Stock Alerts', `${lowStock} Items`,
+      'Purchase Indents Raised', `${poCount} Requisitions`
+    ],
+    [
+      'Shopfloor Material Issuances', `${issuances} Outflows`,
+      'Inventory Health Index', `${lowStock === 0 ? '100%' : Math.max(0, 100 - (lowStock * 5)) + '%'}`
+    ]
   ];
 
-  exportToPDF({
-    title: 'Centralized Stock Levels & Store Report',
-    subtitle: `Period: ${data.period?.label || 'This Month'}`,
-    columns,
-    rows,
-    orientation: 'landscape',
-    filename: `inventory-store-report-${new Date().toISOString().split('T')[0]}.pdf`
+  autoTable(doc, {
+    head: [invCols],
+    body: invRows,
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 2.5 },
+    headStyles: { fillColor: [147, 51, 234], textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: {
+      0: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 65 },
+      1: { width: 65 },
+      2: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 65 },
+      3: { width: 74 }
+    },
+    margin: { left: margin, right: margin }
   });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // 2. Critical Stock Attention Items (if any)
+  if (criticalItems && criticalItems.length > 0) {
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont(undefined, 'bold');
+    doc.text('2. Low Stock & Reorder Alert List', margin, y);
+    y += 4;
+
+    const critCols = ['Material Name', 'Current Stock Level', 'Minimum Threshold', 'Unit of Measure', 'Action Required'];
+    const critRows = criticalItems.slice(0, 10).map(ci => [
+      ci.name || 'N/A',
+      `${ci.currentStock ?? 0}`,
+      `${ci.minimumStock ?? ci.reorderLevel ?? 0}`,
+      ci.unit || 'Units',
+      'Generate Purchase Indent'
+    ]);
+
+    autoTable(doc, {
+      head: [critCols],
+      body: critRows,
+      startY: y,
+      theme: 'striped',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255], fontStyle: 'bold' },
+      margin: { left: margin, right: margin }
+    });
+  }
+
+  // Footer on all pages
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `The Himalaya ERP - Confidential Executive Report | Page ${i} of ${totalPages}`,
+      pageWidth / 2,
+      pageHeight - 8,
+      { align: 'center' }
+    );
+  }
+
+  await safeSaveFile(doc, `inventory-store-report-${new Date().toISOString().split('T')[0]}.pdf`, 'application/pdf');
 };
 
 /**

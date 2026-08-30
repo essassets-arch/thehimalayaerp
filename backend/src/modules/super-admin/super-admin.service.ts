@@ -2822,10 +2822,16 @@ export class SuperAdminService {
   }
 
   private async getSalesReport(companyId: string, f: any) {
+    const isCompanyScoped = companyId && companyId !== 'null' && companyId !== 'undefined';
+    const customerFilter: any = {
+      ...(isCompanyScoped ? { companyId } : {}),
+      ...(f.branchId ? { branchId: f.branchId } : {})
+    };
+
     const orderWhere: any = {
       deletedAt: null,
       createdAt: f.inRange,
-      ...(f.branchId ? { customer: { companyId, branchId: f.branchId } } : { customer: { companyId } }),
+      ...(Object.keys(customerFilter).length > 0 ? { customer: customerFilter } : {}),
       ...(f.customerId ? { customerId: f.customerId } : {}),
       ...(f.status ? { status: f.status } : {})
     };
@@ -2837,16 +2843,33 @@ export class SuperAdminService {
       this.prisma.salesOrder.count({ where: priorOrderWhere }).catch(() => 0),
       this.prisma.customerPayment.aggregate({
         _sum: { amount: true },
-        where: { status: 'VERIFIED' as any, receivedAt: f.inRange, customer: { companyId, ...(f.branchId ? { branchId: f.branchId } : {}) }, ...(f.customerId ? { customerId: f.customerId } : {}) }
+        where: {
+          status: 'VERIFIED' as any,
+          receivedAt: f.inRange,
+          ...(Object.keys(customerFilter).length > 0 ? { customer: customerFilter } : {}),
+          ...(f.customerId ? { customerId: f.customerId } : {})
+        }
       }).catch(() => ({ _sum: { amount: 0 } })),
       this.prisma.lead.count({
-        where: { companyId, deletedAt: null, createdAt: f.inRange } as any
+        where: {
+          deletedAt: null,
+          createdAt: f.inRange,
+          ...(isCompanyScoped ? { companyId } : {})
+        } as any
       }).catch(() => 0),
       this.prisma.quotation.count({
-        where: { companyId, deletedAt: null, createdAt: f.inRange } as any
+        where: {
+          deletedAt: null,
+          createdAt: f.inRange,
+          ...(isCompanyScoped ? { companyId } : {})
+        } as any
       }).catch(() => 0),
       this.prisma.sampleRequest.count({
-        where: { companyId, deletedAt: null, requestedDate: f.inRange } as any
+        where: {
+          deletedAt: null,
+          requestedDate: f.inRange,
+          ...(isCompanyScoped ? { companyId } : {})
+        } as any
       }).catch(() => 0),
       this.prisma.salesOrder.count({
         where: { ...orderWhere, status: { in: ['COMPLETED', 'DISPATCHED', 'DELIVERED'] as any } }
@@ -2856,16 +2879,15 @@ export class SuperAdminService {
     const revenueCollected = Number((verifiedPayments as any)?._sum?.amount ?? 0);
     const orderDiff = ordersCount - priorOrdersCount;
     const orderChangePercent = priorOrdersCount > 0 ? Number(((orderDiff / priorOrdersCount) * 100).toFixed(1)) : 0;
-    const isZeroData = ordersCount === 0 && revenueCollected === 0;
 
     return {
-      totalOrders: isZeroData ? (f.branchId ? 5 : 11) : ordersCount,
-      totalOrdersChangePercent: isZeroData ? 4.8 : orderChangePercent,
-      revenueCollected: isZeroData ? (f.branchId ? 145000 : 385000) : revenueCollected,
-      leadsInFunnel: isZeroData ? 3 : leadsCount,
-      activeQuotations: isZeroData ? 10 : quotationsCount,
-      samplesPending: isZeroData ? 0 : samplesCount,
-      ordersClosedOrDispatched: isZeroData ? (f.branchId ? 3 : 7) : closedOrdersCount
+      totalOrders: ordersCount,
+      totalOrdersChangePercent: orderChangePercent,
+      revenueCollected,
+      leadsInFunnel: leadsCount,
+      activeQuotations: quotationsCount,
+      samplesPending: samplesCount,
+      ordersClosedOrDispatched: closedOrdersCount
     };
   }
 
@@ -3097,22 +3119,35 @@ export class SuperAdminService {
   }
 
   private async getFinanceReport(companyId: string, f: any) {
+    const isCompanyScoped = companyId && companyId !== 'null' && companyId !== 'undefined';
+    const customerFilter: any = {
+      ...(isCompanyScoped ? { companyId } : {}),
+      ...(f.branchId ? { branchId: f.branchId } : {})
+    };
+
     const [verifiedPayments, confirmedOrders, customerPayments] = await Promise.all([
       this.prisma.customerPayment.aggregate({
         _sum: { amount: true },
-        where: { status: 'VERIFIED' as any, receivedAt: f.inRange, customer: { companyId } }
+        where: {
+          status: 'VERIFIED' as any,
+          receivedAt: f.inRange,
+          ...(Object.keys(customerFilter).length > 0 ? { customer: customerFilter } : {})
+        }
       }).catch(() => ({ _sum: { amount: 0 } })),
       this.prisma.salesOrder.aggregate({
         _sum: { totalAmount: true },
         where: {
           deletedAt: null,
           createdAt: f.inRange,
-          customer: { companyId },
+          ...(Object.keys(customerFilter).length > 0 ? { customer: customerFilter } : {}),
           status: { in: ['CONFIRMED', 'SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION', 'READY_FOR_DISPATCH', 'COMPLETED'] as any }
         }
       }).catch(() => ({ _sum: { totalAmount: 0 } })),
       this.prisma.customerPayment.findMany({
-        where: { receivedAt: f.inRange, customer: { companyId } },
+        where: {
+          receivedAt: f.inRange,
+          ...(Object.keys(customerFilter).length > 0 ? { customer: customerFilter } : {})
+        },
         select: { status: true, amount: true }
       }).catch(() => [])
     ]);
@@ -3123,17 +3158,15 @@ export class SuperAdminService {
 
     const verifiedInvoices = customerPayments.filter((p: any) => p.status === 'VERIFIED').length;
     const pendingVerification = customerPayments.filter((p: any) => p.status === 'PENDING').length;
-    const collectionEfficiency = invoicedSales > 0 ? Number(((revenueCollected / invoicedSales) * 100).toFixed(1)) : 100;
-
-    const isZeroData = revenueCollected === 0 && invoicedSales === 0;
+    const collectionEfficiency = invoicedSales > 0 ? Number(((revenueCollected / invoicedSales) * 100).toFixed(1)) : (revenueCollected > 0 ? 100 : 0);
 
     return {
-      revenueCollected: isZeroData ? (f.branchId ? 145000 : 385000) : revenueCollected,
-      outstandingReceivables: isZeroData ? (f.branchId ? 18000 : 45000) : outstandingReceivables,
-      advancePaymentsHeld: isZeroData ? (f.branchId ? 5000 : 15000) : 0,
-      invoicesVerified: isZeroData ? (f.branchId ? 5 : 14) : verifiedInvoices,
-      pendingVerification: isZeroData ? 2 : pendingVerification,
-      collectionEfficiency: isZeroData ? 89.5 : collectionEfficiency
+      revenueCollected,
+      outstandingReceivables,
+      advancePaymentsHeld: 0,
+      invoicesVerified: verifiedInvoices,
+      pendingVerification,
+      collectionEfficiency
     };
   }
 
