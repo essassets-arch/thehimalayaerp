@@ -188,7 +188,7 @@ const SmartProductCombobox = memo(function SmartProductCombobox({ value, disable
           if (aIsMhc !== bIsMhc) return bIsMhc - aIsMhc;
           return (a.name || '').localeCompare(b.name || '');
         })
-        .slice(0, 80);
+        .slice(0, 120);
     }
     const q = query.toLowerCase().trim();
     const qParts = q.split(/\s+/).filter(Boolean);
@@ -220,7 +220,7 @@ const SmartProductCombobox = memo(function SmartProductCombobox({ value, disable
       .filter(item => item.matchesAll)
       .sort((a, b) => b.score - a.score)
       .map(item => item.product)
-      .slice(0, 60);
+      .slice(0, 120);
   }, [products, query]);
 
   const handleKeyDown = (e) => {
@@ -501,17 +501,26 @@ export default function DailyReportEntryView({
   const fetchProducts = useCallback(async () => {
     try {
       setLoadingProducts(true);
-      const res = await backendFetch('/api/backend/products?limit=2500', { cacheTtlMs: 0 });
+      const res = await backendFetch('/api/backend/products?scope=daily-report&limit=5000', { cacheTtlMs: 0 });
       const rawList = Array.isArray(res) ? res : res?.items || res?.data || [];
 
-      // Filter products exactly matching /plant-head/products
+      const rawKeywords = [
+        'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
+        'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
+        'clamp', 'hammer', 'bucket', 'ghamela', 'carbon', 'pva', 'wax', 'polish', 
+        'resin', 'cobalt', 'catalyst', 'fly ash', 'admixture'
+      ];
+
+      // Filter products exactly matching /plant-head/products (ProductMasterUI)
       const filtered = rawList.filter(p => {
         const origType = String(p.productType || p.product_type || '').toUpperCase();
         const family = String(p.category || p.product_family || '').toLowerCase();
         const code = String(p.sku || p.product_code || p.publicId || '').toUpperCase();
+        const name = String(p.product_name || p.name || '').toLowerCase();
         if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') return false;
         if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(family)) return false;
         if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) return false;
+        if (rawKeywords.some(k => name.includes(k))) return false;
         return true;
       });
 
@@ -527,6 +536,7 @@ export default function DailyReportEntryView({
             product_name: name,
             sku,
             product_code: sku,
+            category: p.category || p.product_family || '',
             size: p.size || p.variantDetails || p.variant_details || specs.size || '',
             type: p.type || specs.type || '',
             capacity: p.capacity || specs.capacity || '',
@@ -551,17 +561,18 @@ export default function DailyReportEntryView({
     const types = new Set();
     products.forEach(p => {
       if (p.type) types.add(p.type);
+      if (p.category) types.add(p.category);
     });
-    return Array.from(types);
+    return Array.from(types).filter(Boolean).sort();
   }, [products]);
 
   const filteredCatalogProducts = useMemo(() => {
     return products.filter(p => {
-      if (multiProductTypeFilter !== 'ALL' && p.type !== multiProductTypeFilter) return false;
+      if (multiProductTypeFilter !== 'ALL' && p.type !== multiProductTypeFilter && p.category !== multiProductTypeFilter) return false;
       if (!multiProductSearch.trim()) return true;
       const q = multiProductSearch.toLowerCase().trim();
       const qParts = q.split(/\s+/).filter(Boolean);
-      const fullStr = `${p.name || ''} ${p.sku || ''} ${p.size || ''} ${p.type || ''} ${p.capacity || ''} ${p.variantDetails || ''}`.toLowerCase();
+      const fullStr = `${p.name || ''} ${p.sku || ''} ${p.size || ''} ${p.type || ''} ${p.capacity || ''} ${p.variantDetails || ''} ${p.category || ''}`.toLowerCase();
       return qParts.every(part => fullStr.includes(part));
     });
   }, [products, multiProductTypeFilter, multiProductSearch]);

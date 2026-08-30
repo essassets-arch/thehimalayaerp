@@ -72,7 +72,7 @@ export default function ProductMasterUI({ role }) {
     setLoading(true);
     try {
       // Fetch full set to enable responsive client-side filtering, KPI calculations, and instant search
-      const data = await backendFetch('/api/backend/products?limit=1000');
+      const data = await backendFetch('/api/backend/products?scope=catalog&limit=5000');
       const list = Array.isArray(data) ? data : (data?.data || []);
       
       // Normalize fields for backend compatibility
