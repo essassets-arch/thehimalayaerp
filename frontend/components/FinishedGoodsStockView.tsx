@@ -218,11 +218,7 @@ export default function FinishedGoodsStockView({
       })
       .filter((row: StockRow) => {
         const type = String(row.productType || '').toUpperCase();
-        const family = String(row.category || '').toLowerCase();
-        if (type === 'RAW_MATERIAL' || type === 'HARDWARE') {
-          return false;
-        }
-        if (['raw material', 'hardware', 'electric'].includes(family)) {
+        if (type === 'RAW_MATERIAL') {
           return false;
         }
         return true;

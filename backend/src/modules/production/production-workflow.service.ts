@@ -869,7 +869,64 @@ export class ProductionWorkflowService {
       }
     }
 
-    const rawList = [...mappedExisting, ...syntheticRecords, ...soSyntheticRecords];
+    const allProductsWhere: any = {
+      isActive: true,
+    };
+    if (companyId) {
+      allProductsWhere.companyId = companyId;
+    }
+    if (userCategory) {
+      allProductsWhere.dispatchCategory = userCategory;
+    }
+
+    const allCatalogProducts = await this.prisma.product.findMany({
+      where: allProductsWhere,
+      orderBy: { name: 'asc' },
+    });
+
+    const coveredProductIds = new Set<string>();
+    for (const r of mappedExisting) {
+      if (r.productId) coveredProductIds.add(String(r.productId));
+      if (r.product?.id) coveredProductIds.add(String(r.product.id));
+    }
+    for (const r of syntheticRecords) {
+      if (r.productId) coveredProductIds.add(String(r.productId));
+      if (r.product?.id) coveredProductIds.add(String(r.product.id));
+    }
+    for (const r of soSyntheticRecords) {
+      if (r.productId) coveredProductIds.add(String(r.productId));
+      if (r.product?.id) coveredProductIds.add(String(r.product.id));
+    }
+
+    const catalogSyntheticRecords: any[] = [];
+    for (const prod of allCatalogProducts) {
+      if (!coveredProductIds.has(String(prod.id))) {
+        catalogSyntheticRecords.push({
+          id: `fg-prod-${prod.id}`,
+          workOrderId: 'STOCK-CATALOG',
+          productId: prod.id,
+          salesOrderId: null,
+          quantity: 0,
+          availableQuantity: 0,
+          allocatedQuantity: 0,
+          dispatchedQuantity: 0,
+          unit: prod.unit || 'PCS',
+          status: 'AVAILABLE',
+          location: 'Factory Staging Area',
+          receivedAt: prod.createdAt ? new Date(prod.createdAt).toISOString() : new Date().toISOString(),
+          receivedById: null,
+          workOrder: null,
+          product: prod,
+          jobNo: 'STOCK-CATALOG',
+          productionPlanId: null,
+          customerName: 'Internal Stock',
+          productName: prod.name,
+          productCode: prod.sku || prod.publicId || '-',
+        });
+      }
+    }
+
+    const rawList = [...mappedExisting, ...syntheticRecords, ...soSyntheticRecords, ...catalogSyntheticRecords];
 
     const stockHistorySums = await this.prisma.stockHistory.groupBy({
       by: ['productId', 'event'],
@@ -918,13 +975,19 @@ export class ProductionWorkflowService {
       const rawExtraCover = (pId ? extraCoverMap.get(pId) : 0) || (pCode ? extraCoverMap.get(pCode) : 0) || 0;
       const rawExtraFrame = (pId ? extraFrameMap.get(pId) : 0) || (pCode ? extraFrameMap.get(pCode) : 0) || 0;
 
+      const netStock = Math.max(0, prodInVal - Math.abs(dispatchVal));
+      const finalQuantity = Number(item.quantity) > 0 ? Number(item.quantity) : netStock;
+      const finalAvailable = Number(item.availableQuantity) > 0 ? Number(item.availableQuantity) : netStock;
+
       return {
         ...item,
+        quantity: finalQuantity,
+        availableQuantity: finalAvailable,
         productionIn: prodInVal,
         extraCover: Math.max(0, rawExtraCover),
         extraFrame: Math.max(0, rawExtraFrame),
         dispatchOut: Math.abs(dispatchVal),
-        openingStock: Math.max(0, (Number(item.quantity) || 0) - prodInVal + Math.abs(dispatchVal)),
+        openingStock: Math.max(0, finalQuantity - prodInVal + Math.abs(dispatchVal)),
       };
     });
 
