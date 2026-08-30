@@ -812,13 +812,12 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                     <th style={{ textAlign: 'right' }}>Paid Amount</th>
                     <th style={{ textAlign: 'right' }}>Pending Amount</th>
                     <th>Status</th>
-                    <th>Reminder</th>
                     <th style={{ textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pendingRows.length === 0 ? (
-                    <tr><td colSpan="13" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
+                    <tr><td colSpan="12" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
                   ) : (
                     pendingRows.map(o => {
                       const total = Number(o.grand_total || 0);
@@ -898,7 +897,6 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                               {paymentLabel}
                             </span>
                           </td>
-                          <td data-label="Reminder" style={{ whiteSpace: 'nowrap', fontSize: '12px', color: '#475569' }}>{o.reminder_label}</td>
                           <td data-label="Action" style={{ textAlign: 'right' }}>
                             {paymentKey === 'AWAITING_FINANCE_VERIFICATION' ? (
                               <span style={{ fontWeight: 800, color: '#d97706', whiteSpace: 'nowrap' }}>⏳ Verification Pending</span>

@@ -336,14 +336,13 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                 <th className="p-3 border-b border-slate-800">8. Remaining Days</th>
                 <th className="p-3 border-b border-slate-800">9. Total Amount</th>
                 <th className="p-3 border-b border-slate-800">10. Status</th>
-                <th className="p-3 border-b border-slate-800">11. Reminder</th>
-                <th className="p-3 border-b border-slate-800 text-right">12. Action</th>
+                <th className="p-3 border-b border-slate-800 text-right">11. Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-8 text-center text-slate-400 italic">
+                  <td colSpan={11} className="p-8 text-center text-slate-400 italic">
                     No orders match the selected payment filters.
                   </td>
                 </tr>
@@ -375,9 +374,6 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                           totalAmount={o.totalAmount}
                           paidAmount={o.paidAmount}
                         />
-                      </td>
-                      <td className="p-3 text-slate-500 text-[11px]">
-                        {o.paymentStatus === 'Overdue' ? 'Overdue Reminder Sent' : 'Due in ' + (o.remainingDays || 0) + ' Days'}
                       </td>
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">

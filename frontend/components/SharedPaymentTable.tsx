@@ -474,14 +474,13 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                 <th>9. Total Amount</th>
                 <th>10. Status</th>
                 <th>11. POD Document</th>
-                <th>12. Reminder</th>
-                <th style={{ textAlign: 'right' }}>13. Action</th>
+                <th style={{ textAlign: 'right' }}>12. Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={13} style={{ padding: '32px', textAlign: 'center', color: '#8893A7', fontStyle: 'italic' }}>
+                  <td colSpan={12} style={{ padding: '32px', textAlign: 'center', color: '#8893A7', fontStyle: 'italic' }}>
                     No orders match the selected payment filters.
                   </td>
                 </tr>
@@ -532,11 +531,6 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
                         ) : (
                           <span style={{ color: '#94a3b8' }}>—</span>
                         )}
-                      </td>
-                      <td style={{ color: '#5E6B82', fontSize: '11.5px' }}>
-                        {o.hasPendingFinanceConfirmation
-                          ? 'Awaiting Finance approval'
-                          : (o.paymentStatus === 'Overdue' ? 'Overdue Reminder Sent' : 'Due in ' + (o.remainingDays || 0) + ' Days')}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
