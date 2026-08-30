@@ -16,7 +16,7 @@ import { useERPStore } from '../../../store/erpStore';
 import { selectDispatchOrders } from '../../../store/domains/sales/salesSelectors';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
-import { PlusCircle, Box, Truck, ClipboardList, FlaskConical, ArrowRight, X, FileCheck, FileText } from 'lucide-react';
+import { PlusCircle, Box, Truck, ClipboardList, FlaskConical, ArrowRight, X, FileCheck, FileText, Clock, Eye, CheckCircle2, ShieldCheck, Download, Calendar } from 'lucide-react';
 import DispatchBillModal from '../../../shared/components/DispatchBillModal';
 import ReturnsPortal from './ReturnsPortal';
 import { backendFetch } from '../../../lib/backendFetch';
@@ -201,21 +201,32 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     }
   };
 
+  const [selectedReplacementForHistory, setSelectedReplacementForHistory] = useState(null);
+
   const fetchReplacementDispatches = async () => {
     setReplacementLoading(true);
     try {
       const records = await backendFetch('/api/backend/replacements');
       setReplacementDispatches((records || [])
-        .filter((record) => record.status === 'APPROVED')
+        .filter((record) => record.status === 'APPROVED' || record.dispatchStatus === 'APPROVED' || record.dispatchStatus === 'DISPATCHED' || record.dispatchStatus === 'IN_TRANSIT' || record.dispatchStatus === 'DELIVERED')
         .map((record) => ({
           ...record,
-          request_no: record.requestNumber,
+          request_no: record.requestNumber || record.id,
           order_number: record.salesOrder?.orderNumber || record.salesOrderId,
           customer_name: record.salesOrder?.customer?.companyName || record.salesOrder?.customer?.name || '—',
+          customer_phone: record.salesOrder?.customer?.phone || record.salesOrder?.customer?.mobile || '—',
+          customer_address: record.salesOrder?.customer?.shippingAddress || record.salesOrder?.customer?.billingAddress || record.salesOrder?.customer?.address || '—',
           product_name: record.items?.map((item) => item.product?.name).filter(Boolean).join(', ') || '—',
-          approved_qty: record.items?.reduce((sum, item) => sum + Number(item.requestedQuantity || 0), 0),
-          dispatch_status: record.dispatchStatus || 'APPROVED',
-          vehicle_number: record.dispatchDetails?.trackingNumber || record.dispatchDetails?.vehicleNumber,
+          approved_qty: record.items?.reduce((sum, item) => sum + Number(item.requestedQuantity || 0), 0) || 1,
+          dispatch_status: record.dispatchStatus || (record.status === 'APPROVED' ? 'READY_FOR_DISPATCH' : record.status),
+          vehicle_number: record.dispatchDetails?.vehicleNumber || record.dispatchDetails?.trackingNumber,
+          lr_number: record.dispatchDetails?.lrNumber,
+          driver_name: record.dispatchDetails?.driverName,
+          transport_company: record.dispatchDetails?.transportCompany,
+          dispatch_date: record.dispatchDetails?.dispatchDate || record.reviewedAt || record.requestedAt,
+          expected_delivery: record.dispatchDetails?.expectedDeliveryDate,
+          delivery_proof_url: record.deliveryProof?.proofUrl || record.deliveryProof?.podUrl,
+          completed_at: record.completedAt,
         })));
     } catch (err) {
       console.error('Failed to load replacement dispatches', err);
@@ -3649,61 +3660,224 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
 
   const renderReplacementDispatch = () => {
     const replacementFilter = dispatchStatusParam || 'pending';
-    const filteredReplacementDispatches = replacementDispatches.filter(row => {
-      if (replacementFilter === 'all') return true;
+
+    const pendingList = replacementDispatches.filter(row => {
       const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
-      if (replacementFilter === 'delivered') return status === 'IN TRANSIT' || status === 'DELIVERED';
-      if (replacementFilter === 'in-transit') return status === 'DISPATCHED' || status === 'IN TRANSIT' || status === 'APPROVED' || status === 'READY FOR DISPATCH';
       return status !== 'DISPATCHED' && status !== 'IN TRANSIT' && status !== 'DELIVERED';
     });
 
+    const inTransitList = replacementDispatches.filter(row => {
+      const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
+      return status === 'DISPATCHED' || status === 'IN TRANSIT' || status === 'APPROVED' || status === 'READY FOR DISPATCH';
+    });
+
+    const deliveredList = replacementDispatches.filter(row => {
+      const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
+      return status === 'IN TRANSIT' || status === 'DELIVERED';
+    });
+
+    const historyList = replacementDispatches;
+
+    let filteredReplacementDispatches = [];
+    if (replacementFilter === 'all' || replacementFilter === 'history') {
+      filteredReplacementDispatches = historyList;
+    } else if (replacementFilter === 'delivered') {
+      filteredReplacementDispatches = deliveredList;
+    } else if (replacementFilter === 'in-transit') {
+      filteredReplacementDispatches = inTransitList;
+    } else {
+      filteredReplacementDispatches = pendingList;
+    }
+
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900 }}>Replacement Dispatch</h2>
-          <p style={{ margin: '4px 0 0', color: 'var(--color-text-secondary)', fontSize: '13px' }}>Ship approved replacements and confirm delivery.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Header Title */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: 'var(--color-text-primary)' }}>Replacement Dispatch Management</h2>
+            <p style={{ margin: '4px 0 0', color: 'var(--color-text-secondary)', fontSize: '13px' }}>
+              Track approved customer replacements, create transit manifests, and monitor delivery confirmation.
+            </p>
+          </div>
+          <button
+            onClick={fetchReplacementDispatches}
+            disabled={replacementLoading}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: '1px solid var(--color-border)',
+              background: '#FFFFFF',
+              color: 'var(--color-text-secondary)',
+              fontSize: '13px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Clock size={14} className={replacementLoading ? 'animate-spin' : ''} />
+            Refresh Queue
+          </button>
         </div>
-        <div className="app-card" style={{ padding: '18px' }}>
+
+        {/* Tab Navigation Bar */}
+        <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--color-border)', paddingBottom: '12px', flexWrap: 'wrap' }}>
+          {[
+            { id: 'pending', label: 'Pending Dispatch', count: pendingList.length },
+            { id: 'in-transit', label: 'In Transit', count: inTransitList.length },
+            { id: 'delivered', label: 'Delivered', count: deliveredList.length },
+            { id: 'history', label: 'History', count: historyList.length },
+          ].map((tab) => {
+            const isActive = (dispatchStatusParam || 'pending') === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => navigate.push(`${basePath}/replacements?status=${tab.id}`)}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '10px',
+                  border: isActive ? '1.5px solid #2563EB' : '1px solid var(--color-border)',
+                  background: isActive ? '#2563EB' : '#FFFFFF',
+                  color: isActive ? '#FFFFFF' : 'var(--color-text-secondary)',
+                  fontWeight: 800,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: isActive ? '0 2px 8px rgba(37, 99, 235, 0.25)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span>{tab.label}</span>
+                <span style={{
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  fontSize: '11px',
+                  fontWeight: 900,
+                  background: isActive ? 'rgba(255,255,255,0.25)' : '#F1F5F9',
+                  color: isActive ? '#FFFFFF' : '#475569'
+                }}>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Replacement Table Card */}
+        <div className="app-card" style={{ padding: '20px', borderRadius: '16px' }}>
           {replacementLoading ? (
-            <p style={{ color: 'var(--color-text-secondary)' }}>Loading replacement dispatch queue...</p>
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+              <div style={{ display: 'inline-block', width: '24px', height: '24px', border: '3px solid #E2E8F0', borderTopColor: '#2563EB', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '10px' }} />
+              <div>Loading replacement dispatches...</div>
+            </div>
           ) : (
-            <div className="crm-table-container">
-              <table className="crm-table responsive-table">
+            <div className="crm-table-container" style={{ overflowX: 'auto' }}>
+              <table className="crm-table responsive-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
-                  <tr>
-                    <th>Replacement No</th>
-                    <th>Order</th>
-                    <th>Customer</th>
-                    <th>Product</th>
-                    <th>Qty</th>
-                    <th>Vehicle</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontWeight: 700 }}>
+                    <th style={{ padding: '12px 14px' }}>Replacement No</th>
+                    <th style={{ padding: '12px 14px' }}>Order Ref</th>
+                    <th style={{ padding: '12px 14px' }}>Customer</th>
+                    <th style={{ padding: '12px 14px' }}>Product</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'center' }}>Qty</th>
+                    <th style={{ padding: '12px 14px' }}>Vehicle / LR</th>
+                    <th style={{ padding: '12px 14px' }}>Status</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredReplacementDispatches.length === 0 ? (
-                    <tr><td colSpan="8" style={{ textAlign: 'center', padding: '28px', color: 'var(--color-text-muted)' }}>No approved replacement dispatches found.</td></tr>
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-text-muted)' }}>
+                        <div style={{ fontSize: '28px', marginBottom: '8px' }}>📦</div>
+                        <strong style={{ display: 'block', fontSize: '14px', color: '#334155' }}>No records found</strong>
+                        <span style={{ fontSize: '12px', color: '#64748B' }}>No replacement items currently in this tab.</span>
+                      </td>
+                    </tr>
                   ) : filteredReplacementDispatches.map(row => (
-                    <tr key={row.id}>
-                      <td style={{ fontWeight: 800, fontFamily: 'monospace' }}>{row.request_no}</td>
-                      <td>{row.order_number}</td>
-                      <td>{row.customer_name}</td>
-                      <td>{row.product_name}</td>
-                      <td>{row.approved_qty}</td>
-                      <td>{row.vehicle_number || '-'}</td>
-                      <td><StatusBadge status={row.dispatch_status || row.status} /></td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '8px' }}>
+                    <tr key={row.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '12px 14px', fontWeight: 800, fontFamily: 'monospace', color: '#1E3A8A' }}>
+                        {row.request_no}
+                      </td>
+                      <td style={{ padding: '12px 14px', color: '#334155', fontWeight: 600 }}>
+                        {row.order_number}
+                      </td>
+                      <td style={{ padding: '12px 14px', fontWeight: 700, color: '#0F172A' }}>
+                        {row.customer_name}
+                      </td>
+                      <td style={{ padding: '12px 14px', color: '#475569' }}>
+                        {row.product_name}
+                      </td>
+                      <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 800, color: '#2563EB' }}>
+                        {row.approved_qty}
+                      </td>
+                      <td style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>
+                        {row.vehicle_number ? (
+                          <div>
+                            <strong style={{ color: '#0F172A' }}>{row.vehicle_number}</strong>
+                            {row.lr_number && <div style={{ fontSize: '11px', color: '#64748B' }}>LR: {row.lr_number}</div>}
+                          </div>
+                        ) : '—'}
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <StatusBadge status={row.dispatch_status || row.status} />
+                      </td>
+                      <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                          {/* Workflow Primary Actions */}
                           {replacementFilter === 'pending' && !['DISPATCHED', 'IN_TRANSIT', 'DELIVERED'].includes(row.dispatch_status) && (
-                            <button className="btn-small btn-outline-small" onClick={() => handleShipReplacement(row)}>Create Dispatch</button>
+                            <button
+                              className="btn-small btn-outline-small"
+                              onClick={() => handleShipReplacement(row)}
+                              style={{ fontWeight: 700, borderColor: '#2563EB', color: '#2563EB' }}
+                            >
+                              Create Dispatch
+                            </button>
                           )}
                           {replacementFilter === 'in-transit' && ['DISPATCHED', 'APPROVED', 'READY_FOR_DISPATCH'].includes(row.dispatch_status) && (
-                            <button className="btn-small btn-outline-small" onClick={() => handleStartReplacementDelivery(row)}>Start Delivery</button>
+                            <button
+                              className="btn-small btn-outline-small"
+                              onClick={() => handleStartReplacementDelivery(row)}
+                              style={{ fontWeight: 700, borderColor: '#16A34A', color: '#16A34A' }}
+                            >
+                              Start Delivery
+                            </button>
                           )}
                           {replacementFilter === 'delivered' && row.dispatch_status === 'IN_TRANSIT' && (
-                            <button className="btn-small btn-outline-small" onClick={() => handleDeliverReplacement(row)}>Confirm Delivery</button>
+                            <button
+                              className="btn-small btn-outline-small"
+                              onClick={() => handleDeliverReplacement(row)}
+                              style={{ fontWeight: 700, background: '#16A34A', color: '#FFFFFF', border: 'none' }}
+                            >
+                              Confirm Delivery
+                            </button>
                           )}
+
+                          {/* Individual History Action Button */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReplacementForHistory(row)}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #CBD5E1',
+                              background: '#F8FAFC',
+                              color: '#334155',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <Clock size={13} color="#475569" />
+                            History
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -3713,6 +3887,144 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             </div>
           )}
         </div>
+
+        {/* Individual Replacement History Timeline Modal */}
+        {selectedReplacementForHistory && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}>
+            <div style={{
+              background: '#FFFFFF',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '680px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              border: '1px solid #E2E8F0',
+              padding: '24px'
+            }}>
+              {/* Modal Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: '14px', marginBottom: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
+                    <Clock size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0F172A' }}>
+                      Replacement Dispatch History
+                    </h3>
+                    <span style={{ fontSize: '12px', color: '#64748B', fontFamily: 'monospace', fontWeight: 700 }}>
+                      {selectedReplacementForHistory.request_no} • Order #{selectedReplacementForHistory.order_number}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReplacementForHistory(null)}
+                  style={{ border: 'none', background: '#F1F5F9', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: '#64748B', fontWeight: 700 }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Summary Information Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginBottom: '20px', background: '#F8FAFC', padding: '14px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Customer</span>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>{selectedReplacementForHistory.customer_name}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Material / Product</span>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>{selectedReplacementForHistory.product_name}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Approved Qty</span>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#2563EB', marginTop: '2px' }}>{selectedReplacementForHistory.approved_qty} Units</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Current Status</span>
+                  <div style={{ marginTop: '2px' }}><StatusBadge status={selectedReplacementForHistory.dispatch_status || selectedReplacementForHistory.status} /></div>
+                </div>
+              </div>
+
+              {/* Transport & Transit Info */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+                <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: 800, color: '#0F172A' }}>Shipment & Transit Details</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px', fontSize: '12.5px' }}>
+                  <div style={{ padding: '10px 12px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                    <span style={{ color: '#64748B', fontSize: '11px', display: 'block', fontWeight: 600 }}>Vehicle Number</span>
+                    <strong style={{ color: '#0F172A' }}>{selectedReplacementForHistory.vehicle_number || selectedReplacementForHistory.dispatchDetails?.vehicleNumber || '—'}</strong>
+                  </div>
+                  <div style={{ padding: '10px 12px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                    <span style={{ color: '#64748B', fontSize: '11px', display: 'block', fontWeight: 600 }}>LR / Bilty Number</span>
+                    <strong style={{ color: '#0F172A' }}>{selectedReplacementForHistory.lr_number || selectedReplacementForHistory.dispatchDetails?.lrNumber || '—'}</strong>
+                  </div>
+                  <div style={{ padding: '10px 12px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                    <span style={{ color: '#64748B', fontSize: '11px', display: 'block', fontWeight: 600 }}>Driver Name</span>
+                    <strong style={{ color: '#0F172A' }}>{selectedReplacementForHistory.driver_name || selectedReplacementForHistory.dispatchDetails?.driverName || '—'}</strong>
+                  </div>
+                  <div style={{ padding: '10px 12px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                    <span style={{ color: '#64748B', fontSize: '11px', display: 'block', fontWeight: 600 }}>Transport Carrier</span>
+                    <strong style={{ color: '#0F172A' }}>{selectedReplacementForHistory.transport_company || selectedReplacementForHistory.dispatchDetails?.transportCompany || 'Himalaya Logistics'}</strong>
+                  </div>
+                  <div style={{ padding: '10px 12px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                    <span style={{ color: '#64748B', fontSize: '11px', display: 'block', fontWeight: 600 }}>Dispatch Date</span>
+                    <strong style={{ color: '#0F172A' }}>{selectedReplacementForHistory.dispatch_date ? String(selectedReplacementForHistory.dispatch_date).split('T')[0] : '—'}</strong>
+                  </div>
+                  <div style={{ padding: '10px 12px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                    <span style={{ color: '#64748B', fontSize: '11px', display: 'block', fontWeight: 600 }}>Delivery Date</span>
+                    <strong style={{ color: '#16A34A' }}>{selectedReplacementForHistory.completed_at ? String(selectedReplacementForHistory.completed_at).split('T')[0] : '—'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Proof of Delivery (POD) image */}
+              {(selectedReplacementForHistory.delivery_proof_url || selectedReplacementForHistory.deliveryProof?.proofUrl) && (
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '13.5px', fontWeight: 800, color: '#0F172A' }}>Proof of Delivery (POD)</h4>
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', padding: '10px', background: '#F8FAFC', textAlign: 'center' }}>
+                    <img
+                      src={selectedReplacementForHistory.delivery_proof_url || selectedReplacementForHistory.deliveryProof?.proofUrl}
+                      alt="Delivery Proof"
+                      style={{ maxHeight: '200px', maxWidth: '100%', borderRadius: '8px', objectFit: 'contain', margin: '0 auto', display: 'block' }}
+                    />
+                    <a
+                      href={selectedReplacementForHistory.delivery_proof_url || selectedReplacementForHistory.deliveryProof?.proofUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '8px', fontSize: '12px', color: '#2563EB', fontWeight: 700 }}
+                    >
+                      View Original Proof Document ↗
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal Footer */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #E2E8F0', paddingTop: '14px' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReplacementForHistory(null)}
+                  style={{ padding: '8px 20px', borderRadius: '8px', background: '#0F172A', color: '#FFFFFF', fontWeight: 700, fontSize: '13px', border: 'none', cursor: 'pointer' }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
