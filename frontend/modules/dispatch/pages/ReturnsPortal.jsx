@@ -59,11 +59,13 @@ export default function ReturnsPortal() {
   };
   const rows = useMemo(() => requests
     .map((request) => {
+      const rawOrderNo = request.salesOrder?.orderNumber || request.salesOrder?.orderNo || request.orderNumber || request.orderNo;
       return {
         ...request,
         id: request.id,
         displayId: request.returnNumber,
-        orderId: request.salesOrderId,
+        orderId: rawOrderNo || request.salesOrderId || '—',
+        orderNumber: rawOrderNo || request.salesOrderId || '—',
         status: statusMap[request.status] || request.status,
         customerName: request.salesOrder?.customer?.companyName || request.salesOrder?.customer?.name || 'Unknown customer',
         deliveryAddress: request.salesOrder?.shippingAddress || '',
@@ -75,7 +77,7 @@ export default function ReturnsPortal() {
   const filtered = rows.filter((request) => {
     if (!selectedTab.predicate(request)) return false;
     const query = search.trim().toLowerCase();
-    return !query || [request.id, request.orderId, request.customerName]
+    return !query || [request.id, request.returnNumber, request.orderId, request.orderNumber, request.customerName]
       .some((value) => String(value || '').toLowerCase().includes(query));
   });
 

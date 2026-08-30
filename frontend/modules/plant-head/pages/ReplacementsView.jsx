@@ -42,11 +42,15 @@ export default function ReplacementsView() {
     };
   }, []);
 
-  const allRows = useMemo(() => requests.map((request) => ({
-    ...request,
-    orderId: request.salesOrderId,
-    customerName: request.salesOrder?.customer?.companyName || request.salesOrder?.customer?.name || 'Unknown customer',
-  })), [requests]);
+  const allRows = useMemo(() => requests.map((request) => {
+    const rawOrderNo = request.salesOrder?.orderNumber || request.salesOrder?.orderNo || request.orderNumber || request.orderNo;
+    return {
+      ...request,
+      orderNumber: rawOrderNo || request.salesOrderId || '—',
+      orderId: rawOrderNo || request.salesOrderId || '—',
+      customerName: request.salesOrder?.customer?.companyName || request.salesOrder?.customer?.name || 'Unknown customer',
+    };
+  }), [requests]);
 
   const pendingCount = allRows.filter((request) => PENDING_REPLACEMENT_STATUSES.includes(request.status)).length;
   const historyCount = allRows.length - pendingCount;
@@ -55,7 +59,7 @@ export default function ReplacementsView() {
     const isPending = PENDING_REPLACEMENT_STATUSES.includes(request.status);
     if (activeTab === 'pending' ? !isPending : isPending) return false;
     const query = search.trim().toLowerCase();
-    return !query || [request.id, request.orderId, request.customerName]
+    return !query || [request.id, request.requestNumber, request.orderId, request.orderNumber, request.customerName]
       .some((value) => String(value || '').toLowerCase().includes(query));
   }), [allRows, activeTab, search]);
 
