@@ -345,6 +345,7 @@ export default function FinancePortal({ initialView, forceView }) {
   const [selectedVendorId, setSelectedVendorId] = useState('');
   const [supplierName, setSupplierName] = useState('');
   const [poRates, setPoRates] = useState({});
+  const [hasGst, setHasGst] = useState(true);
   const [poGst, setPoGst] = useState('18');
   const [poFreight, setPoFreight] = useState('0');
   const [poPaymentTerms, setPoPaymentTerms] = useState('30 Days Net');
@@ -1960,7 +1961,9 @@ export default function FinancePortal({ initialView, forceView }) {
       const rate = Number(poRates[matName] ?? addMatRate ?? 0);
       return sum + (qty * rate);
     }, 0);
-    const displayTax = displaySubtotal * (Number(poGst || 18) / 100);
+    const isGstEnabled = hasGst === true;
+    const gstRateNumber = isGstEnabled ? Number(poGst || 0) : 0;
+    const displayTax = displaySubtotal * (gstRateNumber / 100);
     const displayFreight = Number(poFreight || 0);
     const displayTotal = displaySubtotal + displayTax + displayFreight;
 
@@ -1977,7 +1980,7 @@ export default function FinancePortal({ initialView, forceView }) {
           unitPrice: rate,
           rate: rate,
           unit: it.unit || 'Units',
-          gstPercent: Number(poGst || 18)
+          gstPercent: isGstEnabled ? Number(poGst || 0) : 0
         };
       });
 
@@ -1995,7 +1998,8 @@ export default function FinancePortal({ initialView, forceView }) {
         expectedDate: poExpectedDate,
         totalAmount: totalAmount,
         items: itemsPayload,
-        gst: poGst || '18',
+        gst: isGstEnabled ? (poGst || '18') : '0',
+        hasGst: isGstEnabled,
         freight: poFreight || '0'
       };
       
@@ -2127,13 +2131,105 @@ export default function FinancePortal({ initialView, forceView }) {
               />
             </div>
             <div>
-              <label style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>GST %</label>
-              <input
-                type="number"
-                value={poGst}
-                onChange={e => setPoGst(e.target.value)}
-                style={{ width: '100%', padding: '11px 14px', border: '1px solid #D6E2F0', borderRadius: '8px', fontSize: '14px', fontWeight: 600, color: '#24345C', background: '#ffffff', outline: 'none' }}
-              />
+              <label style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+                GST Applicable? *
+              </label>
+              <div style={{ display: 'flex', gap: '8px', height: '42px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setHasGst(true); if (!poGst || poGst === '0') setPoGst('18'); }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    border: isGstEnabled ? '2px solid #2F4375' : '1px solid #D6E2F0',
+                    background: isGstEnabled ? '#EFF6FF' : '#FFFFFF',
+                    color: isGstEnabled ? '#1E3A8A' : '#64748B',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: isGstEnabled ? '#2563EB' : '#CBD5E1' }} />
+                  Yes (With GST)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setHasGst(false); }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    border: !isGstEnabled ? '2px solid #2F4375' : '1px solid #D6E2F0',
+                    background: !isGstEnabled ? '#FEF2F2' : '#FFFFFF',
+                    color: !isGstEnabled ? '#991B1B' : '#64748B',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: !isGstEnabled ? '#DC2626' : '#CBD5E1' }} />
+                  No (0% Non-GST)
+                </button>
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+                GST Rate (%) {isGstEnabled ? '*' : '(Disabled)'}
+              </label>
+              {isGstEnabled ? (
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="any"
+                    required
+                    value={poGst}
+                    onChange={e => setPoGst(e.target.value)}
+                    placeholder="18"
+                    style={{ flex: 1, padding: '11px 12px', border: '1px solid #D6E2F0', borderRadius: '8px', fontSize: '14px', fontWeight: 700, color: '#24345C', background: '#ffffff', outline: 'none' }}
+                  />
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {[5, 12, 18, 28].map(slab => (
+                      <button
+                        key={slab}
+                        type="button"
+                        onClick={() => setPoGst(String(slab))}
+                        style={{
+                          padding: '0 8px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          border: Number(poGst) === slab ? '1.5px solid #2563EB' : '1px solid #D6E2F0',
+                          background: Number(poGst) === slab ? '#DBEAFE' : '#F8FAFC',
+                          color: Number(poGst) === slab ? '#1E40AF' : '#475569'
+                        }}
+                      >
+                        {slab}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  disabled
+                  value="0% (Non-GST / Exempted)"
+                  style={{ width: '100%', padding: '11px 14px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '13.5px', fontWeight: 600, color: '#94A3B8', background: '#F8FAFC', cursor: 'not-allowed', outline: 'none' }}
+                />
+              )}
             </div>
             <div>
               <label style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>Transportation Cost (₹)</label>
@@ -2144,7 +2240,7 @@ export default function FinancePortal({ initialView, forceView }) {
                 style={{ width: '100%', padding: '11px 14px', border: '1px solid #D6E2F0', borderRadius: '8px', fontSize: '14px', fontWeight: 600, color: '#24345C', background: '#ffffff', outline: 'none' }}
               />
             </div>
-            <div style={{ gridColumn: 'span 2' }}>
+            <div>
               <label style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>Payment Terms</label>
               <input
                 type="text"
@@ -2164,8 +2260,8 @@ export default function FinancePortal({ initialView, forceView }) {
                 <span style={{ fontWeight: 800, color: '#0F172A' }}>₹{displaySubtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 600 }}>GST ({poGst || 18}%):</span>
-                <span style={{ fontWeight: 800, color: '#0F172A' }}>₹{displayTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span style={{ fontWeight: 600 }}>GST ({isGstEnabled ? `${poGst || 18}%` : '0% - Non-GST'}):</span>
+                <span style={{ fontWeight: 800, color: isGstEnabled ? '#0F172A' : '#64748B' }}>₹{displayTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontWeight: 600 }}>Transportation Cost:</span>
