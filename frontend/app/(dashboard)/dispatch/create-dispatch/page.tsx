@@ -823,7 +823,7 @@ export default function CreateDispatchPage() {
           : `${orderGroups.size} sales orders added to this dispatch run`,
       );
       queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
-      router.push("/dispatch/in-transit");
+      router.push(`${basePath}/in-transit`);
     } catch (err: any) {
       console.error(
         "Create dispatch failed. Exact Backend Message:\n" +
