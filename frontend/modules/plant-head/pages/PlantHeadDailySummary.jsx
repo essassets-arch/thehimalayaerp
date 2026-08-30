@@ -1098,11 +1098,43 @@ export const PlantHeadDailySummary = () => {
         )}
       </div>
 
-      {/* ── OFFICIAL PLANT HEAD DAILY EXECUTIVE REPORT MODAL ── */}
+      {/* ── OFFICIAL PLANT HEAD DAILY EXECUTIVE REPORT MODAL (DESKTOP FORMAT ON ALL SCREENS) ── */}
       {showReportModal && (
-        <div className="report-modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(6px)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', overflowY: 'auto', padding: '32px 16px' }}>
+        <div className="report-modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(6px)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', overflowY: 'auto', overflowX: 'auto', WebkitOverflowScrolling: 'touch', padding: '24px 16px' }}>
           
           <style>{`
+            /* Force exact desktop rendering on all screens & devices */
+            #report-document-card, #report-document-card * {
+              box-sizing: border-box !important;
+            }
+            #report-document-card {
+              width: 960px !important;
+              min-width: 960px !important;
+              max-width: 960px !important;
+              background: #ffffff !important;
+              padding: 36px !important;
+              font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+              color: #0f172a !important;
+            }
+            #report-document-card table.report-table {
+              display: table !important;
+              width: 100% !important;
+              table-layout: fixed !important;
+              border-collapse: collapse !important;
+              margin-bottom: 0 !important;
+            }
+            #report-document-card table.report-table tr {
+              display: table-row !important;
+            }
+            #report-document-card table.report-table td,
+            #report-document-card table.report-table th {
+              display: table-cell !important;
+              vertical-align: middle !important;
+            }
+            #report-document-card .report-dept-table td {
+              vertical-align: top !important;
+            }
+
             @media print {
               @page {
                 size: A4 portrait;
@@ -1174,7 +1206,7 @@ export const PlantHeadDailySummary = () => {
             }
           `}</style>
 
-          <div id="report-document-card" className="erp-modal-box erp-modal-large printable-report-modal" style={{ background: '#ffffff', borderRadius: '16px', width: 'min(980px, calc(100vw - 24px))', maxWidth: '100%', padding: 'clamp(16px, 3vw, 36px)', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', border: '1px solid #cbd5e1', position: 'relative' }}>
+          <div id="report-document-card" className="printable-report-modal" style={{ background: '#ffffff', borderRadius: '16px', width: '960px', minWidth: '960px', maxWidth: '960px', padding: '36px', margin: '0 auto', flexShrink: 0, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', border: '1px solid #cbd5e1', position: 'relative' }}>
             
             {/* Modal Actions Header (Hidden during Print) */}
             <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', paddingBottom: '16px', borderBottom: '2px solid #e2e8f0' }}>
@@ -1273,7 +1305,7 @@ export const PlantHeadDailySummary = () => {
             {/* 3. Departmental Output Summary (Clean 2-Column Table) */}
             <div style={{ marginBottom: '20px' }}>
               <h3 style={{ fontSize: '13px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', marginBottom: '8px', borderLeft: '4px solid #10b981', paddingLeft: '8px' }}>3. Departmental Output Summary</h3>
-              <table className="report-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #cbd5e1' }}>
+              <table className="report-table report-dept-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #cbd5e1' }}>
                 <tbody>
                   <tr>
                     <td style={{ width: '50%', padding: '10px 12px', background: '#f8fafc', verticalAlign: 'top', border: '1px solid #cbd5e1' }}>
