@@ -360,30 +360,42 @@ export default function LoginPage() {
           margin-top: 2px;
         }
 
-        .login-label {
-          display: block;
-          font-size: 12.5px;
-          font-weight: 700;
-          color: #334155;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
-          margin-bottom: 2px;
-        }
-
+        /* ================================
+           LOGIN FORM - RESPONSIVE FIX
+        ================================ */
         .login-form {
+          width: 100%;
+          max-width: 420px;
+          margin: 0 auto;
           display: flex;
           flex-direction: column;
           gap: 16px;
-          width: 100%;
+          box-sizing: border-box;
         }
 
+        .login-form .form-group,
         .form-group {
+          width: 100%;
           display: flex;
           flex-direction: column;
           gap: 6px;
-          width: 100%;
+          box-sizing: border-box;
         }
 
+        .login-label,
+        .login-form label {
+          display: block;
+          margin-bottom: 2px;
+          font-size: 12.5px;
+          font-weight: 700;
+          line-height: 1.4;
+          color: #334155;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+        }
+
+        /* Input wrapper */
+        .input-wrapper,
         .login-input-wrap {
           position: relative;
           display: flex;
@@ -392,80 +404,119 @@ export default function LoginPage() {
           box-sizing: border-box;
         }
 
-        .login-icon {
-          position: absolute;
-          left: 15px;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #94A3B8;
-          pointer-events: none;
-          z-index: 2;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 18px;
-          height: 18px;
-          transition: color 0.2s ease;
-        }
-
+        /* Input */
+        .input-wrapper input,
         .login-input {
           width: 100% !important;
           height: 48px !important;
           min-height: 48px !important;
           box-sizing: border-box !important;
+          border: 1.5px solid #d5dfef !important;
+          border-radius: 11px !important;
+          background: #eaf1fc !important;
+
+          /* IMPORTANT: Generous left padding prevents icon overlap */
           padding: 0 16px 0 46px !important;
-          background: #F8FAFC !important;
-          border: 1.5px solid #E2E8F0 !important;
-          border-radius: 12px !important;
-          color: #0F172A !important;
+
           font-size: 14.5px !important;
           font-weight: 500 !important;
           font-family: 'Outfit', sans-serif !important;
+          color: #101828 !important;
           outline: none !important;
-          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+
+          transition:
+            border-color 0.2s ease,
+            box-shadow 0.2s ease,
+            background 0.2s ease !important;
           box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
         }
+
+        .input-wrapper input::placeholder,
         .login-input::placeholder {
-          color: #94A3B8 !important;
+          color: #8294ad !important;
           font-weight: 400 !important;
         }
+
+        .input-wrapper input:hover,
         .login-input:hover {
-          border-color: #CBD5E1 !important;
-          background: #FFFFFF !important;
+          border-color: #7b9ed8 !important;
+          background: #f5f8fd !important;
         }
+
+        .input-wrapper input:focus,
         .login-input:focus {
-          background: #FFFFFF !important;
           border-color: #2563EB !important;
-          box-shadow: 0 0 0 4px rgba(37,99,235,0.12) !important;
-        }
-        .login-input-wrap:focus-within .login-icon {
-          color: #2563EB;
+          background: #ffffff !important;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14) !important;
         }
 
+        /* Password input specific right padding */
         .login-input-pass {
-          padding-right: 46px !important;
+          padding-right: 48px !important;
         }
 
-        .pass-toggle {
-          position: absolute;
-          right: 12px;
-          top: 50%;
-          transform: translateY(-50%);
-          background: transparent;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          color: #94A3B8;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 6px;
-          z-index: 2;
-          transition: all 0.2s ease;
+        /* Left icon */
+        .input-wrapper .input-icon,
+        .login-input-wrap .login-icon {
+          position: absolute !important;
+          left: 15px !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+
+          width: 18px !important;
+          height: 18px !important;
+
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+
+          color: #8294ad !important;
+          pointer-events: none !important;
+          z-index: 2 !important;
+          transition: color 0.2s ease !important;
         }
-        .pass-toggle:hover {
-          color: #1E293B;
-          background: #F1F5F9;
+
+        .login-input-wrap:focus-within .login-icon,
+        .input-wrapper:focus-within .input-icon {
+          color: #2563EB !important;
+        }
+
+        /* Right password eye */
+        .input-wrapper .password-toggle,
+        .login-input-wrap .pass-toggle {
+          position: absolute !important;
+          right: 12px !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+
+          width: 30px !important;
+          height: 30px !important;
+
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+
+          border: 0 !important;
+          background: transparent !important;
+          color: #8294ad !important;
+          cursor: pointer !important;
+          border-radius: 8px !important;
+
+          padding: 0 !important;
+          z-index: 3 !important;
+          transition: all 0.2s ease !important;
+        }
+
+        .input-wrapper .password-toggle:hover,
+        .login-input-wrap .pass-toggle:hover {
+          color: #101828 !important;
+          background: rgba(0, 0, 0, 0.05) !important;
+        }
+
+        .input-wrapper .password-toggle svg,
+        .login-input-wrap .pass-toggle svg {
+          width: 18px !important;
+          height: 18px !important;
         }
 
         .login-divider {
@@ -738,6 +789,56 @@ export default function LoginPage() {
           box-shadow: 0 2px 8px rgba(37,99,235,0.3);
         }
 
+        @media (max-width: 767px) {
+          .login-form {
+            width: 100%;
+            max-width: none;
+          }
+
+          .login-form .form-group,
+          .form-group {
+            margin-bottom: 2px;
+          }
+
+          .login-label,
+          .login-form label {
+            margin-bottom: 3px;
+            font-size: 12px;
+          }
+
+          .input-wrapper input,
+          .login-input {
+            width: 100% !important;
+            height: 46px !important;
+            min-height: 46px !important;
+
+            /* Keep enough room for icons */
+            padding-left: 44px !important;
+            padding-right: 16px !important;
+
+            font-size: 14px !important;
+            border-radius: 10px !important;
+          }
+
+          .login-input-pass {
+            padding-right: 44px !important;
+          }
+
+          .input-wrapper .input-icon,
+          .login-input-wrap .login-icon {
+            left: 14px !important;
+            width: 18px !important;
+            height: 18px !important;
+          }
+
+          .input-wrapper .password-toggle,
+          .login-input-wrap .pass-toggle {
+            right: 10px !important;
+            width: 30px !important;
+            height: 30px !important;
+          }
+        }
+
         @media (max-width: 480px) {
           .login-root { padding: 12px 10px 32px; }
           .login-card { padding: 18px 14px; border-radius: 16px; width: 100%; box-sizing: border-box; }
@@ -745,6 +846,36 @@ export default function LoginPage() {
           .accounts-grid { grid-template-columns: 1fr; max-height: 260px; }
           .logo-box { padding: 6px 14px; }
           .portal-title { font-size: 12px; }
+        }
+
+        @media (max-width: 380px) {
+          .login-form .form-group,
+          .form-group {
+            margin-bottom: 2px;
+          }
+
+          .input-wrapper input,
+          .login-input {
+            height: 44px !important;
+            min-height: 44px !important;
+            padding-left: 42px !important;
+            padding-right: 14px !important;
+            font-size: 13px !important;
+          }
+
+          .login-input-pass {
+            padding-right: 42px !important;
+          }
+
+          .input-wrapper .input-icon,
+          .login-input-wrap .login-icon {
+            left: 12px !important;
+          }
+
+          .input-wrapper .password-toggle,
+          .login-input-wrap .pass-toggle {
+            right: 8px !important;
+          }
         }
       `}</style>
 
@@ -780,8 +911,8 @@ export default function LoginPage() {
               {/* Email */}
               <div className="form-group">
                 <label htmlFor="login-email" className="login-label">Email Address</label>
-                <div className="login-input-wrap">
-                  <span className="login-icon">
+                <div className="input-wrapper login-input-wrap">
+                  <span className="input-icon login-icon">
                     <Mail size={18} />
                   </span>
                   <input
@@ -802,8 +933,8 @@ export default function LoginPage() {
               {/* Password */}
               <div className="form-group">
                 <label htmlFor="login-password" className="login-label">Password</label>
-                <div className="login-input-wrap">
-                  <span className="login-icon">
+                <div className="input-wrapper login-input-wrap">
+                  <span className="input-icon login-icon">
                     <KeyRound size={18} />
                   </span>
                   <input
@@ -820,7 +951,7 @@ export default function LoginPage() {
                   />
                   <button
                     type="button"
-                    className="pass-toggle"
+                    className="password-toggle pass-toggle"
                     onClick={() => setShowPass(p => !p)}
                     tabIndex={-1}
                     aria-label={showPass ? 'Hide password' : 'Show password'}
