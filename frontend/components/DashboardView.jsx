@@ -915,7 +915,7 @@ export default function DashboardView({
                 </div>
               </div>
 
-              <div style={{ width: '100%', height: '260px', minHeight: '260px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
+              <div className="sales-pipeline-chart-container" style={{ width: '100%', height: '260px', minHeight: '260px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
                 {isMounted && (
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
                     <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
