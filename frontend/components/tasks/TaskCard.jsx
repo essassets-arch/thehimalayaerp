@@ -57,6 +57,23 @@ export default function TaskCard({ task, onDone, onReschedule }) {
     return `₹${val.toLocaleString('en-IN')}`;
   };
 
+  const formatDisplayDate = (dStr) => {
+    if (!dStr) return '';
+    try {
+      const parts = String(dStr).split('T')[0].split('-');
+      if (parts.length === 3) {
+        const year = parts[0];
+        const monthIdx = parseInt(parts[1], 10) - 1;
+        const day = parts[2];
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        if (monthNames[monthIdx]) {
+          return `${day} ${monthNames[monthIdx]} ${year}`;
+        }
+      }
+    } catch (e) {}
+    return dStr;
+  };
+
   return (
     <div 
       className={`app-card task-card ${isOverdue ? 'task-card-overdue' : ''}`}
@@ -170,19 +187,44 @@ export default function TaskCard({ task, onDone, onReschedule }) {
         </p>
       </div>
 
-      {/* Date row */}
+      {/* Date & Phone row */}
       <div 
         style={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: '5px', 
+          justifyContent: 'space-between',
           fontSize: '10.5px', 
           color: isOverdue ? '#ef4444' : 'var(--color-text-muted)',
-          fontWeight: '700'
+          fontWeight: '700',
+          flexWrap: 'wrap',
+          gap: '6px'
         }}
       >
-        <Calendar size={11} />
-        <span>Action Date: {task.followUpDate}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Calendar size={11} />
+          <span>Action Date: {formatDisplayDate(task.followUpDate)}</span>
+        </div>
+        {task.phone && (
+          <a
+            href={`tel:${task.phone}`}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              color: '#0284c7',
+              textDecoration: 'none',
+              fontSize: '10.5px',
+              fontWeight: '700',
+              background: 'rgba(2, 132, 199, 0.08)',
+              padding: '2px 6px',
+              borderRadius: '6px'
+            }}
+          >
+            <Phone size={10} />
+            <span>{task.phone}</span>
+          </a>
+        )}
       </div>
 
       {/* Action Buttons */}

@@ -284,12 +284,12 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
   const { refreshSalesOrders, refreshSamples, loadLeads, loadCustomers, createSample } = useSalesBackend();
 
   useEffect(() => {
-    // Load orders on orders view or dashboard
-    if ((currentView === 'orders' || currentView === 'dashboard') && loadOrders) {
+    // Load orders on orders view, dashboard, or daily-task
+    if ((currentView === 'orders' || currentView === 'dashboard' || currentView === 'daily-task') && loadOrders) {
       void loadOrders();
     }
-    // Load other modules on dashboard view for dynamic metrics
-    if (currentView === 'dashboard') {
+    // Load other modules on dashboard or daily-task view for dynamic metrics & tasks
+    if (currentView === 'dashboard' || currentView === 'daily-task') {
       if (loadLeads) void loadLeads();
       if (refreshSamples) void refreshSamples();
       if (loadCustomers) void loadCustomers();
@@ -974,7 +974,20 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
       );
 
     case 'daily-task':
-      return <DailyTaskView state={{ ...state, leads, samples, quotations, orders, customers, reminders }} dispatch={dispatch} navigate={navigate} showToast={showToast} completeReminder={completeReminder} updateReminder={updateReminder} />;
+      return (
+        <DailyTaskView
+          basePath={basePath}
+          isSuperSalesPortal={isSuperSalesPortal}
+          state={{ ...state, leads, samples, quotations, orders, customers, reminders }}
+          dispatch={dispatch}
+          navigate={navigate}
+          showToast={showToast}
+          createReminder={createReminder}
+          completeReminder={completeReminder}
+          updateReminder={updateReminder}
+          module={isSuperSalesPortal ? 'SuperSales' : 'Sales'}
+        />
+      );
 
     case 'dashboard':
       return (

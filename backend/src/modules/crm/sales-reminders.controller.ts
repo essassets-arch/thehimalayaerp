@@ -46,7 +46,11 @@ export class SalesRemindersController {
     const scope = getFollowUpSalesScope(userId, req.user?.role);
 
     const isFinance = moduleParam === 'Finance';
-    const isSales = moduleParam === 'Sales';
+    const isSales =
+      moduleParam === 'Sales' ||
+      moduleParam === 'SuperSales' ||
+      !moduleParam ||
+      moduleParam === 'All';
 
     const moduleTypeFilter = isFinance
       ? {
@@ -237,7 +241,11 @@ export class SalesRemindersController {
     const scope = getFollowUpSalesScope(userId, req.user?.role);
 
     const isFinance = moduleParam === 'Finance';
-    const isSales = moduleParam === 'Sales';
+    const isSales =
+      moduleParam === 'Sales' ||
+      moduleParam === 'SuperSales' ||
+      !moduleParam ||
+      moduleParam === 'All';
 
     const moduleTypeFilter = isFinance
       ? {
@@ -384,7 +392,8 @@ export class SalesRemindersController {
           createdById: userId,
           notes: description || dto.remarks || '',
           reminderAt: reminderDateObj,
-          status: 'Pending',
+          status: dto.status || 'Pending',
+          completedAt: dto.status === 'Completed' ? new Date() : null,
           customerName,
           moduleType,
           moduleId,
