@@ -14,6 +14,18 @@ import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
 
 import { NotificationsService } from '../notifications/notifications.service';
 
+function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
+  if (!cat) return null;
+  const s = String(cat).trim().toUpperCase();
+  if (['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'CAT 1', 'CAT_1', '1'].includes(s)) {
+    return 'D1';
+  }
+  if (['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'CAT 2', 'CAT_2', '2'].includes(s)) {
+    return 'D2';
+  }
+  return null;
+}
+
 @Injectable()
 export class DispatchService {
   constructor(
@@ -34,16 +46,25 @@ export class DispatchService {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
       });
-      if (user?.dispatchCategory && user.dispatchCategory !== 'ALL' && user.dispatchCategory !== 'All') {
-        const cat = user.dispatchCategory.toUpperCase();
-        scope = {
-          ...scope,
-          OR: [
-            { dispatchCategory: cat },
-            { dispatchCategory: cat === 'D1' ? 'DISPATCH 1' : 'DISPATCH 2' },
-            { dispatchCategory: null },
-          ],
-        };
+      if (user?.dispatchCategory && !['ALL', 'ALL CATEGORIES', 'SUPER'].includes(String(user.dispatchCategory).toUpperCase())) {
+        const norm = normalizeDispatchCategory(user.dispatchCategory);
+        if (norm === 'D1') {
+          scope = {
+            ...scope,
+            OR: [
+              { dispatchCategory: { in: ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'] } },
+              { dispatchCategory: null },
+            ],
+          };
+        } else if (norm === 'D2') {
+          scope = {
+            ...scope,
+            OR: [
+              { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'] } },
+              { dispatchCategory: null },
+            ],
+          };
+        }
       }
     }
 
@@ -73,8 +94,25 @@ export class DispatchService {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
       });
-      if (user?.dispatchCategory) {
-        scope = { ...scope, dispatchCategory: user.dispatchCategory };
+      if (user?.dispatchCategory && !['ALL', 'ALL CATEGORIES', 'SUPER'].includes(String(user.dispatchCategory).toUpperCase())) {
+        const norm = normalizeDispatchCategory(user.dispatchCategory);
+        if (norm === 'D1') {
+          scope = {
+            ...scope,
+            OR: [
+              { dispatchCategory: { in: ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'] } },
+              { dispatchCategory: null },
+            ],
+          };
+        } else if (norm === 'D2') {
+          scope = {
+            ...scope,
+            OR: [
+              { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'] } },
+              { dispatchCategory: null },
+            ],
+          };
+        }
       }
     }
 

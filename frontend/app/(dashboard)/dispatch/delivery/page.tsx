@@ -153,16 +153,27 @@ export default function DeliveryRunPage() {
     refetchInterval: 30000,
   });
 
+function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
+  if (!cat) return null;
+  const s = String(cat).trim().toUpperCase();
+  if (['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'CAT 1', 'CAT_1', '1'].includes(s)) {
+    return 'D1';
+  }
+  if (['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'CAT 2', 'CAT_2', '2'].includes(s)) {
+    return 'D2';
+  }
+  return null;
+}
+
   const activeDeliveryQueue = useMemo(() => {
     const targetCat = isDispatch2 ? "D2" : "D1";
     const filtered = dispatches.filter((d) => {
       if (d.status !== "OUT_FOR_DELIVERY") return false;
       const rawCat = (d as any).dispatchCategory || (d as any).dispatch_category;
       if (!rawCat) return true;
-      const cat = String(rawCat).toUpperCase();
-      if (targetCat === "D1") return cat === "D1" || cat === "DISPATCH 1" || cat === "DISPATCH_1";
-      if (targetCat === "D2") return cat === "D2" || cat === "DISPATCH 2" || cat === "DISPATCH_2";
-      return true;
+      const norm = normalizeDispatchCategory(rawCat);
+      if (!norm) return true;
+      return norm === targetCat;
     });
     if (!search.trim()) return filtered;
     const lower = search.toLowerCase();
@@ -181,10 +192,9 @@ export default function DeliveryRunPage() {
       if (String(d.status || "").toUpperCase() !== "DELIVERED") return false;
       const rawCat = (d as any).dispatchCategory || (d as any).dispatch_category;
       if (!rawCat) return true;
-      const cat = String(rawCat).toUpperCase();
-      if (targetCat === "D1") return cat === "D1" || cat === "DISPATCH 1" || cat === "DISPATCH_1";
-      if (targetCat === "D2") return cat === "D2" || cat === "DISPATCH 2" || cat === "DISPATCH_2";
-      return true;
+      const norm = normalizeDispatchCategory(rawCat);
+      if (!norm) return true;
+      return norm === targetCat;
     });
 
     const sorted = [...categoryFiltered].sort((a, b) => {
