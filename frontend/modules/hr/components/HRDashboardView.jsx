@@ -12,8 +12,6 @@ import {
   AreaChart, Area, ResponsiveContainer
 } from 'recharts';
 import ResponsiveChartWrapper from '../../../shared/components/ResponsiveChartWrapper';
-import { employeesService } from '../../../services/hr/employeesService';
-import { payrollService } from '../../../services/payroll/payrollService';
 import { backendFetch } from '@/lib/backendFetch';
 
 // Curated harmonious color palette for departments
@@ -124,11 +122,11 @@ export default function HRDashboardView({
         draftsRes,
         expensesRes
       ] = await Promise.allSettled([
-        safeFetch(() => employeesService.listEmployees({ page: 1, limit: 200 }), { items: [] }),
+        safeFetch(() => backendFetch('/api/backend/hr/employees?page=1&limit=200'), []),
         safeFetch(() => backendFetch('/api/backend/attendance/summary'), null),
         safeFetch(() => backendFetch('/api/backend/attendance-requests/pending'), []),
         safeFetch(() => backendFetch('/api/backend/leaves'), []),
-        safeFetch(() => employeesService.getPayrollOverview({ month: selectedMonthIndex, year: selectedYear }), []),
+        safeFetch(() => backendFetch(`/api/backend/hr/employees/payroll-overview?month=${selectedMonthIndex}&year=${selectedYear}`), []),
         safeFetch(async () => {
           try {
             return await backendFetch('/api/backend/hr/recruitment-requests/my-requests');
@@ -136,19 +134,43 @@ export default function HRDashboardView({
             return [];
           }
         }, []),
-        safeFetch(() => employeesService.listDrafts(), []),
+        safeFetch(() => backendFetch('/api/backend/hr/employees/drafts'), []),
         safeFetch(() => backendFetch('/api/backend/expenses'), [])
       ]);
 
+      const parsedEmployees = empRes.status === 'fulfilled' && empRes.value
+        ? (Array.isArray(empRes.value) ? empRes.value : (empRes.value?.items || empRes.value?.data || []))
+        : [];
+
+      const parsedLeaves = leavesRes.status === 'fulfilled' && leavesRes.value
+        ? (Array.isArray(leavesRes.value) ? leavesRes.value : (leavesRes.value?.items || leavesRes.value?.data || []))
+        : [];
+
+      const parsedPayroll = payrollRes.status === 'fulfilled' && payrollRes.value
+        ? (Array.isArray(payrollRes.value) ? payrollRes.value : (payrollRes.value?.items || payrollRes.value?.data || []))
+        : [];
+
+      const parsedRecruitment = recruitmentRes.status === 'fulfilled' && recruitmentRes.value
+        ? (Array.isArray(recruitmentRes.value) ? recruitmentRes.value : (recruitmentRes.value?.items || recruitmentRes.value?.data || []))
+        : [];
+
+      const parsedDrafts = draftsRes.status === 'fulfilled' && draftsRes.value
+        ? (Array.isArray(draftsRes.value) ? draftsRes.value : (draftsRes.value?.items || draftsRes.value?.data || []))
+        : [];
+
+      const parsedExpenses = expensesRes.status === 'fulfilled' && expensesRes.value
+        ? (Array.isArray(expensesRes.value) ? expensesRes.value : (expensesRes.value?.items || expensesRes.value?.data || []))
+        : [];
+
       setLiveData({
-        liveEmployees: empRes.status === 'fulfilled' && empRes.value?.items ? empRes.value.items : [],
+        liveEmployees: parsedEmployees,
         attendanceSummary: attSummaryRes.status === 'fulfilled' ? attSummaryRes.value : null,
         attendanceRequests: attReqsRes.status === 'fulfilled' && Array.isArray(attReqsRes.value) ? attReqsRes.value : [],
-        liveLeaves: leavesRes.status === 'fulfilled' && Array.isArray(leavesRes.value) ? leavesRes.value : (leavesRes.value?.items || []),
-        payrollOverview: payrollRes.status === 'fulfilled' && Array.isArray(payrollRes.value) ? payrollRes.value : (payrollRes.value?.items || []),
-        recruitmentRequests: recruitmentRes.status === 'fulfilled' && Array.isArray(recruitmentRes.value) ? recruitmentRes.value : (recruitmentRes.value?.items || []),
-        drafts: draftsRes.status === 'fulfilled' && Array.isArray(draftsRes.value) ? draftsRes.value : [],
-        liveExpenses: expensesRes.status === 'fulfilled' && Array.isArray(expensesRes.value) ? expensesRes.value : (expensesRes.value?.items || []),
+        liveLeaves: parsedLeaves,
+        payrollOverview: parsedPayroll,
+        recruitmentRequests: parsedRecruitment,
+        drafts: parsedDrafts,
+        liveExpenses: parsedExpenses,
         liveAuditLogs: []
       });
     } catch (err) {
@@ -162,22 +184,22 @@ export default function HRDashboardView({
     fetchLiveTelemetry();
   }, [fetchLiveTelemetry]);
 
-  // Master merged datasets
+  // Master merged datasets - prioritize live database records
   const allEmployees = useMemo(() => {
-    if (Array.isArray(employees) && employees.length > 0) return employees;
     if (liveData.liveEmployees.length > 0) return liveData.liveEmployees;
+    if (Array.isArray(employees) && employees.length > 0) return employees;
     return [];
   }, [employees, liveData.liveEmployees]);
 
   const allLeaves = useMemo(() => {
-    if (Array.isArray(leaves) && leaves.length > 0) return leaves;
     if (liveData.liveLeaves.length > 0) return liveData.liveLeaves;
+    if (Array.isArray(leaves) && leaves.length > 0) return leaves;
     return [];
   }, [leaves, liveData.liveLeaves]);
 
   const allExpenses = useMemo(() => {
-    if (Array.isArray(expenses) && expenses.length > 0) return expenses;
     if (liveData.liveExpenses.length > 0) return liveData.liveExpenses;
+    if (Array.isArray(expenses) && expenses.length > 0) return expenses;
     return [];
   }, [expenses, liveData.liveExpenses]);
 
@@ -218,26 +240,25 @@ export default function HRDashboardView({
 
   // New joinees this month
   const newJoineesThisMonth = useMemo(() => {
-    const now = new Date();
     return allEmployees.filter(e => {
       const dateStr = e.joiningDate || e.dateOfJoining || e.createdAt;
       if (!dateStr) return false;
       const d = new Date(dateStr);
-      return !isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      return !isNaN(d.getTime()) && (d.getMonth() + 1) === selectedMonthIndex && d.getFullYear() === selectedYear;
     });
-  }, [allEmployees]);
+  }, [allEmployees, selectedMonthIndex, selectedYear]);
 
   // Attendance metrics
   const { presentCount, lateCount, absentCount, attendanceRate, wfhCount } = useMemo(() => {
     if (liveData.attendanceSummary) {
       const s = liveData.attendanceSummary;
-      const pres = Number(s.presentCount || s.present || 0);
-      const late = Number(s.lateCount || s.late || 0);
-      const abs = Number(s.absentCount || s.absent || 0);
-      const wfh = Number(s.wfhCount || s.halfDayCount || s.wfh || 0);
+      const pres = Number(s.presentToday ?? s.presentCount ?? s.present ?? s.currentlyPunchedIn ?? 0);
+      const late = Number(s.lateCount ?? s.late ?? 0);
+      const abs = Number(s.absentCount ?? s.absent ?? 0);
+      const wfh = Number(s.wfhCount ?? s.halfDayCount ?? s.wfh ?? 0);
       const rate = totalStaffCount > 0 
         ? ((pres / Math.max(1, totalStaffCount)) * 100).toFixed(1) 
-        : (s.attendancePercentage ? Number(s.attendancePercentage).toFixed(1) : '100.0');
+        : (s.attendancePercentage !== undefined ? Number(s.attendancePercentage).toFixed(1) : (pres > 0 ? '100.0' : '0.0'));
       return { presentCount: pres, lateCount: late, absentCount: abs, attendanceRate: rate, wfhCount: wfh };
     }
     // Fallback based on active staff and leaves
@@ -264,13 +285,18 @@ export default function HRDashboardView({
   }, [allExpenses]);
   const pendingExpensesCount = pendingExpensesList.length;
 
-  // Exit Clearances
+  // Exit Clearances & Inactive / Notice Staff
   const activeExitsList = useMemo(() => {
-    return allExitClearances.filter(ex => {
+    const fromClearances = allExitClearances.filter(ex => {
       const st = String(ex.status || '').toUpperCase();
-      return st !== 'CLEARED';
+      return st !== 'CLEARED' && st !== 'COMPLETED';
     });
-  }, [allExitClearances]);
+    const fromEmployees = allEmployees.filter(e => {
+      const st = String(e.status || e.employmentStatus || '').toUpperCase();
+      return st === 'INACTIVE' || st === 'RESIGNED' || st === 'TERMINATED' || st === 'NOTICE_PERIOD';
+    });
+    return fromClearances.length > 0 ? fromClearances : fromEmployees;
+  }, [allExitClearances, allEmployees]);
   const exitsCount = activeExitsList.length;
   const pendingHrExitsCount = useMemo(() => {
     return activeExitsList.filter(ex => ex.status === 'In Progress' || ex.status === 'PENDING' || !ex.approval?.finalHrStatus).length;
@@ -278,8 +304,8 @@ export default function HRDashboardView({
 
   // Onboarding count (Drafts + Pending Recruitment + New Joinees)
   const onboardingCount = useMemo(() => {
-    const draftsCount = liveData.drafts.length;
-    const pendingRecruit = (liveData.recruitmentRequests || []).filter(r => {
+    const draftsCount = Array.isArray(liveData.drafts) ? liveData.drafts.length : 0;
+    const pendingRecruit = (Array.isArray(liveData.recruitmentRequests) ? liveData.recruitmentRequests : []).filter(r => {
       const st = String(r.status || '').toUpperCase();
       return st === 'OPEN' || st === 'PENDING' || st === 'IN_PROGRESS';
     }).length;

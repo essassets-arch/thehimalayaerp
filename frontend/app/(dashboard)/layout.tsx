@@ -16,6 +16,7 @@ import MockDataSeeder from '@/components/MockDataSeeder';
 import { getNavigationForPath, getModuleKeyFromPath } from '@/config/navigationHelpers';
 import AuthGuard from '@/shared/components/AuthGuard';
 import { LocationTrackingProvider } from '@/providers/LocationTrackingProvider';
+import MandatoryPermissionsModal from '@/components/MandatoryPermissionsModal';
 
 import * as Lucide from 'lucide-react';
 import { Box, Wrench, ShieldAlert, Award, MoreHorizontal, LayoutGrid } from 'lucide-react';
@@ -167,6 +168,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Dynamic Toast notifications */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      {/* Mandatory Security & Compliance Modal for Notifications & Location */}
+      <MandatoryPermissionsModal />
 
     </div>
     </LocationTrackingProvider>

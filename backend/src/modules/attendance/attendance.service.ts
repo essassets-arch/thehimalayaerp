@@ -931,7 +931,10 @@ export class AttendanceService {
       (r) => r.status !== 'NOT_APPLICABLE',
     ).length;
     const present = roster.filter(
-      (r) => r.status === 'PRESENT' || r.status === 'HALF_DAY',
+      (r) =>
+        r.status === 'PRESENT' ||
+        r.status === 'HALF_DAY' ||
+        r.status === 'PUNCHED_IN',
     ).length;
     const currentlyPunchedIn = roster.filter(
       (r) => r.status === 'PUNCHED_IN',
@@ -951,16 +954,26 @@ export class AttendanceService {
       (r) => r.status === 'MISSING_PUNCH_OUT',
     ).length;
 
+    const attendancePercentage =
+      totalEmployees > 0
+        ? Number(((present / totalEmployees) * 100).toFixed(1))
+        : 0;
+
     return {
       totalEmployees,
       presentToday: present,
+      presentCount: present,
       currentlyPunchedIn,
       punchedOut,
       absent,
+      absentCount: absent,
       onLeave,
       halfDay,
+      halfDayCount: halfDay,
       late,
+      lateCount: late,
       missingPunchOut,
+      attendancePercentage,
     };
   }
 

@@ -146,16 +146,16 @@ const financeMenu = {
 const EMPTY_ARRAY = [];
 
 export default function FinancePortal({ initialView, forceView }) {
-  const __nextParams = useParams(); 
+  const __nextParams = useParams();
   const pathname = usePathname();
   const nextSearchParams = useSearchParams();
   const pathSlug = pathname ? pathname.split('/').filter(Boolean).pop() : null;
   const params = __nextParams || {};
   const navigate = useRouter();
   const location = { pathname, search: "" };
-  const { 
-    state, 
-    dispatch, 
+  const {
+    state,
+    dispatch,
     syncData,
     createPurchaseOrderFromIndent,
     submitPurchaseOrder,
@@ -347,6 +347,9 @@ export default function FinancePortal({ initialView, forceView }) {
   const [poRates, setPoRates] = useState({});
   const [hasGst, setHasGst] = useState(true);
   const [poGst, setPoGst] = useState('18');
+
+
+
   const [poFreight, setPoFreight] = useState('0');
   const [poPaymentTerms, setPoPaymentTerms] = useState('30 Days Net');
   const [poExpectedDate, setPoExpectedDate] = useState('');
@@ -381,7 +384,7 @@ export default function FinancePortal({ initialView, forceView }) {
     }
   }, [activeTab]);
 
-  
+
   // Expense fields
   const [expItem, setExpItem] = useState('');
   const [expAmount, setExpAmount] = useState('');
@@ -392,7 +395,7 @@ export default function FinancePortal({ initialView, forceView }) {
   const [editingItemIdx, setEditingItemIdx] = useState(-1);
   const [editQtyVal, setEditQtyVal] = useState('');
   const [pendingOrderPayments, setPendingOrderPayments] = useState([]);
-  
+
   // Invoices Tab State
   const [invoiceFilter, setInvoiceFilter] = useState('All');
   const [salesQueueFilter, setSalesQueueFilter] = useState('Pending');
@@ -669,7 +672,7 @@ export default function FinancePortal({ initialView, forceView }) {
 
   const handleVerify = async (row) => {
     const targetOrder = orders.find(o => o.orderNo === row.orderNo) || orders.find(o => o.id === row._raw?.sales_order_id) || {};
-    
+
     const amount = row.totalAmount;
 
     Swal.fire({
@@ -692,7 +695,7 @@ export default function FinancePortal({ initialView, forceView }) {
         try {
           showToast("Finance: Verifying payment receipt and checking order closure flags...");
           const res = await financeService.verifyPayment(state, row.id, amount, targetOrder, dispatch, user);
-          
+
           if (res.success) {
             syncData();
             showToast(`Payment receipt of ₹${amount.toLocaleString('en-IN')} verified. Receivables updated.`);
@@ -741,11 +744,11 @@ export default function FinancePortal({ initialView, forceView }) {
     }
     return (
       <div data-testid="finance-manager-dashboard" className="sales-portal-view">
-        <FinanceManagerDashboardView 
-          state={state} 
-          payments={payments} 
-          expenses={expenses} 
-          purchaseOrders={state.purchaseOrders || []} 
+        <FinanceManagerDashboardView
+          state={state}
+          payments={payments}
+          expenses={expenses}
+          purchaseOrders={state.purchaseOrders || []}
         />
       </div>
     );
@@ -893,22 +896,26 @@ export default function FinancePortal({ initialView, forceView }) {
               })}
             </div>
           </div>
-          <DataTable 
+          <DataTable
             columns={[
               { header: 'Invoice No', accessor: 'invoiceNo' },
-              { header: 'Order Ref', accessor: 'orderNo', render: (row) => (
-                <span 
-                  style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                  onClick={() => navigate.push(`/orders/${row.orderNo}`)}
-                >
-                  {row.orderNo}
-                </span>
-              ) },
+              {
+                header: 'Order Ref', accessor: 'orderNo', render: (row) => (
+                  <span
+                    style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                    onClick={() => navigate.push(`/orders/${row.orderNo}`)}
+                  >
+                    {row.orderNo}
+                  </span>
+                )
+              },
               { header: 'Customer', accessor: 'customerName' },
-              { header: 'Delivery Status', accessor: 'orderNo', render: (row) => {
-                const o = orders.find(ord => ord.orderNo === row.orderNo);
-                return <StatusBadge status={o?.dispatchStatus || 'Pending'} />;
-              }},
+              {
+                header: 'Delivery Status', accessor: 'orderNo', render: (row) => {
+                  const o = orders.find(ord => ord.orderNo === row.orderNo);
+                  return <StatusBadge status={o?.dispatchStatus || 'Pending'} />;
+                }
+              },
               { header: 'Payment Mode', accessor: 'paymentMode', render: (row) => row.paymentMode || 'Direct Transfer' },
               { header: 'Txn Reference No', accessor: 'referenceNo', render: (row) => row.referenceNo || 'REF-N/A' },
               { header: 'Dues (INR)', accessor: 'totalAmount', render: (row) => `₹${row.totalAmount.toLocaleString('en-IN')}` }
@@ -917,7 +924,7 @@ export default function FinancePortal({ initialView, forceView }) {
             searchQuery={globalSearch}
             searchField="customerName"
             actions={(row) => (row.status !== 'Paid' && row.verified === 'Pending') ? (
-              <button 
+              <button
                 className="action-btn"
                 style={{ background: 'var(--color-primary)', border: 'none', padding: '6px 12px', borderRadius: '6px', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}
                 onClick={() => handleVerify(row)}
@@ -939,22 +946,26 @@ export default function FinancePortal({ initialView, forceView }) {
         <div className="card-top-bar">
           <h2 className="card-heading">Receivables Outstanding Balances</h2>
         </div>
-        <DataTable 
+        <DataTable
           columns={[
             { header: 'Invoice No', accessor: 'invoiceNo' },
-            { header: 'Order Ref', accessor: 'orderNo', render: (row) => (
-              <span 
-                style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                onClick={() => navigate.push(`/orders/${row.orderNo}`)}
-              >
-                {row.orderNo}
-              </span>
-            ) },
+            {
+              header: 'Order Ref', accessor: 'orderNo', render: (row) => (
+                <span
+                  style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                  onClick={() => navigate.push(`/orders/${row.orderNo}`)}
+                >
+                  {row.orderNo}
+                </span>
+              )
+            },
             { header: 'Client Partner', accessor: 'customerName' },
-            { header: 'Delivery Status', accessor: 'orderNo', render: (row) => {
-              const o = orders.find(ord => ord.orderNo === row.orderNo);
-              return <StatusBadge status={o?.dispatchStatus || 'Pending'} />;
-            }},
+            {
+              header: 'Delivery Status', accessor: 'orderNo', render: (row) => {
+                const o = orders.find(ord => ord.orderNo === row.orderNo);
+                return <StatusBadge status={o?.dispatchStatus || 'Pending'} />;
+              }
+            },
             { header: 'Total Value', accessor: 'totalAmount', render: (row) => `₹${row.totalAmount.toLocaleString('en-IN')}` },
             { header: 'Paid Value', accessor: 'paidAmount', render: (row) => `₹${row.paidAmount.toLocaleString('en-IN')}` },
             { header: 'Outstanding', accessor: 'totalAmount', render: (row) => `₹${(row.totalAmount - row.paidAmount).toLocaleString('en-IN')}` },
@@ -964,7 +975,7 @@ export default function FinancePortal({ initialView, forceView }) {
           searchQuery={globalSearch}
           searchField="customerName"
           actions={(row) => row.status !== 'Paid' ? (
-            <button 
+            <button
               className="action-btn"
               style={{ background: 'var(--color-primary)', border: 'none', padding: '6px 12px', borderRadius: '6px', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}
               onClick={() => handleRecordPaymentClick(row)}
@@ -1032,10 +1043,10 @@ export default function FinancePortal({ initialView, forceView }) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Sub Category Tabs */}
-        <div style={{ 
-          display: 'flex', 
-          borderBottom: '1px solid var(--color-border)', 
-          gap: '8px', 
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid var(--color-border)',
+          gap: '8px',
           paddingBottom: '4px',
           overflowX: 'auto'
         }}>
@@ -1067,7 +1078,7 @@ export default function FinancePortal({ initialView, forceView }) {
         <div className="app-card">
           <div className="card-top-bar">
             <h2 className="card-heading">{expenseTab} Register</h2>
-            <button 
+            <button
               className="action-btn"
               style={{ background: 'var(--color-primary)', border: 'none', padding: '6px 12px', borderRadius: '6px', color: '#000', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
               onClick={() => {
@@ -1084,7 +1095,7 @@ export default function FinancePortal({ initialView, forceView }) {
               Log Expense
             </button>
           </div>
-          <DataTable 
+          <DataTable
             columns={[
               { header: 'ID', accessor: 'id', render: (row) => <strong>#{row.id}</strong> },
               { header: 'Expense Item Description', accessor: 'item' },
@@ -1156,7 +1167,7 @@ export default function FinancePortal({ initialView, forceView }) {
 
     uniqueOrders.forEach(ord => {
       const totalAmount = Number(ord.grandTotal ?? ord.totalAmount ?? ord.totalValue ?? 0);
-      
+
       const verifiedPaid = allPayments
         .filter(p => {
           const matchId = String(p.salesOrderId || p.salesOrder?.id || p.orderNumber || p.orderNo || p.orderId || '');
@@ -1288,7 +1299,7 @@ export default function FinancePortal({ initialView, forceView }) {
     if (state.auditLogs && state.auditLogs.length > 0) {
       state.auditLogs.filter(l => l.action?.includes('Payment') || l.action?.includes('Expense')).forEach(l => auditLogsData.push(l));
     }
-    
+
     periodPayments.forEach((p, idx) => {
       const amtStr = Number(p.amount || p.totalAmount || 0).toLocaleString('en-IN');
       const modeStr = p.paymentMode || p.mode || 'Bank Transfer';
@@ -1516,7 +1527,7 @@ export default function FinancePortal({ initialView, forceView }) {
 
             {/* Charts Row */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '20px' }}>
-              
+
               {/* Financial Inflow vs Costs */}
               <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -1532,7 +1543,7 @@ export default function FinancePortal({ initialView, forceView }) {
                     </span>
                   </div>
                 </div>
-                
+
                 <div style={{ width: '100%', padding: '8px 0' }}>
                   <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
                     {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
@@ -1545,44 +1556,44 @@ export default function FinancePortal({ initialView, forceView }) {
                         </g>
                       );
                     })}
-                    
+
                     {chartData.map((d, index) => {
                       const xGroup = padding + 15 + index * groupWidth + 12;
                       const inflowHeight = (d.inflow / maxVal) * chartHeight;
                       const outflowHeight = (d.outflow / maxVal) * chartHeight;
-                      
+
                       const yInflow = padding + chartHeight - inflowHeight;
                       const yOutflow = padding + chartHeight - outflowHeight;
-                      
+
                       return (
                         <g key={d.month}>
-                          <rect 
-                            x={xGroup} 
-                            y={yInflow} 
-                            width={barWidth} 
-                            height={Math.max(inflowHeight, 2)} 
-                            rx="3" 
-                            fill="#2563EB" 
+                          <rect
+                            x={xGroup}
+                            y={yInflow}
+                            width={barWidth}
+                            height={Math.max(inflowHeight, 2)}
+                            rx="3"
+                            fill="#2563EB"
                           >
                             <title>{`Inflow: ₹${d.inflow.toLocaleString('en-IN')}`}</title>
                           </rect>
-                          
-                          <rect 
-                            x={xGroup + barWidth + gap} 
-                            y={yOutflow} 
-                            width={barWidth} 
-                            height={Math.max(outflowHeight, 2)} 
-                            rx="3" 
-                            fill="#DC2626" 
+
+                          <rect
+                            x={xGroup + barWidth + gap}
+                            y={yOutflow}
+                            width={barWidth}
+                            height={Math.max(outflowHeight, 2)}
+                            rx="3"
+                            fill="#DC2626"
                           >
                             <title>{`Outflow: ₹${d.outflow.toLocaleString('en-IN')}`}</title>
                           </rect>
-                          
-                          <text 
-                            x={xGroup + barWidth} 
-                            y={height - padding + 16} 
-                            fontSize="10" 
-                            fill="#64748B" 
+
+                          <text
+                            x={xGroup + barWidth}
+                            y={height - padding + 16}
+                            fontSize="10"
+                            fill="#64748B"
                             textAnchor="middle"
                             fontWeight="700"
                           >
@@ -1591,12 +1602,12 @@ export default function FinancePortal({ initialView, forceView }) {
                         </g>
                       );
                     })}
-                    
+
                     <line x1={padding + 10} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#CBD5E1" strokeWidth="1.5" />
                   </svg>
                 </div>
               </div>
-              
+
               {/* Operating Cost Distribution */}
               <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -1605,11 +1616,11 @@ export default function FinancePortal({ initialView, forceView }) {
                     {new Date().toLocaleString('default', { month: 'long' })} Allocations
                   </span>
                 </div>
-                
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1, justifyContent: 'center' }}>
                   {Object.entries(categoryTotals).map(([category, amt]) => {
                     const percentage = Math.round((amt / totalCategoryExpense) * 100) || 0;
-                    
+
                     let barColor = '#2563EB';
                     if (category === 'Procurement') barColor = '#7C3AED';
                     if (category === 'Logistics') barColor = '#D97706';
@@ -1631,7 +1642,7 @@ export default function FinancePortal({ initialView, forceView }) {
                   })}
                 </div>
               </div>
-              
+
             </div>
           </>
         )}
@@ -1639,17 +1650,19 @@ export default function FinancePortal({ initialView, forceView }) {
         {/* Auditing Table */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
           <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>Cash-flow Verification Audits</h3>
-          <DataTable 
+          <DataTable
             columns={[
               { header: 'Log ID', accessor: 'id' },
-              { header: 'Order Ref', accessor: 'orderNo', render: (row) => row.orderNo ? (
-                <span 
-                  style={{ color: '#2563EB', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                  onClick={() => navigate.push(`/orders/${row.orderNo}`)}
-                >
-                  {row.orderNo}
-                </span>
-              ) : '-' },
+              {
+                header: 'Order Ref', accessor: 'orderNo', render: (row) => row.orderNo ? (
+                  <span
+                    style={{ color: '#2563EB', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                    onClick={() => navigate.push(`/orders/${row.orderNo}`)}
+                  >
+                    {row.orderNo}
+                  </span>
+                ) : '-'
+              },
               { header: 'Action Clear', accessor: 'action' },
               { header: 'Remarks Details', accessor: 'remarks' },
               { header: 'Audited By', accessor: 'user' },
@@ -1709,7 +1722,7 @@ export default function FinancePortal({ initialView, forceView }) {
         <div className="app-card">
           <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
             <h2 className="card-heading" style={{ margin: 0 }}>Invoice Registry</h2>
-            
+
             {/* Status Pills */}
             <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
               {statusPills.map(pill => {
@@ -1737,17 +1750,19 @@ export default function FinancePortal({ initialView, forceView }) {
             </div>
           </div>
 
-          <DataTable 
+          <DataTable
             columns={[
               { header: 'Invoice No', accessor: 'invoiceNo', render: (row) => <strong style={{ color: 'var(--color-text-primary)' }}>{row.invoiceNo}</strong>, nowrap: true },
-              { header: 'Order Ref', accessor: 'orderNo', render: (row) => (
-                <span 
-                  style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                  onClick={() => navigate.push(`/orders/${row.orderNo}`)}
-                >
-                  {row.orderNo}
-                </span>
-              ), nowrap: true },
+              {
+                header: 'Order Ref', accessor: 'orderNo', render: (row) => (
+                  <span
+                    style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                    onClick={() => navigate.push(`/orders/${row.orderNo}`)}
+                  >
+                    {row.orderNo}
+                  </span>
+                ), nowrap: true
+              },
               { header: 'Client Partner', accessor: 'customerName' },
               { header: 'Due Date', accessor: 'dueDate', nowrap: true },
               { header: 'Total Value', accessor: 'totalAmount', render: (row) => `₹${row.totalAmount.toLocaleString('en-IN')}`, nowrap: true },
@@ -1758,7 +1773,7 @@ export default function FinancePortal({ initialView, forceView }) {
             searchQuery={globalSearch}
             searchField="customerName"
             actions={(row) => (
-              <button 
+              <button
                 className="action-btn"
                 style={{ background: 'var(--color-primary)', border: 'none', padding: '6px 12px', borderRadius: '6px', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}
                 onClick={() => {
@@ -1797,16 +1812,18 @@ export default function FinancePortal({ initialView, forceView }) {
         <div className="card-top-bar">
           <h2 className="card-heading">Transaction Invoice History</h2>
         </div>
-        <DataTable 
+        <DataTable
           columns={[
-            { header: 'Order Ref', accessor: 'orderNo', render: (row) => (
-              <span 
-                style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                onClick={() => navigate.push(`/orders/${row.orderNo}`)}
-              >
-                {row.orderNo}
-              </span>
-            ) },
+            {
+              header: 'Order Ref', accessor: 'orderNo', render: (row) => (
+                <span
+                  style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                  onClick={() => navigate.push(`/orders/${row.orderNo}`)}
+                >
+                  {row.orderNo}
+                </span>
+              )
+            },
             { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || row.customer?.name },
             { header: 'Sales Representative', accessor: 'salesperson', render: (row) => row.salesperson || 'Alex Carter' },
             { header: 'Order Date', accessor: 'date', render: (row) => row.date || '2026-06-05' },
@@ -1818,7 +1835,7 @@ export default function FinancePortal({ initialView, forceView }) {
           searchField="orderNo"
           actions={(row) => (
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button 
+              <button
                 className="btn-small btn-outline-small"
                 style={{ margin: 0, padding: '6px 12px', cursor: 'pointer' }}
                 onClick={() => setSelectedInvoiceOrder(row)}
@@ -1826,7 +1843,7 @@ export default function FinancePortal({ initialView, forceView }) {
                 View Invoice
               </button>
               {row.status === 'Payment Verified' && (
-                <button 
+                <button
                   className="btn-small btn-primary-small"
                   style={{ margin: 0, padding: '6px 12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                   onClick={() => handleCloseOrderClick(row)}
@@ -1842,7 +1859,7 @@ export default function FinancePortal({ initialView, forceView }) {
     );
   };
 
-  
+
   const DEMO_APPROVED_INDENTS = useMemo(() => [
     {
       id: 'INDENT-WO-109',
@@ -1916,9 +1933,9 @@ export default function FinancePortal({ initialView, forceView }) {
             {pendingIndents.length} Pending Indent Request(s)
           </span>
         </div>
-        <DataTable 
+        <DataTable
           columns={[
-            { header: 'Indent ID', accessor: 'id', render: row => <strong style={{color: 'var(--color-primary)'}}>{row.id}</strong> },
+            { header: 'Indent ID', accessor: 'id', render: row => <strong style={{ color: 'var(--color-primary)' }}>{row.id}</strong> },
             { header: 'Material', accessor: 'material', render: row => row.materialName || row.material || (row.items && (row.items[0]?.product?.name || row.items[0]?.materialName)) || 'Material' },
             { header: 'Quantity', accessor: 'approvedQuantity', render: row => `${row.approvedQuantity ?? row.requestedQuantity ?? row.requiredQuantity ?? row.quantity ?? (row.items && (row.items[0]?.approvedQuantity ?? row.items[0]?.quantity)) ?? 0} ${row.unit || (row.items && row.items[0]?.unit) || 'Units'}` },
             { header: 'Required Date', accessor: 'requiredDate', render: row => (row.targetDate || row.requiredDate || (row.items && row.items[0]?.requiredDate)) ? new Date(row.targetDate || row.requiredDate || row.items[0].requiredDate).toLocaleDateString('en-IN') : '15/08/2026' },
@@ -2002,13 +2019,13 @@ export default function FinancePortal({ initialView, forceView }) {
         hasGst: isGstEnabled,
         freight: poFreight || '0'
       };
-      
+
       try {
         await createPurchaseOrderFromIndent(selectedPO.id, poPayload);
         await syncData();
         await refreshPurchaseOrders();
         setServerPurchaseIndents((current) => current.filter((indent) => indent.id !== selectedPO.id));
-        
+
         if (totalAmount <= 10000) {
           showToast(`PO created & directly approved (₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). No approval step required!`, 'success');
           setSelectedPO(null);
@@ -2330,7 +2347,7 @@ export default function FinancePortal({ initialView, forceView }) {
     // Drafts and pending approval POs
     const draftPOs = purchaseOrders.filter(po => ['DRAFT', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL', 'PLANT_HEAD_PURCHASE_REJECTED', 'SUPER_ADMIN_REJECTED'].includes(po.status));
     const historyPOs = purchaseOrders.filter(po => ['PENDING_PLANT_HEAD_PURCHASE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL', 'PLANT_HEAD_PURCHASE_APPROVED', 'SUPER_ADMIN_APPROVED', 'FINANCE_APPROVED'].includes(po.status));
-    
+
     const displayedPOs = draftPOsSubTab === 'Pending Drafts' ? draftPOs : historyPOs;
 
     const handleSubmitForApproval = async (po) => {
@@ -2368,15 +2385,17 @@ export default function FinancePortal({ initialView, forceView }) {
             Submission History
           </button>
         </div>
-        <DataTable 
+        <DataTable
           columns={[
             { header: 'PO ID', accessor: 'id', render: row => <strong>{row.poNumber || row.publicId || row.id}</strong> },
             { header: 'Indent ID', accessor: 'purchaseIndentId', render: row => row.purchaseIndentId || row.indentId || 'N/A' },
             { header: 'Vendor', accessor: 'vendorName', render: row => row.vendorName || row.supplier?.name || 'N/A' },
-            { header: 'Amount', accessor: 'totalAmount', render: row => {
-              const val = Number(row.totalAmount || row.grandTotal || 0);
-              return <strong style={{ color: '#059669' }}>₹{val.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>;
-            } },
+            {
+              header: 'Amount', accessor: 'totalAmount', render: row => {
+                const val = Number(row.totalAmount || row.grandTotal || 0);
+                return <strong style={{ color: '#059669' }}>₹{val.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>;
+              }
+            },
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> },
             { header: 'Remarks', accessor: 'rejectionReason' }
           ]}
@@ -2442,31 +2461,11 @@ export default function FinancePortal({ initialView, forceView }) {
     ).values());
     const activePOs = livePOs.filter(po => ['SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED'].includes(po.status));
     const historyPOs = livePOs.filter(po => ['ORDERED', 'PO_ISSUED', 'VENDOR_ACCEPTED', 'PARTIALLY_DELIVERED', 'PURCHASE_COMPLETED', 'CLOSED', 'PO_CLOSED'].includes(po.status));
-    
+
     const displayedPOs = approvedPOsSubTab === 'Approved' ? activePOs : historyPOs;
 
     const handleDownloadPOPdf = (po) => {
       if (!po) return;
-      const poItems = (po.items && po.items.length > 0)
-        ? po.items
-        : (po.material ? [{ name: po.material, quantity: po.quantity || 1, unitPrice: po.unitPrice || po.rate || po.price || 0, unit: po.unit || 'Units' }] : []);
-
-      const subtotal = poItems.reduce((acc, i) => {
-        const qty = Number(i.quantity ?? i.orderedQty ?? i.qty ?? 0);
-        const rate = Number(i.unitPrice ?? i.unitRate ?? i.rate ?? i.price ?? 0);
-        return acc + (qty * rate);
-      }, 0) || Number(po.subtotal || 0);
-
-      const gstPercent = Number(po.gstPercent ?? po.gst ?? (po.hasGst === false ? 0 : 18));
-      const gstAmount = (po.gstAmount !== undefined && po.gstAmount !== null)
-        ? Number(po.gstAmount)
-        : (po.taxAmount !== undefined && po.taxAmount !== null)
-        ? Number(po.taxAmount)
-        : (subtotal * (gstPercent / 100));
-
-      const freight = Number(po.freight || po.freightAmount || po.transportationCost || 0);
-      const grandTotal = Number(po.totalAmount || po.grandTotal) || (subtotal + gstAmount + freight);
-
       const htmlContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -2510,15 +2509,15 @@ export default function FinancePortal({ initialView, forceView }) {
   <div class="grid">
     <div class="box">
       <div class="box-title">Vendor & Supplier Details</div>
-      <div style="font-size: 16px; font-weight: 800; color: #24345C;">${po.vendorName || po.supplier?.name || 'Vendor'}</div>
+      <div style="font-size: 16px; font-weight: 800; color: #24345C;">${po.vendorName || 'Vendor'}</div>
       <div style="font-size: 13px; color: #475569; margin-top: 4px;">GSTIN: ${po.gstin || '27AADCS1234F1Z8'}</div>
-      <div style="font-size: 13px; color: #475569;">Email: orders@${(po.vendorName || po.supplier?.name || 'vendor').toLowerCase().replace(/[^a-z]/g, '')}.com</div>
+      <div style="font-size: 13px; color: #475569;">Email: orders@${(po.vendorName || 'vendor').toLowerCase().replace(/[^a-z]/g, '')}.com</div>
     </div>
     <div class="box" style="background: #f0fdf4; border-color: #bbf7d0;">
       <div class="box-title" style="color: #15803d;">Approval Authorization</div>
       <div style="font-size: 14px; font-weight: 700; color: #166534;">Approved By: ${po.approvedBy || 'Super Admin'}</div>
       <div style="font-size: 13px; color: #166534; margin-top: 4px;">Date: ${po.approvedAt ? new Date(po.approvedAt).toLocaleString() : new Date().toLocaleDateString()}</div>
-      <div style="font-size: 13px; color: #15803d; font-style: italic; margin-top: 4px;">"${po.superAdminRemarks || po.remarks || 'Approved after technical review.'}"</div>
+      <div style="font-size: 13px; color: #15803d; font-style: italic; margin-top: 4px;">"${po.superAdminRemarks || 'Approved after technical review.'}"</div>
     </div>
   </div>
 
@@ -2532,26 +2531,22 @@ export default function FinancePortal({ initialView, forceView }) {
       </tr>
     </thead>
     <tbody>
-      ${poItems.map(i => {
-        const qty = Number(i.quantity ?? i.orderedQty ?? i.qty ?? 0);
-        const rate = Number(i.unitPrice ?? i.unitRate ?? i.rate ?? i.price ?? 0);
-        const total = qty * rate;
-        return `
+      ${(po.items || []).map(i => `
         <tr>
-          <td style="font-weight: 700;">${i.product?.name || i.name || i.material || 'Material'}</td>
-          <td style="text-align: right; font-weight: 700; color: #0284c7;">${qty} ${i.product?.unit || i.unit || 'Units'}</td>
-          <td style="text-align: right;">₹${rate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-          <td style="text-align: right; font-weight: 700;">₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td style="font-weight: 700;">${i.name || i.material || 'Material'}</td>
+          <td style="text-align: right; font-weight: 700; color: #0284c7;">${i.quantity || 0} ${i.unit || 'Units'}</td>
+          <td style="text-align: right;">₹${(i.rate || i.price || 0).toLocaleString()}</td>
+          <td style="text-align: right; font-weight: 700;">₹${(i.total || ((i.quantity || 0) * (i.rate || i.price || 0))).toLocaleString()}</td>
         </tr>
-      `;}).join('')}
+      `).join('')}
     </tbody>
   </table>
 
   <div class="totals">
-    <div class="total-row"><span>Subtotal:</span> <strong>₹${subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></div>
-    <div class="total-row"><span>GST (${gstPercent}%):</span> <strong>₹${gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></div>
-    <div class="total-row"><span>Freight:</span> <strong>₹${freight.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></div>
-    <div class="total-row grand-total"><span>Grand Total:</span> <span>₹${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+    <div class="total-row"><span>Subtotal:</span> <strong>₹${(po.subtotal || 0).toLocaleString()}</strong></div>
+    <div class="total-row"><span>GST (18%):</span> <strong>₹${(po.gstAmount || Math.round(((po.grandTotal || 0) - (po.subtotal || 0)) || 0)).toLocaleString()}</strong></div>
+    <div class="total-row"><span>Freight:</span> <strong>₹${(po.freight || 0).toLocaleString()}</strong></div>
+    <div class="total-row grand-total"><span>Grand Total:</span> <span>₹${(po.grandTotal || 0).toLocaleString()}</span></div>
   </div>
 
   <div class="footer">
@@ -2591,7 +2586,7 @@ export default function FinancePortal({ initialView, forceView }) {
     const handleConfirmManualOrder = async (e) => {
       e.preventDefault();
       if (!selectedApprovedPO) return;
-      
+
       const payload = {
         expectedDeliveryDate,
         vendorOrderReference: ackNumber || `ACK-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -2632,12 +2627,13 @@ export default function FinancePortal({ initialView, forceView }) {
           </div>
         </div>
 
-        <DataTable 
+        <DataTable
           columns={[
             { header: 'PO Draft ID', accessor: 'id', render: row => <strong style={{ color: '#24345C' }}>{row.poNumber || row.publicId || row.id}</strong> },
             { header: 'Indent Ref', accessor: 'purchaseIndentId', render: row => <span style={{ background: '#f0f9ff', color: '#0284c7', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, border: '1px solid #bae6fd' }}>{row.purchaseIndent?.publicId || row.purchaseIndentId || row.indentId || 'PI-REF'}</span> },
             { header: 'Vendor Name', accessor: 'vendorName', render: row => <strong style={{ color: '#334155' }}>{row.supplier?.name || row.vendorName || 'Vendor'}</strong> },
-            { header: 'Grand Total', accessor: 'grandTotal', render: row => {
+            {
+              header: 'Grand Total', accessor: 'grandTotal', render: row => {
                 const freightVal = Number(row.freight || 0);
                 let calculatedSubtotal = 0;
                 let calculatedGst = 0;
@@ -2654,195 +2650,161 @@ export default function FinancePortal({ initialView, forceView }) {
                 const subVal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(row.subtotal || 0);
                 const gstVal = calculatedGst > 0 ? calculatedGst : (row.gstAmount !== undefined && row.gstAmount !== null ? Number(row.gstAmount) : Math.round(subVal * 0.18));
                 const grandVal = Number(row.totalAmount || row.grandTotal) || (subVal + gstVal + freightVal + Number(row.otherCharges || 0));
-                
-                return <span style={{ fontWeight: 800, color: '#16a34a' }}>{grandVal ? `₹${grandVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00'}</span>;
-            } },
-            { header: 'Approval Authority', accessor: 'status', render: row => {
-              const total = Number(row.totalAmount || row.grandTotal || row.value || 0);
-              if (row.status === 'FINANCE_APPROVED' || total <= 10000) {
-                return <span style={{ fontSize: '11px', fontWeight: 800, color: '#059669', background: '#ECFDF5', padding: '3px 8px', borderRadius: '6px', border: '1px solid #A7F3D0' }}>⚡ Direct Finance (≤ ₹10k)</span>;
+
+                return <span style={{ fontWeight: 800, color: '#16a34a' }}>{grandVal ? `₹${grandVal.toLocaleString()}` : '₹0'}</span>;
               }
-              if (row.status === 'PLANT_HEAD_PURCHASE_APPROVED' || (total > 10000 && total <= 15000)) {
-                return <span style={{ fontSize: '11px', fontWeight: 800, color: '#D97706', background: '#FFFBEB', padding: '3px 8px', borderRadius: '6px', border: '1px solid #FDE68A' }}>🛡️ Plant Head (₹10k–₹15k)</span>;
+            },
+            {
+              header: 'Approval Authority', accessor: 'status', render: row => {
+                const total = Number(row.totalAmount || row.grandTotal || row.value || 0);
+                if (row.status === 'FINANCE_APPROVED' || total <= 10000) {
+                  return <span style={{ fontSize: '11px', fontWeight: 800, color: '#059669', background: '#ECFDF5', padding: '3px 8px', borderRadius: '6px', border: '1px solid #A7F3D0' }}>⚡ Direct Finance (≤ ₹10k)</span>;
+                }
+                if (row.status === 'PLANT_HEAD_PURCHASE_APPROVED' || (total > 10000 && total <= 15000)) {
+                  return <span style={{ fontSize: '11px', fontWeight: 800, color: '#D97706', background: '#FFFBEB', padding: '3px 8px', borderRadius: '6px', border: '1px solid #FDE68A' }}>🛡️ Plant Head (₹10k–₹15k)</span>;
+                }
+                return <span style={{ fontSize: '11px', fontWeight: 800, color: '#4F46E5', background: '#EEF2FF', padding: '3px 8px', borderRadius: '6px', border: '1px solid #C7D2FE' }}>👑 Super Admin (&gt; ₹15k)</span>;
               }
-              return <span style={{ fontSize: '11px', fontWeight: 800, color: '#4F46E5', background: '#EEF2FF', padding: '3px 8px', borderRadius: '6px', border: '1px solid #C7D2FE' }}>👑 Super Admin (&gt; ₹15k)</span>;
-            } },
+            },
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }
           ]}
           data={displayedPOs}
-          actions={row => {
-            const isOrderPlaced = ['PO_ORDERED', 'ORDERED', 'PLACED', 'ORDER_PLACED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED', 'PO_CLOSED', 'PURCHASE_COMPLETED', 'FINANCE_AUDIT_APPROVED', 'VENDOR_ACCEPTED', 'PO_ISSUED'].includes(String(row.status || '').toUpperCase());
-            const canPlaceOrder = approvedPOsSubTab === 'Approved' && !isOrderPlaced && ['APPROVED', 'SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED', 'DIRECTLY_APPROVED'].includes(String(row.status || '').toUpperCase());
-
-            return (
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                <button 
-                  onClick={() => { setSelectedApprovedPO(row); setShowPOPdfModal(true); }}
-                  style={{ padding: '7px 12px', border: '1.5px solid #D6E2F0', background: '#ffffff', color: '#334155', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <FileText size={15} /> View / PDF
-                </button>
-                {canPlaceOrder && (
-                  <button 
-                    onClick={() => { setSelectedApprovedPO(row); setShowPlaceOrderModal(true); }}
-                    style={{ padding: '7px 15px', border: 'none', background: '#0284c7', color: '#ffffff', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)' }}
-                  >
-                    <CheckCircle2 size={15} /> Place Order Manually
-                  </button>
-                )}
-              </div>
-            );
-          }}
+          actions={row => approvedPOsSubTab === 'Approved' ? (
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => { setSelectedApprovedPO(row); setShowPOPdfModal(true); }}
+                style={{ padding: '7px 12px', border: '1.5px solid #D6E2F0', background: '#ffffff', color: '#334155', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <FileText size={15} /> View / PDF
+              </button>
+              <button
+                onClick={() => { setSelectedApprovedPO(row); setShowPlaceOrderModal(true); }}
+                style={{ padding: '7px 15px', border: 'none', background: '#0284c7', color: '#ffffff', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)' }}
+              >
+                <CheckCircle2 size={15} /> Place Order Manually
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => { setSelectedApprovedPO(row); setShowPOPdfModal(true); }}
+                style={{ padding: '7px 12px', border: '1.5px solid #D6E2F0', background: '#ffffff', color: '#334155', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <FileText size={15} /> View / PDF
+              </button>
+            </div>
+          )}
           emptyMessage={approvedPOsSubTab === 'Approved' ? "No approved POs awaiting manual order placement." : "No history found."}
         />
 
         {/* PO Details & PDF Modal */}
-        {selectedApprovedPO && showPOPdfModal && (() => {
-          const po = selectedApprovedPO;
-          const poItems = (po.items && po.items.length > 0)
-            ? po.items
-            : (po.material ? [{ name: po.material, quantity: po.quantity || 1, unitPrice: po.unitPrice || po.rate || po.price || 0, unit: po.unit || 'Units' }] : []);
-
-          const subtotal = poItems.reduce((acc, i) => {
-            const qty = Number(i.quantity ?? i.orderedQty ?? i.qty ?? 0);
-            const rate = Number(i.unitPrice ?? i.unitRate ?? i.rate ?? i.price ?? 0);
-            return acc + (qty * rate);
-          }, 0) || Number(po.subtotal || 0);
-
-          const gstPercent = Number(po.gstPercent ?? po.gst ?? (po.hasGst === false ? 0 : 18));
-          const gstAmount = (po.gstAmount !== undefined && po.gstAmount !== null)
-            ? Number(po.gstAmount)
-            : (po.taxAmount !== undefined && po.taxAmount !== null)
-            ? Number(po.taxAmount)
-            : (subtotal * (gstPercent / 100));
-
-          const freight = Number(po.freight || po.freightAmount || po.transportationCost || 0);
-          const grandTotal = Number(po.totalAmount || po.grandTotal) || (subtotal + gstAmount + freight);
-
-          const isOrderPlaced = ['PO_ORDERED', 'ORDERED', 'PLACED', 'ORDER_PLACED', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED', 'PO_CLOSED', 'PURCHASE_COMPLETED', 'FINANCE_AUDIT_APPROVED', 'VENDOR_ACCEPTED', 'PO_ISSUED'].includes(String(po.status || '').toUpperCase());
-          const canPlaceOrder = !isOrderPlaced && ['APPROVED', 'SUPER_ADMIN_APPROVED', 'PLANT_HEAD_PURCHASE_APPROVED', 'FINANCE_APPROVED', 'DIRECTLY_APPROVED'].includes(String(po.status || '').toUpperCase());
-
-          return (
-            <div 
-              onClick={() => setShowPOPdfModal(false)}
-              style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+        {selectedApprovedPO && showPOPdfModal && (
+          <div
+            onClick={() => setShowPOPdfModal(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '820px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #D6E2F0', overflow: 'hidden' }}
             >
-              <div 
-                onClick={e => e.stopPropagation()}
-                style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '820px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #D6E2F0', overflow: 'hidden' }}
-              >
-                <div style={{ background: '#24345C', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff' }}>
+              <div style={{ background: '#24345C', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff' }}>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#ffffff' }}>Purchase Order PDF Preview ({selectedApprovedPO.id})</h3>
+                  <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '3px' }}>Indent Ref: {selectedApprovedPO.indentId || 'PI-REF'} • Status: {selectedApprovedPO.status}</div>
+                </div>
+                <button onClick={() => setShowPOPdfModal(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#ffffff', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+              </div>
+
+              <div style={{ padding: '28px', overflowY: 'auto', flex: 1, background: '#ffffff', fontFamily: `'Inter', sans-serif` }} id="po-pdf-print-area">
+                <div style={{ borderBottom: '2px solid #DCE5F0', paddingBottom: '20px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#ffffff' }}>Purchase Order PDF Preview ({po.id})</h3>
-                    <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '3px' }}>Indent Ref: {po.indentId || po.purchaseIndentId || 'PI-REF'} • Status: <span style={{ color: isOrderPlaced ? '#4ade80' : '#38bdf8', fontWeight: 800 }}>{po.status}</span></div>
+                    <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#24345C', margin: 0 }}>PURCHASE ORDER</h2>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#0284c7', marginTop: '4px' }}>{selectedApprovedPO.poNumber || selectedApprovedPO.id}</div>
                   </div>
-                  <button onClick={() => setShowPOPdfModal(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#ffffff', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px' }}>✕</button>
-                </div>
-
-                <div style={{ padding: '28px', overflowY: 'auto', flex: 1, background: '#ffffff', fontFamily: `'Inter', sans-serif` }} id="po-pdf-print-area">
-                  <div style={{ borderBottom: '2px solid #DCE5F0', paddingBottom: '20px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#24345C', margin: 0 }}>PURCHASE ORDER</h2>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#0284c7', marginTop: '4px' }}>{po.poNumber || po.id}</div>
-                    </div>
-                    <div style={{ textAlign: 'right', fontSize: '13px', color: '#5E6B82' }}>
-                      <div><strong>Order Date:</strong> {new Date(po.createdAt || Date.now()).toLocaleDateString()}</div>
-                      <div><strong>Payment Terms:</strong> {po.paymentTerms || 'Standard 30 Days Net'}</div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
-                    <div style={{ background: '#F5FAFE', padding: '16px', borderRadius: '12px', border: '1px solid #DCE5F0' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase' }}>Vendor & GST Details</div>
-                      <div style={{ fontSize: '16px', fontWeight: 800, color: '#24345C', marginTop: '6px' }}>{po.vendorName || po.supplier?.name || 'Vendor'}</div>
-                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>GSTIN: {po.gstin || '27AADCS1234F1Z8'}</div>
-                      <div style={{ fontSize: '13px', color: '#475569' }}>Email: orders@{(po.vendorName || po.supplier?.name || 'vendor').toLowerCase().replace(/[^a-z]/g, '')}.com</div>
-                    </div>
-
-                    <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', textTransform: 'uppercase' }}>Approval Authorization</div>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#166534', marginTop: '6px' }}>Approved By: {po.approvedBy || 'Super Admin'}</div>
-                      <div style={{ fontSize: '13px', color: '#166534', marginTop: '4px' }}>Date: {po.approvedAt ? new Date(po.approvedAt).toLocaleString() : new Date().toLocaleDateString()}</div>
-                      <div style={{ fontSize: '13px', color: '#15803d', fontStyle: 'italic', marginTop: '4px' }}>"{po.superAdminRemarks || po.remarks || 'Approved after technical review.'}"</div>
-                    </div>
-                  </div>
-
-                  <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#24345C', marginBottom: '12px' }}>Materials & Quantities</h4>
-                  <div style={{ border: '1px solid #DCE5F0', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-                      <thead style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#5E6B82', fontSize: '12px', fontWeight: 700 }}>
-                        <tr>
-                          <th style={{ padding: '12px 16px' }}>Material</th>
-                          <th style={{ padding: '12px 16px', textAlign: 'right' }}>Qty</th>
-                          <th style={{ padding: '12px 16px', textAlign: 'right' }}>Unit Rate</th>
-                          <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {poItems.map((item, idx) => {
-                          const qty = Number(item.quantity ?? item.orderedQty ?? item.qty ?? 0);
-                          const rate = Number(item.unitPrice ?? item.unitRate ?? item.rate ?? item.price ?? 0);
-                          const total = qty * rate;
-                          return (
-                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '12px 16px', fontWeight: 700, color: '#24345C' }}>{item.product?.name || item.name || item.material || 'Unknown Material'}</td>
-                              <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>{qty} {item.product?.unit || item.unit || 'Units'}</td>
-                              <td style={{ padding: '12px 16px', textAlign: 'right' }}>₹{rate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                              <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800 }}>₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <div style={{ width: '300px', display: 'grid', gap: '8px', fontSize: '14px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#5E6B82', fontWeight: 600 }}>Subtotal:</span>
-                        <strong style={{ color: '#0F172A' }}>₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#5E6B82', fontWeight: 600 }}>GST ({gstPercent}%):</span>
-                        <strong style={{ color: '#0F172A' }}>₹{gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#5E6B82', fontWeight: 600 }}>Freight:</span>
-                        <strong style={{ color: '#0F172A' }}>₹{freight.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
-                      </div>
-                      <div style={{ borderTop: '2px solid #D6E2F0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 900, color: '#16a34a' }}>
-                        <span>Grand Total:</span>
-                        <span>₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                    </div>
+                  <div style={{ textAlign: 'right', fontSize: '13px', color: '#5E6B82' }}>
+                    <div><strong>Order Date:</strong> {new Date(selectedApprovedPO.createdAt || Date.now()).toLocaleDateString()}</div>
+                    <div><strong>Payment Terms:</strong> {selectedApprovedPO.paymentTerms || 'Standard 30 Days Net'}</div>
                   </div>
                 </div>
 
-                <div style={{ background: '#F5FAFE', padding: '16px 24px', borderTop: '1px solid #DCE5F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <button onClick={() => setShowPOPdfModal(false)} style={{ padding: '10px 20px', border: '1.5px solid #D6E2F0', background: '#ffffff', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Close</button>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <button onClick={() => handleDownloadPOPdf(po)} style={{ padding: '10px 22px', border: '1.5px solid #D6E2F0', background: '#f1f5f9', color: '#24345C', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                      <Download size={16} /> Download PDF
-                    </button>
-                    {canPlaceOrder && (
-                      <button onClick={() => { setShowPOPdfModal(false); setShowPlaceOrderModal(true); }} style={{ padding: '10px 24px', border: 'none', background: '#0284c7', color: '#ffffff', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                        <CheckCircle2 size={16} /> Place Order Manually
-                      </button>
-                    )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+                  <div style={{ background: '#F5FAFE', padding: '16px', borderRadius: '12px', border: '1px solid #DCE5F0' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase' }}>Vendor & GST Details</div>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#24345C', marginTop: '6px' }}>{selectedApprovedPO.vendorName || 'Vendor'}</div>
+                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>GSTIN: {selectedApprovedPO.gstin || '27AADCS1234F1Z8'}</div>
+                    <div style={{ fontSize: '13px', color: '#475569' }}>Email: orders@{selectedApprovedPO.vendorName?.toLowerCase().replace(/[^a-z]/g, '') || 'vendor'}.com</div>
+                  </div>
+
+                  <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', textTransform: 'uppercase' }}>Super Admin Approval Details</div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#166534', marginTop: '6px' }}>Approved By: {selectedApprovedPO.approvedBy || 'Super Admin'}</div>
+                    <div style={{ fontSize: '13px', color: '#166534', marginTop: '4px' }}>Date: {selectedApprovedPO.approvedAt ? new Date(selectedApprovedPO.approvedAt).toLocaleString() : new Date().toLocaleDateString()}</div>
+                    <div style={{ fontSize: '13px', color: '#15803d', fontStyle: 'italic', marginTop: '4px' }}>"{selectedApprovedPO.superAdminRemarks || 'Approved after technical review.'}"</div>
+                  </div>
+                </div>
+
+                <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#24345C', marginBottom: '12px' }}>Materials & Quantities</h4>
+                <div style={{ border: '1px solid #DCE5F0', borderRadius: '10px', overflow: 'hidden', marginBottom: '24px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                    <thead style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', color: '#5E6B82', fontSize: '12px', fontWeight: 700 }}>
+                      <tr>
+                        <th style={{ padding: '12px 16px' }}>Material</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>Qty</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>Unit Rate</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedApprovedPO.items || []).map((item, idx) => {
+                        const qty = Number(item.quantity || 0);
+                        const rate = Number(item.unitPrice || item.unitRate || item.rate || 0);
+                        return (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '12px 16px', fontWeight: 700, color: '#24345C' }}>{item.product?.name || item.name || item.material || 'Unknown Material'}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>{qty} {item.product?.unit || item.unit || 'Units'}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right' }}>₹{rate.toLocaleString()}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800 }}>₹{(qty * rate).toLocaleString()}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{ width: '280px', display: 'grid', gap: '8px', fontSize: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82' }}>Subtotal:</span> <strong>₹{selectedApprovedPO.subtotal?.toLocaleString() || '0'}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82' }}>GST (18%):</span> <strong>₹{selectedApprovedPO.gstAmount?.toLocaleString() || Math.round((selectedApprovedPO.grandTotal - selectedApprovedPO.subtotal) || 0).toLocaleString()}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#5E6B82' }}>Freight:</span> <strong>₹{selectedApprovedPO.freight?.toLocaleString() || '0'}</strong></div>
+                    <div style={{ borderTop: '2px solid #D6E2F0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 900, color: '#16a34a' }}>
+                      <span>Grand Total:</span> <span>₹{selectedApprovedPO.grandTotal?.toLocaleString() || '0'}</span>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              <div style={{ background: '#F5FAFE', padding: '16px 24px', borderTop: '1px solid #DCE5F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button onClick={() => setShowPOPdfModal(false)} style={{ padding: '10px 20px', border: '1.5px solid #D6E2F0', background: '#ffffff', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Close</button>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button onClick={() => handleDownloadPOPdf(selectedApprovedPO)} style={{ padding: '10px 22px', border: '1.5px solid #D6E2F0', background: '#f1f5f9', color: '#24345C', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Download size={16} /> Download PDF
+                  </button>
+                  <button onClick={() => { setShowPOPdfModal(false); setShowPlaceOrderModal(true); }} style={{ padding: '10px 24px', border: 'none', background: '#0284c7', color: '#ffffff', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle2 size={16} /> Place Order Manually
+                  </button>
+                </div>
+              </div>
             </div>
-          );
-        })()}
+          </div>
+        )}
 
         {/* Place Order Manually Confirmation Form Modal */}
         {selectedApprovedPO && showPlaceOrderModal && (
-          <div 
+          <div
             onClick={() => setShowPlaceOrderModal(false)}
             style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
           >
-            <div 
+            <div
               onClick={e => e.stopPropagation()}
               style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '650px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #D6E2F0', overflow: 'hidden' }}
             >
@@ -2857,12 +2819,12 @@ export default function FinancePortal({ initialView, forceView }) {
               <form onSubmit={handleConfirmManualOrder} style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'grid', gap: '18px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#0284c7', marginBottom: '6px' }}>Expected Delivery Date *</label>
-                  <input 
-                    type="date" 
-                    required 
-                    value={expectedDeliveryDate} 
-                    onChange={e => setExpectedDeliveryDate(e.target.value)} 
-                    style={{ width: '100%', padding: '10px', border: '2px solid #0284c7', borderRadius: '8px', fontSize: '14px', fontWeight: 700 }} 
+                  <input
+                    type="date"
+                    required
+                    value={expectedDeliveryDate}
+                    onChange={e => setExpectedDeliveryDate(e.target.value)}
+                    style={{ width: '100%', padding: '10px', border: '2px solid #0284c7', borderRadius: '8px', fontSize: '14px', fontWeight: 700 }}
                   />
                 </div>
 
@@ -2890,7 +2852,7 @@ export default function FinancePortal({ initialView, forceView }) {
   const renderAllPOsTab = (filterType = 'ALL') => {
     const handleVendorAccept = (po) => {
       const simulatedDeliveryDate = po.expectedDeliveryDate || po.deliveryDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      acceptPurchaseOrderByVendor(po.id, { 
+      acceptPurchaseOrderByVendor(po.id, {
         vendorResponseDate: new Date().toISOString(),
         expectedDeliveryDate: simulatedDeliveryDate
       });
@@ -2951,9 +2913,9 @@ export default function FinancePortal({ initialView, forceView }) {
             </h2>
           </div>
         )}
-        <DataTable 
+        <DataTable
           columns={[
-            { header: 'Official PO Ref', accessor: 'poNumber', render: row => <strong style={{color:'var(--color-primary)'}}>{row.poNumber || row.id}</strong> },
+            { header: 'Official PO Ref', accessor: 'poNumber', render: row => <strong style={{ color: 'var(--color-primary)' }}>{row.poNumber || row.id}</strong> },
             { header: 'Indent Ref', accessor: 'purchaseIndentId', render: row => row.purchaseIndentId || row.indentId || 'N/A' },
             { header: 'Vendor', accessor: 'vendorName', render: row => row.vendorName || row.supplier?.name || 'N/A' },
             { header: 'Date Created', accessor: 'createdAt', render: row => new Date(row.createdAt).toLocaleDateString() },
@@ -3020,7 +2982,7 @@ export default function FinancePortal({ initialView, forceView }) {
             const canAttemptClose = filterType === 'CLOSED' && ['RECEIVED', 'PARTIALLY_RECEIVED', 'PURCHASE_COMPLETED', 'FINANCE_AUDIT_APPROVED'].includes(row.status);
 
             return (
-              <div style={{display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center'}}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 {(row.status === 'DRAFT' || row.status === 'PENDING_FINANCE_APPROVAL' || row.status === 'PLANT_HEAD_APPROVED' || row.status === 'PENDING') && (
                   <button
                     style={{ background: '#4F46E5', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontWeight: 700, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
@@ -3057,13 +3019,13 @@ export default function FinancePortal({ initialView, forceView }) {
                     style={{ background: '#059669', color: '#fff', border: 'none', borderRadius: '8px', padding: '6px 16px', cursor: 'pointer', fontWeight: 700, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                     onClick={() => handleClosePO(row.id, row.poNumber || row.id)}
                   >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                     Close PO
                   </button>
                 )}
                 {isClosed && (
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                     Closed
                   </span>
                 )}
@@ -3083,16 +3045,16 @@ export default function FinancePortal({ initialView, forceView }) {
     const handlePayVendor = (grn) => {
       const poId = grn.purchaseOrderId;
       const invoiceId = grn.invoiceNo || `INV-${Date.now()}`;
-      
+
       // The store signature is: createVendorPayment(poId, invoiceId, data, actorName)
-      createVendorPayment(poId, invoiceId, { amount: 50000, transactionId: `TXN-${Date.now()}` }, 'Finance Executive'); 
-      
+      createVendorPayment(poId, invoiceId, { amount: 50000, transactionId: `TXN-${Date.now()}` }, 'Finance Executive');
+
       // Find the newly created payment so we can complete it
       const currentPayments = useERPStore.getState().state.vendorPayments || [];
       const newPayment = currentPayments.find(p => p.purchaseOrderId === poId && p.status === 'PAYMENT_PENDING');
-      
+
       if (newPayment) {
-        completeVendorPayment(newPayment.id, { poId, transactionId: `TXN-${Date.now()}` }); 
+        completeVendorPayment(newPayment.id, { poId, transactionId: `TXN-${Date.now()}` });
       }
       showToast(`Payment processed and purchase completed for PO ${poId}.`);
     };
@@ -3100,7 +3062,7 @@ export default function FinancePortal({ initialView, forceView }) {
     return (
       <div className="app-card">
         <div className="card-top-bar"><h2 className="card-heading">Vendor Payments</h2></div>
-        <DataTable 
+        <DataTable
           columns={[
             { header: 'GRN ID', accessor: 'id', render: row => <strong>{row.id}</strong> },
             { header: 'PO Ref', accessor: 'purchaseOrderId' },
@@ -3111,7 +3073,7 @@ export default function FinancePortal({ initialView, forceView }) {
           actions={row => {
             const po = purchaseOrders.find(p => p.id === row.purchaseOrderId);
             if (po && (po.status === 'PURCHASE_COMPLETED' || po.status === 'PAYMENT_COMPLETED')) {
-              return <span style={{fontSize:'12px', color:'green', fontWeight:'bold'}}>Paid</span>;
+              return <span style={{ fontSize: '12px', color: 'green', fontWeight: 'bold' }}>Paid</span>;
             }
             return (
               <button className="btn-small btn-primary-small" onClick={() => handlePayVendor(row)}>
@@ -3225,10 +3187,10 @@ export default function FinancePortal({ initialView, forceView }) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Ledger Tabs */}
-        <div style={{ 
-          display: 'flex', 
-          borderBottom: '1px solid var(--color-border)', 
-          gap: '8px', 
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid var(--color-border)',
+          gap: '8px',
           paddingBottom: '4px',
           overflowX: 'auto'
         }}>
@@ -3260,7 +3222,7 @@ export default function FinancePortal({ initialView, forceView }) {
         <div className="app-card">
           <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="card-heading">{ledgerTab}</h2>
-            <button 
+            <button
               className="action-btn"
               style={{ background: 'transparent', border: '1px solid var(--color-border)', padding: '6px 12px', borderRadius: '6px', color: 'var(--color-text-primary)', fontWeight: 'bold', cursor: 'pointer', margin: 0 }}
               onClick={() => showToast(`Refreshing ${ledgerTab} entries...`)}
@@ -3270,7 +3232,7 @@ export default function FinancePortal({ initialView, forceView }) {
           </div>
 
           {ledgerTab === 'General Ledger' && (
-            <DataTable 
+            <DataTable
               columns={[
                 { header: 'Posting Date', accessor: 'date', render: (row) => new Date(row.date).toLocaleDateString() },
                 { header: 'Document Ref', accessor: 'ref', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.ref}</strong> },
@@ -3287,7 +3249,7 @@ export default function FinancePortal({ initialView, forceView }) {
           )}
 
           {ledgerTab === 'Customer Ledger' && (
-            <DataTable 
+            <DataTable
               columns={[
                 { header: 'Posting Date', accessor: 'date' },
                 { header: 'Client Partner Name', accessor: 'customer', render: (row) => <strong>{row.customer}</strong> },
@@ -3304,7 +3266,7 @@ export default function FinancePortal({ initialView, forceView }) {
           )}
 
           {ledgerTab === 'Vendor Ledger' && (
-            <DataTable 
+            <DataTable
               columns={[
                 { header: 'Posting Date', accessor: 'date' },
                 { header: 'Supplier Partner Name', accessor: 'vendor', render: (row) => <strong>{row.vendor}</strong> },
@@ -3321,7 +3283,7 @@ export default function FinancePortal({ initialView, forceView }) {
           )}
 
           {ledgerTab === 'Cash Book' && (
-            <DataTable 
+            <DataTable
               columns={[
                 { header: 'Posting Date', accessor: 'date' },
                 { header: 'Transaction Description', accessor: 'desc' },
@@ -3338,7 +3300,7 @@ export default function FinancePortal({ initialView, forceView }) {
           )}
 
           {ledgerTab === 'Bank Book' && (
-            <DataTable 
+            <DataTable
               columns={[
                 { header: 'Reconciliation Date', accessor: 'date' },
                 { header: 'Clearance Reference description', accessor: 'desc' },
@@ -3355,7 +3317,7 @@ export default function FinancePortal({ initialView, forceView }) {
           )}
 
           {ledgerTab === 'Journal Entries' && (
-            <DataTable 
+            <DataTable
               columns={[
                 { header: 'JV Number', accessor: 'jvNumber', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.jvNumber}</strong> },
                 { header: 'Posting Date', accessor: 'date' },
@@ -3372,7 +3334,7 @@ export default function FinancePortal({ initialView, forceView }) {
           )}
 
           {ledgerTab === 'Trial Balance' && (
-            <DataTable 
+            <DataTable
               columns={[
                 { header: 'Account Classification', accessor: 'account', render: (row) => <strong>{row.account}</strong> },
                 { header: 'Initial Bal', accessor: 'debit', render: () => '₹0.00' },
@@ -3421,7 +3383,7 @@ export default function FinancePortal({ initialView, forceView }) {
 
         <div className="app-card" style={{ padding: '24px' }}>
           <h3 className="card-heading" style={{ marginBottom: '16px' }}>{settingsTab} Configuration</h3>
-          
+
           {settingsTab === 'GST Settings' && (
             <form onSubmit={(e) => { e.preventDefault(); showToast('GST rates successfully updated.'); }} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '450px' }}>
               <div className="form-group">
@@ -3552,12 +3514,12 @@ export default function FinancePortal({ initialView, forceView }) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* Navigation Tabs Header */}
-        <div style={{ 
-          display: 'flex', 
-          borderBottom: '1px solid var(--color-border, #E2E8F0)', 
-          gap: '8px', 
-          paddingBottom: '8px', 
-          overflowX: 'auto', 
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid var(--color-border, #E2E8F0)',
+          gap: '8px',
+          paddingBottom: '8px',
+          overflowX: 'auto',
           whiteSpace: 'nowrap',
           background: '#ffffff',
           padding: '12px 16px',
@@ -3610,23 +3572,23 @@ export default function FinancePortal({ initialView, forceView }) {
       {view === 'delivery-audit' && <div data-testid="finance-delivery-audit-view" className="sales-portal-view"><DeliveryAudit /></div>}
       {view === 'rejection-management' && <div data-testid="finance-rejection-management-view" className="sales-portal-view"><RejectionManagement /></div>}
       {view === 'brand-analysis' && <div data-testid="finance-brand-analysis-view" className="sales-portal-view"><FinanceBrandAnalysis /></div>}
-      
+
       {/* Shared Payments Subviews */}
       {view === 'payment-verification' && <div data-testid="finance-payment-verification-view" className="sales-portal-view"><FinanceSalesConfirmationView /></div>}
       {view === 'receipts' && <div data-testid="finance-receipts-view" className="sales-portal-view"><ReceiptsView /></div>}
       {view === 'outstanding' && <div data-testid="finance-outstanding-view" className="sales-portal-view"><OutstandingView /></div>}
       {view === 'customers' && <div data-testid="finance-customers-view" className="sales-portal-view"><CustomersView /></div>}
       {view === 'daily-tasks' && <div data-testid="finance-daily-tasks-view" className="sales-portal-view"><DailyTaskView state={state} dispatch={dispatch} navigate={navigate} showToast={showToast} module="Finance" /></div>}
-      
+
       {/* Procurement & Vendor Views */}
       {view === 'vendors' && <div data-testid="finance-vendors-view" className="sales-portal-view"><VendorManagement /></div>}
       {view === 'expenses' && <div data-testid="finance-expenses-view" className="sales-portal-view">{renderExpenses()}</div>}
-      
+
       {/* Accounting & Ledger Views */}
       {view === 'ledger' && <div data-testid="finance-ledger-view" className="sales-portal-view">{renderLedgerWorkspace()}</div>}
       {view === 'reports' && <div data-testid="finance-reports-view" className="sales-portal-view">{renderReports()}</div>}
       {view === 'settings' && <div data-testid="finance-settings-view" className="sales-portal-view">{renderSettings()}</div>}
-      
+
       {/* Legacy and PO fallbacks */}
       {view === 'receivables' && <div data-testid="finance-receivables-view" className="sales-portal-view">{renderReceivables()}</div>}
       {view === 'history-ledger' && <div data-testid="finance-history-ledger-view" className="sales-portal-view">{renderHistory()}</div>}
@@ -3675,7 +3637,7 @@ export default function FinancePortal({ initialView, forceView }) {
       {selectedInvoiceOrder && (
         <div className="modal-overlay active" onClick={() => setSelectedInvoiceOrder(null)} style={{ zIndex: 10000 }}>
           <div className="modal-box invoice-sheet-modal" onClick={(e) => e.stopPropagation()} style={{ width: '800px', maxWidth: 'calc(100vw - 32px)', background: '#ffffff', color: '#1e293b', borderRadius: '24px', padding: '32px', border: '1px solid #DCE5F0' }}>
-            
+
             {/* Invoice Header */}
             <div className="invoice-sheet-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
@@ -3908,7 +3870,7 @@ export default function FinancePortal({ initialView, forceView }) {
             <td style="text-align: right;">₹${Math.round(item.unitPrice).toLocaleString('en-IN')}</td>
             ${discountAmt > 0 ? `<td style="text-align: center;">${item.discount || 0}%</td>` : ''}
             <td style="text-align: center;">${item.tax !== undefined ? item.tax : 18}%</td>
-            <td style="text-align: right; font-weight: 700;">₹${Math.round(item.quantity * item.unitPrice * (1 - (item.discount || 0)/100) * (1 + (item.tax !== undefined ? item.tax : 18)/100)).toLocaleString('en-IN')}</td>
+            <td style="text-align: right; font-weight: 700;">₹${Math.round(item.quantity * item.unitPrice * (1 - (item.discount || 0) / 100) * (1 + (item.tax !== undefined ? item.tax : 18) / 100)).toLocaleString('en-IN')}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -3971,43 +3933,43 @@ export default function FinancePortal({ initialView, forceView }) {
                   {/* Detailed Items Table */}
                   <div style={{ overflowX: 'auto', width: '100%', marginTop: '32px' }}>
                     <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0' }}>
-                        <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82' }}>Product Details</th>
-                        <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', textAlign: 'center' }}>Qty</th>
-                        <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', textAlign: 'right' }}>Rate</th>
-                        {discountAmt > 0 && (
-                          <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', textAlign: 'center' }}>Discount</th>
-                        )}
-                        <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', textAlign: 'center' }}>Tax (GST)</th>
-                        <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', textAlign: 'right' }}>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {itemsList.map((item, idx) => {
-                        const rowTotal = item.quantity * item.unitPrice * (1 - (item.discount || 0) / 100) * (1 + (item.tax !== undefined ? item.tax : 18) / 100);
-                        return (
-                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '16px 12px' }}>
-                              <div style={{ fontWeight: '700', color: '#24345C', fontSize: '14px' }}>{item.productName}</div>
-                              {item.productDetails && (
-                                <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
+                      <thead>
+                        <tr style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0' }}>
+                          <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82' }}>Product Details</th>
+                          <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', textAlign: 'center' }}>Qty</th>
+                          <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', textAlign: 'right' }}>Rate</th>
+                          {discountAmt > 0 && (
+                            <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', textAlign: 'center' }}>Discount</th>
+                          )}
+                          <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', textAlign: 'center' }}>Tax (GST)</th>
+                          <th style={{ padding: '12px', fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', textAlign: 'right' }}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itemsList.map((item, idx) => {
+                          const rowTotal = item.quantity * item.unitPrice * (1 - (item.discount || 0) / 100) * (1 + (item.tax !== undefined ? item.tax : 18) / 100);
+                          return (
+                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '16px 12px' }}>
+                                <div style={{ fontWeight: '700', color: '#24345C', fontSize: '14px' }}>{item.productName}</div>
+                                {item.productDetails && (
+                                  <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: '500' }}>{item.productDetails}</div>
+                                )}
+                                <div style={{ fontSize: '11px', color: '#5E6B82', marginTop: '3px' }}>Code: {item.code || 'P-PRD-01'}</div>
+                              </td>
+                              <td style={{ padding: '16px 12px', textAlign: 'center', fontSize: '14px', fontWeight: '600' }}>{item.quantity}</td>
+                              <td style={{ padding: '16px 12px', textAlign: 'right', fontSize: '14px', fontWeight: '600' }}>₹{Math.round(item.unitPrice).toLocaleString('en-IN')}</td>
+                              {discountAmt > 0 && (
+                                <td style={{ padding: '16px 12px', textAlign: 'center', fontSize: '14px', fontWeight: '600' }}>{item.discount || 0}%</td>
                               )}
-                              <div style={{ fontSize: '11px', color: '#5E6B82', marginTop: '3px' }}>Code: {item.code || 'P-PRD-01'}</div>
-                            </td>
-                            <td style={{ padding: '16px 12px', textAlign: 'center', fontSize: '14px', fontWeight: '600' }}>{item.quantity}</td>
-                            <td style={{ padding: '16px 12px', textAlign: 'right', fontSize: '14px', fontWeight: '600' }}>₹{Math.round(item.unitPrice).toLocaleString('en-IN')}</td>
-                            {discountAmt > 0 && (
-                              <td style={{ padding: '16px 12px', textAlign: 'center', fontSize: '14px', fontWeight: '600' }}>{item.discount || 0}%</td>
-                            )}
-                            <td style={{ padding: '16px 12px', textAlign: 'center', fontSize: '14px', fontWeight: '600' }}>{item.tax !== undefined ? item.tax : 18}%</td>
-                            <td style={{ padding: '16px 12px', textAlign: 'right', fontSize: '14px', fontWeight: '800', color: '#24345C' }}>{formatValLakh(rowTotal)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                              <td style={{ padding: '16px 12px', textAlign: 'center', fontSize: '14px', fontWeight: '600' }}>{item.tax !== undefined ? item.tax : 18}%</td>
+                              <td style={{ padding: '16px 12px', textAlign: 'right', fontSize: '14px', fontWeight: '800', color: '#24345C' }}>{formatValLakh(rowTotal)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
 
                   {/* Summary Totals */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginTop: '24px', gap: '8px' }}>
@@ -4033,21 +3995,21 @@ export default function FinancePortal({ initialView, forceView }) {
 
                   {/* Action Buttons */}
                   <div className="sheet-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
-                    <button 
+                    <button
                       className="action-btn"
                       style={{ background: '#f1f5f9', border: '1px solid #D6E2F0', padding: '10px 20px', borderRadius: '8px', color: '#334155', fontWeight: 'bold', cursor: 'pointer' }}
                       onClick={() => setSelectedInvoiceOrder(null)}
                     >
                       Close Preview
                     </button>
-                    <button 
+                    <button
                       className="action-btn"
                       style={{ background: 'var(--color-primary)', border: 'none', padding: '10px 20px', borderRadius: '8px', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}
                       onClick={handleDownloadHTML}
                     >
                       Download Invoice
                     </button>
-                    <button 
+                    <button
                       className="action-btn"
                       style={{ background: 'var(--color-accent-teal)', border: 'none', padding: '10px 20px', borderRadius: '8px', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}
                       onClick={() => window.print()}
