@@ -38,6 +38,11 @@ import {
 import DailyAgendaCalendar from './DailyAgendaCalendar';
 import { formatReminderTime, getTodayPendingReminders } from '../shared/utils/reminderUtils.js';
 
+const formatINR = (value) => {
+  const num = Number(value || 0);
+  return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 
 function ConversionGauge({ pct, trackColor, fillColor, label }) {
   const safePct = isNaN(pct) ? 0 : Math.min(100, Math.max(0, Number(pct)));
@@ -910,9 +915,9 @@ export default function DashboardView({
                 </div>
               </div>
 
-              <div style={{ width: '100%', height: '260px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
+              <div style={{ width: '100%', height: '260px', minHeight: '260px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
                 {isMounted && (
-                  <ResponsiveContainer width="100%" height={260}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
                     <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
@@ -930,15 +935,15 @@ export default function DashboardView({
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                       <XAxis dataKey="name" stroke="#5E6B82" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#5E6B82" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <YAxis stroke="#5E6B82" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} domain={[0, 'auto']} />
                       <Tooltip
                         contentStyle={{ background: '#ffffff', border: '1px solid #D6E2F0', borderRadius: '8px', fontSize: '12px', color: 'var(--color-text-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                         itemStyle={{ color: 'var(--color-text-primary)' }}
                         labelStyle={{ fontWeight: 'bold', color: 'var(--color-text-secondary)' }}
                       />
-                      <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={2.5} fillOpacity={1} fill="url(#colorLeads)" />
-                      <Area type="monotone" dataKey="Quotations" stroke="#8b5cf6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorQuotes)" />
-                      <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorConvs)" />
+                      <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={2.5} fillOpacity={1} fill="url(#colorLeads)" isAnimationActive={false} />
+                      <Area type="monotone" dataKey="Quotations" stroke="#8b5cf6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorQuotes)" isAnimationActive={false} />
+                      <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorConvs)" isAnimationActive={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
@@ -1159,9 +1164,9 @@ export default function DashboardView({
                     <span style={{ color: '#10b981' }}>● Won</span>
                   </div>
                 </div>
-                <div style={{ width: '100%', height: '200px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
+                <div style={{ width: '100%', height: '200px', minHeight: '200px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
                   {isMounted && (
-                    <ResponsiveContainer width="100%" height={200}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
                       <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <defs>
                           <linearGradient id="colorLeadsMobile" x1="0" y1="0" x2="0" y2="1">
@@ -1179,11 +1184,11 @@ export default function DashboardView({
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                         <XAxis dataKey="name" stroke="#5E6B82" fontSize={10} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#5E6B82" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+                        <YAxis stroke="#5E6B82" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} domain={[0, 'auto']} />
                         <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', border: '1px solid #D6E2F0' }} />
-                        <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={1.8} fillOpacity={1} fill="url(#colorLeadsMobile)" />
-                        <Area type="monotone" dataKey="Quotations" stroke="#8b5cf6" strokeWidth={1.8} fillOpacity={1} fill="url(#colorQuotesMobile)" />
-                        <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={1.8} fillOpacity={1} fill="url(#colorConvsMobile)" />
+                        <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={1.8} fillOpacity={1} fill="url(#colorLeadsMobile)" isAnimationActive={false} />
+                        <Area type="monotone" dataKey="Quotations" stroke="#8b5cf6" strokeWidth={1.8} fillOpacity={1} fill="url(#colorQuotesMobile)" isAnimationActive={false} />
+                        <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={1.8} fillOpacity={1} fill="url(#colorConvsMobile)" isAnimationActive={false} />
                       </AreaChart>
                     </ResponsiveContainer>
                   )}
@@ -1243,16 +1248,16 @@ export default function DashboardView({
               </div>
             </>
           ) : (
-            <div style={{ padding: '30px', textAlign: 'center', background: '#F5FAFE', borderRadius: '9px', border: '1px dashed #DCE5F0', color: '#5E6B82' }}>
-              <Target size={32} style={{ opacity: 0.3, margin: '0 auto 10px' }} />
-              <p style={{ margin: 0, fontWeight: 600 }}>No sales target assigned for the current period.</p>
-              <p style={{ margin: '4px 0 0', fontSize: '12px' }}>Please contact the Super Admin to configure your revenue target.</p>
+            <div style={{ padding: '24px 20px', textAlign: 'center', background: '#F5FAFE', borderRadius: '9px', border: '1px dashed #DCE5F0', color: '#5E6B82', marginBottom: '16px' }}>
+              <Target size={28} style={{ opacity: 0.4, margin: '0 auto 8px', color: '#6366f1' }} />
+              <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#24345C' }}>No custom target set for current month</p>
+              <p style={{ margin: '4px 0 0', fontSize: '11.5px' }}>Showing calculated baseline target vs achieved sales from orders below.</p>
             </div>
           )}
           
-          <div className="sales-analytics-chart" style={{ width: '100%', height: '280px', minWidth: 0, position: 'relative' }}>
+          <div className="sales-analytics-chart" style={{ width: '100%', height: '280px', minHeight: '280px', minWidth: 0, position: 'relative' }}>
             {isMounted && (
-              <ResponsiveContainer width="100%" height={280}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
                 <BarChart data={monthlyTargetData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                   <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
@@ -1262,8 +1267,8 @@ export default function DashboardView({
                     contentStyle={{ background: '#fff', borderRadius: '8px', border: '1px solid #DCE5F0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} 
                   />
                   <Legend wrapperStyle={{ fontSize: '11.5px', paddingTop: '8px' }} />
-                  <Bar dataKey="Target" fill="#cbd5e1" radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 20} />
-                  <Bar dataKey="Achieved" fill="#16a34a" radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 20} />
+                  <Bar dataKey="Target" fill="#cbd5e1" radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 20} isAnimationActive={false} />
+                  <Bar dataKey="Achieved" fill="#16a34a" radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 20} isAnimationActive={false} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -1274,39 +1279,40 @@ export default function DashboardView({
           <div style={{ marginBottom: '18px' }}><h2 style={{ margin: 0, fontSize: '17px', fontWeight: 850, color: '#24345C' }}>Sales Return Analysis</h2><p style={{ margin: '4px 0 0', fontSize: '12px', color: '#5E6B82' }}>Delivered orders and recorded customer return requests</p></div>
           
           {returnOrders.length === 0 ? (
-            <div style={{ padding: '40px 20px', textAlign: 'center', background: '#F5FAFE', borderRadius: '9px', border: '1px dashed #DCE5F0', color: '#5E6B82', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <Package size={36} style={{ opacity: 0.3, marginBottom: '12px', color: '#3b82f6' }} />
-              <p style={{ margin: 0, fontWeight: 700, fontSize: '14px', color: '#24345C' }}>No return requests recorded</p>
-              <p style={{ margin: '6px 0 0', fontSize: '12px', maxWidth: '300px' }}>Your delivered orders are in perfect condition. Any customer returns, defects, or RMAs will be analyzed here.</p>
+            <div style={{ padding: '30px 20px', textAlign: 'center', background: '#F5FAFE', borderRadius: '9px', border: '1px dashed #DCE5F0', color: '#5E6B82', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+              <Package size={32} style={{ opacity: 0.4, marginBottom: '8px', color: '#3b82f6' }} />
+              <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#24345C' }}>Zero returns recorded</p>
+              <p style={{ margin: '4px 0 0', fontSize: '11.5px', maxWidth: '320px' }}>Your delivered orders have 100% acceptance. Any RMA or return requests will display below.</p>
             </div>
           ) : (
-            <>
-              <div className="sales-return-kpis" style={{ marginBottom: '18px' }}>
-                {[
-                  ['Delivered Orders', deliveredOrdersForReturns.length], ['Return Requests', returnOrders.length], ['Returned Quantity', returnedQuantity.toLocaleString('en-IN')], ['Return Value', `₹${Math.round(returnValue).toLocaleString('en-IN')}`], ['Return Rate', `${returnRate.toFixed(1)}%`]
-                ].map(([label,value]) => <div className="sales-analytics-kpi" key={label} style={{ padding: '11px 12px', borderRadius: '9px', background: '#F5FAFE', border: '1px solid #DCE5F0' }}><div style={{ fontSize: '10px', fontWeight: 750, color: '#5E6B82', textTransform: 'uppercase' }}>{label}</div><div style={{ marginTop: '4px', fontSize: '16px', fontWeight: 850, color: '#24345C', overflowWrap: 'anywhere' }}>{value}</div></div>)}
-              </div>
-              <div className="sales-analytics-chart" style={{ width: '100%', height: '260px', minWidth: 0, position: 'relative' }}>
-                {isMounted && (
-                  <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={monthlyReturnData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                      <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
-                      <YAxis yAxisId="qty" stroke="#64748b" tick={{ fontSize: 10 }} />
-                      <YAxis yAxisId="value" orientation="right" stroke="#64748b" tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 1000)}k`} />
-                      <Tooltip 
-                        formatter={(value, name) => name === 'ReturnValue' || name === 'Return Value' ? `₹${Number(value).toLocaleString('en-IN')}` : Number(value).toLocaleString('en-IN')} 
-                        contentStyle={{ background: '#fff', borderRadius: '8px', border: '1px solid #DCE5F0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} 
-                      />
-                      <Legend wrapperStyle={{ fontSize: '11.5px', paddingTop: '8px' }} />
-                      <Bar yAxisId="qty" dataKey="ReturnQuantity" name="Return Quantity" fill="#f97316" radius={[6, 6, 0, 0]} barSize={isMobile ? 10 : 16} />
-                      <Bar yAxisId="value" dataKey="ReturnValue" name="Return Value" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={isMobile ? 10 : 16} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-              <div style={{ borderTop: '1px solid #DCE5F0', paddingTop: '14px', marginTop: '8px' }}><h3 style={{ fontSize: '12px', fontWeight: 800, margin: '0 0 10px', color: '#334155' }}>Top Return Reasons</h3><div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>{topReturnReasons.map(item => <span key={item.reason} style={{ padding: '5px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, background: item.count ? '#fff7ed' : '#F5FAFE', color: item.count ? '#c2410c' : '#8893A7', border: `1px solid ${item.count ? '#fed7aa' : '#DCE5F0'}` }}>{item.reason} · {item.count}</span>)}</div></div>
-            </>
+            <div className="sales-return-kpis" style={{ marginBottom: '18px' }}>
+              {[
+                ['Delivered Orders', deliveredOrdersForReturns.length], ['Return Requests', returnOrders.length], ['Returned Quantity', returnedQuantity.toLocaleString('en-IN')], ['Return Value', `₹${Math.round(returnValue).toLocaleString('en-IN')}`], ['Return Rate', `${returnRate.toFixed(1)}%`]
+              ].map(([label,value]) => <div className="sales-analytics-kpi" key={label} style={{ padding: '11px 12px', borderRadius: '9px', background: '#F5FAFE', border: '1px solid #DCE5F0' }}><div style={{ fontSize: '10px', fontWeight: 750, color: '#5E6B82', textTransform: 'uppercase' }}>{label}</div><div style={{ marginTop: '4px', fontSize: '16px', fontWeight: 850, color: '#24345C', overflowWrap: 'anywhere' }}>{value}</div></div>)}
+            </div>
+          )}
+
+          <div className="sales-analytics-chart" style={{ width: '100%', height: '260px', minHeight: '260px', minWidth: 0, position: 'relative' }}>
+            {isMounted && (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
+                <BarChart data={monthlyReturnData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                  <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="qty" stroke="#64748b" tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <YAxis yAxisId="value" orientation="right" stroke="#64748b" tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 1000)}k`} />
+                  <Tooltip 
+                    formatter={(value, name) => name === 'ReturnValue' || name === 'Return Value' ? `₹${Number(value).toLocaleString('en-IN')}` : Number(value).toLocaleString('en-IN')} 
+                    contentStyle={{ background: '#fff', borderRadius: '8px', border: '1px solid #DCE5F0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} 
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11.5px', paddingTop: '8px' }} />
+                  <Bar yAxisId="qty" dataKey="ReturnQuantity" name="Return Quantity" fill="#f97316" radius={[6, 6, 0, 0]} barSize={isMobile ? 10 : 16} isAnimationActive={false} />
+                  <Bar yAxisId="value" dataKey="ReturnValue" name="Return Value" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={isMobile ? 10 : 16} isAnimationActive={false} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          {returnOrders.length > 0 && (
+            <div style={{ borderTop: '1px solid #DCE5F0', paddingTop: '14px', marginTop: '8px' }}><h3 style={{ fontSize: '12px', fontWeight: 800, margin: '0 0 10px', color: '#334155' }}>Top Return Reasons</h3><div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>{topReturnReasons.map(item => <span key={item.reason} style={{ padding: '5px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, background: item.count ? '#fff7ed' : '#F5FAFE', color: item.count ? '#c2410c' : '#8893A7', border: `1px solid ${item.count ? '#fed7aa' : '#DCE5F0'}` }}>{item.reason} · {item.count}</span>)}</div></div>
           )}
         </section>
       </div>
