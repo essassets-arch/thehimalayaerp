@@ -129,11 +129,11 @@ export default function FinishedGoodsPage() {
     try {
       await backendFetch(`/api/backend/production/finished-goods/${targetId}/adjust`, {
         method: "POST",
-        body: JSON.stringify({
+        body: {
           type: adjustType,
           quantity: Number(adjustQty) || 0,
           reason: adjustReason
-        })
+        }
       });
       toast.success(`Stock ${adjustType === 'IN' ? 'added (+)' : 'reduced (-)'} successfully!`);
       queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
@@ -216,7 +216,7 @@ export default function FinishedGoodsPage() {
 
       await backendFetch("/api/backend/production/finished-goods", {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: payload,
       });
 
       toast.success(`Added ${formData.productName} (${formData.quantity} ${isCustomUnitActive ? customUnit : formData.unit}) to Finished Goods Stock!`);

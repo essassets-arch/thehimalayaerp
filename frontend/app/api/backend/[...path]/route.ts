@@ -88,6 +88,14 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       ? await request.formData()
       : await request.json().catch(() => undefined);
 
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      // keep raw string
+    }
+  }
+
 
 
   // Intercept all requests to the sample dispatch

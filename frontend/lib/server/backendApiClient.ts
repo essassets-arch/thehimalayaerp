@@ -105,7 +105,12 @@ export async function forwardBackendRequest(
       };
 
       if (body !== undefined && method !== 'GET') {
-        fetchOptions.body = isMultipart ? body as FormData : JSON.stringify(body);
+        fetchOptions.body =
+          isMultipart
+            ? (body as FormData)
+            : typeof body === 'string'
+            ? body
+            : JSON.stringify(body);
       }
 
       const res = await fetch(url.toString(), fetchOptions);

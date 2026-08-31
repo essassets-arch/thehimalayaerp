@@ -51,7 +51,12 @@ async function performBackendFetch<T = unknown>(
 
   const fetchOpts: RequestInit = { method, headers };
   if (opts.body !== undefined && method !== 'GET') {
-    fetchOpts.body = opts.body instanceof FormData ? opts.body : JSON.stringify(opts.body);
+    fetchOpts.body =
+      opts.body instanceof FormData
+        ? opts.body
+        : typeof opts.body === 'string'
+        ? opts.body
+        : JSON.stringify(opts.body);
   }
 
   let res = await fetch(targetUrl, fetchOpts);

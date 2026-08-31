@@ -145,7 +145,7 @@ export default function ProductionOperationsDashboard({ workOrders = [], initial
     event.preventDefault();
     try {
       const entryPayload = { ...shiftForm, targetQty: number(shiftForm.targetQty), producedQty: number(shiftForm.producedQty), rejectedQty: number(shiftForm.rejectedQty), reworkQty: number(shiftForm.reworkQty) };
-      const res = await backendFetch('/api/backend/production/shift-entries', { method: 'POST', body: JSON.stringify(entryPayload) });
+      const res = await backendFetch('/api/backend/production/shift-entries', { method: 'POST', body: entryPayload });
       if (res?.success) {
         setShiftEntries([...shiftEntries, { ...res.data, workOrder: workOrderRef(selectedShiftWO || {}), product: productName(selectedShiftWO || {}), efficiency: number(shiftForm.targetQty) ? Math.max(0, number(shiftForm.producedQty) - number(shiftForm.rejectedQty)) / number(shiftForm.targetQty) * 100 : 0 }]);
         setModal(null);
@@ -160,7 +160,7 @@ export default function ProductionOperationsDashboard({ workOrders = [], initial
     event.preventDefault();
     try {
       const entryPayload = { ...scrapForm, scrapQty: number(scrapForm.scrapQty), wastageQty: number(scrapForm.wastageQty) };
-      const res = await backendFetch('/api/backend/production/scrap-entries', { method: 'POST', body: JSON.stringify(entryPayload) });
+      const res = await backendFetch('/api/backend/production/scrap-entries', { method: 'POST', body: entryPayload });
       if (res?.success) {
         setScrapEntries([...scrapEntries, { ...res.data, workOrder: workOrderRef(selectedScrapWO || {}), product: productName(selectedScrapWO || {}) }]);
         setModal(null);

@@ -335,7 +335,7 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
     try {
       await backendFetch('/sales/complaints', {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: payload,
       });
 
       Swal.fire({
@@ -393,7 +393,7 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
     try {
       await backendFetch(`/plant-head/complaints/${complaint.id}/approve`, {
         method: 'PUT',
-        body: JSON.stringify({ adminRemarks: 'Approved by Plant Head' }),
+        body: { adminRemarks: 'Approved by Plant Head' },
       });
 
       Swal.fire({
@@ -436,7 +436,7 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
     try {
       await backendFetch(`/plant-head/complaints/${complaint.id}/reject`, {
         method: 'PUT',
-        body: JSON.stringify({ rejectionReason: rejectionReason.trim() }),
+        body: { rejectionReason: rejectionReason.trim() },
       });
 
       Swal.fire({
