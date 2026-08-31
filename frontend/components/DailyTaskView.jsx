@@ -671,31 +671,53 @@ export default function DailyTaskView({
         .daily-task-viewport {
           padding-bottom: 32px;
         }
-        .daily-task-hero-banner {
-          margin-bottom: 18px;
-          border-radius: 18px;
-          padding: 18px 24px;
+        .daily-task-hero-card {
+          background: linear-gradient(135deg, #1e3a8a 0%, #0284c7 100%);
+          border-radius: 16px;
+          padding: 18px 22px;
+          margin-bottom: 14px;
+          box-shadow: 0 4px 16px rgba(2, 132, 199, 0.15);
+          color: #ffffff;
+          position: relative;
+          overflow: hidden;
         }
         .daily-task-hero-top-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
           flex-wrap: wrap;
-          gap: 16px;
+          gap: 14px;
+        }
+        .daily-task-title {
+          font-size: 22px;
+          font-weight: 900;
+          color: #ffffff !important;
+          display: block !important;
+          margin-top: 3px;
+          margin-bottom: 2px;
+          letter-spacing: -0.5px;
+          line-height: 1.25;
+        }
+        .daily-task-hero-desc {
+          color: rgba(255, 255, 255, 0.88);
+          font-size: 12.5px;
+          margin: 0;
+          font-weight: 500;
+          line-height: 1.4;
         }
         .daily-task-hero-controls {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
           flex-wrap: wrap;
         }
         .daily-task-date-box {
-          display: flex;
+          display: inline-flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           background: rgba(255, 255, 255, 0.18);
-          padding: 6px 12px;
-          border-radius: 12px;
+          padding: 5px 10px;
+          border-radius: 10px;
           border: 1px solid rgba(255, 255, 255, 0.25);
           backdrop-filter: blur(8px);
         }
@@ -704,7 +726,7 @@ export default function DailyTaskView({
           background: transparent;
           color: #ffffff;
           font-weight: 800;
-          font-size: 12.5px;
+          font-size: 12px;
           cursor: pointer;
           outline: none;
           color-scheme: dark;
@@ -712,30 +734,31 @@ export default function DailyTaskView({
         .daily-task-stats-grid {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
-          gap: 14px;
-          margin-bottom: 18px;
+          gap: 12px;
+          margin-bottom: 14px;
         }
         .daily-task-stat-card {
-          padding: 14px 18px;
-          border-radius: 16px;
+          padding: 12px 16px;
+          border-radius: 14px;
           background: #ffffff;
           border: 1px solid var(--color-border, #e2e8f0);
           cursor: pointer;
           transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.03);
         }
         .daily-task-stat-card:hover {
           transform: translateY(-2px);
           box-shadow: 0 4px 12px rgba(0,0,0,0.06);
         }
         .daily-task-stat-card-title {
-          font-size: 11px;
+          font-size: 10.5px;
           font-weight: 800;
           color: var(--color-text-secondary, #64748b);
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.4px;
         }
         .daily-task-stat-card-num {
-          font-size: 26px;
+          font-size: 24px;
           font-weight: 900;
           letter-spacing: -0.5px;
           line-height: 1;
@@ -743,12 +766,12 @@ export default function DailyTaskView({
         .tasks-layout-row {
           display: grid;
           grid-template-columns: 2.2fr 1fr;
-          gap: 20px;
+          gap: 16px;
         }
         .task-grid-container {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
-          gap: 14px;
+          gap: 12px;
         }
         .filter-tab-bar {
           display: flex;
@@ -757,7 +780,7 @@ export default function DailyTaskView({
           padding: 5px;
           border-radius: 12px;
           overflow-x: auto;
-          margin-bottom: 14px;
+          margin-bottom: 12px;
           align-items: center;
           scrollbar-width: none;
           -webkit-overflow-scrolling: touch;
@@ -765,8 +788,8 @@ export default function DailyTaskView({
         .filter-tab-bar::-webkit-scrollbar { display: none; }
         .filter-tab-btn {
           flex: 0 0 auto;
-          padding: 7px 12px;
-          border-radius: 9px;
+          padding: 6px 12px;
+          border-radius: 8px;
           border: 1px solid transparent;
           font-size: 12px;
           font-weight: 700;
@@ -777,7 +800,7 @@ export default function DailyTaskView({
           white-space: nowrap;
           display: inline-flex;
           align-items: center;
-          gap: 6px;
+          gap: 5px;
         }
         .filter-tab-btn:hover {
           color: var(--color-text-primary, #0f172a);
@@ -792,14 +815,14 @@ export default function DailyTaskView({
           justify-content: center;
           padding: 1px 5px;
           border-radius: 8px;
-          font-size: 10px;
+          font-size: 9.5px;
           font-weight: 800;
           line-height: 1;
         }
         .status-pills-row {
           display: flex;
           gap: 6px;
-          margin-bottom: 14px;
+          margin-bottom: 12px;
           align-items: center;
           overflow-x: auto;
           scrollbar-width: none;
@@ -809,8 +832,8 @@ export default function DailyTaskView({
         .status-pills-row::-webkit-scrollbar { display: none; }
         .status-pill-btn {
           flex: 0 0 auto;
-          padding: 5px 12px;
-          border-radius: 20px;
+          padding: 5px 11px;
+          border-radius: 18px;
           font-size: 11px;
           font-weight: 800;
           cursor: pointer;
@@ -837,111 +860,131 @@ export default function DailyTaskView({
         @media (max-width: 1024px) {
           .daily-task-stats-grid { 
             grid-template-columns: repeat(2, 1fr); 
-            gap: 12px;
-            margin-bottom: 16px;
+            gap: 10px;
+            margin-bottom: 12px;
           }
           .tasks-layout-row { 
             grid-template-columns: 1fr; 
-            gap: 16px;
+            gap: 14px;
           }
         }
 
         /* ── MOBILE RESPONSIVENESS (<= 768px & iPhones) ── */
         @media (max-width: 768px) {
           .daily-task-viewport {
-            padding: 0 0 24px 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
           }
-          .daily-task-hero-banner {
-            padding: 14px 16px !important;
-            margin-bottom: 12px !important;
+          .daily-task-hero-card {
+            padding: 12px 14px !important;
+            margin-bottom: 10px !important;
             border-radius: 14px !important;
           }
           .daily-task-hero-top-row {
             flex-direction: column !important;
             align-items: stretch !important;
-            gap: 12px !important;
+            gap: 8px !important;
           }
-          .daily-task-hero-banner .brand-title {
-            font-size: 20px !important;
-            line-height: 1.25 !important;
-            margin-top: 3px !important;
+          .daily-task-title {
+            font-size: 18px !important;
+            display: block !important;
+            margin-top: 2px !important;
+            margin-bottom: 2px !important;
           }
-          .daily-task-hero-banner p {
-            font-size: 11.5px !important;
+          .daily-task-hero-desc {
+            font-size: 11px !important;
             line-height: 1.35 !important;
-            margin-top: 3px !important;
           }
           .daily-task-hero-controls {
             width: 100% !important;
             display: flex !important;
-            flex-wrap: wrap !important;
-            gap: 8px !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            gap: 6px !important;
+            margin-top: 6px !important;
           }
           .daily-task-date-box {
             flex: 1 1 auto !important;
-            padding: 5px 10px !important;
-            border-radius: 10px !important;
-            font-size: 11.5px !important;
+            padding: 4px 8px !important;
+            border-radius: 8px !important;
+            font-size: 11px !important;
           }
           .daily-task-date-box input[type="date"] {
-            font-size: 11.5px !important;
+            font-size: 11px !important;
+          }
+          .daily-task-add-btn {
+            flex: 0 0 auto !important;
+            padding: 5px 9px !important;
+            font-size: 11px !important;
+            border-radius: 8px !important;
+          }
+          .daily-task-refresh-btn {
+            flex: 0 0 auto !important;
+            padding: 5px 7px !important;
+            border-radius: 8px !important;
           }
           .daily-task-stats-grid { 
             grid-template-columns: repeat(2, 1fr) !important; 
             gap: 8px !important;
-            margin-bottom: 12px !important;
+            margin-bottom: 10px !important;
           }
           .daily-task-stat-card {
-            padding: 10px 12px !important;
+            padding: 9px 11px !important;
             border-radius: 12px !important;
           }
           .daily-task-stat-card-title {
-            font-size: 9.5px !important;
-            letter-spacing: 0.3px !important;
+            font-size: 9px !important;
+            letter-spacing: 0.2px !important;
           }
           .daily-task-stat-card-num {
             font-size: 20px !important;
-            margin-top: 4px !important;
+            margin-top: 3px !important;
           }
           .filter-tab-bar {
-            padding: 4px !important;
+            padding: 3px !important;
             border-radius: 10px !important;
             gap: 4px !important;
-            margin-bottom: 10px !important;
+            margin-bottom: 8px !important;
           }
           .filter-tab-btn {
-            padding: 5px 9px !important;
-            font-size: 11px !important;
+            padding: 5px 8px !important;
+            font-size: 10.5px !important;
             border-radius: 7px !important;
           }
           .status-pills-row {
-            gap: 5px !important;
-            margin-bottom: 10px !important;
+            gap: 4px !important;
+            margin-bottom: 8px !important;
           }
           .status-pill-btn {
-            padding: 4px 9px !important;
-            font-size: 10.5px !important;
+            padding: 4px 8px !important;
+            font-size: 10px !important;
             border-radius: 14px !important;
+          }
+          .daily-task-search-input {
+            height: 36px !important;
+            font-size: 11.5px !important;
+            padding-left: 36px !important;
+            border-radius: 10px !important;
           }
         }
       `}} />
 
       {/* ── HEADER HERO BANNER ── */}
-      <div className="daily-task-hero-banner hero-banner compact" style={{ minHeight: 'auto' }}>
+      <div className="daily-task-hero-card">
         <div className="daily-task-hero-top-row">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-lime-brand, #a3e635)', letterSpacing: '1px' }}>
+              <span style={{ fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-lime-brand, #a3e635)', letterSpacing: '0.8px' }}>
                 {module === 'Finance' ? 'Finance Operations Hub' : (module === 'SuperSales' ? 'SuperSales Strategic Hub' : 'Sales Operations Hub')}
               </span>
-              <span style={{ background: 'rgba(255,255,255,0.2)', color: '#ffffff', fontSize: '10px', padding: '1px 7px', borderRadius: '10px', fontWeight: '700' }}>
+              <span style={{ background: 'rgba(255,255,255,0.2)', color: '#ffffff', fontSize: '9.5px', padding: '1px 6px', borderRadius: '8px', fontWeight: '700' }}>
                 Live Hub
               </span>
             </div>
-            <h1 className="brand-title" style={{ fontSize: '24px', marginTop: '4px', color: '#ffffff', fontWeight: '900', letterSpacing: '-0.5px' }}>
+            <h1 className="daily-task-title">
               {module === 'Finance' ? '💰 Finance Action Center' : (module === 'SuperSales' ? '⚡ SuperSales Action Center' : '🎯 Daily Action Center')}
             </h1>
-            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '12.5px', marginTop: '3px', fontWeight: '500' }}>
+            <p className="daily-task-hero-desc">
               {module === 'Finance'
                 ? 'Payment collections, customer follow-ups, overdue invoices, and receipt confirmations.'
                 : 'Data-driven follow-ups, confirmation checks, sample feedback, and outstanding receipts.'}
@@ -952,7 +995,7 @@ export default function DailyTaskView({
           <div className="daily-task-hero-controls">
             <div className="daily-task-date-box">
               <Calendar size={13} style={{ color: '#fff' }} />
-              <span style={{ color: '#fff', fontSize: '11.5px', fontWeight: '700' }}>Schedule Date:</span>
+              <span style={{ color: '#fff', fontSize: '11px', fontWeight: '700' }}>Schedule Date:</span>
               <input 
                 type="date" 
                 value={targetDate} 
@@ -965,9 +1008,9 @@ export default function DailyTaskView({
                     background: '#ffffff',
                     color: '#0f172a',
                     border: 'none',
-                    borderRadius: '6px',
-                    padding: '2px 6px',
-                    fontSize: '9.5px',
+                    borderRadius: '5px',
+                    padding: '1px 5px',
+                    fontSize: '9px',
                     fontWeight: '800',
                     cursor: 'pointer'
                   }}
@@ -983,19 +1026,19 @@ export default function DailyTaskView({
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '5px',
+                gap: '4px',
                 background: 'var(--color-lime-brand, #a3e635)',
                 color: '#0f172a',
                 border: 'none',
-                padding: '7px 12px',
-                borderRadius: '10px',
+                padding: '6px 11px',
+                borderRadius: '8px',
                 fontWeight: '800',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 cursor: 'pointer',
                 boxShadow: '0 2px 6px rgba(0,0,0,0.12)'
               }}
             >
-              <Plus size={14} strokeWidth={3} />
+              <Plus size={13} strokeWidth={3} />
               <span>Add Reminder</span>
             </button>
 
@@ -1010,12 +1053,12 @@ export default function DailyTaskView({
                 background: 'rgba(255,255,255,0.18)',
                 color: '#ffffff',
                 border: '1px solid rgba(255,255,255,0.25)',
-                padding: '7px 10px',
-                borderRadius: '10px',
+                padding: '6px 9px',
+                borderRadius: '8px',
                 cursor: 'pointer',
               }}
             >
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
@@ -1205,31 +1248,33 @@ export default function DailyTaskView({
           </div>
 
           {/* Search bar row */}
-          <div style={{ position: 'relative', marginBottom: '14px' }}>
+          <div style={{ position: 'relative', marginBottom: '12px' }}>
             <input 
               type="text"
-              className="form-input"
+              className="form-input daily-task-search-input"
               placeholder="Search tasks by customer, requirement, or remarks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: '100%',
                 paddingLeft: '38px',
-                height: '40px',
-                borderRadius: '12px',
+                paddingRight: '32px',
+                height: '38px',
+                borderRadius: '10px',
                 background: '#ffffff',
                 border: '1px solid var(--color-border, #e2e8f0)',
-                fontSize: '12.5px'
+                fontSize: '12px'
               }}
             />
             <Search 
-              size={15} 
+              size={14} 
               style={{ 
                 position: 'absolute', 
-                left: '13px', 
+                left: '12px', 
                 top: '50%', 
                 transform: 'translateY(-50%)', 
-                color: 'var(--color-text-muted, #94a3b8)' 
+                color: 'var(--color-text-muted, #94a3b8)',
+                pointerEvents: 'none'
               }} 
             />
             {searchQuery && (
