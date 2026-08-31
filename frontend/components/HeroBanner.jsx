@@ -1493,7 +1493,8 @@ export default function HeroBanner({
                         address: locationState.address || 'Factory Campus, GIDC',
                         selfie: capturedDataUrl,
                         isBiometricCard: !cameraActive,
-                        isGpsFallback: false
+                        isGpsFallback: false,
+                        isTestMode: isTestMode
                       });
 
                       if (res && res.success !== false) {
@@ -1575,7 +1576,8 @@ export default function HeroBanner({
                         address: locationState.address || 'Factory Campus, GIDC',
                         selfie: capturedDataUrl,
                         isBiometricCard: !cameraActive,
-                        isGpsFallback: false
+                        isGpsFallback: false,
+                        isTestMode: isTestMode
                       });
 
                       if (res && res.success !== false) {

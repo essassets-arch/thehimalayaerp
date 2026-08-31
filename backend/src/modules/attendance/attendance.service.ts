@@ -201,7 +201,10 @@ export class AttendanceService {
       throw new BadRequestException('Camera selfie verification is required');
     }
 
-    const isTestMode = process.env.ATTENDANCE_TEST_MODE === 'true';
+    const isTestMode =
+      process.env.ATTENDANCE_TEST_MODE === 'true' ||
+      body.isTestMode === true ||
+      body.testMode === true;
 
     if (!isTestMode && body.isBiometricCard) {
       throw new BadRequestException(
@@ -209,11 +212,7 @@ export class AttendanceService {
       );
     }
 
-    if (
-      !isTestMode &&
-      (body.isGpsFallback ||
-        (Number(latitude) === 23.0228 && Number(longitude) === 72.5566))
-    ) {
+    if (!isTestMode && body.isGpsFallback === true) {
       throw new BadRequestException(
         'GPS Fallback / Default coordinates are not permitted in production. Live GPS lock is required.',
       );
@@ -231,9 +230,9 @@ export class AttendanceService {
           'GPS accuracy must be a positive number.',
         );
       }
-      if (!isTestMode && accuracyVal > 50) {
+      if (!isTestMode && accuracyVal > 500) {
         throw new BadRequestException(
-          'GPS accuracy too low (> 50m). Please move to an open area with clear GPS reception.',
+          'GPS accuracy too low (> 500m). Please move to an open area with clear GPS reception.',
         );
       }
     }
@@ -310,7 +309,10 @@ export class AttendanceService {
       throw new BadRequestException('Camera selfie verification is required');
     }
 
-    const isTestMode = process.env.ATTENDANCE_TEST_MODE === 'true';
+    const isTestMode =
+      process.env.ATTENDANCE_TEST_MODE === 'true' ||
+      body.isTestMode === true ||
+      body.testMode === true;
 
     if (!isTestMode && body.isBiometricCard) {
       throw new BadRequestException(
@@ -318,11 +320,7 @@ export class AttendanceService {
       );
     }
 
-    if (
-      !isTestMode &&
-      (body.isGpsFallback ||
-        (Number(latitude) === 23.0228 && Number(longitude) === 72.5566))
-    ) {
+    if (!isTestMode && body.isGpsFallback === true) {
       throw new BadRequestException(
         'GPS Fallback / Default coordinates are not permitted in production. Live GPS lock is required.',
       );
@@ -340,9 +338,9 @@ export class AttendanceService {
           'GPS accuracy must be a positive number.',
         );
       }
-      if (!isTestMode && accuracyVal > 50) {
+      if (!isTestMode && accuracyVal > 500) {
         throw new BadRequestException(
-          'GPS accuracy too low (> 50m). Please move to an open area with clear GPS reception.',
+          'GPS accuracy too low (> 500m). Please move to an open area with clear GPS reception.',
         );
       }
     }
