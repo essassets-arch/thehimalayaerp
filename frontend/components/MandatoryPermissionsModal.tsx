@@ -13,7 +13,6 @@ import {
   ArrowRight,
   RefreshCw,
   Lock,
-  ExternalLink,
   Smartphone,
   Check
 } from 'lucide-react';
@@ -28,7 +27,6 @@ const requestNotificationPermissionUniversal = async (): Promise<'granted' | 'de
   if (!('Notification' in window)) return 'unsupported';
 
   try {
-    // 1. Try modern Promise-based request
     let result: string | undefined;
     try {
       const promise = Notification.requestPermission((status) => {
@@ -38,13 +36,15 @@ const requestNotificationPermissionUniversal = async (): Promise<'granted' | 'de
         result = await promise;
       }
     } catch {
-      // Fallback for older callback-only implementations
       result = await new Promise((resolve) => {
         Notification.requestPermission((status) => resolve(status));
       });
     }
 
     if (result === 'granted' || Notification.permission === 'granted') {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('himalaya_notif_granted', 'true');
+      }
       return 'granted';
     } else if (result === 'denied' || Notification.permission === 'denied') {
       return 'denied';
@@ -52,7 +52,74 @@ const requestNotificationPermissionUniversal = async (): Promise<'granted' | 'de
     return 'default';
   } catch (err) {
     console.warn('[MandatoryPermissions] Notification permission error:', err);
-    return Notification.permission as any || 'denied';
+    return (Notification.permission as any) || 'denied';
+  }
+};
+
+// Universal cross-browser & mobile wrapper for GPS Location request
+const requestLocationPermissionUniversal = async (): Promise<{
+  status: 'granted' | 'denied' | 'device_disabled' | 'prompt';
+  coords?: GeolocationCoordinates;
+  error?: string;
+}> => {
+  if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+    return { status: 'denied', error: 'Geolocation not supported by this browser' };
+  }
+
+  const tryGetPosition = (options: PositionOptions) => {
+    return new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, options);
+    });
+  };
+
+  try {
+    // Stage 1: Fast Wi-Fi / cell tower location (fast response on mobile & desktop)
+    let pos: GeolocationPosition | null = null;
+    try {
+      pos = await tryGetPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
+    } catch (err: any) {
+      if (err.code === 1) {
+        // PERMISSION_DENIED: User explicitly clicked "Block" or site permission is blocked
+        return { status: 'denied', error: 'Permission denied by user' };
+      }
+      // Stage 2: Try High Accuracy GPS
+      try {
+        pos = await tryGetPosition({ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+      } catch (err2: any) {
+        if (err2.code === 1) {
+          return { status: 'denied', error: 'Permission denied by user' };
+        } else if (err2.code === 2) {
+          // POSITION_UNAVAILABLE: Device GPS/Location toggle is OFF in Android/Windows settings
+          return {
+            status: 'device_disabled',
+            error: 'Device Location / GPS is turned OFF. Please swipe down from top of phone and turn on Location.',
+          };
+        } else {
+          // Timeout or temporary unavailable: Permission was granted by browser!
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('himalaya_location_granted', 'true');
+          }
+          return { status: 'granted' };
+        }
+      }
+    }
+
+    if (pos && pos.coords) {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('himalaya_location_granted', 'true');
+        sessionStorage.setItem('himalaya_last_lat', String(pos.coords.latitude));
+        sessionStorage.setItem('himalaya_last_lng', String(pos.coords.longitude));
+      }
+      return { status: 'granted', coords: pos.coords };
+    }
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('himalaya_location_granted', 'true');
+    }
+    return { status: 'granted' };
+  } catch (err: any) {
+    if (err.code === 1) return { status: 'denied', error: 'Permission denied' };
+    return { status: 'granted' };
   }
 };
 
@@ -60,7 +127,9 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
   const { isAuthenticated, logout } = useAuthStore();
 
   const [notificationStatus, setNotificationStatus] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
-  const [locationStatus, setLocationStatus] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  const [locationStatus, setLocationStatus] = useState<'prompt' | 'granted' | 'denied' | 'device_disabled' | 'unsupported'>('prompt');
+  const [locationError, setLocationError] = useState<string | null>(null);
+
   const [isRequestingNotif, setIsRequestingNotif] = useState(false);
   const [isRequestingLoc, setIsRequestingLoc] = useState(false);
   const [isRequestingAll, setIsRequestingAll] = useState(false);
@@ -72,7 +141,6 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
   const checkPermissions = useCallback(async () => {
     if (typeof window === 'undefined') return;
 
-    // Check if running on insecure HTTP (non-localhost)
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     if (!window.isSecureContext && !isLocal) {
       setIsInsecureContext(true);
@@ -85,7 +153,8 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
       setNotificationStatus('unsupported');
     } else {
       const perm = Notification.permission;
-      if (perm === 'granted') {
+      const isSaved = sessionStorage.getItem('himalaya_notif_granted') === 'true';
+      if (perm === 'granted' || isSaved) {
         setNotificationStatus('granted');
       } else if (perm === 'denied') {
         setNotificationStatus('denied');
@@ -97,25 +166,36 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
     // 2. Geolocation Permission Check
     if (!('geolocation' in navigator)) {
       setLocationStatus('unsupported');
-    } else if (navigator.permissions && navigator.permissions.query) {
-      try {
-        const geoPerm = await navigator.permissions.query({ name: 'geolocation' });
-        if (geoPerm.state === 'granted') {
-          setLocationStatus('granted');
-        } else if (geoPerm.state === 'denied') {
-          setLocationStatus('denied');
-        } else {
-          setLocationStatus('prompt');
-        }
+    } else {
+      const isLocSaved = sessionStorage.getItem('himalaya_location_granted') === 'true';
+      if (isLocSaved) {
+        setLocationStatus('granted');
+      } else if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const geoPerm = await navigator.permissions.query({ name: 'geolocation' });
+          if (geoPerm.state === 'granted') {
+            setLocationStatus('granted');
+            sessionStorage.setItem('himalaya_location_granted', 'true');
+          } else if (geoPerm.state === 'denied') {
+            setLocationStatus('denied');
+          } else {
+            setLocationStatus('prompt');
+          }
 
-        // Listen for live browser changes
-        geoPerm.onchange = () => {
-          if (geoPerm.state === 'granted') setLocationStatus('granted');
-          else if (geoPerm.state === 'denied') setLocationStatus('denied');
-          else setLocationStatus('prompt');
-        };
-      } catch {
-        // Fallback
+          geoPerm.onchange = () => {
+            if (geoPerm.state === 'granted') {
+              setLocationStatus('granted');
+              sessionStorage.setItem('himalaya_location_granted', 'true');
+            } else if (geoPerm.state === 'denied') {
+              setLocationStatus('denied');
+              sessionStorage.removeItem('himalaya_location_granted');
+            } else {
+              setLocationStatus('prompt');
+            }
+          };
+        } catch {
+          // In Safari or browsers without query support
+        }
       }
     }
 
@@ -126,7 +206,6 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
     if (isAuthenticated) {
       checkPermissions();
 
-      // Auto-recheck whenever user returns from browser site settings / switches back to tab
       const handleFocus = () => {
         checkPermissions();
       };
@@ -154,7 +233,6 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
       const res = await requestNotificationPermissionUniversal();
       if (res === 'granted') {
         setNotificationStatus('granted');
-        // Trigger Firebase FCM token setup immediately
         initializePushNotifications().catch((err) =>
           console.warn('[MandatoryPermissions] FCM push init error:', err)
         );
@@ -163,7 +241,6 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
       } else {
         setNotificationStatus('prompt');
       }
-      await checkPermissions();
     } finally {
       setIsRequestingNotif(false);
     }
@@ -172,27 +249,21 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
   // Request Geolocation specifically
   const handleRequestLocation = async () => {
     setIsRequestingLoc(true);
+    setLocationError(null);
     try {
-      if ('geolocation' in navigator) {
-        await new Promise<void>((resolve) => {
-          navigator.geolocation.getCurrentPosition(
-            () => {
-              setLocationStatus('granted');
-              resolve();
-            },
-            (err) => {
-              if (err.code === err.PERMISSION_DENIED) {
-                setLocationStatus('denied');
-              } else {
-                setLocationStatus('granted');
-              }
-              resolve();
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-          );
-        });
+      const result = await requestLocationPermissionUniversal();
+      if (result.status === 'granted') {
+        setLocationStatus('granted');
+        setLocationError(null);
+      } else if (result.status === 'denied') {
+        setLocationStatus('denied');
+        setLocationError('Location access was denied in browser permissions.');
+      } else if (result.status === 'device_disabled') {
+        setLocationStatus('device_disabled');
+        setLocationError(result.error || 'Device Location / GPS is turned off.');
+      } else {
+        setLocationStatus('prompt');
       }
-      await checkPermissions();
     } finally {
       setIsRequestingLoc(false);
     }
@@ -208,7 +279,6 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
       if (locationStatus !== 'granted') {
         await handleRequestLocation();
       }
-      await checkPermissions();
     } finally {
       setIsRequestingAll(false);
     }
@@ -357,6 +427,10 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#34D399', background: 'rgba(16, 185, 129, 0.15)', padding: '4px 10px', borderRadius: '20px' }}>
                     <CheckCircle2 size={14} /> Allowed
                   </span>
+                ) : notificationStatus === 'denied' ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#F87171', background: 'rgba(239, 68, 68, 0.15)', padding: '4px 10px', borderRadius: '20px' }}>
+                    <AlertTriangle size={14} /> Blocked
+                  </span>
                 ) : (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#FBBF24', background: 'rgba(245, 158, 11, 0.15)', padding: '4px 10px', borderRadius: '20px' }}>
                     Required
@@ -446,6 +520,14 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#34D399', background: 'rgba(16, 185, 129, 0.15)', padding: '4px 10px', borderRadius: '20px' }}>
                     <CheckCircle2 size={14} /> Allowed
                   </span>
+                ) : locationStatus === 'denied' ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#F87171', background: 'rgba(239, 68, 68, 0.15)', padding: '4px 10px', borderRadius: '20px' }}>
+                    <AlertTriangle size={14} /> Blocked
+                  </span>
+                ) : locationStatus === 'device_disabled' ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#F87171', background: 'rgba(239, 68, 68, 0.15)', padding: '4px 10px', borderRadius: '20px' }}>
+                    <AlertTriangle size={14} /> GPS Off
+                  </span>
                 ) : (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#FBBF24', background: 'rgba(245, 158, 11, 0.15)', padding: '4px 10px', borderRadius: '20px' }}>
                     Required
@@ -453,6 +535,13 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
                 )}
               </div>
             </div>
+
+            {/* Location Error / Device Alert */}
+            {locationError && (
+              <div style={{ fontSize: '12px', color: '#FCA5A5', background: 'rgba(239, 68, 68, 0.15)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
+                {locationError}
+              </div>
+            )}
 
             {/* Individual Action Button for Location */}
             {locationStatus !== 'granted' && (
@@ -480,7 +569,7 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
                 {isRequestingLoc ? (
                   <>
                     <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                    Prompting Browser...
+                    Detecting GPS Location...
                   </>
                 ) : (
                   <>
@@ -512,13 +601,13 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
           >
             <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '2px', color: '#FBBF24' }} />
             <div>
-              <strong>Insecure Context Notice:</strong> Mobile browsers require <strong>HTTPS</strong> for web push notifications. If testing locally over Wi-Fi IP, enable notifications in Chrome address bar settings (🔒).
+              <strong>Insecure Network Notice:</strong> Web permissions require HTTPS on mobile network IPs. Enable Location & Notifications in your mobile Chrome address bar settings (🔒).
             </div>
           </div>
         )}
 
         {/* Step-by-Step Chrome/Mobile Address Bar Guide if prompt doesn't appear */}
-        {isNotifMissing && (
+        {(isNotifMissing || isLocMissing) && (
           <div
             style={{
               padding: '14px 16px',
@@ -533,12 +622,12 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#60A5FA', fontWeight: 600 }}>
               <Smartphone size={16} />
-              <span>If the browser prompt didn&apos;t pop up:</span>
+              <span>How to allow in mobile / desktop browser:</span>
             </div>
             <div style={{ paddingLeft: '4px', color: '#94A3B8' }}>
-              1. Tap the <strong>tune/lock icon (🔒 or ⚙️)</strong> in your browser&apos;s address bar at the top.<br />
-              2. Tap <strong>Permissions</strong> → Set <strong>Notifications</strong> to <strong>Allow</strong>.<br />
-              3. Tap the button below to re-verify.
+              1. Tap the <strong>tune/lock icon (🔒 or ⚙️)</strong> in your address bar at the top.<br />
+              2. Tap <strong>Permissions</strong> → Set both <strong>Location</strong> and <strong>Notifications</strong> to <strong>Allow</strong>.<br />
+              3. Make sure your phone&apos;s master <strong>Location / GPS</strong> toggle is turned ON in phone settings.
             </div>
           </div>
         )}
