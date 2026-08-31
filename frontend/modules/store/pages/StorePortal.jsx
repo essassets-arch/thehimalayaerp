@@ -1713,7 +1713,7 @@ export default function StorePortal() {
         </div>
 
         {/* Raw Inventory Table - Desktop View */}
-        <div className="desktop-only m-theme-table-container">
+        <div className="desktop-only m-theme-table-container inventory-table-wrapper">
           <table className="m-theme-table raw-inventory-table">
             <thead>
               <tr>
@@ -2684,8 +2684,8 @@ export default function StorePortal() {
             </div>
 
             {/* Table - Desktop View */}
-            <div className="desktop-only m-theme-table-container">
-              <table className="m-theme-table">
+            <div className="desktop-only m-theme-table-container low-stock-table-wrapper">
+              <table className="m-theme-table low-stock-table">
                 <thead>
                   <tr>
                     <th>Code</th>

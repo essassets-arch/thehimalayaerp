@@ -102,10 +102,11 @@ export default function HeroBanner({
   const isDashboard = propIsDashboard ?? /^\/[^/]*$/.test(location.pathname);
 
   const [showAllNotificationsModal, setShowAllNotificationsModal] = useState(false);
-  const [modalNotifFilter, setModalNotifFilter] = useState('All');
+  const [modalNotifFilter, setModalNotifFilter] = useState('Unread');
 
   const handleViewAll = () => {
     setShowNotifications(false);
+    setModalNotifFilter('Unread');
     setShowAllNotificationsModal(true);
   };
   const dropdownRef = useRef(null);
@@ -567,7 +568,7 @@ export default function HeroBanner({
   }, [showPunchModal]);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(12);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [notifFilter, setNotifFilter] = useState('All'); // 'All' | 'Unread' | 'High'
+  const [notifFilter, setNotifFilter] = useState('Unread'); // 'Unread' | 'All' | 'Read'
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   const isCameraActiveState = cameraActive && !cameraError;
@@ -647,7 +648,7 @@ export default function HeroBanner({
     setShowNotifications(willOpen);
     setShowCalendarModal(false);
     if (willOpen) {
-      setNotifFilter('All'); // always reset to All tab on fresh open
+      setNotifFilter('Unread'); // always default to Unread tab on fresh open
     }
   };
 

@@ -7975,22 +7975,49 @@ body, #root, .app-container {
   border-color: #0f766e;
 }
 
-.m-theme-table-container {
+.m-theme-table-container,
+.inventory-table-wrapper,
+.low-stock-table-wrapper {
   background: white;
   border: 1px solid #DCE5F0;
   border-radius: 12px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
-  flex-shrink: 0;
   width: 100%;
+  max-width: 100%;
+  height: auto !important;
+  max-height: none !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  -webkit-overflow-scrolling: touch;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
-.m-theme-table {
+.m-theme-table,
+.inventory-table-wrapper table,
+.low-stock-table-wrapper table {
   width: 100%;
+  min-width: 1000px;
   border-collapse: collapse;
 }
 
-.m-theme-table th {
+.m-theme-table tbody,
+.inventory-table-wrapper tbody,
+.low-stock-table-wrapper tbody {
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+}
+
+.m-theme-table tbody tr,
+.inventory-table-wrapper tbody tr,
+.low-stock-table-wrapper tbody tr {
+  height: auto !important;
+}
+
+.m-theme-table th,
+.inventory-table-wrapper th,
+.low-stock-table-wrapper th {
   background: #F5FAFE;
   padding: 10px 16px;
   text-align: left;
@@ -8001,7 +8028,9 @@ body, #root, .app-container {
   white-space: nowrap;
 }
 
-.m-theme-table td {
+.m-theme-table td,
+.inventory-table-wrapper td,
+.low-stock-table-wrapper td {
   padding: 10px 16px;
   font-size: 13px;
   color: #334155;
@@ -8010,7 +8039,9 @@ body, #root, .app-container {
   white-space: nowrap;
 }
 
-.m-theme-table tr:last-child td {
+.m-theme-table tr:last-child td,
+.inventory-table-wrapper tr:last-child td,
+.low-stock-table-wrapper tr:last-child td {
   border-bottom: none;
 }
 
