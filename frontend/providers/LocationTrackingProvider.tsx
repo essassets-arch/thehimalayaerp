@@ -265,11 +265,13 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       path: '/socket.io',
       auth: { token: cleanToken },
       query: { token: cleanToken },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
+      upgrade: true,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      timeout: 10000,
     });
 
     socketRef.current = socket;
@@ -295,7 +297,9 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     });
 
     socket.on('connect_error', (err) => {
-      console.warn('[LocationTracking] Socket connection notice (polling fallback active):', err?.message || err);
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[LocationTracking] Socket connection notice (polling active):', err?.message || err);
+      }
     });
 
     // 3. Periodic Presence Heartbeat (Socket + REST fallback)

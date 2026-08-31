@@ -430,6 +430,29 @@ export default function DashboardView({
     .filter(p => p.verified === 'Approved' || p.verified === 'Yes' || p.status === 'Approved' || p.status === 'Verified')
     .reduce((sum, p) => sum + Number(p.paymentAmount || p.totalAmount || p.amount || 0), 0);
 
+  // ──🔹 Dynamic & Accurate Payment Summary Metrics ──
+  const totalPaymentAmount = filteredOrders.reduce((sum, o) => {
+    return sum + Number(o.grandTotal ?? o.totalAmount ?? o.payment?.totalAmount ?? o.totalValue ?? 0);
+  }, 0) || filteredPayments.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0);
+
+  const totalPaymentReceivedAmount = filteredOrders.reduce((sum, o) => {
+    const paid = Number(o.verifiedPaidAmount ?? o.payment?.paidAmount ?? o.payment?.paid ?? 0);
+    if (paid > 0) return sum + paid;
+    const payStatus = String(o.paymentStatus || '').toLowerCase();
+    if (payStatus === 'fully paid' || payStatus === 'fully_paid' || payStatus === 'paid') {
+      return sum + Number(o.grandTotal ?? o.totalAmount ?? o.totalValue ?? 0);
+    }
+    return sum;
+  }, 0) || filteredPayments.reduce((sum, p) => sum + Number(p.paidAmount || p.paymentAmount || 0), 0);
+
+  const totalPaymentDueAmount = Math.max(0, totalPaymentAmount - totalPaymentReceivedAmount);
+
+  const totalCustomersCount = new Set([
+    ...filteredOrders.map(o => (o.customerName || o.customer?.companyName || o.customer?.name || o.clientName || '').trim()),
+    ...filteredPayments.map(p => (p.customerName || '').trim()),
+    ...filteredLeads.map(l => (l.companyName || l.customerName || '').trim())
+  ].filter(Boolean)).size || (customers?.length || 0);
+
   // ──⚠️ ALERTS calculation ──
   const overdueFollowUps = leads.filter(l => l.followUpDate && new Date(l.followUpDate).getTime() < todayStart && l.status !== 'Converted');
   const expiredSamplesLimit = todayStart - (14 * 24 * 60 * 60 * 1000);
@@ -442,7 +465,7 @@ export default function DashboardView({
   const wonOrdersCount = filteredOrders.filter(o => !['cancelled', 'void', 'draft'].includes(String(o.status || '').toLowerCase())).length;
   const lostLeadsCount = filteredLeads.filter(l => ['Lost', 'Dead', 'Dropped'].includes(l.status)).length;
   const avgOrderValue = wonOrdersCount > 0 ? Math.round(mySalesTotal / wonOrdersCount) : 0;
-  const activeCustomersCount = new Set(filteredOrders.map(o => o.customerName || o.customer || o.leadName).filter(Boolean)).size;
+  const activeCustomersCount = totalCustomersCount;
 
   // Sales trend line data fetching
   const [salesSummary, setSalesSummary] = React.useState([]);
@@ -725,71 +748,69 @@ export default function DashboardView({
             
             {/* Payment Summary Cards */}
             <div>
-              <h3 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '12px', letterSpacing: '0.5px' }}>
-                Payment Summary
-              </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <h3 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', margin: 0, letterSpacing: '0.5px' }}>
+                  Payment Summary
+                </h3>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#0ea5e9', background: '#e0f2fe', padding: '3px 10px', borderRadius: '12px' }}>
+                  {timeFilter} Filtered
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px' }}>
 
-                {/* Total Payment Due */}
+                {/* 1. Total Payment */}
+                <div style={{
+                  background: '#ffffff', border: '1px solid #e0e7ff',
+                  borderLeft: '4px solid #6366f1',
+                  padding: '16px 18px', borderRadius: '12px',
+                  display: 'flex', flexDirection: 'column', gap: '6px',
+                  boxShadow: '0 2px 6px rgba(99,102,241,0.08)'
+                }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#4f46e5' }}>Total Payment</span>
+                  <span style={{ fontSize: '22px', fontWeight: '900', color: '#3730a3' }}>
+                    {formatINR(totalPaymentAmount)}
+                  </span>
+                </div>
+
+                {/* 2. Total Payment Due */}
                 <div style={{
                   background: '#ffffff', border: '1px solid #fee2e2',
                   borderLeft: '4px solid #ef4444',
                   padding: '16px 18px', borderRadius: '12px',
                   display: 'flex', flexDirection: 'column', gap: '6px',
-                  boxShadow: '0 1px 4px rgba(239,68,68,0.08)'
+                  boxShadow: '0 2px 6px rgba(239,68,68,0.08)'
                 }}>
                   <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#ef4444' }}>Total Payment Due</span>
-                  <span style={{ fontSize: '22px', fontWeight: '900', color: '#ef4444' }}>
-                    {'\u20B9'}{filteredPayments
-                      .filter(p => p.totalAmount > p.paidAmount)
-                      .reduce((s, p) => s + (p.totalAmount - p.paidAmount), 0)
-                      .toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <span style={{ fontSize: '22px', fontWeight: '900', color: '#dc2626' }}>
+                    {formatINR(totalPaymentDueAmount)}
                   </span>
                 </div>
 
-                {/* Total Customers */}
+                {/* 3. Total Customers */}
                 <div style={{
                   background: '#ffffff', border: '1px solid #dbeafe',
                   borderLeft: '4px solid #3b82f6',
                   padding: '16px 18px', borderRadius: '12px',
                   display: 'flex', flexDirection: 'column', gap: '6px',
-                  boxShadow: '0 1px 4px rgba(59,130,246,0.08)'
+                  boxShadow: '0 2px 6px rgba(59,130,246,0.08)'
                 }}>
-                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#3b82f6' }}>Total Customers</span>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#2563eb' }}>Total Customers</span>
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#1d4ed8' }}>
-                    {new Set(filteredOrders.map(o => o.customerName || o.customer || o.leadName).filter(Boolean)).size}
+                    {totalCustomersCount}
                   </span>
                 </div>
 
-                {/* Total Collected Payment */}
+                {/* 4. Payment Received */}
                 <div style={{
                   background: '#ffffff', border: '1px solid #dcfce7',
                   borderLeft: '4px solid #22c55e',
                   padding: '16px 18px', borderRadius: '12px',
                   display: 'flex', flexDirection: 'column', gap: '6px',
-                  boxShadow: '0 1px 4px rgba(34,197,94,0.08)'
+                  boxShadow: '0 2px 6px rgba(34,197,94,0.08)'
                 }}>
-                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#16a34a' }}>Total Collected</span>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#16a34a' }}>Payment Received</span>
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#15803d' }}>
-                    {'\u20B9'}{filteredPayments
-                      .reduce((s, p) => s + p.paidAmount, 0)
-                      .toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-
-                {/* Payment Received Card */}
-                <div style={{
-                  background: '#ffffff', border: '1px solid #fef08a',
-                  borderLeft: '4px solid #eab308',
-                  padding: '16px 18px', borderRadius: '12px',
-                  display: 'flex', flexDirection: 'column', gap: '6px',
-                  boxShadow: '0 1px 4px rgba(234,179,8,0.08)'
-                }}>
-                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#ca8a04' }}>Payment Received</span>
-                  <span style={{ fontSize: '22px', fontWeight: '900', color: '#a16207' }}>
-                    {'\u20B9'}{filteredPayments
-                      .reduce((s, p) => s + p.paidAmount, 0)
-                      .toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatINR(totalPaymentReceivedAmount)}
                   </span>
                 </div>
 
@@ -1002,6 +1023,18 @@ export default function DashboardView({
               {/* Compact 2x3 Metric Cards Grid */}
               <div className="mobile-2col-grid">
                 
+                {/* Total Payment */}
+                <div className="mobile-2col-card" style={{
+                  background: '#ffffff', border: '1px solid #e0e7ff', borderLeft: '4px solid #6366f1',
+                  padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
+                  boxShadow: '0 1px 4px rgba(99,102,241,0.06)'
+                }}>
+                  <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#4f46e5' }}>Total Payment</span>
+                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#3730a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {formatINR(totalPaymentAmount)}
+                  </span>
+                </div>
+
                 {/* Total Payment Due */}
                 <div className="mobile-2col-card" style={{
                   background: '#ffffff', border: '1px solid #fee2e2', borderLeft: '4px solid #ef4444',
@@ -1009,25 +1042,8 @@ export default function DashboardView({
                   boxShadow: '0 1px 4px rgba(239,68,68,0.06)'
                 }}>
                   <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#ef4444' }}>Payment Due</span>
-                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#ef4444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    ₹{filteredPayments
-                      .filter(p => p.totalAmount > p.paidAmount)
-                      .reduce((s, p) => s + (p.totalAmount - p.paidAmount), 0)
-                      .toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                  </span>
-                </div>
-
-                {/* Total Collected */}
-                <div className="mobile-2col-card" style={{
-                  background: '#ffffff', border: '1px solid #dcfce7', borderLeft: '4px solid #22c55e',
-                  padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
-                  boxShadow: '0 1px 4px rgba(34,197,94,0.06)'
-                }}>
-                  <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#16a34a' }}>Collected</span>
-                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#15803d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    ₹{filteredPayments
-                      .reduce((s, p) => s + p.paidAmount, 0)
-                      .toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#dc2626', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {formatINR(totalPaymentDueAmount)}
                   </span>
                 </div>
 
@@ -1039,7 +1055,19 @@ export default function DashboardView({
                 }}>
                   <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#3b82f6' }}>Customers</span>
                   <span style={{ fontSize: '16px', fontWeight: '900', color: '#1d4ed8' }}>
-                    {new Set(filteredOrders.map(o => o.customerName || o.customer || o.leadName).filter(Boolean)).size}
+                    {totalCustomersCount}
+                  </span>
+                </div>
+
+                {/* Payment Received */}
+                <div className="mobile-2col-card" style={{
+                  background: '#ffffff', border: '1px solid #dcfce7', borderLeft: '4px solid #22c55e',
+                  padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
+                  boxShadow: '0 1px 4px rgba(34,197,94,0.06)'
+                }}>
+                  <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#16a34a' }}>Payment Received</span>
+                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#15803d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {formatINR(totalPaymentReceivedAmount)}
                   </span>
                 </div>
 
