@@ -7,12 +7,19 @@ const getErrorText = (err) => {
   if (!err) return 'Unknown error occurred';
   if (typeof err === 'string') return err;
   if (typeof err === 'object') {
+    if (err.response?.data?.message) {
+      const msg = err.response.data.message;
+      return typeof msg === 'string' ? msg : JSON.stringify(msg);
+    }
     if (err.message && typeof err.message === 'string') return err.message;
+    if (err.message && typeof err.message === 'object') {
+      return err.message.message || JSON.stringify(err.message);
+    }
     if (err.error && typeof err.error === 'string') return err.error;
     if (Array.isArray(err.message)) return err.message.join(', ');
-    if (err.response?.data?.message) return String(err.response.data.message);
     try {
-      return JSON.stringify(err);
+      const str = JSON.stringify(err);
+      return str === '{}' ? 'An unexpected error occurred' : str;
     } catch {
       return 'An unexpected error occurred';
     }
