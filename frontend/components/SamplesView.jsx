@@ -1512,7 +1512,6 @@ export default function SamplesView({
                       <td data-label="Reminder">{reminder.reminderType}</td>
                       <td data-label="Date">
                         {formatReminderDate(reminder.reminderDate)}
-                        {reminder.reminderTime ? ` · ${formatReminderTime(reminder.reminderTime)}` : ''}
                       </td>
                       <td data-label="Priority">{reminder.priority}</td>
                       <td data-label="Status">{reminder.status}</td>

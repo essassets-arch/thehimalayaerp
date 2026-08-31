@@ -948,7 +948,6 @@ export default function LeadsView({
                       <td data-label="Reminder">{reminder.reminderType}</td>
                       <td data-label="Date">
                         {formatReminderDate(reminder.reminderDate)}
-                        {reminder.reminderTime ? ` · ${formatReminderTime(reminder.reminderTime)}` : ''}
                       </td>
                       <td data-label="Priority">{reminder.priority}</td>
                       <td data-label="Status">{reminder.status}</td>
@@ -1549,48 +1548,113 @@ export default function LeadsView({
               </div>
             </div>
 
-            {/* Product Specifications Table */}
-            {Array.isArray(currentDetailsLead.detailedItems) && currentDetailsLead.detailedItems.length > 0 && (
-              <div style={{ marginTop: '20px' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-                  <Clipboard size={14} /> Product Specifications ({currentDetailsLead.detailedItems.length} {currentDetailsLead.detailedItems.length === 1 ? 'item' : 'items'})
-                </h4>
-                <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', background: '#ffffff' }}>
-                    <thead>
-                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#475569' }}>
-                        <th style={{ padding: '8px 10px', fontWeight: '700' }}>#</th>
-                        <th style={{ padding: '8px 10px', fontWeight: '700' }}>Product</th>
-                        <th style={{ padding: '8px 10px', fontWeight: '700' }}>Size</th>
-                        <th style={{ padding: '8px 10px', fontWeight: '700' }}>Capacity</th>
-                        <th style={{ padding: '8px 10px', fontWeight: '700' }}>Color</th>
-                        <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Qty</th>
-                        <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Rate (₹)</th>
-                        <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>GST</th>
-                        <th style={{ padding: '8px 10px', fontWeight: '700', textAlign: 'right' }}>Grand Total (₹)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {currentDetailsLead.detailedItems.map((item, idx) => (
-                        <tr key={idx} style={{ borderBottom: idx < currentDetailsLead.detailedItems.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                          <td style={{ padding: '8px 10px', color: '#94a3b8', fontWeight: '600' }}>{idx + 1}</td>
-                          <td style={{ padding: '8px 10px', fontWeight: '700', color: '#0f172a' }}>{item.product || item.productName || '—'}</td>
-                          <td style={{ padding: '8px 10px', color: '#334155' }}>{item.size || '—'}</td>
-                          <td style={{ padding: '8px 10px', color: '#334155' }}>{item.capacity || '—'}</td>
-                          <td style={{ padding: '8px 10px', color: '#334155' }}>{item.color || '—'}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>{item.quantity || 1}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', color: '#334155' }}>{item.unitPrice ? `₹${Number(item.unitPrice).toLocaleString('en-IN')}` : '—'}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', color: '#64748b' }}>{item.gst || item.gstRate ? `${item.gst || item.gstRate}%` : '18%'}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '800', color: '#16a34a' }}>
-                            {item.grandTotal ? `₹${Number(item.grandTotal).toLocaleString('en-IN')}` : (item.subTotal ? `₹${Number(item.subTotal).toLocaleString('en-IN')}` : '—')}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            {/* Product Specifications Table / Mobile Cards */}
+            {(() => {
+              const allItems = (Array.isArray(currentDetailsLead.detailedItems) && currentDetailsLead.detailedItems.length > 0)
+                ? currentDetailsLead.detailedItems
+                : (Array.isArray(currentDetailsLead.items) && currentDetailsLead.items.length > 0)
+                  ? currentDetailsLead.items
+                  : (currentDetailsLead.products ? [{ product: currentDetailsLead.products, quantity: currentDetailsLead.quantity || 1 }] : []);
+
+              if (!allItems || allItems.length === 0) return null;
+
+              return (
+                <div style={{ marginTop: '20px' }}>
+                  <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                    <Clipboard size={14} /> Product Specifications ({allItems.length} {allItems.length === 1 ? 'item' : 'items'})
+                  </h4>
+
+                  {/* Mobile-First List-Wise Cards */}
+                  <div className="lead-spec-mobile-list" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {allItems.map((item, idx) => {
+                      const itemTitle = item.product || item.productName || item.name || 'Product';
+                      const grandTot = item.grandTotal || item.subTotal || item.total;
+                      
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '12px',
+                            padding: '12px 14px',
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                          }}
+                        >
+                          {/* Product Header */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                              <span style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', flexShrink: 0 }}>
+                                #{idx + 1}
+                              </span>
+                              <span style={{ fontSize: '13.5px', fontWeight: '700', color: '#0f172a', wordBreak: 'break-word' }}>
+                                {itemTitle}
+                              </span>
+                            </div>
+                            {item.code && (
+                              <span style={{ fontSize: '10.5px', fontFamily: 'monospace', color: '#64748b', background: '#f8fafc', padding: '2px 6px', borderRadius: '4px', flexShrink: 0 }}>
+                                {item.code}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Specification Key-Value Grid */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '8px', fontSize: '12px' }}>
+                            {item.size && item.size !== '—' && (
+                              <div>
+                                <span style={{ color: '#64748b', fontSize: '11px', display: 'block', fontWeight: '600' }}>Size</span>
+                                <span style={{ fontWeight: '600', color: '#334155' }}>{item.size}</span>
+                              </div>
+                            )}
+                            {item.capacity && item.capacity !== '—' && (
+                              <div>
+                                <span style={{ color: '#64748b', fontSize: '11px', display: 'block', fontWeight: '600' }}>Capacity</span>
+                                <span style={{ fontWeight: '600', color: '#334155' }}>{item.capacity}</span>
+                              </div>
+                            )}
+                            {item.color && item.color !== '—' && (
+                              <div>
+                                <span style={{ color: '#64748b', fontSize: '11px', display: 'block', fontWeight: '600' }}>Color</span>
+                                <span style={{ fontWeight: '600', color: '#334155' }}>{item.color}</span>
+                              </div>
+                            )}
+                            <div>
+                              <span style={{ color: '#64748b', fontSize: '11px', display: 'block', fontWeight: '600' }}>Quantity</span>
+                              <span style={{ fontWeight: '700', color: '#0f172a' }}>{item.quantity || item.qty || 1}</span>
+                            </div>
+                            <div>
+                              <span style={{ color: '#64748b', fontSize: '11px', display: 'block', fontWeight: '600' }}>Rate / Unit</span>
+                              <span style={{ fontWeight: '600', color: '#334155' }}>
+                                {item.unitPrice || item.rate ? `₹${Number(item.unitPrice || item.rate).toLocaleString('en-IN')}` : '—'}
+                              </span>
+                            </div>
+                            <div>
+                              <span style={{ color: '#64748b', fontSize: '11px', display: 'block', fontWeight: '600' }}>GST</span>
+                              <span style={{ fontWeight: '600', color: '#64748b' }}>
+                                {item.gst || item.gstRate || item.tax ? `${item.gst || item.gstRate || item.tax}%` : '18%'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Item Total Row */}
+                          {grandTot && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Item Total</span>
+                              <span style={{ fontSize: '14px', fontWeight: '800', color: '#16a34a' }}>
+                                ₹{Number(grandTot).toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             <hr style={{ margin: '20px 0', borderColor: '#eaeaea' }} />
 
@@ -1609,7 +1673,6 @@ export default function LeadsView({
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
                         <strong style={{ fontSize: '13px' }}>
                           {formatReminderDate(reminder.reminderDate)}
-                          {reminder.reminderTime ? ` · ${formatReminderTime(reminder.reminderTime)}` : ''}
                         </strong>
                         <span style={{ fontSize: '12px', fontWeight: '700' }}>{reminder.status}</span>
                       </div>
@@ -1712,20 +1775,7 @@ export default function LeadsView({
               ))}
             </div>
 
-            {/* Follow-up input form */}
-            {currentDetailsLead.status !== 'Converted' && currentDetailsLead.status !== 'Lost' && (
-              <form onSubmit={handleAddFollowupSubmit} style={{ marginTop: '20px', display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Log follow-up details (e.g. called client, set demo...)"
-                  value={followupText}
-                  onChange={(e) => setFollowupText(e.target.value)}
-                  required
-                />
-                <button type="submit" className="btn-small btn-primary-small">Add log</button>
-              </form>
-            )}
+
           </div>
         </div>
       )}

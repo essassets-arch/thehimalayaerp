@@ -762,7 +762,7 @@ export default function QuotationsView({
                     <td>#QTN-{reminder.moduleId}</td>
                     <td>{q?.customerName || reminder.customerName}</td>
                     <td>{reminder.reminderType}</td>
-                    <td>{formatReminderDate(reminder.reminderDate)}{reminder.reminderTime ? ` · ${formatReminderTime(reminder.reminderTime)}` : ''}</td>
+                    <td>{formatReminderDate(reminder.reminderDate)}</td>
                     <td>{reminder.priority}</td>
                     <td>{reminder.status}</td>
                     <td>

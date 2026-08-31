@@ -9,7 +9,10 @@ export const formatReminderDate = (dateStr) => {
 
 export const formatReminderTime = (timeStr) => {
   if (!timeStr) return '';
-  const [h, m] = String(timeStr).split(':').map(Number);
+  const str = String(timeStr).trim();
+  // Filter out default UTC midnight conversions that produce 05:30 or 00:00
+  if (str === '05:30' || str === '05:30:00' || str === '00:00' || str === '00:00:00') return '';
+  const [h, m] = str.split(':').map(Number);
   if (Number.isNaN(h)) return timeStr;
   const period = h >= 12 ? 'PM' : 'AM';
   const hour12 = h % 12 || 12;
