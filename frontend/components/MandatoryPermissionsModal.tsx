@@ -15,7 +15,8 @@ import {
   RefreshCw,
   Lock,
   Smartphone,
-  Info
+  Info,
+  Settings
 } from 'lucide-react';
 
 export type PermissionLifecycleState =
@@ -34,6 +35,19 @@ interface MandatoryPermissionsModalProps {
   onAllGranted?: () => void;
 }
 
+// Detect if running inside Flutter InAppWebView or Android Hybrid APK
+const checkIsFlutterApk = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const w = window as any;
+  return (
+    !!w.flutter_inappwebview ||
+    !!w.HimalayaNativeBridge ||
+    !!w.HimalayaBridge ||
+    !!w.AndroidBridge ||
+    /HimalayaERP|wv|Android.*Version\/[0-9.]+\s+Chrome\/[0-9.]+\s+Mobile/i.test(navigator.userAgent)
+  );
+};
+
 export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPermissionsModalProps) {
   const { isAuthenticated, logout } = useAuthStore();
 
@@ -46,6 +60,7 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
   const [activeStepText, setActiveStepText] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [initialCheckDone, setInitialCheckDone] = useState(false);
+  const [isApkEnvironment, setIsApkEnvironment] = useState(false);
 
   // Concurrency Lock: Prevents duplicate mobile taps while an operation is in-flight
   const operationLockRef = useRef(false);
@@ -78,27 +93,116 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
     } else if (/Macintosh/i.test(ua)) os = 'macOS';
     else if (/Linux/i.test(ua)) os = 'Linux';
 
-    if (/Firefox/i.test(ua)) browser = 'Firefox';
+    if (checkIsFlutterApk()) {
+      deviceType = 'MOBILE';
+      browser = 'Flutter APK WebView';
+    } else if (/Firefox/i.test(ua)) browser = 'Firefox';
     else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
     else if (/Edge/i.test(ua)) browser = 'Edge';
 
     return { browser, os, deviceType };
   };
 
+  // Detect APK on mount
+  useEffect(() => {
+    setIsApkEnvironment(checkIsFlutterApk());
+  }, []);
+
   /**
-   * High-reliability mobile & desktop location acquisition
-   * Uses cached/network provider for instant response, with watchPosition fallback
+   * Listen for Native Flutter JS Bridge broadcasts
    */
-  const acquireRealLocation = (): Promise<GeolocationPosition> => {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const w = window as any;
+
+    // Handle Flutter Injected Handler / Window Callback
+    const handleNativePermissionsEvent = (data: any) => {
+      if (!data) return;
+      if (data.notifications === 'allowed' || data.notifications === 'granted') {
+        setNotificationState('granted');
+        setNotificationMessage(null);
+      } else if (data.notifications === 'denied') {
+        setNotificationState('denied');
+        setNotificationMessage('Notifications are Blocked. Please enable in Android Settings.');
+      }
+
+      if (data.location === 'allowed' || data.location === 'granted') {
+        sessionStorage.setItem('himalaya_location_verified', 'true');
+        if (data.latitude && data.longitude) {
+          sessionStorage.setItem('himalaya_last_lat', String(data.latitude));
+          sessionStorage.setItem('himalaya_last_lng', String(data.longitude));
+        }
+        setLocationState('granted');
+        setLocationMessage(null);
+      } else if (data.location === 'denied') {
+        setLocationState('denied');
+        setLocationMessage('Location permission is Blocked. Please enable in Android Settings.');
+      } else if (data.location === 'disabled') {
+        setLocationState('device_disabled');
+        setLocationMessage('Device GPS is turned OFF. Please swipe down from top of phone and turn on Location.');
+      }
+    };
+
+    w.onHimalayaNativePermissions = handleNativePermissionsEvent;
+
+    const eventListener = (e: any) => {
+      handleNativePermissionsEvent(e.detail || e.data);
+    };
+
+    window.addEventListener('himalaya:native_permissions', eventListener);
+
+    return () => {
+      window.removeEventListener('himalaya:native_permissions', eventListener);
+      delete w.onHimalayaNativePermissions;
+    };
+  }, []);
+
+  /**
+   * High-reliability location acquisition (Flutter Native Bridge + Web fallback)
+   */
+  const acquireRealLocation = async (): Promise<{
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    altitude?: number;
+    speed?: number;
+    heading?: number;
+  }> => {
+    const w = window as any;
+
+    // 1. Try Flutter InAppWebView Native Bridge Handler
+    if (w.flutter_inappwebview && typeof w.flutter_inappwebview.callHandler === 'function') {
+      try {
+        const nativeRes = await w.flutter_inappwebview.callHandler('requestLocation');
+        if (nativeRes && (nativeRes.status === 'granted' || nativeRes.latitude)) {
+          return {
+            latitude: nativeRes.latitude,
+            longitude: nativeRes.longitude,
+            accuracy: nativeRes.accuracy || 10,
+            altitude: nativeRes.altitude || 0,
+            speed: nativeRes.speed || 0,
+            heading: nativeRes.heading || 0,
+          };
+        } else if (nativeRes?.status === 'denied') {
+          throw { code: 1, message: 'Location permission denied by Android' };
+        } else if (nativeRes?.status === 'disabled') {
+          throw { code: 2, message: 'Device GPS is turned OFF in phone settings' };
+        }
+      } catch (err: any) {
+        if (err?.code === 1 || err?.code === 2) throw err;
+        console.warn('[MandatoryPermissions] Flutter native location bridge failed, falling back to Web Geolocation:', err);
+      }
+    }
+
+    // 2. Web Geolocation Fallback
     return new Promise((resolve, reject) => {
       if (typeof window === 'undefined' || !('geolocation' in navigator)) {
-        return reject(new Error('Geolocation not supported by this browser.'));
+        return reject(new Error('Geolocation not supported by this device/browser.'));
       }
 
       let resolved = false;
       let watchId: number | null = null;
 
-      // 30-second total safety timeout to give the user ample time to tap the browser prompt
       const timer = setTimeout(() => {
         if (!resolved) {
           resolved = true;
@@ -107,19 +211,24 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
         }
       }, 30000);
 
-      // Fast network/Wi-Fi positioning (0-500ms response if OS has cached fix)
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           if (!resolved) {
             resolved = true;
             clearTimeout(timer);
             if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-            resolve(pos);
+            resolve({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+              altitude: pos.coords.altitude || 0,
+              speed: pos.coords.speed || 0,
+              heading: pos.coords.heading || 0,
+            });
           }
         },
         (err) => {
           if (err.code === 1) {
-            // PERMISSION_DENIED
             if (!resolved) {
               resolved = true;
               clearTimeout(timer);
@@ -129,7 +238,6 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
             return;
           }
 
-          // If getCurrentPosition failed, subscribe with watchPosition to catch the fix as soon as available
           if (!resolved && watchId === null) {
             watchId = navigator.geolocation.watchPosition(
               (watchPos) => {
@@ -137,7 +245,14 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
                   resolved = true;
                   clearTimeout(timer);
                   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-                  resolve(watchPos);
+                  resolve({
+                    latitude: watchPos.coords.latitude,
+                    longitude: watchPos.coords.longitude,
+                    accuracy: watchPos.coords.accuracy,
+                    altitude: watchPos.coords.altitude || 0,
+                    speed: watchPos.coords.speed || 0,
+                    heading: watchPos.coords.heading || 0,
+                  });
                 }
               },
               (watchErr) => {
@@ -164,11 +279,11 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
     if (typeof window === 'undefined') return;
 
     // 1. Notification Status Evaluation
-    if (!('Notification' in window)) {
+    if (!('Notification' in window) && !checkIsFlutterApk()) {
       setNotificationState('granted');
       setNotificationMessage(null);
     } else {
-      const currentPerm = Notification.permission;
+      const currentPerm = (window as any).Notification?.permission;
       const isRegistered = localStorage.getItem('registered_fcm_token');
 
       if (currentPerm === 'granted') {
@@ -176,7 +291,11 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
         setNotificationMessage(null);
       } else if (currentPerm === 'denied') {
         setNotificationState('denied');
-        setNotificationMessage('Notifications are Blocked. Please tap the 🔒 lock icon in the address bar to Allow.');
+        setNotificationMessage(
+          checkIsFlutterApk()
+            ? 'Notifications are Blocked. Please enable in Android Settings → Apps → Himalaya ERP.'
+            : 'Notifications are Blocked. Tap the 🔒 lock icon in the address bar to Allow.'
+        );
       } else {
         setNotificationState('prompt');
         setNotificationMessage(null);
@@ -184,49 +303,48 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
     }
 
     // 2. Geolocation Status Evaluation
-    if (!('geolocation' in navigator)) {
-      setLocationState('unsupported');
-      setLocationMessage('GPS Geolocation is not supported by this device/browser.');
-    } else {
-      const hasRecentLocation = sessionStorage.getItem('himalaya_location_verified') === 'true';
+    const hasRecentLocation = sessionStorage.getItem('himalaya_location_verified') === 'true';
 
-      if (hasRecentLocation) {
-        setLocationState('granted');
-        setLocationMessage(null);
-      } else if (navigator.permissions && navigator.permissions.query) {
-        try {
-          const geoPerm = await navigator.permissions.query({ name: 'geolocation' });
-          if (geoPerm.state === 'granted') {
-            if (hasRecentLocation) {
-              setLocationState('granted');
-            } else {
-              setLocationState('prompt');
-            }
-          } else if (geoPerm.state === 'denied') {
-            setLocationState('denied');
-            setLocationMessage('Location access is Blocked. Tap the 🔒 lock icon in the address bar to Allow.');
+    if (hasRecentLocation) {
+      setLocationState('granted');
+      setLocationMessage(null);
+    } else if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const geoPerm = await navigator.permissions.query({ name: 'geolocation' });
+        if (geoPerm.state === 'granted') {
+          if (hasRecentLocation) {
+            setLocationState('granted');
           } else {
             setLocationState('prompt');
           }
-
-          geoPerm.onchange = () => {
-            if (geoPerm.state === 'denied') {
-              setLocationState('denied');
-              sessionStorage.removeItem('himalaya_location_verified');
-            } else if (geoPerm.state === 'granted') {
-              checkCurrentPermissions();
-            }
-          };
-        } catch {
-          // Safari fallback
+        } else if (geoPerm.state === 'denied') {
+          setLocationState('denied');
+          setLocationMessage(
+            checkIsFlutterApk()
+              ? 'Location is Blocked. Please enable in Android Settings → Apps → Himalaya ERP.'
+              : 'Location access is Blocked. Tap the 🔒 lock icon in the address bar to Allow.'
+          );
+        } else {
+          setLocationState('prompt');
         }
+
+        geoPerm.onchange = () => {
+          if (geoPerm.state === 'denied') {
+            setLocationState('denied');
+            sessionStorage.removeItem('himalaya_location_verified');
+          } else if (geoPerm.state === 'granted') {
+            checkCurrentPermissions();
+          }
+        };
+      } catch {
+        // Fallback
       }
     }
 
     setInitialCheckDone(true);
   }, []);
 
-  // Initial check & auto-recheck when returning to tab from browser settings
+  // Initial check & auto-recheck when returning to tab/app
   useEffect(() => {
     if (isAuthenticated) {
       checkCurrentPermissions();
@@ -252,15 +370,49 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
    */
   const executeNotificationFlow = async (): Promise<boolean> => {
     if (typeof window === 'undefined') return false;
+    const w = window as any;
 
+    setNotificationState('requesting');
+    setActiveStepText('Requesting notifications...');
+    setNotificationMessage(null);
+
+    // 1. Try Flutter InAppWebView Native Bridge Handler
+    if (w.flutter_inappwebview && typeof w.flutter_inappwebview.callHandler === 'function') {
+      try {
+        const nativeRes = await w.flutter_inappwebview.callHandler('requestNotifications');
+        if (nativeRes?.status === 'granted' || nativeRes?.token) {
+          if (nativeRes.token) {
+            await fetch('/api/backend/notifications/device-token', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}`,
+              },
+              body: JSON.stringify({
+                token: nativeRes.token,
+                deviceType: 'mobile',
+                userAgent: navigator.userAgent,
+              }),
+            }).catch(() => {});
+          }
+          setNotificationState('granted');
+          setNotificationMessage(null);
+          return true;
+        } else if (nativeRes?.status === 'denied') {
+          setNotificationState('denied');
+          setNotificationMessage('Notifications are Blocked. Please enable in Android Settings → Apps → Himalaya ERP.');
+          return false;
+        }
+      } catch (err) {
+        console.warn('[MandatoryPermissions] Flutter native notifications handler notice:', err);
+      }
+    }
+
+    // 2. Web Standard Notification Flow
     if (!('Notification' in window)) {
       setNotificationState('granted');
       return true;
     }
-
-    setNotificationState('requesting');
-    setActiveStepText('Requesting browser permission...');
-    setNotificationMessage(null);
 
     try {
       let permResult: NotificationPermission = Notification.permission;
@@ -277,7 +429,9 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
       if (permResult === 'denied') {
         setNotificationState('denied');
         setNotificationMessage(
-          'Notifications are Blocked. Please tap the 🔒 lock/settings icon in the top address bar → Permissions → Notifications → Allow.'
+          checkIsFlutterApk()
+            ? 'Notifications are Blocked. Open Android Settings → Apps → Himalaya ERP → Enable Notifications.'
+            : 'Notifications are Blocked. Tap 🔒 in the address bar → Permissions → Notifications → Allow.'
         );
         return false;
       }
@@ -285,15 +439,17 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
       if (permResult !== 'granted') {
         setNotificationState('prompt');
         setNotificationMessage(
-          'Browser popup was silenced. Please tap the 🔒 lock icon in your address bar and set Notifications to Allow.'
+          checkIsFlutterApk()
+            ? 'Please grant notification permission when prompted by Android.'
+            : 'Browser popup was silenced. Please tap 🔒 in your address bar and set Notifications to Allow.'
         );
         return false;
       }
 
       setNotificationState('registering');
-      setActiveStepText('Initializing Service Worker & FCM...');
+      setActiveStepText('Initializing FCM Push...');
 
-      const fcmResult = await initializePushNotifications();
+      await initializePushNotifications();
 
       setNotificationState('granted');
       setNotificationMessage(null);
@@ -309,26 +465,22 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
    * Complete End-to-End GPS Location Lifecycle
    */
   const executeLocationFlow = async (): Promise<boolean> => {
-    if (typeof window === 'undefined' || !('geolocation' in navigator)) {
-      setLocationState('unsupported');
-      setLocationMessage('GPS Geolocation is not supported by your browser.');
-      return false;
-    }
+    if (typeof window === 'undefined') return false;
 
     setLocationState('requesting');
     setActiveStepText('Acquiring live GPS coordinates...');
     setLocationMessage(null);
 
     try {
-      const position = await acquireRealLocation();
+      const coords = await acquireRealLocation();
 
-      if (!position || !position.coords) {
+      if (!coords || typeof coords.latitude !== 'number') {
         setLocationState('prompt');
-        setLocationMessage('No valid coordinates received from device GPS.');
+        setLocationMessage('No valid coordinates received from GPS.');
         return false;
       }
 
-      const { latitude, longitude, accuracy, altitude, speed, heading } = position.coords;
+      const { latitude, longitude, accuracy, altitude, speed, heading } = coords;
 
       // Register Location Session & Coordinates with ERP Backend
       setLocationState('registering');
@@ -358,11 +510,11 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
             sessionId: activeSessionId || null,
             latitude,
             longitude,
-            accuracy,
+            accuracy: accuracy || 10,
             altitude: altitude || 0,
             speed: speed || 0,
             heading: heading || 0,
-            capturedAt: new Date(position.timestamp).toISOString(),
+            capturedAt: new Date().toISOString(),
           },
         }).catch(() => null);
       } catch (backendErr) {
@@ -381,7 +533,11 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
 
       if (err?.code === 1) {
         setLocationState('denied');
-        setLocationMessage('Location permission was denied. Tap the 🔒 lock icon in the address bar to Allow.');
+        setLocationMessage(
+          checkIsFlutterApk()
+            ? 'Location permission was denied. Please open Android Settings → Apps → Himalaya ERP → Permissions → Location → Allow.'
+            : 'Location permission was denied. Tap the 🔒 lock icon in the address bar to Allow.'
+        );
       } else if (err?.code === 2) {
         setLocationState('device_disabled');
         setLocationMessage(
@@ -663,7 +819,7 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
                 ) : (
                   <>
                     <Bell size={14} />
-                    Allow Browser Notifications
+                    Allow Notifications
                   </>
                 )}
               </button>
@@ -783,7 +939,7 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
           </div>
         </div>
 
-        {/* Step-by-Step Mobile Guidance if permissions are blocked/suppressed */}
+        {/* Platform-Aware Step-by-Step Guidance */}
         {(isNotifMissing || isLocMissing) && (
           <div
             style={{
@@ -797,16 +953,33 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
               color: '#CBD5E1',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#60A5FA', fontWeight: 600 }}>
-              <Smartphone size={16} />
-              <span>How to allow permissions in your browser:</span>
-            </div>
-            <div style={{ paddingLeft: '4px', color: '#94A3B8' }}>
-              1. Tap the <strong>tune/lock icon (🔒 or ⚙️)</strong> in your address bar at the top (next to the website URL).<br />
-              2. Tap <strong>Permissions</strong> → Set both <strong>Location</strong> and <strong>Notifications</strong> to <strong>Allow</strong>.<br />
-              3. Make sure your phone&apos;s master <strong>Location / GPS</strong> toggle is turned ON in phone quick settings.<br />
-              4. Tap <strong>&quot;Re-check & Allow All&quot;</strong> below.
-            </div>
+            {isApkEnvironment ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#60A5FA', fontWeight: 600 }}>
+                  <Settings size={16} />
+                  <span>Android App Permission Settings:</span>
+                </div>
+                <div style={{ paddingLeft: '4px', color: '#94A3B8' }}>
+                  1. Tap <strong>Allow</strong> when Android asks for Location and Notification permission.<br />
+                  2. Make sure your phone&apos;s master <strong>Location / GPS</strong> toggle is turned ON in phone quick settings.<br />
+                  3. If previously blocked: Open <strong>Phone Settings → Apps → Himalaya ERP → Permissions</strong> and enable both.<br />
+                  4. Return here and tap <strong>&quot;Re-check & Allow All&quot;</strong>.
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#60A5FA', fontWeight: 600 }}>
+                  <Smartphone size={16} />
+                  <span>Browser Permission Settings:</span>
+                </div>
+                <div style={{ paddingLeft: '4px', color: '#94A3B8' }}>
+                  1. Tap the <strong>tune/lock icon (🔒 or ⚙️)</strong> in your address bar at the top (next to the URL).<br />
+                  2. Tap <strong>Permissions</strong> → Set both <strong>Location</strong> and <strong>Notifications</strong> to <strong>Allow</strong>.<br />
+                  3. Make sure your phone&apos;s master <strong>Location / GPS</strong> toggle is turned ON in phone quick settings.<br />
+                  4. Tap <strong>&quot;Re-check & Allow All&quot;</strong> below.
+                </div>
+              </>
+            )}
           </div>
         )}
 
