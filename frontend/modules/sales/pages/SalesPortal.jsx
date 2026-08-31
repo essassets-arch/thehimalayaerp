@@ -1069,7 +1069,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     case 'dashboard':
       return (
         <div data-testid="sales-dashboard-page" className="sales-portal-view">
-          <DashboardView state={state} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} />
+          <DashboardView state={{ ...state, reminders }} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} reminders={reminders} />
         </div>
       );
 
@@ -1474,11 +1474,11 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
     case 'reports':
       if (mode === 'SUPER_SALES' || overrideBasePath === '/supersales') {
-        return <DashboardView state={state} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} />;
+        return <DashboardView state={{ ...state, reminders }} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} reminders={reminders} />;
       }
       return <ReportsView leads={leads} orders={orders} payments={payments} customers={customers} user={user} />;
 
     default:
-      return <DashboardView state={state} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} />;
+      return <DashboardView state={{ ...state, reminders }} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} reminders={reminders} />;
   }
 }

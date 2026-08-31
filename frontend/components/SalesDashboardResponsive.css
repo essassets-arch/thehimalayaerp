@@ -46,3 +46,36 @@
   .sales-dashboard .sales-dashboard-filters-buttons { grid-template-columns: 1fr; }
   .sales-dashboard .sales-analytics-chart { height: 210px !important; }
 }
+
+@media (max-width: 380px) {
+  .sales-dashboard { padding-inline: 8px !important; gap: 12px !important; }
+  .sales-dashboard .pipeline-step-card { min-width: 76px !important; padding: 8px 6px !important; }
+  .sales-dashboard .pipeline-step-card span:first-child { font-size: 14px !important; }
+  .sales-dashboard .pipeline-step-card span:last-child { font-size: 9px !important; }
+  .sales-dashboard .mobile-2col-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── ULTRA-WIDE, 4K & 8K DISPLAY SCALING (1920px to 7680px) ── */
+@media (min-width: 1920px) {
+  .sales-dashboard { max-width: 2400px !important; margin: 0 auto !important; }
+  .sales-dashboard .sales-dashboard-grid-layout { grid-template-columns: minmax(0, 1fr) minmax(360px, 440px) !important; gap: 28px !important; }
+  .sales-dashboard .sales-analytics-grid { gap: 28px !important; }
+  .sales-dashboard .sales-analytics-card { padding: 28px !important; }
+  .sales-dashboard .sales-analytics-chart { height: 320px !important; }
+}
+
+@media (min-width: 2560px) {
+  .sales-dashboard { max-width: 3200px !important; gap: 28px !important; }
+  .sales-dashboard .sales-dashboard-grid-layout { grid-template-columns: minmax(0, 1.2fr) minmax(420px, 520px) !important; }
+  .sales-dashboard .sales-analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 32px !important; }
+  .sales-dashboard .sales-analytics-card { padding: 32px !important; border-radius: 18px !important; }
+  .sales-dashboard .sales-analytics-chart { height: 380px !important; }
+}
+
+@media (min-width: 3840px) {
+  .sales-dashboard { max-width: 92vw !important; gap: 36px !important; }
+  .sales-dashboard .sales-dashboard-grid-layout { grid-template-columns: minmax(0, 1.4fr) minmax(520px, 700px) !important; gap: 36px !important; }
+  .sales-dashboard .sales-analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 40px !important; }
+  .sales-dashboard .sales-analytics-card { padding: 40px !important; border-radius: 24px !important; }
+  .sales-dashboard .sales-analytics-chart { height: 480px !important; }
+}

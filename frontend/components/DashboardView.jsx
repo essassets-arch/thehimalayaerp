@@ -40,9 +40,10 @@ import { formatReminderTime, getTodayPendingReminders } from '../shared/utils/re
 
 
 function ConversionGauge({ pct, trackColor, fillColor, label }) {
+  const safePct = isNaN(pct) ? 0 : Math.min(100, Math.max(0, Number(pct)));
   const r = 38;
   const circ = 2 * Math.PI * r;
-  const dash = (Math.min(100, Math.max(0, pct)) / 100) * circ;
+  const dash = (safePct / 100) * circ;
   const gap = circ - dash;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
@@ -58,7 +59,7 @@ function ConversionGauge({ pct, trackColor, fillColor, label }) {
         <div style={{
           position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: '15px', fontWeight: '800', color: 'var(--color-text-primary)'
-        }}>{pct.toFixed(1)}%</div>
+        }}>{safePct.toFixed(1)}%</div>
       </div>
       <span style={{ fontSize: '11.5px', color: 'var(--color-text-secondary)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
         {label}
@@ -150,7 +151,19 @@ export default function DashboardView({
   // Helper to extract creation date from item (local timezone safe)
   const getCreatedAtDate = (item) => {
     if (!item) return null;
-    let rawDate = item?.createdAt || item?.date || item?.created_at || (item?._raw && (item?._raw?.created_at || item?._raw?.createdAt)) || item?.orderDate || item?.followUpDate;
+    let rawDate = 
+      item?.createdAt || 
+      item?.leadDate || 
+      item?.quotationDate || 
+      item?.orderDate || 
+      item?.date || 
+      item?.confirmedAt || 
+      item?.approvedAt || 
+      item?.created_at || 
+      item?.updatedAt || 
+      item?.followUpDate ||
+      (Array.isArray(item?.timeline) && item.timeline[0]?.date) ||
+      (item?._raw && (item?._raw?.created_at || item?._raw?.createdAt));
     if (!rawDate) return null;
     
     try {
@@ -159,13 +172,18 @@ export default function DashboardView({
       }
       
       if (typeof rawDate === 'string') {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-          rawDate = rawDate + 'T00:00:00';
+        const trimmed = rawDate.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+          return new Date(trimmed + 'T00:00:00');
         }
-        const parsed = new Date(rawDate);
+        const parsed = new Date(trimmed);
         if (!isNaN(parsed.getTime())) return parsed;
       }
       
+      if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+        return rawDate;
+      }
+
       const parsed = new Date(rawDate);
       return isNaN(parsed.getTime()) ? null : parsed;
     } catch (err) {
@@ -279,11 +297,58 @@ export default function DashboardView({
     return d && d > todayEnd && l.status === 'Follow-up' && isTimeWithinFilter(d);
   }).length;
 
+  const isLeadConverted = (lead) => {
+    const s = String(lead.status || lead.workflowState?.name || lead.workflowState?.code || '').toLowerCase();
+    if (s.includes('convert') || s.includes('quot') || s.includes('order') || s.includes('won') || s.includes('deal') || s.includes('close') || s.includes('approv')) return true;
+    if (Array.isArray(lead.quotations) && lead.quotations.length > 0) return true;
+    
+    const leadIdStr = String(lead.id || lead.leadId || '');
+    const leadComp = (lead.companyName || lead.customerName || lead.name || '').trim().toLowerCase();
+
+    // Check if any quotation or sample exists for this lead
+    if (quotations.some(q => {
+      if (q.leadId && String(q.leadId) === leadIdStr) return true;
+      const qCust = (q.customerName || q.clientName || '').trim().toLowerCase();
+      if (leadComp && qCust && (qCust.includes(leadComp) || leadComp.includes(qCust))) return true;
+      return false;
+    })) return true;
+
+    // Check if any order exists for this lead
+    if (orders.some(o => {
+      if (o.leadId && String(o.leadId) === leadIdStr) return true;
+      const oCust = (o.customerName || o.customer?.companyName || o.customer?.name || '').trim().toLowerCase();
+      if (leadComp && oCust && (oCust.includes(leadComp) || leadComp.includes(oCust))) return true;
+      return false;
+    })) return true;
+
+    return false;
+  };
+
+  const isQuoteConverted = (q) => {
+    const s = String(q.status || q.workflowState?.name || q.workflowState?.code || '').toLowerCase();
+    if (s.includes('approv') || s.includes('convert') || s.includes('order') || s.includes('won') || s.includes('accept')) return true;
+    
+    const qId = String(q.id || '');
+    const qNo = String(q.quotationNumber || q.quoteNo || '').trim().toLowerCase();
+    const cust = String(q.customerName || q.clientName || '').trim().toLowerCase();
+
+    if (orders.some(o => {
+      if (o.quotationId && String(o.quotationId) === qId) return true;
+      if (o.quotationNumber && qNo && String(o.quotationNumber).toLowerCase() === qNo) return true;
+      const oCust = (o.customerName || o.customer?.companyName || o.customer?.name || '').trim().toLowerCase();
+      if (cust && oCust && (oCust.includes(cust) || cust.includes(oCust))) return true;
+      return false;
+    })) return true;
+
+    return false;
+  };
+
   const totalLeadsCount = filteredLeads.length;
-  const convertedLeadsCount = filteredLeads.filter(l => String(l.status).includes('Converted') || String(l.status).includes('Quotation')).length;
+  const convertedLeadsCount = filteredLeads.filter(isLeadConverted).length;
   const conversionRate = totalLeadsCount > 0 ? ((convertedLeadsCount / totalLeadsCount) * 100) : 0;
+  
   const totalQuotesCount = filteredQuotations.length;
-  const convertedQuotesCount = filteredQuotations.filter(q => String(q.status).includes('Approved') || String(q.status).includes('Converted')).length;
+  const convertedQuotesCount = filteredQuotations.filter(isQuoteConverted).length;
   const quoteToOrderRate = totalQuotesCount > 0 ? ((convertedQuotesCount / totalQuotesCount) * 100) : 0;
 
   // ──🔹 SECOND ROW: Sales Pipeline metrics ──
@@ -337,13 +402,20 @@ export default function DashboardView({
   const nowForSales = new Date();
   
   // Use targetData for KPIs, but keep the local monthly calculation for the historical 6-month chart
+  const confirmedOrdersTotal = orders
+    .filter(isConfirmedSalesOrder)
+    .reduce((sum, order) => sum + orderValue(order), 0);
+  const effectiveMonthlyTarget = salesTarget > 0 
+    ? salesTarget 
+    : (confirmedOrdersTotal > 0 ? Math.round((confirmedOrdersTotal / 3) * 1.15) : 500000);
+
   const monthlyTargetData = Array.from({ length: 6 }, (_, index) => {
     const date = new Date(nowForSales.getFullYear(), nowForSales.getMonth() - 5 + index, 1);
     const achieved = orders.filter(order => { 
       const orderDate = getCreatedAtDate({ ...order, createdAt: order.confirmedAt || order.approvedAt || order.orderDate || order.createdAt }); 
       return isConfirmedSalesOrder(order) && orderDate && orderDate.getFullYear() === date.getFullYear() && orderDate.getMonth() === date.getMonth(); 
     }).reduce((sum, order) => sum + orderValue(order), 0);
-    return { month: date.toLocaleDateString('en-IN', { month: 'short' }), Target: salesTarget, Achieved: achieved };
+    return { month: date.toLocaleDateString('en-IN', { month: 'short' }), Target: effectiveMonthlyTarget, Achieved: achieved };
   });
 
   const deliveredOrdersForReturns = orders.filter(order => ['delivered','completed','closed'].includes(String(order.status || '').toLowerCase()) || String(order.dispatchStatus || order.deliveryStatus || '').toLowerCase().includes('deliver'));
@@ -424,11 +496,12 @@ export default function DashboardView({
 
   const getDynamicTrendData = () => {
     try {
-      // Local fallback calculation based on memory state - Always 6 months
+      // Dynamic 6-month pipeline trend calculation
       const now = new Date();
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const data = [];
       const safeLeads = Array.isArray(leads) ? leads : [];
+      const safeQuotes = Array.isArray(quotations) ? quotations : [];
       const safeOrders = Array.isArray(orders) ? orders : [];
       
       for (let i = 5; i >= 0; i--) {
@@ -438,8 +511,9 @@ export default function DashboardView({
         const start = new Date(mYear, mIdx, 1).getTime();
         const end = new Date(mYear, mIdx + 1, 0).getTime() + 86400000 - 1;
         const Leads = safeLeads.filter(l => { const t = getCreatedAtDate(l)?.getTime(); return t && t >= start && t <= end; }).length;
+        const Quotations = safeQuotes.filter(q => { const t = getCreatedAtDate(q)?.getTime(); return t && t >= start && t <= end; }).length;
         const Conversions = safeOrders.filter(o => { const t = getCreatedAtDate(o)?.getTime(); return t && t >= start && t <= end; }).length;
-        data.push({ name: months[mIdx], Leads, Conversions });
+        data.push({ name: months[mIdx], Leads, Quotations, Conversions });
       }
       return data;
     } catch (err) {
@@ -795,47 +869,55 @@ export default function DashboardView({
               padding: '24px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '16px', color: 'var(--color-text-primary)',
               boxShadow: 'var(--shadow-premium)'
             }}>
-              <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                 <div>
-                  <h2 className="card-heading" style={{ fontSize: '14px', fontWeight: '800', margin: 0, color: 'var(--color-text-primary)' }}>Conversion Trend</h2>
-                  <span className="glass-stat-subtext" style={{ fontSize: '11px', color: 'var(--color-text-secondary)', display: 'block', marginTop: '2px', fontWeight: '600' }}>
-                    Pipeline lead conversions over last 6 months
+                  <h2 className="card-heading" style={{ fontSize: '15px', fontWeight: '850', margin: 0, color: 'var(--color-text-primary)' }}>Sales Pipeline & Conversion Trend</h2>
+                  <span className="glass-stat-subtext" style={{ fontSize: '12px', color: 'var(--color-text-secondary)', display: 'block', marginTop: '2px', fontWeight: '600' }}>
+                    Multi-stage pipeline flow & conversion velocity over last 6 months
                   </span>
                 </div>
-                <div style={{ display: 'flex', gap: '12px', fontSize: '11px', fontWeight: '700' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#0ea5e9' }}>
+                <div style={{ display: 'flex', gap: '14px', fontSize: '11.5px', fontWeight: '700', flexWrap: 'wrap' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#0ea5e9' }}>
                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#0ea5e9', display: 'inline-block' }}></span> Leads
                   </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10b981' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span> Conversions
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#8b5cf6' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8b5cf6', display: 'inline-block' }}></span> Quotations
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#10b981' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span> Won Orders
                   </span>
                 </div>
               </div>
 
-              <div style={{ width: '100%', height: '220px', marginTop: '10px' }}>
+              <div style={{ width: '100%', height: '260px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
                 {isMounted && (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.02} />
+                        </linearGradient>
+                        <linearGradient id="colorQuotes" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
                         </linearGradient>
                         <linearGradient id="colorConvs" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                       <XAxis dataKey="name" stroke="#5E6B82" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#5E6B82" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#5E6B82" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
                       <Tooltip
-                        contentStyle={{ background: '#ffffff', border: '1px solid #D6E2F0', borderRadius: '8px', fontSize: '12px', color: 'var(--color-text-primary)' }}
+                        contentStyle={{ background: '#ffffff', border: '1px solid #D6E2F0', borderRadius: '8px', fontSize: '12px', color: 'var(--color-text-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                         itemStyle={{ color: 'var(--color-text-primary)' }}
                         labelStyle={{ fontWeight: 'bold', color: 'var(--color-text-secondary)' }}
                       />
-                      <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={2} fillOpacity={1} fill="url(#colorLeads)" />
-                      <Area type="monotone" dataKey="Conversions" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorConvs)" />
+                      <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={2.5} fillOpacity={1} fill="url(#colorLeads)" />
+                      <Area type="monotone" dataKey="Quotations" stroke="#8b5cf6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorQuotes)" />
+                      <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorConvs)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
@@ -848,7 +930,15 @@ export default function DashboardView({
               borderRadius: '12px', minHeight: '480px', display: 'flex', flexDirection: 'column',
               boxShadow: 'var(--shadow-premium)', marginTop: '20px'
             }}>
-              <DailyAgendaCalendar state={state} />
+              <DailyAgendaCalendar 
+                state={state} 
+                leads={leads} 
+                quotations={quotations} 
+                orders={orders} 
+                payments={payments} 
+                samples={samples} 
+                reminders={reminders || state?.reminders || []} 
+              />
             </div>
 
           </div>
@@ -1000,18 +1090,26 @@ export default function DashboardView({
             </div>
           )}
 
-          {/* TAB 2: TASKS & CALENDAR */}
-          {activeTab === 'calendar' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="app-card" style={{
-                padding: '12px', background: '#ffffff', border: '1px solid var(--color-border)',
-                borderRadius: '12px', height: '480px', display: 'flex', flexDirection: 'column',
-                boxShadow: 'var(--shadow-premium)'
-              }}>
-                <DailyAgendaCalendar state={state} />
+            {/* TAB 2: TASKS & CALENDAR */}
+            {activeTab === 'calendar' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="app-card" style={{
+                  padding: '12px', background: '#ffffff', border: '1px solid var(--color-border)',
+                  borderRadius: '12px', height: '480px', display: 'flex', flexDirection: 'column',
+                  boxShadow: 'var(--shadow-premium)'
+                }}>
+                  <DailyAgendaCalendar 
+                    state={state} 
+                    leads={leads} 
+                    quotations={quotations} 
+                    orders={orders} 
+                    payments={payments} 
+                    samples={samples} 
+                    reminders={reminders || state?.reminders || []} 
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* TAB 3: ALERTS & STATS */}
           {activeTab === 'alerts' && (
@@ -1025,29 +1123,39 @@ export default function DashboardView({
                 padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px', color: 'var(--color-text-primary)',
                 boxShadow: 'var(--shadow-premium)'
               }}>
-                <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2 className="card-heading" style={{ fontSize: '13px', fontWeight: '800', margin: 0, color: 'var(--color-text-primary)' }}>Conversion Trend</h2>
+                <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                  <h2 className="card-heading" style={{ fontSize: '13px', fontWeight: '850', margin: 0, color: 'var(--color-text-primary)' }}>Conversion Trend</h2>
+                  <div style={{ display: 'flex', gap: '8px', fontSize: '10px', fontWeight: '700' }}>
+                    <span style={{ color: '#0ea5e9' }}>● Leads</span>
+                    <span style={{ color: '#8b5cf6' }}>● Quotes</span>
+                    <span style={{ color: '#10b981' }}>● Won</span>
+                  </div>
                 </div>
-                <div style={{ width: '100%', height: '180px', marginTop: '6px' }}>
+                <div style={{ width: '100%', height: '200px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
                   {isMounted && (
-                    <ResponsiveContainer width="100%" height={180}>
+                    <ResponsiveContainer width="100%" height={200}>
                       <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <defs>
                           <linearGradient id="colorLeadsMobile" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.2} />
-                            <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                            <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.02} />
+                          </linearGradient>
+                          <linearGradient id="colorQuotesMobile" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
                           </linearGradient>
                           <linearGradient id="colorConvsMobile" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                         <XAxis dataKey="name" stroke="#5E6B82" fontSize={10} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#5E6B82" fontSize={10} tickLine={false} axisLine={false} />
-                        <Tooltip contentStyle={{ fontSize: '11px' }} />
-                        <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={1.5} fillOpacity={1} fill="url(#colorLeadsMobile)" />
-                        <Area type="monotone" dataKey="Conversions" stroke="#10b981" strokeWidth={1.5} fillOpacity={1} fill="url(#colorConvsMobile)" />
+                        <YAxis stroke="#5E6B82" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+                        <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', border: '1px solid #D6E2F0' }} />
+                        <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={1.8} fillOpacity={1} fill="url(#colorLeadsMobile)" />
+                        <Area type="monotone" dataKey="Quotations" stroke="#8b5cf6" strokeWidth={1.8} fillOpacity={1} fill="url(#colorQuotesMobile)" />
+                        <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={1.8} fillOpacity={1} fill="url(#colorConvsMobile)" />
                       </AreaChart>
                     </ResponsiveContainer>
                   )}
@@ -1114,7 +1222,24 @@ export default function DashboardView({
             </div>
           )}
           
-          <div style={{ width: '100%', height: '260px', minWidth: 0 }}>{isMounted && <ResponsiveContainer width="99%" height={260}><BarChart data={monthlyTargetData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#DCE5F0"/><XAxis dataKey="month" tick={{ fontSize: 11 }}/><YAxis tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 100000)}L`}/><Tooltip formatter={value => `₹${Number(value).toLocaleString('en-IN')}`}/><Legend wrapperStyle={{ fontSize: '11px' }}/><Bar dataKey="Target" fill="#D6E2F0" radius={[4,4,0,0]}/><Bar dataKey="Achieved" fill="#84cc16" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>}</div>
+          <div className="sales-analytics-chart" style={{ width: '100%', height: '280px', minWidth: 0, position: 'relative' }}>
+            {isMounted && (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={monthlyTargetData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                  <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
+                  <YAxis stroke="#64748b" tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 100000)}L`} />
+                  <Tooltip 
+                    formatter={value => `₹${Number(value).toLocaleString('en-IN')}`} 
+                    contentStyle={{ background: '#fff', borderRadius: '8px', border: '1px solid #DCE5F0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} 
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11.5px', paddingTop: '8px' }} />
+                  <Bar dataKey="Target" fill="#cbd5e1" radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 20} />
+                  <Bar dataKey="Achieved" fill="#16a34a" radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 20} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </section>
 
         <section className="app-card sales-analytics-card" style={{ padding: '20px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: '14px', boxShadow: 'var(--shadow-premium)', minWidth: 0 }}>
@@ -1133,7 +1258,25 @@ export default function DashboardView({
                   ['Delivered Orders', deliveredOrdersForReturns.length], ['Return Requests', returnOrders.length], ['Returned Quantity', returnedQuantity.toLocaleString('en-IN')], ['Return Value', `₹${Math.round(returnValue).toLocaleString('en-IN')}`], ['Return Rate', `${returnRate.toFixed(1)}%`]
                 ].map(([label,value]) => <div className="sales-analytics-kpi" key={label} style={{ padding: '11px 12px', borderRadius: '9px', background: '#F5FAFE', border: '1px solid #DCE5F0' }}><div style={{ fontSize: '10px', fontWeight: 750, color: '#5E6B82', textTransform: 'uppercase' }}>{label}</div><div style={{ marginTop: '4px', fontSize: '16px', fontWeight: 850, color: '#24345C', overflowWrap: 'anywhere' }}>{value}</div></div>)}
               </div>
-              <div style={{ width: '100%', height: '250px', minWidth: 0 }}>{isMounted && <ResponsiveContainer width="99%" height={250}><BarChart data={monthlyReturnData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#DCE5F0"/><XAxis dataKey="month" tick={{ fontSize: 11 }}/><YAxis yAxisId="qty" tick={{ fontSize: 10 }}/><YAxis yAxisId="value" orientation="right" tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 1000)}k`}/><Tooltip formatter={(value,name) => name === 'ReturnValue' ? `₹${Number(value).toLocaleString('en-IN')}` : Number(value).toLocaleString('en-IN')}/><Legend wrapperStyle={{ fontSize: '11px' }}/><Bar yAxisId="qty" dataKey="ReturnQuantity" name="Return Quantity" fill="#f97316" radius={[4,4,0,0]}/><Bar yAxisId="value" dataKey="ReturnValue" name="Return Value" fill="#ef4444" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>}</div>
+              <div className="sales-analytics-chart" style={{ width: '100%', height: '260px', minWidth: 0, position: 'relative' }}>
+                {isMounted && (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={monthlyReturnData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                      <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
+                      <YAxis yAxisId="qty" stroke="#64748b" tick={{ fontSize: 10 }} />
+                      <YAxis yAxisId="value" orientation="right" stroke="#64748b" tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 1000)}k`} />
+                      <Tooltip 
+                        formatter={(value, name) => name === 'ReturnValue' || name === 'Return Value' ? `₹${Number(value).toLocaleString('en-IN')}` : Number(value).toLocaleString('en-IN')} 
+                        contentStyle={{ background: '#fff', borderRadius: '8px', border: '1px solid #DCE5F0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} 
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11.5px', paddingTop: '8px' }} />
+                      <Bar yAxisId="qty" dataKey="ReturnQuantity" name="Return Quantity" fill="#f97316" radius={[6, 6, 0, 0]} barSize={isMobile ? 10 : 16} />
+                      <Bar yAxisId="value" dataKey="ReturnValue" name="Return Value" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={isMobile ? 10 : 16} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
               <div style={{ borderTop: '1px solid #DCE5F0', paddingTop: '14px', marginTop: '8px' }}><h3 style={{ fontSize: '12px', fontWeight: 800, margin: '0 0 10px', color: '#334155' }}>Top Return Reasons</h3><div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>{topReturnReasons.map(item => <span key={item.reason} style={{ padding: '5px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, background: item.count ? '#fff7ed' : '#F5FAFE', color: item.count ? '#c2410c' : '#8893A7', border: `1px solid ${item.count ? '#fed7aa' : '#DCE5F0'}` }}>{item.reason} · {item.count}</span>)}</div></div>
             </>
           )}

@@ -419,6 +419,45 @@ export class SalesRemindersController {
     return result;
   }
 
+  @Get(':id')
+  @RequirePermissions('sales.leads.read')
+  async getById(@Param('id') id: string) {
+    let existing = await this.prisma.followUp.findUnique({ where: { id } });
+    if (!existing) {
+      existing = await this.prisma.followUp.findFirst({
+        where: {
+          OR: [{ moduleId: id }, { leadId: id }],
+        },
+      });
+    }
+    if (!existing) {
+      throw new NotFoundException('Reminder not found');
+    }
+    return {
+      id: existing.id,
+      title: existing.entityType || 'Sales follow-up',
+      description: existing.notes || '',
+      type: existing.entityType || 'followup',
+      dueDate: existing.reminderAt,
+      createdAt: existing.createdAt,
+      createdBy: existing.createdById,
+      leadId: existing.leadId,
+      moduleId: existing.moduleId || existing.entityId || existing.leadId,
+      customerName: existing.customerName || '',
+      moduleType: existing.moduleType || existing.entityType || 'Lead',
+      reminderDate:
+        existing.reminderDate ||
+        (existing.reminderAt
+          ? existing.reminderAt.toISOString().split('T')[0]
+          : null),
+      reminderTime: existing.reminderTime || null,
+      reminderType: existing.reminderType || 'Follow-up',
+      priority: existing.priority || 'Medium',
+      remarks: existing.remarks || existing.notes || '',
+      status: existing.status || 'Pending',
+    };
+  }
+
   @Patch(':id')
   @RequirePermissions('sales.leads.update')
   async update(@Param('id') id: string, @Req() req: any, @Body() dto: any) {
@@ -429,9 +468,21 @@ export class SalesRemindersController {
       'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     const userRole = req.user?.role;
 
-    const existing = await this.prisma.followUp.findUnique({ where: { id } });
+    let existing = await this.prisma.followUp.findUnique({ where: { id } });
     if (!existing) {
-      throw new NotFoundException('Reminder not found');
+      existing = await this.prisma.followUp.findFirst({
+        where: {
+          OR: [{ moduleId: id }, { leadId: id }],
+        },
+      });
+    }
+    if (!existing) {
+      return this.create(req, {
+        sourceId: id,
+        moduleId: id,
+        moduleType: dto.moduleType || 'Lead',
+        ...dto,
+      });
     }
 
     let reminderAtObj: Date | null = null;
@@ -474,7 +525,7 @@ export class SalesRemindersController {
       };
 
       const reminder = await tx.followUp.update({
-        where: { id },
+        where: { id: existing.id },
         data: updateData,
       });
 
@@ -501,13 +552,33 @@ export class SalesRemindersController {
       'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.followUp.findUnique({ where: { id } });
+      let existing = await tx.followUp.findUnique({ where: { id } });
       if (!existing) {
-        throw new NotFoundException('Reminder not found');
+        existing = await tx.followUp.findFirst({
+          where: {
+            OR: [{ moduleId: id }, { leadId: id }],
+          },
+        });
+      }
+      if (!existing) {
+        const created = await tx.followUp.create({
+          data: {
+            companyId: String(companyId),
+            createdById: userId || 'SYSTEM',
+            moduleId: id,
+            leadId: id,
+            moduleType: 'Lead',
+            status: 'Completed',
+            completedAt: new Date(),
+            reminderAt: new Date(),
+            notes: 'Follow-up marked as completed',
+          },
+        });
+        return created;
       }
 
       const reminder = await tx.followUp.update({
-        where: { id },
+        where: { id: existing.id },
         data: {
           status: 'Completed',
           completedAt: new Date(),
@@ -537,13 +608,33 @@ export class SalesRemindersController {
       'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.followUp.findUnique({ where: { id } });
+      let existing = await tx.followUp.findUnique({ where: { id } });
       if (!existing) {
-        throw new NotFoundException('Reminder not found');
+        existing = await tx.followUp.findFirst({
+          where: {
+            OR: [{ moduleId: id }, { leadId: id }],
+          },
+        });
+      }
+      if (!existing) {
+        const created = await tx.followUp.create({
+          data: {
+            companyId: String(companyId),
+            createdById: userId || 'SYSTEM',
+            moduleId: id,
+            leadId: id,
+            moduleType: 'Lead',
+            status: 'Dismissed',
+            dismissedAt: new Date(),
+            reminderAt: new Date(),
+            notes: 'Follow-up dismissed',
+          },
+        });
+        return created;
       }
 
       const reminder = await tx.followUp.update({
-        where: { id },
+        where: { id: existing.id },
         data: {
           status: 'Dismissed',
           dismissedAt: new Date(),
@@ -573,12 +664,19 @@ export class SalesRemindersController {
       'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.followUp.findUnique({ where: { id } });
+      let existing = await tx.followUp.findUnique({ where: { id } });
       if (!existing) {
-        throw new NotFoundException('Reminder not found');
+        existing = await tx.followUp.findFirst({
+          where: {
+            OR: [{ moduleId: id }, { leadId: id }],
+          },
+        });
+      }
+      if (!existing) {
+        return { success: true };
       }
 
-      await tx.followUp.delete({ where: { id } });
+      await tx.followUp.delete({ where: { id: existing.id } });
       await recalculateNextReminder(
         tx,
         existing.moduleType || 'Lead',

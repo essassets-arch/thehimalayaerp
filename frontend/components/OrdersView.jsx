@@ -256,9 +256,9 @@ export default function OrdersView({
       const qtyStr = qty > 0 ? `(${qty} ${unit})` : '';
 
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
-            <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0, maxWidth: '360px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', wordBreak: 'break-word', lineHeight: '1.35' }}>
               {mainLabel} {qtyStr}
             </span>
             {rawItems.length > 1 && (
@@ -267,11 +267,12 @@ export default function OrdersView({
                 style={{
                   fontSize: '10.5px',
                   fontWeight: '800',
-                  padding: '1px 6px',
+                  padding: '2px 6px',
                   borderRadius: '10px',
                   background: '#e0e7ff',
                   color: '#4338ca',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
                 }}
               >
                 +{rawItems.length - 1} more
@@ -286,9 +287,9 @@ export default function OrdersView({
       const parts = order.products.split(',').map(p => p.trim()).filter(Boolean);
       if (parts.length > 1) {
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap' }}>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0, maxWidth: '360px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', wordBreak: 'break-word', lineHeight: '1.35' }}>
                 {parts[0]}
               </span>
               <span
@@ -296,11 +297,12 @@ export default function OrdersView({
                 style={{
                   fontSize: '10.5px',
                   fontWeight: '800',
-                  padding: '1px 6px',
+                  padding: '2px 6px',
                   borderRadius: '10px',
                   background: '#e0e7ff',
                   color: '#4338ca',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
                 }}
               >
                 +{parts.length - 1} more
@@ -309,7 +311,7 @@ export default function OrdersView({
           </div>
         );
       }
-      return <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>{order.products}</span>;
+      return <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', wordBreak: 'break-word', lineHeight: '1.35' }}>{order.products}</span>;
     }
 
     return <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>—</span>;
@@ -655,49 +657,29 @@ export default function OrdersView({
       </div>
 
       {/* Table */}
-      <div className="crm-table-container desktop-only">
-        <table className={`crm-table responsive-table ${styles.ordersTable}`}>
-          <colgroup>
-            {isProductionUser ? (
-              <>
-                <col style={{ width: '15%' }} />
-                <col style={{ width: '30%' }} />
-                <col style={{ width: '35%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '10%' }} />
-              </>
-            ) : (
-              <>
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '15%' }} />
-                <col style={{ width: '25%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '28%' }} />
-              </>
-            )}
-          </colgroup>
+      <div className={`crm-table-container desktop-only ${styles.tableContainer}`}>
+        <table className={`crm-table responsive-table flat-table ${styles.ordersTable}`}>
           <thead>
             <tr>
               {filter === 'Delivered' ? (
                 <>
-                  <th>Order No</th>
-                  <th>Customer</th>
-                  <th>Delivery Date</th>
-                  <th style={{ textAlign: 'right' }}>Order Value</th>
-                  <th style={{ textAlign: 'right' }}>Paid Amount</th>
-                  <th style={{ textAlign: 'right' }}>Balance Amount</th>
-                  <th>Payment Status</th>
-                  <th>Action</th>
+                  <th className={styles.orderIdCol}>Order No</th>
+                  <th className={styles.customerCol}>Customer</th>
+                  <th style={{ minWidth: '120px' }}>Delivery Date</th>
+                  <th className={styles.valueCol} style={{ textAlign: 'right' }}>Order Value</th>
+                  <th className={styles.valueCol} style={{ textAlign: 'right' }}>Paid Amount</th>
+                  <th className={styles.valueCol} style={{ textAlign: 'right' }}>Balance Amount</th>
+                  <th className={styles.statusCol}>Payment Status</th>
+                  <th className={styles.actionsCell}>Action</th>
                 </>
               ) : (
                 <>
-                  <th>Order ID</th>
-                  <th>Customer</th>
-                  <th>Products / Items</th>
-                  {!isProductionUser && <th>Total Value</th>}
-                  <th>Order Status</th>
-                  <th>Actions</th>
+                  <th className={styles.orderIdCol}>Order ID</th>
+                  <th className={styles.customerCol}>Customer</th>
+                  <th className={styles.productsCol}>Products / Items</th>
+                  {!isProductionUser && <th className={styles.valueCol}>Total Value</th>}
+                  <th className={styles.statusCol}>Order Status</th>
+                  <th className={styles.actionsCell}>Actions</th>
                 </>
               )}
             </tr>
@@ -721,13 +703,13 @@ export default function OrdersView({
                 if (filter === 'Delivered') {
                   return (
                     <tr key={o.id || o.orderNo}>
-                      <td data-label="Order No" style={{ fontWeight: 800, fontFamily: 'monospace' }}>{o.orderNo}</td>
-                      <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customerName || o.customer?.name || o.customer?.companyName || '—'}</td>
+                      <td data-label="Order No" className={styles.orderIdCol} style={{ fontWeight: 800, fontFamily: 'monospace' }}>{o.orderNo}</td>
+                      <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{o.customerName || o.customer?.name || o.customer?.companyName || '—'}</td>
                       <td data-label="Delivery Date">{deliveryDate}</td>
-                      <td data-label="Order Value" style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
-                      <td data-label="Paid Amount" style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>{formatINR(paid)}</td>
-                      <td data-label="Balance Amount" style={{ textAlign: 'right', fontWeight: 800, color: '#ef4444' }}>{formatINR(balance)}</td>
-                      <td data-label="Payment Status">
+                      <td data-label="Order Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
+                      <td data-label="Paid Amount" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>{formatINR(paid)}</td>
+                      <td data-label="Balance Amount" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800, color: '#ef4444' }}>{formatINR(balance)}</td>
+                      <td data-label="Payment Status" className={styles.statusCol}>
                         <StatusBadge status={paymentLabel} />
                       </td>
                       <td data-label="Action" className={styles.actionsCell}>
@@ -820,26 +802,26 @@ export default function OrdersView({
 
                 return (
                   <tr key={o.id || o.orderNo}>
-                    <td data-label="Order ID" style={{ fontWeight: '700' }}>
+                    <td data-label="Order ID" className={styles.orderIdCol} style={{ fontWeight: '700' }}>
                       <span
-                        style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline' }}
+                        style={{ color: '#1e40af', cursor: 'pointer', textDecoration: 'underline' }}
                         onClick={() => navigate.push(`/orders/${o.orderNo}`)}
                       >
                         {o.orderNo}
                       </span>
                     </td>
-                    <td data-label="Customer" style={{ fontWeight: '600' }}>
+                    <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: '600' }}>
                       {o.customerName || o.customer?.name || o.customer?.companyName || '—'}
                     </td>
-                    <td data-label="Products / Items">
+                    <td data-label="Products / Items" className={styles.productsCol}>
                       {renderOrderProducts(o)}
                     </td>
                     {!isProductionUser && (
-                      <td data-label="Total Value" style={{ fontWeight: '700' }}>
-                {formatINR(o.grandTotal ?? o.totalAmount ?? o.payment?.totalAmount ?? o.totalValue ?? 0)}
+                      <td data-label="Total Value" className={styles.valueCol} style={{ fontWeight: '700' }}>
+                        {formatINR(o.grandTotal ?? o.totalAmount ?? o.payment?.totalAmount ?? o.totalValue ?? 0)}
                       </td>
                     )}
-                    <td data-label="Order Status">
+                    <td data-label="Order Status" className={styles.statusCol}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         {o.paymentStatus === 'FULLY_PAID' && <StatusBadge status="Fully Paid" />}
                         <StatusBadge status={getOrderStatusLabel(o)} />

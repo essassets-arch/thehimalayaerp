@@ -434,117 +434,138 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   }, [mapsLoaded]);
 
   // Use current geolocation coordinates and geocode them
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
-      return;
-    }
-
+  const handleUseCurrentLocation = async () => {
     Swal.fire({
-      title: 'Fetching location...',
-      text: 'Please allow location access if prompted.',
+      title: 'Detecting location...',
+      text: 'Please wait while we determine your location.',
       allowOutsideClick: false,
       didOpen: () => {
         Swal.showLoading();
       }
     });
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude: lat, longitude: lng } = position.coords;
-
-        if (window.google && window.google.maps) {
-          const geocoder = new window.google.maps.Geocoder();
-          geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-            Swal.close();
-            if (status === 'OK' && results[0]) {
-              const place = results[0];
-
-              let streetNumber = '';
-              let route = '';
-              let sublocality = '';
-              let locality = '';
-              let adminArea2 = '';
-              let state = '';
-              let postalCode = '';
-
-              place.address_components.forEach(component => {
-                const types = component.types;
-                if (types.includes('street_number')) streetNumber = component.long_name;
-                if (types.includes('route')) route = component.long_name;
-                if (types.includes('sublocality') || types.includes('sublocality_level_1') || types.includes('sublocality_level_2')) {
-                  if (sublocality) sublocality = `${sublocality}, ${component.long_name}`;
-                  else sublocality = component.long_name;
-                }
-                if (types.includes('locality')) locality = component.long_name;
-                if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
-                if (types.includes('administrative_area_level_1')) state = component.long_name;
-                if (types.includes('postal_code')) postalCode = component.long_name;
-              });
-
-              const addressParts = [];
-              if (streetNumber) addressParts.push(streetNumber);
-              if (route) addressParts.push(route);
-              if (sublocality) addressParts.push(sublocality);
-
-              let line1 = addressParts.join(', ');
-              if (!line1) {
-                line1 = place.formatted_address ? place.formatted_address.split(',')[0] : '';
-              }
-
-              const cityVal = locality || adminArea2 || sublocality || '';
-              const stateVal = state || '';
-              const pincodeVal = postalCode || '';
-
-              setFormData(prev => ({
-                ...prev,
-                addressLine1: line1,
-                city: cityVal,
-                stateName: stateVal,
-                pincode: pincodeVal,
-                latitude: lat,
-                longitude: lng,
-                googlePlaceId: place.place_id || ''
-              }));
-
-              Swal.fire({
-                icon: 'success',
-                title: 'Location Updated',
-                text: 'Your delivery address has been autofilled.',
-                timer: 1500,
-                showConfirmButton: false
-              });
-            } else {
-              Swal.fire({
-                icon: 'error',
-                title: 'Reverse Geocoding Failed',
-                text: 'Could not determine address for your coordinates. Please enter manually.'
-              });
-            }
-          });
-        } else {
+    const populateFromCoords = (lat, lng) => {
+      if (window.google && window.google.maps) {
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
           Swal.close();
-          alert('Google Maps library is not loaded. Please try again.');
-        }
-      },
-      (error) => {
-        Swal.close();
-        let errorMsg = 'Could not retrieve your location.';
-        if (error.code === error.PERMISSION_DENIED) {
-          errorMsg = 'Location permission was denied. Please check your browser settings.';
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          errorMsg = 'Location information is unavailable.';
-        } else if (error.code === error.TIMEOUT) {
-          errorMsg = 'The request to get your location timed out.';
-        }
-        Swal.fire({
-          icon: 'error',
-          title: 'Permission Denied / Error',
-          text: errorMsg
+          if (status === 'OK' && results[0]) {
+            const place = results[0];
+            let streetNumber = '';
+            let route = '';
+            let sublocality = '';
+            let locality = '';
+            let adminArea2 = '';
+            let state = '';
+            let postalCode = '';
+
+            place.address_components.forEach(component => {
+              const types = component.types;
+              if (types.includes('street_number')) streetNumber = component.long_name;
+              if (types.includes('route')) route = component.long_name;
+              if (types.includes('sublocality') || types.includes('sublocality_level_1') || types.includes('sublocality_level_2')) {
+                if (sublocality) sublocality = `${sublocality}, ${component.long_name}`;
+                else sublocality = component.long_name;
+              }
+              if (types.includes('locality')) locality = component.long_name;
+              if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
+              if (types.includes('administrative_area_level_1')) state = component.long_name;
+              if (types.includes('postal_code')) postalCode = component.long_name;
+            });
+
+            const addressParts = [];
+            if (streetNumber) addressParts.push(streetNumber);
+            if (route) addressParts.push(route);
+            if (sublocality) addressParts.push(sublocality);
+
+            let line1 = addressParts.join(', ');
+            if (!line1) {
+              line1 = place.formatted_address ? place.formatted_address.split(',')[0] : '';
+            }
+
+            const cityVal = locality || adminArea2 || sublocality || '';
+            const stateVal = state || '';
+            const pincodeVal = postalCode || '';
+
+            setFormData(prev => ({
+              ...prev,
+              addressLine1: line1,
+              city: cityVal,
+              stateName: stateVal,
+              pincode: pincodeVal,
+              latitude: lat,
+              longitude: lng,
+              googlePlaceId: place.place_id || ''
+            }));
+
+            Swal.fire({
+              icon: 'success',
+              title: 'Location Updated',
+              text: 'Your delivery address has been autofilled.',
+              timer: 1500,
+              showConfirmButton: false
+            });
+            return;
+          }
+          fallbackToIpGeocode(lat, lng);
         });
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+      } else {
+        fallbackToIpGeocode(lat, lng);
+      }
+    };
+
+    const fallbackToIpGeocode = async (optLat, optLng) => {
+      try {
+        const url = optLat && optLng 
+          ? `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${optLat}&longitude=${optLng}&localityLanguage=en`
+          : 'https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en';
+        const res = await fetch(url).then(r => r.json());
+        Swal.close();
+        if (res && (res.city || res.locality || res.principalSubdivision)) {
+          setFormData(prev => ({
+            ...prev,
+            addressLine1: prev.addressLine1 || res.locality || res.principalSubdivision || '',
+            city: res.city || res.locality || '',
+            stateName: res.principalSubdivision || '',
+            pincode: res.postcode || prev.pincode || '',
+            latitude: optLat || res.latitude || prev.latitude || 23.0225,
+            longitude: optLng || res.longitude || prev.longitude || 72.5714,
+          }));
+          Swal.fire({
+            icon: 'info',
+            title: 'Location Estimated',
+            text: 'Address estimated from network. Please verify details.',
+            timer: 2000,
+            showConfirmButton: false
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn('IP geocoding fallback failed:', err);
+      }
+      Swal.close();
+      Swal.fire({
+        icon: 'info',
+        title: 'Location Notice',
+        text: 'Could not automatically detect GPS. Please enter your address details manually.',
+        confirmButtonColor: '#2563eb'
+      });
+    };
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          populateFromCoords(position.coords.latitude, position.coords.longitude);
+        },
+        () => {
+          // If high-accuracy or standard GPS times out / fails, fallback gracefully to IP
+          fallbackToIpGeocode();
+        },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+      );
+    } else {
+      fallbackToIpGeocode();
+    }
   };
 
   // Sync sampleItems whenever items (product list) changes

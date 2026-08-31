@@ -3,7 +3,7 @@ import { useERP } from '../shared/context/ERPContext';
 import {
   ChevronLeft, ChevronRight, Calendar, Users, FileText,
   ShoppingCart, CreditCard, TestTube, Package, Truck, AlertCircle,
-  PhoneCall
+  PhoneCall, Clock, CheckCircle2
 } from 'lucide-react';
 
 /* ─────────────────────────────────────────
@@ -12,6 +12,36 @@ import {
 function padTwo(n) { return String(n).padStart(2, '0'); }
 function toDateStr(y, m, d) { return `${y}-${padTwo(m + 1)}-${padTwo(d)}`; }
 
+function normalizeDateStr(rawDate) {
+  if (!rawDate) return null;
+  if (typeof rawDate === 'string') {
+    const trimmed = rawDate.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    if (trimmed.includes('T')) {
+      const p = trimmed.split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(p)) return p;
+    }
+    if (trimmed.includes(' ')) {
+      const p = trimmed.split(' ')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(p)) return p;
+    }
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${padTwo(d.getMonth() + 1)}-${padTwo(d.getDate())}`;
+    }
+  }
+  if (typeof rawDate === 'number') {
+    const d = new Date(rawDate);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${padTwo(d.getMonth() + 1)}-${padTwo(d.getDate())}`;
+    }
+  }
+  if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+    return `${rawDate.getFullYear()}-${padTwo(rawDate.getMonth() + 1)}-${padTwo(rawDate.getDate())}`;
+  }
+  return null;
+}
+
 const MONTH_NAMES = [
   'January','February','March','April','May','June',
   'July','August','September','October','November','December'
@@ -19,60 +49,89 @@ const MONTH_NAMES = [
 const DAY_LABELS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 
 const EVENT_TYPES = {
-  lead_followup: { label: 'Lead Follow-up',      icon: PhoneCall,     color: '#f59e0b', bg: '#fef3c7' },
-  lead_created:  { label: 'New Lead Registered',  icon: Users,         color: '#10b981', bg: '#d1fae5' },
-  sample:        { label: 'Sample',               icon: TestTube,      color: '#0ea5e9', bg: '#e0f2fe' },
-  quotation:     { label: 'Quotation Follow-up',  icon: FileText,      color: '#8b5cf6', bg: '#ede9fe' },
-  quot_expire:   { label: 'Quotation Expiry',     icon: FileText,      color: '#ec4899', bg: '#fdf2f8' },
-  order:         { label: 'Order',                icon: ShoppingCart,  color: '#6366f1', bg: '#eef2ff' },
-  delivery:      { label: 'Delivery Due',         icon: Package,       color: '#d97706', bg: '#fef9c3' },
-  payment:       { label: 'Payment Due',          icon: CreditCard,    color: '#f43f5e', bg: '#ffe4e6' },
-  dispatch:      { label: 'Dispatch',             icon: Truck,         color: '#0891b2', bg: '#ecfeff' },
+  reminder:      { label: 'Follow-up Task',        icon: PhoneCall,     color: '#f59e0b', bg: '#fef3c7' },
+  lead_followup: { label: 'Lead Follow-up',        icon: PhoneCall,     color: '#f59e0b', bg: '#fef3c7' },
+  lead_created:  { label: 'New Lead Registered',   icon: Users,         color: '#10b981', bg: '#d1fae5' },
+  sample:        { label: 'Sample',                icon: TestTube,      color: '#0ea5e9', bg: '#e0f2fe' },
+  quotation:     { label: 'Quotation Follow-up',   icon: FileText,      color: '#8b5cf6', bg: '#ede9fe' },
+  quot_expire:   { label: 'Quotation Expiry',      icon: FileText,      color: '#ec4899', bg: '#fdf2f8' },
+  order:         { label: 'Order Confirmed',       icon: ShoppingCart,  color: '#6366f1', bg: '#eef2ff' },
+  delivery:      { label: 'Delivery Due',          icon: Package,       color: '#d97706', bg: '#fef9c3' },
+  payment:       { label: 'Payment Due',           icon: CreditCard,    color: '#f43f5e', bg: '#ffe4e6' },
+  dispatch:      { label: 'Dispatch',              icon: Truck,         color: '#0891b2', bg: '#ecfeff' },
 };
 
 /* ─────────────────────────────────────────
-   Derive ALL agenda events from ERP state
+   Derive ALL agenda events from live props & state
 ───────────────────────────────────────── */
-function deriveEvents(state) {
+function deriveEvents({ state = {}, leads: leadsProp, quotations: quotesProp, orders: ordersProp, payments: paymentsProp, samples: samplesProp, reminders: remindersProp }) {
   const events = {}; // { 'YYYY-MM-DD': [event, ...] }
 
-  const addEvent = (dateStr, event) => {
-    if (!dateStr || typeof dateStr !== 'string') return;
-    const trimmed = dateStr.trim();
-    if (!trimmed.match(/^\d{4}-\d{2}-\d{2}$/)) return; // only valid YYYY-MM-DD
-    if (!events[trimmed]) events[trimmed] = [];
-    events[trimmed].push(event);
+  const addEvent = (rawDate, event) => {
+    const dateKey = normalizeDateStr(rawDate);
+    if (!dateKey) return;
+    if (!events[dateKey]) events[dateKey] = [];
+    events[dateKey].push(event);
   };
 
-  /* ── LEADS ── */
-  (state.sales?.leads || []).forEach(lead => {
-    // Every follow-up date set for a lead
+  const allLeads = Array.isArray(leadsProp) && leadsProp.length > 0 ? leadsProp : (state.leads || state.sales?.leads || []);
+  const allQuotations = Array.isArray(quotesProp) && quotesProp.length > 0 ? quotesProp : (state.quotations || state.sales?.quotations || []);
+  const allOrders = Array.isArray(ordersProp) && ordersProp.length > 0 ? ordersProp : (state.orders || state.sales?.orders || []);
+  const allPayments = Array.isArray(paymentsProp) && paymentsProp.length > 0 ? paymentsProp : (state.payments || state.sales?.payments || []);
+  const allSamples = Array.isArray(samplesProp) && samplesProp.length > 0 ? samplesProp : (state.samples || state.sales?.samples || []);
+  const allReminders = Array.isArray(remindersProp) && remindersProp.length > 0 ? remindersProp : (state.reminders || state.sales?.reminders || []);
+
+  /* ── 1. EXPLICIT REMINDERS & FOLLOW-UPS ── */
+  allReminders.forEach(r => {
+    const rDate = r.reminderDate || r.reminderAt || r.date || r.createdAt;
+    const mType = String(r.moduleType || r.type || 'GENERAL').toUpperCase();
+    let eType = 'lead_followup';
+    let label = 'Scheduled Reminder';
+
+    if (mType.includes('LEAD')) { eType = 'lead_followup'; label = 'Lead Follow-up'; }
+    else if (mType.includes('SAMPLE')) { eType = 'sample'; label = 'Sample Follow-up'; }
+    else if (mType.includes('QUOTE') || mType.includes('QUOTATION')) { eType = 'quotation'; label = 'Quotation Follow-up'; }
+    else if (mType.includes('ORDER') || mType.includes('PRODUCTION')) { eType = 'order'; label = 'Order Follow-up'; }
+    else if (mType.includes('PAY') || mType.includes('FINANCE') || mType.includes('INVOICE')) { eType = 'payment'; label = 'Payment Follow-up'; }
+
+    if (rDate) {
+      addEvent(rDate, {
+        type: eType,
+        title: `${label}: ${r.customerName || r.title || 'Follow-up Task'}`,
+        subtitle: r.remarks || r.notes || r.description || `Status: ${r.status || 'Pending'}`,
+        status: r.status || 'Pending',
+        id: `reminder-${r.id}`
+      });
+    }
+  });
+
+  /* ── 2. LEADS ── */
+  allLeads.forEach(lead => {
     if (lead.followUpDate) {
       addEvent(lead.followUpDate, {
         type: 'lead_followup',
-        title: `Follow-up: ${lead.companyName}`,
-        subtitle: `${lead.contactPerson} · ${lead.salesperson || '—'}`,
-        status: lead.status,
+        title: `Follow-up: ${lead.companyName || lead.customerName || lead.name || 'Lead'}`,
+        subtitle: `${lead.contactPerson || ''}${lead.contactPerson ? ' · ' : ''}${lead.phone || lead.salesperson || 'Follow-up scheduled'}`,
+        status: lead.status || 'Follow-up',
         id: `lead-fu-${lead.id}`
       });
     }
-
-    // Each follow-up entry in the lead timeline that has a date
+    const createDate = lead.createdAt || lead.date || lead.created_at;
+    if (createDate) {
+      addEvent(createDate, {
+        type: 'lead_created',
+        title: `Lead Registered: ${lead.companyName || lead.customerName || lead.name || 'New Lead'}`,
+        subtitle: `${lead.contactPerson || ''}${lead.contactPerson ? ' · ' : ''}Status: ${lead.status || 'New'}`,
+        status: lead.status || 'New',
+        id: `lead-created-${lead.id}`
+      });
+    }
+    // Lead timeline entries
     (Array.isArray(lead.timeline) ? lead.timeline : []).forEach((entry, idx) => {
-      if (idx === 0 && entry.date) {
-        // First timeline entry = lead created date
-        addEvent(entry.date, {
-          type: 'lead_created',
-          title: `New Lead Registered`,
-          subtitle: `${lead.companyName} (${lead.contactPerson})`,
-          status: lead.status,
-          id: `lead-created-${lead.id}`
-        });
-      } else if (entry.date && entry.stage && String(entry.stage).toLowerCase().includes('follow')) {
-        // Logged follow-up activities in the timeline
+      if (entry.date && entry.stage && String(entry.stage).toLowerCase().includes('follow')) {
         addEvent(entry.date, {
           type: 'lead_followup',
-          title: `Follow-up Logged: ${lead.companyName}`,
+          title: `Follow-up Logged: ${lead.companyName || 'Lead'}`,
           subtitle: entry.text || entry.stage,
           status: lead.status,
           id: `lead-tl-${lead.id}-${idx}`
@@ -81,129 +140,114 @@ function deriveEvents(state) {
     });
   });
 
-  /* ── SAMPLES ── */
-  (state.samples || []).forEach(s => {
+  /* ── 3. SAMPLES ── */
+  allSamples.forEach(s => {
     if (s.followUpDate) {
       addEvent(s.followUpDate, {
         type: 'sample',
-        title: `Sample Follow-up: ${s.leadName}`,
-        subtitle: `${s.product} · Status: ${s.status}`,
+        title: `Sample Follow-up: ${s.leadName || s.customerName || 'Sample Request'}`,
+        subtitle: `${s.product || s.sampleName || 'Sample'} · Status: ${s.status || 'Pending'}`,
+        status: s.status,
         id: `sample-fu-${s.id}`
       });
     }
     if (s.dispatchDate) {
       addEvent(s.dispatchDate, {
         type: 'sample',
-        title: `Sample Dispatched: ${s.leadName}`,
-        subtitle: `${s.product} · Status: ${s.status}`,
+        title: `Sample Dispatched: ${s.leadName || s.customerName || 'Sample'}`,
+        subtitle: `${s.product || ''} · Tracking: ${s.trackingNumber || s.courier || 'Dispatched'}`,
+        status: s.status,
         id: `sample-disp-${s.id}`
       });
     }
-    if (s.expiryDate) {
-      addEvent(s.expiryDate, {
+    if (s.expiryDate || s.validTill) {
+      addEvent(s.expiryDate || s.validTill, {
         type: 'quot_expire',
-        title: `Sample Expiry: ${s.leadName}`,
-        subtitle: `${s.product} · Status: ${s.status}`,
+        title: `Sample Expiry: ${s.leadName || s.customerName || 'Sample'}`,
+        subtitle: `${s.product || ''} · Status: ${s.status || 'Pending'}`,
+        status: s.status,
         id: `sample-exp-${s.id}`
       });
     }
     if (s.deliveredDate) {
       addEvent(s.deliveredDate, {
         type: 'dispatch',
-        title: `Sample Delivered: ${s.leadName}`,
-        subtitle: `${s.product} · POD confirmed`,
+        title: `Sample Delivered: ${s.leadName || s.customerName}`,
+        subtitle: `${s.product || ''} · Delivery Confirmed`,
+        status: 'Delivered',
         id: `sample-del-${s.id}`
       });
     }
   });
 
-  /* ── QUOTATIONS ── */
-  (state.quotations || []).forEach(q => {
-    // Quotation creation date
-    if (q.date) {
-      addEvent(q.date, {
+  /* ── 4. QUOTATIONS ── */
+  allQuotations.forEach(q => {
+    const qDate = q.date || q.createdAt || q.quotationDate;
+    if (qDate) {
+      addEvent(qDate, {
         type: 'quotation',
-        title: `Quotation #QTN-${q.id} Drafted`,
-        subtitle: `${q.customerName} · ${q.items} · ₹${(q.totalAmount || 0).toLocaleString('en-IN')}`,
-        status: q.status,
+        title: `Quotation Drafted: ${q.customerName || q.clientName || 'Quotation'}`,
+        subtitle: `${q.quotationNumber || q.quoteNo || ''} · ₹${Number(q.totalAmount || q.grandTotal || 0).toLocaleString('en-IN')}`,
+        status: q.status || 'Draft',
         id: `quote-date-${q.id}`
       });
     }
-    // Follow-up date
     if (q.followUpDate) {
       addEvent(q.followUpDate, {
         type: 'quotation',
-        title: `Quotation Follow-up: ${q.customerName}`,
-        subtitle: `${q.items} · ₹${(q.totalAmount || 0).toLocaleString('en-IN')} · ${q.status}`,
+        title: `Quotation Follow-up: ${q.customerName || q.clientName || 'Quotation'}`,
+        subtitle: `₹${Number(q.totalAmount || q.grandTotal || 0).toLocaleString('en-IN')} · ${q.status || 'Pending'}`,
         status: q.status,
         id: `quote-fu-${q.id}`
       });
     }
-    // Valid-till / expiry
-    if (q.validTill) {
-      addEvent(q.validTill, {
+    if (q.validTill || q.validUntil) {
+      addEvent(q.validTill || q.validUntil, {
         type: 'quot_expire',
-        title: `Quotation Expires: ${q.customerName}`,
-        subtitle: `${q.items} · Status: ${q.status}`,
+        title: `Quotation Expiry: ${q.customerName || q.clientName || 'Quotation'}`,
+        subtitle: `Valid until date reached · ${q.status || 'Active'}`,
+        status: q.status,
         id: `quote-exp-${q.id}`
       });
     }
   });
 
-  /* ── ORDERS ── */
-  (state.orders || []).forEach(order => {
-    if (order.date) {
-      addEvent(order.date, {
+  /* ── 5. ORDERS ── */
+  allOrders.forEach(order => {
+    const oDate = order.orderDate || order.date || order.createdAt || order.confirmedAt;
+    const cust = order.customerName || order.customer?.name || order.customer?.companyName || 'Customer';
+    const oNo = order.orderId || order.orderNumber || order.orderNo || `#${order.id}`;
+    if (oDate) {
+      addEvent(oDate, {
         type: 'order',
-        title: `Order Created: ${order.customer?.name || order.customerName}`,
-        subtitle: `${order.products} · ${order.orderNo}`,
-        status: order.status,
-        id: `order-${order.orderNo}`
+        title: `Order: ${cust}`,
+        subtitle: `${oNo} · ₹${Number(order.grandTotal || order.totalAmount || 0).toLocaleString('en-IN')}`,
+        status: order.status || 'Active',
+        id: `order-dt-${order.id || oNo}`
       });
     }
-    if (order.deliveryDate) {
-      addEvent(order.deliveryDate, {
+    const delivDate = order.expectedDeliveryDate || order.deliveryDate;
+    if (delivDate) {
+      addEvent(delivDate, {
         type: 'delivery',
-        title: `Delivery Due: ${order.customer?.name || order.customerName}`,
-        subtitle: `${order.products} · ${order.orderNo}`,
-        status: order.status,
-        id: `delivery-${order.orderNo}`
+        title: `Delivery Due: ${cust}`,
+        subtitle: `${oNo} · Status: ${order.status || 'Processing'}`,
+        status: order.deliveryStatus || order.status || 'Pending',
+        id: `delivery-${order.id || oNo}`
       });
     }
-    // Also pull any follow-up dates from order timeline stages
-    (order.timeline || []).forEach((entry, idx) => {
-      if (entry.followUpDate) {
-        addEvent(entry.followUpDate, {
-          type: 'order',
-          title: `Order Follow-up: ${order.customer?.name}`,
-          subtitle: `${order.orderNo} · ${entry.stage}`,
-          id: `order-tl-fu-${order.orderNo}-${idx}`
-        });
-      }
-    });
   });
 
-  /* ── PAYMENTS ── */
-  (state.payments || []).forEach(p => {
-    if (p.dueDate && p.status !== 'Paid') {
-      addEvent(p.dueDate, {
+  /* ── 6. PAYMENTS ── */
+  allPayments.forEach(p => {
+    const pDate = p.dueDate || p.paymentDueDate || p.date || p.createdAt;
+    if (pDate && p.status !== 'Paid') {
+      addEvent(pDate, {
         type: 'payment',
-        title: `Payment Due: ${p.customerName}`,
-        subtitle: `${p.invoiceNo} · ₹${(p.totalAmount || 0).toLocaleString('en-IN')}`,
-        status: p.status,
+        title: `Payment Due: ${p.customerName || p.customer || 'Customer'}`,
+        subtitle: `Due: ₹${Number(p.totalAmount || p.amount || 0).toLocaleString('en-IN')} · Status: ${p.status || 'Pending'}`,
+        status: p.status || 'Pending',
         id: `payment-${p.id}`
-      });
-    }
-  });
-
-  /* ── DISPATCHES ── */
-  (state.dispatches || []).forEach(d => {
-    if (d.date) {
-      addEvent(d.date, {
-        type: 'dispatch',
-        title: `Dispatched: ${d.customerName}`,
-        subtitle: `${d.vehicleNo} · ${d.quantity} units · ${d.status}`,
-        id: `dispatch-${d.id}`
       });
     }
   });
@@ -269,20 +313,25 @@ function EventChip({ event }) {
 
 /* ─────────────────────────────────────────
    Main Component
-   Reads directly from useERP() so it always
-   has the live persisted state — no prop needed.
 ───────────────────────────────────────── */
-export default function DailyAgendaCalendar({ state: stateProp }) {
-  // Always pull from ERP context (live); fall back to prop if context unavailable
-  let erpState;
+export default function DailyAgendaCalendar({ 
+  state: stateProp, 
+  leads: leadsProp, 
+  quotations: quotesProp, 
+  orders: ordersProp, 
+  payments: paymentsProp, 
+  samples: samplesProp, 
+  reminders: remindersProp 
+}) {
+  let erpState = {};
   try {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const erp = useERP();
-    erpState = erp.state;
+    erpState = erp?.state || {};
   } catch {
     erpState = stateProp || {};
   }
-  const state = erpState;
+  const state = { ...erpState, ...(stateProp || {}) };
 
   const today = new Date();
   const [viewYear, setViewYear]   = useState(today.getFullYear());
@@ -291,7 +340,15 @@ export default function DailyAgendaCalendar({ state: stateProp }) {
     toDateStr(today.getFullYear(), today.getMonth(), today.getDate())
   );
 
-  const allEvents = useMemo(() => deriveEvents(state), [state]);
+  const allEvents = useMemo(() => deriveEvents({
+    state,
+    leads: leadsProp,
+    quotations: quotesProp,
+    orders: ordersProp,
+    payments: paymentsProp,
+    samples: samplesProp,
+    reminders: remindersProp
+  }), [state, leadsProp, quotesProp, ordersProp, paymentsProp, samplesProp, remindersProp]);
 
   const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();

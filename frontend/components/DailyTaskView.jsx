@@ -189,6 +189,7 @@ export default function DailyTaskView({
 
       tasks.push({
         id,
+        reminderId: r.id,
         sourceId: r.moduleId || r.id,
         clientName: r.customerName || r.title || 'Customer Reminder',
         type,
@@ -523,11 +524,12 @@ export default function DailyTaskView({
     }));
 
     // 2. Persist to backend database
+    const targetId = task.reminderId || sourceId;
     try {
       if (prefix === 'REM' && completeReminder) {
-        await completeReminder(sourceId);
+        await completeReminder(targetId);
       } else if (prefix === 'REM') {
-        await remindersService.complete(sourceId);
+        await remindersService.complete(targetId);
       } else {
         // Record completed follow-up entry in backend FollowUp table
         await remindersService.create({
@@ -562,6 +564,7 @@ export default function DailyTaskView({
     const task = rescheduleTask;
     const prefix = task.id.split('-')[0];
     const sourceId = task.sourceId || task.id.replace(`${prefix}-`, '');
+    const targetId = task.reminderId || sourceId;
     const sourceKey = `${task.type}-${sourceId}`;
 
     // Remove from completed map if it was there
@@ -585,9 +588,9 @@ export default function DailyTaskView({
 
     try {
       if (prefix === 'REM' && updateReminder) {
-        await updateReminder(sourceId, { reminderDate: rescheduleDate, reminderAt: rescheduleDate, status: 'Pending' });
+        await updateReminder(targetId, { reminderDate: rescheduleDate, reminderAt: rescheduleDate, status: 'Pending' });
       } else if (prefix === 'REM') {
-        await remindersService.update(sourceId, { reminderDate: rescheduleDate, reminderAt: rescheduleDate, status: 'Pending' });
+        await remindersService.update(targetId, { reminderDate: rescheduleDate, reminderAt: rescheduleDate, status: 'Pending' });
       } else {
         await remindersService.create({
           moduleType: task.type,
