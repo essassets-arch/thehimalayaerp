@@ -1711,7 +1711,7 @@ export default function QuotationsView({
                     try {
                       Swal.fire({
                         title: 'Generating Image...',
-                        text: 'Please wait while we render a high-quality image.',
+                        text: 'Rendering high-resolution quotation image...',
                         allowOutsideClick: false,
                         didOpen: () => {
                           Swal.showLoading();
@@ -1721,14 +1721,20 @@ export default function QuotationsView({
                       const safeFilename = `Quotation_${String(qNo).replace(/[\/\\]/g, '_') || 'Draft'}.png`;
                       await exportQuotationImage('quotation-printable-area', safeFilename);
                       Swal.close();
-                      Swal.fire('Success', 'Quotation image downloaded successfully.', 'success');
+                      Swal.fire({
+                        icon: 'success',
+                        title: 'Quotation Downloaded!',
+                        text: 'Image has been saved to your device.',
+                        timer: 2000,
+                        showConfirmButton: false
+                      });
                     } catch (err) {
                       console.error('Error generating image:', err);
                       Swal.close();
-                      Swal.fire('Error', 'Failed to generate image.', 'error');
+                      Swal.fire('Error', 'Failed to generate quotation image. Please try again.', 'error');
                     }
                   }}
-                  style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+                  style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                 >
                   <Image size={14} /> Download Image
                 </button>
@@ -1739,7 +1745,7 @@ export default function QuotationsView({
                     try {
                       Swal.fire({
                         title: 'Preparing Image...',
-                        text: 'Please wait while we render the sharing image.',
+                        text: 'Rendering quotation image for sharing...',
                         allowOutsideClick: false,
                         didOpen: () => {
                           Swal.showLoading();
@@ -1751,14 +1757,20 @@ export default function QuotationsView({
                       Swal.close();
                       
                       if (!res.success) {
-                        // Native share unsupported fallback
+                        const whatsappText = encodeURIComponent(`Hello, please find the quotation details:\n*Quotation:* ${qNo}\n*Customer:* ${selectedQuotation.customerName || 'Valued Customer'}`);
+                        const whatsappUrl = `https://api.whatsapp.com/send?text=${whatsappText}`;
+                        
                         Swal.fire({
-                          title: 'Share Quotation Image',
+                          title: 'Share Quotation',
                           html: `
-                            <div style="display:flex; flex-direction:column; gap:12px; margin-top: 10px; align-items: center;">
-                              <p style="font-size: 13.5px; color: #475569; margin: 0 0 10px 0; text-align: center;">Native sharing is not supported by your browser. You can download the image below or copy/share it manually.</p>
-                              <img src="${res.dataUrl}" style="max-width: 100%; max-height: 250px; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);" />
-                              <a href="${res.dataUrl}" download="Quotation_${qNo}.png" style="background:#0284c7; color:#fff; text-decoration:none; padding:12px 24px; border-radius:8px; font-weight:bold; display:flex; justify-content:center; align-items:center; gap:8px; width: 80%; margin-top: 10px;">Download Image File</a>
+                            <div style="display:flex; flex-direction:column; gap:12px; margin-top: 10px; align-items: center; text-align: center;">
+                              <p style="font-size: 12.5px; color: #475569; margin: 0;">Choose how you want to share or download the quotation:</p>
+                              <img src="${res.dataUrl}" style="max-width: 100%; max-height: 220px; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.08);" />
+                              <div style="display: flex; gap: 8px; width: 100%; justify-content: center; flex-wrap: wrap; margin-top: 6px;">
+                                <a href="${res.dataUrl}" download="Quotation_${String(qNo).replace(/[\/\\]/g, '_') || 'Draft'}.png" style="background:#0284c7; color:#fff; text-decoration:none; padding:10px 18px; border-radius:8px; font-weight:700; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;">📥 Save Image</a>
+                                <a href="${whatsappUrl}" target="_blank" rel="noopener noreferrer" style="background:#22c55e; color:#fff; text-decoration:none; padding:10px 18px; border-radius:8px; font-weight:700; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;">💬 WhatsApp</a>
+                              </div>
+                              <span style="font-size: 11px; color: #94a3b8;">Tip: On mobile devices, you can touch & hold the image above to save directly to your gallery.</span>
                             </div>
                           `,
                           showConfirmButton: false,
@@ -1769,10 +1781,10 @@ export default function QuotationsView({
                     } catch (err) {
                       console.error('Error sharing image:', err);
                       Swal.close();
-                      Swal.fire('Error', 'Failed to share image.', 'error');
+                      Swal.fire('Error', 'Failed to share quotation image.', 'error');
                     }
                   }}
-                  style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+                  style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                 >
                   <Share2 size={14} /> Share Image
                 </button>

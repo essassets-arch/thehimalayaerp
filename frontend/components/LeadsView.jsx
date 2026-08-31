@@ -1212,24 +1212,42 @@ export default function LeadsView({
               const displayStatus = getSmartLeadStatus(lead, orders, quotations, samples, reminders, erpStore.state);
               const quoState = getLeadQuotationState(erpStore.state, lead.id || lead.leadId);
               const smpState = getLeadSampleState(erpStore.state, lead.id || lead.leadId);
+              const targetLeadId = lead.id || lead.leadId;
               
               const isQuotationGenerated = displayStatus === 'Converted' || displayStatus === 'Quotation Generated' || quoState.state === 'COMPLETED';
               const isSampleSent = displayStatus === 'Sample Sent' || smpState.state === 'COMPLETED';
               const isSampleDisabled = isSampleSent || isQuotationGenerated;
 
+              const handleOpenDetails = (e) => {
+                if (e) e.stopPropagation();
+                setSelectedLead(lead);
+                if (typeof onOpenLead === 'function') onOpenLead(lead);
+              };
+
+              const handleEditClick = (e) => {
+                if (e) e.stopPropagation();
+                if (typeof onEditLeadClick === 'function') {
+                  onEditLeadClick(targetLeadId);
+                } else {
+                  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+                  const navBasePath = currentPath.startsWith('/supersales') ? '/supersales' : '/sales';
+                  router.push(`${navBasePath}/edit-lead/${targetLeadId}`);
+                }
+              };
+
               return (
-                <div key={lead.id} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #f1f3f5', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div key={lead.id} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <span onClick={() => onOpenLead && onOpenLead(lead)} style={{ fontSize: '13px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>{lead.leadNumber || displayEntityId(lead.id)}</span>
+                      <span onClick={handleOpenDetails} style={{ fontSize: '13px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>{lead.leadNumber || displayEntityId(lead.id)}</span>
                       <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>· {formatLeadDate(lead.date || lead.createdAt || lead.created_at || lead.leadDate)}</span>
                     </div>
-                    <button onClick={() => onOpenLead && onOpenLead(lead)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                    <button onClick={handleOpenDetails} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                       <MoreVertical size={18} />
                     </button>
                   </div>
                   
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }} onClick={handleOpenDetails}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <div style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b' }}>{lead.companyName || lead.customerName || lead.projectName || 'N/A'}</div>
                       <div style={{ fontSize: '13px', color: '#475569', fontWeight: '500' }}>{lead.phone || lead.mobile || lead.siteInchargeMobile || 'N/A'}</div>
@@ -1251,15 +1269,17 @@ export default function LeadsView({
 
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
                     <button
+                      type="button"
                       title="View Details"
-                      onClick={() => onOpenLead && onOpenLead(lead)}
+                      onClick={handleOpenDetails}
                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer' }}
                     >
                       <Eye size={16} />
                     </button>
                     <button
+                      type="button"
                       title="Edit Lead"
-                      onClick={() => onEditLeadClick && onEditLeadClick(lead)}
+                      onClick={handleEditClick}
                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer' }}
                     >
                       <Edit size={16} />
@@ -1268,6 +1288,7 @@ export default function LeadsView({
                     {lead.status !== 'Lost' && lead.status !== 'Converted' ? (
                       <>
                         <button
+                          type="button"
                           onClick={() => !isQuotationGenerated && handleGenerateQuotationClick(lead)}
                           disabled={isQuotationGenerated}
                           style={{
@@ -1285,6 +1306,7 @@ export default function LeadsView({
                         
                         {!isQuotationGenerated && (
                           <button
+                            type="button"
                             onClick={() => !isSampleDisabled && handleGenerateSampleClick(lead)}
                             disabled={isSampleDisabled}
                             style={{
@@ -1302,6 +1324,7 @@ export default function LeadsView({
                         )}
                         
                         <button
+                          type="button"
                           onClick={() => setReminderModal({ lead, reminder: null })}
                           style={{
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
@@ -1363,15 +1386,46 @@ export default function LeadsView({
       {/* Details Modal Overlay */}
       {currentDetailsLead && (
         <div className="modal-overlay active" onClick={() => setSelectedLead(null)}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div className="modal-header-row">
-              <h3 className="modal-title-text" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px', width: '92%', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px', padding: '20px' }}>
+            <div className="modal-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 className="modal-title-text" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', margin: 0 }}>
                 <span>Lead Details {currentDetailsLead.leadNumber || displayEntityId(currentDetailsLead.id)}</span>
                 <span className={`badge badge-${currentDetailsStatus.toLowerCase().replace(' ', '-')}`}>
                   {currentDetailsStatus}
                 </span>
               </h3>
-              <button className="modal-close-btn" onClick={() => setSelectedLead(null)}>✕</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetId = currentDetailsLead.id || currentDetailsLead.leadId;
+                    setSelectedLead(null);
+                    if (typeof onEditLeadClick === 'function') {
+                      onEditLeadClick(targetId);
+                    } else {
+                      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+                      const navBasePath = currentPath.startsWith('/supersales') ? '/supersales' : '/sales';
+                      router.push(`${navBasePath}/edit-lead/${targetId}`);
+                    }
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Edit size={13} /> Edit Lead
+                </button>
+                <button className="modal-close-btn" onClick={() => setSelectedLead(null)} style={{ cursor: 'pointer' }}>✕</button>
+              </div>
             </div>
 
             <div className="details-grid">

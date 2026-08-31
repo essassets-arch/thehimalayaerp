@@ -20,33 +20,28 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
   } else if (data && typeof data.output === 'function') {
     blob = data.output('blob');
   } else if (typeof data === 'string') {
-    blob = new Blob([data], { type: mimeType });
+    if (data.startsWith('data:')) {
+      try {
+        const parts = data.split(',');
+        const mime = parts[0].match(/:(.*?);/)?.[1] || mimeType;
+        const bstr = atob(parts[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        blob = new Blob([u8arr], { type: mime });
+      } catch {
+        blob = new Blob([data], { type: mimeType });
+      }
+    } else {
+      blob = new Blob([data], { type: mimeType });
+    }
   } else {
     blob = new Blob([data], { type: mimeType });
   }
 
-  const isMobile = typeof navigator !== 'undefined' && /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '');
-
-  // 1. Try Web Share API with File (Native Android / iOS save/share drawer without triggering Dio download listeners)
-  if (isMobile && typeof navigator !== 'undefined' && navigator.canShare) {
-    try {
-      const file = new File([blob], filename, { type: mimeType || blob.type || 'application/octet-stream' });
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: filename,
-        });
-        return;
-      }
-    } catch (shareErr) {
-      if (shareErr && (shareErr.name === 'AbortError' || shareErr.message?.includes('abort'))) {
-        return; // User cancelled share sheet
-      }
-      console.warn('Web Share API fallback to data download:', shareErr);
-    }
-  }
-
-  // 2. Flutter InAppWebView JavaScript Channel handler (if registered)
+  // 1. Flutter InAppWebView JavaScript Channel handler (if registered)
   if (typeof window !== 'undefined' && window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
     try {
       const reader = new FileReader();
@@ -59,39 +54,25 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
         });
       };
       reader.readAsDataURL(blob);
-      return;
+      return true;
     } catch (e) {
       console.warn('Flutter webview handler error:', e);
     }
   }
 
-  // 3. For mobile devices, convert to Data URL (avoids blob: URI errors in Flutter Dio / native download listeners)
-  if (isMobile) {
-    try {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result;
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = filename;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-          if (document.body.contains(link)) document.body.removeChild(link);
-        }, 500);
-      };
-      reader.readAsDataURL(blob);
-      return;
-    } catch (e) {
-      console.warn('Data URL download error:', e);
-    }
+  // 2. Direct saveAs (file-saver) - primary rock-solid download trigger
+  try {
+    saveAs(blob, filename);
+    return true;
+  } catch (e) {
+    console.warn('saveAs failed, falling back to anchor click:', e);
   }
 
-  // 4. Standard desktop browser download
+  // 3. Fallback anchor tag click with ObjectURL
   try {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
+    link.style.display = 'none';
     link.href = url;
     link.download = filename;
     document.body.appendChild(link);
@@ -99,9 +80,10 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     setTimeout(() => {
       if (document.body.contains(link)) document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-    }, 1000);
+    }, 1500);
+    return true;
   } catch (err) {
-    saveAs(blob, filename);
+    console.error('Final fallback download failed:', err);
   }
 };
 
@@ -1980,11 +1962,6 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
     doc.setTextColor(255, 255, 255);
     doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 4.5, { align: 'right' });
   }
-
-  if (returnBlob) {
-    return doc.output('blob');
-  }
-
   await safeSaveFile(doc, `Quotation_${String(qNumber).replace(/[\/\\]/g, '_') || 'Draft'}.pdf`, 'application/pdf');
   return true;
 };
@@ -1993,27 +1970,27 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
  * Export a DOM element to a high-quality PNG image (⭐ GUARANTEED CANONICAL 794px A4 LAYOUT ON ANY DEVICE)
  */
 export const exportQuotationImage = async (elementId, filename = 'quotation.png') => {
-  const element = document.getElementById(elementId);
+  const element = typeof elementId === 'string' ? document.getElementById(elementId) : elementId;
   if (!element) {
     throw new Error(`Element with id "${elementId}" not found`);
   }
 
-  // Create isolated off-screen wrapper at (0, 0) with negative z-index
+  // Create isolated off-screen wrapper at (0, 0), top-level visible in DOM for canvas rendering
   const wrapper = document.createElement('div');
-  wrapper.id = `${elementId}-export-wrapper`;
+  wrapper.id = `${typeof elementId === 'string' ? elementId : 'quotation'}-export-wrapper`;
   wrapper.style.position = 'fixed';
   wrapper.style.top = '0';
   wrapper.style.left = '0';
   wrapper.style.width = '794px';
-  wrapper.style.zIndex = '-9999';
+  wrapper.style.zIndex = '99999';
   wrapper.style.pointerEvents = 'none';
-  wrapper.style.opacity = '1';
+  wrapper.style.opacity = '0.01';
   wrapper.style.visibility = 'visible';
-  wrapper.style.overflow = 'hidden';
+  wrapper.style.overflow = 'visible';
   wrapper.style.background = '#ffffff';
 
   const clone = element.cloneNode(true);
-  clone.id = `${elementId}-export-clone`;
+  clone.id = `${typeof elementId === 'string' ? elementId : 'quotation'}-export-clone`;
   clone.style.width = '794px';
   clone.style.minWidth = '794px';
   clone.style.maxWidth = '794px';
@@ -2072,11 +2049,8 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
     tr.style.setProperty('background', 'transparent', 'important');
     tr.style.setProperty('border', 'none', 'important');
   });
-  clone.querySelectorAll('td').forEach(td => {
+  clone.querySelectorAll('td, th').forEach(td => {
     td.style.setProperty('display', 'table-cell', 'important');
-  });
-  clone.querySelectorAll('th').forEach(th => {
-    th.style.setProperty('display', 'table-cell', 'important');
   });
 
   wrapper.appendChild(clone);
@@ -2095,46 +2069,47 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
       return new Promise((resolve) => {
         img.onload = resolve;
         img.onerror = resolve;
+        setTimeout(resolve, 600);
       });
     }));
 
+    let blob;
     let dataUrl;
+
     try {
-      dataUrl = await htmlToImage.toPng(clone, {
-        pixelRatio: 2.5,
-        width: 794,
-        height: 1123,
-        backgroundColor: '#ffffff',
-        cacheBust: true,
-        style: {
-          borderRadius: '0',
-          transform: 'none',
-        }
-      });
-    } catch (primaryErr) {
-      console.warn('htmlToImage capture failed, falling back to html2canvas:', primaryErr);
       const canvas = await html2canvas(clone, {
-        scale: 2.5,
+        scale: 2,
         width: 794,
-        height: 1123,
+        height: clone.scrollHeight || 1123,
         windowWidth: 794,
-        windowHeight: 1123,
+        windowHeight: clone.scrollHeight || 1123,
         backgroundColor: '#ffffff',
         useCORS: true,
+        allowTaint: true,
         logging: false
       });
       dataUrl = canvas.toDataURL('image/png');
+      blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    } catch (primaryErr) {
+      console.warn('html2canvas capture failed, trying htmlToImage:', primaryErr);
+      try {
+        dataUrl = await htmlToImage.toPng(clone, {
+          pixelRatio: 2,
+          width: 794,
+          height: clone.scrollHeight || 1123,
+          backgroundColor: '#ffffff',
+          cacheBust: true,
+        });
+        const response = await fetch(dataUrl);
+        blob = await response.blob();
+      } catch (fallbackErr) {
+        console.error('All image export engines failed:', fallbackErr);
+        throw fallbackErr;
+      }
     }
 
-    try {
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
-      await safeSaveFile(blob, filename, 'image/png');
-    } catch {
-      await safeSaveFile(dataUrl, filename, 'image/png');
-    }
-
-    return dataUrl;
+    await safeSaveFile(blob || dataUrl, filename, 'image/png');
+    return { dataUrl, blob };
   } finally {
     if (wrapper && wrapper.parentNode) {
       wrapper.parentNode.removeChild(wrapper);
@@ -2146,154 +2121,28 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
  * Share a DOM element as a PNG image via Web Share API or fallback (⭐ GUARANTEED CANONICAL 794px A4 LAYOUT ON ANY DEVICE)
  */
 export const shareQuotationImage = async (elementId, quotationNo = 'Draft', customerName = 'Customer') => {
-  const element = document.getElementById(elementId);
-  if (!element) {
-    throw new Error(`Element with id "${elementId}" not found`);
-  }
+  const filename = `Quotation_${String(quotationNo).replace(/[\/\\]/g, '_') || 'Draft'}.png`;
+  const exportRes = await exportQuotationImage(elementId, filename);
+  const { blob, dataUrl } = exportRes;
 
-  const wrapper = document.createElement('div');
-  wrapper.id = `${elementId}-share-wrapper`;
-  wrapper.style.position = 'fixed';
-  wrapper.style.top = '0';
-  wrapper.style.left = '0';
-  wrapper.style.width = '794px';
-  wrapper.style.zIndex = '-9999';
-  wrapper.style.pointerEvents = 'none';
-  wrapper.style.opacity = '1';
-  wrapper.style.visibility = 'visible';
-  wrapper.style.overflow = 'hidden';
-  wrapper.style.background = '#ffffff';
-
-  const clone = element.cloneNode(true);
-  clone.id = `${elementId}-share-clone`;
-  clone.style.width = '794px';
-  clone.style.minWidth = '794px';
-  clone.style.maxWidth = '794px';
-  clone.style.minHeight = '1123px';
-  clone.style.transform = 'none';
-  clone.style.borderRadius = '0';
-  clone.style.margin = '0';
-  clone.style.padding = '0';
-  clone.style.boxSizing = 'border-box';
-  clone.style.background = '#ffffff';
-  clone.style.display = 'block';
-
-  const mobileFlexRows = clone.querySelectorAll('.quotation-sheet-mobile-flex, .quotation-sheet-title-flex, .quotation-footer-flex');
-  mobileFlexRows.forEach(el => {
-    el.style.setProperty('display', 'flex', 'important');
-    el.style.setProperty('flex-direction', 'row', 'important');
-    el.style.setProperty('justify-content', 'space-between', 'important');
-    el.style.setProperty('align-items', 'flex-start', 'important');
-  });
-
-  const rightMeta = clone.querySelector('.quotation-sheet-right-meta');
-  if (rightMeta) {
-    rightMeta.style.setProperty('align-self', 'flex-end', 'important');
-    rightMeta.style.setProperty('align-items', 'flex-end', 'important');
-    rightMeta.style.setProperty('width', 'auto', 'important');
-  }
-
-  const footerContact = clone.querySelector('.quotation-footer-contact');
-  if (footerContact) {
-    footerContact.style.setProperty('display', 'flex', 'important');
-    footerContact.style.setProperty('flex-direction', 'row', 'important');
-    footerContact.style.setProperty('justify-content', 'space-between', 'important');
-    footerContact.style.setProperty('align-items', 'center', 'important');
-    footerContact.style.setProperty('height', '100%', 'important');
-    footerContact.style.setProperty('padding', '30px 34px 10px', 'important');
-  }
-
-  const footerWave = clone.querySelector('.quotation-footer-wave-wrapper');
-  if (footerWave) {
-    footerWave.style.setProperty('height', '76px', 'important');
-    footerWave.style.setProperty('min-height', '76px', 'important');
-  }
-
-  clone.querySelectorAll('table').forEach(t => {
-    t.style.setProperty('display', 'table', 'important');
-    t.style.setProperty('width', '100%', 'important');
-    t.style.setProperty('table-layout', 'fixed', 'important');
-    t.style.setProperty('border-collapse', 'collapse', 'important');
-  });
-  clone.querySelectorAll('thead').forEach(th => th.style.setProperty('display', 'table-header-group', 'important'));
-  clone.querySelectorAll('tbody').forEach(tb => tb.style.setProperty('display', 'table-row-group', 'important'));
-  clone.querySelectorAll('tr').forEach(tr => {
-    tr.style.setProperty('display', 'table-row', 'important');
-    tr.style.setProperty('background', 'transparent', 'important');
-    tr.style.setProperty('border', 'none', 'important');
-  });
-  clone.querySelectorAll('td').forEach(td => {
-    td.style.setProperty('display', 'table-cell', 'important');
-  });
-  clone.querySelectorAll('th').forEach(th => {
-    th.style.setProperty('display', 'table-cell', 'important');
-  });
-
-  wrapper.appendChild(clone);
-  document.body.appendChild(wrapper);
-
-  try {
-    if (document.fonts && document.fonts.ready) {
-      try {
-        await document.fonts.ready;
-      } catch { /* proceed */ }
-    }
-
-    const images = Array.from(clone.querySelectorAll('img'));
-    await Promise.all(images.map(img => {
-      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-      return new Promise((resolve) => {
-        img.onload = resolve;
-        img.onerror = resolve;
-      });
-    }));
-
-    let dataUrl;
+  if (typeof navigator !== 'undefined' && navigator.canShare && blob) {
     try {
-      dataUrl = await htmlToImage.toPng(clone, {
-        pixelRatio: 2.5,
-        width: 794,
-        height: 1123,
-        backgroundColor: '#ffffff',
-        cacheBust: true,
-        style: {
-          borderRadius: '0',
-          transform: 'none',
-        }
-      });
-    } catch (primaryErr) {
-      console.warn('htmlToImage capture failed, falling back to html2canvas:', primaryErr);
-      const canvas = await html2canvas(clone, {
-        scale: 2.5,
-        width: 794,
-        height: 1123,
-        windowWidth: 794,
-        windowHeight: 1123,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        logging: false
-      });
-      dataUrl = canvas.toDataURL('image/png');
-    }
-
-    const response = await fetch(dataUrl);
-    const blob = await response.blob();
-    const file = new File([blob], `Quotation_${quotationNo}.png`, { type: 'image/png' });
-    const shareData = {
-      title: `Quotation ${quotationNo}`,
-      text: `Here is the quotation for ${customerName}.`,
-      files: [file]
-    };
-
-    if (navigator.canShare && navigator.canShare(shareData)) {
-      await navigator.share(shareData);
-      return { success: true };
-    }
-
-    return { success: false, file, blob, dataUrl };
-  } finally {
-    if (wrapper && wrapper.parentNode) {
-      wrapper.parentNode.removeChild(wrapper);
+      const file = new File([blob], filename, { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `Quotation ${quotationNo}`,
+          text: `Quotation for ${customerName}`,
+          files: [file]
+        });
+        return { success: true, blob, dataUrl, filename };
+      }
+    } catch (shareErr) {
+      if (shareErr && (shareErr.name === 'AbortError' || shareErr.message?.includes('abort'))) {
+        return { success: true, blob, dataUrl, filename }; // User dismissed share sheet
+      }
+      console.warn('Navigator share with file failed, falling back to direct share modal:', shareErr);
     }
   }
+
+  return { success: false, blob, dataUrl, filename };
 };

@@ -217,7 +217,23 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
   if (rawView === 'sales' || rawView === 'supersales' || rawView === 'analytics') rawView = 'dashboard';
   let view = rawView;
 
-  const leadId = params?.slug?.[1]; const sampleId = params?.slug?.[1];
+  // Resilient leadId and sampleId resolution across all dynamic route formats
+  let leadId = params?.slug?.[1] || searchParams?.get('leadId') || searchParams?.get('id');
+  if (pathSlug.includes('edit-lead')) {
+    const idx = pathSlug.indexOf('edit-lead');
+    if (pathSlug[idx + 1]) leadId = pathSlug[idx + 1];
+  } else if (params?.slug) {
+    const slugArr = Array.isArray(params.slug) ? params.slug : [params.slug];
+    const idx = slugArr.indexOf('edit-lead');
+    if (idx !== -1 && slugArr[idx + 1]) leadId = slugArr[idx + 1];
+  }
+
+  let sampleId = params?.slug?.[1] || searchParams?.get('sampleId');
+  if (pathSlug.includes('edit-sample')) {
+    const idx = pathSlug.indexOf('edit-sample');
+    if (pathSlug[idx + 1]) sampleId = pathSlug[idx + 1];
+  }
+
   const location = { pathname: pathname || '', search: "" };
   const navigate = useRouter();
 
@@ -226,9 +242,9 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
   const basePath = overrideBasePath || (isSuperSalesPortal ? '/supersales' : (isFinancePortal ? '/finance/sales' : '/sales'));
 
   const currentView =
-    (location.pathname.includes(`${basePath}/edit-lead/`) || location.pathname.includes('/sales/edit-lead/')
+    (location.pathname.includes(`${basePath}/edit-lead/`) || location.pathname.includes('/sales/edit-lead/') || location.pathname.includes('/supersales/edit-lead/')
       ? 'edit-lead'
-      : location.pathname.includes(`${basePath}/edit-sample/`) || location.pathname.includes('/sales/edit-sample/')
+      : location.pathname.includes(`${basePath}/edit-sample/`) || location.pathname.includes('/sales/edit-sample/') || location.pathname.includes('/supersales/edit-sample/')
       ? 'edit-sample'
       : view);
 
@@ -1007,7 +1023,10 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             quotations={quotations}
             orders={orders}
             onAddLeadClick={() => navigate.push(`${basePath}/create-lead`)}
-            onEditLeadClick={(id) => navigate.push(`${basePath}/edit-lead/${id}`)}
+            onEditLeadClick={(idOrLead) => {
+              const targetId = typeof idOrLead === 'object' ? (idOrLead?.id || idOrLead?.leadId) : idOrLead;
+              navigate.push(`${basePath}/edit-lead/${targetId}`);
+            }}
             onConvertToSample={convertToSample}
             onGenerateQuotation={generateQuotationFromLead}
             onUpdateStatus={updateLeadStatus}
