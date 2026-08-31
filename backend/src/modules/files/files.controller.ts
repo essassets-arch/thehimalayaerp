@@ -4,6 +4,7 @@ import {
   Post,
   Param,
   Query,
+  Body,
   Res,
   Req,
   UseInterceptors,
@@ -134,5 +135,59 @@ export class FilesController {
       success: true,
       ...result,
     };
+  }
+
+  /**
+   * Universal export endpoint for mobile APK / Web download:
+   * POST /api/v1/files/export-download
+   */
+  @Post('export-download')
+  async createExportDownload(@Body() body: any) {
+    return this.filesService.saveExportPayload(body);
+  }
+
+  /**
+   * Direct file download stream with Content-Disposition attachment:
+   * GET /api/v1/files/download/:token
+   */
+  @Get('download/:token')
+  downloadExportFile(
+    @Param('token') token: string,
+    @Query('filename') queryFilename: string,
+    @Res() res: any,
+  ) {
+    const resolved = this.filesService.resolveExportFile(token);
+    if (!resolved) {
+      // Fallback check general file resolver
+      const generalResolved = this.filesService.resolveFile(token);
+      if (!generalResolved) {
+        return res.status(HttpStatus.NOT_FOUND).json({
+          statusCode: 404,
+          message: `Download token '${token}' not found or expired`,
+        });
+      }
+      const downloadName = queryFilename || generalResolved.fileName;
+      res.set({
+        'Content-Type': generalResolved.mimeType,
+        'Content-Length': generalResolved.size,
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(downloadName)}"`,
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      });
+      const stream = createReadStream(generalResolved.fullPath);
+      return stream.pipe(res);
+    }
+
+    const downloadName = queryFilename || resolved.fileName;
+    res.set({
+      'Content-Type': resolved.mimeType,
+      'Content-Length': resolved.size,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(downloadName)}"`,
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+    });
+
+    const stream = createReadStream(resolved.fullPath);
+    return stream.pipe(res);
   }
 }

@@ -15,11 +15,9 @@ import { resolveQuotationTerms } from './sales/quotationTerms';
  */
 export const safeSaveFile = async (data, filename, mimeType = 'application/octet-stream') => {
   let blob;
-  if (data instanceof Blob) {
-    blob = data;
-  } else if (data && typeof data.output === 'function') {
-    blob = data.output('blob');
-  } else if (typeof data === 'string') {
+  let rawData = '';
+  if (typeof data === 'string') {
+    rawData = data;
     if (data.startsWith('data:')) {
       try {
         const parts = data.split(',');
@@ -37,30 +35,91 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     } else {
       blob = new Blob([data], { type: mimeType });
     }
+  } else if (data instanceof Blob) {
+    blob = data;
+  } else if (data && typeof data.output === 'function') {
+    blob = data.output('blob');
   } else {
     blob = new Blob([data], { type: mimeType });
   }
 
-  // 1. Flutter InAppWebView JavaScript Channel handler (if registered)
+  // 1. Flutter InAppWebView JavaScript Channel handler (if registered in native APK)
   if (typeof window !== 'undefined' && window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
     try {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64data = reader.result;
-        window.flutter_inappwebview.callHandler('downloadFile', {
-          filename,
-          mimeType,
-          data: base64data,
+      let base64data = rawData;
+      if (!base64data && blob) {
+        base64data = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
         });
-      };
-      reader.readAsDataURL(blob);
+      }
+      await window.flutter_inappwebview.callHandler('downloadFile', {
+        filename,
+        mimeType,
+        data: base64data,
+      });
       return true;
     } catch (e) {
-      console.warn('Flutter webview handler error:', e);
+      console.warn('Flutter webview handler notice:', e);
     }
   }
 
-  // 2. Direct saveAs (file-saver) - primary rock-solid download trigger
+  // 2. Server-side HTTPS Download Proxy (Completely eliminates Flutter DioException "No host specified in URI")
+  const isMobileClient = typeof window !== 'undefined' && (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|wv|Flutter/i.test(navigator.userAgent) ||
+    window.innerWidth < 768
+  );
+
+  if (isMobileClient) {
+    try {
+      let base64Payload = rawData;
+      if (!base64Payload && blob) {
+        base64Payload = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      if (base64Payload) {
+        const response = await fetch('/api/backend/files/export-download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename,
+            mimeType,
+            data: base64Payload,
+          }),
+        });
+
+        if (response.ok) {
+          const resJson = await response.json();
+          if (resJson && resJson.downloadUrl) {
+            const absoluteDownloadUrl = resJson.downloadUrl.startsWith('http')
+              ? resJson.downloadUrl
+              : `${window.location.origin}${resJson.downloadUrl}`;
+
+            const link = document.createElement('a');
+            link.href = absoluteDownloadUrl;
+            link.download = filename;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+              if (document.body.contains(link)) document.body.removeChild(link);
+            }, 2000);
+            return true;
+          }
+        }
+      }
+    } catch (apiErr) {
+      console.warn('Backend export-download fallback to client-side trigger:', apiErr);
+    }
+  }
+
+  // 3. Desktop / Standard Browser saveAs (file-saver)
   try {
     saveAs(blob, filename);
     return true;
@@ -68,7 +127,7 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     console.warn('saveAs failed, falling back to anchor click:', e);
   }
 
-  // 3. Fallback anchor tag click with ObjectURL
+  // 4. Fallback anchor tag click with ObjectURL (Desktop standard)
   try {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');

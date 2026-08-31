@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { backendFetch } from '../../../lib/backendFetch';
 import { useRouter } from 'next/navigation';
+import { safeSaveFile } from '../../../services/export.service';
 
 export const PlantHeadDailySummary = () => {
   const router = useRouter();
@@ -90,12 +91,7 @@ export const PlantHeadDailySummary = () => {
 
         if (canvas && canvas.width > 0 && canvas.height > 0) {
           const imageUri = canvas.toDataURL('image/png', 1.0);
-          const link = document.createElement('a');
-          link.download = fileName;
-          link.href = imageUri;
-          document.body.appendChild(link);
-          link.click();
-          setTimeout(() => document.body.removeChild(link), 100);
+          await safeSaveFile(imageUri, fileName, 'image/png');
         }
       } catch (h2cErr) {
         console.error('[Download Image error]:', h2cErr);

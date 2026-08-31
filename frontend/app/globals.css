@@ -16071,6 +16071,113 @@ body, #root, .app-container {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
 }
 
+/* ==========================================================================
+   MASTER RESPONSIVE & CHART ARCHITECTURE (320px Mobile to 8K Ultra-Wide)
+   ========================================================================== */
 
+/* ── Universal Chart Container & Master Wrappers ── */
+.responsive-chart-container,
+.master-chart-wrapper,
+.store-chart-card,
+.store-report-section-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  position: relative !important;
+}
 
+.store-chart-card,
+.store-report-section-card {
+  height: auto !important;
+  min-height: fit-content !important;
+  overflow: visible !important;
+}
 
+.raw-inv-mobile-card {
+  width: 100% !important;
+  min-height: fit-content !important;
+  height: auto !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* ── Recharts Universal Fluid SVG Scaling ── */
+.recharts-responsive-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 220px !important;
+}
+
+.recharts-surface {
+  overflow: visible !important;
+}
+
+.recharts-legend-wrapper {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.recharts-default-tooltip {
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18) !important;
+  font-family: 'Inter', -apple-system, sans-serif !important;
+  z-index: 100 !important;
+}
+
+/* ── Small Mobile (320px - 480px) Chart & Typography Optimization ── */
+@media (max-width: 480px) {
+  .responsive-chart-container,
+  .master-chart-wrapper {
+    min-height: 220px !important;
+  }
+
+  .recharts-text {
+    font-size: 10px !important;
+  }
+
+  .recharts-legend-item-text {
+    font-size: 10.5px !important;
+  }
+
+  .store-dashboard-attention-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+}
+
+/* ── High-DPI, 2K, 4K & 8K Ultra-Wide Scale Enhancements ── */
+@media (min-width: 2560px) {
+  /* 2K / 4K Screens (1440p / 2160p) */
+  .responsive-chart-container,
+  .master-chart-wrapper {
+    min-height: 420px !important;
+  }
+
+  .recharts-text {
+    font-size: 14px !important;
+  }
+
+  .recharts-legend-item-text {
+    font-size: 14px !important;
+  }
+}
+
+@media (min-width: 5120px) {
+  /* 5K / 8K Screens (4320p) */
+  .responsive-chart-container,
+  .master-chart-wrapper {
+    min-height: 650px !important;
+  }
+
+  .recharts-text {
+    font-size: 20px !important;
+  }
+
+  .recharts-legend-item-text {
+    font-size: 18px !important;
+  }
+}

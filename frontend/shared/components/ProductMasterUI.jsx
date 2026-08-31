@@ -10,6 +10,7 @@ import { backendFetch } from '../../lib/backendFetch';
 import { useToast } from '../context/ToastContext';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useERP } from '../context/ERPContext';
+import { safeSaveFile } from '../../services/export.service';
 
 const UNITS = ['PCS', 'SET', 'KG', 'LTR', 'BAG', 'ROLL', 'CAN', 'BARREL', 'PKT', 'MTR'];
 
@@ -351,7 +352,7 @@ export default function ProductMasterUI({ role }) {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!filteredProducts || filteredProducts.length === 0) {
       showToast('No products to export');
       return;
@@ -373,13 +374,7 @@ export default function ProductMasterUI({ role }) {
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `product_master_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    await safeSaveFile(csvContent, `product_master_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8');
   };
 
   return (

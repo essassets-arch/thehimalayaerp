@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { safeSaveFile } from '../../services/export.service';
 import './SalarySlipDocument.css';
 
 export interface SalarySlipDocumentProps {
@@ -264,7 +265,9 @@ export function SalarySlipDocument({
 
       const safeName = (empName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_');
       const safeCode = (empCode || '').replace(/[^a-zA-Z0-9_-]/g, '_');
-      pdf.save(`Salary_Slip_${safeName}_${safeCode}.pdf`);
+      const filename = `Salary_Slip_${safeName}_${safeCode}.pdf`;
+      const pdfBlob = pdf.output('blob');
+      await safeSaveFile(pdfBlob, filename, 'application/pdf');
     } catch (err) {
       console.error('Failed to generate PDF:', err);
       window.print();

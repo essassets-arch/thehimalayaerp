@@ -6595,10 +6595,10 @@ export default function SuperAdminPortal() {
         </div>
 
         {/* Two-Column Responsive Layout Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '20px', width: '100%', alignItems: 'start' }}>
           
           {/* Column 1: Compose Form */}
-          <form onSubmit={handleSendNotification} className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0 }}>
+          <form onSubmit={handleSendNotification} className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0, width: '100%', boxSizing: 'border-box' }}>
             <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px', margin: '0 0 4px 0' }}>
               Compose Announcement
             </h3>
@@ -6676,7 +6676,7 @@ export default function SuperAdminPortal() {
           </form>
 
           {/* Column 2: Broadcast History Log */}
-          <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0 }}>
+          <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0, width: '100%', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
               <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
                 All Notifications Delivery History
@@ -6700,9 +6700,9 @@ export default function SuperAdminPortal() {
                 No notifications logged yet.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '480px', overflowY: 'auto', paddingRight: '4px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '520px', overflowY: 'auto', paddingRight: '4px', width: '100%', minWidth: 0 }}>
                 {broadcastHistory.map((notif, idx) => (
-                  <div key={idx} style={{ padding: '12px 14px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div key={idx} style={{ padding: '12px 14px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '6px', minHeight: 'fit-content', flexShrink: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                       <strong style={{ fontSize: '13.5px', color: '#0f172a', fontWeight: '800' }}>{notif.title}</strong>
                       <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600', whiteSpace: 'nowrap' }}>

@@ -790,7 +790,12 @@ export const StoreSummaryReport = () => {
 
         {/* Mobile Horizontal List Cards UI */}
         <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '10px' }}>
-          {inventoryList.map((item, idx) => {
+          {inventoryList.length === 0 ? (
+            <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+              📦 No raw inventory items recorded.
+            </div>
+          ) : (
+            inventoryList.map((item, idx) => {
             const isLow = item.currentStock <= item.minStockLevel;
             return (
               <div
@@ -882,7 +887,7 @@ export const StoreSummaryReport = () => {
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
       </div>
 
@@ -943,7 +948,12 @@ export const StoreSummaryReport = () => {
 
         {/* Mobile Horizontal List Cards UI */}
         <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '10px' }}>
-          {filteredIndents.map((indent, idx) => (
+          {filteredIndents.length === 0 ? (
+            <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+              📋 No purchase indents found for the selected filter.
+            </div>
+          ) : (
+            filteredIndents.map((indent, idx) => (
             <div
               key={idx}
               className="raw-inv-mobile-card"
@@ -979,7 +989,7 @@ export const StoreSummaryReport = () => {
                 <span style={{ fontSize: '11px', color: '#64748b' }}>By: {getLabel(indent.approvedBy)}</span>
               </div>
             </div>
-          ))}
+          )))}
         </div>
       </div>
 
@@ -1032,7 +1042,12 @@ export const StoreSummaryReport = () => {
 
         {/* Mobile Horizontal List Cards UI */}
         <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '10px' }}>
-          {filteredProduction.map((item, idx) => (
+          {filteredProduction.length === 0 ? (
+            <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+              🏭 No production batches consumed in this period.
+            </div>
+          ) : (
+            filteredProduction.map((item, idx) => (
             <div
               key={idx}
               className="raw-inv-mobile-card"
@@ -1061,7 +1076,7 @@ export const StoreSummaryReport = () => {
                 <span>Output: <strong style={{ color: '#10b981' }}>{getLabel(item.prodQty)}</strong></span>
               </div>
             </div>
-          ))}
+          )))}
         </div>
       </div>
 
@@ -1116,7 +1131,12 @@ export const StoreSummaryReport = () => {
 
         {/* Mobile Horizontal List Cards UI */}
         <div className="mobile-only raw-inventory-mobile-list" style={{ gap: '10px' }}>
-          {filteredIssues.map((item, idx) => (
+          {filteredIssues.length === 0 ? (
+            <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+              🚚 No material requisitions issued in this period.
+            </div>
+          ) : (
+            filteredIssues.map((item, idx) => (
             <div
               key={idx}
               className="raw-inv-mobile-card"
@@ -1146,7 +1166,7 @@ export const StoreSummaryReport = () => {
                 <span style={{ fontSize: '11px', color: '#64748b' }}>{getLabel(item.issuedBy)} → {getLabel(item.receivedBy)}</span>
               </div>
             </div>
-          ))}
+          )))}
         </div>
       </div>
 

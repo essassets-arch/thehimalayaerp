@@ -1,31 +1,32 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, cloneElement, isValidElement } from 'react';
-import { BarChart3, TrendingUp, Info } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 
 /**
- * Universal ResponsiveChart component for all ERP Dashboards & Analytics Pages.
+ * Universal Master ResponsiveChart component for all ERP Dashboards & Analytics Pages.
  * 
  * Capabilities:
- * - Fluid auto-scaling across Mobile (360px), Laptop (1080p), 2K (1440p), 4K (2160p), and 8K (4320p)
+ * - Fluid auto-scaling across Mobile (320px-480px), Tablet (768px), Laptop (1080p), 2K (1440p), 4K (2160p), and 8K (4320p)
  * - Zero-blank guarantee: never renders a blank box even before ResizeObserver fires
- * - Graceful fallback/empty-state visualization when dataset is empty or all-zero
- * - Dynamic font, margin, and stroke scaling for high-DPI and ultra-wide screens
+ * - Clean non-obstructive empty states only when dataset is explicitly empty []
+ * - Dynamic font, margin, radius, and stroke scaling for high-DPI, mobile, and ultra-wide screens
  */
 export default function ResponsiveChart({
   children,
   height: baseHeight = 320,
   minHeight,
   className = '',
-  emptyTitle = 'No active telemetry in selected period',
-  emptySubtitle = 'Showing baseline trajectory for current filter range',
-  allowEmptyFallback = true,
+  emptyTitle = 'No telemetry data available',
+  emptySubtitle = 'No records found for the selected time range or filter.',
+  allowEmptyFallback = false,
 }) {
   const containerRef = useRef(null);
   const [mounted, setMounted] = useState(false);
   const [dimensions, setDimensions] = useState({
     width: 600,
     height: baseHeight,
+    isMobile: false,
     is4K: false,
     is8K: false,
     scale: 1,
@@ -36,8 +37,9 @@ export default function ResponsiveChart({
     if (typeof window === 'undefined') return base;
     const screenW = window.innerWidth;
     if (screenW >= 5120) return Math.round(base * 2.2); // 8K / 5K ultrawide
-    if (screenW >= 2560) return Math.round(base * 1.6); // 4K / QHD
+    if (screenW >= 2560) return Math.round(base * 1.5); // 4K / QHD
     if (screenW >= 1920) return Math.round(base * 1.15); // Full HD
+    if (screenW <= 480) return Math.max(220, Math.min(base, 260)); // Mobile
     return base;
   };
 
@@ -52,12 +54,13 @@ export default function ResponsiveChart({
 
       // Determine robust width (never 0)
       const measuredWidth = Math.floor(
-        rect.width > 0 ? rect.width : (parentWidth > 0 ? parentWidth : Math.max(200, windowWidth * 0.45))
+        rect.width > 0 ? rect.width : (parentWidth > 0 ? parentWidth : Math.max(200, windowWidth * 0.9))
       );
 
       const is8K = windowWidth >= 5120;
       const is4K = windowWidth >= 2560 && windowWidth < 5120;
-      const scale = is8K ? 2.0 : is4K ? 1.5 : windowWidth >= 1920 ? 1.15 : 1.0;
+      const isMobile = windowWidth <= 640;
+      const scale = is8K ? 2.0 : is4K ? 1.5 : isMobile ? 0.9 : windowWidth >= 1920 ? 1.15 : 1.0;
 
       const dynamicTargetHeight = getDynamicHeight(baseHeight);
       const measuredHeight = Math.max(
@@ -68,6 +71,7 @@ export default function ResponsiveChart({
       setDimensions({
         width: Math.max(150, measuredWidth),
         height: measuredHeight,
+        isMobile,
         is4K,
         is8K,
         scale,
@@ -94,38 +98,39 @@ export default function ResponsiveChart({
     };
   }, [baseHeight, minHeight]);
 
-  // Inspect child chart to check if data is completely missing or all zeroes
+  // Inspect child chart data safely
   const { hasData, isChildValid } = useMemo(() => {
-    if (!isValidElement(children)) return { hasData: false, isChildValid: false };
+    if (!isValidElement(children)) return { hasData: true, isChildValid: false };
     const chartProps = children.props || {};
     const chartData = chartProps.data;
 
-    if (!Array.isArray(chartData) || chartData.length === 0) {
-      return { hasData: false, isChildValid: true };
+    if (chartData === undefined) {
+      return { hasData: true, isChildValid: true };
     }
 
-    // Check if at least one numerical value in the data array is non-zero
-    const hasAnyPositiveValue = chartData.some((row) => {
-      if (!row || typeof row !== 'object') return false;
-      return Object.values(row).some((val) => typeof val === 'number' && !isNaN(val) && val > 0);
-    });
+    if (Array.isArray(chartData)) {
+      return { hasData: chartData.length > 0, isChildValid: true };
+    }
 
-    return { hasData: hasAnyPositiveValue, isChildValid: true };
+    return { hasData: true, isChildValid: true };
   }, [children]);
 
   // Clone children and inject fluid responsive dimensions + scale props
   const renderedChart = useMemo(() => {
-    if (!isChildValid) return null;
+    if (!isChildValid || !isValidElement(children)) return null;
+
+    const currentMargin = children.props?.margin;
+    const defaultMargin = {
+      top: Math.round(10 * dimensions.scale),
+      right: Math.round(dimensions.isMobile ? 10 : 16 * dimensions.scale),
+      left: Math.round(dimensions.isMobile ? -10 : 0),
+      bottom: Math.round(10 * dimensions.scale),
+    };
 
     return cloneElement(children, {
       width: dimensions.width,
       height: dimensions.height,
-      margin: children.props?.margin || {
-        top: Math.round(12 * dimensions.scale),
-        right: Math.round(16 * dimensions.scale),
-        left: Math.round(8 * dimensions.scale),
-        bottom: Math.round(12 * dimensions.scale),
-      },
+      margin: currentMargin || defaultMargin,
     });
   }, [children, dimensions, isChildValid]);
 
@@ -134,9 +139,10 @@ export default function ResponsiveChart({
   return (
     <div
       ref={containerRef}
-      className={`responsive-chart-container ${className}`}
+      className={`responsive-chart-container master-chart-wrapper ${className}`}
       style={{
         width: '100%',
+        maxWidth: '100%',
         height: `${dimensions.height || targetHeight}px`,
         minHeight: `${minHeight || targetHeight}px`,
         position: 'relative',
@@ -146,12 +152,13 @@ export default function ResponsiveChart({
         alignItems: 'center',
         overflow: 'hidden',
         borderRadius: '12px',
+        boxSizing: 'border-box',
       }}
     >
       {/* Active Chart Rendering */}
       {dimensions.width > 0 && renderedChart}
 
-      {/* Empty / Zero-Data Overlay Safeguard */}
+      {/* Empty Fallback when explicitly requested and data is empty [] */}
       {mounted && !hasData && allowEmptyFallback && (
         <div
           style={{
@@ -164,7 +171,7 @@ export default function ResponsiveChart({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'linear-gradient(180deg, rgba(248, 250, 252, 0.75) 0%, rgba(241, 245, 249, 0.9) 100%)',
+            background: 'rgba(248, 250, 252, 0.92)',
             backdropFilter: 'blur(3px)',
             borderRadius: '12px',
             padding: '20px',
@@ -175,25 +182,24 @@ export default function ResponsiveChart({
         >
           <div
             style={{
-              width: `${Math.round(44 * dimensions.scale)}px`,
-              height: `${Math.round(44 * dimensions.scale)}px`,
+              width: `${Math.round(40 * dimensions.scale)}px`,
+              height: `${Math.round(40 * dimensions.scale)}px`,
               borderRadius: '50%',
               background: 'rgba(99, 102, 241, 0.1)',
               color: '#6366f1',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: '10px',
+              marginBottom: '8px',
             }}
           >
-            <BarChart3 size={Math.round(22 * dimensions.scale)} />
+            <BarChart3 size={Math.round(20 * dimensions.scale)} />
           </div>
           <span
             style={{
               fontWeight: 800,
-              fontSize: `${Math.round(13 * dimensions.scale)}px`,
+              fontSize: `${Math.round(12.5 * dimensions.scale)}px`,
               color: '#334155',
-              letterSpacing: '-0.01em',
             }}
           >
             {emptyTitle}
@@ -203,7 +209,7 @@ export default function ResponsiveChart({
               fontSize: `${Math.round(11 * dimensions.scale)}px`,
               color: '#64748b',
               marginTop: '4px',
-              maxWidth: '360px',
+              maxWidth: '340px',
             }}
           >
             {emptySubtitle}

@@ -232,4 +232,90 @@ export class FilesService {
       mimeType: file.mimetype || MIME_TYPES[ext] || 'application/octet-stream',
     };
   }
+
+  /**
+   * Universal Temporary Export Handler for Mobile APKs and Web Apps:
+   * Accepts base64 data URL, raw text (e.g. CSV), or raw base64 and saves to `uploads/temp-exports/`
+   */
+  public async saveExportPayload(payload: {
+    filename: string;
+    mimeType?: string;
+    data: string;
+  }) {
+    if (!payload || !payload.data) {
+      throw new BadRequestException('No export data provided');
+    }
+
+    const exportDir = join(this.uploadsRoot, 'temp-exports');
+    if (!existsSync(exportDir)) {
+      mkdirSync(exportDir, { recursive: true });
+    }
+
+    // Clean filename
+    let rawFilename = payload.filename || 'download.bin';
+    rawFilename = rawFilename.replace(/[/\\?%*:|"<>]/g, '_');
+    const ext = extname(rawFilename).toLowerCase() || (payload.mimeType?.includes('png') ? '.png' : payload.mimeType?.includes('pdf') ? '.pdf' : payload.mimeType?.includes('csv') ? '.csv' : '.bin');
+    
+    let mimeType = payload.mimeType || MIME_TYPES[ext] || 'application/octet-stream';
+    let buffer: Buffer;
+
+    if (payload.data.startsWith('data:')) {
+      const matches = payload.data.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        mimeType = matches[1] || mimeType;
+        buffer = Buffer.from(matches[2], 'base64');
+      } else {
+        const parts = payload.data.split(',');
+        mimeType = parts[0].match(/:(.*?);/)?.[1] || mimeType;
+        try {
+          buffer = Buffer.from(decodeURIComponent(parts[1]), 'utf-8');
+        } catch {
+          buffer = Buffer.from(parts[1], 'base64');
+        }
+      }
+    } else if (/^[A-Za-z0-9+/=\s]+$/.test(payload.data.substring(0, 100))) {
+      try {
+        buffer = Buffer.from(payload.data.replace(/\s/g, ''), 'base64');
+      } catch {
+        buffer = Buffer.from(payload.data, 'utf-8');
+      }
+    } else {
+      buffer = Buffer.from(payload.data, 'utf-8');
+    }
+
+    const token = `${randomUUID()}${ext}`;
+    const filePath = join(exportDir, token);
+    await writeFile(filePath, buffer);
+
+    return {
+      success: true,
+      token,
+      filename: rawFilename,
+      mimeType,
+      size: buffer.length,
+      downloadUrl: `/api/backend/files/download/${token}?filename=${encodeURIComponent(rawFilename)}`,
+    };
+  }
+
+  public resolveExportFile(token: string): FileResolveResult | null {
+    if (!token) return null;
+    const cleanToken = basename(token);
+    const exportDir = join(this.uploadsRoot, 'temp-exports');
+    const filePath = join(exportDir, cleanToken);
+    if (!existsSync(filePath)) return null;
+
+    try {
+      const stats = statSync(filePath);
+      const ext = extname(cleanToken).toLowerCase();
+      return {
+        fullPath: filePath,
+        fileName: cleanToken,
+        mimeType: MIME_TYPES[ext] || 'application/octet-stream',
+        size: stats.size,
+      };
+    } catch {
+      return null;
+    }
+  }
 }
+

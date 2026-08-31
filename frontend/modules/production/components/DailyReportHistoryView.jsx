@@ -67,6 +67,16 @@ export default function DailyReportHistoryView({
   const [shiftFilter, setShiftFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(typeof window !== 'undefined' && window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -536,9 +546,9 @@ export default function DailyReportHistoryView({
         minWidth: 0,
         boxSizing: 'border-box'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', width: '100%', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', width: '100%', minWidth: 0 }}>
           {/* Preset Buttons */}
-          <div className="erp-tab-scroll-bar" style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '10px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0 }}>
+          <div className="erp-tab-scroll-bar" style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '10px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0, width: isMobile ? '100%' : 'auto' }}>
             {['All', 'Today', 'Yesterday', 'This Week', 'This Month'].map(p => (
               <button
                 key={p}
@@ -548,6 +558,8 @@ export default function DailyReportHistoryView({
                   setPage(1);
                 }}
                 style={{
+                  flex: isMobile ? '1 1 auto' : 'none',
+                  whiteSpace: 'nowrap',
                   padding: '6px 12px',
                   borderRadius: '8px',
                   border: 'none',
@@ -564,39 +576,41 @@ export default function DailyReportHistoryView({
             ))}
           </div>
 
-          {/* Shift Filter */}
-          <select
-            value={shiftFilter}
-            onChange={(e) => { setShiftFilter(e.target.value); setPage(1); }}
-            className="form-select"
-            style={{ margin: 0, fontSize: '13px', width: '140px' }}
-          >
-            <option value="All">All Shifts</option>
-            <option value="Morning">Morning</option>
-            <option value="Night">Night</option>
-            <option value="General">General</option>
-          </select>
+          <div style={{ display: 'flex', gap: '8px', width: isMobile ? '100%' : 'auto', flex: isMobile ? '1 1 100%' : 'none' }}>
+            {/* Shift Filter */}
+            <select
+              value={shiftFilter}
+              onChange={(e) => { setShiftFilter(e.target.value); setPage(1); }}
+              className="form-select"
+              style={{ margin: 0, fontSize: '13px', flex: 1, minWidth: '110px' }}
+            >
+              <option value="All">All Shifts</option>
+              <option value="Morning">Morning</option>
+              <option value="Night">Night</option>
+              <option value="General">General</option>
+            </select>
 
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            className="form-select"
-            style={{ margin: 0, fontSize: '13px', width: '150px' }}
-          >
-            <option value="All">All Statuses</option>
-            <option value="DRAFT">DRAFT</option>
-            <option value="SUBMITTED">SUBMITTED</option>
-            <option value="APPROVED">APPROVED</option>
-            <option value="REOPENED">REOPENED</option>
-          </select>
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+              className="form-select"
+              style={{ margin: 0, fontSize: '13px', flex: 1, minWidth: '110px' }}
+            >
+              <option value="All">All Statuses</option>
+              <option value="DRAFT">DRAFT</option>
+              <option value="SUBMITTED">SUBMITTED</option>
+              <option value="APPROVED">APPROVED</option>
+              <option value="REOPENED">REOPENED</option>
+            </select>
+          </div>
 
           {/* Search Box */}
-          <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
+          <div style={{ position: 'relative', width: isMobile ? '100%' : 'auto', flex: isMobile ? '1 1 100%' : 1, minWidth: isMobile ? '100%' : '220px' }}>
             <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             <input
               type="text"
-              placeholder="Search Report No, Product Code, Name, Size..."
+              placeholder="Search Report No, Product Code, Name..."
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               className="form-input"
@@ -607,23 +621,25 @@ export default function DailyReportHistoryView({
 
         {/* Custom Date Range if preset is All */}
         {preset === 'All' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', gap: '8px', fontSize: '12px', width: '100%' }}>
             <span style={{ fontWeight: '700', color: '#64748b' }}>Custom Range:</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-              className="form-input"
-              style={{ margin: 0, width: '150px', fontSize: '12px' }}
-            />
-            <span style={{ color: '#94a3b8' }}>to</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
-              className="form-input"
-              style={{ margin: 0, width: '150px', fontSize: '12px' }}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', flex: 1 }}>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+                className="form-input"
+                style={{ margin: 0, flex: 1, minWidth: 0, fontSize: '12px' }}
+              />
+              <span style={{ color: '#94a3b8' }}>to</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+                className="form-input"
+                style={{ margin: 0, flex: 1, minWidth: 0, fontSize: '12px' }}
+              />
+            </div>
           </div>
         )}
       </div>
