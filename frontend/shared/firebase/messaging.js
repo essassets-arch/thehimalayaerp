@@ -7,7 +7,7 @@ const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || 'BDO2LpNii_w92F7
 const getAuthToken = () => {
   if (typeof window === 'undefined') return null;
   const hasAuthStorage = localStorage.getItem('auth-storage');
-  let token = localStorage.getItem('token');
+  let token = localStorage.getItem('token') || sessionStorage.getItem('token');
   if (!token && hasAuthStorage) {
     try {
       const auth = JSON.parse(hasAuthStorage);
@@ -20,10 +20,12 @@ const getAuthToken = () => {
 /**
  * Register FCM device token on backend.
  */
-const sendTokenToServer = async (fcmToken) => {
+export const sendTokenToServer = async (fcmToken) => {
   try {
     const token = getAuthToken();
-    if (!token) return;
+    if (!token) return false;
+
+    const isMobile = typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
     const res = await fetch('/api/backend/notifications/device-token', {
       method: 'POST',
@@ -33,7 +35,7 @@ const sendTokenToServer = async (fcmToken) => {
       },
       body: JSON.stringify({
         token: fcmToken,
-        deviceType: 'web',
+        deviceType: isMobile ? 'mobile' : 'web',
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
       }),
     });
@@ -41,12 +43,17 @@ const sendTokenToServer = async (fcmToken) => {
     const data = await res.json().catch(() => ({}));
     if (res.ok || data.success) {
       console.log('[Firebase Client] Token registered successfully on backend.');
-      localStorage.setItem('registered_fcm_token', fcmToken);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('registered_fcm_token', fcmToken);
+      }
+      return true;
     } else {
       console.warn('[Firebase Client] Backend rejected FCM token registration:', res.status, data);
+      return false;
     }
   } catch (err) {
     console.warn('[Firebase Client] Failed to register token on backend:', err.message);
+    return false;
   }
 };
 
@@ -54,7 +61,7 @@ const sendTokenToServer = async (fcmToken) => {
  * Remove/Deactivate FCM token on logout.
  */
 export const deactivateFCMToken = async () => {
-  const currentToken = localStorage.getItem('registered_fcm_token');
+  const currentToken = typeof window !== 'undefined' ? localStorage.getItem('registered_fcm_token') : null;
   if (typeof window !== 'undefined') {
     localStorage.removeItem('fcm_registration_failed');
   }
@@ -74,7 +81,9 @@ export const deactivateFCMToken = async () => {
     });
 
     console.log('[Firebase Client] Token deactivated on backend.');
-    localStorage.removeItem('registered_fcm_token');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('registered_fcm_token');
+    }
   } catch (err) {
     console.warn('[Firebase Client] Failed to deactivate token:', err.message);
   }
@@ -84,17 +93,24 @@ export const deactivateFCMToken = async () => {
  * Main permission requesting and token registration flow.
  */
 export const initializePushNotifications = async () => {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
-    return;
+  if (typeof window === 'undefined') {
+    return { success: false, error: 'SSR environment' };
   }
-  console.log('[Firebase Client] Raw VAPID_KEY from env:', VAPID_KEY);
 
+  // Detect iOS Safari without Notification support
+  if (!('Notification' in window)) {
+    return { success: true, unsupported: true, message: 'Notifications unsupported on this browser platform' };
+  }
+
+  if (!('serviceWorker' in navigator)) {
+    return { success: false, error: 'Service Worker not supported' };
+  }
 
   try {
     const supported = await isSupported();
     if (!supported || !app) {
       console.log('[Firebase Client] Messaging not supported or configured — skipping push setup.');
-      return;
+      return { success: true, unsupported: true, message: 'Firebase Messaging unsupported' };
     }
 
     const messagingInstance = getMessaging(app);
@@ -103,30 +119,18 @@ export const initializePushNotifications = async () => {
     const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
     await navigator.serviceWorker.ready;
 
-    // 2. Request notification permission
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-      console.log('[Firebase Client] Notification permission denied by user.');
-      return;
-    }
-
+    // 2. Validate VAPID key
     const validateVapidKey = (value) => {
       if (!value) return null;
       const key = String(value).trim().replace(/^['"]|['"]$/g, '').trim();
-      if (!key || key === 'undefined' || key === 'null') {
-        return null;
-      }
-      // Valid VAPID keys can be standard Base64 (+, /, =) or URL-safe Base64 (-, _)
-      if (!/^[A-Za-z0-9_\-+/=]+$/.test(key)) {
-        console.warn("[Firebase Client] NEXT_PUBLIC_FIREBASE_VAPID_KEY contains invalid characters. Push notifications disabled.");
-        return null;
-      }
+      if (!key || key === 'undefined' || key === 'null') return null;
+      if (!/^[A-Za-z0-9_\-+/=]+$/.test(key)) return null;
       return key;
     };
 
     const cleanVapidKey = validateVapidKey(VAPID_KEY);
     if (!cleanVapidKey) {
-      return;
+      return { success: false, error: 'Invalid VAPID key' };
     }
 
     // 3. Fetch FCM token
@@ -135,23 +139,21 @@ export const initializePushNotifications = async () => {
       vapidKey: cleanVapidKey,
     });
 
-    if (fcmToken) {
-      console.log('[Firebase Client] FCM token obtained.');
-      // Always upsert the token for the authenticated user.  A local marker
-      // only tells us that this browser obtained a token before; it cannot
-      // prove the backend still has a row (database reset, logout, cleanup,
-      // or a different user on the same browser).  This also refreshes
-      // lastSeenAt on each browser refresh.
-      await sendTokenToServer(fcmToken);
+    if (!fcmToken) {
+      return { success: false, error: 'Failed to obtain FCM token' };
     }
 
-    // 4. Foreground FCM Listener: Refetches Bell unread list/count and shows toast
+    console.log('[Firebase Client] FCM token obtained successfully.');
+
+    // 4. Send token to backend
+    const registered = await sendTokenToServer(fcmToken);
+
+    // 5. Foreground FCM Listener
     onMessage(messagingInstance, (payload) => {
       console.log('[Firebase Client] Foreground push received:', payload);
       const title = payload.notification?.title || payload.data?.title || 'New Notification';
       const body = payload.notification?.body || payload.data?.message || '';
 
-      // Trigger store refetch and toast
       const store = useNotificationStore.getState();
       if (store.fetchNotifications) {
         store.fetchNotifications();
@@ -160,25 +162,29 @@ export const initializePushNotifications = async () => {
         store.showToast(`${title}: ${body}`);
       }
 
-      // FCM does not automatically display a system notification while the
-      // page is in the foreground.  Show it explicitly so foreground and
-      // background deliveries have the same visible behaviour.
+      // Mobile compatible showNotification via Service Worker registration
       if (Notification.permission === 'granted') {
-        try {
-          new Notification(title, {
-            body,
-            icon: '/icon.png',
-            data: { route: payload.data?.route || '/' },
+        if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+          navigator.serviceWorker.ready.then((reg) => {
+            reg.showNotification(title, {
+              body,
+              icon: '/icon.png',
+              badge: '/icon.png',
+              data: { route: payload.data?.route || '/' },
+            });
+          }).catch((err) => {
+            console.warn('[Firebase Client] showNotification error:', err);
           });
-        } catch (error) {
-          console.warn('[Firebase Client] Unable to display foreground notification:', error);
         }
       }
     });
+
+    return { success: true, token: fcmToken, backendRegistered: registered };
   } catch (err) {
-    console.warn('[Firebase Client] Error setting up push notifications:', err.message);
+    console.warn('[Firebase Client] Error setting up push notifications:', err?.message || err);
     if (typeof window !== 'undefined') {
       localStorage.setItem('fcm_registration_failed', 'true');
     }
+    return { success: false, error: err?.message || 'Unknown push initialization error' };
   }
 };
