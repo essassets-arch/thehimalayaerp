@@ -36,7 +36,7 @@ async function runSuperSalesIsolationTest() {
     const samplesService = new SamplesService(prismaService as any, sequenceService);
     const paymentsService = new PaymentsService(prismaService as any, workflowService, sequenceService);
     const crmInsightsService = new CrmInsightsService(prismaService as any);
-    const complaintsService = new CustomerComplaintsService(prismaService as any);
+    const complaintsService = new CustomerComplaintsService(prismaService as any, sequenceService as any);
     const returnsService = new SalesReturnsService(prismaService as any);
     const replacementsService = new ReplacementsService(prismaService as any);
 
@@ -94,8 +94,14 @@ async function runSuperSalesIsolationTest() {
     const ss2LeadsAfterCheck = await prisma.lead.count({ where: { salesExecutiveId: ss2Id } });
     console.log(`  SuperSales 2 Baseline Verified: ${ss2LeadsAfterCheck} lead(s) intact.\n`);
 
-    // Clean any previous test leads created by SS1 during test runs
-    await prisma.lead.deleteMany({ where: { salesExecutiveId: ss1Id } });
+    // Clean any previous test data created by SS1 during test runs
+    await prisma.sampleHistory.deleteMany({ where: { sampleRequest: { OR: [{ createdById: ss1Id }, { salesExecutiveId: ss1Id }] } } });
+    await prisma.sampleItem.deleteMany({ where: { sampleRequest: { OR: [{ createdById: ss1Id }, { salesExecutiveId: ss1Id }] } } });
+    await prisma.sampleRequest.deleteMany({ where: { OR: [{ createdById: ss1Id }, { salesExecutiveId: ss1Id }] } });
+    await prisma.quotationItem.deleteMany({ where: { quotation: { OR: [{ createdById: ss1Id }, { salesExecutiveId: ss1Id }] } } });
+    await prisma.quotation.deleteMany({ where: { OR: [{ createdById: ss1Id }, { salesExecutiveId: ss1Id }] } });
+    await prisma.leadActivity.deleteMany({ where: { lead: { OR: [{ createdById: ss1Id }, { salesExecutiveId: ss1Id }] } } });
+    await prisma.lead.deleteMany({ where: { OR: [{ createdById: ss1Id }, { salesExecutiveId: ss1Id }] } });
 
     // 2. SuperSales 1 Fresh State Verification
     console.log('--- 2. SUPERSALES 1 FRESH STATE VERIFICATION ---');
@@ -125,7 +131,7 @@ async function runSuperSalesIsolationTest() {
       console.log('  [PASS] SuperSales 1 account starts completely fresh (0 Leads, 0 Quotations, 0 Orders, 0 Samples, 0 Payments, ₹0 Revenue)');
     } else {
       console.error('  [FAIL] SuperSales 1 account leaked data!');
-      console.error(`  Leads: ${ss1Leads.length}, Quotations: ${ss1Quotations.length}, Orders: ${ss1Orders.data.length}, Revenue: ${ss1Dashboard.metrics.salesRevenue}`);
+      console.error(`  Leads: ${ss1Leads.length}, Quotations: ${ss1Quotations.length}, Orders: ${ss1Orders.data.length}, Samples: ${ss1Samples.length}, Payments: ${ss1Payments.length}, Complaints: ${ss1Complaints.length}, Returns: ${ss1Returns.length}, Replacements: ${ss1Replacements.length}, TotalLeads: ${ss1Dashboard.metrics.totalLeads}, Revenue: ${ss1Dashboard.metrics.salesRevenue}`);
       allPassed = false;
     }
 

@@ -24,7 +24,7 @@ export function isSalespersonScopedRole(role?: string): boolean {
   const normalizedRole = String(role)
     .toUpperCase()
     .replace(/[\s-]+/g, '_');
-  return ['SALES_EXECUTIVE', 'SALES_INTERN'].includes(
+  return ['SALES_EXECUTIVE', 'SALES_INTERN', 'SUPER_SALES'].includes(
     normalizedRole,
   );
 }
@@ -69,7 +69,6 @@ export function getOrderSalesScope(
     OR: [
       { createdById: userId },
       { salesExecutiveId: userId },
-      { salesExecutiveId: null },
       { quotation: { salesExecutiveId: userId } },
       { quotation: { createdById: userId } },
       { sourceQuotation: { salesExecutiveId: userId } },
@@ -89,7 +88,6 @@ export function getSampleSalesScope(
     OR: [
       { createdById: userId },
       { salesExecutiveId: userId },
-      { salesExecutiveId: null },
       { lead: { salesExecutiveId: userId } },
       { lead: { createdById: userId } },
       { lead: { assignedToId: userId } },

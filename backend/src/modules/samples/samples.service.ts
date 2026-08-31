@@ -71,6 +71,11 @@ export class SamplesService {
             leadSalesExecutiveId = anyLead.salesExecutiveId || anyLead.assignedToId || anyLead.createdById;
           }
         }
+        if (isSalespersonScopedRole(role)) {
+          if (leadSalesExecutiveId && leadSalesExecutiveId !== userId) {
+            throw new NotFoundException('Lead not found or access denied');
+          }
+        }
       }
 
       if (!validLeadId && createSampleDto.customerId) {
