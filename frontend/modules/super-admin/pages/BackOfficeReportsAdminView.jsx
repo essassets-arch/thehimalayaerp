@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { backendFetch } from '../../../lib/backendFetch';
 import { apiClient } from '../../../lib/apiClient';
 import DataTable from '../../../shared/components/DataTable';
 import {
@@ -15,7 +16,9 @@ import {
   X,
   Search,
   SlidersHorizontal,
-  UserCheck
+  UserCheck,
+  User,
+  Check
 } from 'lucide-react';
 
 export default function BackOfficeReportsAdminView() {
@@ -53,9 +56,10 @@ export default function BackOfficeReportsAdminView() {
 
   const fetchStaffList = useCallback(async () => {
     try {
-      const res = await apiClient.get('/super-admin/backoffice-reports/staff');
-      if (res && (res.data || Array.isArray(res))) {
-        const list = res.data || res || [];
+      const res = await backendFetch('/api/backend/super-admin/backoffice-reports/staff', { cacheTtlMs: 0 }).catch(() => null)
+        || await apiClient.get('/super-admin/backoffice-reports/staff').catch(() => null);
+      if (res) {
+        const list = Array.isArray(res) ? res : (res.data || res.items || []);
         setStaffList(Array.isArray(list) ? list : []);
       }
     } catch (err) {
@@ -72,12 +76,13 @@ export default function BackOfficeReportsAdminView() {
       if (endDate) params.append('endDate', endDate);
       if (search) params.append('search', search);
 
-      const res = await apiClient.get(`/super-admin/backoffice-reports?${params.toString()}`);
-      if (res && res.data) {
-        const list = res.data.data || res.data || [];
+      const res = await backendFetch(`/api/backend/super-admin/backoffice-reports?${params.toString()}`, { cacheTtlMs: 0 }).catch(() => null)
+        || await apiClient.get(`/super-admin/backoffice-reports?${params.toString()}`).catch(() => null);
+      if (res) {
+        const list = Array.isArray(res) ? res : (res.data?.data || res.data || res.items || []);
         setReports(Array.isArray(list) ? list : []);
-        if (res.data.stats) {
-          setStats(res.data.stats);
+        if (res.stats || res.data?.stats) {
+          setStats(res.stats || res.data?.stats);
         }
       }
     } catch (err) {
@@ -94,6 +99,24 @@ export default function BackOfficeReportsAdminView() {
   useEffect(() => {
     fetchReports();
   }, [fetchReports]);
+
+  // Combined dynamic list of staff members from both the staff API and report records
+  const allStaffOptions = useMemo(() => {
+    const map = new Map();
+    // 1. Add staff from staff endpoint
+    staffList.forEach(s => {
+      if (s && s.id) {
+        map.set(s.id, { id: s.id, name: s.name || s.email, email: s.email || '' });
+      }
+    });
+    // 2. Discover staff from live report records
+    reports.forEach(r => {
+      if (r.user && r.user.id && !map.has(r.user.id)) {
+        map.set(r.user.id, { id: r.user.id, name: r.user.name || 'Back Office Staff', email: r.user.email || '' });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [staffList, reports]);
 
   const handleOpenInspect = (report) => {
     setSelectedReport(report);
@@ -166,7 +189,7 @@ export default function BackOfficeReportsAdminView() {
 
         <button
           type="button"
-          onClick={fetchReports}
+          onClick={() => { fetchStaffList(); fetchReports(); }}
           disabled={loading}
           style={{
             background: '#334155',
@@ -208,7 +231,7 @@ export default function BackOfficeReportsAdminView() {
             <FileText size={isMobile ? 15 : 18} style={{ color: '#0284c7', flexShrink: 0 }} />
           </div>
           <h2 style={{ fontSize: isMobile ? '20px' : '26px', fontWeight: '900', color: '#0f172a', margin: '4px 0 0 0' }}>
-            {stats.totalReports}
+            {stats.totalReports || reports.length}
           </h2>
           <span style={{ fontSize: isMobile ? '10px' : '11px', color: '#94a3b8', display: 'block', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             All-time entries count
@@ -245,87 +268,230 @@ export default function BackOfficeReportsAdminView() {
             <Users size={isMobile ? 15 : 18} style={{ color: '#6366f1', flexShrink: 0 }} />
           </div>
           <h2 style={{ fontSize: isMobile ? '20px' : '26px', fontWeight: '900', color: '#0f172a', margin: '4px 0 0 0' }}>
-            {stats.staffCount}
+            {stats.staffCount || allStaffOptions.length}
           </h2>
           <span style={{ fontSize: isMobile ? '10px' : '11px', color: '#94a3b8', display: 'block', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Active Back Office staff members
+            Active staff members ({allStaffOptions.length} registered)
           </span>
         </div>
 
       </div>
 
-      {/* ── Main Reports Table & Mobile Cards Card ── */}
-      <div style={{ background: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0', padding: isMobile ? '14px' : '20px', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.03)', minWidth: 0, overflow: 'hidden' }}>
+      {/* ── Main Reports Section ── */}
+      <div style={{
+        background: '#ffffff',
+        borderRadius: '16px',
+        border: '1px solid #e2e8f0',
+        padding: isMobile ? '14px 12px' : '20px',
+        boxShadow: '0 4px 12px rgba(15, 23, 42, 0.03)',
+        minWidth: 0,
+        overflow: 'hidden'
+      }}>
         
-        {/* Filters Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-          <div>
-            <h3 style={{ fontSize: isMobile ? '14.5px' : '16px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-              Back Office Reports Roster
-            </h3>
-            <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-              Filter by employee or date range to inspect work items
-            </span>
+        {/* Header & Filter Controls Bar */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: isMobile ? '10px' : '14px',
+          borderBottom: '1px solid #f1f5f9',
+          paddingBottom: isMobile ? '12px' : '16px',
+          marginBottom: '16px'
+        }}>
+          {/* Title Row */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <h3 style={{ fontSize: isMobile ? '15px' : '16.5px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <SlidersHorizontal size={isMobile ? 15 : 17} color="#6366f1" />
+                Back Office Reports Roster
+                <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '12px' }}>
+                  {reports.length} {reports.length === 1 ? 'Report' : 'Reports'}
+                </span>
+              </h3>
+              <p style={{ fontSize: isMobile ? '11.5px' : '12px', color: '#64748b', margin: '2px 0 0 0' }}>
+                Filter reports by title, staff member, and date range
+              </p>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', width: isMobile ? '100%' : 'auto' }}>
+          {/* Dynamic Filters Row with Proper Icon Padding */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: isMobile ? '8px' : '10px',
+            flexWrap: 'wrap',
+            width: '100%'
+          }}>
             
-            {/* Search Input */}
-            <div style={{ position: 'relative', flex: isMobile ? '1 1 100%' : '1 1 200px' }}>
-              <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            {/* 1. Search Input with Dedicated Left Padding */}
+            <div style={{
+              position: 'relative',
+              flex: isMobile ? '1 1 100%' : '1 1 240px',
+              minWidth: isMobile ? '100%' : '200px'
+            }}>
+              <div style={{
+                position: 'absolute',
+                left: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'none',
+                color: '#64748b',
+                zIndex: 2
+              }}>
+                <Search size={15} />
+              </div>
               <input
                 type="text"
-                placeholder="Search report title..."
+                placeholder="Search report title, task, blocker..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 style={{
-                  width: '100%', padding: '7px 10px 7px 30px', borderRadius: '8px', border: '1px solid #cbd5e1',
-                  background: '#f8fafc', fontSize: '12px', fontWeight: '600', color: '#334155', boxSizing: 'border-box', outline: 'none'
+                  width: '100%',
+                  padding: '9px 12px 9px 38px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #cbd5e1',
+                  background: '#f8fafc',
+                  fontSize: '12.5px',
+                  fontWeight: '600',
+                  color: '#1e293b',
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                  transition: 'all 0.15s ease'
                 }}
+                onFocus={e => { e.target.style.borderColor = '#6366f1'; e.target.style.background = '#ffffff'; }}
+                onBlur={e => { e.target.style.borderColor = '#cbd5e1'; e.target.style.background = '#f8fafc'; }}
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: '#e2e8f0',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '18px',
+                    height: '18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#475569',
+                    fontSize: '10px',
+                    fontWeight: '800'
+                  }}
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
-            {/* Employee Filter */}
-            <select
-              value={userFilter}
-              onChange={(e) => setUserFilter(e.target.value)}
-              style={{
-                flex: isMobile ? '1 1 100%' : 'none',
-                padding: '7px 10px', borderRadius: '8px', border: '1px solid #cbd5e1',
-                background: '#f8fafc', fontSize: '12px', fontWeight: '700', color: '#334155', cursor: 'pointer', outline: 'none'
-              }}
-            >
-              <option value="ALL">All Employees</option>
-              {staffList.map(s => (
-                <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
-              ))}
-            </select>
+            {/* 2. Employee Dropdown with Icon */}
+            <div style={{
+              position: 'relative',
+              flex: isMobile ? '1 1 100%' : '1 1 210px',
+              minWidth: isMobile ? '100%' : '180px'
+            }}>
+              <div style={{
+                position: 'absolute',
+                left: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'none',
+                color: '#64748b',
+                zIndex: 2
+              }}>
+                <UserCheck size={15} />
+              </div>
+              <select
+                value={userFilter}
+                onChange={(e) => setUserFilter(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px 9px 36px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #cbd5e1',
+                  background: '#f8fafc',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  color: '#1e293b',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  transition: 'all 0.15s ease'
+                }}
+                onFocus={e => { e.target.style.borderColor = '#6366f1'; e.target.style.background = '#ffffff'; }}
+                onBlur={e => { e.target.style.borderColor = '#cbd5e1'; e.target.style.background = '#f8fafc'; }}
+              >
+                <option value="ALL">All Employees ({allStaffOptions.length} staff)</option>
+                {allStaffOptions.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} {s.email ? `(${s.email})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            {/* Start & End Dates */}
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              placeholder="From Date"
-              style={{
+            {/* 3. Paired Date Pickers */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flex: isMobile ? '1 1 100%' : 'none',
+              width: isMobile ? '100%' : 'auto'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#f8fafc',
+                border: '1.5px solid #cbd5e1',
+                padding: '7px 10px',
+                borderRadius: '10px',
                 flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
-                padding: '7px 10px', borderRadius: '8px', border: '1px solid #cbd5e1',
-                background: '#f8fafc', fontSize: '11.5px', fontWeight: '600', color: '#334155', outline: 'none'
-              }}
-            />
+                boxSizing: 'border-box'
+              }}>
+                <Calendar size={13} color="#64748b" />
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>From:</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '11.5px', fontWeight: '600', color: '#1e293b', outline: 'none', width: '100%' }}
+                />
+              </div>
 
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              placeholder="To Date"
-              style={{
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#f8fafc',
+                border: '1.5px solid #cbd5e1',
+                padding: '7px 10px',
+                borderRadius: '10px',
                 flex: isMobile ? '1 1 calc(50% - 4px)' : 'none',
-                padding: '7px 10px', borderRadius: '8px', border: '1px solid #cbd5e1',
-                background: '#f8fafc', fontSize: '11.5px', fontWeight: '600', color: '#334155', outline: 'none'
-              }}
-            />
+                boxSizing: 'border-box'
+              }}>
+                <Calendar size={13} color="#64748b" />
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>To:</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', fontSize: '11.5px', fontWeight: '600', color: '#1e293b', outline: 'none', width: '100%' }}
+                />
+              </div>
+            </div>
 
+            {/* 4. Reset Filters Button */}
             {(userFilter !== 'ALL' || startDate || endDate || search) && (
               <button
                 type="button"
@@ -336,18 +502,30 @@ export default function BackOfficeReportsAdminView() {
                   setSearch('');
                 }}
                 style={{
-                  padding: '7px 12px', borderRadius: '8px', border: '1px solid #fecaca',
-                  background: '#fff1f2', fontSize: '11.5px', fontWeight: '700', color: '#ef4444', cursor: 'pointer',
-                  flex: isMobile ? '1 1 100%' : 'none'
+                  padding: '8px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid #fecaca',
+                  background: '#fff1f2',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  color: '#e11d48',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  flex: isMobile ? '1 1 100%' : 'none',
+                  minHeight: '38px'
                 }}
               >
-                Clear Filters
+                <X size={13} /> Reset Filters
               </button>
             )}
+
           </div>
         </div>
 
-        {/* Content: Mobile Cards or Desktop DataTable */}
+        {/* Content: Mobile Touch Cards or Desktop DataTable */}
         {loading ? (
           <div style={{ padding: '36px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
             ⏳ Loading Back Office daily reports...
@@ -370,7 +548,8 @@ export default function BackOfficeReportsAdminView() {
                     padding: '12px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '8px'
+                    gap: '8px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -421,7 +600,8 @@ export default function BackOfficeReportsAdminView() {
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '4px'
+                        gap: '4px',
+                        minHeight: '34px'
                       }}
                     >
                       <Eye size={13} /> View Details
