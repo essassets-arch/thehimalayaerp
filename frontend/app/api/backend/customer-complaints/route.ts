@@ -24,7 +24,14 @@ export async function POST(request: NextRequest) {
   const token = authHeader ? authHeader.split(' ')[1] : undefined;
   const idempotencyKey = request.headers.get('Idempotency-Key');
 
-  const body = await request.json().catch(() => ({}));
+  let body = await request.json().catch(() => ({}));
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      // keep
+    }
+  }
 
   return forwardBackendRequest({
     token,
