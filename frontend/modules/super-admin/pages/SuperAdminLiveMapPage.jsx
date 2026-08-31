@@ -543,7 +543,6 @@ export default function SuperAdminLiveMapPage() {
     const socket = io(socketUrl, {
       path: '/socket.io',
       auth: { token: cleanToken },
-      query: { token: cleanToken },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: Infinity,
