@@ -45,6 +45,7 @@ import { isPlanningHistoryOrder, normalizeStatus } from '@/store/domains/shared/
 import { useMaterialRequests } from '../../../hooks/useMaterialRequests';
 import DailyReportHistoryView from '../../production/components/DailyReportHistoryView';
 import AttendanceView from '../../../shared/components/AttendanceView';
+import CustomerComplaintManagement from '../../../components/CustomerComplaintManagement';
 
 const isMaterialMatch = (invName, reqName) => {
   const inv = (invName || '').toLowerCase();
@@ -308,11 +309,11 @@ const normalizeIncomingOrder = (order, sourceQuotation, userMap = {}) => {
   };
 };
 
-export default function PlantHeadPortal() {
+export default function PlantHeadPortal({ overrideView } = {}) {
   const pathname = usePathname();
   const params = useParams();
   const pathSlug = pathname ? pathname.split('/').filter(Boolean) : [];
-  let view = params?.slug?.[0] || (pathSlug.length > 1 ? pathSlug[pathSlug.length - 1] : 'dashboard') || 'dashboard';
+  let view = overrideView || params?.slug?.[0] || (pathSlug.length > 1 ? pathSlug[pathSlug.length - 1] : 'dashboard') || 'dashboard';
   if (view === 'plant-head') view = 'dashboard';
 
   const productId = params?.slug?.[1]; const materialName = params?.slug?.[1];
@@ -5689,8 +5690,9 @@ export default function PlantHeadPortal() {
       {currentView === 'leave-approvals' && <LeaveApprovalView roleMode="PLANT_HEAD" />}
       {currentView === 'daily-reports' && <DailyReportHistoryView roleMode="PLANT_HEAD" />}
       {currentView === 'attendance' && <AttendanceView />}
+      {currentView === 'customer-complaints' && <CustomerComplaintManagement mode="plant-head" />}
 
-      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'purchase-approvals', 'profile', 'leave-approvals', 'daily-reports', 'attendance'].includes(currentView) && (
+      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'customer-complaints', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'purchase-approvals', 'profile', 'leave-approvals', 'daily-reports', 'attendance'].includes(currentView) && (
         <ModulePlaceholder
           title="Module Not Available"
           description="This Plant Head feature is not implemented yet."

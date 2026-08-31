@@ -519,7 +519,7 @@ export default function LeadsView({
     } else if (filter === 'Converted') {
       matchesFilter = s === 'converted' || s === 'won' || s === 'quotationsent' || s === 'quotationgenerated' || smartNorm === 'converted' || smartNorm.includes('quotation');
     } else if (filter === 'Lost') {
-      matchesFilter = s === 'lost' || s === 'cancelled' || s === 'rejected';
+      matchesFilter = s === 'lost' || s === 'cancelled' || s === 'rejected' || Boolean(lead.lostReason) || Boolean(lead.lostComplaintId);
     } else {
       matchesFilter = lead.status === filter || smart === filter;
     }
@@ -984,6 +984,59 @@ export default function LeadsView({
                             <button className="btn-small btn-outline-small" onClick={() => setSelectedLead(lead)}>Open Lead</button>
                           )}
                         </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        ) : filter === 'Lost' ? (
+          <table className="crm-table responsive-table">
+            <thead>
+              <tr>
+                <th>Lead ID</th>
+                <th>Customer</th>
+                <th>Quotation</th>
+                <th>Order</th>
+                <th>Lost Reason</th>
+                <th>Complaint ID</th>
+                <th>Lost Date</th>
+                <th style={{ textAlign: 'center' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLeads.length === 0 ? (
+                <tr><td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>No lost leads.</td></tr>
+              ) : (
+                displayedLeads.map((lead) => {
+                  const linkedQuote = quotations.find((q) => String(q.leadId || q.lead_id) === String(lead.id));
+                  const linkedOrder = orders.find((o) => o.customerName === lead.companyName || (lead.customerId && String(o.customerId) === String(lead.customerId)) || (linkedQuote && String(o.quotationId) === String(linkedQuote.id)));
+                  const lostReason = lead.lostReason || linkedQuote?.lostReason || linkedOrder?.lostReason || 'Customer Complaint';
+                  const complaintNo = lead.lostComplaintId || linkedQuote?.lostComplaintId || linkedOrder?.lostComplaintId || '—';
+                  const lostDate = lead.lostAt ? String(lead.lostAt).slice(0, 10) : (linkedOrder?.lostAt ? String(linkedOrder.lostAt).slice(0, 10) : (lead.updatedAt ? String(lead.updatedAt).slice(0, 10) : '-'));
+
+                  return (
+                    <tr key={lead.id}>
+                      <td style={{ fontWeight: '700', fontFamily: 'monospace' }}>{lead.leadNumber || displayEntityId(lead.id)}</td>
+                      <td style={{ fontWeight: '600' }}>{lead.companyName || lead.customerName || '—'}</td>
+                      <td style={{ fontFamily: 'monospace', fontWeight: '600' }}>{linkedQuote?.quotationNumber || '—'}</td>
+                      <td style={{ fontFamily: 'monospace', fontWeight: '600' }}>{linkedOrder?.orderNumber || linkedOrder?.orderNo || '—'}</td>
+                      <td>
+                        <span style={{ background: '#fef2f2', color: '#b91c1c', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '700' }}>
+                          {lostReason}
+                        </span>
+                      </td>
+                      <td style={{ fontFamily: 'monospace', fontWeight: '700', color: '#2F4375' }}>{complaintNo}</td>
+                      <td style={{ color: '#64748b', fontSize: '12.5px' }}>{lostDate}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          className="btn-small btn-outline-small"
+                          onClick={() => setSelectedLead(lead)}
+                          title="View Details"
+                        >
+                          <Eye size={13} />
+                        </button>
                       </td>
                     </tr>
                   );

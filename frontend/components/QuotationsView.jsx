@@ -565,7 +565,9 @@ export default function QuotationsView({
     } else if (filter === 'Approved') {
       matchesFilter = ['APPROVED', 'QUOTATIONAPPROVED', 'ACCEPTED', 'CONFIRMED', 'CONVERTED', 'WON', 'ORDERED'].includes(qNorm);
     } else if (filter === 'Rejected') {
-      matchesFilter = ['REJECTED', 'QUOTATIONREJECTED', 'DECLINED', 'CANCELLED', 'LOST'].includes(qNorm);
+      matchesFilter = ['REJECTED', 'QUOTATIONREJECTED', 'DECLINED'].includes(qNorm);
+    } else if (filter === 'Lost') {
+      matchesFilter = ['LOST', 'QUOTATIONLOST', 'CANCELLED-LOSS'].includes(qNorm) || Boolean(q.lostReason) || Boolean(q.lostComplaintId);
     } else {
       matchesFilter = qStatus === filter || qNorm === filter.toUpperCase().replace(/[\s-_]+/g, '');
     }
@@ -702,7 +704,7 @@ export default function QuotationsView({
         <div className="module-actions">
           {/* Status filters */}
           <div className="tab-filters-row" style={{ background: '#f1f3f5', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', flexWrap: 'nowrap', width: '100%', maxWidth: '100%' }}>
-            {['All', 'Draft', 'Sent', 'Approved', 'Rejected', 'Reminders'].map(st => (
+            {['All', 'Draft', 'Sent', 'Approved', 'Rejected', 'Lost', 'Reminders'].map(st => (
               <button
                 key={st}
                 className={`filter-pill ${filter === st ? 'active' : ''}`}
@@ -795,6 +797,53 @@ export default function QuotationsView({
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        ) : filter === 'Lost' ? (
+          <table className="crm-table responsive-table flat-table">
+            <thead>
+              <tr>
+                <th>Quotation ID</th>
+                <th>Customer</th>
+                <th>Products</th>
+                <th style={{ textAlign: 'right' }}>Quotation Value</th>
+                <th>Linked Order</th>
+                <th>Lost Reason</th>
+                <th>Complaint ID</th>
+                <th>Lost Date</th>
+                <th style={{ textAlign: 'center' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredQuotations.length === 0 ? (
+                <tr><td colSpan="9" style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>No lost quotations.</td></tr>
+              ) : (
+                displayedQuotations.map((q) => (
+                  <tr key={q.id}>
+                    <td style={{ fontWeight: '700', fontFamily: 'monospace' }}>#{resolveQuotationNumber(q).replace(/^#/, '')}</td>
+                    <td style={{ fontWeight: '600' }}>{resolveQuotationCustomerName(q)}</td>
+                    <td>{renderQuotationProducts(q)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: '700', color: '#dc2626' }}>{formatINR(quotationTotal(q))}</td>
+                    <td style={{ fontFamily: 'monospace', fontWeight: '600' }}>{q.salesOrder?.orderNumber || q.orderNumber || '—'}</td>
+                    <td>
+                      <span style={{ background: '#fef2f2', color: '#b91c1c', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '700' }}>
+                        {q.lostReason || 'Customer Complaint'}
+                      </span>
+                    </td>
+                    <td style={{ fontFamily: 'monospace', fontWeight: '700', color: '#2F4375' }}>{q.lostComplaintId || '—'}</td>
+                    <td style={{ color: '#64748b', fontSize: '12.5px' }}>{q.lostAt ? String(q.lostAt).slice(0, 10) : (q.updatedAt ? String(q.updatedAt).slice(0, 10) : '-')}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        className="btn-small btn-outline-small"
+                        onClick={() => setSelectedQuotation(q)}
+                        title="View Details"
+                      >
+                        <Eye size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         ) : (

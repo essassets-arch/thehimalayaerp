@@ -62,8 +62,10 @@ export default function AuthGuard({ children }: AuthGuardProps) {
         return;
       }
 
-      // Case 1: Token in memory & not a demo token — allow render
-      if (accessToken && !accessToken.startsWith('demo-token-')) {
+      // Case 1: Token in memory or persisted in storage & not a demo token — allow render
+      const effectiveToken = accessToken || (typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('himalaya_token') || sessionStorage.getItem('token')) : null);
+      if (effectiveToken && !effectiveToken.startsWith('demo-token-')) {
+        if (!accessToken) setAccessToken(effectiveToken);
         if (!cancelled) setStatus('allowed');
         return;
       }

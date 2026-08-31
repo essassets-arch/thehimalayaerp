@@ -95,6 +95,7 @@ export const navigationConfig = {
     { id: 'purchase-approvals', label: 'Purchase Approvals', icon: FileCheck, path: '/plant-head/purchase-approvals' },
     { id: 'replacements', label: 'Replacement Requests', icon: RefreshCw, path: '/plant-head/replacements' },
     { id: 'returns', label: 'Return Requests', icon: RefreshCw, path: '/plant-head/returns' },
+    { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/plant-head/customer-complaints', group: 'Planning Board' },
     {
       id: 'analytics-and-reports',
       label: 'Analytics & Reports',

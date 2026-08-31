@@ -21,6 +21,7 @@ import {
   FileCheck,
   Sparkles,
   AlertTriangle,
+  TrendingDown,
   Bell
 } from 'lucide-react';
 import {
@@ -406,11 +407,17 @@ export default function DashboardView({
   const orderValue = (order) => Number(order.grandTotal ?? order.grand_total ?? order.totalValue ?? order.totalAmount ?? order.total_amount ?? order.total ?? order.invoiceAmount ?? order.payment?.totalAmount ?? 0);
   const orderQuantity = (order) => Number(order.quantity || order.totalQuantity || order.qty || (Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + Number(item.quantity || item.qty || 0), 0) : 0));
 
-  // An order is counted in "My Sales" when sent to Plant Head or beyond
-  const isWonOrderSentToPlant = (order) => {
+  const isLostOrder = (order) => {
     if (!order) return false;
     const status = String(order.workflowStatus || order.orderStatus || order.status || order.workflowState?.code || order.workflowState?.name || '').toUpperCase().replace(/\s+/g, '_');
-    if (['', 'DRAFT', 'CANCELLED', 'VOID', 'REJECTED'].includes(status)) return false;
+    return status === 'LOST' || status.includes('LOST') || status === 'CANCELLED-LOSS' || Boolean(order.lostReason) || Boolean(order.lossRecord);
+  };
+
+  // An order is counted in "My Sales" when sent to Plant Head or beyond
+  const isWonOrderSentToPlant = (order) => {
+    if (!order || isLostOrder(order)) return false;
+    const status = String(order.workflowStatus || order.orderStatus || order.status || order.workflowState?.code || order.workflowState?.name || '').toUpperCase().replace(/\s+/g, '_');
+    if (['', 'DRAFT', 'CANCELLED', 'VOID', 'REJECTED', 'LOST'].includes(status)) return false;
 
     const planningStatus = String(order.planningStatus || '').toUpperCase();
     const isSentToPlant = 
@@ -424,6 +431,9 @@ export default function DashboardView({
   const wonOrders = filteredOrders.filter(isWonOrderSentToPlant);
   const wonOrdersCount = wonOrders.length;
   const mySalesTotal = wonOrders.reduce((sum, o) => sum + orderValue(o), 0);
+  const lostOrders = filteredOrders.filter(isLostOrder);
+  const lostOrdersCount = lostOrders.length;
+  const lostSalesTotal = lostOrders.reduce((sum, o) => sum + (Number(o.lossRecord?.lostValue) || orderValue(o)), 0);
   const salesTarget = targetData?.monthlyTarget || 0;
   const targetAchievement = targetData?.achievement ?? (salesTarget > 0 ? (mySalesTotal / salesTarget) * 100 : 0);
 
@@ -854,7 +864,7 @@ export default function DashboardView({
               <h3 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '12px', letterSpacing: '0.5px' }}>
                 Performance Metrics
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                 
                 {/* Payment Verification */}
                 <div onClick={() => handleNav('/sales/payment-followup')} style={{
@@ -891,6 +901,30 @@ export default function DashboardView({
                     <span>Won order value</span>
                     <span style={{ color: '#10b981', fontWeight: '800', background: '#dcfce7', padding: '1px 6px', borderRadius: '10px' }}>
                       {wonOrdersCount} {wonOrdersCount === 1 ? 'Won Order' : 'Won Orders'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Lost Sales */}
+                <div onClick={() => handleNav('/sales/customer-complaints')} style={{
+                  cursor: 'pointer', background: '#ffffff', border: '1px solid #fee2e2',
+                  borderLeft: '4px solid #ef4444',
+                  padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px',
+                  boxShadow: 'var(--shadow-card)', transition: 'all 0.2s ease'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#dc2626' }}>Lost Sales</span>
+                    <div style={{ color: '#ef4444', background: '#fef2f2', padding: '5px', borderRadius: '6px' }}>
+                      <TrendingDown size={16} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: '900', color: '#b91c1c' }}>
+                    {formatINR(lostSalesTotal)}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px', color: '#991b1b', fontWeight: '600' }}>
+                    <span>Complaint loss</span>
+                    <span style={{ color: '#dc2626', fontWeight: '800', background: '#fee2e2', padding: '1px 6px', borderRadius: '10px' }}>
+                      {lostOrdersCount} {lostOrdersCount === 1 ? 'Lost Order' : 'Lost Orders'}
                     </span>
                   </div>
                 </div>

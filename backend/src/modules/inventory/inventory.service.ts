@@ -174,26 +174,13 @@ export class InventoryService {
 
     const stockMap = new Map<
       string,
-      { productId: string; warehouseId: string; quantity: number }
+      { productId: string; rawMaterialId?: string | null; warehouseId: string; quantity: number }
     >();
 
     for (const row of grouped) {
-      const targetId = row.productId || row.rawMaterialId;
-      if (!targetId) continue;
-
-      const key = warehouseId ? `${targetId}-${row.warehouseId}` : targetId;
-      if (!stockMap.has(key)) {
-        stockMap.set(key, {
-          productId: targetId,
-          warehouseId: row.warehouseId,
-          quantity: 0,
-        });
-      }
-
-      const item = stockMap.get(key)!;
       const qty = Number(row._sum.quantity || 0);
-
       const typeUpper = (row.type || '').toUpperCase().trim();
+      let delta = 0;
       if (
         [
           'IN',
@@ -205,13 +192,39 @@ export class InventoryService {
           'PURCHASE_DELIVERY',
         ].includes(typeUpper)
       ) {
-        item.quantity += qty;
+        delta = qty;
       } else if (
         ['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(typeUpper)
       ) {
-        item.quantity -= qty;
+        delta = -qty;
       } else if (typeUpper === 'ADJUSTMENT') {
-        item.quantity += qty;
+        delta = qty;
+      }
+
+      if (row.productId) {
+        const key = warehouseId ? `${row.productId}-${row.warehouseId}` : row.productId;
+        if (!stockMap.has(key)) {
+          stockMap.set(key, {
+            productId: row.productId,
+            rawMaterialId: row.rawMaterialId || null,
+            warehouseId: row.warehouseId,
+            quantity: 0,
+          });
+        }
+        stockMap.get(key)!.quantity += delta;
+      }
+
+      if (row.rawMaterialId) {
+        const key = warehouseId ? `${row.rawMaterialId}-${row.warehouseId}` : row.rawMaterialId;
+        if (!stockMap.has(key)) {
+          stockMap.set(key, {
+            productId: row.rawMaterialId,
+            rawMaterialId: row.rawMaterialId,
+            warehouseId: row.warehouseId,
+            quantity: 0,
+          });
+        }
+        stockMap.get(key)!.quantity += delta;
       }
     }
 

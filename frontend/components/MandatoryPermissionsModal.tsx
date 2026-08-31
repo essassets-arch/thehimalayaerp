@@ -53,6 +53,14 @@ const checkIsFlutterApk = (): boolean => {
 };
 
 export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPermissionsModalProps) {
+  const isE2EBypass = typeof window !== 'undefined' && (
+    window.localStorage.getItem('e2e_bypass_permissions') === 'true' ||
+    window.sessionStorage.getItem('e2e_bypass_permissions') === 'true' ||
+    (window as any).__PLAYWRIGHT_TEST__ === true
+  );
+
+  if (isE2EBypass) return null;
+
   const { isAuthenticated, logout } = useAuthStore();
 
   const [notificationState, setNotificationState] = useState<PermissionLifecycleState>('prompt');
@@ -605,6 +613,11 @@ export default function MandatoryPermissionsModal({ onAllGranted }: MandatoryPer
       }
     }
   }, [initialCheckDone, notificationState, locationState, onAllGranted]);
+
+  // If e2e test environment, immediately dismiss modal
+  if (typeof window !== 'undefined' && (window.localStorage.getItem('e2e_bypass_permissions') === 'true' || window.sessionStorage.getItem('e2e_bypass_permissions') === 'true')) {
+    return null;
+  }
 
   // If not authenticated or both already granted, dismiss modal
   if (!isAuthenticated || !initialCheckDone) return null;

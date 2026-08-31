@@ -173,6 +173,7 @@ model User {
   salesExecutiveLeads           Lead[]                 @relation("SalesExecutiveLeads")
   salesExecutiveQuotations      Quotation[]            @relation("SalesExecutiveQuotations")
   customerComplaints            CustomerComplaint[]    @relation("CustomerComplaintSalesExecutive")
+  salesOrderLosses              SalesOrderLoss[]       @relation("SalesOrderLossExecutive")
   salesExecutiveOrders          SalesOrder[]           @relation("SalesExecutiveOrders")
   salesExecutiveSamples         SampleRequest[]        @relation("SalesExecutiveSamples")
   dailyReportsCreated           ProductionDailyReport[] @relation("DailyReportCreatedBy")
@@ -232,6 +233,7 @@ model Customer {
   payments        CustomerPayment[]
   ledgers         CustomerLedger[]
   complaints      CustomerComplaint[]
+  salesOrderLosses SalesOrderLoss[]
 
   @@unique([companyId, gstin])
   @@index([companyId, status])
@@ -275,6 +277,8 @@ model Lead {
 
   nextReminder DateTime?
   lostReason     String?
+  lostAt         DateTime?
+  lostComplaintId String?
   remarks        String?
 
   version Int @default(1)
@@ -375,6 +379,7 @@ model Product {
   PurchaseOrderItem           PurchaseOrderItem[]
   GoodsReceiptNoteItem        GoodsReceiptNoteItem[]
   complaints                  CustomerComplaint[]
+  complaintItems              CustomerComplaintItem[]
   VendorReturnItem            VendorReturnItem[]
   VendorInvoiceItem           VendorInvoiceItem[]
   preferredVendor             Supplier?                    @relation("PreferredVendor", fields: [preferredVendorId], references: [id], onDelete: SetNull)
@@ -1157,6 +1162,9 @@ model Quotation {
   sourceSalesOrders SalesOrder[]    @relation("SalesOrderSourceQuotation")
   items             QuotationItem[]
   selectedTerms     QuotationTerm[]
+  lostReason        String?
+  lostAt            DateTime?
+  lostComplaintId   String?
 
   salesExecutiveId String?
   salesExecutive   User?   @relation("SalesExecutiveQuotations", fields: [salesExecutiveId], references: [id])
@@ -1269,6 +1277,11 @@ model SalesOrder {
   // Kept for backward-compat during migration; to be deprecated
   paymentAllocations  CustomerPaymentAllocation[]
   FinishedGoods       FinishedGoods[]
+  complaints          CustomerComplaint[]
+  lossRecord          SalesOrderLoss?
+  lostReason          String?
+  lostAt              DateTime?
+  lostComplaintId     String?
 
   salesExecutiveId String?
   salesExecutive   User?   @relation("SalesExecutiveOrders", fields: [salesExecutiveId], references: [id])
@@ -1303,6 +1316,7 @@ model SalesOrderItem {
   dispatchItems           DispatchItem[]
   invoiceItems            InvoiceItem[]
   workOrders              WorkOrder[]
+  complaintItems          CustomerComplaintItem[]
 
   @@index([salesOrderId])
   @@index([productId])
@@ -1345,38 +1359,91 @@ model SalesOrderAllocation {
 }
 
 model CustomerComplaint {
-  id            String          @id @default(cuid())
-  complaintNo   String          @unique
-  customerId    String
-  productId     String
-  complaintType String
-  priority      String
-  complaintDate DateTime
-  subject       String
-  description   String
-  salesRemarks  String?
-  attachment    String?
-  status        ComplaintStatus @default(DRAFT)
-  adminRemarks  String?
-  submittedBy   String?
-  submittedAt   DateTime?
-  approvedBy    String?
-  approvedAt    DateTime?
-  rejectedBy    String?
-  rejectedAt    DateTime?
-  createdBy     String
-  updatedBy     String?
-  version       Int      @default(1)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime        @updatedAt
-  salesExecutiveId String?
-  salesExecutive   User?           @relation("CustomerComplaintSalesExecutive", fields: [salesExecutiveId], references: [id])
-  customer         Customer        @relation(fields: [customerId], references: [id])
-  product          Product         @relation(fields: [productId], references: [id])
+  id                  String                  @id @default(cuid())
+  complaintNo         String                  @unique
+  customerId          String
+  orderId             String?
+  productId           String?
+  complaintType       String
+  priority            String
+  complaintDate       DateTime
+  subject             String
+  description         String
+  salesRemarks        String?
+  attachment          String?
+  status              ComplaintStatus         @default(DRAFT)
+  adminRemarks        String?
+  rejectionReason     String?
+  submittedBy         String?
+  submittedAt         DateTime?
+  approvedBy          String?
+  approvedAt          DateTime?
+  rejectedBy          String?
+  rejectedAt          DateTime?
+  plantHeadDecisionAt DateTime?
+  createdBy           String
+  updatedBy           String?
+  version             Int                     @default(1)
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  salesExecutiveId    String?
+
+  salesExecutive      User?                   @relation("CustomerComplaintSalesExecutive", fields: [salesExecutiveId], references: [id])
+  customer            Customer                @relation(fields: [customerId], references: [id])
+  order               SalesOrder?             @relation(fields: [orderId], references: [id])
+  product             Product?                @relation(fields: [productId], references: [id])
+  items               CustomerComplaintItem[]
+  lossRecord          SalesOrderLoss?
 
   @@index([customerId])
+  @@index([orderId])
   @@index([productId])
   @@index([status])
+  @@index([salesExecutiveId])
+}
+
+model CustomerComplaintItem {
+  id                String            @id @default(cuid())
+  complaintId       String
+  orderItemId       String?
+  productId         String
+  orderedQuantity   Decimal           @default(0) @db.Decimal(18, 3)
+  deliveredQuantity Decimal           @default(0) @db.Decimal(18, 3)
+  complaintQuantity Decimal           @default(0) @db.Decimal(18, 3)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  complaint         CustomerComplaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  product           Product           @relation(fields: [productId], references: [id])
+  orderItem         SalesOrderItem?   @relation(fields: [orderItemId], references: [id])
+
+  @@index([complaintId])
+  @@index([productId])
+  @@index([orderItemId])
+}
+
+model SalesOrderLoss {
+  id               String             @id @default(uuid())
+  salesOrderId     String             @unique
+  complaintId      String?            @unique
+  salesExecutiveId String?
+  customerId       String
+  orderValue       Decimal            @db.Decimal(18, 2)
+  lostValue        Decimal            @db.Decimal(18, 2)
+  reason           String
+  remarks          String?
+  lostDate         DateTime           @default(now())
+  createdById      String
+  createdAt        DateTime           @default(now())
+
+  salesOrder       SalesOrder         @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  complaint        CustomerComplaint? @relation(fields: [complaintId], references: [id])
+  customer         Customer           @relation(fields: [customerId], references: [id])
+  salesExecutive   User?              @relation("SalesOrderLossExecutive", fields: [salesExecutiveId], references: [id])
+
+  @@index([salesOrderId])
+  @@index([complaintId])
+  @@index([customerId])
   @@index([salesExecutiveId])
 }
 
@@ -1635,6 +1702,7 @@ enum SalesOrderStatus {
   READY_FOR_DISPATCH
   COMPLETED
   CANCELLED
+  LOST
 }
 
 enum QcStatus {
@@ -1739,9 +1807,13 @@ enum SalesAllocationType {
 
 enum ComplaintStatus {
   DRAFT
+  SUBMITTED
+  PENDING_PLANT_HEAD
   PENDING_SUPER_ADMIN
   APPROVED
   REJECTED
+  RESOLVED
+  CLOSED
 }
 
 enum ReturnReasonCode {

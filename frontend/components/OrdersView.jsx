@@ -514,6 +514,8 @@ export default function OrdersView({
       matchesFilter = isDelivered || stageNorm === 'DELIVERED' || dispatchStatusNorm === 'DELIVERED' || displayStage === 'Delivered';
     } else if (filter === 'Closed') {
       matchesFilter = stageNorm === 'CLOSED' || displayStage === 'Closed';
+    } else if (filter === 'Lost') {
+      matchesFilter = stageNorm === 'LOST' || stageNorm === 'CANCELLED-LOSS' || String(o.status || '').toUpperCase() === 'LOST' || String(o.workflowState || '').toUpperCase() === 'LOST' || Boolean(o.lostReason) || Boolean(o.lossRecord);
     } else {
       matchesFilter = stage === filter || stageNorm === filter.toUpperCase().replace(/[\s-_]+/g, '');
     }
@@ -631,7 +633,7 @@ export default function OrdersView({
         <div className="module-actions">
           {/* Status filters */}
           <div className="tab-filters-row" style={{ background: '#f1f3f5' }}>
-            {['All Orders', 'Open Orders', 'In Production', 'Dispatched', 'Delivered', 'Closed'].map(st => (
+            {['All Orders', 'Open Orders', 'In Production', 'Dispatched', 'Delivered', 'Closed', 'Lost'].map(st => (
               <button 
                 key={st}
                 className={`filter-pill ${filter === st ? 'active' : ''}`}
@@ -672,6 +674,18 @@ export default function OrdersView({
                   <th className={styles.statusCol}>Payment Status</th>
                   <th className={styles.actionsCell}>Action</th>
                 </>
+              ) : filter === 'Lost' ? (
+                <>
+                  <th className={styles.orderIdCol}>Order</th>
+                  <th className={styles.customerCol}>Customer</th>
+                  <th>Sales Person</th>
+                  <th className={styles.valueCol} style={{ textAlign: 'right' }}>Order Value</th>
+                  <th className={styles.valueCol} style={{ textAlign: 'right', color: '#dc2626' }}>Lost Value</th>
+                  <th>Reason</th>
+                  <th>Complaint</th>
+                  <th style={{ minWidth: '110px' }}>Date</th>
+                  <th className={styles.actionsCell}>Action</th>
+                </>
               ) : (
                 <>
                   <th className={styles.orderIdCol}>Order ID</th>
@@ -699,6 +713,48 @@ export default function OrdersView({
                 const paymentKey = String(o.paymentStatus || '').toUpperCase();
                 const paymentLabel = PAYMENT_LABELS[paymentKey] || (paymentKey ? paymentKey.replaceAll('_', ' ') : 'Awaiting Payment');
                 const deliveryDate = o.deliveredAt ? String(o.deliveredAt).slice(0, 10) : (o.expectedDeliveryDate ? String(o.expectedDeliveryDate).slice(0, 10) : '-');
+
+                if (filter === 'Lost') {
+                  const lostReason = o.lostReason || o.lossRecord?.reason || 'Customer Complaint';
+                  const complaintNo = o.lostComplaintId || o.lossRecord?.complaint?.complaintNo || '—';
+                  const lostDate = o.lostAt ? String(o.lostAt).slice(0, 10) : (o.lossRecord?.lostDate ? String(o.lossRecord.lostDate).slice(0, 10) : (o.orderDate ? String(o.orderDate).slice(0, 10) : '-'));
+                  const salesPerson = o.salesPersonName || o.salesExecutive?.name || 'Salesperson';
+                  const lostVal = Number(o.lossRecord?.lostValue ?? total);
+
+                  return (
+                    <tr key={o.id || o.orderNo}>
+                      <td data-label="Order" className={styles.orderIdCol} style={{ fontWeight: 800, fontFamily: 'monospace' }}>{o.orderNo || o.orderNumber}</td>
+                      <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{o.customerName || o.customer?.name || o.customer?.companyName || '—'}</td>
+                      <td data-label="Sales Person" style={{ color: '#475569', fontSize: '13px' }}>{salesPerson}</td>
+                      <td data-label="Order Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
+                      <td data-label="Lost Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800, color: '#dc2626' }}>{formatINR(lostVal)}</td>
+                      <td data-label="Reason">
+                        <span style={{ background: '#fef2f2', color: '#b91c1c', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '700' }}>
+                          {lostReason}
+                        </span>
+                      </td>
+                      <td data-label="Complaint" style={{ fontFamily: 'monospace', fontWeight: '700', color: '#2F4375' }}>
+                        {complaintNo}
+                      </td>
+                      <td data-label="Date" style={{ color: '#64748b', fontSize: '12.5px' }}>{lostDate}</td>
+                      <td data-label="Action" className={styles.actionsCell}>
+                        <button
+                          title="View"
+                          onClick={() => setSelectedOrder(o)}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: '30px', height: '30px',
+                            background: '#ffffff', border: '1px solid #d1d5db',
+                            borderRadius: '8px', cursor: 'pointer',
+                            color: '#374151'
+                          }}
+                        >
+                          <Eye size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                }
 
                 if (filter === 'Delivered') {
                   return (

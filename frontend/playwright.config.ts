@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  testMatch: ["**/api-bridge/**/*.spec.ts", "**/browser/**/*.spec.ts", "**/responsive/**/*.spec.ts", "**/regression/**/*.spec.ts", "**/security/**/*.spec.ts", "**/data-integrity/**/*.spec.ts"],
+  testMatch: ["**/api-bridge/**/*.spec.ts", "**/browser/**/*.spec.ts", "**/responsive/**/*.spec.ts", "**/regression/**/*.spec.ts", "**/security/**/*.spec.ts", "**/data-integrity/**/*.spec.ts", "**/e2e/**/*.spec.ts"],
   timeout: 45_000,
   expect: {
     timeout: 8_000,

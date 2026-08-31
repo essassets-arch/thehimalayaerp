@@ -145,4 +145,36 @@ export class SequenceService {
 
     return tx ? runner(tx) : this.prisma.$transaction(runner);
   }
+
+  /**
+   * Generates next Customer Complaint number (e.g. CC/2627/0001).
+   * Independent sequence per financial year, collision-safe.
+   */
+  async generateCustomerComplaintNumber(
+    date: Date = new Date(),
+    tx?: Prisma.TransactionClient,
+  ): Promise<string> {
+    const fy = this.getFinancialYearCode(date);
+    const key = `customer_complaint_number_${fy}`;
+    const prefix = `CC/${fy}/`;
+
+    const runner = async (client: Prisma.TransactionClient) => {
+      let candidate = await this.generateNextWithTx(client, key, prefix, 4);
+      let exists = await client.customerComplaint.findFirst({
+        where: { complaintNo: candidate },
+        select: { id: true },
+      });
+
+      while (exists) {
+        candidate = await this.generateNextWithTx(client, key, prefix, 4);
+        exists = await client.customerComplaint.findFirst({
+          where: { complaintNo: candidate },
+          select: { id: true },
+        });
+      }
+      return candidate;
+    };
+
+    return tx ? runner(tx) : this.prisma.$transaction(runner);
+  }
 }

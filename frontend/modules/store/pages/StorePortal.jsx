@@ -584,7 +584,7 @@ export default function StorePortal() {
       const stocks = Array.isArray(stockRes?.data) ? stockRes.data : (stockRes?.data?.data || []);
       
       const enriched = products.map(p => {
-        const stockItem = stocks.find(s => s.productId === p.id);
+        const stockItem = stocks.find(s => s.productId === p.id || s.rawMaterialId === p.id || (p.sku && s.sku === p.sku));
         const qty = stockItem ? Number(stockItem.quantity) : 0;
         const min = Number(p.minimumStock) || 0;
         let status;
