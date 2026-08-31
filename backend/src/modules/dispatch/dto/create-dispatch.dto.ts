@@ -81,6 +81,10 @@ export class CreateDispatchDto {
   ewayBillNumber?: string;
 
   @IsOptional()
+  @IsString()
+  dispatchCategory?: string;
+
+  @IsOptional()
   @IsNumber()
   freightAmount?: number;
 

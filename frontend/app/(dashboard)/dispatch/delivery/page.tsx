@@ -157,7 +157,9 @@ export default function DeliveryRunPage() {
     const targetCat = isDispatch2 ? "D2" : "D1";
     const filtered = dispatches.filter((d) => {
       if (d.status !== "OUT_FOR_DELIVERY") return false;
-      const cat = String((d as any).dispatchCategory || (d as any).dispatch_category || "D1").toUpperCase();
+      const rawCat = (d as any).dispatchCategory || (d as any).dispatch_category;
+      if (!rawCat) return true;
+      const cat = String(rawCat).toUpperCase();
       if (targetCat === "D1") return cat === "D1" || cat === "DISPATCH 1" || cat === "DISPATCH_1";
       if (targetCat === "D2") return cat === "D2" || cat === "DISPATCH 2" || cat === "DISPATCH_2";
       return true;
@@ -177,7 +179,9 @@ export default function DeliveryRunPage() {
     const targetCat = isDispatch2 ? "D2" : "D1";
     const categoryFiltered = historyDispatches.filter((d) => {
       if (String(d.status || "").toUpperCase() !== "DELIVERED") return false;
-      const cat = String((d as any).dispatchCategory || (d as any).dispatch_category || "D1").toUpperCase();
+      const rawCat = (d as any).dispatchCategory || (d as any).dispatch_category;
+      if (!rawCat) return true;
+      const cat = String(rawCat).toUpperCase();
       if (targetCat === "D1") return cat === "D1" || cat === "DISPATCH 1" || cat === "DISPATCH_1";
       if (targetCat === "D2") return cat === "D2" || cat === "DISPATCH 2" || cat === "DISPATCH_2";
       return true;

@@ -799,6 +799,7 @@ export default function CreateDispatchPage() {
         const payload = {
             salesOrderId: group.salesOrder.id,
             deliveryAddress: groupAddress,
+            dispatchCategory: isDispatch2 ? "D2" : "D1",
             totalWeight: Number(totalWeight) || 0,
             vehicleNumber,
             transporterName,

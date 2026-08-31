@@ -34,8 +34,16 @@ export class DispatchService {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
       });
-      if (user?.dispatchCategory) {
-        scope = { ...scope, dispatchCategory: user.dispatchCategory };
+      if (user?.dispatchCategory && user.dispatchCategory !== 'ALL' && user.dispatchCategory !== 'All') {
+        const cat = user.dispatchCategory.toUpperCase();
+        scope = {
+          ...scope,
+          OR: [
+            { dispatchCategory: cat },
+            { dispatchCategory: cat === 'D1' ? 'DISPATCH 1' : 'DISPATCH 2' },
+            { dispatchCategory: null },
+          ],
+        };
       }
     }
 
@@ -466,18 +474,20 @@ export class DispatchService {
           );
         }
 
-        // Auto-detect D1 vs D2 dispatchCategory from ordered items
-        let detectedCategory = 'D1';
-        for (const item of dto.items) {
-          const soItem = soItemsMap.get(item.salesOrderItemId);
-          if (soItem?.productId) {
-            const prod = await tx.product.findUnique({
-              where: { id: soItem.productId },
-              select: { dispatchCategory: true },
-            });
-            if (prod?.dispatchCategory) {
-              detectedCategory = prod.dispatchCategory;
-              break;
+        // Auto-detect D1 vs D2 dispatchCategory from dto or ordered items
+        let detectedCategory = dto.dispatchCategory || 'D1';
+        if (!dto.dispatchCategory) {
+          for (const item of dto.items) {
+            const soItem = soItemsMap.get(item.salesOrderItemId);
+            if (soItem?.productId) {
+              const prod = await tx.product.findUnique({
+                where: { id: soItem.productId },
+                select: { dispatchCategory: true },
+              });
+              if (prod?.dispatchCategory) {
+                detectedCategory = prod.dispatchCategory;
+                break;
+              }
             }
           }
         }
