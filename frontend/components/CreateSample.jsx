@@ -198,11 +198,16 @@ export default function CreateSample({ leads = [], defaultLeadId, onAddSample, o
           : formattedProducts.map((p) => `${p.productName} (${p.quantity} Pcs)`).join(', '),
       productName: primaryProduct,
       quantity: totalQty,
+      items: formattedProducts.map(p => ({
+        productId: String(p.productId || 'PRD-1'),
+        quantity: Number(p.quantity) || 1,
+        specifications: p.specification || p.productName || 'Sample Item'
+      })),
       products: formattedProducts,
       sampleItems: formattedProducts,
       transportationCost: Number(transportationCost) || 0,
       transportCost: Number(transportationCost) || 0,
-      expectedDeliveryDate: expectedDate
+      expectedDeliveryDate: expectedDate || null
     };
 
     const submitResult = async () => {

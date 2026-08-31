@@ -710,9 +710,16 @@ export const ERPProvider = ({ children }) => {
       const { backendSamplesReadRepository } = await import('../../services/samples/backendSamplesReadRepository');
       const result = await backendSamplesReadRepository.list(params);
 
-      setSamples(Array.isArray(result.data) ? result.data : []);
-      setSamplesPagination(result.meta || result.pagination || { page: 1, pageSize: 25, total: 0 });
-      return result;
+      const items = Array.isArray(result)
+        ? result
+        : Array.isArray(result?.data)
+        ? result.data
+        : Array.isArray(result?.items)
+        ? result.items
+        : [];
+      setSamples(items);
+      setSamplesPagination(result?.meta || result?.pagination || { page: 1, pageSize: 25, total: items.length });
+      return items;
     } catch (error) {
       setSamples([]);
       const errorMsg = error instanceof Error ? error.message : String(error);

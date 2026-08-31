@@ -47,24 +47,57 @@ export class SamplesController {
       return data.map((item) => this.mapSampleStatus(item));
     }
     const statusMap: Record<string, string> = {
-      CREATED: 'SAMPLE_CREATED',
-      PENDING_DISPATCH: 'READY_FOR_DISPATCH',
+      CREATED: 'CREATED',
+      PENDING_DISPATCH: 'PENDING',
+      DISPATCHED: 'SENT',
+      IN_TRANSIT: 'SENT',
+      DELIVERED: 'DELIVERED',
       TESTING: 'UNDER_TESTING',
+      EVALUATION_ACTIVE: 'EVALUATION_ACTIVE',
+      APPROVED: 'APPROVED',
+      REJECTED: 'REJECTED',
+      RETURN_REQUESTED: 'RETURN_REQUESTED',
+      RETURNED: 'RETURNED',
     };
     const leadName =
       data.lead?.companyName ||
       data.lead?.leadNumber ||
       data.customer?.companyName ||
+      data.customer?.customerCode ||
       data.company?.name ||
-      'Unknown Lead/Customer';
-    const product = data.items?.[0]?.product?.name || 'Sample Product';
+      'Lead Customer';
+    
+    const primaryItem = data.items?.[0];
+    const product =
+      data.items && data.items.length > 1
+        ? data.items.map((it: any) => `${it.product?.product_name || it.product?.name || it.specifications || 'Item'} (${it.quantity || 1} Pcs)`).join(', ')
+        : primaryItem?.product?.product_name || primaryItem?.product?.name || primaryItem?.specifications || 'Sample Product';
+    
+    const productName = primaryItem?.product?.product_name || primaryItem?.product?.name || primaryItem?.specifications || 'Sample Product';
+    const quantity = data.items?.reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0) || 1;
+    const contactPerson = data.lead?.contactPerson || data.customer?.contactPerson || '';
+    const phone = data.lead?.phone || data.customer?.phone || '';
+
+    const dispatchStatus = data.dispatchStatus || (data.deliveredAt ? 'Delivered' : data.dispatchDate ? 'In Transit' : 'Pending Dispatch');
+
     return {
       ...data,
       status: statusMap[data.status] || data.status,
       leadName,
       customerName: leadName,
       companyName: leadName,
+      customer: leadName,
       product,
+      productName,
+      quantity,
+      contactPerson,
+      phone,
+      contactPhone: phone,
+      dispatchStatus,
+      delivered: Boolean(data.deliveredAt),
+      deliveredDate: data.deliveredAt,
+      sampleItems: data.items,
+      products: data.items,
     };
   }
 

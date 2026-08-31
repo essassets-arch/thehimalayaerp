@@ -155,10 +155,10 @@ export default function SamplesView({
   };
 
   const handleCreateQuotation = (sample) => {
-    if (onCreateQuotationClick) {
-      onCreateQuotationClick(sample);
-    } else if (onMoveToQuotation) {
+    if (onMoveToQuotation) {
       onMoveToQuotation(sample);
+    } else if (onCreateQuotationClick) {
+      onCreateQuotationClick(sample);
     } else {
       const targetLeadId = sample.leadId || sample.id;
       navigate.push(`/sales/create-quotation?leadId=${encodeURIComponent(targetLeadId)}&sampleId=${sample.id}`);
@@ -350,12 +350,24 @@ export default function SamplesView({
     </div>
   );
 
-  const formatSampleId = (id) => `SMP-${String(id).padStart(3, '0')}`;
+  const formatSampleId = (sampleOrId) => {
+    if (!sampleOrId) return '';
+    if (typeof sampleOrId === 'object') {
+      if (sampleOrId.sampleNumber) return sampleOrId.sampleNumber;
+      if (sampleOrId.sample_number) return sampleOrId.sample_number;
+      sampleOrId = sampleOrId.id;
+    }
+    const str = String(sampleOrId);
+    if (str.startsWith('SMP-')) return str;
+    if (str.length > 10) return `SMP-${str.slice(0, 6).toUpperCase()}`;
+    return `SMP-${str.padStart(3, '0')}`;
+  };
 
   const formatLeadId = (id) => {
     if (!id) return '';
     const idStr = String(id);
     if (idStr.startsWith('LD-')) return idStr;
+    if (idStr.length > 10) return `LD-${idStr.slice(0, 6).toUpperCase()}`;
     return "LD-" + (id > 1000 ? idStr.substring(1) : idStr.padStart(3, '0'));
   };
 
@@ -1570,12 +1582,23 @@ export default function SamplesView({
                 displayedSamples.map((sample) => {
                   const exactInfo = getExactCountdown(sample);
                   const ds = getDispatchStatus(sample);
-                  const isDeliveredOrActive = ds === 'Delivered' || ['Evaluation Active', 'Client Testing', 'Testing', 'Returned', 'Approved'].includes(sample.status);
+                  const isDeliveredOrActive =
+                    ds === 'Delivered' ||
+                    Boolean(sample.deliveredAt) ||
+                    Boolean(sample.deliveredDate) ||
+                    ['DELIVERED', 'Delivered', 'EVALUATION_ACTIVE', 'Evaluation Active', 'CLIENT_TESTING', 'Client Testing', 'UNDER_TESTING', 'Testing', 'Returned', 'RETURNED', 'Approved', 'APPROVED', 'COMPLETED', 'Completed'].includes(String(sample.status || ''));
+
+                  const hasProofOfDelivery = Boolean(
+                    sample.proofOfDelivery ||
+                    sample.podImage ||
+                    sample.dispatchDetails?.proofOfDelivery ||
+                    ['COMPLETED', 'Completed'].includes(String(sample.status || ''))
+                  );
 
                   return (
                     <tr key={sample.id}>
                       <td data-label="ID" style={{ fontWeight: '700' }}>
-                        {formatSampleId(sample.id)}
+                        {formatSampleId(sample)}
                       </td>
                       <td data-label="Customer">
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -1716,28 +1739,48 @@ export default function SamplesView({
                             </button>
                           )}
 
-                          <button
-                            type="button"
-                            onClick={() => handleCreateQuotation(sample)}
-                            style={{
-                              background: '#2F4375',
-                              color: '#ffffff',
-                              border: '1px solid #2F4375',
-                              padding: '6px 12px',
-                              borderRadius: '8px',
-                              fontWeight: '800',
-                              fontSize: '11.5px',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0,
-                              boxShadow: '0 1px 4px rgba(47,67,117,0.3)'
-                            }}
-                          >
-                            Create Quotation →
-                          </button>
+                          {/* Create Quotation button ONLY shows after sample dispatch delivery is done and POD is attached */}
+                          {hasProofOfDelivery ? (
+                            <button
+                              type="button"
+                              onClick={() => handleCreateQuotation(sample)}
+                              style={{
+                                background: '#2F4375',
+                                color: '#ffffff',
+                                border: '1px solid #2F4375',
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                fontWeight: '800',
+                                fontSize: '11.5px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                boxShadow: '0 1px 4px rgba(47,67,117,0.3)'
+                              }}
+                            >
+                              Create Quotation →
+                            </button>
+                          ) : isDeliveredOrActive ? (
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                fontWeight: '700',
+                                color: '#9a3412',
+                                background: '#ffedd5',
+                                border: '1px solid #fed7aa',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                              }}
+                              title="Proof of Delivery (POD) must be uploaded to enable Quotation"
+                            >
+                              ⏳ Awaiting POD
+                            </span>
+                          ) : null}
 
                           {(sample.status === 'Sample Back Requested' || sample.status === 'Return Requested') && (
                             <span className="badge badge-sample-back" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>↩ Sample Back</span>

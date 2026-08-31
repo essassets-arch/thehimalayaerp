@@ -300,6 +300,15 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
   const { refreshSalesOrders, refreshSamples, loadLeads, loadCustomers, createSample } = useSalesBackend();
 
   useEffect(() => {
+    if (currentView === 'samples' && refreshSamples) {
+      void refreshSamples();
+    }
+    if (currentView === 'leads' && loadLeads) {
+      void loadLeads();
+    }
+    if (currentView === 'customers' && loadCustomers) {
+      void loadCustomers();
+    }
     // Load orders on orders view, dashboard, or daily-task
     if ((currentView === 'orders' || currentView === 'dashboard' || currentView === 'daily-task') && loadOrders) {
       void loadOrders();
@@ -347,13 +356,32 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
   /** Move to quotation view, pre-seeding the draft from a sample. */
   const onMoveToQuotation = (sample) => {
-    const customer = sample.leadName || sample.customer || sample.company || '';
-    let items = [];
+    const matchedLead =
+      (leads || []).find(
+        (l) =>
+          String(l.id) === String(sample.leadId) ||
+          String(l.leadId) === String(sample.leadId) ||
+          String(l.leadNumber) === String(sample.leadId) ||
+          (l.companyName && sample.leadName && l.companyName.toLowerCase() === sample.leadName.toLowerCase()) ||
+          (l.companyName && sample.customer && l.companyName.toLowerCase() === sample.customer.toLowerCase())
+      ) ||
+      sample.lead ||
+      {};
 
-    if (sample.products && Array.isArray(sample.products)) {
+    const customer =
+      matchedLead.companyName ||
+      matchedLead.customerName ||
+      matchedLead.customer ||
+      sample.leadName ||
+      sample.customer ||
+      sample.company ||
+      '';
+
+    let items = [];
+    if (sample.products && Array.isArray(sample.products) && sample.products.length > 0) {
       items = sample.products.map((p, idx) => ({
         productId: p.id || p.productId || `PRD-${idx + 1}`,
-        name: p.name || p.productName || '',
+        name: p.name || p.productName || p.product || '',
         description: p.description || p.productDetails || p.specs || '',
         qty: p.sampleQty || p.qty || p.quantity || 1,
         unit: p.unit || 'Units',
@@ -362,10 +390,20 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
           (p.sampleQty || p.qty || p.quantity || 1) *
           (p.estimatedPrice || p.rate || p.price || p.unitPrice || 0),
       }));
+    } else if (matchedLead.products && Array.isArray(matchedLead.products) && matchedLead.products.length > 0) {
+      items = matchedLead.products.map((p, idx) => ({
+        productId: p.id || p.productId || `PRD-${idx + 1}`,
+        name: p.name || p.productName || p.product || '',
+        description: p.description || p.productDetails || p.specs || '',
+        qty: p.qty || p.quantity || 1,
+        unit: p.unit || 'Units',
+        rate: p.estimatedPrice || p.rate || p.price || p.unitPrice || 0,
+        amount: (p.qty || p.quantity || 1) * (p.estimatedPrice || p.rate || p.price || p.unitPrice || 0),
+      }));
     } else {
       items = [{
         productId: sample.productId || 'PRD-1',
-        name: sample.product || sample.productName || '',
+        name: sample.product || sample.productName || 'Commercial Product',
         description: sample.description || sample.productDetails || sample.specs || '',
         qty: sample.quantity || sample.qty || 1,
         unit: sample.unit || 'Units',
@@ -376,17 +414,40 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
       }];
     }
 
-    useERPStore.getState().setQuotationDraft({
+    const draft = {
       customer,
-      company: sample.company || sample.leadName || '',
-      contactPerson: sample.contactPerson || '',
+      customerName: customer,
+      leadId: matchedLead.id || sample.leadId || undefined,
+      company: matchedLead.companyName || sample.company || sample.leadName || '',
+      groupName: matchedLead.groupName || '',
+      contactPerson: matchedLead.contactPerson || sample.contactPerson || '',
+      phone: matchedLead.phone || matchedLead.mobile || sample.phone || '',
+      email: matchedLead.email || sample.email || '',
+      address: matchedLead.address || sample.address || '',
+      gstNumber: matchedLead.gstNumber || matchedLead.gst || sample.gstNumber || '',
+      gstName: matchedLead.gstName || customer,
+      paymentTerms: matchedLead.paymentTerms || sample.paymentTerms || '15 Days',
+      transportCharge: Number(sample.transportCost || matchedLead.transportCharge || 0),
+      notes: matchedLead.remarks || matchedLead.notes || sample.customerFeedback || '',
       items,
+      detailedItems: items,
       source: 'SAMPLE',
       sourceId: sample.id,
-      gstNumber: sample.gstNumber || '',
+    };
+
+    useERPStore.getState().setQuotationDraft(draft);
+    setPrefillQuotationData({
+      ...sample,
+      ...matchedLead,
+      customerName: customer,
+      leadName: customer,
     });
-    setPrefillQuotationData(sample);
-    navigate.push(`${basePath}/create-quotation`);
+
+    if (matchedLead.id) {
+      navigate.push(`${basePath}/create-quotation?leadId=${matchedLead.id}`);
+    } else {
+      navigate.push(`${basePath}/create-quotation`);
+    }
   };
 
   const onAddSampleClick = (sample) => {

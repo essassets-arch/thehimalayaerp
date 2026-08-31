@@ -335,54 +335,86 @@ export default function CreateQuotation({
 
   useEffect(() => {
     if (editingQuotation || hasPrefilledRef.current) return;
-    const sourceLead = matchedLeadFromProps || (legacyQuotationDraft?.source === 'LEAD' ? legacyQuotationDraft : null);
-    if (sourceLead && (sourceLead.companyName || sourceLead.customerName || sourceLead.projectName || sourceLead.customer)) {
+    const sourceLead =
+      matchedLeadFromProps ||
+      (legacyQuotationDraft?.leadId
+        ? leads?.find(
+            (l) =>
+              String(l.id) === String(legacyQuotationDraft.leadId) ||
+              String(l.leadId) === String(legacyQuotationDraft.leadId) ||
+              String(l.leadNumber) === String(legacyQuotationDraft.leadId)
+          )
+        : null) ||
+      legacyQuotationDraft ||
+      null;
+
+    if (
+      sourceLead &&
+      (sourceLead.companyName ||
+        sourceLead.customerName ||
+        sourceLead.projectName ||
+        sourceLead.customer ||
+        sourceLead.company ||
+        prefilledCustomer ||
+        legacyQuotationDraft?.customer ||
+        legacyQuotationDraft?.customerName)
+    ) {
       hasPrefilledRef.current = true;
-      const sourceItems = Array.isArray(sourceLead.detailedItems) && sourceLead.detailedItems.length > 0
-        ? sourceLead.detailedItems
-        : (Array.isArray(sourceLead.items) && sourceLead.items.length > 0 ? sourceLead.items : null);
+      const sourceItems =
+        Array.isArray(legacyQuotationDraft?.detailedItems) && legacyQuotationDraft.detailedItems.length > 0
+          ? legacyQuotationDraft.detailedItems
+          : Array.isArray(legacyQuotationDraft?.items) && legacyQuotationDraft.items.length > 0
+          ? legacyQuotationDraft.items
+          : Array.isArray(sourceLead.detailedItems) && sourceLead.detailedItems.length > 0
+          ? sourceLead.detailedItems
+          : Array.isArray(sourceLead.items) && sourceLead.items.length > 0
+          ? sourceLead.items
+          : null;
 
-      const parsedItems = sourceItems && sourceItems.length > 0
-        ? sourceItems.map((item, idx) => {
-            const qty = item.quantity !== undefined ? item.quantity : (item.qty !== undefined ? item.qty : 1);
-            const price = item.unitPrice !== undefined ? item.unitPrice : (item.price !== undefined ? item.price : item.rate || 0);
-            const discountPct = item.discount ?? item.discountPercent ?? 0;
-            const taxPct = item.tax !== undefined ? item.tax : (item.gstRate !== undefined ? item.gstRate : 18);
-            const spec = item.specification ?? item.productDetails ?? item.description ?? '';
-            const productName = item.productName ?? item.product ?? item.name ?? '';
-            const code = item.productCode ?? item.code ?? item.productId ?? '';
-            const productId = item.productId ?? code;
+      const parsedItems =
+        sourceItems && sourceItems.length > 0
+          ? sourceItems.map((item, idx) => {
+              const qty = item.quantity !== undefined ? item.quantity : (item.qty !== undefined ? item.qty : 1);
+              const price = item.unitPrice !== undefined ? item.unitPrice : (item.price !== undefined ? item.price : item.rate || 0);
+              const discountPct = item.discount ?? item.discountPercent ?? 0;
+              const taxPct = item.tax !== undefined ? item.tax : (item.gstRate !== undefined ? item.gstRate : 18);
+              const spec = item.specification ?? item.productDetails ?? item.description ?? '';
+              const productName = item.productName ?? item.product ?? item.name ?? '';
+              const code = item.productCode ?? item.code ?? item.productId ?? '';
+              const productId = item.productId ?? code;
 
-            return {
-              id: item.id || `lead-item-${idx + 1}`,
-              productName,
-              productDetails: spec,
-              specification: spec,
-              quantity: qty === '' ? '' : Number(qty),
-              unitPrice: price === '' ? '' : Number(price),
-              discount: discountPct === '' ? 0 : Number(discountPct),
-              tax: taxPct === '' ? 18 : Number(taxPct),
-              productId,
-              code,
-            };
-          })
-        : (sourceLead.productInterest || sourceLead.product ? [{
-            id: 'lead-item-1',
-            productName: sourceLead.productInterest || sourceLead.product,
-            productDetails: 'Standard Specification',
-            specification: 'Standard Specification',
-            quantity: sourceLead.estimatedQuantity ? Number(sourceLead.estimatedQuantity) : 1,
-            unitPrice: 100,
-            discount: 0,
-            tax: 18,
-            productId: 'PRD-1',
-            code: 'PRD-1',
-          }] : null);
+              return {
+                id: item.id || `item-${idx + 1}`,
+                productName,
+                productDetails: spec,
+                specification: spec,
+                quantity: qty === '' ? '' : Number(qty),
+                unitPrice: price === '' ? '' : Number(price),
+                discount: discountPct === '' ? 0 : Number(discountPct),
+                tax: taxPct === '' ? 18 : Number(taxPct),
+                productId,
+                code,
+              };
+            })
+          : (sourceLead.productInterest || sourceLead.product || prefilledProduct ? [{
+              id: 'item-1',
+              productName: sourceLead.productInterest || sourceLead.product || prefilledProduct,
+              productDetails: 'Standard Specification',
+              specification: 'Standard Specification',
+              quantity: sourceLead.estimatedQuantity ? Number(sourceLead.estimatedQuantity) : (prefilledQuantity || 1),
+              unitPrice: 100,
+              discount: 0,
+              tax: 18,
+              productId: 'PRD-1',
+              code: 'PRD-1',
+            }] : null);
 
-      const targetCust = sourceLead.companyName || sourceLead.customerName || sourceLead.projectName || sourceLead.customer || '';
+      const targetCust = sourceLead.companyName || sourceLead.customerName || sourceLead.projectName || sourceLead.customer || sourceLead.company || legacyQuotationDraft?.customer || legacyQuotationDraft?.customerName || prefilledCustomer || '';
       const targetGroup = sourceLead.groupName || sourceLead.companyName || targetCust || '';
       const targetGstName = sourceLead.gstName || sourceLead.companyName || sourceLead.customerName || targetCust || '';
-      const targetGstNum = sourceLead.gstNumber || '';
+      const targetGstNum = sourceLead.gstNumber || sourceLead.gst || legacyQuotationDraft?.gstNumber || '';
+      const targetPaymentTerms = sourceLead.paymentTerms || legacyQuotationDraft?.paymentTerms || '15 Days';
+      const targetTransportCharge = Number(legacyQuotationDraft?.transportCharge || sourceLead.transportCharge || 0);
 
       setFormData(prev => ({
         ...prev,
@@ -391,11 +423,13 @@ export default function CreateQuotation({
         gstName: targetGstName || prev.gstName,
         gstNumber: targetGstNum || prev.gstNumber,
         isGstRegistered: targetGstNum ? 'YES' : (prev.isGstRegistered || 'YES'),
-        notes: sourceLead.remarks || sourceLead.notes || prev.notes || '',
+        paymentTerms: targetPaymentTerms || prev.paymentTerms,
+        transportCharge: targetTransportCharge || prev.transportCharge,
+        notes: sourceLead.remarks || sourceLead.notes || legacyQuotationDraft?.notes || prev.notes || '',
         items: (parsedItems && parsedItems.length > 0) ? parsedItems : prev.items
       }));
     }
-  }, [matchedLeadFromProps, legacyQuotationDraft, editingQuotation]);
+  }, [matchedLeadFromProps, legacyQuotationDraft, editingQuotation, leads, prefilledCustomer, prefilledProduct, prefilledQuantity]);
 
   const {
     customerName, groupName, isGstRegistered, gstNumber, gstName, validTill, paymentTerms,

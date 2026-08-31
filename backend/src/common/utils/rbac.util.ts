@@ -24,7 +24,7 @@ export function isSalespersonScopedRole(role?: string): boolean {
   const normalizedRole = String(role)
     .toUpperCase()
     .replace(/[\s-]+/g, '_');
-  return ['SALES_EXECUTIVE', 'SALES_INTERN', 'SUPER_SALES'].includes(
+  return ['SALES_EXECUTIVE', 'SALES_INTERN'].includes(
     normalizedRole,
   );
 }
@@ -34,7 +34,7 @@ export function canAssignSalesOwner(role?: string): boolean {
   const normalizedRole = String(role)
     .toUpperCase()
     .replace(/[\s-]+/g, '_');
-  const allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'SUPER_USER', 'SALES_MANAGER'];
+  const allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'SUPER_USER', 'SALES_MANAGER', 'SUPER_SALES'];
   return allowedRoles.includes(normalizedRole);
 }
 
@@ -86,7 +86,14 @@ export function getSampleSalesScope(
   if (!userId)
     throw new UnauthorizedException('User ID required for sales scoping');
   return {
-    OR: [{ createdById: userId }, { salesExecutiveId: userId }],
+    OR: [
+      { createdById: userId },
+      { salesExecutiveId: userId },
+      { salesExecutiveId: null },
+      { lead: { salesExecutiveId: userId } },
+      { lead: { createdById: userId } },
+      { lead: { assignedToId: userId } },
+    ],
   };
 }
 

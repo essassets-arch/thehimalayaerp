@@ -1,11 +1,11 @@
-import { apiClient } from '../../lib/apiClient';
+import { backendFetch } from '@/lib/backendFetch';
 
 export const backendSamplesReadRepository = {
-  list: async () => {
-    return apiClient.get('/api/backend/sales/samples');
+  list: async (params: any = {}) => {
+    return backendFetch<any[]>('/api/backend/sales/samples', { cacheTtlMs: 0 });
   },
   
   getById: async (id: string) => {
-    return apiClient.get(`/api/backend/sales/samples/${id}`);
+    return backendFetch<any>(`/api/backend/sales/samples/${id}`, { cacheTtlMs: 0 });
   }
 };

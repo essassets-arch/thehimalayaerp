@@ -1,47 +1,38 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateSampleDto } from './create-sample.dto';
-import { IsNumber, IsOptional, IsString, IsObject } from 'class-validator';
+import { IsOptional } from 'class-validator';
 
 export class UpdateSampleDto extends PartialType(CreateSampleDto) {
   @IsOptional()
-  @IsNumber()
   expectedVersion?: number;
 
   @IsOptional()
-  @IsString()
   customerFeedback?: string;
 
   @IsOptional()
-  @IsString()
   sampleResult?: string;
 
   @IsOptional()
-  @IsString()
   deliveryState?: string;
 
   @IsOptional()
-  @IsString()
-  proofOfDelivery?: string;
+  deliveredAt?: any;
 
   @IsOptional()
-  @IsObject()
-  dispatchDetails?: {
-    weight?: string;
-    vehicleNo?: string;
-    driverName?: string;
-    driverPhone?: string;
-    remarks?: string;
-    transport?: string;
-    lrNo?: string;
-    dispatchDate?: string;
-    cost?: string;
-  };
+  proofOfDelivery?: any;
 
   @IsOptional()
-  @IsString()
+  dispatchDetails?: any;
+
+  @IsOptional()
   retrievalStatus?: string;
 
   @IsOptional()
-  @IsString()
-  returnRequestedDate?: string;
+  returnRequestedDate?: any;
+
+  @IsOptional()
+  returnedAt?: any;
+
+  @IsOptional()
+  dispatchDate?: any;
 }

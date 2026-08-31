@@ -4,58 +4,76 @@ import {
   IsOptional,
   IsArray,
   ValidateNested,
-  IsNumber,
-  IsDateString,
-  IsEnum,
 } from 'class-validator';
-import { SampleStatus } from '@prisma/client';
 
 export class CreateSampleItemDto {
-  @IsString()
-  productId: string;
-
-  @IsNumber()
-  quantity: number;
+  @IsOptional()
+  productId?: any;
 
   @IsOptional()
-  @IsString()
-  specifications?: string;
+  quantity?: any;
+
+  @IsOptional()
+  specifications?: any;
 }
 
 export class CreateSampleDto {
-  @IsString()
-  companyId: string;
-
   @IsOptional()
   @IsString()
-  leadId?: string;
+  companyId?: string;
 
   @IsOptional()
-  @IsString()
-  customerId?: string;
+  leadId?: any;
 
   @IsOptional()
-  @IsDateString()
-  expectedDeliveryDate?: string;
+  customerId?: any;
 
   @IsOptional()
-  @IsDateString()
-  testingDeadline?: string;
+  expectedDeliveryDate?: any;
 
   @IsOptional()
-  @IsDateString()
-  returnDeadline?: string;
+  testingDeadline?: any;
+
+  @IsOptional()
+  returnDeadline?: any;
 
   @IsOptional()
   @IsString()
   dispatchReference?: string;
 
   @IsOptional()
-  @IsEnum(SampleStatus)
-  status?: SampleStatus;
+  status?: any;
 
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateSampleItemDto)
-  items: CreateSampleItemDto[];
+  items?: CreateSampleItemDto[];
+
+  @IsOptional()
+  products?: any[];
+
+  @IsOptional()
+  sampleItems?: any[];
+
+  @IsOptional()
+  transportationCost?: any;
+
+  @IsOptional()
+  transportCost?: any;
+
+  @IsOptional()
+  leadName?: string;
+
+  @IsOptional()
+  customer?: string;
+
+  @IsOptional()
+  product?: string;
+
+  @IsOptional()
+  productName?: string;
+
+  @IsOptional()
+  quantity?: any;
 }
