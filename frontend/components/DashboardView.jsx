@@ -356,53 +356,81 @@ export default function DashboardView({
   const convertedQuotesCount = filteredQuotations.filter(isQuoteConverted).length;
   const quoteToOrderRate = totalQuotesCount > 0 ? ((convertedQuotesCount / totalQuotesCount) * 100) : 0;
 
-  // ──🔹 SECOND ROW: Sales Pipeline metrics ──
-  const pendingSamplesCount = filteredSamples.filter(s => s.status === 'Sent' || s.status === 'Pending').length;
-  const pendingQuotesCount = filteredQuotations.filter(q => q.status === 'Draft' || q.status === 'Sent' || q.status === 'Pending').length;
-  const approvedQuotesCount = filteredQuotations.filter(q => q.status === 'Approved').length;
-  const activeOrdersCount = filteredOrders.filter(o => {
-    const s = String(o.status || '').toLowerCase();
-    return !['completed', 'qc passed', 'qc_passed', 'closed', 'cancelled', 'delivered', 'payment pending', 'payment_pending'].includes(s);
-  }).length;
+  // ──🔹 Pipeline Flow & Step Metrics Calculation ──
+  const activeFollowUpsCount = useMemo(() => {
+    const leadFollowUps = leads.filter(l => {
+      if (!l.followUpDate || l.status === 'Converted' || l.status === 'Won') return false;
+      const d = getCreatedAtDate({ date: l.followUpDate })?.getTime();
+      return d && isTimeWithinFilter(d);
+    }).length;
 
-  // ──🔹 THIRD ROW: Order Progress metrics ──
+    const crmReminders = reminders.filter(r => {
+      if (r.status === 'Completed' || r.isCompleted) return false;
+      const rDate = r.reminderDate || r.reminderAt || r.date || r.createdAt;
+      const d = getCreatedAtDate({ date: rDate })?.getTime();
+      return d && isTimeWithinFilter(d);
+    }).length;
+
+    return leadFollowUps + crmReminders;
+  }, [leads, reminders, timeFilter, customStartDate, customEndDate]);
+
+  const samplesPipelineCount = filteredSamples.length;
+  const quotationsPipelineCount = filteredQuotations.length;
+  const activeOrdersCount = filteredOrders.filter(o => !['cancelled', 'void', 'draft'].includes(String(o.status || o.workflowStatus || '').toLowerCase())).length;
+
   const ordersInProductionCount = filteredOrders.filter(o => {
-    const s = String(o.status || '').toLowerCase();
-    const dept = String(o.currentDepartment || '').toLowerCase();
-    return s === 'production' || s === 'in production' || dept === 'production';
+    const s = String(o.workflowStatus || o.orderStatus || o.status || o.workflowState?.code || o.planningStatus || '').toUpperCase();
+    const dept = String(o.currentDepartment || '').toUpperCase();
+    return (s.includes('PRODUCTION') || s.includes('PLANT') || s.includes('PLAN') || dept.includes('PRODUCTION')) && !s.includes('DISPATCH') && !s.includes('DELIVER') && !['CANCELLED', 'VOID', 'REJECTED', 'DRAFT'].includes(s);
   }).length;
 
   const readyForDispatchCount = filteredOrders.filter(o => {
-    const s = String(o.status || '').toLowerCase();
-    const dsp = String(o.dispatchStatus || '').toLowerCase();
-    return ['ready', 'ready for dispatch', 'qc passed', 'qc_passed'].includes(s) || dsp === 'ready';
+    const s = String(o.workflowStatus || o.orderStatus || o.status || o.dispatchStatus || '').toUpperCase();
+    return (s.includes('DISPATCH') || s.includes('READY') || s.includes('TRANSIT')) && !s.includes('DELIVER') && !s.includes('COMPLETED') && !['CANCELLED', 'VOID', 'REJECTED', 'DRAFT'].includes(s);
   }).length;
 
   const deliveredOrdersCount = filteredOrders.filter(o => {
-    const s = String(o.status || '').toLowerCase();
-    const dsp = String(o.dispatchStatus || '').toLowerCase();
-    return ['delivered', 'completed', 'closed'].includes(s) || dsp === 'delivered';
+    const s = String(o.workflowStatus || o.orderStatus || o.status || o.dispatchStatus || o.deliveryStatus || '').toUpperCase();
+    return s.includes('DELIVER') || s.includes('COMPLETED') || s.includes('CLOSED');
   }).length;
 
   const paymentPendingOrdersCount = filteredOrders.filter(o => {
-    const s = String(o.status || '').toLowerCase();
-    const dsp = String(o.dispatchStatus || '').toLowerCase();
-    return ['payment pending', 'payment_pending'].includes(s) || dsp === 'payment pending' || dsp === 'payment_pending';
+    const s = String(o.workflowStatus || o.orderStatus || o.status || o.paymentStatus || '').toUpperCase();
+    const outstanding = Number(o.outstandingAmount ?? (Number(o.grandTotal || o.totalAmount || 0) - Number(o.verifiedPaidAmount || o.paidAmount || 0)));
+    return s.includes('PAYMENT') || s.includes('PENDING') || s.includes('PARTIAL') || outstanding > 0;
   }).length;
 
   // ──🔹 FOURTH ROW: Performance metrics ──
   const paymentVerificationCount = filteredPayments.filter(p => p.verified === 'Pending' || p.status === 'Pending').length;
-  const mySalesTotal = filteredOrders
-    .filter(o => !['cancelled', 'void', 'draft'].includes(String(o.status || '').toLowerCase()))
-    .reduce((sum, o) => sum + Number(o.grand_total || o.total_amount || 0), 0);
+  
+  const orderValue = (order) => Number(order.grandTotal ?? order.grand_total ?? order.totalValue ?? order.totalAmount ?? order.total_amount ?? order.total ?? order.invoiceAmount ?? order.payment?.totalAmount ?? 0);
+  const orderQuantity = (order) => Number(order.quantity || order.totalQuantity || order.qty || (Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + Number(item.quantity || item.qty || 0), 0) : 0));
+
+  // An order is counted in "My Sales" when sent to Plant Head or beyond
+  const isWonOrderSentToPlant = (order) => {
+    if (!order) return false;
+    const status = String(order.workflowStatus || order.orderStatus || order.status || order.workflowState?.code || order.workflowState?.name || '').toUpperCase().replace(/\s+/g, '_');
+    if (['', 'DRAFT', 'CANCELLED', 'VOID', 'REJECTED'].includes(status)) return false;
+
+    const planningStatus = String(order.planningStatus || '').toUpperCase();
+    const isSentToPlant = 
+      Boolean(order.sentToPlantAt || order.sentToPlantHeadAt || order.isSentToPlant) ||
+      (Array.isArray(order.productionPlans) && order.productionPlans.length > 0) ||
+      ['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD', 'PLANT_PENDING', 'PLANT_APPROVED', 'READY_FOR_PRODUCTION', 'PRODUCTION_PLANNED', 'IN_PRODUCTION', 'QC_PENDING', 'QC_PASSED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'CLOSED', 'PAYMENT_PENDING'].some(st => status.includes(st) || planningStatus.includes(st));
+    
+    return isSentToPlant;
+  };
+
+  const wonOrders = filteredOrders.filter(isWonOrderSentToPlant);
+  const wonOrdersCount = wonOrders.length;
+  const mySalesTotal = wonOrders.reduce((sum, o) => sum + orderValue(o), 0);
   const salesTarget = targetData?.monthlyTarget || 0;
   const targetAchievement = targetData?.achievement ?? (salesTarget > 0 ? (mySalesTotal / salesTarget) * 100 : 0);
-  const orderValue = (order) => Number(order.grandTotal || order.grand_total || order.totalValue || order.total_amount || order.invoiceAmount || 0);
-  const orderQuantity = (order) => Number(order.quantity || order.totalQuantity || order.qty || (Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + Number(item.quantity || item.qty || 0), 0) : 0));
+
   const isConfirmedSalesOrder = (order) => {
     const status = String(order.workflowStatus || order.orderStatus || order.status || '').toUpperCase().replace(/\s+/g, '_');
     return !['', 'DRAFT', 'CANCELLED', 'VOID', 'REJECTED', 'PENDING'].includes(status) &&
-      (status.includes('CONFIRM') || status.includes('APPROV') || ['PLANT_PENDING','PRODUCTION_PLANNED','IN_PRODUCTION','QC_PENDING','QC_PASSED','READY_FOR_DISPATCH','DISPATCHED','IN_TRANSIT','DELIVERED','COMPLETED','CLOSED','PAYMENT_PENDING'].includes(status));
+      (status.includes('CONFIRM') || status.includes('APPROV') || isWonOrderSentToPlant(order));
   };
   const nowForSales = new Date();
   
@@ -467,7 +495,6 @@ export default function DashboardView({
 
   // ──📊 QUICK SUMMARY calculation ──
   const qualifiedLeadsCount = filteredLeads.filter(l => !['Lost', 'Dead', 'Dropped'].includes(l.status)).length;
-  const wonOrdersCount = filteredOrders.filter(o => !['cancelled', 'void', 'draft'].includes(String(o.status || '').toLowerCase())).length;
   const lostLeadsCount = filteredLeads.filter(l => ['Lost', 'Dead', 'Dropped'].includes(l.status)).length;
   const avgOrderValue = wonOrdersCount > 0 ? Math.round(mySalesTotal / wonOrdersCount) : 0;
   const activeCustomersCount = totalCustomersCount;
@@ -673,11 +700,11 @@ export default function DashboardView({
         <div className="sales-flow-pipeline-steps">
           {[
             { label: 'Leads', val: filteredLeads.length, color: '#3b82f6', bg: '#eff6ff', path: '/sales/leads' },
-            { label: 'Follow-ups', val: todayFollowUpsCount + pendingFollowUpsCount, color: '#8b5cf6', bg: '#f5f3ff', path: '/sales/leads' },
-            { label: 'Samples', val: pendingSamplesCount, color: '#f59e0b', bg: '#fffbeb', path: '/sales/samples' },
-            { label: 'Quotations', val: pendingQuotesCount + approvedQuotesCount, color: '#10b981', bg: '#ecfdf5', path: '/sales/quotations' },
+            { label: 'Follow-ups', val: activeFollowUpsCount, color: '#8b5cf6', bg: '#f5f3ff', path: '/sales/daily-task' },
+            { label: 'Samples', val: samplesPipelineCount, color: '#f59e0b', bg: '#fffbeb', path: '/sales/samples' },
+            { label: 'Quotations', val: quotationsPipelineCount, color: '#10b981', bg: '#ecfdf5', path: '/sales/quotations' },
             { label: 'Orders', val: activeOrdersCount, color: '#06b6d4', bg: '#ecfeff', path: '/sales/orders' },
-            { label: 'Production', val: ordersInProductionCount, color: '#f43f5e', bg: '#fff1f2', path: '/sales/production-status' },
+            { label: 'Production', val: ordersInProductionCount, color: '#f43f5e', bg: '#fff1f2', path: '/sales/orders' },
             { label: 'Dispatch', val: readyForDispatchCount, color: '#eab308', bg: '#fefce8', path: '/sales/orders' },
             { label: 'Delivered', val: deliveredOrdersCount, color: '#10b981', bg: '#ecfdf5', path: '/sales/orders' },
             { label: 'Payment', val: paymentPendingOrdersCount, color: '#ef4444', bg: '#fef2f2', path: '/sales/payment-followup' }
@@ -846,7 +873,7 @@ export default function DashboardView({
                 </div>
 
                 {/* My Sales */}
-                <div onClick={() => handleNav('/sales/reports')} style={{
+                <div onClick={() => handleNav('/sales/orders')} style={{
                   cursor: 'pointer', background: '#ffffff', border: '1px solid var(--color-border)',
                   padding: '16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '8px',
                   boxShadow: 'var(--shadow-card)', transition: 'all 0.2s ease'
@@ -858,9 +885,14 @@ export default function DashboardView({
                     </div>
                   </div>
                   <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary)' }}>
-                    ₹{mySalesTotal.toLocaleString('en-IN')}
+                    {formatINR(mySalesTotal)}
                   </div>
-                  <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>Won order value</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                    <span>Won order value</span>
+                    <span style={{ color: '#10b981', fontWeight: '800', background: '#dcfce7', padding: '1px 6px', borderRadius: '10px' }}>
+                      {wonOrdersCount} {wonOrdersCount === 1 ? 'Won Order' : 'Won Orders'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Target Achievement (%) */}
@@ -1087,15 +1119,16 @@ export default function DashboardView({
                 </div>
 
                 {/* My Sales */}
-                <div className="mobile-2col-card" onClick={() => handleNav('/sales/reports')} style={{
+                <div className="mobile-2col-card" onClick={() => handleNav('/sales/orders')} style={{
                   cursor: 'pointer', background: '#ffffff', border: '1px solid var(--color-border)',
                   padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
                   boxShadow: 'var(--shadow-card)'
                 }}>
                   <span style={{ fontSize: '10.5px', fontWeight: '700', color: 'var(--color-text-secondary)' }}>My Sales</span>
                   <span style={{ fontSize: '15px', fontWeight: '900', color: '#10b981', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    ₹{mySalesTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    {formatINR(mySalesTotal)}
                   </span>
+                  <span style={{ fontSize: '9.5px', color: '#10b981', fontWeight: '700' }}>{wonOrdersCount} Won Orders</span>
                 </div>
 
                 {/* Target Achieved */}
