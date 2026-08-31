@@ -291,38 +291,20 @@ export default function Sidebar({ isOpen, onClose }) {
                 <span className="sidebar-profile-name" style={{ fontSize: '12px', fontWeight: '800', color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '1.2' }}>
                   {user.name}
                 </span>
-                <select
-                  value={user.role}
-                  onChange={(e) => {
-                    const targetRole = e.target.value;
-                    const path = DASHBOARD_REDIRECTS[targetRole] || '/';
-                    switchRole(targetRole);
-                    navigate.push(path);
-                  }}
+                <span
                   style={{
-                    fontSize: '10px',
+                    fontSize: '11px',
                     color: 'var(--color-text-secondary)',
                     fontWeight: '600',
                     lineHeight: '1.2',
                     marginTop: '2px',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    padding: 0,
-                    outline: 'none',
-                    width: '100%',
-                    maxWidth: '100%',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
                     textOverflow: 'ellipsis'
                   }}
                 >
-                  {allRoles.map((roleItem, idx) => {
-                    const roleName = typeof roleItem === 'object' && roleItem !== null ? (roleItem.name || roleItem.slug || 'User Role') : String(roleItem || 'User Role');
-                    const roleKey = typeof roleItem === 'object' && roleItem !== null ? (roleItem.id || roleItem.name || roleItem.slug || idx) : `${roleItem}_${idx}`;
-                    return (
-                      <option key={roleKey} value={roleName} style={{ background: '#ffffff', color: '#12161a' }}>{roleName}</option>
-                    );
-                  })}
-                </select>
+                  {typeof user.role === 'object' && user.role !== null ? (user.role.name || user.role.slug || 'User Role') : String(user.role || 'User Role')}
+                </span>
               </div>
             </div>
           )}
