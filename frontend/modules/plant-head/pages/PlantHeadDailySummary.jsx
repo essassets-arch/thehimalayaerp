@@ -1393,112 +1393,88 @@ export const PlantHeadDailySummary = () => {
               </div>
             </div>
 
-            {/* 1. Key Performance Indicators (8-Column Header & Data Table Grid with Responsive Scroll) */}
+            {/* 1. Key Performance Indicators (Responsive Grid) */}
             <div style={{ marginBottom: '18px' }}>
               <h3 style={{ fontSize: '12.5px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', marginBottom: '6px', borderLeft: '4px solid #0284c7', paddingLeft: '8px' }}>1. Key Performance Indicators</h3>
-              <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #94a3b8', borderRadius: '6px' }}>
-                <table className="report-table" style={{ minWidth: '560px', width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: '#f1f5f9', borderBottom: '1.5px solid #cbd5e1', fontSize: '10px', color: '#475569', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', width: '12.5%', border: '1px solid #cbd5e1' }}>Incoming</th>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', width: '12.5%', border: '1px solid #cbd5e1' }}>Planning</th>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', width: '12.5%', border: '1px solid #cbd5e1' }}>Production</th>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', width: '12.5%', border: '1px solid #cbd5e1' }}>MR Pending</th>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', width: '12.5%', border: '1px solid #cbd5e1' }}>Indents</th>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', width: '12.5%', border: '1px solid #cbd5e1' }}>QC Pending</th>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', width: '12.5%', border: '1px solid #cbd5e1' }}>Dispatch</th>
-                      <th style={{ padding: '6px 6px', textAlign: 'center', width: '12.5%', border: '1px solid #cbd5e1' }}>Alerts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr style={{ textAlign: 'center', fontWeight: '900', fontSize: '14px' }}>
-                      <td style={{ padding: '8px 4px', color: '#0284c7', border: '1px solid #cbd5e1' }}>{data?.mainKpis?.incomingOrders || 0}</td>
-                      <td style={{ padding: '8px 4px', color: '#ea580c', border: '1px solid #cbd5e1' }}>{data?.mainKpis?.pendingPlanning || 0}</td>
-                      <td style={{ padding: '8px 4px', color: '#8b5cf6', border: '1px solid #cbd5e1' }}>{data?.mainKpis?.activeProduction || 0}</td>
-                      <td style={{ padding: '8px 4px', color: '#ec4899', border: '1px solid #cbd5e1' }}>{data?.materialRequests?.mrPendingApproval || 0}</td>
-                      <td style={{ padding: '8px 4px', color: '#6366f1', border: '1px solid #cbd5e1' }}>{data?.indents?.indentPendingPlantHead || 0}</td>
-                      <td style={{ padding: '8px 4px', color: '#06b6d4', border: '1px solid #cbd5e1' }}>{data?.qc?.qcPending || 0}</td>
-                      <td style={{ padding: '8px 4px', color: '#16a34a', border: '1px solid #cbd5e1' }}>{data?.dispatch?.dispatchReady || 0}</td>
-                      <td style={{ padding: '8px 4px', color: '#dc2626', border: '1px solid #cbd5e1' }}>{data?.mainKpis?.criticalAlerts || 0}</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(8, 1fr)', gap: '6px', textAlign: 'center' }}>
+                {[
+                  { label: 'Incoming', val: data?.mainKpis?.incomingOrders || 0, color: '#0284c7' },
+                  { label: 'Planning', val: data?.mainKpis?.pendingPlanning || 0, color: '#ea580c' },
+                  { label: 'Production', val: data?.mainKpis?.activeProduction || 0, color: '#8b5cf6' },
+                  { label: 'MR Pending', val: data?.materialRequests?.mrPendingApproval || 0, color: '#ec4899' },
+                  { label: 'Indents', val: data?.indents?.indentPendingPlantHead || 0, color: '#6366f1' },
+                  { label: 'QC Pending', val: data?.qc?.qcPending || 0, color: '#06b6d4' },
+                  { label: 'Dispatch', val: data?.dispatch?.dispatchReady || 0, color: '#16a34a' },
+                  { label: 'Alerts', val: data?.mainKpis?.criticalAlerts || 0, color: '#dc2626' },
+                ].map((kpi, idx) => (
+                  <div key={idx} style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '9px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', lineHeight: '1.2' }}>{kpi.label}</span>
+                    <span style={{ fontSize: '15px', fontWeight: '900', color: kpi.color }}>{kpi.val}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
             {/* 2. Critical Operational Alerts & Bottlenecks */}
             <div style={{ marginBottom: '18px' }}>
               <h3 style={{ fontSize: '12.5px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', marginBottom: '6px', borderLeft: '4px solid #ef4444', paddingLeft: '8px' }}>2. Critical Operational Alerts & Bottlenecks</h3>
-              <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #fecaca', borderRadius: '6px' }}>
-                <table className="report-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-                  <thead>
-                    <tr style={{ background: '#fef2f2', borderBottom: '1.5px solid #fecaca', color: '#991b1b', textTransform: 'uppercase', fontSize: '10px' }}>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', width: '18%', border: '1px solid #fecaca' }}>Priority</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', width: '22%', border: '1px solid #fecaca' }}>Category</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', width: '60%', border: '1px solid #fecaca' }}>Material Code</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data?.attentionRequired && data.attentionRequired.length > 0 ? (
-                      data.attentionRequired.map((att, i) => (
-                        <tr key={i}>
-                          <td style={{ padding: '6px 8px', fontWeight: '900', color: att.priority === 'CRITICAL' ? '#dc2626' : '#d97706', border: '1px solid #fecaca', whiteSpace: 'nowrap' }}>{att.priority}</td>
-                          <td style={{ padding: '6px 8px', fontWeight: '700', color: '#1e293b', border: '1px solid #fecaca' }}>{att.type}</td>
-                          <td style={{ padding: '6px 8px', color: '#0284c7', fontWeight: '700', border: '1px solid #fecaca', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: '1.4' }}>{att.materialCode || att.reference || '—'}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr><td colSpan={3} style={{ padding: '10px', textAlign: 'center', color: '#166534', border: '1px solid #cbd5e1' }}>No critical operational alerts recorded today.</td></tr>
-                    )}
-                  </tbody>
-                </table>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {data?.attentionRequired && data.attentionRequired.length > 0 ? (
+                  data.attentionRequired.map((att, i) => (
+                    <div key={i} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 12px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'flex-start' : 'space-between', alignItems: isMobile ? 'flex-start' : 'center', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                        <span style={{ background: att.priority === 'CRITICAL' ? '#dc2626' : '#d97706', color: '#fff', fontSize: '9.5px', fontWeight: '900', padding: '2px 8px', borderRadius: '4px' }}>{att.priority}</span>
+                        <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1e293b' }}>{att.type}</span>
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#0284c7', fontWeight: '700', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{att.materialCode || att.reference || '—'}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: '10px', textAlign: 'center', color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', fontSize: '11px', fontWeight: '700' }}>No critical operational alerts recorded today.</div>
+                )}
               </div>
             </div>
 
             {/* 3. Departmental Output Summary */}
             <div style={{ marginBottom: '18px' }}>
               <h3 style={{ fontSize: '12.5px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', marginBottom: '6px', borderLeft: '4px solid #10b981', paddingLeft: '8px' }}>3. Departmental Output Summary</h3>
-              <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                <table className="report-table report-dept-table report-dept-grid-mobile" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #cbd5e1' }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ width: isMobile ? '100%' : '50%', padding: '10px 12px', background: '#f8fafc', verticalAlign: 'top', border: '1px solid #cbd5e1' }}>
-                        <div style={{ fontWeight: '900', color: '#0f172a', fontSize: '11.5px', marginBottom: '4px', borderBottom: '1px solid #cbd5e1', paddingBottom: '3px' }}>Sales Orders & Planning</div>
-                        <div style={{ lineHeight: '1.6', color: '#334155' }}>
-                          • Received Today: <strong>{data?.orders?.receivedToday || 0}</strong><br />
-                          • Approved Today: <strong>{data?.orders?.approvedToday || 0}</strong><br />
-                          • Pending Planning: <strong>{data?.planning?.pendingPlanning || 0}</strong>
-                        </div>
-                      </td>
-                      <td style={{ width: isMobile ? '100%' : '50%', padding: '10px 12px', background: '#ffffff', verticalAlign: 'top', border: '1px solid #cbd5e1' }}>
-                        <div style={{ fontWeight: '900', color: '#0f172a', fontSize: '11.5px', marginBottom: '4px', borderBottom: '1px solid #cbd5e1', paddingBottom: '3px' }}>Production Floor & QC</div>
-                        <div style={{ lineHeight: '1.6', color: '#334155' }}>
-                          • Active Work Orders: <strong>{data?.production?.prodRunning || 0}</strong><br />
-                          • Completed Today: <strong>{data?.production?.completedToday || 0}</strong><br />
-                          • QC Failures Today: <strong>{data?.qc?.qcFailedToday || 0}</strong>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style={{ width: isMobile ? '100%' : '50%', padding: '10px 12px', background: '#ffffff', verticalAlign: 'top', border: '1px solid #cbd5e1' }}>
-                        <div style={{ fontWeight: '900', color: '#0f172a', fontSize: '11.5px', marginBottom: '4px', borderBottom: '1px solid #cbd5e1', paddingBottom: '3px' }}>Stores & Inventory</div>
-                        <div style={{ lineHeight: '1.6', color: '#334155' }}>
-                          • Material Requests Approved: <strong>{data?.materialRequests?.mrApprovedToday || 0}</strong><br />
-                          • Raw Material Shortages: <strong>{data?.materialRequests?.mrMaterialShortage || 0}</strong><br />
-                          • Purchase Indents Pending: <strong>{data?.indents?.indentPendingPlantHead || 0}</strong>
-                        </div>
-                      </td>
-                      <td style={{ width: isMobile ? '100%' : '50%', padding: '10px 12px', background: '#f8fafc', verticalAlign: 'top', border: '1px solid #cbd5e1' }}>
-                        <div style={{ fontWeight: '900', color: '#0f172a', fontSize: '11.5px', marginBottom: '4px', borderBottom: '1px solid #cbd5e1', paddingBottom: '3px' }}>Dispatch</div>
-                        <div style={{ lineHeight: '1.6', color: '#334155' }}>
-                          • Ready Dispatch: <strong>{data?.dispatch?.dispatchReady || 0}</strong><br />
-                          • In Transit: <strong>{data?.dispatch?.dispatchInTransit || 0}</strong><br />
-                          • Delivered Today: <strong>{data?.dispatch?.dispatchDeliveredToday || 0}</strong>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: '8px' }}>
+                {/* Card 1: Sales Orders & Planning */}
+                <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                  <div style={{ fontWeight: '900', color: '#0f172a', fontSize: '11.5px', marginBottom: '6px', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px' }}>Sales Orders & Planning</div>
+                  <div style={{ lineHeight: '1.6', color: '#334155', fontSize: '11px' }}>
+                    • Received Today: <strong>{data?.orders?.receivedToday || 0}</strong><br />
+                    • Approved Today: <strong>{data?.orders?.approvedToday || 0}</strong><br />
+                    • Pending Planning: <strong>{data?.planning?.pendingPlanning || 0}</strong>
+                  </div>
+                </div>
+                {/* Card 2: Production Floor & QC */}
+                <div style={{ padding: '10px 12px', background: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                  <div style={{ fontWeight: '900', color: '#0f172a', fontSize: '11.5px', marginBottom: '6px', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px' }}>Production Floor & QC</div>
+                  <div style={{ lineHeight: '1.6', color: '#334155', fontSize: '11px' }}>
+                    • Active Work Orders: <strong>{data?.production?.prodRunning || 0}</strong><br />
+                    • Completed Today: <strong>{data?.production?.completedToday || 0}</strong><br />
+                    • QC Failures Today: <strong>{data?.qc?.qcFailedToday || 0}</strong>
+                  </div>
+                </div>
+                {/* Card 3: Stores & Inventory */}
+                <div style={{ padding: '10px 12px', background: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                  <div style={{ fontWeight: '900', color: '#0f172a', fontSize: '11.5px', marginBottom: '6px', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px' }}>Stores & Inventory</div>
+                  <div style={{ lineHeight: '1.6', color: '#334155', fontSize: '11px' }}>
+                    • Material Requests Approved: <strong>{data?.materialRequests?.mrApprovedToday || 0}</strong><br />
+                    • Raw Material Shortages: <strong>{data?.materialRequests?.mrMaterialShortage || 0}</strong><br />
+                    • Purchase Indents Pending: <strong>{data?.indents?.indentPendingPlantHead || 0}</strong>
+                  </div>
+                </div>
+                {/* Card 4: Dispatch */}
+                <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                  <div style={{ fontWeight: '900', color: '#0f172a', fontSize: '11.5px', marginBottom: '6px', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px' }}>Dispatch</div>
+                  <div style={{ lineHeight: '1.6', color: '#334155', fontSize: '11px' }}>
+                    • Ready Dispatch: <strong>{data?.dispatch?.dispatchReady || 0}</strong><br />
+                    • In Transit: <strong>{data?.dispatch?.dispatchInTransit || 0}</strong><br />
+                    • Delivered Today: <strong>{data?.dispatch?.dispatchDeliveredToday || 0}</strong>
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -3042,9 +3042,14 @@ export default function ProductionPortal() {
             </h3>
 
             {/* Status filters */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div className="tab-filters-row" style={{ background: '#DCE5F0', borderRadius: '10px', padding: '4px', display: 'flex', gap: '4px', width: 'fit-content' }}>
-                {['All', 'REQUESTED', 'RETURNED_FOR_CORRECTION', 'ISSUED'].map(status => {
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+              <div className="tab-filters-row" style={{ background: '#DCE5F0', borderRadius: '10px', padding: '4px', display: 'flex', gap: '4px', width: 'max-content', flexShrink: 0 }}>
+                {[
+                  { key: 'All', label: 'All' },
+                  { key: 'REQUESTED', label: 'Requested' },
+                  { key: 'RETURNED_FOR_CORRECTION', label: 'Returned for Correction' },
+                  { key: 'ISSUED', label: 'Issued' }
+                ].map(({ key: status, label }) => {
                   const count = status === 'All'
                     ? mRequests.filter(r => ['REQUESTED', 'RETURNED_FOR_CORRECTION', 'ISSUED'].includes(r.status)).length
                     : mRequests.filter(r => r.status === status).length;
@@ -3054,9 +3059,9 @@ export default function ProductionPortal() {
                       type="button"
                       className={`filter-pill ${mrStatusFilter === status ? 'active' : ''}`}
                       onClick={() => setMrStatusFilter(status)}
-                      style={{ padding: '6px 16px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12.5px', background: mrStatusFilter === status ? '#fff' : 'transparent', color: mrStatusFilter === status ? '#000' : '#475569', boxShadow: mrStatusFilter === status ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.15s' }}
+                      style={{ padding: '6px 14px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', background: mrStatusFilter === status ? '#fff' : 'transparent', color: mrStatusFilter === status ? '#000' : '#475569', boxShadow: mrStatusFilter === status ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.15s', whiteSpace: 'nowrap' }}
                     >
-                      {status} ({count})
+                      {label} ({count})
                     </button>
                   );
                 })}

@@ -60,14 +60,14 @@ export default function CompletedOrdersPage() {
         const rawSo = wo.productionPlan?.salesOrder?.orderNumber || wo.salesOrder?.orderNumber;
         const numPart = (wo.workOrderNumber || '').replace(/\D/g, '').slice(-5);
         const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
-        return <span className="font-bold text-blue-600 hover:underline">{soNo}</span>;
+        return <span className="font-bold text-blue-600 hover:underline" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{soNo}</span>;
       },
     },
     {
       id: 'product',
       header: 'Product',
       size: 175,
-      cell: ({ row }) => row.original.salesOrderItem?.productNameSnapshot || '—',
+      cell: ({ row }) => <span style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{row.original.salesOrderItem?.productNameSnapshot || '—'}</span>,
     },
     {
       accessorKey: 'quantity',
@@ -80,7 +80,7 @@ export default function CompletedOrdersPage() {
       size: 160,
       cell: ({ row }) =>
         row.original.startedAt
-          ? new Date(row.original.startedAt).toLocaleString()
+          ? <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{new Date(row.original.startedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
           : '—',
     },
     {
@@ -89,7 +89,7 @@ export default function CompletedOrdersPage() {
       size: 160,
       cell: ({ row }) =>
         row.original.completedAt
-          ? new Date(row.original.completedAt).toLocaleString()
+          ? <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>{new Date(row.original.completedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
           : '—',
     },
     {
@@ -109,7 +109,7 @@ export default function CompletedOrdersPage() {
       size: 140,
       cell: ({ row }) =>
         row.original.completedById
-          ? 'User ' + row.original.completedById.slice(0, 8)
+          ? <span style={{ wordBreak: 'break-word' }}>{'User ' + row.original.completedById.slice(0, 8)}</span>
           : '—',
     },
     {
@@ -117,7 +117,9 @@ export default function CompletedOrdersPage() {
       header: 'Current Status',
       size: 140,
       cell: ({ row }) => (
-        <StatusBadge status={row.original.workflowState?.name || row.original.status || 'UNKNOWN'} />
+        <div style={{ display: 'inline-flex', justifyContent: 'flex-end' }}>
+          <StatusBadge status={row.original.workflowState?.name || row.original.status || 'COMPLETED'} />
+        </div>
       ),
     },
   ];

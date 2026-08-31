@@ -125,16 +125,16 @@ export default function ProductionStoreReleasesView() {
       </div>
 
       {/* Filter Bar */}
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px', background: '#fff', padding: '12px 18px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '20px', background: '#fff', padding: isMobile ? '10px 12px' : '12px 18px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
         {/* Search Input */}
-        <div style={{ position: 'relative', width: '100%', minWidth: isMobile ? '100%' : '260px', flex: '1 1 260px' }}>
-          <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+        <div style={{ position: 'relative', width: '100%', minWidth: 0, flex: isMobile ? 'none' : '1 1 280px', maxWidth: isMobile ? '100%' : '380px' }}>
+          <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
           <input
             type="text"
             placeholder="Search order ID, material, request ID…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', background: '#f8fafc', color: '#0f172a' }}
+            style={{ width: '100%', height: '38px', boxSizing: 'border-box', padding: '0 32px 0 36px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', background: '#f8fafc', color: '#0f172a' }}
           />
           {searchTerm && (
             <X size={14} onClick={() => setSearchTerm('')} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', cursor: 'pointer' }} />
@@ -142,7 +142,7 @@ export default function ProductionStoreReleasesView() {
         </div>
 
         {/* Filter Pills */}
-        <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '8px', width: isMobile ? '100%' : 'auto', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '8px', width: isMobile ? '100%' : 'auto', boxSizing: 'border-box', overflowX: 'auto' }}>
           {[
             { key: 'ALL', label: 'All Releases' },
             { key: 'FULL', label: 'Completely Issued' },
@@ -152,9 +152,15 @@ export default function ProductionStoreReleasesView() {
               key={tab.key}
               onClick={() => setStatusFilter(tab.key)}
               style={{
-                flex: isMobile ? 1 : 'none',
+                flex: isMobile ? '1 1 0' : 'none',
+                whiteSpace: 'nowrap',
                 textAlign: 'center',
-                padding: '6px 14px', borderRadius: '6px', border: 'none', fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                padding: isMobile ? '6px 8px' : '6px 14px',
+                borderRadius: '6px',
+                border: 'none',
+                fontSize: isMobile ? '11.5px' : '12px',
+                fontWeight: '700',
+                cursor: 'pointer',
                 background: statusFilter === tab.key ? '#0f172a' : 'transparent',
                 color: statusFilter === tab.key ? '#fff' : '#64748b',
                 transition: 'all 0.15s'

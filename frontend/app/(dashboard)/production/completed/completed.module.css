@@ -309,6 +309,52 @@
         justify-content: center;
     }
 
+    /* Reset desktop column fixed widths on mobile */
+    .panel :global(th),
+    .panel :global(td) {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .panel :global(th:nth-child(1)), .panel :global(td:nth-child(1)),
+    .panel :global(th:nth-child(2)), .panel :global(td:nth-child(2)),
+    .panel :global(th:nth-child(3)), .panel :global(td:nth-child(3)),
+    .panel :global(th:nth-child(4)), .panel :global(td:nth-child(4)),
+    .panel :global(th:nth-child(5)), .panel :global(td:nth-child(5)),
+    .panel :global(th:nth-child(6)), .panel :global(td:nth-child(6)),
+    .panel :global(th:nth-child(7)), .panel :global(td:nth-child(7)),
+    .panel :global(th:nth-child(8)), .panel :global(td:nth-child(8)) {
+        width: 100% !important;
+    }
+
+    .panel :global(.erp-data-table td) {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        gap: 12px !important;
+        padding: 10px 14px !important;
+        text-align: right !important;
+    }
+
+    .panel :global(.erp-data-table td::before) {
+        content: attr(data-label) !important;
+        font-size: 10.5px !important;
+        font-weight: 800 !important;
+        color: #64748b !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.04em !important;
+        flex-shrink: 0 !important;
+        max-width: 45% !important;
+        text-align: left !important;
+    }
+
+    .panel :global(.erp-data-table td > *) {
+        text-align: right !important;
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+    }
+
     .panel :global(.erp-data-table__pagination) {
         gap: 8px;
     }
@@ -320,6 +366,15 @@
     .hero { gap: 10px; padding: 14px; }
     .heroIcon { width: 42px; height: 42px; border-radius: 11px; }
     .heroText h1 { font-size: 17px; }
+
+    .panel :global(.erp-data-table td) {
+        padding: 8px 12px !important;
+    }
+
+    .panel :global(.erp-data-table td::before) {
+        font-size: 9.5px !important;
+        max-width: 42% !important;
+    }
 
     .panel :global(.erp-data-table__pagination) {
         flex-direction: column;

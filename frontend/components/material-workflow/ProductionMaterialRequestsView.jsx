@@ -664,8 +664,16 @@ export default function ProductionMaterialRequestsView() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           
           {/* Filters List */}
-          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-            {['All', 'PENDING_PLANT_HEAD_APPROVAL', 'PLANT_HEAD_APPROVED', 'PLANT_HEAD_REJECTED', 'STORE_APPROVED', 'STORE_REJECTED', 'ISSUED_TO_PRODUCTION'].map(st => {
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', paddingBottom: '6px' }}>
+            {[
+              { key: 'All', label: 'All' },
+              { key: 'PENDING_PLANT_HEAD_APPROVAL', label: 'Pending Plant Head' },
+              { key: 'PLANT_HEAD_APPROVED', label: 'Plant Head Approved' },
+              { key: 'PLANT_HEAD_REJECTED', label: 'Plant Head Rejected' },
+              { key: 'STORE_APPROVED', label: 'Store Approved' },
+              { key: 'STORE_REJECTED', label: 'Store Rejected' },
+              { key: 'ISSUED_TO_PRODUCTION', label: 'Issued to Production' }
+            ].map(({ key: st, label }) => {
               const count = st === 'All' ? materialRequests.length : materialRequests.filter(m => m.status === st).length;
               const active = filterStatus === st;
               return (
@@ -673,7 +681,7 @@ export default function ProductionMaterialRequestsView() {
                   key={st}
                   onClick={() => setFilterStatus(st)}
                   style={{
-                    padding: '6px 14px',
+                    padding: '6px 12px',
                     borderRadius: '8px',
                     border: `1px solid ${active ? '#4f46e5' : '#D6E2F0'}`,
                     background: active ? '#4f46e5' : '#fff',
@@ -683,12 +691,13 @@ export default function ProductionMaterialRequestsView() {
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
-                    whiteSpace: 'nowrap'
+                    gap: '6px',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
                   }}
                 >
-                  {st}
-                  <span style={{ fontSize: '10px', background: active ? 'rgba(255,255,255,0.2)' : '#f1f5f9', color: active ? '#fff' : '#5E6B82', padding: '1px 6px', borderRadius: '10px' }}>
+                  {label}
+                  <span style={{ fontSize: '10px', fontWeight: '800', background: active ? 'rgba(255,255,255,0.25)' : '#f1f5f9', color: active ? '#fff' : '#5E6B82', padding: '1px 6px', borderRadius: '10px' }}>
                     {count}
                   </span>
                 </button>
@@ -698,9 +707,9 @@ export default function ProductionMaterialRequestsView() {
 
           {/* Table Card / Mobile Card Grid */}
           {isMobile ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {filteredRequests.length === 0 ? (
-                <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #DCE5F0', padding: '40px', textAlign: 'center', color: '#8893A7', fontSize: '13px' }}>
+                <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #DCE5F0', padding: isMobile ? '28px 16px' : '40px', textAlign: 'center', color: '#8893A7', fontSize: '13px' }}>
                   No material requests created yet.
                 </div>
               ) : (
