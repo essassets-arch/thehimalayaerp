@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const BACKEND_API_URL =
   process.env.BACKEND_INTERNAL_URL?.replace(/\/$/, '') ??
   process.env.BACKEND_API_URL?.replace(/\/$/, '') ??
-  'http://backend:4000/api/v1';
+  'http://127.0.0.1:4000/api/v1';
 
 export async function POST(request: NextRequest) {
   try {
