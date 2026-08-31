@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+const { PrismaClient } = require('@prisma/client');
 
 async function resetSuperSales1() {
   const dbUrl = process.env.DATABASE_URL || "postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public";
@@ -32,7 +32,7 @@ async function resetSuperSales1() {
       console.log(`Found SuperSales 2: ID = ${ss2Id}, Email = ${ss2User?.email}`);
     }
 
-    // Capture baseline counts for SuperSales 2 and other sales users to verify zero impact
+    // Capture baseline counts for SuperSales 2 to verify zero impact
     const ss2LeadsBefore = ss2Id ? await prisma.lead.count({
       where: { OR: [{ createdById: ss2Id }, { salesExecutiveId: ss2Id }, { assignedToId: ss2Id }] }
     }) : 0;
@@ -66,7 +66,6 @@ async function resetSuperSales1() {
       console.log(`Deleted ${deletedFollowups.count} followups/reminders.`);
 
       // 2. Delete Quotations & Quotation terms/items
-      // Find quotations linked to SS1 or SS1 leads
       const ss1Quotations = await tx.quotation.findMany({
         where: {
           OR: [
@@ -220,7 +219,7 @@ async function resetSuperSales1() {
 
     console.log(`\n>>> [COMPLETE] SuperSales 1 (${ss1User.email}) data wiped clean to fresh 0 records.`);
 
-  } catch (err: any) {
+  } catch (err) {
     console.error(`Error during reset:`, err);
     throw err;
   } finally {
