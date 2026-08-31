@@ -526,16 +526,22 @@ export default function SamplesView({
                           leadId.toLowerCase().includes(search.toLowerCase());
     
     let matchesFilter = false;
+    const sampleStatus = String(sample?.status || '').trim();
+    const sUpper = sampleStatus.toUpperCase().replace(/[\s-_]+/g, '');
+    const ds = String(getDispatchStatus(sample) || '').toUpperCase();
+
     if (filter === 'All') {
       matchesFilter = true;
-    } else if (filter === 'Sent') {
-      const ds = getDispatchStatus(sample);
-      matchesFilter = ['Sent', 'Dispatched', 'Delivered', 'Client Testing', 'Evaluation Active', 'In Transit'].includes(sample?.status || '') || (ds === 'Delivered' && !['Returned', 'Approved', 'Lost'].includes(sample?.status));
     } else if (filter === 'Pending') {
-      const ds = getDispatchStatus(sample);
-      matchesFilter = ['Pending', 'Pending Dispatch', 'Created', 'Requested'].includes(sample?.status || '') && ds !== 'Delivered';
+      matchesFilter = ['PENDING', 'PENDINGDISPATCH', 'CREATED', 'REQUESTED', 'DRAFT', 'NEW'].includes(sUpper) && ds !== 'DELIVERED';
+    } else if (filter === 'Sent') {
+      matchesFilter = ['SENT', 'DISPATCHED', 'DELIVERED', 'CLIENTTESTING', 'EVALUATIONACTIVE', 'INTRANSIT', 'TESTING', 'UNDEREVALUATION'].includes(sUpper) || (ds === 'DELIVERED' && !['RETURNED', 'APPROVED', 'LOST', 'REJECTED', 'FAILED'].includes(sUpper));
+    } else if (filter === 'Approved') {
+      matchesFilter = ['APPROVED', 'PASSED', 'TESTINGPASSED', 'ACCEPTED', 'CONFIRMED', 'CONVERTED'].includes(sUpper);
+    } else if (filter === 'Lost' || filter === 'Rejected') {
+      matchesFilter = ['LOST', 'REJECTED', 'FAILED', 'TESTINGFAILED', 'RETURNED', 'CANCELLED'].includes(sUpper);
     } else {
-      matchesFilter = sample.status === filter;
+      matchesFilter = sampleStatus === filter || sUpper === filter.toUpperCase().replace(/[\s-_]+/g, '');
     }
     return matchesSearch && matchesFilter;
   });

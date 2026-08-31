@@ -628,6 +628,15 @@ async function validateSourceOwnership(
   userId: string,
   userRole: string,
 ) {
+  if (
+    !moduleId ||
+    String(moduleId).startsWith('MANUAL-') ||
+    String(moduleId).startsWith('CUSTOM-') ||
+    String(moduleId).startsWith('TASK-')
+  ) {
+    return null;
+  }
+
   const isManagement = ['Super Admin', 'Admin', 'Sales Manager'].includes(
     userRole,
   );
@@ -635,36 +644,40 @@ async function validateSourceOwnership(
 
   let sourceRecord: any = null;
 
-  if (typeUpper === 'LEAD') {
-    sourceRecord = await tx.lead.findUnique({ where: { id: moduleId } });
-  } else if (typeUpper === 'SAMPLE' || typeUpper === 'SAMPLEREQUEST') {
-    sourceRecord = await tx.sampleRequest.findUnique({
-      where: { id: moduleId },
-    });
-  } else if (typeUpper === 'QUOTATION') {
-    sourceRecord = await tx.quotation.findUnique({ where: { id: moduleId } });
-  } else if (
-    typeUpper === 'PAYMENT_FOLLOWUP' ||
-    typeUpper === 'PAYMENT' ||
-    typeUpper === 'SALESORDER' ||
-    typeUpper === 'ORDER'
-  ) {
-    sourceRecord = await tx.salesOrder.findFirst({
-      where: {
-        OR: [
-          { id: moduleId },
-          { orderNumber: moduleId },
-          { orderNumber: moduleId.replace(/^#/, '') },
-          { orderNumber: `ORD-${moduleId}` },
-        ],
-      },
-    });
+  try {
+    if (typeUpper === 'LEAD') {
+      sourceRecord = await tx.lead.findUnique({ where: { id: moduleId } });
+    } else if (typeUpper === 'SAMPLE' || typeUpper === 'SAMPLEREQUEST') {
+      sourceRecord = await tx.sampleRequest.findUnique({
+        where: { id: moduleId },
+      });
+    } else if (typeUpper === 'QUOTATION') {
+      sourceRecord = await tx.quotation.findUnique({ where: { id: moduleId } });
+    } else if (
+      typeUpper === 'PAYMENT_FOLLOWUP' ||
+      typeUpper === 'PAYMENT' ||
+      typeUpper === 'SALESORDER' ||
+      typeUpper === 'ORDER'
+    ) {
+      sourceRecord = await tx.salesOrder.findFirst({
+        where: {
+          OR: [
+            { id: moduleId },
+            { orderNumber: moduleId },
+            { orderNumber: moduleId.replace(/^#/, '') },
+            { orderNumber: `ORD-${moduleId}` },
+          ],
+        },
+      });
+    }
+  } catch (err) {
+    // If invalid UUID or database lookup fails, treat as manual task
+    return null;
   }
 
   if (!sourceRecord) {
-    throw new NotFoundException(
-      `${moduleType} record with ID ${moduleId} not found`,
-    );
+    // Gracefully treat as a manual task reminder if record not found
+    return null;
   }
 
   if (
@@ -692,6 +705,8 @@ async function getCustomerNameForSource(
   moduleType: string,
   sourceRecord: any,
 ) {
+  if (!sourceRecord) return 'Client';
+
   const typeUpper = moduleType.toUpperCase();
   if (typeUpper === 'LEAD') {
     return sourceRecord.companyName || sourceRecord.customerName || 'Lead';
@@ -699,17 +714,21 @@ async function getCustomerNameForSource(
 
   const customerId = sourceRecord.customerId;
   if (!customerId && sourceRecord.leadId) {
-    const lead = await tx.lead.findUnique({
-      where: { id: sourceRecord.leadId },
-    });
-    if (lead) return lead.companyName || lead.customerName || 'Client';
+    try {
+      const lead = await tx.lead.findUnique({
+        where: { id: sourceRecord.leadId },
+      });
+      if (lead) return lead.companyName || lead.customerName || 'Client';
+    } catch {}
   }
 
   if (customerId) {
-    const customer = await tx.customer.findUnique({
-      where: { id: customerId },
-    });
-    if (customer) return customer.name || customer.companyName || 'Client';
+    try {
+      const customer = await tx.customer.findUnique({
+        where: { id: customerId },
+      });
+      if (customer) return customer.name || customer.companyName || 'Client';
+    } catch {}
   }
 
   return 'Client';
@@ -722,43 +741,56 @@ async function recalculateNextReminder(
   companyId: string,
   userId: string,
 ) {
-  const next = await tx.followUp.findFirst({
-    where: {
-      moduleType,
-      moduleId,
-      status: 'Pending',
-    },
-    orderBy: {
-      reminderAt: 'asc',
-    },
-  });
-
-  const nextReminder = next?.reminderAt ?? null;
-  const typeUpper = moduleType.toUpperCase();
-
-  if (typeUpper === 'LEAD') {
-    await tx.lead.update({
-      where: { id: moduleId },
-      data: { nextReminder },
-    });
-  } else if (typeUpper === 'SAMPLE' || typeUpper === 'SAMPLEREQUEST') {
-    await tx.sampleRequest.update({
-      where: { id: moduleId },
-      data: { nextReminder },
-    });
-  } else if (typeUpper === 'QUOTATION') {
-    await tx.quotation.update({
-      where: { id: moduleId },
-      data: { nextReminder },
-    });
-  } else if (
-    typeUpper === 'PAYMENT_FOLLOWUP' ||
-    typeUpper === 'PAYMENT' ||
-    typeUpper === 'SALESORDER'
+  if (
+    !moduleId ||
+    String(moduleId).startsWith('MANUAL-') ||
+    String(moduleId).startsWith('CUSTOM-') ||
+    String(moduleId).startsWith('TASK-')
   ) {
-    await tx.salesOrder.update({
-      where: { id: moduleId },
-      data: { nextReminder },
+    return;
+  }
+
+  try {
+    const next = await tx.followUp.findFirst({
+      where: {
+        moduleType,
+        moduleId,
+        status: 'Pending',
+      },
+      orderBy: {
+        reminderAt: 'asc',
+      },
     });
+
+    const nextReminder = next?.reminderAt ?? null;
+    const typeUpper = moduleType.toUpperCase();
+
+    if (typeUpper === 'LEAD') {
+      await tx.lead.update({
+        where: { id: moduleId },
+        data: { nextReminder },
+      }).catch(() => {});
+    } else if (typeUpper === 'SAMPLE' || typeUpper === 'SAMPLEREQUEST') {
+      await tx.sampleRequest.update({
+        where: { id: moduleId },
+        data: { nextReminder },
+      }).catch(() => {});
+    } else if (typeUpper === 'QUOTATION') {
+      await tx.quotation.update({
+        where: { id: moduleId },
+        data: { nextReminder },
+      }).catch(() => {});
+    } else if (
+      typeUpper === 'PAYMENT_FOLLOWUP' ||
+      typeUpper === 'PAYMENT' ||
+      typeUpper === 'SALESORDER'
+    ) {
+      await tx.salesOrder.update({
+        where: { id: moduleId },
+        data: { nextReminder },
+      }).catch(() => {});
+    }
+  } catch (err) {
+    // Non-blocking catch
   }
 }

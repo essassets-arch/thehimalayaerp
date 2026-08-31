@@ -4,9 +4,18 @@ import { useERP, useSalesBackend } from '../../../shared/context/ERPContext.jsx'
 import { remindersService } from '../services/reminders.service.js';
 
 const getErrorText = (err) => {
-  if (!err) return 'Unknown error';
+  if (!err) return 'Unknown error occurred';
+  if (typeof err === 'string') return err;
   if (typeof err === 'object') {
-    return err.message || err.error || JSON.stringify(err);
+    if (err.message && typeof err.message === 'string') return err.message;
+    if (err.error && typeof err.error === 'string') return err.error;
+    if (Array.isArray(err.message)) return err.message.join(', ');
+    if (err.response?.data?.message) return String(err.response.data.message);
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return 'An unexpected error occurred';
+    }
   }
   return String(err);
 };

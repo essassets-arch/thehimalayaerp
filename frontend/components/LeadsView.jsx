@@ -503,7 +503,26 @@ export default function LeadsView({
       gstNumber.includes(q);
 
     if (filter === 'Reminders') return false;
-    const matchesFilter = filter === 'All' ? (lead.status !== 'Lost' && lead.status !== 'Converted') : lead.status === filter;
+
+    // Status matching across standard, workflow-stage, and legacy values
+    let matchesFilter = true;
+    const s = String(lead.status || lead.leadStatus || '').toLowerCase().replace(/[\s-_]+/g, '');
+    const smart = getSmartLeadStatus(lead, orders, quotations, samples, reminders, erpStore.state);
+    const smartNorm = String(smart || '').toLowerCase().replace(/[\s-_]+/g, '');
+
+    if (filter === 'All') {
+      matchesFilter = true;
+    } else if (filter === 'New') {
+      matchesFilter = s === 'new' || s === 'open' || s === 'draft' || smartNorm === 'new';
+    } else if (filter === 'Follow-up') {
+      matchesFilter = s.includes('follow') || s === 'contacted' || s === 'pending' || smartNorm.includes('follow');
+    } else if (filter === 'Converted') {
+      matchesFilter = s === 'converted' || s === 'won' || s === 'quotationsent' || s === 'quotationgenerated' || smartNorm === 'converted' || smartNorm.includes('quotation');
+    } else if (filter === 'Lost') {
+      matchesFilter = s === 'lost' || s === 'cancelled' || s === 'rejected';
+    } else {
+      matchesFilter = lead.status === filter || smart === filter;
+    }
 
     const leadDateVal = lead.leadDate || lead.date || lead.createdAt || lead.created_at || lead.updatedAt;
     const matchesDate = isLeadInDateRange(leadDateVal, selectedMonth, fromDate, toDate);
@@ -899,7 +918,11 @@ export default function LeadsView({
 
         <div className="leads-badge-counter">
           <span>Showing:</span>
-          <span style={{ color: '#1d4ed8' }}>{filteredLeads.length} {filteredLeads.length === 1 ? 'lead' : 'leads'}</span>
+          <span style={{ color: '#1d4ed8', fontWeight: '800' }}>
+            {isRemindersView
+              ? `${filteredLeadReminders.length} ${filteredLeadReminders.length === 1 ? 'reminder' : 'reminders'}`
+              : `${filteredLeads.length} ${filteredLeads.length === 1 ? 'lead' : 'leads'}`}
+          </span>
         </div>
       </div>
 

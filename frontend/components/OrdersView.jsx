@@ -456,23 +456,62 @@ export default function OrdersView({
       orderNoStr.toLowerCase().includes(qStr) ||
       poNoStr.toLowerCase().includes(qStr);
     
-    const stage = String(o.status || o.overallStage || o.order_stage || o.productionStatus || 'Draft');
-    const stageUpper = stage.toUpperCase();
-    
+    const displayStage = getOverallOrderStage(o);
+    const stage = String(o.status || o.overallStage || o.order_stage || o.productionStatus || displayStage || 'Draft');
+    const stageNorm = stage.toUpperCase().replace(/[\s-_]+/g, '');
+    const prodStatusNorm = String(o.productionStatus || '').toUpperCase().replace(/[\s-_]+/g, '');
+    const dispatchStatusNorm = String(o.dispatchStatus || '').toUpperCase().replace(/[\s-_]+/g, '');
+    const isDelivered = isDeliveredOrder(o);
+
     let matchesFilter = false;
-    if (filter === 'All Orders') matchesFilter = true;
-    else if (filter === 'Open Orders') {
-      matchesFilter = !isDeliveredOrder(o) && !['CLOSED', 'Closed', 'CANCELLED', 'Cancelled'].includes(stage);
+    if (filter === 'All Orders') {
+      matchesFilter = true;
+    } else if (filter === 'Open Orders') {
+      matchesFilter = !isDelivered && !['CLOSED', 'CANCELLED'].includes(stageNorm);
     } else if (filter === 'In Production') {
-      matchesFilter = ['IN_PRODUCTION', 'WORK_ORDER_CREATED', 'PLANNED', 'MATERIAL_REQUESTED', 'MATERIAL_APPROVED', 'MATERIAL_ISSUED'].includes(stageUpper);
+      matchesFilter = [
+        'INPRODUCTION',
+        'PRODUCTIONSTARTED',
+        'PRODUCTIONINPROGRESS',
+        'WORKORDERCREATED',
+        'PLANNED',
+        'PRODUCTIONPLANNED',
+        'READYFORPRODUCTION',
+        'MATERIALREQUESTED',
+        'MATERIALAPPROVED',
+        'MATERIALISSUED',
+        'QCINSPECTION',
+        'QUALITYCHECK',
+        'QCAPPROVED',
+        'COMPLETED',
+        'PRODUCTIONCOMPLETED'
+      ].includes(stageNorm) ||
+      ['INPRODUCTION', 'PRODUCTIONSTARTED', 'PLANNED', 'COMPLETED'].includes(prodStatusNorm) ||
+      displayStage === 'In Production' ||
+      displayStage === 'Production Planned' ||
+      displayStage === 'QC Approved' ||
+      displayStage === 'QC Inspection';
     } else if (filter === 'Dispatched') {
-      matchesFilter = ['DISPATCH_CREATED', 'IN_TRANSIT', 'IN TRANSIT', 'DISPATCH_READY'].includes(stageUpper);
+      matchesFilter = [
+        'DISPATCHED',
+        'DISPATCHCREATED',
+        'INTRANSIT',
+        'DISPATCHREADY',
+        'READYFORDISPATCH',
+        'OUTFORDELIVERY'
+      ].includes(stageNorm) ||
+      ['DISPATCHED', 'INTRANSIT', 'DISPATCHREADY'].includes(dispatchStatusNorm) ||
+      displayStage === 'Dispatched' ||
+      displayStage === 'In Transit' ||
+      displayStage === 'Ready for Dispatch';
     } else if (filter === 'Delivered') {
-      matchesFilter = isDeliveredOrder(o);
+      matchesFilter = isDelivered || stageNorm === 'DELIVERED' || dispatchStatusNorm === 'DELIVERED' || displayStage === 'Delivered';
     } else if (filter === 'Closed') {
-      matchesFilter = ['CLOSED', 'Closed'].includes(stage);
+      matchesFilter = stageNorm === 'CLOSED' || displayStage === 'Closed';
+    } else {
+      matchesFilter = stage === filter || stageNorm === filter.toUpperCase().replace(/[\s-_]+/g, '');
     }
-    
+
     return matchesSearch && matchesFilter;
   });
 

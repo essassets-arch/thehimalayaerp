@@ -552,6 +552,24 @@ export default function QuotationsView({
     const custName = q.customerName || '';
     const qItems = quotationItemsText(q);
     const status = q.status || '';
+    let matchesFilter = false;
+    const qStatus = String(q.status || q.quotationStatus || q.workflowStateCode || '').trim();
+    const qNorm = qStatus.toUpperCase().replace(/[\s-_]+/g, '');
+
+    if (filter === 'All') {
+      matchesFilter = true;
+    } else if (filter === 'Draft') {
+      matchesFilter = ['DRAFT', 'NEW', 'INTERNALREVIEW', 'PENDING', 'CREATED'].includes(qNorm);
+    } else if (filter === 'Sent') {
+      matchesFilter = ['SENT', 'QUOTATIONSENT', 'DISPATCHED', 'UNDERNEGOTIATION', 'NEGOTIATION', 'INREVIEW'].includes(qNorm);
+    } else if (filter === 'Approved') {
+      matchesFilter = ['APPROVED', 'QUOTATIONAPPROVED', 'ACCEPTED', 'CONFIRMED', 'CONVERTED', 'WON', 'ORDERED'].includes(qNorm);
+    } else if (filter === 'Rejected') {
+      matchesFilter = ['REJECTED', 'QUOTATIONREJECTED', 'DECLINED', 'CANCELLED', 'LOST'].includes(qNorm);
+    } else {
+      matchesFilter = qStatus === filter || qNorm === filter.toUpperCase().replace(/[\s-_]+/g, '');
+    }
+
     const qNum = resolveQuotationNumber(q);
     const searchString = typeof search === 'string' ? search.toLowerCase() : '';
     const matchesSearch = !searchString ||
@@ -559,7 +577,7 @@ export default function QuotationsView({
       qItems.toLowerCase().includes(searchString) ||
       qNum.toLowerCase().includes(searchString) ||
       String(q.id || '').toLowerCase().includes(searchString);
-    const matchesFilter = filter === 'All' || status === filter;
+
     return matchesSearch && matchesFilter;
   });
 
