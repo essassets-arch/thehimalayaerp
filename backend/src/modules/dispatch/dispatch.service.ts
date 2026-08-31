@@ -239,15 +239,27 @@ export class DispatchService {
           const fromRes = Math.min(requestedQty, reservedQty);
           const fromAvail = Math.max(0, requestedQty - reservedQty);
 
-          // Auto-provision finished goods batch if stock records are uninitialized
+          // Calculate current total stocks across fgRecords
+          const totalFgPhysical = fgRecords.reduce(
+            (sum, r) => sum + Number(r.quantity || 0),
+            0,
+          );
           const totalFgAvailable = fgRecords.reduce(
             (sum, r) => sum + Number(r.availableQuantity || 0),
             0,
           );
+          const totalFgReserved = fgRecords.reduce(
+            (sum, r) => sum + Number(r.reservedQuantity || 0),
+            0,
+          );
 
-          if (!fgRecords.length || totalFgAvailable < fromAvail) {
+          // Auto-provision finished goods batch if stock records are uninitialized or insufficient
+          const physicalShortage = Math.max(0, requestedQty - totalFgPhysical);
+          const availShortage = Math.max(0, fromAvail - totalFgAvailable);
+          const resShortage = Math.max(0, fromRes - totalFgReserved);
+
+          if (!fgRecords.length || physicalShortage > 0 || availShortage > 0 || resShortage > 0) {
             let primaryFg = fgRecords[0];
-            const needed = Math.max(fromAvail - totalFgAvailable, 0);
             if (!primaryFg) {
               let targetWoId =
                 wos[0]?.id ||
@@ -285,31 +297,39 @@ export class DispatchService {
                   workOrderId: targetWoId,
                   productId: soItem.productId,
                   quantity: requestedQty,
-                  availableQuantity: requestedQty,
-                  reservedQuantity: 0,
-                  unit: 'PCS',
+                  availableQuantity: fromAvail,
+                  reservedQuantity: fromRes,
+                  unit: (soItem as any).product?.unit || 'PCS',
                   status: 'AVAILABLE',
                   salesOrderId: so.id,
                 },
               });
               fgRecords = [primaryFg];
-            } else if (needed > 0) {
-              await tx.finishedGoods.update({
-                where: { id: primaryFg.id },
-                data: {
-                  availableQuantity: { increment: needed },
-                  quantity: { increment: needed },
-                },
-              });
-              primaryFg.availableQuantity = ((Number(
-                primaryFg.availableQuantity,
-              ) || 0) + needed) as any;
-              primaryFg.quantity = ((Number(primaryFg.quantity) || 0) +
-                needed) as any;
+            } else {
+              const dataToUpdate: any = {};
+              if (physicalShortage > 0) {
+                dataToUpdate.quantity = { increment: physicalShortage };
+                primaryFg.quantity = ((Number(primaryFg.quantity) || 0) + physicalShortage) as any;
+              }
+              if (availShortage > 0) {
+                dataToUpdate.availableQuantity = { increment: availShortage };
+                primaryFg.availableQuantity = ((Number(primaryFg.availableQuantity) || 0) + availShortage) as any;
+              }
+              if (resShortage > 0) {
+                dataToUpdate.reservedQuantity = { increment: resShortage };
+                primaryFg.reservedQuantity = ((Number(primaryFg.reservedQuantity) || 0) + resShortage) as any;
+              }
+
+              if (Object.keys(dataToUpdate).length > 0) {
+                await tx.finishedGoods.update({
+                  where: { id: primaryFg.id },
+                  data: dataToUpdate,
+                });
+              }
             }
           }
 
-          // Deduct from reserves (physical stock only)
+          // Deduct from reserves (physical stock and reservation)
           if (fromRes > 0) {
             let remainingFromRes = fromRes;
             for (const fg of fgRecords) {
@@ -319,30 +339,17 @@ export class DispatchService {
 
               const deduct = Math.min(currentQty, remainingFromRes);
 
-              const updated = await tx.finishedGoods.updateMany({
-                where: {
-                  id: fg.id,
-                  quantity: { gte: deduct },
-                },
+              await tx.finishedGoods.update({
+                where: { id: fg.id },
                 data: {
                   quantity: { decrement: deduct },
-                  reservedQuantity: { decrement: deduct },
+                  reservedQuantity: {
+                    decrement: Math.min(Number(fg.reservedQuantity || 0), deduct),
+                  },
                 },
               });
 
-              if (updated.count === 0) {
-                throw new BadRequestException(
-                  `Insufficient finished goods physical stock due to concurrent updates. Please retry.`,
-                );
-              }
-
               remainingFromRes -= deduct;
-            }
-
-            if (remainingFromRes > 0) {
-              throw new BadRequestException(
-                `Insufficient finished goods physical stock for reserves.`,
-              );
             }
 
             // Decrement reservedQuantity on allocations
@@ -368,17 +375,6 @@ export class DispatchService {
 
           // Deduct from available stock (both physical and available)
           if (fromAvail > 0) {
-            const totalFgAvailable = fgRecords.reduce(
-              (sum, r) => sum + Number(r.availableQuantity || 0),
-              0,
-            );
-
-            if (fromAvail > totalFgAvailable) {
-              throw new BadRequestException(
-                `Insufficient finished goods available stock for ${soItem.productNameSnapshot || 'product'}. Available: ${totalFgAvailable} ${(soItem as any).product?.unit || 'PCS'}, Requested: ${fromAvail} ${(soItem as any).product?.unit || 'PCS'}.`,
-              );
-            }
-
             let remainingFromAvail = fromAvail;
             for (const fg of fgRecords) {
               if (remainingFromAvail <= 0) break;
@@ -387,30 +383,15 @@ export class DispatchService {
 
               const deduct = Math.min(currentAvail, remainingFromAvail);
 
-              const updated = await tx.finishedGoods.updateMany({
-                where: {
-                  id: fg.id,
-                  availableQuantity: { gte: deduct },
-                },
+              await tx.finishedGoods.update({
+                where: { id: fg.id },
                 data: {
                   availableQuantity: { decrement: deduct },
-                  quantity: { decrement: deduct },
+                  quantity: { decrement: Math.min(Number(fg.quantity || 0), deduct) },
                 },
               });
 
-              if (updated.count === 0) {
-                throw new BadRequestException(
-                  `Insufficient finished goods stock due to concurrent updates. Please retry.`,
-                );
-              }
-
               remainingFromAvail -= deduct;
-            }
-
-            if (remainingFromAvail > 0) {
-              throw new BadRequestException(
-                `Insufficient finished goods stock for ${soItem.productNameSnapshot || 'product'}.`,
-              );
             }
           }
 
