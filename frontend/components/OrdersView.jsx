@@ -374,6 +374,10 @@ export default function OrdersView({
     return order.status || order.workflowStatus || 'Confirmed';
   };
 
+  const getOverallOrderStage = (order) => {
+    return getOrderStatusLabel(order);
+  };
+
   const getOrderActionState = (order) => {
     if (!order) return { action: null, label: 'No Action' };
 
