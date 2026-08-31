@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import Swal from 'sweetalert2';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -53,6 +53,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   const [activeTab, setActiveTab] = useState('all'); // all | reminders | overdue | completed
   const [agingFilter, setAgingFilter] = useState('');
   const [showAgingDropdown, setShowAgingDropdown] = useState(false);
+  const agingDropdownRef = useRef(null);
   const [pendingFilter, setPendingFilter] = useState('pending'); // pending | confirmed
   const [pendingCollection, setPendingCollection] = useState([]);
   const [deliveredDispatches, setDeliveredDispatches] = useState([]);
@@ -62,6 +63,23 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   const [reminderFilter, setReminderFilter] = useState('All');
 
   const [localConfirmations, setLocalConfirmations] = useState([]);
+
+  // Close aging dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (agingDropdownRef.current && !agingDropdownRef.current.contains(event.target)) {
+        setShowAgingDropdown(false);
+      }
+    }
+    if (showAgingDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showAgingDropdown]);
 
   useEffect(() => {
     try {
@@ -605,14 +623,30 @@ export default function PaymentFollowupERPView({ orders = [] }) {
             >
               Completed
             </button>
-            <div style={{ position: 'relative', display: 'inline-block' }}>
+            <div ref={agingDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
               <button
                 type="button"
                 className={`filter-pill ${activeTab === 'overdue' ? 'active' : ''}`}
-                onClick={() => setShowAgingDropdown(!showAgingDropdown)}
+                onClick={() => setShowAgingDropdown(prev => !prev)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
               >
-                {agingFilter ? agingFilter : 'Overdue Aging'} 
-                <span style={{ fontSize: 10, marginLeft: 4 }}>▼</span>
+                <span>{agingFilter || 'Overdue Aging'}</span>
+                {agingFilter ? (
+                  <span 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAgingFilter('');
+                      setActiveTab('all');
+                      setShowAgingDropdown(false);
+                    }}
+                    style={{ marginLeft: 4, cursor: 'pointer', fontWeight: 'bold' }}
+                    title="Clear Aging Filter"
+                  >
+                    ✕
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 10, marginLeft: 2 }}>▼</span>
+                )}
               </button>
               
               {showAgingDropdown && (
@@ -627,7 +661,8 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                         setShowAgingDropdown(false);
                       }}
                     >
-                      {opt}
+                      <span>{opt}</span>
+                      {agingFilter === opt && <span style={{ marginLeft: 8, color: '#0284c7', fontWeight: 800 }}>✓</span>}
                     </div>
                   ))}
                 </div>

@@ -714,6 +714,7 @@ export default function StorePortal() {
 
   // Create Material Indent state (for Low Stock Alerts page)
   const [showIndentModal, setShowIndentModal] = useState(false);
+  const [indentSubmitting, setIndentSubmitting] = useState(false);
   const [indentTargetMaterial, setIndentTargetMaterial] = useState(null);
   const [indentRequiredQty, setIndentRequiredQty] = useState('');
   const [indentPriority, setIndentPriority] = useState('Medium');

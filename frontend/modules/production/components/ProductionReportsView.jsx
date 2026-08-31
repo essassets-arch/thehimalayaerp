@@ -63,6 +63,22 @@ export default function ProductionReportsView() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Responsive Breakpoint Detection
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobile = windowWidth < 640;
+  const isTablet = windowWidth >= 640 && windowWidth < 1024;
+  const isLarge = windowWidth >= 1440;
+
   // Raw API Data States
   const [dashboardData, setDashboardData] = useState(null);
   const [workOrders, setWorkOrders] = useState([]);
@@ -85,17 +101,17 @@ export default function ProductionReportsView() {
   // Modal State for viewing detail
   const [detailModal, setDetailModal] = useState(null);
 
-  /* ── Load All Data Concurrently from Backend ── */
+  /* ── Load All Data Concurrently from Backend with Live Cache-Busting ── */
   const fetchAllReportData = useCallback(async () => {
     try {
       setRefreshing(true);
       const [dashRes, woRes, dailyRes, testRes, qcInspRes, matRes] = await Promise.all([
-        backendFetch('/api/backend/production/dashboard').catch(() => null),
-        backendFetch('/api/backend/production/work-orders').catch(() => null),
-        backendFetch('/api/backend/production/daily-reports?limit=1000').catch(() => null),
-        backendFetch('/api/backend/production/testing').catch(() => null),
-        backendFetch('/api/backend/qc/inspections').catch(() => null),
-        backendFetch('/api/backend/material-requests').catch(() => null)
+        backendFetch('/api/backend/production/dashboard', { cacheTtlMs: 0 }).catch(() => null),
+        backendFetch('/api/backend/production/work-orders', { cacheTtlMs: 0 }).catch(() => null),
+        backendFetch('/api/backend/production/daily-reports?limit=1000', { cacheTtlMs: 0 }).catch(() => null),
+        backendFetch('/api/backend/production/testing', { cacheTtlMs: 0 }).catch(() => null),
+        backendFetch('/api/backend/qc/inspections', { cacheTtlMs: 0 }).catch(() => null),
+        backendFetch('/api/backend/material-requests', { cacheTtlMs: 0 }).catch(() => null)
       ]);
 
       if (dashRes) setDashboardData(dashRes);
@@ -169,6 +185,7 @@ export default function ProductionReportsView() {
     if (preset === 'Last 7 Days') {
       const past7 = new Date();
       past7.setDate(past7.getDate() - 7);
+      past7.setHours(0, 0, 0, 0);
       return d >= past7;
     }
     if (preset === 'This Month') {
@@ -177,6 +194,7 @@ export default function ProductionReportsView() {
 
     if (startDate) {
       const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
       if (d < start) return false;
     }
     if (endDate) {
@@ -318,7 +336,6 @@ export default function ProductionReportsView() {
 
   /* ── Dynamic Chart 1: Daily Production Output & Trend (Dual Metrics) ── */
   const dailyOutputTrendData = useMemo(() => {
-    // Generate chronological 7-day window if few entries, or real aggregated dates
     const dateMap = new Map();
 
     // 1. Populate days from daily reports
@@ -327,16 +344,17 @@ export default function ProductionReportsView() {
       if (!d) return;
       const dateObj = new Date(d);
       if (isNaN(dateObj.getTime())) return;
+      const isoDate = dateObj.toISOString().slice(0, 10);
       const dateKey = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
       
-      const current = dateMap.get(dateKey) || { name: dateKey, sets: 0, weightKg: 0, weightMT: 0, covers: 0, frames: 0, workOrders: 0 };
+      const current = dateMap.get(isoDate) || { isoDate, name: dateKey, sets: 0, weightKg: 0, weightMT: 0, covers: 0, frames: 0, workOrders: 0 };
       current.sets += Number(r.totalSets || 0);
       const w = Number(r.totalWeight || 0);
       current.weightKg += w;
       current.weightMT = Number((current.weightKg / 1000).toFixed(2));
       current.covers += Number(r.totalCovers || 0);
       current.frames += Number(r.totalFrames || 0);
-      dateMap.set(dateKey, current);
+      dateMap.set(isoDate, current);
     });
 
     // 2. Also map from work orders produced quantities
@@ -345,34 +363,65 @@ export default function ProductionReportsView() {
       if (!d) return;
       const dateObj = new Date(d);
       if (isNaN(dateObj.getTime())) return;
+      const isoDate = dateObj.toISOString().slice(0, 10);
       const dateKey = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
       
-      const current = dateMap.get(dateKey) || { name: dateKey, sets: 0, weightKg: 0, weightMT: 0, covers: 0, frames: 0, workOrders: 0 };
+      const current = dateMap.get(isoDate) || { isoDate, name: dateKey, sets: 0, weightKg: 0, weightMT: 0, covers: 0, frames: 0, workOrders: 0 };
       current.workOrders += 1;
       if (current.sets === 0) {
         current.sets += Number(wo.quantityProduced || wo.producedQty || 0);
       }
-      dateMap.set(dateKey, current);
+      dateMap.set(isoDate, current);
     });
 
-    const entries = Array.from(dateMap.values());
-    if (entries.length >= 2) {
-      return entries.slice(-10);
+    const entries = Array.from(dateMap.values()).sort((a, b) => a.isoDate.localeCompare(b.isoDate));
+    if (entries.length > 0) {
+      return entries.slice(-14);
     }
 
-    // Default timeline template for smooth chart display
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Today'];
-    return days.map((dayName, idx) => ({
-      name: dayName,
-      sets: entries[0]?.sets ? Math.round((entries[0].sets / 7) * (idx + 1)) : (idx + 1) * 8,
-      covers: entries[0]?.covers ? Math.round((entries[0].covers / 7) * (idx + 1)) : (idx + 1) * 10,
-      frames: entries[0]?.frames ? Math.round((entries[0].frames / 7) * (idx + 1)) : (idx + 1) * 8,
-      weightMT: Number(((idx + 1) * 1.4).toFixed(2)),
-      weightKg: (idx + 1) * 1400
-    }));
+    // Default real zero 7-day chronological window if completely empty
+    const now = new Date();
+    const result = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(now.getDate() - i);
+      const label = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      result.push({
+        name: label,
+        sets: 0,
+        covers: 0,
+        frames: 0,
+        weightMT: 0,
+        weightKg: 0
+      });
+    }
+    return result;
   }, [filteredDailyReports, workOrdersList]);
 
-  /* ── Dynamic Chart 2: QC Pass vs Fail Breakdown ── */
+  /* ── Dynamic Chart 2: Shift Distribution (A / B / C) ── */
+  const shiftComparisonData = useMemo(() => {
+    const shifts = {
+      'Shift A': { name: 'Shift A (Morning)', sets: 0, weightMT: 0, covers: 0, frames: 0, fill: '#10b981' },
+      'Shift B': { name: 'Shift B (Evening)', sets: 0, weightMT: 0, covers: 0, frames: 0, fill: '#3b82f6' },
+      'Shift C': { name: 'Shift C (Night)', sets: 0, weightMT: 0, covers: 0, frames: 0, fill: '#8b5cf6' }
+    };
+
+    filteredDailyReports.forEach(r => {
+      const rawShift = String(r.shift || '').toUpperCase();
+      let key = 'Shift A';
+      if (rawShift.includes('B') || rawShift.includes('EVENING')) key = 'Shift B';
+      else if (rawShift.includes('C') || rawShift.includes('NIGHT')) key = 'Shift C';
+      
+      shifts[key].sets += Number(r.totalSets || 0);
+      shifts[key].covers += Number(r.totalCovers || 0);
+      shifts[key].frames += Number(r.totalFrames || 0);
+      shifts[key].weightMT += Number((Number(r.totalWeight || 0) / 1000).toFixed(2));
+    });
+
+    return Object.values(shifts);
+  }, [filteredDailyReports]);
+
+  /* ── Dynamic Chart 3: QC Pass vs Fail Breakdown ── */
   const qcStatusPieData = useMemo(() => {
     let pass = 0;
     let fail = 0;
@@ -387,9 +436,7 @@ export default function ProductionReportsView() {
 
     if (pass === 0 && fail === 0 && pending === 0) {
       return [
-        { name: 'Passed / Approved', value: 88, color: '#10b981' },
-        { name: 'In Inspection', value: 10, color: '#38bdf8' },
-        { name: 'Rework / Defect', value: 2, color: '#ef4444' }
+        { name: 'No Testing Records', value: 1, color: '#cbd5e1' }
       ];
     }
 
@@ -400,61 +447,40 @@ export default function ProductionReportsView() {
     return data;
   }, [filteredTestingRecords]);
 
-  /* ── Dynamic Chart 3: Shift Distribution (A / B / C) ── */
-  const shiftComparisonData = useMemo(() => {
-    const shifts = {
-      'Shift A': { name: 'Shift A (Morning)', sets: 0, weightMT: 0, covers: 0, frames: 0, fill: '#10b981' },
-      'Shift B': { name: 'Shift B (Evening)', sets: 0, weightMT: 0, covers: 0, frames: 0, fill: '#3b82f6' },
-      'Shift C': { name: 'Shift C (Night)', sets: 0, weightMT: 0, covers: 0, frames: 0, fill: '#8b5cf6' }
-    };
-
-    let hasData = false;
-    filteredDailyReports.forEach(r => {
-      hasData = true;
-      const rawShift = String(r.shift || '').toUpperCase();
-      let key = 'Shift A';
-      if (rawShift.includes('B')) key = 'Shift B';
-      else if (rawShift.includes('C')) key = 'Shift C';
-      
-      shifts[key].sets += Number(r.totalSets || 0);
-      shifts[key].covers += Number(r.totalCovers || 0);
-      shifts[key].frames += Number(r.totalFrames || 0);
-      shifts[key].weightMT += Number((Number(r.totalWeight || 0) / 1000).toFixed(2));
-    });
-
-    if (!hasData) {
-      return [
-        { name: 'Shift A (Morning)', sets: 45, covers: 50, frames: 45, weightMT: 5.4, fill: '#10b981' },
-        { name: 'Shift B (Evening)', sets: 38, covers: 40, frames: 38, weightMT: 4.2, fill: '#3b82f6' },
-        { name: 'Shift C (Night)', sets: 22, covers: 25, frames: 22, weightMT: 2.6, fill: '#8b5cf6' }
-      ];
-    }
-
-    return Object.values(shifts);
-  }, [filteredDailyReports]);
-
   /* ── Dynamic Chart 4: Top Manufactured Products ── */
   const topProductsData = useMemo(() => {
     const map = new Map();
 
+    // 1. From Work Orders
     workOrdersList.forEach(wo => {
-      const name = wo.salesOrderItem?.product?.name || wo.product?.name || wo.productName || 'Manhole Covers';
+      const name = wo.salesOrderItem?.product?.name || wo.product?.name || wo.productName || 'Standard Assembly';
       const current = map.get(name) || { name: name.length > 20 ? name.slice(0, 18) + '...' : name, fullName: name, target: 0, produced: 0 };
       current.target += Number(wo.targetQuantity || wo.quantity || 10);
       current.produced += Number(wo.quantityProduced || wo.producedQty || 0);
       map.set(name, current);
     });
 
+    // 2. From Daily Shift line items
+    filteredDailyReports.forEach(r => {
+      if (Array.isArray(r.items)) {
+        r.items.forEach(it => {
+          const name = it.product?.name || it.customProductName || it.productName || 'Manhole Cover / Frame';
+          const current = map.get(name) || { name: name.length > 20 ? name.slice(0, 18) + '...' : name, fullName: name, target: 0, produced: 0 };
+          const sets = Math.min(Number(it.coverQty || 0), Number(it.frameQty || 0)) || Number(it.coverQty || 0) || Number(it.frameQty || 0);
+          current.produced += sets;
+          if (current.target === 0) current.target += sets;
+          map.set(name, current);
+        });
+      }
+    });
+
     const arr = Array.from(map.values()).sort((a, b) => b.produced - a.produced);
     if (arr.length > 0) return arr.slice(0, 5);
 
     return [
-      { name: 'SFRC 600mm Frame', target: 200, produced: 180 },
-      { name: 'Cast Iron D400', target: 150, produced: 135 },
-      { name: 'FRP Cover C250', target: 100, produced: 95 },
-      { name: 'Drain Grating 450', target: 80, produced: 75 }
+      { name: 'No Production in Range', target: 0, produced: 0 }
     ];
-  }, [workOrdersList]);
+  }, [workOrdersList, filteredDailyReports]);
 
   /* ── CSV Export Handler ── */
   const handleExportCSV = (exportType) => {
@@ -635,42 +661,42 @@ export default function ProductionReportsView() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: 'clamp(12px, 2.5vw, 24px)', background: '#F5FAFE', minHeight: '100vh', fontFamily: 'Inter, sans-serif', width: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '16px' : '24px', padding: isMobile ? '12px' : 'clamp(16px, 2.5vw, 24px)', background: '#F5FAFE', minHeight: '100vh', fontFamily: 'Inter, sans-serif', width: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'hidden' }}>
       
       {/* ── SECTION 1: HEADER & MASTER ACTIONS BAR ── */}
       <div style={{
         background: '#ffffff',
         border: '1px solid #DCE5F0',
         borderRadius: '16px',
-        padding: 'clamp(14px, 2vw, 24px)',
+        padding: isMobile ? '14px 16px' : 'clamp(16px, 2vw, 24px)',
         boxShadow: '0 4px 12px rgba(15, 23, 42, 0.03)',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
+        alignItems: isMobile ? 'stretch' : 'center',
+        flexDirection: isMobile ? 'column' : 'row',
         gap: '16px'
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ background: 'linear-gradient(135deg, #2563eb 0%, #0284c7 100%)', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)' }}>
-              <BarChart2 size={24} />
+            <div style={{ background: 'linear-gradient(135deg, #2563eb 0%, #0284c7 100%)', width: isMobile ? '36px' : '42px', height: isMobile ? '36px' : '42px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)', flexShrink: 0 }}>
+              <BarChart2 size={isMobile ? 20 : 24} />
             </div>
             <div>
-              <h1 style={{ fontSize: '22px', fontWeight: '900', color: '#1e1b4b', margin: 0, display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: isMobile ? '18px' : '22px', fontWeight: '900', color: '#1e1b4b', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 Production Reports & Analytics
-                <span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', padding: '3px 9px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }} /> LIVE PRODUCTION FEED
+                <span style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }} /> LIVE FEED
                 </span>
               </h1>
-              <p style={{ fontSize: '13px', color: '#5E6B82', margin: '3px 0 0 0' }}>
-                Comprehensive real-time manufacturing intelligence, shift outputs, quality yields, and requisition audit logs.
+              <p style={{ fontSize: isMobile ? '12px' : '13px', color: '#5E6B82', margin: '3px 0 0 0' }}>
+                Manufacturing intelligence, shift outputs, quality yields, and requisitions.
               </p>
             </div>
           </div>
         </div>
 
         {/* Master Control Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
           <button
             type="button"
             onClick={fetchAllReportData}
@@ -678,20 +704,22 @@ export default function ProductionReportsView() {
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
-              padding: '10px 16px',
+              padding: isMobile ? '8px 12px' : '10px 16px',
               borderRadius: '10px',
               border: '1px solid #DCE5F0',
               background: '#ffffff',
               color: '#334155',
-              fontSize: '13px',
+              fontSize: isMobile ? '12px' : '13px',
               fontWeight: '700',
               cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+              boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+              flex: isMobile ? '1 1 calc(50% - 4px)' : 'none'
             }}
           >
-            <RefreshCw size={15} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
-            {refreshing ? 'Refreshing...' : 'Refresh Data'}
+            <RefreshCw size={14} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
 
           <button
@@ -700,19 +728,21 @@ export default function ProductionReportsView() {
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '10px 18px',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: isMobile ? '8px 12px' : '10px 16px',
               borderRadius: '10px',
               border: 'none',
               background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
               color: '#ffffff',
-              fontSize: '13px',
+              fontSize: isMobile ? '12px' : '13px',
               fontWeight: '800',
               cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+              flex: isMobile ? '1 1 calc(50% - 4px)' : 'none'
             }}
           >
-            <Download size={16} /> Export Active Tab CSV
+            <Download size={14} /> Export Tab
           </button>
 
           <button
@@ -721,19 +751,21 @@ export default function ProductionReportsView() {
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '10px 18px',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: isMobile ? '8px 12px' : '10px 16px',
               borderRadius: '10px',
               border: 'none',
               background: 'linear-gradient(135deg, #24345C 0%, #2F4375 100%)',
               color: '#ffffff',
-              fontSize: '13px',
+              fontSize: isMobile ? '12px' : '13px',
               fontWeight: '800',
               cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(36, 52, 92, 0.25)'
+              boxShadow: '0 4px 12px rgba(36, 52, 92, 0.25)',
+              width: isMobile ? '100%' : 'auto'
             }}
           >
-            <FileText size={16} /> Master Executive CSV
+            <FileText size={14} /> Master Executive CSV
           </button>
         </div>
       </div>
@@ -743,34 +775,35 @@ export default function ProductionReportsView() {
         background: '#ffffff',
         border: '1px solid #DCE5F0',
         borderRadius: '16px',
-        padding: '16px 20px',
+        padding: isMobile ? '12px 14px' : '16px 20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '14px',
+        gap: '12px',
         boxShadow: '0 2px 6px rgba(0,0,0,0.01)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
           
           {/* Preset Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '10px', overflowX: 'auto', maxWidth: '100%' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', padding: '0 8px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Range:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '10px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%', width: isMobile ? '100%' : 'auto' }}>
+            <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', padding: '0 6px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Range:</span>
             {['All', 'Today', 'Yesterday', 'Last 7 Days', 'This Month'].map(p => (
               <button
                 key={p}
                 type="button"
                 onClick={() => setPreset(p)}
                 style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
+                  padding: isMobile ? '5px 10px' : '6px 12px',
+                  borderRadius: '7px',
                   border: 'none',
                   background: preset === p ? '#ffffff' : 'transparent',
                   color: preset === p ? '#1e293b' : '#64748b',
-                  fontSize: '12px',
+                  fontSize: isMobile ? '11px' : '12px',
                   fontWeight: preset === p ? '800' : '600',
                   cursor: 'pointer',
                   boxShadow: preset === p ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
                   transition: 'all 0.15s',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
                 }}
               >
                 {p}
@@ -779,47 +812,47 @@ export default function ProductionReportsView() {
           </div>
 
           {/* Custom Date Pickers */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #DCE5F0', padding: '6px 12px', borderRadius: '10px' }}>
-              <Calendar size={14} color="#64748b" />
-              <span style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>From:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f8fafc', border: '1px solid #DCE5F0', padding: '5px 10px', borderRadius: '8px', flex: isMobile ? '1 1 calc(50% - 4px)' : 'none' }}>
+              <Calendar size={13} color="#64748b" />
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>From:</span>
               <input
                 type="date"
                 value={startDate}
                 onChange={e => { setStartDate(e.target.value); setPreset('Custom'); }}
-                style={{ border: 'none', background: 'transparent', fontSize: '12.5px', outline: 'none', fontWeight: '600', color: '#1e293b' }}
+                style={{ border: 'none', background: 'transparent', fontSize: '11.5px', outline: 'none', fontWeight: '600', color: '#1e293b', width: '100%' }}
               />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #DCE5F0', padding: '6px 12px', borderRadius: '10px' }}>
-              <Calendar size={14} color="#64748b" />
-              <span style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>To:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f8fafc', border: '1px solid #DCE5F0', padding: '5px 10px', borderRadius: '8px', flex: isMobile ? '1 1 calc(50% - 4px)' : 'none' }}>
+              <Calendar size={13} color="#64748b" />
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>To:</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={e => { setEndDate(e.target.value); setPreset('Custom'); }}
-                style={{ border: 'none', background: 'transparent', fontSize: '12.5px', outline: 'none', fontWeight: '600', color: '#1e293b' }}
+                style={{ border: 'none', background: 'transparent', fontSize: '11.5px', outline: 'none', fontWeight: '600', color: '#1e293b', width: '100%' }}
               />
             </div>
           </div>
         </div>
 
         {/* Second Row: Filters & Search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
           
           {/* Search Bar */}
-          <div style={{ position: 'relative', flex: '1 1 260px', minWidth: '220px' }}>
-            <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <div style={{ position: 'relative', flex: isMobile ? '1 1 100%' : '1 1 240px', minWidth: '180px' }}>
+            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             <input
               type="text"
-              placeholder="Search by order #, report #, product name, supervisor..."
+              placeholder="Search order #, report #, product..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               style={{
                 width: '100%',
-                padding: '8px 12px 8px 36px',
-                borderRadius: '10px',
+                padding: '7px 10px 7px 32px',
+                borderRadius: '8px',
                 border: '1px solid #DCE5F0',
-                fontSize: '13px',
+                fontSize: '12.5px',
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
@@ -827,12 +860,12 @@ export default function ProductionReportsView() {
           </div>
 
           {/* Shift Select */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>Shift:</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: isMobile ? '1 1 calc(50% - 5px)' : 'none' }}>
+            <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>Shift:</label>
             <select
               value={shiftFilter}
               onChange={e => setShiftFilter(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: '10px', border: '1px solid #DCE5F0', fontSize: '13px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+              style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #DCE5F0', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none', background: '#fff' }}
             >
               <option value="All">All Shifts</option>
               <option value="Shift A">Shift A (Morning)</option>
@@ -842,12 +875,12 @@ export default function ProductionReportsView() {
           </div>
 
           {/* Status Select */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>Status:</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: isMobile ? '1 1 calc(50% - 5px)' : 'none' }}>
+            <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>Status:</label>
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: '10px', border: '1px solid #DCE5F0', fontSize: '13px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+              style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #DCE5F0', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none', background: '#fff' }}
             >
               <option value="All">All Statuses</option>
               <option value="COMPLETED">Completed</option>
@@ -862,7 +895,7 @@ export default function ProductionReportsView() {
             <button
               type="button"
               onClick={() => { setSearchQuery(''); setStatusFilter('All'); setShiftFilter('All'); setPreset('All'); setStartDate(''); setEndDate(''); }}
-              style={{ padding: '8px 14px', borderRadius: '10px', border: '1px solid #fecdd3', background: '#fff1f2', color: '#e11d48', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+              style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #fecdd3', background: '#fff1f2', color: '#e11d48', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer', flex: isMobile ? '1 1 100%' : 'none' }}
             >
               Reset Filters
             </button>
@@ -871,88 +904,96 @@ export default function ProductionReportsView() {
       </div>
 
       {/* ── SECTION 3: KPI METRICS CARDS GRID ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(clamp(150px, 16vw, 220px), 1fr))',
+        gap: isMobile ? '10px' : '16px'
+      }}>
         
-        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ background: 'rgba(37, 99, 235, 0.08)', color: '#2563eb', padding: '12px', borderRadius: '12px' }}>
-            <ClipboardList size={22} />
+        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: isMobile ? '12px 14px' : '16px 18px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
+          <div style={{ background: 'rgba(37, 99, 235, 0.08)', color: '#2563eb', padding: isMobile ? '8px' : '12px', borderRadius: '10px', flexShrink: 0 }}>
+            <ClipboardList size={isMobile ? 18 : 22} />
           </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Work Orders</div>
-            <div style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a', marginTop: '2px' }}>{kpiStats.totalWO}</div>
-            <div style={{ fontSize: '11px', color: '#2563eb', fontWeight: '700', marginTop: '2px' }}>{kpiStats.completionRate}% Completed</div>
-          </div>
-        </div>
-
-        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ background: 'rgba(2, 132, 199, 0.08)', color: '#0284c7', padding: '12px', borderRadius: '12px' }}>
-            <Activity size={22} />
-          </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Floor Jobs</div>
-            <div style={{ fontSize: '22px', fontWeight: '900', color: '#0284c7', marginTop: '2px' }}>{kpiStats.activeWO}</div>
-            <div style={{ fontSize: '11px', color: '#0369a1', fontWeight: '700', marginTop: '2px' }}>Live On Manufacturing Floor</div>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Total Work Orders</div>
+            <div style={{ fontSize: isMobile ? '18px' : '22px', fontWeight: '900', color: '#0f172a', marginTop: '1px' }}>{kpiStats.totalWO}</div>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#2563eb', fontWeight: '700', whiteSpace: 'nowrap' }}>{kpiStats.completionRate}% Done</div>
           </div>
         </div>
 
-        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ background: 'rgba(22, 163, 74, 0.08)', color: '#16a34a', padding: '12px', borderRadius: '12px' }}>
-            <CheckCircle size={22} />
+        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: isMobile ? '12px 14px' : '16px 18px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
+          <div style={{ background: 'rgba(2, 132, 199, 0.08)', color: '#0284c7', padding: isMobile ? '8px' : '12px', borderRadius: '10px', flexShrink: 0 }}>
+            <Activity size={isMobile ? 18 : 22} />
           </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Completed Orders</div>
-            <div style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a', marginTop: '2px' }}>{kpiStats.completedWO}</div>
-            <div style={{ fontSize: '11px', color: '#15803d', fontWeight: '700', marginTop: '2px' }}>Ready / In Finished Goods</div>
-          </div>
-        </div>
-
-        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ background: 'rgba(124, 58, 237, 0.08)', color: '#7c3aed', padding: '12px', borderRadius: '12px' }}>
-            <ShieldCheck size={22} />
-          </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Quality Yield Rate</div>
-            <div style={{ fontSize: '22px', fontWeight: '900', color: '#7c3aed', marginTop: '2px' }}>{kpiStats.qcYieldPct}%</div>
-            <div style={{ fontSize: '11px', color: '#6d28d9', fontWeight: '700', marginTop: '2px' }}>{kpiStats.totalTested} Total Tests ({kpiStats.passedTested} Pass)</div>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Active Floor Jobs</div>
+            <div style={{ fontSize: isMobile ? '18px' : '22px', fontWeight: '900', color: '#0284c7', marginTop: '1px' }}>{kpiStats.activeWO}</div>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#0369a1', fontWeight: '700', whiteSpace: 'nowrap' }}>Live On Floor</div>
           </div>
         </div>
 
-        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ background: 'rgba(217, 119, 6, 0.08)', color: '#d97706', padding: '12px', borderRadius: '12px' }}>
-            <Scale size={22} />
+        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: isMobile ? '12px 14px' : '16px 18px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
+          <div style={{ background: 'rgba(22, 163, 74, 0.08)', color: '#16a34a', padding: isMobile ? '8px' : '12px', borderRadius: '10px', flexShrink: 0 }}>
+            <CheckCircle size={isMobile ? 18 : 22} />
           </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Production Weight</div>
-            <div style={{ fontSize: '20px', fontWeight: '900', color: '#d97706', marginTop: '2px' }}>{kpiStats.totalWeightMT} MT</div>
-            <div style={{ fontSize: '11px', color: '#b45309', fontWeight: '700', marginTop: '2px' }}>{kpiStats.totalWeightKg} KG Total Produced</div>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Completed Orders</div>
+            <div style={{ fontSize: isMobile ? '18px' : '22px', fontWeight: '900', color: '#16a34a', marginTop: '1px' }}>{kpiStats.completedWO}</div>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#15803d', fontWeight: '700', whiteSpace: 'nowrap' }}>Ready / Stock</div>
           </div>
         </div>
 
-        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: '18px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ background: 'rgba(234, 179, 8, 0.08)', color: '#ca8a04', padding: '12px', borderRadius: '12px' }}>
-            <Layers size={22} />
+        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: isMobile ? '12px 14px' : '16px 18px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
+          <div style={{ background: 'rgba(124, 58, 237, 0.08)', color: '#7c3aed', padding: isMobile ? '8px' : '12px', borderRadius: '10px', flexShrink: 0 }}>
+            <ShieldCheck size={isMobile ? 18 : 22} />
           </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Material Requests</div>
-            <div style={{ fontSize: '22px', fontWeight: '900', color: '#ca8a04', marginTop: '2px' }}>{kpiStats.materialReqCount}</div>
-            <div style={{ fontSize: '11px', color: '#a16207', fontWeight: '700', marginTop: '2px' }}>Store Requisitions Active</div>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Quality Yield</div>
+            <div style={{ fontSize: isMobile ? '18px' : '22px', fontWeight: '900', color: '#7c3aed', marginTop: '1px' }}>{kpiStats.qcYieldPct}%</div>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#6d28d9', fontWeight: '700', whiteSpace: 'nowrap' }}>{kpiStats.passedTested}/{kpiStats.totalTested} Passed</div>
+          </div>
+        </div>
+
+        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: isMobile ? '12px 14px' : '16px 18px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
+          <div style={{ background: 'rgba(217, 119, 6, 0.08)', color: '#d97706', padding: isMobile ? '8px' : '12px', borderRadius: '10px', flexShrink: 0 }}>
+            <Scale size={isMobile ? 18 : 22} />
+          </div>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Total Weight</div>
+            <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: '900', color: '#d97706', marginTop: '1px' }}>{kpiStats.totalWeightMT} MT</div>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#b45309', fontWeight: '700', whiteSpace: 'nowrap' }}>{kpiStats.totalWeightKg} KG</div>
+          </div>
+        </div>
+
+        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '14px', padding: isMobile ? '12px 14px' : '16px 18px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
+          <div style={{ background: 'rgba(234, 179, 8, 0.08)', color: '#ca8a04', padding: isMobile ? '8px' : '12px', borderRadius: '10px', flexShrink: 0 }}>
+            <Layers size={isMobile ? 18 : 22} />
+          </div>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Requisitions</div>
+            <div style={{ fontSize: isMobile ? '18px' : '22px', fontWeight: '900', color: '#ca8a04', marginTop: '1px' }}>{kpiStats.materialReqCount}</div>
+            <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#a16207', fontWeight: '700', whiteSpace: 'nowrap' }}>Active Store Reqs</div>
           </div>
         </div>
 
       </div>
 
       {/* ── SECTION 4: PROPER VISUAL ANALYTICS CHARTS SUITE ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 480px), 1fr))', gap: '20px' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))',
+        gap: isMobile ? '14px' : '20px'
+      }}>
         
         {/* Chart 1: Daily Production Output & Trend (Dual Metrics Toggle) */}
-        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '16px', padding: isMobile ? '14px' : '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.01)', minWidth: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#1e1b4b', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <TrendingUp size={18} color="#0284c7" />
+              <h3 style={{ fontSize: isMobile ? '14.5px' : '16px', fontWeight: '800', color: '#1e1b4b', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <TrendingUp size={16} color="#0284c7" />
                 Daily Production Output Trend
               </h3>
-              <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>Daily timeline breakdown of sets, covers, frames, and weight</p>
+              <p style={{ fontSize: '11.5px', color: '#64748b', margin: '2px 0 0 0' }}>Daily timeline of sets, covers, frames, and weight</p>
             </div>
 
             {/* Toggle Sets vs Weight */}
@@ -961,7 +1002,7 @@ export default function ProductionReportsView() {
                 type="button"
                 onClick={() => setChartMetric('sets')}
                 style={{
-                  padding: '4px 10px',
+                  padding: '3px 8px',
                   borderRadius: '6px',
                   border: 'none',
                   fontSize: '11px',
@@ -972,13 +1013,13 @@ export default function ProductionReportsView() {
                   boxShadow: chartMetric === 'sets' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
                 }}
               >
-                Sets Output
+                Sets
               </button>
               <button
                 type="button"
                 onClick={() => setChartMetric('weight')}
                 style={{
-                  padding: '4px 10px',
+                  padding: '3px 8px',
                   borderRadius: '6px',
                   border: 'none',
                   fontSize: '11px',
@@ -994,21 +1035,21 @@ export default function ProductionReportsView() {
             </div>
           </div>
 
-          <div style={{ height: '280px', width: '100%' }}>
+          <div style={{ height: isMobile ? '230px' : isTablet ? '260px' : '280px', width: '100%', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               {chartMetric === 'sets' ? (
-                <BarChart data={dailyOutputTrendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <BarChart data={dailyOutputTrendData} margin={{ top: 10, right: 10, left: isMobile ? -25 : -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
+                  <XAxis dataKey="name" stroke="#64748b" fontSize={isMobile ? 9.5 : 11} tickLine={false} interval={isMobile ? 'preserveStartEnd' : 0} />
+                  <YAxis stroke="#64748b" fontSize={isMobile ? 9.5 : 11} tickLine={false} />
                   <Tooltip contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)' }} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                  <Bar dataKey="sets" name="Sets Produced" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: isMobile ? '10.5px' : '12px', paddingTop: '8px' }} />
+                  <Bar dataKey="sets" name="Sets" fill="#10b981" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="covers" name="Covers" fill="#38bdf8" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="frames" name="Frames" fill="#c084fc" radius={[4, 4, 0, 0]} />
                 </BarChart>
               ) : (
-                <AreaChart data={dailyOutputTrendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <AreaChart data={dailyOutputTrendData} margin={{ top: 10, right: 10, left: isMobile ? -25 : -10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4}/>
@@ -1016,10 +1057,10 @@ export default function ProductionReportsView() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
+                  <XAxis dataKey="name" stroke="#64748b" fontSize={isMobile ? 9.5 : 11} tickLine={false} interval={isMobile ? 'preserveStartEnd' : 0} />
+                  <YAxis stroke="#64748b" fontSize={isMobile ? 9.5 : 11} tickLine={false} />
                   <Tooltip contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '12px' }} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: isMobile ? '10.5px' : '12px', paddingTop: '8px' }} />
                   <Area type="monotone" dataKey="weightMT" name="Tonnage (MT)" stroke="#d97706" strokeWidth={3} fillOpacity={1} fill="url(#weightGrad)" />
                 </AreaChart>
               )}
@@ -1028,29 +1069,35 @@ export default function ProductionReportsView() {
         </div>
 
         {/* Chart 2: Output by Shift Performance */}
-        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '16px', padding: isMobile ? '14px' : '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.01)', minWidth: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#1e1b4b', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Clock size={18} color="#059669" />
+              <h3 style={{ fontSize: isMobile ? '14.5px' : '16px', fontWeight: '800', color: '#1e1b4b', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Clock size={16} color="#059669" />
                 Shift Performance Comparison
               </h3>
-              <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>Comparative manufacturing volume across Shifts A, B, and C</p>
+              <p style={{ fontSize: '11.5px', color: '#64748b', margin: '2px 0 0 0' }}>Volume across Shifts A, B, and C</p>
             </div>
-            <span style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-              3 Active Shifts
+            <span style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', padding: '2px 7px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '800' }}>
+              3 Shifts
             </span>
           </div>
 
-          <div style={{ height: '280px', width: '100%' }}>
+          <div style={{ height: isMobile ? '230px' : isTablet ? '260px' : '280px', width: '100%', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={shiftComparisonData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <BarChart data={shiftComparisonData} margin={{ top: 10, right: 10, left: isMobile ? -25 : -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
-                <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
+                <XAxis
+                  dataKey="name"
+                  stroke="#64748b"
+                  fontSize={isMobile ? 9.5 : 11}
+                  tickLine={false}
+                  tickFormatter={(val) => isMobile ? String(val).split(' ')[0] + ' ' + (String(val).split(' ')[1] || '') : val}
+                />
+                <YAxis stroke="#64748b" fontSize={isMobile ? 9.5 : 11} tickLine={false} />
                 <Tooltip contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '12px' }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                <Bar dataKey="sets" name="Sets Produced" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: isMobile ? '10.5px' : '12px', paddingTop: '8px' }} />
+                <Bar dataKey="sets" name="Sets" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="weightMT" name="Weight (MT)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -1058,31 +1105,31 @@ export default function ProductionReportsView() {
         </div>
 
         {/* Chart 3: QC Pass vs Fail Breakdown Donut */}
-        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '16px', padding: isMobile ? '14px' : '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.01)', minWidth: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#1e1b4b', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <PieIcon size={18} color="#7c3aed" />
+              <h3 style={{ fontSize: isMobile ? '14.5px' : '16px', fontWeight: '800', color: '#1e1b4b', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <PieIcon size={16} color="#7c3aed" />
                 Quality Inspection & Yield
               </h3>
-              <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>First-pass inspection approval vs defect rework ratio</p>
+              <p style={{ fontSize: '11.5px', color: '#64748b', margin: '2px 0 0 0' }}>Approval vs defect rework ratio</p>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: '18px', fontWeight: '900', color: '#10b981' }}>{kpiStats.qcYieldPct}%</span>
-              <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b' }}>YIELD RATE</div>
+              <span style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '900', color: '#10b981' }}>{kpiStats.qcYieldPct}%</span>
+              <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748b' }}>YIELD RATE</div>
             </div>
           </div>
 
-          <div style={{ height: '280px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ height: isMobile ? '230px' : isTablet ? '260px' : '280px', width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={qcStatusPieData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={65}
-                  outerRadius={95}
-                  paddingAngle={5}
+                  innerRadius={isMobile ? 42 : 60}
+                  outerRadius={isMobile ? 68 : 90}
+                  paddingAngle={4}
                   dataKey="value"
                 >
                   {qcStatusPieData.map((entry, index) => (
@@ -1090,37 +1137,45 @@ export default function ProductionReportsView() {
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '12px' }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: isMobile ? '10.5px' : '12px', paddingTop: '8px' }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Chart 4: Top Products Manufactured */}
-        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.01)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '16px', padding: isMobile ? '14px' : '20px', boxShadow: '0 4px 10px rgba(0,0,0,0.01)', minWidth: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#1e1b4b', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Award size={18} color="#f59e0b" />
+              <h3 style={{ fontSize: isMobile ? '14.5px' : '16px', fontWeight: '800', color: '#1e1b4b', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Award size={16} color="#f59e0b" />
                 Top Manufactured Products
               </h3>
-              <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>Highest volume items currently produced on the line</p>
+              <p style={{ fontSize: '11.5px', color: '#64748b', margin: '2px 0 0 0' }}>Highest volume items produced</p>
             </div>
-            <span style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-              Top 5 Items
+            <span style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '2px 7px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '800' }}>
+              Top 5
             </span>
           </div>
 
-          <div style={{ height: '280px', width: '100%' }}>
+          <div style={{ height: isMobile ? '230px' : isTablet ? '260px' : '280px', width: '100%', minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topProductsData} layout="vertical" margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+              <BarChart data={topProductsData} layout="vertical" margin={{ top: 10, right: 15, left: isMobile ? -15 : 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                <XAxis type="number" stroke="#64748b" fontSize={11} tickLine={false} />
-                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={11} tickLine={false} width={110} />
+                <XAxis type="number" stroke="#64748b" fontSize={isMobile ? 9.5 : 11} tickLine={false} />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  stroke="#64748b"
+                  fontSize={isMobile ? 9 : 11}
+                  tickLine={false}
+                  width={isMobile ? 75 : 110}
+                  tickFormatter={(name) => name.length > (isMobile ? 9 : 18) ? name.slice(0, isMobile ? 7 : 16) + '…' : name}
+                />
                 <Tooltip contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '12px' }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                <Bar dataKey="produced" name="Produced Qty" fill="#10b981" radius={[0, 4, 4, 0]} />
-                <Bar dataKey="target" name="Target Qty" fill="#cbd5e1" radius={[0, 4, 4, 0]} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: isMobile ? '10.5px' : '12px', paddingTop: '8px' }} />
+                <Bar dataKey="produced" name="Produced" fill="#10b981" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="target" name="Target" fill="#cbd5e1" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -1132,19 +1187,20 @@ export default function ProductionReportsView() {
       <div style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(15, 23, 42, 0.03)' }}>
         
         {/* Tab Switcher Toolbar */}
-        <div style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ display: 'flex', gap: '6px', background: '#e2e8f0', padding: '3px', borderRadius: '10px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%', whiteSpace: 'nowrap' }}>
+        <div style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', padding: isMobile ? '10px 12px' : '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '4px', background: '#e2e8f0', padding: '3px', borderRadius: '10px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%', whiteSpace: 'nowrap', width: isMobile ? '100%' : 'auto' }}>
             <button
               type="button"
               onClick={() => setActiveTab('work-orders')}
               style={{
-                padding: '8px 14px',
+                padding: isMobile ? '6px 10px' : '8px 14px',
                 borderRadius: '8px',
                 border: 'none',
-                fontSize: '12.5px',
+                fontSize: isMobile ? '11.5px' : '12.5px',
                 fontWeight: '800',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
                 background: activeTab === 'work-orders' ? '#ffffff' : 'transparent',
                 color: activeTab === 'work-orders' ? '#24345C' : '#64748b',
                 boxShadow: activeTab === 'work-orders' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
@@ -1157,13 +1213,14 @@ export default function ProductionReportsView() {
               type="button"
               onClick={() => setActiveTab('daily-shifts')}
               style={{
-                padding: '8px 14px',
+                padding: isMobile ? '6px 10px' : '8px 14px',
                 borderRadius: '8px',
                 border: 'none',
-                fontSize: '12.5px',
+                fontSize: isMobile ? '11.5px' : '12.5px',
                 fontWeight: '800',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
                 background: activeTab === 'daily-shifts' ? '#ffffff' : 'transparent',
                 color: activeTab === 'daily-shifts' ? '#24345C' : '#64748b',
                 boxShadow: activeTab === 'daily-shifts' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
@@ -1176,57 +1233,218 @@ export default function ProductionReportsView() {
               type="button"
               onClick={() => setActiveTab('qc-testing')}
               style={{
-                padding: '8px 14px',
+                padding: isMobile ? '6px 10px' : '8px 14px',
                 borderRadius: '8px',
                 border: 'none',
-                fontSize: '12.5px',
+                fontSize: isMobile ? '11.5px' : '12.5px',
                 fontWeight: '800',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
                 background: activeTab === 'qc-testing' ? '#ffffff' : 'transparent',
                 color: activeTab === 'qc-testing' ? '#24345C' : '#64748b',
                 boxShadow: activeTab === 'qc-testing' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
               }}
             >
-              🔬 Testing Register ({filteredTestingRecords.length})
+              🔬 Testing ({filteredTestingRecords.length})
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('material-requests')}
               style={{
-                padding: '8px 14px',
+                padding: isMobile ? '6px 10px' : '8px 14px',
                 borderRadius: '8px',
                 border: 'none',
-                fontSize: '12.5px',
+                fontSize: isMobile ? '11.5px' : '12.5px',
                 fontWeight: '800',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
                 background: activeTab === 'material-requests' ? '#ffffff' : 'transparent',
                 color: activeTab === 'material-requests' ? '#24345C' : '#64748b',
                 boxShadow: activeTab === 'material-requests' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none'
               }}
             >
-              📦 Material Requests ({filteredMaterialRequests.length})
+              📦 Requisitions ({filteredMaterialRequests.length})
             </button>
           </div>
 
           <button
             type="button"
             onClick={() => handleExportCSV('active-tab')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '8px', border: '1px solid #10b981', background: '#ecfdf5', color: '#059669', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid #10b981', background: '#ecfdf5', color: '#059669', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer', width: isMobile ? '100%' : 'auto', justifyContent: 'center' }}
           >
-            <Download size={14} /> Export Tab CSV
+            <Download size={13} /> Export Tab CSV
           </button>
         </div>
 
-        {/* Tab Data Table */}
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          {loading ? (
-            <div style={{ padding: '48px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
-              ⏳ Loading production report records from live database...
-            </div>
-          ) : (
+        {/* Tab Data Table & Mobile Cards */}
+        {loading ? (
+          <div style={{ padding: '48px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
+            ⏳ Loading production report records from live database...
+          </div>
+        ) : isMobile ? (
+          /* Mobile Card View */
+          <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {activeTab === 'work-orders' && (
+              workOrdersList.length === 0 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#8893A7', fontSize: '13px' }}>No work orders match the filter.</div>
+              ) : (
+                workOrdersList.map((wo, idx) => {
+                  const target = Number(wo.targetQuantity || wo.quantity || 10);
+                  const produced = Number(wo.quantityProduced || wo.producedQty || 0);
+                  const pct = target > 0 ? Math.min(100, Math.round((produced / target) * 100)) : 0;
+                  return (
+                    <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ fontWeight: '800', fontFamily: 'monospace', fontSize: '13px', color: '#2563eb' }}>
+                            {wo.workOrderNumber || wo.orderNumber || wo.id}
+                          </div>
+                          <div style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b', marginTop: '2px' }}>
+                            {wo.salesOrderItem?.product?.name || wo.product?.name || wo.productName || 'Item'}
+                          </div>
+                        </div>
+                        {renderStatusBadge(wo.productionStatus || wo.workflowStatus || wo.status || 'IN_PROGRESS')}
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#475569', borderTop: '1px solid #edf2f7', paddingTop: '6px' }}>
+                        <span>Target: <strong>{target} PCS</strong></span>
+                        <span>Produced: <strong style={{ color: '#059669' }}>{produced} PCS</strong></span>
+                        <span>QC: <strong style={{ color: String(wo.qcResult).toUpperCase() === 'PASS' ? '#16a34a' : '#dc2626' }}>{wo.qcResult || 'Pending'}</strong></span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ flex: 1, height: '6px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#10b981' : '#3b82f6' }} />
+                        </div>
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#334155' }}>{pct}%</span>
+                        <button
+                          type="button"
+                          onClick={() => setDetailModal({ type: 'WORK_ORDER', data: wo })}
+                          style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: '700', color: '#2563eb', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                        >
+                          <Eye size={11} /> View
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )
+            )}
+
+            {activeTab === 'daily-shifts' && (
+              filteredDailyReports.length === 0 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#8893A7', fontSize: '13px' }}>No shift logs found matching the filter.</div>
+              ) : (
+                filteredDailyReports.map((r, idx) => (
+                  <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: '800', fontFamily: 'monospace', fontSize: '13px', color: '#7c3aed' }}>
+                          {r.reportNo || r.id}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>
+                          {r.reportDate ? new Date(r.reportDate).toLocaleDateString('en-GB') : '-'} • <strong>{r.shift || 'Shift A'}</strong>
+                        </div>
+                      </div>
+                      {renderStatusBadge(r.status || 'DRAFT')}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#334155', borderTop: '1px solid #edf2f7', paddingTop: '6px' }}>
+                      <span>Sets: <strong style={{ color: '#0284c7' }}>{(r.totalSets || 0)}</strong></span>
+                      <span>Covers/Frames: <strong>{r.totalCovers || 0}/{r.totalFrames || 0}</strong></span>
+                      <span>Weight: <strong style={{ color: '#d97706' }}>{Number(r.totalWeight || 0)} kg</strong></span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '2px' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>By: {r.shiftSupervisorName || r.supervisorName || 'Supervisor'}</span>
+                      <button
+                        type="button"
+                        onClick={() => setDetailModal({ type: 'DAILY_REPORT', data: r })}
+                        style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: '700', color: '#7c3aed', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                      >
+                        <Eye size={11} /> View
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )
+            )}
+
+            {activeTab === 'qc-testing' && (
+              filteredTestingRecords.length === 0 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#8893A7', fontSize: '13px' }}>No quality testing records found.</div>
+              ) : (
+                filteredTestingRecords.map((t, idx) => (
+                  <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: '800', fontFamily: 'monospace', fontSize: '13px', color: '#0284c7' }}>
+                          {t.referenceNo || t.id}
+                        </div>
+                        <div style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b', marginTop: '2px' }}>
+                          {t.productName}
+                        </div>
+                      </div>
+                      {renderStatusBadge(t.status || 'Pending')}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#475569', borderTop: '1px solid #edf2f7', paddingTop: '6px' }}>
+                      <span>Qty: <strong>{t.quantity} PCS</strong></span>
+                      <span>By: <strong>{t.reviewedBy || 'QC Officer'}</strong></span>
+                      <button
+                        type="button"
+                        onClick={() => setDetailModal({ type: 'QC_TEST', data: t })}
+                        style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: '700', color: '#0284c7', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                      >
+                        <Eye size={11} /> View
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )
+            )}
+
+            {activeTab === 'material-requests' && (
+              filteredMaterialRequests.length === 0 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#8893A7', fontSize: '13px' }}>No material requisitions found.</div>
+              ) : (
+                filteredMaterialRequests.map((m, idx) => (
+                  <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: '800', fontFamily: 'monospace', fontSize: '13px', color: '#ca8a04' }}>
+                          {m.requestNo || m.id}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>
+                          {m.warehouse || 'Main Store'} • By {m.requester || m.requestedBy?.name || 'Operator'}
+                        </div>
+                      </div>
+                      {renderStatusBadge(m.status || 'Submitted')}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#475569', borderTop: '1px solid #edf2f7', paddingTop: '6px' }}>
+                      <span style={{ background: m.priority === 'High' ? '#fef2f2' : '#f1f5f9', color: m.priority === 'High' ? '#dc2626' : '#475569', padding: '2px 7px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '800' }}>
+                        {m.priority || 'Normal'} Priority
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDetailModal({ type: 'MATERIAL_REQ', data: m })}
+                        style={{ background: '#ffffff', border: '1px solid #DCE5F0', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: '700', color: '#ca8a04', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                      >
+                        <Eye size={11} /> View
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )
+            )}
+          </div>
+        ) : (
+          /* Desktop & Tablet Table View */
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               
               {/* TAB 1: WORK ORDERS REPORT */}
@@ -1489,63 +1707,63 @@ export default function ProductionReportsView() {
               )}
 
             </table>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ── DETAIL MODAL INSPECTION VIEW ── */}
       {detailModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setDetailModal(null)}>
-          <div style={{ background: '#ffffff', borderRadius: '16px', maxWidth: 'min(92vw, 600px)', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', padding: '24px', position: 'relative' }} onClick={e => e.stopPropagation()}>
-            <button type="button" onClick={() => setDetailModal(null)} style={{ position: 'absolute', right: '16px', top: '16px', background: '#f1f5f9', border: 'none', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px' }} onClick={() => setDetailModal(null)}>
+          <div style={{ background: '#ffffff', borderRadius: '16px', maxWidth: 'min(94vw, 600px)', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', padding: isMobile ? '16px' : '24px', position: 'relative' }} onClick={e => e.stopPropagation()}>
+            <button type="button" onClick={() => setDetailModal(null)} style={{ position: 'absolute', right: '14px', top: '14px', background: '#f1f5f9', border: 'none', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
               <X size={16} />
             </button>
 
             {detailModal.type === 'WORK_ORDER' && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', paddingRight: '36px' }}>
                   <ClipboardList color="#2563eb" size={22} />
-                  <h2 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: '#1e1b4b' }}>Work Order #{detailModal.data.workOrderNumber || detailModal.data.orderNumber || detailModal.data.id}</h2>
+                  <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '800', margin: 0, color: '#1e1b4b' }}>Work Order #{detailModal.data.workOrderNumber || detailModal.data.orderNumber || detailModal.data.id}</h2>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', background: '#f8fafc', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
-                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Product</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.salesOrderItem?.product?.name || detailModal.data.product?.name || detailModal.data.productName || '—'}</div></div>
-                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Target Quantity</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.targetQuantity || detailModal.data.quantity || 0} PCS</div></div>
-                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Produced Quantity</span><div style={{ fontWeight: '800', color: '#059669' }}>{detailModal.data.quantityProduced || detailModal.data.producedQty || 0} PCS</div></div>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', background: '#f8fafc', padding: isMobile ? '12px' : '16px', borderRadius: '12px', marginBottom: '16px' }}>
+                  <div style={{ gridColumn: isMobile ? '1 / -1' : 'auto' }}><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Product</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.salesOrderItem?.product?.name || detailModal.data.product?.name || detailModal.data.productName || '—'}</div></div>
+                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Target Qty</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.targetQuantity || detailModal.data.quantity || 0} PCS</div></div>
+                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Produced Qty</span><div style={{ fontWeight: '800', color: '#059669' }}>{detailModal.data.quantityProduced || detailModal.data.producedQty || 0} PCS</div></div>
                   <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Status</span><div>{renderStatusBadge(detailModal.data.productionStatus || detailModal.data.workflowStatus || detailModal.data.status)}</div></div>
                   <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>QC Result</span><div style={{ fontWeight: '800', color: detailModal.data.qcResult === 'PASS' ? '#16a34a' : '#dc2626' }}>{detailModal.data.qcResult || 'Pending'}</div></div>
-                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Created Timestamp</span><div style={{ fontSize: '12px', color: '#334155' }}>{new Date(detailModal.data.createdAt || Date.now()).toLocaleString()}</div></div>
+                  <div style={{ gridColumn: isMobile ? '1 / -1' : 'auto' }}><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Created Timestamp</span><div style={{ fontSize: '12px', color: '#334155' }}>{new Date(detailModal.data.createdAt || Date.now()).toLocaleString()}</div></div>
                 </div>
               </div>
             )}
 
             {detailModal.type === 'DAILY_REPORT' && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', paddingRight: '36px' }}>
                   <FileText color="#7c3aed" size={22} />
-                  <h2 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: '#1e1b4b' }}>Daily Shift Report #{detailModal.data.reportNo || detailModal.data.id}</h2>
+                  <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '800', margin: 0, color: '#1e1b4b' }}>Daily Shift Report #{detailModal.data.reportNo || detailModal.data.id}</h2>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', background: '#f8fafc', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', background: '#f8fafc', padding: isMobile ? '12px' : '16px', borderRadius: '12px', marginBottom: '16px' }}>
                   <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Date</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.reportDate ? new Date(detailModal.data.reportDate).toLocaleDateString('en-GB') : '-'}</div></div>
                   <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Shift</span><div style={{ fontWeight: '800', color: '#7c3aed' }}>{detailModal.data.shift || 'Shift A'}</div></div>
                   <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Supervisor</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.shiftSupervisorName || detailModal.data.supervisorName || '—'}</div></div>
                   <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Total Weight</span><div style={{ fontWeight: '800', color: '#d97706' }}>{Number(detailModal.data.totalWeight || 0).toLocaleString()} kg</div></div>
                   <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Sets Output</span><div style={{ fontWeight: '800', color: '#059669' }}>{detailModal.data.totalSets || 0} Sets</div></div>
-                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Covers / Frames</span><div style={{ fontWeight: '800', color: '#0284c7' }}>{detailModal.data.totalCovers || 0} Covers / {detailModal.data.totalFrames || 0} Frames</div></div>
+                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Covers / Frames</span><div style={{ fontWeight: '800', color: '#0284c7' }}>{detailModal.data.totalCovers || 0} / {detailModal.data.totalFrames || 0}</div></div>
                 </div>
               </div>
             )}
 
             {detailModal.type === 'QC_TEST' && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', paddingRight: '36px' }}>
                   <ShieldCheck color="#0284c7" size={22} />
-                  <h2 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: '#1e1b4b' }}>Inspection #{detailModal.data.referenceNo || detailModal.data.id}</h2>
+                  <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '800', margin: 0, color: '#1e1b4b' }}>Inspection #{detailModal.data.referenceNo || detailModal.data.id}</h2>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', background: '#f8fafc', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
-                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Product</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.productName}</div></div>
-                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Tested Quantity</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.quantity} PCS</div></div>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', background: '#f8fafc', padding: isMobile ? '12px' : '16px', borderRadius: '12px', marginBottom: '16px' }}>
+                  <div style={{ gridColumn: isMobile ? '1 / -1' : 'auto' }}><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Product</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.productName}</div></div>
+                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Tested Qty</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.quantity} PCS</div></div>
                   <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Status</span><div>{renderStatusBadge(detailModal.data.status)}</div></div>
-                  <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Reviewed By</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.reviewedBy || 'QC Inspector'}</div></div>
+                  <div style={{ gridColumn: isMobile ? '1 / -1' : 'auto' }}><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Reviewed By</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.reviewedBy || 'QC Inspector'}</div></div>
                   <div style={{ gridColumn: '1 / -1' }}><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Remarks / Observations</span><div style={{ fontSize: '13px', color: '#334155', marginTop: '4px' }}>{detailModal.data.remarks || 'No issues noted.'}</div></div>
                 </div>
               </div>
@@ -1553,11 +1771,11 @@ export default function ProductionReportsView() {
 
             {detailModal.type === 'MATERIAL_REQ' && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', paddingRight: '36px' }}>
                   <Layers color="#ca8a04" size={22} />
-                  <h2 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: '#1e1b4b' }}>Material Requisition #{detailModal.data.requestNo || detailModal.data.id}</h2>
+                  <h2 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '800', margin: 0, color: '#1e1b4b' }}>Material Requisition #{detailModal.data.requestNo || detailModal.data.id}</h2>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', background: '#f8fafc', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', background: '#f8fafc', padding: isMobile ? '12px' : '16px', borderRadius: '12px', marginBottom: '16px' }}>
                   <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Warehouse</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.warehouse || 'Main Store'}</div></div>
                   <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Requester</span><div style={{ fontWeight: '800', color: '#0f172a' }}>{detailModal.data.requester || detailModal.data.requestedBy?.name || 'Line Operator'}</div></div>
                   <div><span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>Status</span><div>{renderStatusBadge(detailModal.data.status)}</div></div>
@@ -1568,7 +1786,7 @@ export default function ProductionReportsView() {
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-              <button type="button" onClick={() => setDetailModal(null)} style={{ padding: '8px 20px', borderRadius: '8px', border: '1px solid #DCE5F0', background: '#f8fafc', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+              <button type="button" onClick={() => setDetailModal(null)} style={{ padding: '8px 20px', borderRadius: '8px', border: '1px solid #DCE5F0', background: '#f8fafc', fontWeight: '700', fontSize: '13px', cursor: 'pointer', width: isMobile ? '100%' : 'auto' }}>
                 Close
               </button>
             </div>

@@ -1154,25 +1154,31 @@ export class ProductionWorkflowService {
     }
 
     const enrichedList = rawList.map((item: any) => {
-      const pId = item.productId || item.product?.id;
+      const pId = item.productId || item.product?.id || item.id;
+      const cleanPId = pId
+        ? String(pId)
+            .replace(/^fg-prod-/, '')
+            .replace(/^fg-wo-/, '')
+            .replace(/^fg-so-/, '')
+        : '';
+      const prodObjId = item.product?.id || '';
       const pCode =
-        item.productCode || item.product?.sku || item.product?.publicId;
-      const prodInVal =
-        (pId ? prodInMap.get(pId) : 0) ||
-        (pCode ? prodInMap.get(pCode) : 0) ||
-        0;
-      const dispatchVal =
-        (pId ? dispatchMap.get(pId) : 0) ||
-        (pCode ? dispatchMap.get(pCode) : 0) ||
-        0;
-      const rawExtraCover =
-        (pId ? extraCoverMap.get(pId) : 0) ||
-        (pCode ? extraCoverMap.get(pCode) : 0) ||
-        0;
-      const rawExtraFrame =
-        (pId ? extraFrameMap.get(pId) : 0) ||
-        (pCode ? extraFrameMap.get(pCode) : 0) ||
-        0;
+        item.productCode || item.product?.sku || item.product?.publicId || '';
+
+      const getVal = (map: Map<string, number>) => {
+        return (
+          (cleanPId ? map.get(cleanPId) : 0) ||
+          (prodObjId ? map.get(prodObjId) : 0) ||
+          (pId ? map.get(pId) : 0) ||
+          (pCode ? map.get(pCode) : 0) ||
+          0
+        );
+      };
+
+      const prodInVal = getVal(prodInMap);
+      const dispatchVal = getVal(dispatchMap);
+      const rawExtraCover = getVal(extraCoverMap);
+      const rawExtraFrame = getVal(extraFrameMap);
 
       const netStock = Math.max(0, prodInVal - Math.abs(dispatchVal));
       const finalQuantity =
@@ -1184,6 +1190,7 @@ export class ProductionWorkflowService {
 
       return {
         ...item,
+        productId: cleanPId || item.productId,
         quantity: finalQuantity,
         availableQuantity: finalAvailable,
         productionIn: prodInVal,
@@ -1363,45 +1370,72 @@ export class ProductionWorkflowService {
     return fg;
   }
 
-  async stockInFinishedGoods(dto: any, userId?: string) {
-    const qty = Number(dto.quantity);
-    if (!qty || isNaN(qty) || qty <= 0) {
-      throw new BadRequestException('Quantity to add must be greater than 0');
-    }
+  private async resolveProduct(dto: any) {
+    let cleanId = dto.productId
+      ? String(dto.productId)
+          .replace(/^fg-prod-/, '')
+          .replace(/^fg-wo-/, '')
+          .replace(/^fg-so-/, '')
+      : null;
 
     let product: any = null;
-    if (dto.productId) {
+    if (cleanId && cleanId !== 'UNKNOWN_PROD') {
       product = await this.prisma.product.findUnique({
-        where: { id: dto.productId },
+        where: { id: cleanId },
       });
       if (!product) {
         const fg = await this.prisma.finishedGoods.findUnique({
-          where: { id: dto.productId },
+          where: { id: cleanId },
           include: { product: true },
         });
         if (fg?.product) product = fg.product;
-        else if (fg?.productId)
+        else if (fg?.productId) {
           product = await this.prisma.product.findUnique({
             where: { id: fg.productId },
           });
+        }
+      }
+      if (!product) {
+        product = await this.prisma.product.findFirst({
+          where: {
+            OR: [{ publicId: cleanId }, { sku: cleanId }],
+          },
+        });
       }
     }
+
     if (!product && (dto.productCode || dto.productName)) {
+      const code = dto.productCode ? String(dto.productCode).trim() : '';
+      const name = dto.productName ? String(dto.productName).trim() : '';
       product = await this.prisma.product.findFirst({
         where: {
           OR: [
-            { sku: dto.productCode },
-            { name: { equals: dto.productName, mode: 'insensitive' } },
-            { publicId: dto.productCode },
+            ...(code
+              ? [
+                  { sku: { equals: code, mode: 'insensitive' as const } },
+                  { publicId: { equals: code, mode: 'insensitive' as const } },
+                ]
+              : []),
+            ...(name
+              ? [
+                  { name: { equals: name, mode: 'insensitive' as const } },
+                  { name: { contains: name, mode: 'insensitive' as const } },
+                ]
+              : []),
           ],
         },
       });
     }
 
     if (!product) {
-      const companyId = dto.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
-      const sku = dto.productCode || `FG-${Date.now().toString().slice(-6)}`;
-      const name = dto.productName || sku;
+      const comp = await this.prisma.company.findFirst();
+      const companyId =
+        dto.companyId || comp?.id || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+      const sku =
+        (dto.productCode ? String(dto.productCode).trim() : '') ||
+        `FG-${Date.now().toString().slice(-6)}`;
+      const name =
+        (dto.productName ? String(dto.productName).trim() : '') || sku;
       product = await this.prisma.product.create({
         data: {
           companyId,
@@ -1411,11 +1445,25 @@ export class ProductionWorkflowService {
           unitPrice: 0,
           publicId: `PRD-${Date.now().toString().slice(-6)}`,
           category: 'Finished Goods',
+          productType: 'FINISHED_GOODS',
         },
       });
     }
 
-    const companyId = dto.companyId || product.companyId;
+    return product;
+  }
+
+  async stockInFinishedGoods(dto: any, userId?: string) {
+    const qty = Number(dto.quantity);
+    if (!qty || isNaN(qty) || qty <= 0) {
+      throw new BadRequestException('Quantity to add must be greater than 0');
+    }
+
+    const product = await this.resolveProduct(dto);
+    const companyId =
+      dto.companyId ||
+      product.companyId ||
+      '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
 
     return await this.prisma.$transaction(async (tx) => {
       const fg = await this.inventoryService.stockInFinishedGoods(
@@ -1428,7 +1476,7 @@ export class ProductionWorkflowService {
         null,
         dto.reference || 'MANUAL_STOCK_IN',
         userId || 'system',
-        'Manual stock in from UI',
+        dto.remarks || 'Manual stock in from UI',
       );
       return fg;
     });
@@ -1440,53 +1488,11 @@ export class ProductionWorkflowService {
       throw new BadRequestException('Quantity to issue must be greater than 0');
     }
 
-    let product: any = null;
-    if (dto.productId) {
-      product = await this.prisma.product.findUnique({
-        where: { id: dto.productId },
-      });
-      if (!product) {
-        const fg = await this.prisma.finishedGoods.findUnique({
-          where: { id: dto.productId },
-          include: { product: true },
-        });
-        if (fg?.product) product = fg.product;
-        else if (fg?.productId)
-          product = await this.prisma.product.findUnique({
-            where: { id: fg.productId },
-          });
-      }
-    }
-    if (!product && (dto.productCode || dto.productName)) {
-      product = await this.prisma.product.findFirst({
-        where: {
-          OR: [
-            { sku: dto.productCode },
-            { name: { equals: dto.productName, mode: 'insensitive' } },
-            { publicId: dto.productCode },
-          ],
-        },
-      });
-    }
-
-    if (!product) {
-      const companyId = dto.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
-      const sku = dto.productCode || `FG-${Date.now().toString().slice(-6)}`;
-      const name = dto.productName || sku;
-      product = await this.prisma.product.create({
-        data: {
-          companyId,
-          name,
-          sku,
-          unit: dto.unit || 'PCS',
-          unitPrice: 0,
-          publicId: `PRD-${Date.now().toString().slice(-6)}`,
-          category: 'Finished Goods',
-        },
-      });
-    }
-
-    const companyId = dto.companyId || product.companyId;
+    const product = await this.resolveProduct(dto);
+    const companyId =
+      dto.companyId ||
+      product.companyId ||
+      '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
 
     return await this.prisma.$transaction(async (tx) => {
       await this.inventoryService.stockOutFinishedGoods(
@@ -1499,7 +1505,7 @@ export class ProductionWorkflowService {
         null,
         dto.reason || 'MANUAL_STOCK_OUT',
         userId || 'system',
-        'Manual stock out from UI',
+        dto.remarks || dto.reason || 'Manual stock out from UI',
       );
 
       return {
@@ -1520,53 +1526,11 @@ export class ProductionWorkflowService {
       throw new BadRequestException('Reason is required for stock adjustment');
     }
 
-    let product: any = null;
-    if (dto.productId) {
-      product = await this.prisma.product.findUnique({
-        where: { id: dto.productId },
-      });
-      if (!product) {
-        const fg = await this.prisma.finishedGoods.findUnique({
-          where: { id: dto.productId },
-          include: { product: true },
-        });
-        if (fg?.product) product = fg.product;
-        else if (fg?.productId)
-          product = await this.prisma.product.findUnique({
-            where: { id: fg.productId },
-          });
-      }
-    }
-    if (!product && (dto.productCode || dto.productName)) {
-      product = await this.prisma.product.findFirst({
-        where: {
-          OR: [
-            { sku: dto.productCode },
-            { name: { equals: dto.productName, mode: 'insensitive' } },
-            { publicId: dto.productCode },
-          ],
-        },
-      });
-    }
-
-    if (!product) {
-      const companyId = dto.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
-      const sku = dto.productCode || `FG-${Date.now().toString().slice(-6)}`;
-      const name = dto.productName || sku;
-      product = await this.prisma.product.create({
-        data: {
-          companyId,
-          name,
-          sku,
-          unit: dto.unit || 'PCS',
-          unitPrice: 0,
-          publicId: `PRD-${Date.now().toString().slice(-6)}`,
-          category: 'Finished Goods',
-        },
-      });
-    }
-
-    const companyId = dto.companyId || product.companyId;
+    const product = await this.resolveProduct(dto);
+    const companyId =
+      dto.companyId ||
+      product.companyId ||
+      '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
 
     return await this.prisma.$transaction(async (tx) => {
       await this.inventoryService.adjustFinishedGoods(
@@ -1586,6 +1550,25 @@ export class ProductionWorkflowService {
   }
 
   async getFinishedGoodsHistory(companyId: string, productId: string) {
-    return this.inventoryService.getFinishedGoodsHistory(companyId, productId);
+    let cleanId = productId
+      ? String(productId)
+          .replace(/^fg-prod-/, '')
+          .replace(/^fg-wo-/, '')
+          .replace(/^fg-so-/, '')
+      : '';
+
+    let prod = await this.prisma.product.findUnique({
+      where: { id: cleanId },
+    });
+    if (!prod) {
+      const fg = await this.prisma.finishedGoods.findUnique({
+        where: { id: cleanId },
+      });
+      if (fg?.productId) {
+        cleanId = fg.productId;
+      }
+    }
+
+    return this.inventoryService.getFinishedGoodsHistory(companyId, cleanId);
   }
 }

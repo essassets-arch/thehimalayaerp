@@ -123,7 +123,7 @@ export class BackOfficeController {
    * SUPER ADMIN & ADMIN ENDPOINTS
    */
 
-  @Get(['admin/reports', 'admin-all', ''])
+  @Get(['admin/reports', 'admin-all', '', 'reports'])
   @Roles('Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN')
   async getAllReportsForSuperAdmin(
     @Req() req: any,
@@ -134,7 +134,7 @@ export class BackOfficeController {
     return this.backOfficeService.getAllReportsForSuperAdmin(companyId, query);
   }
 
-  @Post(['admin/reports/:id/acknowledge', ':id/acknowledge'])
+  @Post(['admin/reports/:id/acknowledge', ':id/acknowledge', 'reports/:id/acknowledge'])
   @Roles('Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN')
   async acknowledgeReport(
     @Req() req: any,
@@ -152,7 +152,7 @@ export class BackOfficeController {
     );
   }
 
-  @Get(['admin/staff', 'staff-list'])
+  @Get(['admin/staff', 'staff-list', 'staff', 'staffs'])
   @Roles('Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN')
   async getBackOfficeStaffList(@Req() req: any) {
     const companyId =

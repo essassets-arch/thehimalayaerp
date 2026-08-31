@@ -377,13 +377,18 @@ export default function FinishedGoodsStockView({
     if (readOnly) return;
 
     const { value: qty } = await Swal.fire({
-      title: `Stock In: ${row.productName}`,
-      text: `Current stock: ${row.quantity} ${row.unit}`,
+      title: `Stock In (+): ${row.productName}`,
+      html: `
+        <div style="text-align:left; font-size:13px; color:#475569; margin-bottom:8px;">
+          <div>Item Code: <strong>${row.productCode}</strong></div>
+          <div>Current Available Stock: <strong style="color:#16a34a">${row.availableQuantity} ${row.unit}</strong></div>
+        </div>
+      `,
       input: "number",
       inputLabel: "Enter quantity to add (+)",
       inputValue: 10,
       showCancelButton: true,
-      confirmButtonColor: "#0784d1",
+      confirmButtonColor: "#0284c7",
       confirmButtonText: "+ Add Stock",
       inputValidator: (val) => {
         if (!val || Number(val) <= 0) {
@@ -394,10 +399,15 @@ export default function FinishedGoodsStockView({
 
     if (qty && Number(qty) > 0) {
       try {
+        const cleanProductId = (row.productId || row.id || '')
+          .replace(/^fg-prod-/, '')
+          .replace(/^fg-wo-/, '')
+          .replace(/^fg-so-/, '');
+
         await backendFetch("/api/backend/production/finished-goods/stock-in", {
           method: "POST",
           body: {
-            productId: row.productId || row.id,
+            productId: cleanProductId,
             productCode: row.productCode,
             productName: row.productName,
             quantity: Number(qty),
@@ -408,6 +418,8 @@ export default function FinishedGoodsStockView({
         toast.success(`Added +${qty} ${row.unit} to ${row.productName}`);
         queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
         queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-dispatch-history"] });
+        queryClient.invalidateQueries({ queryKey: ["production-daily-reports"] });
         refetch();
       } catch (err: any) {
         toast.error(err.message || "Failed to add stock");
@@ -420,14 +432,19 @@ export default function FinishedGoodsStockView({
     if (readOnly) return;
 
     const { value: qty } = await Swal.fire({
-      title: `Stock Out: ${row.productName}`,
-      text: `Current available stock: ${row.availableQuantity} ${row.unit}`,
+      title: `Stock Out (−): ${row.productName}`,
+      html: `
+        <div style="text-align:left; font-size:13px; color:#475569; margin-bottom:8px;">
+          <div>Item Code: <strong>${row.productCode}</strong></div>
+          <div>Current Available Stock: <strong style="color:${row.availableQuantity > 0 ? '#16a34a' : '#ef4444'}">${row.availableQuantity} ${row.unit}</strong></div>
+        </div>
+      `,
       input: "number",
-      inputLabel: "Enter quantity to issue (-)",
-      inputValue: 5,
+      inputLabel: "Enter quantity to issue (−)",
+      inputValue: row.availableQuantity > 0 ? Math.min(5, row.availableQuantity) : 1,
       showCancelButton: true,
       confirmButtonColor: "#EF4444",
-      confirmButtonText: "- Issue Stock",
+      confirmButtonText: "− Issue Stock",
       inputValidator: (val) => {
         if (!val || Number(val) <= 0) {
           return "Please enter a quantity greater than 0";
@@ -440,10 +457,15 @@ export default function FinishedGoodsStockView({
 
     if (qty && Number(qty) > 0) {
       try {
+        const cleanProductId = (row.productId || row.id || '')
+          .replace(/^fg-prod-/, '')
+          .replace(/^fg-wo-/, '')
+          .replace(/^fg-so-/, '');
+
         await backendFetch("/api/backend/production/finished-goods/stock-out", {
           method: "POST",
           body: {
-            productId: row.productId || row.id,
+            productId: cleanProductId,
             productCode: row.productCode,
             productName: row.productName,
             quantity: Number(qty),
@@ -451,9 +473,11 @@ export default function FinishedGoodsStockView({
             reason: "Manual Stock Issue",
           },
         });
-        toast.success(`Issued -${qty} ${row.unit} from ${row.productName}`);
+        toast.success(`Issued −${qty} ${row.unit} from ${row.productName}`);
         queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
         queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-dispatch-history"] });
+        queryClient.invalidateQueries({ queryKey: ["production-daily-reports"] });
         refetch();
       } catch (err: any) {
         toast.error(err.message || "Failed to issue stock");
@@ -468,11 +492,14 @@ export default function FinishedGoodsStockView({
     const { value: formValues } = await Swal.fire({
       title: `Adjust Stock: ${row.productName}`,
       html:
-        `<div style="text-align:left; font-size:13px; color:#475569; margin-bottom:12px;">Current system stock: <strong>${row.quantity} ${row.unit}</strong></div>` +
-        `<label style="display:block; text-align:left; font-size:12px; font-weight:600; margin-bottom:4px;">New Physical Stock *</label>` +
-        `<input id="swal-adj-qty" type="number" min="0" class="swal2-input" value="${row.quantity}" style="margin-top:0; margin-bottom:12px;">` +
-        `<label style="display:block; text-align:left; font-size:12px; font-weight:600; margin-bottom:4px;">Reason for Adjustment *</label>` +
-        `<input id="swal-adj-reason" type="text" class="swal2-input" placeholder="e.g. Physical Stock Count Reconciliation" style="margin-top:0;">`,
+        `<div style="text-align:left; font-size:13px; color:#475569; margin-bottom:12px;">` +
+        `<div>Item Code: <strong>${row.productCode}</strong></div>` +
+        `<div>Current System Stock: <strong>${row.quantity} ${row.unit}</strong> (Available: ${row.availableQuantity})</div>` +
+        `</div>` +
+        `<label style="display:block; text-align:left; font-size:12px; font-weight:700; margin-bottom:4px;">New Physical Stock *</label>` +
+        `<input id="swal-adj-qty" type="number" min="0" class="swal2-input" value="${row.quantity}" style="margin-top:0; margin-bottom:12px; width:100%; box-sizing:border-box;">` +
+        `<label style="display:block; text-align:left; font-size:12px; font-weight:700; margin-bottom:4px;">Reason for Adjustment *</label>` +
+        `<input id="swal-adj-reason" type="text" class="swal2-input" placeholder="e.g. Physical Stock Count Reconciliation" value="Physical Stock Count Reconciliation" style="margin-top:0; width:100%; box-sizing:border-box;">`,
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonColor: "#475569",
@@ -497,10 +524,15 @@ export default function FinishedGoodsStockView({
 
     if (formValues) {
       try {
+        const cleanProductId = (row.productId || row.id || '')
+          .replace(/^fg-prod-/, '')
+          .replace(/^fg-wo-/, '')
+          .replace(/^fg-so-/, '');
+
         await backendFetch("/api/backend/production/finished-goods/adjust", {
           method: "POST",
           body: {
-            productId: row.productId || row.id,
+            productId: cleanProductId,
             productCode: row.productCode,
             productName: row.productName,
             newPhysicalStock: formValues.newPhysicalStock,
@@ -511,6 +543,8 @@ export default function FinishedGoodsStockView({
         toast.success(`Adjusted physical stock to ${formValues.newPhysicalStock} ${row.unit} for ${row.productName}`);
         queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
         queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-dispatch-history"] });
+        queryClient.invalidateQueries({ queryKey: ["production-daily-reports"] });
         refetch();
       } catch (err: any) {
         toast.error(err.message || "Failed to adjust stock");
