@@ -277,7 +277,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
   const { samples, updateSampleStatus, updateSample, createReplacementSample } = useSamples(showToast);
 
-  const { quotations, createQuotation, updateQuotation, confirmOrder } = useQuotations(
+  const { quotations, createQuotation, updateQuotation, confirmOrder, loadQuotations } = useQuotations(
     showToast,
     currentView === 'quotations' || currentView === 'create-quotation' || currentView === 'dashboard'
   );
@@ -309,6 +309,9 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     if (currentView === 'customers' && loadCustomers) {
       void loadCustomers();
     }
+    if ((currentView === 'quotations' || currentView === 'dashboard') && loadQuotations) {
+      void loadQuotations();
+    }
     // Load orders on orders view, dashboard, or daily-task
     if ((currentView === 'orders' || currentView === 'dashboard' || currentView === 'daily-task') && loadOrders) {
       void loadOrders();
@@ -318,8 +321,9 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
       if (loadLeads) void loadLeads();
       if (refreshSamples) void refreshSamples();
       if (loadCustomers) void loadCustomers();
+      if (loadQuotations) void loadQuotations();
     }
-  }, [currentView, loadOrders, loadLeads, refreshSamples, loadCustomers]);
+  }, [currentView, loadOrders, loadLeads, refreshSamples, loadCustomers, loadQuotations]);
 
   // ── O2P Workflow ────────────────────────────────────────────────────────────
   const o2p = useO2PWorkflow();
@@ -333,6 +337,18 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     return result;
   };
 
+  const handleAddQuotation = async (data) => {
+    const result = await createQuotation(data);
+    if (result?.success) {
+      if (result?.id || result?.data?.id) {
+        o2p.advanceLead({ orderId: String(result.id || result.data.id), actor: user?.name || 'Sales' });
+      }
+      setPrefillQuotationData(null);
+      if (loadQuotations) await loadQuotations();
+      navigate.push(`${basePath}/quotations`);
+    }
+    return result;
+  };
 
   const handleConfirmOrder = async (quotationId, data) => {
     const result = await confirmOrder(quotationId, data);
@@ -1228,7 +1244,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             basePath={basePath}
             mode={isSuperSalesPortal ? 'SUPER_SALES' : mode}
             maxPaymentTermDays={isSuperSalesPortal || user?.role === 'SUPER_SALES' || (user?.role && String(user.role).startsWith('SuperSales')) ? 90 : 20}
-            onAddQuotation={onAddQuotation}
+            onAddQuotation={handleAddQuotation}
             onCreateLead={() => navigate.push(`${basePath}/create-lead`)}
             onCancel={() => {
               setPrefillQuotationData(null);

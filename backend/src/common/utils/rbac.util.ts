@@ -55,7 +55,15 @@ export function getQuotationSalesScope(
   if (!isSalespersonScopedRole(role)) return {};
   if (!userId)
     throw new UnauthorizedException('User ID required for sales scoping');
-  return { OR: [{ salesExecutiveId: userId }, { createdById: userId }] };
+  return {
+    OR: [
+      { salesExecutiveId: userId },
+      { createdById: userId },
+      { lead: { salesExecutiveId: userId } },
+      { lead: { createdById: userId } },
+      { lead: { assignedToId: userId } },
+    ],
+  };
 }
 
 export function getOrderSalesScope(

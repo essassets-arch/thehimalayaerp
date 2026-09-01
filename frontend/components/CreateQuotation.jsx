@@ -9,6 +9,7 @@ import { displayEntityId } from '../store/idGenerator';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { DEFAULT_QUOTATION_TERMS, resolveQuotationTerms } from '../services/sales/quotationTerms';
 import { normalizeQuotation } from '../services/sales/quotationNormalizer';
+import { backendFetch } from '../lib/backendFetch';
 
 const STANDARD_SPECIFICATIONS = [
   'Color: Grey, Size: M10',
@@ -777,21 +778,26 @@ export default function CreateQuotation({
             terms: activeSelectedTerms
           });
           success = true;
-          onCancel();
-        } else if (targetQuotationId) {
-          const res = finalizeQuotation(targetQuotationId, payload);
-          if (res.success) {
-            success = true;
-            onCancel(); // Navigate back to list
-          } else {
-            alert(res.message);
-          }
-        } else {
+          if (typeof onCancel === 'function') onCancel();
+        } else if (typeof onAddQuotation === 'function') {
           const res = await onAddQuotation(payload);
-          success = res?.success !== false;
+          if (res && res.success === false) {
+            alert(res?.error || res?.message || 'Unable to publish quotation.');
+            return;
+          }
+          success = true;
+          if (typeof onCancel === 'function') onCancel();
+        } else {
+          const res = await backendFetch('/api/backend/crm/quotations', {
+            method: 'POST',
+            body: payload,
+          });
+          success = Boolean(res?.id || res?.data?.id);
+          if (typeof onCancel === 'function') onCancel();
         }
       } catch (err) {
         console.error(err);
+        alert(err?.message || 'An error occurred while publishing the quotation.');
       } finally {
         setIsSubmitting(false);
       }
