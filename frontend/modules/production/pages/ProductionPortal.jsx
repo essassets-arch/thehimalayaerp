@@ -2167,10 +2167,18 @@ export default function ProductionPortal() {
 
     const filteredPlanned = planned.filter(row => {
       if (!globalSearch) return true;
+      const custName =
+        row.customerName ||
+        row.quotation?.lead?.companyName ||
+        row.quotation?.lead?.projectName ||
+        row.sourceQuotation?.lead?.companyName ||
+        row.sourceQuotation?.lead?.projectName ||
+        row.companyName ||
+        row.customer?.companyName ||
+        row.customer?.name ||
+        '';
       const searchVal = (
-        row.customerName || 
-        row.companyName || 
-        row.customer?.name || 
+        custName ||
         row.productInterested || 
         row.products || 
         row.orderNo || 
@@ -2255,7 +2263,16 @@ export default function ProductionPortal() {
                   (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
                 const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
 
-                const customerName = row.customerName || row.companyName || row.customer?.name || 'N/A';
+                const customerName =
+                  row.customerName ||
+                  row.quotation?.lead?.companyName ||
+                  row.quotation?.lead?.projectName ||
+                  row.sourceQuotation?.lead?.companyName ||
+                  row.sourceQuotation?.lead?.projectName ||
+                  row.companyName ||
+                  row.customer?.companyName ||
+                  row.customer?.name ||
+                  'N/A';
                 const productItem = row.productInterested || row.products || (row.detailedItems && row.detailedItems.map(i => i.productName).join(', ')) || 'Various';
                 const quantityNeeded = `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units`;
                 const targetDate = row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD');
@@ -2512,7 +2529,20 @@ export default function ProductionPortal() {
                   </div>
                 )
               },
-              { header: 'Customer', accessor: 'customerName', render: (row) => row.customerName || row.companyName || row.customer?.name || 'N/A' },
+              {
+                header: 'Customer',
+                accessor: 'customerName',
+                render: (row) =>
+                  row.customerName ||
+                  row.quotation?.lead?.companyName ||
+                  row.quotation?.lead?.projectName ||
+                  row.sourceQuotation?.lead?.companyName ||
+                  row.sourceQuotation?.lead?.projectName ||
+                  row.companyName ||
+                  row.customer?.companyName ||
+                  row.customer?.name ||
+                  'N/A'
+              },
               { header: 'Product Item', accessor: 'productInterested', render: (row) => row.productInterested || row.products || (row.detailedItems && row.detailedItems.map(i => i.productName).join(', ')) || 'Various' },
               { header: 'Quantity Needed', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },
               { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') },

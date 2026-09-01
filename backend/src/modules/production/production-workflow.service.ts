@@ -789,7 +789,15 @@ export class ProductionWorkflowService {
       include: {
         salesOrderItem: { include: { product: true } },
         productionPlan: {
-          include: { salesOrder: { include: { customer: true } } },
+          include: {
+            salesOrder: {
+              include: {
+                customer: true,
+                quotation: { include: { lead: true } },
+                sourceQuotation: { include: { lead: true } },
+              },
+            },
+          },
         },
         qcInspections: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
@@ -800,6 +808,11 @@ export class ProductionWorkflowService {
       .map((wo: any) => {
         const so = wo.productionPlan?.salesOrder;
         const customer = so?.customer;
+        const leadCustomerName =
+          so?.quotation?.lead?.companyName ||
+          so?.quotation?.lead?.projectName ||
+          so?.sourceQuotation?.lead?.companyName ||
+          so?.sourceQuotation?.lead?.projectName;
         const item = wo.salesOrderItem;
         const product = item?.product;
         const qcApprovedQty =
@@ -831,6 +844,7 @@ export class ProductionWorkflowService {
           jobNo: wo.workOrderNumber,
           productionPlanId: wo.productionPlanId,
           customerName:
+            leadCustomerName ||
             customer?.companyName ||
             customer?.contactPerson ||
             customer?.name ||
@@ -850,12 +864,18 @@ export class ProductionWorkflowService {
       const so = wo?.productionPlan?.salesOrder;
       const product = entry.product || wo?.salesOrderItem?.product;
       const customer = so?.customer;
+      const leadCustomerName =
+        so?.quotation?.lead?.companyName ||
+        so?.quotation?.lead?.projectName ||
+        so?.sourceQuotation?.lead?.companyName ||
+        so?.sourceQuotation?.lead?.projectName;
 
       return {
         ...entry,
         jobNo: wo?.workOrderNumber || entry.jobNo || entry.workOrderId,
         productionPlanId: wo?.productionPlanId,
         customerName:
+          leadCustomerName ||
           customer?.companyName ||
           customer?.contactPerson ||
           customer?.name ||
@@ -890,6 +910,8 @@ export class ProductionWorkflowService {
       },
       include: {
         customer: true,
+        quotation: { include: { lead: true } },
+        sourceQuotation: { include: { lead: true } },
         items: { include: { product: true } },
       },
     });
@@ -897,6 +919,11 @@ export class ProductionWorkflowService {
     const soSyntheticRecords: any[] = [];
     for (const so of readySalesOrders as any[]) {
       if (existingSoIds.has(so.id)) continue;
+      const soLeadName =
+        so.quotation?.lead?.companyName ||
+        so.quotation?.lead?.projectName ||
+        so.sourceQuotation?.lead?.companyName ||
+        so.sourceQuotation?.lead?.projectName;
       for (const item of so.items || []) {
         soSyntheticRecords.push({
           id: `fg-so-${so.id}-${item.id}`,
@@ -931,6 +958,7 @@ export class ProductionWorkflowService {
           product: item.product,
           jobNo: so.orderNumber,
           customerName:
+            soLeadName ||
             so.customer?.companyName ||
             so.customer?.contactPerson ||
             so.customer?.name ||

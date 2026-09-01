@@ -256,20 +256,28 @@ const normalizeIncomingOrder = (order, sourceQuotation, userMap = {}) => {
   };
 
   const resolvedSalesPerson = resolveSalesPersonName(order, sourceQuotation, userMap);
-  const resolvedCustomer =
-    order.customerName ||
-    order.customer_name ||
-    order.customer?.companyName ||
-    order.customer?.name ||
+
+  const leadCustomerName =
     order.quotation?.lead?.companyName ||
     order.quotation?.lead?.projectName ||
     order.quotation?.customerName ||
     order.quotation?.companyName ||
+    sourceQuotation?.lead?.companyName ||
+    sourceQuotation?.lead?.projectName ||
     sourceQuotation?.customerName ||
     sourceQuotation?.customer_name ||
     sourceQuotation?.companyName ||
-    sourceQuotation?.lead?.companyName ||
-    sourceQuotation?.lead?.projectName ||
+    '';
+  const directCustomerName =
+    order.customer?.companyName ||
+    order.customer?.name ||
+    '';
+  const resolvedCustomer =
+    order.customerName ||
+    order.customer_name ||
+    (order.quotationId || order.sourceQuotationId || order.quotation || sourceQuotation
+      ? leadCustomerName || directCustomerName
+      : directCustomerName || leadCustomerName) ||
     '—';
 
   return {
@@ -3295,7 +3303,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12.5px', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
                       <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Customer</span>
-                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.customer?.companyName || row.customer?.name || row.quotation?.lead?.companyName || '—'}</span>
+                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.quotation?.lead?.companyName || row.quotation?.lead?.projectName || row.customer?.companyName || row.customer?.name || '—'}</span>
                       </div>
                       <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Sales Person</span>
@@ -3368,7 +3376,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                   </strong>
                 )
               },
-              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer?.companyName || row.customer?.name || row.quotation?.lead?.companyName || '—'}</span> },
+              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.quotation?.lead?.companyName || row.quotation?.lead?.projectName || row.customer?.companyName || row.customer?.name || '—'}</span> },
               { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span> },
               { header: 'Product Item', accessor: 'products', render: (row) => row.products || '—' },
               { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : <span style={{ color: '#8893A7' }}>Not set</span> },
@@ -3738,7 +3746,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12.5px', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
                       <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Customer</span>
-                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.customer?.companyName || row.customer?.name || row.quotation?.lead?.companyName || row.customer || '—'}</span>
+                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.quotation?.lead?.companyName || row.quotation?.lead?.projectName || row.customer?.companyName || row.customer?.name || row.customer || '—'}</span>
                       </div>
                       <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Sales Person</span>
@@ -3828,7 +3836,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                   </strong>
                 )
               },
-              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer?.companyName || row.customer?.name || row.quotation?.lead?.companyName || row.customer || '—'}</span> },
+              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.quotation?.lead?.companyName || row.quotation?.lead?.projectName || row.customer?.companyName || row.customer?.name || row.customer || '—'}</span> },
               { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span> },
               {
                 header: 'Products',
@@ -5741,7 +5749,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
 
               {/* Order Info Details Card (Styled Metadata Bar) */}
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: '16px 24px', fontSize: '13px', color: '#475569', marginBottom: '24px' }}>
-                <div style={{ flex: '1 1 180px', minWidth: '150px' }}>Customer: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.customerName || selectedOrderForPlanning.customer?.name || 'Unknown'}</strong></div>
+                <div style={{ flex: '1 1 180px', minWidth: '150px' }}>Customer: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.customerName || selectedOrderForPlanning.quotation?.lead?.companyName || selectedOrderForPlanning.customer?.companyName || selectedOrderForPlanning.customer?.name || 'Unknown'}</strong></div>
                 <div style={{ flex: '1 1 180px', minWidth: '150px' }}>Sales Person: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.salesPersonName || selectedOrderForPlanning.salesperson || 'Sales Executive'}</strong></div>
                 <div style={{ flex: '1 1 180px', minWidth: '150px' }}>Created Date: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.createdAt ? new Date(selectedOrderForPlanning.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '17 Aug 2026'}</strong></div>
                 <div style={{ flex: '1 1 120px', minWidth: '100px' }}>Status: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.status}</strong></div>
