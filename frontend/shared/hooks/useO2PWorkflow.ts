@@ -23,6 +23,10 @@ export function useO2PWorkflow() {
     stepMeta: {},
     nextRoute: '',
     advance: () => {},
+    advanceLead: () => {},
+    confirmSalesOrder: () => {},
+    approvePlantPlanning: () => {},
+    confirmDelivery: () => {},
     closeOrder: () => {},
     setActiveOrder: () => {}
   };

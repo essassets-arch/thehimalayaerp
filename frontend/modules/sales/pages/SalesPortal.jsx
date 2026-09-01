@@ -332,7 +332,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     const result = await addLead(data);
     if (result?.id || result?.leadId) {
       const newId = String(result.id || result.leadId);
-      o2p.advanceLead({ orderId: newId, actor: user?.name || 'Sales' });
+      o2p?.advanceLead?.({ orderId: newId, actor: user?.name || 'Sales' });
     }
     return result;
   };
@@ -341,7 +341,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     const result = await createQuotation(data);
     if (result?.success) {
       if (result?.id || result?.data?.id) {
-        o2p.advanceLead({ orderId: String(result.id || result.data.id), actor: user?.name || 'Sales' });
+        o2p?.advanceLead?.({ orderId: String(result.id || result.data.id), actor: user?.name || 'Sales' });
       }
       setPrefillQuotationData(null);
       if (loadQuotations) await loadQuotations();
@@ -354,8 +354,8 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     const result = await confirmOrder(quotationId, data);
     if (result?.orderId || result?.id) {
       const ordId = String(result.orderId || result.id);
-      o2p.setActiveOrder(ordId, 4);
-      o2p.confirmSalesOrder({ orderId: ordId, actor: user?.name || 'Sales' });
+      o2p?.setActiveOrder?.(ordId, 4);
+      o2p?.confirmSalesOrder?.({ orderId: ordId, actor: user?.name || 'Sales' });
     }
     return result;
   };
@@ -1379,8 +1379,8 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
                 }
               });
               // O2P: mark order confirmed in workflow
-              o2p.setActiveOrder(orderDbId, 4);
-              o2p.confirmSalesOrder({ orderId: orderDbId, actor: user?.name || 'Sales' });
+              o2p?.setActiveOrder?.(orderDbId, 4);
+              o2p?.confirmSalesOrder?.({ orderId: orderDbId, actor: user?.name || 'Sales' });
               showToast('✅ Order confirmed and sent to Plant Head!');
               await syncData();
             } else {
