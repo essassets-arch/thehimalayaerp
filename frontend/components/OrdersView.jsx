@@ -1108,19 +1108,19 @@ export default function OrdersView({
                   <div style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b', marginBottom: '10px' }}>Actions</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                     
-                    {actionState && actionState.label && (
+                    {actionState?.action === 'SEND_TO_PLANT' && (
                       <button
                         type="button"
-                        onClick={actionState.onClick}
-                        disabled={actionState.disabled}
+                        disabled={sendingOrderId === (o.id || o.orderNo)}
+                        onClick={() => onUpdateOrderStatus?.(o.id || o.orderNo, 'PLANT_PENDING')}
                         style={{
                           gridColumn: actionState.label === 'Send to Plant Head' ? '1 / -1' : 'auto',
                           padding: '8px 12px', height: '36px',
-                          background: actionState.label === 'Send to Plant Head' ? '#1e3a8a' : (actionState.disabled ? '#f1f5f9' : '#eff6ff'),
-                          border: actionState.label === 'Send to Plant Head' ? 'none' : `1px solid ${actionState.disabled ? '#e2e8f0' : '#3b82f6'}`,
-                          borderRadius: '8px', cursor: actionState.disabled ? 'not-allowed' : 'pointer',
+                          background: actionState.label === 'Send to Plant Head' ? '#1e3a8a' : '#eff6ff',
+                          border: actionState.label === 'Send to Plant Head' ? 'none' : '1px solid #3b82f6',
+                          borderRadius: '8px', cursor: sendingOrderId === (o.id || o.orderNo) ? 'not-allowed' : 'pointer',
                           fontSize: '13px', fontWeight: '700',
-                          color: actionState.label === 'Send to Plant Head' ? '#ffffff' : (actionState.disabled ? '#94a3b8' : '#1d4ed8'),
+                          color: actionState.label === 'Send to Plant Head' ? '#ffffff' : '#1d4ed8',
                           display: 'flex', alignItems: 'center', justifyContent: 'center'
                         }}
                       >

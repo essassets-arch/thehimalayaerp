@@ -314,21 +314,29 @@ export default function SalesOrdersView() {
   const [sendingOrderId, setSendingOrderId] = useState(null);
 
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
-    if (newStatus === 'PLANT_PENDING') {
+    // The table action uses SEND_TO_PLANT while the order detail sheet uses
+    // PLANT_PENDING.  They are the same workflow transition.
+    if (['PLANT_PENDING', 'SEND_TO_PLANT'].includes(newStatus)) {
       if (sendingOrderId) return;
-      const confirmation = await Swal.fire({
-        title: 'Send Order to Plant Head?',
-        text: 'This order will be added to the Plant Head incoming-order queue for production planning.',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, Send Order',
-        cancelButtonText: 'Cancel',
-        allowOutsideClick: false,
-      });
-      if (!confirmation.isConfirmed) return;
+      // The desktop table already asks for confirmation. The mobile card and
+      // detail sheet delegate confirmation to this handler.
+      if (newStatus === 'PLANT_PENDING') {
+        const confirmation = await Swal.fire({
+          title: 'Send Order to Plant Head?',
+          text: 'This order will be added to the Plant Head incoming-order queue for production planning.',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, Send Order',
+          cancelButtonText: 'Cancel',
+          allowOutsideClick: false,
+        });
+        if (!confirmation.isConfirmed) return false;
+      }
       setSendingOrderId(orderId);
       try {
-        const order = orders.find(o => o.id === orderId);
+        const order = orders.find((candidate) =>
+          candidate.id === orderId || candidate.orderNo === orderId || candidate.orderNumber === orderId
+        );
         const expectedVersion = order?.version || 1;
         if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE !== 'local') {
           const res = await sendToPlantHead(orderId, { expectedVersion });
@@ -336,11 +344,13 @@ export default function SalesOrdersView() {
         } else {
           useERPStore.getState().sendOrderToPlantHead(orderId);
         }
-        await Swal.fire({
-          title: 'Order Sent Successfully',
-          text: 'The order is now available in Plant Head Incoming Orders.',
-          icon: 'success',
-        });
+        if (newStatus === 'PLANT_PENDING') {
+          await Swal.fire({
+            title: 'Order Sent Successfully',
+            text: 'The order is now available in Plant Head Incoming Orders.',
+            icon: 'success',
+          });
+        }
       } catch (error) {
         await Swal.fire({
           title: 'Unable to Send Order',
