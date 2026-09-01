@@ -162,7 +162,7 @@ export default function ProductPicker({
   };
 
   return (
-    <div ref={containerRef} className={`product-picker ${className}`} style={{ position: 'relative', width: '100%', zIndex: open ? 99999 : 'auto' }}>
+    <div ref={containerRef} className={`product-picker ${className}`} style={{ position: 'relative', width: '100%', zIndex: open ? 2147483647 : 'auto', overflow: 'visible' }}>
       {label && (
         <label style={{
           display: 'block', marginBottom: '6px',
@@ -269,7 +269,7 @@ export default function ProductPicker({
           position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
           background: '#ffffff',
           border: '1.5px solid #cbd5e1',
-          borderRadius: '10px', zIndex: 999999, maxHeight: '280px', overflowY: 'auto',
+          borderRadius: '10px', zIndex: 2147483647, maxHeight: '280px', overflowY: 'auto',
           boxShadow: '0 16px 40px rgba(15,23,42,0.22), 0 4px 12px rgba(0,0,0,0.08)',
         }}>
           {/* Header with quick hide action */}

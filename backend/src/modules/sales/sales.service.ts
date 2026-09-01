@@ -535,9 +535,31 @@ export class SalesService {
     role?: string,
   ) {
     const scope = getSalesScope(userId, role, 'SalesOrder');
+    const orderReference = String(id || '').trim();
+    let decodedOrderReference = orderReference;
+    try {
+      decodedOrderReference = decodeURIComponent(orderReference);
+    } catch {
+      // Keep the original value when a malformed URI is supplied.
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
       const order = await tx.salesOrder.findFirst({
-        where: { id, ...scope },
+        // Mobile cards display the business order number, while desktop/API
+        // lists normally retain the database UUID. Accept both references.
+        where: {
+          AND: [
+            {
+              OR: [
+                { id: orderReference },
+                { id: decodedOrderReference },
+                { orderNumber: orderReference },
+                { orderNumber: decodedOrderReference },
+              ],
+            },
+            scope,
+          ],
+        },
         include: { items: true },
       });
       if (!order) throw new NotFoundException('Sales Order not found');
@@ -587,7 +609,7 @@ export class SalesService {
         CANCEL: SalesOrderStatus.CANCELLED,
       };
       const updated = await tx.salesOrder.update({
-        where: { id },
+        where: { id: order.id },
         data: {
           workflowStateId: nextStateId,
           ...(statusByAction[dto.action]

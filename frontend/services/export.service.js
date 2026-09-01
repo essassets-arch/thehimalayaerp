@@ -54,10 +54,19 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
           reader.readAsDataURL(blob);
         });
       }
+      const resolvedMimeType = blob?.type || mimeType;
+      const safeFilename = String(filename || 'download')
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim();
       await window.flutter_inappwebview.callHandler('downloadFile', {
-        filename,
-        mimeType,
+        // The APK must decode data: URIs directly; it must not pass this to
+        // Dio.download(), which only accepts http(s) URLs.
+        sourceType: 'base64-data-uri',
+        filename: safeFilename || 'download',
+        mimeType: resolvedMimeType,
         data: base64data,
+        destination: resolvedMimeType.startsWith('image/') ? 'gallery' : 'downloads',
       });
       return true;
     } catch (e) {
@@ -2028,7 +2037,7 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
 /**
  * Export a DOM element to a high-quality PNG image (⭐ GUARANTEED CANONICAL 794px A4 LAYOUT ON ANY DEVICE)
  */
-export const exportQuotationImage = async (elementId, filename = 'quotation.png') => {
+export const exportQuotationImage = async (elementId, filename = 'quotation.png', { save = true } = {}) => {
   const element = typeof elementId === 'string' ? document.getElementById(elementId) : elementId;
   if (!element) {
     throw new Error(`Element with id "${elementId}" not found`);
@@ -2167,7 +2176,9 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
       }
     }
 
-    await safeSaveFile(blob || dataUrl, filename, 'image/png');
+    if (save) {
+      await safeSaveFile(blob || dataUrl, filename, 'image/png');
+    }
     return { dataUrl, blob };
   } finally {
     if (wrapper && wrapper.parentNode) {
@@ -2181,8 +2192,25 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
  */
 export const shareQuotationImage = async (elementId, quotationNo = 'Draft', customerName = 'Customer') => {
   const filename = `Quotation_${String(quotationNo).replace(/[\/\\]/g, '_') || 'Draft'}.png`;
-  const exportRes = await exportQuotationImage(elementId, filename);
+  // Sharing should open the system share sheet with an image; it must not
+  // silently download an extra copy to Gallery first.
+  const exportRes = await exportQuotationImage(elementId, filename, { save: false });
   const { blob, dataUrl } = exportRes;
+
+  if (typeof window !== 'undefined' && window.flutter_inappwebview?.callHandler) {
+    try {
+      await window.flutter_inappwebview.callHandler('shareFile', {
+        sourceType: 'base64-data-uri',
+        filename,
+        mimeType: 'image/png',
+        data: dataUrl,
+        text: `Quotation for ${customerName}`,
+      });
+      return { success: true, blob, dataUrl, filename };
+    } catch (shareBridgeError) {
+      console.warn('Flutter image-share handler unavailable; using browser sharing instead.', shareBridgeError);
+    }
+  }
 
   if (typeof navigator !== 'undefined' && navigator.canShare && blob) {
     try {

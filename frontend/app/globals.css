@@ -7799,6 +7799,50 @@ body, #root, .app-container {
   .sales-analytics-card .recharts-responsive-container {
     height: 200px !important;
   }
+
+  .sales-pipeline-card {
+    padding: 16px !important;
+  }
+
+  .sales-pipeline-chart-container {
+    height: 220px !important;
+    min-height: 220px !important;
+  }
+
+  .sales-analytics-chart {
+    height: 220px !important;
+    min-height: 220px !important;
+  }
+
+  .sales-analytics-card {
+    padding: 16px !important;
+  }
+}
+
+/* Keep the Create Lead product dropdown above the following mobile fields. */
+@media (max-width: 768px) {
+  .lead-product-selection,
+  .lead-product-selection > div,
+  .lead-product-row,
+  .lead-product-grid,
+  .lead-product-grid-spec,
+  .lead-product-grid-spec .product-picker {
+    overflow: visible !important;
+  }
+
+  .lead-product-selection:has(.product-picker:focus-within) {
+    z-index: 2147483640 !important;
+  }
+
+  .lead-product-row:has(.product-picker:focus-within),
+  .lead-product-grid:has(.product-picker:focus-within),
+  .lead-product-grid-spec:has(.product-picker:focus-within) {
+    z-index: 2147483641 !important;
+  }
+
+  .lead-product-selection .product-picker > div:last-child {
+    z-index: 2147483647 !important;
+  }
 }
 
 /* =========================================================

@@ -1075,7 +1075,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
           </div>
         </div>
 
-        <div style={{ marginTop: '24px', background: '#f8f9fa', padding: '20px', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
+        <div className="lead-product-selection" style={{ marginTop: '24px', background: '#f8f9fa', padding: '20px', borderRadius: '16px', border: '1px solid var(--color-border)', position: 'relative', overflow: 'visible' }}>
           <h3 style={{ fontSize: '14px', fontWeight: '800', textTransform: 'uppercase', color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', borderBottom: '1px solid #eaeaea', paddingBottom: '8px' }}>
             <Package size={16} style={{ color: 'var(--color-accent-purple)' }} />
             <span>2. 📦 Product Selection</span>
@@ -1091,7 +1091,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {items.map((item, index) => (
-              <div key={item.id} style={{ position: 'relative', zIndex: items.length - index + 10 }}>
+              <div key={item.id} className="lead-product-row" style={{ position: 'relative', zIndex: items.length - index + 10, overflow: 'visible' }}>
                 <div className="lead-product-grid" style={{ position: 'relative', overflow: 'visible' }}>
                   <div className="lead-product-grid-spec" style={{ display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative', overflow: 'visible', zIndex: 20 }}>
                     <ProductPicker

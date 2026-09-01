@@ -577,7 +577,10 @@ export default function DashboardView({
         const end = new Date(mYear, mIdx + 1, 0).getTime() + 86400000 - 1;
         const Leads = safeLeads.filter(l => { const t = getCreatedAtDate(l)?.getTime(); return t && t >= start && t <= end; }).length;
         const Quotations = safeQuotes.filter(q => { const t = getCreatedAtDate(q)?.getTime(); return t && t >= start && t <= end; }).length;
-        const Conversions = safeOrders.filter(o => { const t = getCreatedAtDate(o)?.getTime(); return t && t >= start && t <= end; }).length;
+        const Conversions = safeOrders.filter(o => {
+          const t = getCreatedAtDate(o)?.getTime();
+          return isWonOrderSentToPlant(o) && t && t >= start && t <= end;
+        }).length;
         data.push({ name: months[mIdx], Leads, Quotations, Conversions });
       }
       return data;
@@ -588,6 +591,13 @@ export default function DashboardView({
   };
   
   const trendData = getDynamicTrendData();
+  const hasPipelineActivity = trendData.some((row) => row.Leads > 0 || row.Quotations > 0 || row.Conversions > 0);
+  const hasReturnActivity = monthlyReturnData.some((row) => row.ReturnQuantity > 0 || row.ReturnValue > 0);
+  const EmptyChartState = ({ message, height }) => (
+    <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px', fontWeight: 600, background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '10px' }}>
+      {message}
+    </div>
+  );
 
   return (
     <div className="sales-dashboard" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -982,7 +992,7 @@ export default function DashboardView({
               </div>
 
               <div className="sales-pipeline-chart-container" style={{ width: '100%', height: '260px', minHeight: '260px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
-                {isMounted && (
+                {isMounted && hasPipelineActivity ? (
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
                     <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                       <defs>
@@ -1012,6 +1022,8 @@ export default function DashboardView({
                       <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorConvs)" isAnimationActive={false} />
                     </AreaChart>
                   </ResponsiveContainer>
+                ) : (
+                  <EmptyChartState height="260px" message="No lead, quotation, or won-order activity has been recorded in the last six months." />
                 )}
               </div>
             </div>
@@ -1232,7 +1244,7 @@ export default function DashboardView({
                   </div>
                 </div>
                 <div style={{ width: '100%', height: '200px', minHeight: '200px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
-                  {isMounted && (
+                  {isMounted && hasPipelineActivity ? (
                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
                       <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <defs>
@@ -1258,6 +1270,8 @@ export default function DashboardView({
                         <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={1.8} fillOpacity={1} fill="url(#colorConvsMobile)" isAnimationActive={false} />
                       </AreaChart>
                     </ResponsiveContainer>
+                  ) : (
+                    <EmptyChartState height="200px" message="No pipeline activity is available for this period." />
                   )}
                 </div>
               </div>
@@ -1360,7 +1374,7 @@ export default function DashboardView({
           )}
 
           <div className="sales-analytics-chart" style={{ width: '100%', height: '260px', minHeight: '260px', minWidth: 0, position: 'relative' }}>
-            {isMounted && (
+            {isMounted && hasReturnActivity ? (
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
                 <BarChart data={monthlyReturnData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
@@ -1376,6 +1390,8 @@ export default function DashboardView({
                   <Bar yAxisId="value" dataKey="ReturnValue" name="Return Value" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={isMobile ? 10 : 16} isAnimationActive={false} />
                 </BarChart>
               </ResponsiveContainer>
+            ) : (
+              <EmptyChartState height="260px" message="No return movement has been recorded in the last six months." />
             )}
           </div>
           {returnOrders.length > 0 && (
