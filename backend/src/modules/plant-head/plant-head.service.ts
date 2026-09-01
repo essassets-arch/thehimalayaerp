@@ -4,12 +4,16 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { SequenceService } from '../../common/sequence/sequence.service';
 import { mapSalesOrder } from '../sales/mappers/sales-order.mapper';
 import { SubmitFulfillmentPlanDto } from './dto/fulfillment-plan.dto';
 
 @Injectable()
 export class PlantHeadService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sequenceService: SequenceService,
+  ) {}
 
   private getDateRange(
     filter?: string,
@@ -1335,8 +1339,11 @@ export class PlantHeadService {
             }
 
             // Generate Work Order number
-            const woCount = await tx.workOrder.count();
-            const workOrderNumber = `WO-${new Date().getFullYear()}-${String(woCount + 1).padStart(5, '0')}`;
+            const workOrderNumber =
+              await this.sequenceService.generateWorkOrderNumber(
+                new Date(),
+                tx,
+              );
 
             const initialWOState = await tx.workflowState.findFirst({
               where: { workflow: { code: 'WORK_ORDER' } },
