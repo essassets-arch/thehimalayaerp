@@ -39,7 +39,22 @@ export function normalizeSalesOrder(order: unknown): SalesOrder {
     productionPlanId: typeof source.productionPlanId === 'string' ? source.productionPlanId : null,
     productionAssignedToId: typeof source.productionAssignedToId === 'string' ? source.productionAssignedToId : null,
     customerId: typeof source.customerId === 'string' ? source.customerId : '',
-    customerName: typeof source.customerName === 'string' ? source.customerName : '',
+    customerName: (() => {
+      if (typeof source.customerName === 'string' && source.customerName && source.customerName !== '—') {
+        return source.customerName;
+      }
+      const leadName =
+        (isRecord(source.quotation) && isRecord(source.quotation.lead) && typeof source.quotation.lead.companyName === 'string' ? source.quotation.lead.companyName : '') ||
+        (isRecord(source.quotation) && isRecord(source.quotation.lead) && typeof source.quotation.lead.projectName === 'string' ? source.quotation.lead.projectName : '') ||
+        (isRecord(source.sourceQuotation) && isRecord(source.sourceQuotation.lead) && typeof source.sourceQuotation.lead.companyName === 'string' ? source.sourceQuotation.lead.companyName : '') ||
+        (isRecord(source.sourceQuotation) && isRecord(source.sourceQuotation.lead) && typeof source.sourceQuotation.lead.projectName === 'string' ? source.sourceQuotation.lead.projectName : '');
+      const directCustName =
+        (isRecord(source.customer) && typeof source.customer.companyName === 'string' ? source.customer.companyName : '') ||
+        (isRecord(source.customer) && typeof source.customer.name === 'string' ? source.customer.name : '');
+      return (source.quotationId || source.sourceQuotationId || source.quotation || source.sourceQuotation
+        ? leadName || directCustName
+        : directCustName || leadName) || '';
+    })(),
     customerCode: typeof source.customerCode === 'string' ? source.customerCode : null,
     salesperson: typeof source.salesperson === 'string'
       ? source.salesperson

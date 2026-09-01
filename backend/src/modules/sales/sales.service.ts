@@ -92,6 +92,16 @@ export class SalesService {
         where,
         include: {
           customer: true,
+          quotation: {
+            include: {
+              lead: true,
+            },
+          },
+          sourceQuotation: {
+            include: {
+              lead: true,
+            },
+          },
           salesExecutive: { select: { id: true, name: true, email: true } },
           items: true,
           workflowState: true,
@@ -188,6 +198,16 @@ export class SalesService {
       },
       include: {
         customer: true,
+        quotation: {
+          include: {
+            lead: true,
+          },
+        },
+        sourceQuotation: {
+          include: {
+            lead: true,
+          },
+        },
         salesExecutive: { select: { id: true, name: true, email: true } },
         items: true,
         workflowState: true,
