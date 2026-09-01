@@ -1224,60 +1224,101 @@ export class ProductionWorkflowService {
       }
     }
 
+    const passedQcInspections = await this.prisma.qCInspection.findMany({
+      where: {
+        status: { in: ['APPROVED', 'PASSED'] },
+      },
+      include: {
+        workOrder: {
+          include: {
+            salesOrderItem: { include: { product: true } },
+            productionPlan: {
+              include: {
+                salesOrder: {
+                  include: {
+                    customer: true,
+                    quotation: { include: { lead: true } },
+                    sourceQuotation: { include: { lead: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const coveredWoIds = new Set([
+      ...records.map((r: any) => r.workOrderId),
+      ...qcApprovedWorkOrders.map((w: any) => w.id),
+    ].filter(Boolean));
+
+    const qcInspectionRecords: any[] = [];
+    for (const insp of passedQcInspections) {
+      const wo = insp.workOrder;
+      if (!wo) continue;
+      if (coveredWoIds.has(wo.id)) continue;
+      coveredWoIds.add(wo.id);
+
+      const so = wo.productionPlan?.salesOrder;
+      const customer = so?.customer;
+      const leadCustomerName =
+        so?.quotation?.lead?.companyName ||
+        so?.quotation?.lead?.projectName ||
+        so?.sourceQuotation?.lead?.companyName ||
+        so?.sourceQuotation?.lead?.projectName;
+      const item = wo.salesOrderItem;
+      const product = item?.product;
+      const qcApprovedQty = Number(insp.approvedQuantity || wo.quantity || 1);
+
+      qcInspectionRecords.push({
+        id: `fg-qc-${insp.id}`,
+        workOrderId: wo.id,
+        productId: (wo as any).productId || item?.productId || product?.id || 'UNKNOWN_PROD',
+        salesOrderId: so?.id || null,
+        salesOrderNumber: so?.orderNumber || null,
+        quantity: qcApprovedQty,
+        availableQuantity: qcApprovedQty,
+        allocatedQuantity: 0,
+        dispatchedQuantity: 0,
+        unit: item?.unit || product?.unit || 'Pcs',
+        status:
+          wo.status === 'READY_FOR_DISPATCH' ||
+          wo.status === 'DISPATCHED' ||
+          wo.sentToDispatchAt
+            ? 'READY_FOR_DISPATCH'
+            : 'AVAILABLE',
+        location: 'Factory Staging Area',
+        receivedAt: (insp.approvedAt || insp.createdAt || new Date()).toISOString(),
+        receivedById: insp.inspectorId || null,
+        workOrder: wo,
+        product,
+        jobNo: wo.workOrderNumber,
+        productionPlanId: wo.productionPlanId,
+        customerName:
+          leadCustomerName ||
+          customer?.companyName ||
+          customer?.contactPerson ||
+          'Internal',
+        productName:
+          product?.name || (item as any)?.productNameSnapshot || (wo as any).productName || 'Finished Good',
+        productCode:
+          product?.sku ||
+          product?.publicId ||
+          (item as any)?.productCodeSnapshot ||
+          (wo as any).productCode ||
+          '-',
+      });
+    }
+
     const rawList = [
       ...mappedExisting,
       ...syntheticRecords,
+      ...qcInspectionRecords,
       ...soSyntheticRecords,
       ...catalogSyntheticRecords,
     ];
-
-    const stockHistorySums = await this.prisma.stockHistory.groupBy({
-      by: ['productId', 'event'],
-      where: {
-        companyId: companyId ? companyId : undefined,
-        event: {
-          in: [
-            'PRODUCTION_IN',
-            'PRODUCTION_REVERSAL',
-            'DISPATCH_OUT',
-            'DISPATCH_REVERSAL',
-            'EXTRA_COVER_IN',
-            'EXTRA_COVER_REVERSAL',
-            'EXTRA_FRAME_IN',
-            'EXTRA_FRAME_REVERSAL',
-          ],
-        },
-      },
-      _sum: { quantity: true },
-    });
-
-    const prodInMap = new Map<string, number>();
-    const dispatchMap = new Map<string, number>();
-    const extraCoverMap = new Map<string, number>();
-    const extraFrameMap = new Map<string, number>();
-
-    for (const g of stockHistorySums) {
-      const pId = g.productId;
-      const qty = Number(g._sum.quantity || 0);
-      if (g.event === 'PRODUCTION_IN' || g.event === 'PRODUCTION_REVERSAL') {
-        prodInMap.set(pId, (prodInMap.get(pId) || 0) + qty);
-      } else if (
-        g.event === 'DISPATCH_OUT' ||
-        g.event === 'DISPATCH_REVERSAL'
-      ) {
-        dispatchMap.set(pId, (dispatchMap.get(pId) || 0) + qty);
-      } else if (
-        g.event === 'EXTRA_COVER_IN' ||
-        g.event === 'EXTRA_COVER_REVERSAL'
-      ) {
-        extraCoverMap.set(pId, (extraCoverMap.get(pId) || 0) + qty);
-      } else if (
-        g.event === 'EXTRA_FRAME_IN' ||
-        g.event === 'EXTRA_FRAME_REVERSAL'
-      ) {
-        extraFrameMap.set(pId, (extraFrameMap.get(pId) || 0) + qty);
-      }
-    }
 
     const enrichedList = rawList.map((item: any) => {
       const pId = item.productId || item.product?.id || item.id;
@@ -1286,47 +1327,22 @@ export class ProductionWorkflowService {
             .replace(/^fg-prod-/, '')
             .replace(/^fg-wo-/, '')
             .replace(/^fg-so-/, '')
+            .replace(/^fg-qc-/, '')
         : '';
-      const prodObjId = item.product?.id || '';
-      const pCode =
-        item.productCode || item.product?.sku || item.product?.publicId || '';
 
-      const getVal = (map: Map<string, number>) => {
-        return (
-          (cleanPId ? map.get(cleanPId) : 0) ||
-          (prodObjId ? map.get(prodObjId) : 0) ||
-          (pId ? map.get(pId) : 0) ||
-          (pCode ? map.get(pCode) : 0) ||
-          0
-        );
-      };
-
-      const prodInVal = getVal(prodInMap);
-      const dispatchVal = getVal(dispatchMap);
-      const rawExtraCover = getVal(extraCoverMap);
-      const rawExtraFrame = getVal(extraFrameMap);
-
-      const netStock = Math.max(0, prodInVal - Math.abs(dispatchVal));
-      const finalQuantity =
-        Number(item.quantity) > 0 ? Number(item.quantity) : netStock;
-      const finalAvailable =
-        Number(item.availableQuantity) > 0
-          ? Number(item.availableQuantity)
-          : netStock;
+      const finalQuantity = Number(item.quantity ?? 0);
+      const finalAvailable = Number(item.availableQuantity ?? item.quantity ?? 0);
 
       return {
         ...item,
         productId: cleanPId || item.productId,
         quantity: finalQuantity,
         availableQuantity: finalAvailable,
-        productionIn: prodInVal,
-        extraCover: Math.max(0, rawExtraCover),
-        extraFrame: Math.max(0, rawExtraFrame),
-        dispatchOut: Math.abs(dispatchVal),
-        openingStock: Math.max(
-          0,
-          finalQuantity - prodInVal + Math.abs(dispatchVal),
-        ),
+        productionIn: finalQuantity,
+        extraCover: 0,
+        extraFrame: 0,
+        dispatchOut: 0,
+        openingStock: finalQuantity,
       };
     });
 
