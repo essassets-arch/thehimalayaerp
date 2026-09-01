@@ -4172,6 +4172,13 @@ export class SuperAdminService {
       ];
     }
 
+    const inventoryTransactionWhere: any = {
+      companyId,
+      ...(query?.branchId && query.branchId !== 'All'
+        ? { warehouse: { branchId: query.branchId } }
+        : {}),
+    };
+
     const [
       rawMaterials,
       allBranches,
@@ -4188,11 +4195,11 @@ export class SuperAdminService {
         select: { id: true, name: true },
       }),
       this.prisma.inventoryTransaction.findMany({
-        where: { companyId },
+        where: inventoryTransactionWhere,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.inventoryTransaction.findMany({
-        where: { companyId, createdAt: inRange },
+        where: { ...inventoryTransactionWhere, createdAt: inRange },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.purchaseIndent

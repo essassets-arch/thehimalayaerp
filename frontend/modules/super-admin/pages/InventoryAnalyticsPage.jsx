@@ -29,7 +29,6 @@ const InventoryAnalyticsContent = () => {
   const [stockStatusFilter, setStockStatusFilter] = useState('All');
   const [movementStatusFilter, setMovementStatusFilter] = useState('All');
   const [selectedUnit, setSelectedUnit] = useState('All');
-  const [selectedCategory, setSelectedCategory] = useState('All');
 
   const { period, startDate, endDate, activeDates, filters } = useSuperAdminFilter();
 
@@ -49,7 +48,7 @@ const InventoryAnalyticsContent = () => {
       if (activeDates?.dateFrom) params.set('from', activeDates.dateFrom);
       if (activeDates?.dateTo) params.set('to', activeDates.dateTo);
       if (filters.branch && filters.branch !== 'All') params.set('branchId', filters.branch);
-      if (selectedCategory && selectedCategory !== 'All') params.set('category', selectedCategory);
+      if (filters.category && filters.category !== 'All') params.set('category', filters.category);
       if (selectedUnit && selectedUnit !== 'All') params.set('unit', selectedUnit);
       if (stockStatusFilter && stockStatusFilter !== 'All') params.set('stockStatus', stockStatusFilter);
       if (movementStatusFilter && movementStatusFilter !== 'All') params.set('movementStatus', movementStatusFilter);
@@ -66,7 +65,7 @@ const InventoryAnalyticsContent = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeDates, filters.branch, selectedCategory, selectedUnit, stockStatusFilter, movementStatusFilter, globalSearch, page, pageSize]);
+  }, [activeDates, filters.branch, filters.category, selectedUnit, stockStatusFilter, movementStatusFilter, globalSearch, page, pageSize]);
 
   useEffect(() => {
     loadData();
@@ -143,6 +142,31 @@ const InventoryAnalyticsContent = () => {
           </button>
         </div>
       </div>
+
+      <SuperAdminAnalyticsFilter
+        title="Inventory Analytics Filter"
+        showBranch={true}
+        showCategory={true}
+        filterOptions={{
+          branches: data?.filters?.branches || [],
+          categories: data?.filters?.categories || [],
+        }}
+        onExportPDF={exportPDF}
+        onExportExcel={exportExcel}
+        customActions={(
+          <select
+            aria-label="Unit"
+            value={selectedUnit}
+            onChange={(event) => { setSelectedUnit(event.target.value); setPage(1); }}
+            className="sa-analytics-filter__select"
+          >
+            <option value="All">Unit: All</option>
+            {(data?.filters?.units || []).map((unit) => (
+              <option key={unit} value={unit}>{unit}</option>
+            ))}
+          </select>
+        )}
+      />
 
 
       {/* ── 3. PRIMARY INVENTORY KPI CARDS ── */}

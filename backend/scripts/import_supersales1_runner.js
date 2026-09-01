@@ -2,7 +2,10 @@ const { PrismaClient, Prisma } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
 
-const prisma = new PrismaClient();
+const targetDbs = [
+  { name: 'Active/Browser Test DB (Port 5432)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+  { name: 'Main DB (Port 5432)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
+];
 
 function parseCSV(content) {
   const result = [];
@@ -51,7 +54,6 @@ function parseCSV(content) {
     row.push(cell);
     result.push(row);
   }
-  
   return result;
 }
 
@@ -59,10 +61,18 @@ function parseCsvDate(str) {
   if (!str) return new Date();
   str = str.trim();
   if (str === '-' || str === '') return new Date();
-  
-  let m = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+
+  // Typo like 17-0702026
+  let m = str.match(/^(\d{1,2})-(\d{1,2})0(\d{4})$/);
   if (m) {
     return new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+  }
+  
+  m = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (m) {
+    let year = parseInt(m[3], 10);
+    if (year === 2006) year = 2026;
+    return new Date(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
   }
   m = str.match(/^(\d{1,2})-(\d{1,2})-(\d{2})$/);
   if (m) {
@@ -71,7 +81,9 @@ function parseCsvDate(str) {
   }
   m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (m) {
-    return new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+    let year = parseInt(m[3], 10);
+    if (year === 2006) year = 2026;
+    return new Date(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
   }
   m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/);
   if (m) {
@@ -89,6 +101,7 @@ function findProduct(type, size, capacity, products) {
   let s = (size || '').trim().toUpperCase().replace(/\s+/g, '');
   if (s.includes('DAI')) s = s.replace('DAI', 'DIA');
   if (s.includes('DIA') && !s.includes('MM')) s = s.replace('DIA', 'MMDIA');
+  if (s === '900MM') s = '900MMDIA';
   if (s.match(/^\d+X\d+X\d+$/)) {
     s = s.substring(0, s.lastIndexOf('X'));
   }
@@ -104,12 +117,8 @@ function findProduct(type, size, capacity, products) {
   if (s === '1800X1200') s = '1800X1800';
   if (s === '900X990') s = '900X900';
   if (s === '1200X600') s = '1200X1200';
-  if (s === '750X750' && t === 'WGC') {
-    t = 'MHC'; 
-  }
-  if (s === '1000X1000' && t === 'WGC') {
-    t = 'MHC';
-  }
+  if (s === '750X750' && t === 'WGC') t = 'MHC';
+  if (s === '1000X1000' && t === 'WGC') t = 'MHC';
   
   let match = products.find(p => {
     const sku = (p.sku || '').toUpperCase();
@@ -166,6 +175,7 @@ function parseAddressObj(addrStr, stateStr, cityStr, pincodeStr) {
     else if (/BENGALURU|BANGALORE/i.test(line1)) city = 'Bengaluru';
     else if (/RAJKOT/i.test(line1)) city = 'Rajkot';
     else if (/MORBI/i.test(line1)) city = 'Morbi';
+    else city = 'Ahmedabad';
   }
 
   if (!state) {
@@ -185,264 +195,306 @@ function parseAddressObj(addrStr, stateStr, cityStr, pincodeStr) {
   };
 }
 
+async function importSuperSales1IntoDb(config, consolidatedLeads) {
+  console.log(`\n======================================================================`);
+  console.log(` IMPORTING INTO: ${config.name}`);
+  console.log(` URL: ${config.url.replace(/:[^:@]+@/, ':****@')}`);
+  console.log(`======================================================================`);
+
+  const prisma = new PrismaClient({ datasources: { db: { url: config.url } } });
+
+  try {
+    // 1. Resolve SuperSales 1 User
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: 'supersales1@himalayaerp.com', mode: 'insensitive' } }
+    });
+
+    if (!user) {
+      console.error(`❌ User supersales1@himalayaerp.com not found in ${config.name}.`);
+      return;
+    }
+    const userId = user.id;
+    console.log(`Resolved SuperSales 1 user: ${user.name} (${user.id}) in company: ${user.companyId}`);
+
+    // 2. Clear previous leads created by supersales1
+    const cleared = await prisma.lead.deleteMany({
+      where: {
+        OR: [
+          { createdById: userId },
+          { salesExecutiveId: userId },
+          { remarks: 'Imported from Hussain Sir Super Sales 1 CSV' }
+        ]
+      }
+    });
+    console.log(`Cleared ${cleared.count} existing leads for SuperSales 1.`);
+
+    // 3. Resolve default company and initial workflow state
+    const companyId = user.companyId || (await prisma.company.findFirst())?.id;
+
+    const workflowState = await prisma.workflowState.findFirst({
+      where: { workflow: { code: 'LEAD' }, isInitial: true }
+    }) || await prisma.workflowState.findFirst({
+      where: { workflow: { code: 'LEAD' } }
+    });
+    const workflowStateId = workflowState ? workflowState.id : null;
+
+    // 4. Resolve all products for matching
+    const products = await prisma.product.findMany();
+    console.log(`Loaded ${products.length} products from catalog.`);
+
+    // 5. Determine highest existing lead sequence number
+    const existingLeads = await prisma.lead.findMany({ select: { leadNumber: true } });
+    let maxLeadNum = 0;
+    for (const l of existingLeads) {
+      if (l.leadNumber) {
+        const match = l.leadNumber.match(/(?:LEAD(?:\/\d{4}\/|-)|HCCL\/\d{4}\/)(\d{1,6})$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num < 1000000 && num > maxLeadNum) maxLeadNum = num;
+        }
+      }
+    }
+    console.log(`Highest existing lead sequence: ${maxLeadNum}`);
+    let sequenceCounter = maxLeadNum + 1;
+
+    console.log(`Seeding ${consolidatedLeads.length} consolidated leads for SuperSales 1...`);
+    let successCount = 0;
+
+    for (const gl of consolidatedLeads) {
+      const detailedItems = gl.items.map((it) => {
+        const matchedProd = findProduct(it.product, it.size, it.capacity, products);
+        const productId = matchedProd ? matchedProd.id : null;
+        const productCode = matchedProd ? (matchedProd.code || matchedProd.sku) : null;
+        const productName = matchedProd ? matchedProd.name : `HIMALAYA FRP ${it.product} ${it.size} ${it.capacity}`;
+        
+        const specString = `Product: ${it.product} | Size: ${it.size} | Capacity: ${it.capacity} | Color: ${it.color} | Qty: ${it.qty} | Rate: ₹${it.unit_price}`;
+
+        return {
+          productId,
+          productCode,
+          productName,
+          specification: specString,
+          product: it.product,
+          size: it.size,
+          capacity: it.capacity,
+          color: it.color,
+          quantity: it.qty,
+          unitPrice: it.unit_price,
+          subTotal: it.sub_total,
+          tax: 18,
+          gstRate: 18,
+          gstAmount: it.gst_amount,
+          discount: it.discount,
+          grandTotal: it.grand_total
+        };
+      });
+
+      const totalQty = detailedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+      const leadDateObj = parseCsvDate(gl.lead_date);
+      const parsedAddress = parseAddressObj(gl.address, gl.state, gl.city, gl.pincode);
+
+      const leadYear = leadDateObj.getFullYear();
+      const yy = String(leadYear).substring(2);
+      const ny = String(leadYear + 1).substring(2);
+      const leadNumber = `HCCL/${yy}${ny}/${String(sequenceCounter++).padStart(4, '0')}`;
+
+      const primaryProduct = detailedItems[0] || {};
+      const productInterestStr = detailedItems.length === 1
+        ? `${primaryProduct.product || ''} ${primaryProduct.size || ''} ${primaryProduct.capacity || ''} (${primaryProduct.quantity || 1} Qty, ${primaryProduct.color || 'GREY'})`
+        : `${detailedItems.length} Products: ${detailedItems.map((d) => `${d.product} ${d.size} ${d.capacity}`).slice(0, 3).join(', ')}${detailedItems.length > 3 ? '...' : ''}`;
+
+      const companyName = (gl.project_name || gl.group_name || gl.gst_name || 'Himalaya Client').trim();
+
+      const leadData = {
+        leadNumber,
+        leadDate: leadDateObj,
+        companyName,
+        groupName: gl.group_name || companyName,
+        projectName: gl.project_name || companyName,
+        contactPerson: gl.site_incharge || 'Site Incharge',
+        email: gl.email || 'info@thehimalaya.co.in',
+        phone: gl.site_incharge_mobile || gl.office_contact || 'N/A',
+        gstName: gl.gst_name || companyName,
+        gstNumber: gl.gst_no || null,
+        address: parsedAddress,
+        source: 'OTHER',
+        productInterest: productInterestStr,
+        detailedItems: detailedItems,
+        estimatedQuantity: new Prisma.Decimal(totalQty || 1),
+        unit: 'SET',
+        remarks: 'Imported from Hussain Sir Super Sales 1 CSV',
+        workflowStateId: workflowStateId,
+        assignedToId: userId,
+        salesExecutiveId: userId,
+        createdById: userId,
+        companyId: companyId
+      };
+
+      await prisma.lead.create({ data: leadData });
+      successCount++;
+    }
+
+    // Update idSequence for next leads (both FY key and generic key)
+    await prisma.idSequence.upsert({
+      where: { key: 'lead_number_2627' },
+      update: { nextValue: sequenceCounter },
+      create: { key: 'lead_number_2627', nextValue: sequenceCounter }
+    });
+    await prisma.idSequence.upsert({
+      where: { key: 'lead_number' },
+      update: { nextValue: sequenceCounter },
+      create: { key: 'lead_number', nextValue: sequenceCounter }
+    });
+
+    console.log(`✅ [${config.name}] Successfully imported ${successCount} leads with ${consolidatedLeads.reduce((a, b) => a + b.items.length, 0)} total line items.`);
+  } catch (e) {
+    console.error(`❌ Error importing into ${config.name}:`, e);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 async function main() {
   const candidatePaths = [
     path.resolve('hussain_sir(super_sales1) (2).csv'),
     path.join(__dirname, 'hussain_sir(super_sales1) (2).csv'),
     path.join(__dirname, '../hussain_sir(super_sales1) (2).csv'),
+    path.resolve('d:/prototype-next-main/hussain_sir(super_sales1) (2).csv'),
     path.resolve('/app/hussain_sir(super_sales1) (2).csv'),
     path.resolve('/app/scripts/hussain_sir(super_sales1) (2).csv'),
   ];
 
   let csvPath = candidatePaths.find(p => fs.existsSync(p));
   if (!csvPath) {
-    // Search for any csv with 'hussain' in the name in current dir or scripts dir
-    const searchDirs = [process.cwd(), __dirname, '/app', '/app/scripts'];
-    for (const dir of searchDirs) {
-      if (fs.existsSync(dir)) {
-        const match = fs.readdirSync(dir).find(f => f.toLowerCase().includes('hussain') && f.endsWith('.csv'));
-        if (match) {
-          csvPath = path.join(dir, match);
-          break;
-        }
-      }
-    }
-  }
-
-  if (!csvPath || !fs.existsSync(csvPath)) {
-    console.error(`CSV file not found in candidates: ${candidatePaths.join(', ')}`);
-    console.error(`Please copy the CSV file into the container with: docker cp "hussain_sir(super_sales1) (2).csv" himalaya-backend:/app/`);
+    console.error('CSV file not found.');
     process.exit(1);
   }
 
   console.log(`Reading CSV from: ${csvPath}`);
   const content = fs.readFileSync(csvPath, 'utf8');
   const rows = parseCSV(content);
-  const headers = rows[0].map(h => h.trim().replace(/^\uFEFF/, ''));
+  const rawHeaders = rows[0].map(h => h.trim().replace(/^\uFEFF/, ''));
   const dataRows = rows.slice(1);
 
   let lastLeadForCarry = null;
-  const consolidatedLeads = [];
+  const rawConsolidatedLeads = [];
 
   for (let i = 0; i < dataRows.length; i++) {
     const r = dataRows[i];
     const obj = {};
-    headers.forEach((h, idx) => obj[h] = r[idx] ? r[idx].trim() : '');
-    
-    const hasLeadInfo = Boolean(obj.project_name || obj['group name'] || obj['gst name'] || obj['gst no']);
-    const hasProductInfo = Boolean(obj.PRODUCT || obj.SIZE || obj.CAPCITY);
+    rawHeaders.forEach((h, idx) => {
+      const cleanKey = h.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+      obj[cleanKey] = r[idx] ? r[idx].trim() : '';
+    });
+
+    const leadDate = obj.lead_date || '';
+    const projectName = obj.project_name || obj.group_name || obj.gst_name || '';
+    const groupName = obj.group_name || projectName;
+    const gstName = obj.gst_name || projectName;
+    const gstNo = obj.gst_no || '';
+    const siteIncharge = obj.site_incharge || 'Site Incharge';
+    const siteInchargeMobile = obj.site_incharge_mobile || obj.office_contact || '';
+    const officeContact = obj.office_contact || '';
+    const email = obj.email || 'info@thehimalaya.co.in';
+    const address = obj.address || '';
+    const state = obj.state || 'Gujarat';
+    const city = obj.city || '';
+    const pincode = obj.pincode || '';
+
+    const product = obj.product || '';
+    const size = obj.size || '';
+    const capacity = obj.capcity || obj.capacity || '';
+    const qty = parseFloat(obj.qty) || 1;
+    const color = obj.color || 'GREY';
+    const unitPrice = parseFloat(obj.unit_pricew || obj.unit_price || 0) || 0;
+    const subTotal = parseFloat(obj.sub_total || 0) || 0;
+    const gst = obj.gst || '18%';
+    const gstAmount = parseFloat(obj.gst_amount || 0) || 0;
+    const discount = parseFloat(obj.discount || 0) || 0;
+    const grandTotal = parseFloat(obj.grand_total || 0) || 0;
+
+    const hasLeadInfo = Boolean(projectName || groupName || gstName || gstNo);
+    const hasProductInfo = Boolean(product || size || capacity);
 
     if (!hasLeadInfo && !hasProductInfo) continue;
 
+    const itemObj = {
+      product,
+      size,
+      capacity,
+      qty,
+      color,
+      unit_price: unitPrice,
+      sub_total: subTotal,
+      gst,
+      gst_amount: gstAmount,
+      discount,
+      grand_total: grandTotal,
+      row_index: i + 2
+    };
+
+    const isSameAsLast = lastLeadForCarry &&
+      (leadDate === lastLeadForCarry.lead_date || !leadDate) &&
+      (projectName === lastLeadForCarry.project_name || (!projectName && gstName === lastLeadForCarry.gst_name)) &&
+      (gstNo === lastLeadForCarry.gst_no || !gstNo) &&
+      (siteInchargeMobile === lastLeadForCarry.site_incharge_mobile || !siteInchargeMobile);
+
+    if (isSameAsLast && hasProductInfo) {
+      lastLeadForCarry.items.push(itemObj);
+      continue;
+    }
+
     if (hasLeadInfo) {
-      const isSameAsLast = lastLeadForCarry &&
-        (obj.lead_date === lastLeadForCarry.lead_date || !obj.lead_date) &&
-        (obj.project_name === lastLeadForCarry.project_name || (!obj.project_name && obj.gst_name === lastLeadForCarry.gst_name)) &&
-        (obj.gst_no === lastLeadForCarry.gst_no || !obj.gst_no) &&
-        (obj.site_incharge_mobile === lastLeadForCarry.site_incharge_mobile || !obj.site_incharge_mobile);
-
-      if (isSameAsLast && hasProductInfo) {
-        lastLeadForCarry.items.push({
-          product: obj.PRODUCT,
-          size: obj.SIZE,
-          capacity: obj.CAPCITY,
-          qty: parseFloat(obj.QTY) || 1,
-          color: obj.COLOR || 'GREY',
-          unit_price: parseFloat(obj.unit_pricew) || 0,
-          sub_total: parseFloat(obj.sub_total) || 0,
-          gst: obj.gst || '18%',
-          gst_amount: parseFloat(obj.gst_amount) || 0,
-          discount: parseFloat(obj.discount) || 0,
-          grand_total: parseFloat(obj.grand_total) || 0,
-          row_index: i + 2
-        });
-        continue;
-      }
-
       lastLeadForCarry = {
-        lead_date: obj.lead_date,
-        project_name: obj.project_name || obj['group name'] || obj['gst name'] || 'Unnamed Project',
-        group_name: obj['group name'] || obj.project_name || '',
-        gst_name: obj['gst name'] || obj.project_name || '',
-        gst_no: obj['gst no'] || '',
-        Site_incharge: obj.Site_incharge || 'Site Incharge',
-        site_incharge_mobile: obj.site_incharge_mobile || obj.office_contact || '',
-        office_contact: obj.office_contact || '',
-        email: obj.email || 'info@thehimalaya.co.in',
-        logged_in_sales_representive: obj.logged_in_sales_representive || 'supersales1',
-        login_datetime: obj['login_date&time'] || '',
-        address: obj.ADDRESS || '',
-        state: obj.state || 'Gujarat',
-        city: obj.city || '',
-        pincode: obj.pincode || '',
+        lead_date: leadDate,
+        project_name: projectName || 'Unnamed Project',
+        group_name: groupName || projectName || 'Unnamed Project',
+        gst_name: gstName || projectName || 'Unnamed Project',
+        gst_no: gstNo,
+        site_incharge: siteIncharge,
+        site_incharge_mobile: siteInchargeMobile,
+        office_contact: officeContact,
+        email: email,
+        address: address,
+        state: state,
+        city: city,
+        pincode: pincode,
         items: []
       };
       if (hasProductInfo) {
-        lastLeadForCarry.items.push({
-          product: obj.PRODUCT,
-          size: obj.SIZE,
-          capacity: obj.CAPCITY,
-          qty: parseFloat(obj.QTY) || 1,
-          color: obj.COLOR || 'GREY',
-          unit_price: parseFloat(obj.unit_pricew) || 0,
-          sub_total: parseFloat(obj.sub_total) || 0,
-          gst: obj.gst || '18%',
-          gst_amount: parseFloat(obj.gst_amount) || 0,
-          discount: parseFloat(obj.discount) || 0,
-          grand_total: parseFloat(obj.grand_total) || 0,
-          row_index: i + 2
-        });
+        lastLeadForCarry.items.push(itemObj);
       }
-      consolidatedLeads.push(lastLeadForCarry);
+      rawConsolidatedLeads.push(lastLeadForCarry);
     } else if (hasProductInfo && lastLeadForCarry) {
-      lastLeadForCarry.items.push({
-        product: obj.PRODUCT,
-        size: obj.SIZE,
-        capacity: obj.CAPCITY,
-        qty: parseFloat(obj.QTY) || 1,
-        color: obj.COLOR || 'GREY',
-        unit_price: parseFloat(obj.unit_pricew) || 0,
-        sub_total: parseFloat(obj.sub_total) || 0,
-        gst: obj.gst || '18%',
-        gst_amount: parseFloat(obj.gst_amount) || 0,
-        discount: parseFloat(obj.discount) || 0,
-        grand_total: parseFloat(obj.grand_total) || 0,
-        row_index: i + 2
-      });
-    }
-  }
-
-  console.log(`Parsed ${consolidatedLeads.length} consolidated leads containing ${consolidatedLeads.reduce((a, b) => a + b.items.length, 0)} product items.`);
-
-  // 1. Resolve SuperSales 1 User
-  const user = await prisma.user.findFirst({
-    where: { email: { equals: 'supersales1@himalayaerp.com', mode: 'insensitive' } }
-  });
-
-  if (!user) {
-    console.error(`❌ User supersales1@himalayaerp.com not found.`);
-    return;
-  }
-  const userId = user.id;
-  console.log(`Resolved SuperSales 1 user: ${user.name} (${user.id}) in company: ${user.companyId}`);
-
-  // 2. Clear previous leads created by supersales1
-  const cleared = await prisma.lead.deleteMany({
-    where: {
-      OR: [
-        { createdById: userId },
-        { salesExecutiveId: userId },
-        { remarks: 'Imported from Hussain Sir Super Sales 1 CSV' }
-      ]
-    }
-  });
-  console.log(`Cleared ${cleared.count} existing leads for SuperSales 1.`);
-
-  // 3. Resolve default company and initial workflow state
-  const companyId = user.companyId || (await prisma.company.findFirst())?.id;
-
-  const workflowState = await prisma.workflowState.findFirst({
-    where: { workflow: { code: 'LEAD' }, isInitial: true }
-  }) || await prisma.workflowState.findFirst({
-    where: { workflow: { code: 'LEAD' } }
-  });
-  const workflowStateId = workflowState ? workflowState.id : null;
-
-  // 4. Resolve all products for matching
-  const products = await prisma.product.findMany();
-  console.log(`Loaded ${products.length} products from catalog.`);
-
-  console.log(`Seeding ${consolidatedLeads.length} consolidated leads for SuperSales 1...`);
-  let successCount = 0;
-  let sequenceCounter = 1;
-
-  for (const gl of consolidatedLeads) {
-    const detailedItems = gl.items.map((it) => {
-      const matchedProd = findProduct(it.product, it.size, it.capacity, products);
-      const productId = matchedProd ? matchedProd.id : null;
-      const productCode = matchedProd ? (matchedProd.code || matchedProd.sku) : null;
-      const productName = matchedProd ? matchedProd.name : `HIMALAYA FRP ${it.product} ${it.size} ${it.capacity}`;
-      
-      const specString = `Product: ${it.product} | Size: ${it.size} | Capacity: ${it.capacity} | Color: ${it.color} | Qty: ${it.qty} | Rate: ₹${it.unit_price}`;
-
-      return {
-        productId,
-        productCode,
-        productName,
-        specification: specString,
-        product: it.product,
-        size: it.size,
-        capacity: it.capacity,
-        color: it.color,
-        quantity: it.qty,
-        unitPrice: it.unit_price,
-        subTotal: it.sub_total,
-        tax: 18,
-        gstRate: 18,
-        gstAmount: it.gst_amount,
-        discount: it.discount,
-        grandTotal: it.grand_total
+      lastLeadForCarry.items.push(itemObj);
+    } else if (hasProductInfo && !lastLeadForCarry) {
+      lastLeadForCarry = {
+        lead_date: leadDate,
+        project_name: 'Direct Inquiries',
+        group_name: 'Direct Inquiries',
+        gst_name: 'Direct Inquiries',
+        gst_no: '',
+        site_incharge: siteIncharge,
+        site_incharge_mobile: siteInchargeMobile,
+        office_contact: officeContact,
+        email: email,
+        address: address,
+        state: state,
+        city: city,
+        pincode: pincode,
+        items: [itemObj]
       };
-    });
-
-    const totalQty = detailedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
-    const leadDateObj = parseCsvDate(gl.lead_date);
-    const parsedAddress = parseAddressObj(gl.address, gl.state, gl.city, gl.pincode);
-
-    const leadYear = leadDateObj.getFullYear();
-    const yy = String(leadYear).substring(2);
-    const ny = String(leadYear + 1).substring(2);
-    const leadNumber = `LEAD/${yy}${ny}/${String(sequenceCounter++).padStart(4, '0')}`;
-
-    const primaryProduct = detailedItems[0] || {};
-    const productInterestStr = detailedItems.length === 1
-      ? `${primaryProduct.product || ''} ${primaryProduct.size || ''} ${primaryProduct.capacity || ''} (${primaryProduct.quantity || 1} Qty, ${primaryProduct.color || 'GREY'})`
-      : `${detailedItems.length} Products: ${detailedItems.map((d) => `${d.product} ${d.size} ${d.capacity}`).slice(0, 3).join(', ')}${detailedItems.length > 3 ? '...' : ''}`;
-
-    const companyName = (gl.project_name || gl.group_name || gl.gst_name || 'Himalaya Client').trim();
-
-    const leadData = {
-      leadNumber,
-      leadDate: leadDateObj,
-      companyName,
-      groupName: gl.group_name || companyName,
-      projectName: gl.project_name || companyName,
-      contactPerson: gl.Site_incharge || 'Site Incharge',
-      email: gl.email || 'info@thehimalaya.co.in',
-      phone: gl.site_incharge_mobile || gl.office_contact || 'N/A',
-      gstName: gl.gst_name || companyName,
-      gstNumber: gl.gst_no || null,
-      address: parsedAddress,
-      source: 'OTHER',
-      productInterest: productInterestStr,
-      detailedItems: detailedItems,
-      estimatedQuantity: new Prisma.Decimal(totalQty || 1),
-      unit: 'SET',
-      remarks: 'Imported from Hussain Sir Super Sales 1 CSV',
-      workflowStateId: workflowStateId,
-      assignedToId: userId,
-      salesExecutiveId: userId,
-      createdById: userId,
-      companyId: companyId
-    };
-
-    await prisma.lead.create({ data: leadData });
-    successCount++;
+      rawConsolidatedLeads.push(lastLeadForCarry);
+    }
   }
 
-  // Update idSequence for next leads (both FY key and generic key)
-  await prisma.idSequence.upsert({
-    where: { key: 'lead_number_2627' },
-    update: { nextValue: sequenceCounter },
-    create: { key: 'lead_number_2627', nextValue: sequenceCounter }
-  });
-  await prisma.idSequence.upsert({
-    where: { key: 'lead_number' },
-    update: { nextValue: sequenceCounter },
-    create: { key: 'lead_number', nextValue: sequenceCounter }
-  });
+  // Filter out any lead without items
+  const consolidatedLeads = rawConsolidatedLeads.filter(l => l.items && l.items.length > 0);
+  console.log(`Parsed ${consolidatedLeads.length} valid consolidated leads with ${consolidatedLeads.reduce((a, b) => a + b.items.length, 0)} items.`);
 
-  console.log(`✅ [SUCCESS] Imported ${successCount} leads with ${consolidatedLeads.reduce((a, b) => a + b.items.length, 0)} total line items.`);
+  for (const db of targetDbs) {
+    await importSuperSales1IntoDb(db, consolidatedLeads);
+  }
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect());
+main().catch(console.error);
