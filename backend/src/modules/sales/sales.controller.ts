@@ -121,6 +121,23 @@ export class SalesController {
     );
   }
 
+  @Post('action')
+  @RequirePermissions('sales.orders.update')
+  @UseInterceptors(IdempotencyInterceptor)
+  async processActionDirect(
+    @Body() dto: WorkflowActionDto & { orderId?: string; id?: string },
+    @Query('orderId') orderIdQuery: string,
+    @Req() req: any,
+  ) {
+    const targetId = dto.orderId || dto.id || orderIdQuery || '';
+    return this.salesService.processAction(
+      targetId,
+      dto,
+      req.user?.sub,
+      req.user?.role,
+    );
+  }
+
   @Post(':id/action')
   @RequirePermissions('sales.orders.update')
   @UseInterceptors(IdempotencyInterceptor)

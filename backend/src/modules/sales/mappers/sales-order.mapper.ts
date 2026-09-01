@@ -132,20 +132,42 @@ export function mapSalesOrder(
     orderNumber: order.orderNumber,
     orderNo: order.orderNumber,
     customerId: order.customerId,
-    customerName: order.customer.companyName,
-    customerCode: order.customer.customerCode,
-    customer: {
-      id: order.customer.id,
-      name: order.customer.companyName,
-      companyName: order.customer.companyName,
-      customerCode: order.customer.customerCode,
-    },
-    salesExecutiveId: (order as any).salesExecutiveId,
-    salesExecutive: (order as any).salesExecutive
+    customerName: order.customer?.companyName || (order as any).customerName || (order as any).quotation?.lead?.companyName || (order as any).quotation?.customerName || '—',
+    customerCode: order.customer?.customerCode || (order as any).customerCode || '',
+    customer: order.customer
       ? {
-          id: (order as any).salesExecutive.id,
-          name: (order as any).salesExecutive.name,
-          email: (order as any).salesExecutive.email,
+          id: order.customer.id,
+          name: order.customer.companyName,
+          companyName: order.customer.companyName,
+          customerCode: order.customer.customerCode,
+        }
+      : null,
+    salesExecutiveId:
+      (order as any).salesExecutiveId ||
+      (order as any).quotation?.salesExecutiveId ||
+      (order as any).quotation?.lead?.salesExecutiveId ||
+      (order as any).createdById,
+    salesperson:
+      (order as any).salesExecutive?.name ||
+      (order as any).quotation?.salesExecutive?.name ||
+      (order as any).quotation?.lead?.salesExecutive?.name ||
+      (order as any).salesPersonName ||
+      (order as any).salesperson ||
+      (order as any).salesExecutive?.email ||
+      'Sales Executive',
+    salesPersonName:
+      (order as any).salesExecutive?.name ||
+      (order as any).quotation?.salesExecutive?.name ||
+      (order as any).quotation?.lead?.salesExecutive?.name ||
+      (order as any).salesPersonName ||
+      (order as any).salesperson ||
+      (order as any).salesExecutive?.email ||
+      'Sales Executive',
+    salesExecutive: (order as any).salesExecutive || (order as any).quotation?.salesExecutive || (order as any).quotation?.lead?.salesExecutive
+      ? {
+          id: ((order as any).salesExecutive || (order as any).quotation?.salesExecutive || (order as any).quotation?.lead?.salesExecutive).id,
+          name: ((order as any).salesExecutive || (order as any).quotation?.salesExecutive || (order as any).quotation?.lead?.salesExecutive).name,
+          email: ((order as any).salesExecutive || (order as any).quotation?.salesExecutive || (order as any).quotation?.lead?.salesExecutive).email,
         }
       : null,
     remarks: order.remarks ?? undefined,

@@ -27,6 +27,8 @@ export interface SalesOrderResponseDto {
   customer?: any;
   salesExecutiveId?: string | null;
   salesExecutive?: { id: string; name: string; email: string } | null;
+  salesperson?: string;
+  salesPersonName?: string;
   shippingAddress?: any;
   billingAddress?: any;
 

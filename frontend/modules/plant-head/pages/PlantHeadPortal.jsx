@@ -166,34 +166,24 @@ const SEEDED_SALES_USER_MAP = {
 };
 
 const resolveSalesPersonName = (order, sourceQuotation, userMap = {}) => {
-  if (!order) return 'Sales Executive 1';
+  if (!order) return 'Sales Executive';
 
-  const execObj = order.salesExecutive || order.createdBy || sourceQuotation?.salesExecutive || sourceQuotation?.createdBy || order.customer?.salesExecutive;
+  const execObj =
+    order.salesExecutive ||
+    order.quotation?.salesExecutive ||
+    order.quotation?.lead?.salesExecutive ||
+    sourceQuotation?.salesExecutive ||
+    sourceQuotation?.lead?.salesExecutive ||
+    order.createdBy ||
+    sourceQuotation?.createdBy ||
+    order.customer?.salesExecutive;
+
   if (execObj && typeof execObj === 'object') {
     const name = execObj.name ? String(execObj.name).trim() : '';
     const email = execObj.email ? String(execObj.email).trim() : '';
-    
-    const isPlaceholderName = !name || 
-      name === 'SuperSales 1' || 
-      name === 'Sales Executive' || 
-      name === 'Sales Manager' || 
-      name.toLowerCase().includes('executive') ||
-      name.toLowerCase().includes('manager') ||
-      name.includes('@') || 
-      name.includes('-') || 
-      name.startsWith('usr_');
-
-    if (name && !isPlaceholderName) {
-      return name;
-    }
-    
-    if (email) {
-      return email;
-    }
-
-    if (execObj.email && SEEDED_SALES_USER_MAP[execObj.email.toLowerCase()]) {
-      return SEEDED_SALES_USER_MAP[execObj.email.toLowerCase()];
-    }
+    if (name) return name;
+    if (email && SEEDED_SALES_USER_MAP[email.toLowerCase()]) return SEEDED_SALES_USER_MAP[email.toLowerCase()];
+    if (email) return email;
     if (execObj.id && (SEEDED_SALES_USER_MAP[execObj.id] || userMap[execObj.id])) {
       return SEEDED_SALES_USER_MAP[execObj.id] || userMap[execObj.id];
     }
@@ -207,6 +197,10 @@ const resolveSalesPersonName = (order, sourceQuotation, userMap = {}) => {
     typeof order.salesExecutive === 'string' ? order.salesExecutive : null,
     order.salesRep,
     order.createdByName,
+    order.quotation?.salesperson,
+    order.quotation?.salesPersonName,
+    order.quotation?.salesExecutiveName,
+    order.quotation?.lead?.salesExecutive?.name,
     sourceQuotation?.salesperson,
     sourceQuotation?.salesPersonName,
     sourceQuotation?.salespersonName,
@@ -217,44 +211,18 @@ const resolveSalesPersonName = (order, sourceQuotation, userMap = {}) => {
 
   for (const c of candidates) {
     const valStr = String(c).trim();
+    if (!valStr) continue;
     const valLower = valStr.toLowerCase();
-
-    if (valStr.includes('@')) {
-      return valStr;
-    }
-
-    const isPlaceholder = 
-      valStr === 'SuperSales 1' || 
-      valStr === 'Sales Executive' || 
-      valStr === 'Sales Manager' ||
-      valLower.includes('executive') ||
-      valLower.includes('manager') ||
-      valStr.includes('-') ||
-      valStr.startsWith('usr_') ||
-      valStr.startsWith('user_') ||
-      valStr.startsWith('USR-');
-
-    if (!isPlaceholder) {
-      if (SEEDED_SALES_USER_MAP[valStr]) return SEEDED_SALES_USER_MAP[valStr];
-      if (SEEDED_SALES_USER_MAP[valLower]) return SEEDED_SALES_USER_MAP[valLower];
-      if (userMap[valStr]) return userMap[valStr];
-      if (userMap[valLower]) return userMap[valLower];
+    if (SEEDED_SALES_USER_MAP[valStr]) return SEEDED_SALES_USER_MAP[valStr];
+    if (SEEDED_SALES_USER_MAP[valLower]) return SEEDED_SALES_USER_MAP[valLower];
+    if (userMap[valStr]) return userMap[valStr];
+    if (userMap[valLower]) return userMap[valLower];
+    if (!valStr.startsWith('usr_') && !valStr.startsWith('user_') && !valStr.startsWith('USR-') && !valStr.match(/^[0-9a-f]{8}-/i)) {
       return valStr;
     }
   }
 
-  if (execObj && typeof execObj === 'object' && execObj.email) {
-    return execObj.email;
-  }
-
-  const str = String(order.orderNo || order.orderNumber || order.id || order.customerName || '1');
-  let num = 0;
-  for (let i = 0; i < str.length; i++) {
-    num = (num << 5) - num + str.charCodeAt(i);
-    num |= 0;
-  }
-  const index = Math.abs(num) % SALES_PERSONNEL_LIST.length;
-  return SALES_PERSONNEL_LIST[index];
+  return 'Sales Executive';
 };
 
 const normalizeIncomingOrder = (order, sourceQuotation, userMap = {}) => {
@@ -288,11 +256,26 @@ const normalizeIncomingOrder = (order, sourceQuotation, userMap = {}) => {
   };
 
   const resolvedSalesPerson = resolveSalesPersonName(order, sourceQuotation, userMap);
+  const resolvedCustomer =
+    order.customerName ||
+    order.customer_name ||
+    order.customer?.companyName ||
+    order.customer?.name ||
+    order.quotation?.lead?.companyName ||
+    order.quotation?.lead?.projectName ||
+    order.quotation?.customerName ||
+    order.quotation?.companyName ||
+    sourceQuotation?.customerName ||
+    sourceQuotation?.customer_name ||
+    sourceQuotation?.companyName ||
+    sourceQuotation?.lead?.companyName ||
+    sourceQuotation?.lead?.projectName ||
+    '—';
 
   return {
     ...order,
     orderNo: order.orderNumber || order.orderNo || order.salesOrder?.orderNumber || order.order_no || order.orderId || order.public_id || order.id,
-    customerName: order.customerName || order.customer_name || order.customer?.name || sourceQuotation?.customerName || sourceQuotation?.customer_name || '',
+    customerName: resolvedCustomer,
     salesPersonName: resolvedSalesPerson,
     detailedItems,
     products: order.products || order.productItem || order.product_name || productNames,
@@ -3312,11 +3295,11 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12.5px', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
                       <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Customer</span>
-                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.customer?.name || '—'}</span>
+                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.customer?.companyName || row.customer?.name || row.quotation?.lead?.companyName || '—'}</span>
                       </div>
                       <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Sales Person</span>
-                        <span style={{ fontWeight: '600' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span>
+                        <span style={{ fontWeight: '600' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span>
                       </div>
                       <div style={{ gridColumn: 'span 2' }}>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Product Item</span>
@@ -3385,8 +3368,8 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                   </strong>
                 )
               },
-              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer?.name || '—'}</span> },
-              { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span> },
+              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer?.companyName || row.customer?.name || row.quotation?.lead?.companyName || '—'}</span> },
+              { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span> },
               { header: 'Product Item', accessor: 'products', render: (row) => row.products || '—' },
               { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : <span style={{ color: '#8893A7' }}>Not set</span> },
               { header: 'Priority', accessor: 'priority', render: (row) => priorityBadge(row.priority) },
@@ -3755,11 +3738,11 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12.5px', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
                       <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Customer</span>
-                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.customer || '—'}</span>
+                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.customer?.companyName || row.customer?.name || row.quotation?.lead?.companyName || row.customer || '—'}</span>
                       </div>
                       <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Sales Person</span>
-                        <span style={{ fontWeight: '600' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span>
+                        <span style={{ fontWeight: '600' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span>
                       </div>
                       <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Fulfillment</span>
@@ -3845,8 +3828,8 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                   </strong>
                 )
               },
-              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer || '—'}</span> },
-              { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || 'Sales Executive 1'}</span> },
+              { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.customer?.companyName || row.customer?.name || row.quotation?.lead?.companyName || row.customer || '—'}</span> },
+              { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span> },
               {
                 header: 'Products',
                 accessor: 'products',

@@ -796,6 +796,17 @@ export class PlantHeadService {
       },
       include: {
         customer: true,
+        salesExecutive: { select: { id: true, name: true, email: true } },
+        quotation: {
+          include: {
+            salesExecutive: { select: { id: true, name: true, email: true } },
+            lead: {
+              include: {
+                salesExecutive: { select: { id: true, name: true, email: true } },
+              },
+            },
+          },
+        },
         items: { include: { product: true } },
         workflowState: true,
         productionPlans: {
@@ -831,6 +842,17 @@ export class PlantHeadService {
       },
       include: {
         customer: true,
+        salesExecutive: { select: { id: true, name: true, email: true } },
+        quotation: {
+          include: {
+            salesExecutive: { select: { id: true, name: true, email: true } },
+            lead: {
+              include: {
+                salesExecutive: { select: { id: true, name: true, email: true } },
+              },
+            },
+          },
+        },
         items: { include: { product: true } },
         workflowState: true,
         productionPlans: {

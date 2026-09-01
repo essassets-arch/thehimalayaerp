@@ -25,34 +25,34 @@ import { apiClient } from '../../../lib/apiClient.js';
 import { backendFetch } from '../../../lib/backendFetch';
 
 // Feature hooks (new FSD layer)
-import { useLeads }      from '../hooks/useLeads.js';
-import { useSamples }    from '../hooks/useSamples.js';
+import { useLeads } from '../hooks/useLeads.js';
+import { useSamples } from '../hooks/useSamples.js';
 import { useQuotations } from '../hooks/useQuotations.js';
-import { useReminders }  from '../hooks/useReminders.js';
-import { useOrders }     from '../hooks/useOrders.js';
+import { useReminders } from '../hooks/useReminders.js';
+import { useOrders } from '../hooks/useOrders.js';
 
 // UI view components (unchanged — still consumed from /components for now)
-import DashboardView              from '../../../components/DashboardView.jsx';
-import EditSample                 from '../../../components/EditSample.jsx';
-import CreateSample               from '../../../components/CreateSample.jsx';
-import LeadsView                  from '../../../components/LeadsView.jsx';
-import CreateLead                 from '../../../components/CreateLead.jsx';
-import SamplesView                from '../../../components/SamplesView.jsx';
-import QuotationsView             from '../../../components/QuotationsView.jsx';
-import CreateQuotation            from '../../../components/CreateQuotation.jsx';
-import OrdersView                 from '../../../components/OrdersView.jsx';
-import PaymentsView               from '../../../components/PaymentsView.jsx';
-import PaymentFollowupERPView     from '../../../components/PaymentFollowupERPView.jsx';
-import PaymentHistoryView         from '../../../components/PaymentHistoryView.jsx';
-import CreatePayment              from '../../../components/CreatePayment.jsx';
-import CustomersView              from '../../../components/CustomersView.jsx';
-import ReportsView                from '../../../components/ReportsView.jsx';
-import SalesProductionStatusView  from '../../../components/SalesProductionStatusView.jsx';
-import DailyTaskView              from '../../../components/DailyTaskView.jsx';
+import DashboardView from '../../../components/DashboardView.jsx';
+import EditSample from '../../../components/EditSample.jsx';
+import CreateSample from '../../../components/CreateSample.jsx';
+import LeadsView from '../../../components/LeadsView.jsx';
+import CreateLead from '../../../components/CreateLead.jsx';
+import SamplesView from '../../../components/SamplesView.jsx';
+import QuotationsView from '../../../components/QuotationsView.jsx';
+import CreateQuotation from '../../../components/CreateQuotation.jsx';
+import OrdersView from '../../../components/OrdersView.jsx';
+import PaymentsView from '../../../components/PaymentsView.jsx';
+import PaymentFollowupERPView from '../../../components/PaymentFollowupERPView.jsx';
+import PaymentHistoryView from '../../../components/PaymentHistoryView.jsx';
+import CreatePayment from '../../../components/CreatePayment.jsx';
+import CustomersView from '../../../components/CustomersView.jsx';
+import ReportsView from '../../../components/ReportsView.jsx';
+import SalesProductionStatusView from '../../../components/SalesProductionStatusView.jsx';
+import DailyTaskView from '../../../components/DailyTaskView.jsx';
 import CustomerComplaintManagement from '../../../components/CustomerComplaintManagement.jsx';
-import CreateOrder                from '../../../components/CreateOrder.jsx';
-import O2PWorkflowBanner          from '../../../shared/components/O2PWorkflowBanner';
-import { useO2PWorkflow }         from '../../../shared/hooks/useO2PWorkflow';
+import CreateOrder from '../../../components/CreateOrder.jsx';
+import O2PWorkflowBanner from '../../../shared/components/O2PWorkflowBanner';
+import { useO2PWorkflow } from '../../../shared/hooks/useO2PWorkflow';
 
 async function uploadAfterSalesEvidence(files = []) {
   const urls = [];
@@ -205,7 +205,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
   const searchParams = useSearchParams();
   const tabParam = searchParams?.get('tab');
   const pathSlug = pathname ? pathname.split('/').filter(Boolean) : [];
-  
+
   let rawView = overrideView;
   if (!rawView) {
     if (params?.slug?.[0] === 'sales' || params?.slug?.[0] === 'supersales') {
@@ -245,8 +245,8 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     (location.pathname.includes(`${basePath}/edit-lead/`) || location.pathname.includes('/sales/edit-lead/') || location.pathname.includes('/supersales/edit-lead/')
       ? 'edit-lead'
       : location.pathname.includes(`${basePath}/edit-sample/`) || location.pathname.includes('/sales/edit-sample/') || location.pathname.includes('/supersales/edit-sample/')
-      ? 'edit-sample'
-      : view);
+        ? 'edit-sample'
+        : view);
 
   const { state, dispatch, syncData } = useERP();
   const { user } = useAuth();
@@ -363,7 +363,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
   const { customers } = useSalesBackend();
 
-  const payments  = state.payments  || [];
+  const payments = state.payments || [];
 
   // ── Quick navigation helpers ───────────────────────────────────────────────
   const handleActionClick = (_actionName, message) => showToast(message);
@@ -489,13 +489,13 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
           (qData.leadId && (l.id === qData.leadId || l.leadId === qData.leadId)) ||
           (qData.sourceId && l.id === qData.sourceId) ||
           l.companyName?.toLowerCase() === qData.customerName?.trim().toLowerCase() ||
-          l.projectName?.toLowerCase()  === qData.customerName?.trim().toLowerCase()
+          l.projectName?.toLowerCase() === qData.customerName?.trim().toLowerCase()
       );
       if (matchedLead) {
-        await updateLead(matchedLead.id, { status: 'Quotation' }).catch(() => {});
+        await updateLead(matchedLead.id, { status: 'Quotation' }).catch(() => { });
       }
       if (loadLeads) {
-        await loadLeads().catch(() => {});
+        await loadLeads().catch(() => { });
       }
       setPrefillQuotationData(null);
       navigate.push(`${basePath}/quotations`);
@@ -509,7 +509,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     if (res?.success) {
       showToast('🎉 Order created from quotation!');
       if (refreshSalesOrders) {
-        await refreshSalesOrders().catch(() => {});
+        await refreshSalesOrders().catch(() => { });
       }
       navigate.push(`${basePath}/orders`);
     }
@@ -940,19 +940,19 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
       const evidence = await uploadAfterSalesEvidence(value.files);
       const itemsToReturn = value.orderItemId === 'all'
         ? realItems.map(item => ({
-            salesOrderItemId: String(item.id || item.order_item_id || item.orderItemId),
-            requestedQuantity: value.requestedQty,
-            reason: value.reason,
-            conditionReported: value.condition,
-            evidence: { files: evidence }
-          }))
+          salesOrderItemId: String(item.id || item.order_item_id || item.orderItemId),
+          requestedQuantity: value.requestedQty,
+          reason: value.reason,
+          conditionReported: value.condition,
+          evidence: { files: evidence }
+        }))
         : [{
-            salesOrderItemId: String(value.orderItemId),
-            requestedQuantity: value.requestedQty,
-            reason: value.reason,
-            conditionReported: value.condition,
-            evidence: { files: evidence }
-          }];
+          salesOrderItemId: String(value.orderItemId),
+          requestedQuantity: value.requestedQty,
+          reason: value.reason,
+          conditionReported: value.condition,
+          evidence: { files: evidence }
+        }];
 
       const res = await requestReturn(order.id || order.orderNo, {
         reasonCode: 'DAMAGE_IN_TRANSIT',
@@ -1154,16 +1154,16 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
         leadIdFromUrl = urlParams.get('leadId');
       }
       return (
-        <CreateSample 
-           leads={leads}
-           defaultLeadId={leadIdFromUrl}
-           onAddSample={async (data) => {
-               const res = await createSample(data);
-               await refreshSamples();
-               navigate.push(`${basePath}/samples`);
-               return { success: true };
-           }}
-           onCancel={() => navigate.push(`${basePath}/leads`)}
+        <CreateSample
+          leads={leads}
+          defaultLeadId={leadIdFromUrl}
+          onAddSample={async (data) => {
+            const res = await createSample(data);
+            await refreshSamples();
+            navigate.push(`${basePath}/samples`);
+            return { success: true };
+          }}
+          onCancel={() => navigate.push(`${basePath}/leads`)}
         />
       );
     }
@@ -1267,70 +1267,64 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     case 'orders': {
       const onUpdateOrderStatus = async (orderId, status) => {
         // Resolve the real order ID
-        const matchedOrder = orders.find((o) => o.orderNo === orderId || o.id === orderId);
+        const matchedOrder = orders.find((o) => o.orderNo === orderId || o.id === orderId || o.orderNumber === orderId);
         const orderDbId = matchedOrder ? matchedOrder.id || matchedOrder.dbId : orderId;
+        const encodedId = encodeURIComponent(String(orderDbId || ''));
 
-        if (status === 'SEND_TO_PLANT_HEAD_DIRECT') {
+        if (status === 'SEND_TO_PLANT_HEAD_DIRECT' || status === 'SEND_TO_PLANT') {
           try {
-            const serverOrder = await backendFetch(`/api/backend/sales/orders/${orderDbId}`);
-            const currentStatus = String(
-              serverOrder?.workflowStateCode ||
-              serverOrder?.status ||
-              matchedOrder?.workflowStateCode ||
-              matchedOrder?.status ||
-              matchedOrder?.orderStatus ||
-              ''
-            ).toUpperCase();
-
-            if (!['DRAFT', 'PENDING_APPROVAL', 'CONFIRMED'].includes(currentStatus)) {
-              throw new Error(
-                currentStatus === 'SENT_TO_PLANT' || currentStatus === 'SENT_TO_PLANT_HEAD'
-                  ? 'This order has already been sent to the Plant Head.'
-                  : `This order is already at ${currentStatus.replaceAll('_', ' ')} and cannot be submitted again.`
-              );
-            }
-
-            if (currentStatus === 'DRAFT') {
-              await backendFetch(`/api/backend/sales/orders/${orderDbId}/action`, {
-                method: 'POST',
-                body: { action: 'SUBMIT' },
-              });
-            }
-            if (currentStatus === 'DRAFT' || currentStatus === 'PENDING_APPROVAL') {
-              await backendFetch(`/api/backend/sales/orders/${orderDbId}/action`, {
-                method: 'POST',
-                body: { action: 'CONFIRM' },
-              });
-            }
-            await backendFetch(`/api/backend/sales/orders/${orderDbId}/action`, {
+            await backendFetch(`/api/backend/sales/orders/send-to-plant-head`, {
               method: 'POST',
-              body: { action: 'SEND_TO_PLANT' },
+              body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId },
             });
             showToast('Order sent to Plant Head.');
             await loadOrders();
             return true;
-          } catch (err) {
-            Swal.fire({
-              icon: 'error',
-              title: 'Unable to Send Order',
-              text: err?.message || 'Unable to send order to Plant Head.',
-            });
-            return false;
+          } catch (directErr) {
+            try {
+              await backendFetch(`/api/backend/sales/orders/action`, {
+                method: 'POST',
+                body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId },
+              });
+              showToast('Order sent to Plant Head.');
+              await loadOrders();
+              return true;
+            } catch (actionErr) {
+              try {
+                await backendFetch(`/api/backend/sales/orders/${encodedId}/action`, {
+                  method: 'POST',
+                  body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId },
+                });
+                showToast('Order sent to Plant Head.');
+                await loadOrders();
+                return true;
+              } catch (err) {
+                Swal.fire({
+                  icon: 'error',
+                  title: 'Unable to Send Order',
+                  text: err?.message || actionErr?.message || directErr?.message || 'Unable to send order to Plant Head.',
+                });
+                return false;
+              }
+            }
           }
         }
 
-        if (['SUBMIT', 'CONFIRM', 'SEND_TO_PLANT'].includes(status)) {
+        if (['SUBMIT', 'CONFIRM'].includes(status)) {
           try {
-            await backendFetch(`/api/backend/sales/orders/${orderDbId}/action`, {
+            await backendFetch(`/api/backend/sales/orders/action`, {
               method: 'POST',
-              body: { action: status },
+              body: { action: status, orderId: orderDbId, id: orderDbId },
+            }).catch(async () => {
+              await backendFetch(`/api/backend/sales/orders/${encodedId}/action`, {
+                method: 'POST',
+                body: { action: status, orderId: orderDbId, id: orderDbId },
+              });
             });
             showToast(
               status === 'SUBMIT'
                 ? 'Order submitted for approval.'
-                : status === 'CONFIRM'
-                  ? 'Order confirmed.'
-                  : 'Order sent to Plant Head.'
+                : 'Order confirmed.'
             );
             await loadOrders();
             return true;
@@ -1440,7 +1434,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
       return (
         <div data-testid="sales-payment-followup-page" className="sales-portal-view">
           <O2PWorkflowBanner accentColor="#0ea5e9" />
-          <PaymentFollowupERPView 
+          <PaymentFollowupERPView
             orders={orders}
             reminders={reminders}
             onSaveReminder={createReminder}
