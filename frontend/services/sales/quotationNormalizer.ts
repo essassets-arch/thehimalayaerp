@@ -98,44 +98,46 @@ export const normalizeQuotation = (quotation: any): any => {
   });
 
   // Strict Precedence Hierarchy:
-  // Quotation DB record -> (if null/undefined only) -> Customer -> (if null/undefined only) -> Lead -> Default
+  // Explicit quotation customerName -> (if linked to Lead) Lead -> Customer DB record -> Default
+  const leadCustomerName =
+    quotation.lead?.companyName ||
+    quotation.lead?.projectName ||
+    quotation.lead?.customerName ||
+    '';
+
+  const directCustomerName =
+    quotation.customer?.companyName ||
+    quotation.customer?.name ||
+    '';
+
   const customerName =
-    quotation.customerName ??
-    quotation.customer_name ??
-    quotation.customer?.companyName ??
-    quotation.customer?.name ??
-    quotation.lead?.companyName ??
-    quotation.lead?.customerName ??
-    quotation.lead?.projectName ??
+    quotation.customerName ||
+    quotation.customer_name ||
+    (quotation.leadId || quotation.lead ? leadCustomerName || directCustomerName : directCustomerName || leadCustomerName) ||
     '';
 
   const groupName =
     quotation.groupName ??
     quotation.group_name ??
-    quotation.customer?.groupName ??
-    quotation.customer?.group_name ??
-    quotation.lead?.groupName ??
-    quotation.lead?.group_name ??
+    (quotation.leadId || quotation.lead
+      ? quotation.lead?.groupName ?? quotation.lead?.group_name ?? quotation.customer?.groupName ?? quotation.customer?.group_name
+      : quotation.customer?.groupName ?? quotation.customer?.group_name ?? quotation.lead?.groupName ?? quotation.lead?.group_name) ??
     '';
 
   const gstName =
     quotation.gstName ??
     quotation.gst_name ??
-    quotation.customer?.gstName ??
-    quotation.customer?.companyName ??
-    quotation.customer?.name ??
-    quotation.lead?.gstName ??
-    quotation.lead?.companyName ??
+    (quotation.leadId || quotation.lead
+      ? quotation.lead?.gstName ?? quotation.lead?.companyName ?? quotation.customer?.gstName ?? quotation.customer?.companyName
+      : quotation.customer?.gstName ?? quotation.customer?.companyName ?? quotation.lead?.gstName ?? quotation.lead?.companyName) ??
     (customerName || '');
 
   const gstNumber =
     quotation.gstNumber ??
     quotation.gst_number ??
-    quotation.customer?.gstin ??
-    quotation.customer?.gst ??
-    quotation.customer?.gstNumber ??
-    quotation.lead?.gstNumber ??
-    quotation.lead?.gst_number ??
+    (quotation.leadId || quotation.lead
+      ? quotation.lead?.gstNumber ?? quotation.lead?.gst_number ?? quotation.customer?.gstin ?? quotation.customer?.gst ?? quotation.customer?.gstNumber
+      : quotation.customer?.gstin ?? quotation.customer?.gst ?? quotation.customer?.gstNumber ?? quotation.lead?.gstNumber ?? quotation.lead?.gst_number) ??
     '';
 
   const isGstRegistered =
