@@ -550,7 +550,7 @@ export class SalesService {
 
   async processAction(
     id: string,
-    dto: { action: string; remarks?: string; orderId?: string; id?: string },
+    dto: { action?: string; remarks?: string; orderId?: string; id?: string; expectedVersion?: number },
     userId: string,
     role?: string,
   ) {
@@ -562,6 +562,7 @@ export class SalesService {
       // Keep the original value when a malformed URI is supplied.
     }
     const cleanId = decodedOrderReference;
+    const actionName = dto.action || 'SEND_TO_PLANT';
 
     const isOperationalScope =
       role === 'DISPATCH_EXECUTIVE' ||
@@ -608,7 +609,7 @@ export class SalesService {
       });
       if (!order) throw new NotFoundException(`Sales Order ${cleanId} not found`);
 
-      if (dto.action === 'SUBMIT') {
+      if (actionName === 'SUBMIT') {
         const orderTotal = order.items.reduce(
           (sum, item) => sum + Number(item.lineTotal),
           0,
@@ -633,7 +634,7 @@ export class SalesService {
           entityType: 'SALES_ORDER',
           workflowCode: 'SALES_ORDER',
           currentStateId: order.workflowStateId!,
-          actionName: dto.action,
+          actionName,
           userId,
           remarks: dto.remarks,
         },
@@ -656,10 +657,10 @@ export class SalesService {
         where: { id: order.id },
         data: {
           workflowStateId: nextStateId,
-          ...(statusByAction[dto.action]
-            ? { status: statusByAction[dto.action] }
+          ...(statusByAction[actionName]
+            ? { status: statusByAction[actionName] }
             : {}),
-          ...(dto.action === 'CONFIRM' ? { confirmedAt: new Date() } : {}),
+          ...(actionName === 'CONFIRM' ? { confirmedAt: new Date() } : {}),
           ...(dto.remarks ? { remarks: dto.remarks } : {}),
           version: { increment: 1 },
         },
@@ -675,7 +676,7 @@ export class SalesService {
         },
       });
 
-      if (dto.action === 'SEND_TO_PLANT') {
+      if (actionName === 'SEND_TO_PLANT') {
         if (order.sourceQuotationId) {
           const convertedState = await tx.workflowState.findFirst({
             where: { workflow: { code: 'QUOTATION' }, code: 'CONVERTED_TO_SO' },

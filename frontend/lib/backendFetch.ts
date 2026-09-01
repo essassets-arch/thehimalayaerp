@@ -133,10 +133,11 @@ async function performBackendFetch<T = unknown>(
     error.details = envelope?.error?.details || envelope; // Attach the full envelope as details for logging
     error.field = envelope?.error?.field || envelope?.field;
 
-    console.error('[backendFetch] Request failed', {
+    console.error(`[backendFetch] Request failed: ${method} ${targetUrl} [Status ${res.status}] -> ${message}`, {
       method,
       url: targetUrl,
       status: res.status,
+      message,
       response: envelope,
       code: error.code,
       field: error.field,
