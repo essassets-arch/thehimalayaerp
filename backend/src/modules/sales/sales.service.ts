@@ -530,39 +530,63 @@ export class SalesService {
 
   async processAction(
     id: string,
-    dto: { action: string; remarks?: string },
+    dto: { action: string; remarks?: string; orderId?: string; id?: string },
     userId: string,
     role?: string,
   ) {
-    const scope = getSalesScope(userId, role, 'SalesOrder');
-    const orderReference = String(id || '').trim();
-    let decodedOrderReference = orderReference;
+    const rawId = String(id || dto?.orderId || dto?.id || '').trim();
+    let decodedOrderReference = rawId;
     try {
-      decodedOrderReference = decodeURIComponent(orderReference);
+      decodedOrderReference = decodeURIComponent(rawId).trim();
     } catch {
       // Keep the original value when a malformed URI is supplied.
     }
+    const cleanId = decodedOrderReference;
+
+    const isOperationalScope =
+      role === 'DISPATCH_EXECUTIVE' ||
+      role === 'SUPER_ADMIN' ||
+      role === 'ADMIN' ||
+      role === 'PLANT_HEAD' ||
+      role === 'FINANCE_MANAGER' ||
+      role === 'FINANCE_EXECUTIVE';
+    const scope = isOperationalScope ? {} : getSalesScope(userId, role, 'SalesOrder');
 
     const result = await this.prisma.$transaction(async (tx) => {
+      const orConditions: Prisma.SalesOrderWhereInput[] = [
+        { id: rawId },
+        { id: decodedOrderReference },
+        { orderNumber: rawId },
+        { orderNumber: decodedOrderReference },
+        { orderNumber: { contains: cleanId, mode: Prisma.QueryMode.insensitive } },
+        { customerPurchaseOrderNo: rawId },
+        { customerPurchaseOrderNo: decodedOrderReference },
+      ];
+      if (cleanId.includes('/')) {
+        orConditions.push({ orderNumber: cleanId.replace(/\//g, '-') });
+        orConditions.push({ orderNumber: cleanId.replace(/\//g, ' ') });
+        orConditions.push({ orderNumber: cleanId.replace(/\s+/g, '') });
+      }
+      if (cleanId.includes('-')) {
+        orConditions.push({ orderNumber: cleanId.replace(/-/g, '/') });
+      }
+      if (cleanId.includes(' ')) {
+        orConditions.push({ orderNumber: cleanId.replace(/\s+/g, '/') });
+        orConditions.push({ orderNumber: cleanId.replace(/\s+/g, '') });
+        orConditions.push({ orderNumber: cleanId.replace(/\s+/g, '-') });
+      }
+
       const order = await tx.salesOrder.findFirst({
-        // Mobile cards display the business order number, while desktop/API
-        // lists normally retain the database UUID. Accept both references.
         where: {
           AND: [
-            {
-              OR: [
-                { id: orderReference },
-                { id: decodedOrderReference },
-                { orderNumber: orderReference },
-                { orderNumber: decodedOrderReference },
-              ],
-            },
+            { OR: orConditions },
             scope,
+            { deletedAt: null },
           ],
         },
         include: { items: true },
       });
-      if (!order) throw new NotFoundException('Sales Order not found');
+      if (!order) throw new NotFoundException(`Sales Order ${cleanId} not found`);
 
       if (dto.action === 'SUBMIT') {
         const orderTotal = order.items.reduce(

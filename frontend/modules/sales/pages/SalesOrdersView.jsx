@@ -337,12 +337,13 @@ export default function SalesOrdersView() {
         const order = orders.find((candidate) =>
           candidate.id === orderId || candidate.orderNo === orderId || candidate.orderNumber === orderId
         );
+        const targetId = order?.id || orderId;
         const expectedVersion = order?.version || 1;
         if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE !== 'local') {
-          const res = await sendToPlantHead(orderId, { expectedVersion });
-          if (!res.success) throw new Error(res.error || 'Failed to send to plant head');
+          const res = await sendToPlantHead(targetId, { expectedVersion, orderId: targetId });
+          if (res && res.success === false) throw new Error(res.error || res.message || 'Failed to send to plant head');
         } else {
-          useERPStore.getState().sendOrderToPlantHead(orderId);
+          useERPStore.getState().sendOrderToPlantHead(targetId);
         }
         if (newStatus === 'PLANT_PENDING') {
           await Swal.fire({

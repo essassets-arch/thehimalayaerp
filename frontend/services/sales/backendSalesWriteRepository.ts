@@ -18,42 +18,63 @@ export const backendSalesWriteRepository: SalesWriteRepository = {
   },
 
   async attachCustomerPo(orderId, input, options) {
-    const res = await apiClient.post(`/sales/orders/${orderId}/customer-po`, input, {
+    const encodedId = encodeURIComponent(String(orderId || ''));
+    const res = await apiClient.post(`/sales/orders/${encodedId}/customer-po`, input, {
       headers: { 'Idempotency-Key': options.idempotencyKey },
     });
     return res.data;
   },
 
   async runCreditCheck(orderId, input, options) {
-    const res = await apiClient.post(`/sales/orders/${orderId}/credit-check`, input, {
+    const encodedId = encodeURIComponent(String(orderId || ''));
+    const res = await apiClient.post(`/sales/orders/${encodedId}/credit-check`, input, {
       headers: { 'Idempotency-Key': options.idempotencyKey },
     });
     return res.data;
   },
 
   async approveCreditException(orderId, input, options) {
-    const res = await apiClient.post(`/sales/orders/${orderId}/credit-exception/approve`, input, {
+    const encodedId = encodeURIComponent(String(orderId || ''));
+    const res = await apiClient.post(`/sales/orders/${encodedId}/credit-exception/approve`, input, {
       headers: { 'Idempotency-Key': options.idempotencyKey },
     });
     return res.data;
   },
 
   async confirmOrder(orderId, input, options) {
-    const res = await apiClient.post(`/sales/orders/${orderId}/confirm`, input, {
+    const encodedId = encodeURIComponent(String(orderId || ''));
+    const res = await apiClient.post(`/sales/orders/${encodedId}/confirm`, input, {
       headers: { 'Idempotency-Key': options.idempotencyKey },
     });
     return res.data;
   },
 
   async sendToPlantHead(orderId, input, options) {
-    const res = await apiClient.post(`/sales/orders/${orderId}/send-to-plant-head`, input, {
-      headers: { 'Idempotency-Key': options.idempotencyKey },
-    });
-    return res.data;
+    try {
+      const res = await apiClient.post(`/sales/orders/send-to-plant-head`, {
+        ...input,
+        orderId,
+        id: orderId,
+      }, {
+        headers: { 'Idempotency-Key': options.idempotencyKey },
+      });
+      return res.data;
+    } catch (err) {
+      const encodedId = encodeURIComponent(String(orderId || ''));
+      const res = await apiClient.post(`/sales/orders/${encodedId}/send-to-plant-head`, {
+        ...input,
+        orderId,
+        id: orderId,
+      }, {
+        headers: { 'Idempotency-Key': options.idempotencyKey },
+      });
+      return res.data;
+    }
   },
 
   async cancelOrder(orderId, input, options) {
-    const res = await apiClient.post(`/sales/orders/${orderId}/cancel`, input, {
+    const encodedId = encodeURIComponent(String(orderId || ''));
+    const res = await apiClient.post(`/sales/orders/${encodedId}/cancel`, input, {
       headers: { 'Idempotency-Key': options.idempotencyKey },
     });
     return res.data;

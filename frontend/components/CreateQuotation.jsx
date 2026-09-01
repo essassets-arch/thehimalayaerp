@@ -101,7 +101,8 @@ export default function CreateQuotation({
       const draftLeadId = legacyQuotationDraft?.leadId || legacyQuotationDraft?.sourceId;
       if (
         legacyQuotationDraft?.source === 'LEAD' &&
-        String(draftLeadId) === String(targetLeadId)
+        String(draftLeadId) === String(targetLeadId) &&
+        !matchedLeadFromProps
       ) {
         return;
       }
@@ -178,13 +179,13 @@ export default function CreateQuotation({
               : null))
       : null;
 
-    const sourceItems = quotationDraft
+    const sourceItems = leadItems || (quotationDraft
       ? (Array.isArray(quotationDraft.detailedItems) && quotationDraft.detailedItems.length > 0
           ? quotationDraft.detailedItems
           : (Array.isArray(quotationDraft.items) && quotationDraft.items.length > 0
               ? quotationDraft.items
               : null))
-      : leadItems;
+      : null);
 
     if (sourceItems && sourceItems.length > 0) {
       return sourceItems.map((item, idx) => {
@@ -291,11 +292,13 @@ export default function CreateQuotation({
   };
 
   const emptyQuotationForm = {
-    customerName: quotationDraft?.customerName || matchedLeadFromProps?.companyName || matchedLeadFromProps?.projectName || prefilledCustomer || '',
-    groupName: quotationDraft?.groupName || matchedLeadFromProps?.groupName || matchedLeadFromProps?.companyName || '',
-    isGstRegistered: quotationDraft ? (quotationDraft.isGstRegistered || (quotationDraft.gstNumber ? 'YES' : 'NO')) : (matchedLeadFromProps?.gstNumber ? 'YES' : 'YES'),
-    gstNumber: quotationDraft?.gstNumber || matchedLeadFromProps?.gstNumber || '',
-    gstName: quotationDraft?.gstName || matchedLeadFromProps?.gstName || matchedLeadFromProps?.companyName || quotationDraft?.customerName || prefilledCustomer || '',
+    // A quotation opened with leadId must always show that lead's customer;
+    // stale drafts from another lead must never override it.
+    customerName: matchedLeadFromProps?.companyName || matchedLeadFromProps?.customerName || matchedLeadFromProps?.projectName || quotationDraft?.customerName || prefilledCustomer || '',
+    groupName: matchedLeadFromProps?.groupName || matchedLeadFromProps?.companyName || quotationDraft?.groupName || '',
+    isGstRegistered: matchedLeadFromProps ? (matchedLeadFromProps.gstNumber ? 'YES' : 'YES') : (quotationDraft ? (quotationDraft.isGstRegistered || (quotationDraft.gstNumber ? 'YES' : 'NO')) : 'YES'),
+    gstNumber: matchedLeadFromProps?.gstNumber || quotationDraft?.gstNumber || '',
+    gstName: matchedLeadFromProps?.gstName || matchedLeadFromProps?.companyName || matchedLeadFromProps?.customerName || quotationDraft?.gstName || quotationDraft?.customerName || prefilledCustomer || '',
     validTill: formatInputDate(quotationDraft?.validTill || quotationDraft?.validUntil) || defaultValidTill(),
     paymentTerms: resolvePaymentTerms(quotationDraft),
     items: getInitialItems(),

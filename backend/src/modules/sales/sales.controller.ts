@@ -185,6 +185,42 @@ export class SalesController {
     );
   }
 
+  @Post('send-to-plant-head')
+  @RequirePermissions('sales.orders.update')
+  @UseInterceptors(IdempotencyInterceptor)
+  async sendToPlantHeadDirect(
+    @Body() dto: WorkflowActionDto & { orderId?: string; id?: string },
+    @Query('orderId') orderIdQuery: string,
+    @Req() req: any,
+  ) {
+    const targetId = dto.orderId || dto.id || orderIdQuery || '';
+    dto.action = 'SEND_TO_PLANT';
+    return this.salesService.processAction(
+      targetId,
+      dto,
+      req.user?.sub,
+      req.user?.role,
+    );
+  }
+
+  @Post('action/send-to-plant-head')
+  @RequirePermissions('sales.orders.update')
+  @UseInterceptors(IdempotencyInterceptor)
+  async sendToPlantHeadAction(
+    @Body() dto: WorkflowActionDto & { orderId?: string; id?: string },
+    @Query('orderId') orderIdQuery: string,
+    @Req() req: any,
+  ) {
+    const targetId = dto.orderId || dto.id || orderIdQuery || '';
+    dto.action = 'SEND_TO_PLANT';
+    return this.salesService.processAction(
+      targetId,
+      dto,
+      req.user?.sub,
+      req.user?.role,
+    );
+  }
+
   @Post(':id/send-to-plant')
   @RequirePermissions('sales.orders.update')
   async sendToPlant(
