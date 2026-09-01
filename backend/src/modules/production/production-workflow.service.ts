@@ -734,28 +734,65 @@ export class ProductionWorkflowService {
       }
     }
 
-    const fgWhere: any = {
-      product: {
-        companyId: companyId ? companyId : undefined,
+    const fgWhere: any = {};
+    if (companyId) {
+      fgWhere.OR = [
+        { product: { companyId } },
+        { product: { companyId: null } },
+        { product: null },
+      ];
+    }
+
+    const qcPassedInspections = await this.prisma.qCInspection.findMany({
+      where: {
+        status: { in: ['APPROVED', 'PASSED'] },
       },
-    };
+      select: { workOrderId: true },
+    });
+    const extraWoIds = qcPassedInspections
+      .map((i) => i.workOrderId)
+      .filter(Boolean) as string[];
+
     const woWhere: any = {
-      salesOrderItem: {
-        product: {
-          companyId: companyId ? companyId : undefined,
-        },
-      },
       OR: [
-        { status: { in: ['READY_FOR_DISPATCH', 'COMPLETED', 'QC_APPROVED'] } },
-        { productionStatus: 'READY_FOR_DISPATCH' },
+        {
+          status: {
+            in: [
+              'READY_FOR_DISPATCH',
+              'COMPLETED',
+              'QC_APPROVED',
+              'QC_PASSED',
+              'PASSED',
+              'CLOSED',
+            ],
+          },
+        },
+        {
+          productionStatus: {
+            in: ['READY_FOR_DISPATCH', 'COMPLETED', 'QC_PASSED', 'FINISHED'],
+          },
+        },
         { qcResult: 'PASS' },
-        { qcInspections: { some: { status: 'APPROVED' } } },
+        {
+          qcInspections: {
+            some: { status: { in: ['APPROVED', 'PASSED'] } },
+          },
+        },
       ],
     };
 
+    if (extraWoIds.length > 0) {
+      woWhere.OR.push({ id: { in: extraWoIds } });
+    }
+
     if (userCategory) {
-      fgWhere.product.dispatchCategory = userCategory;
-      woWhere.salesOrderItem.product.dispatchCategory = userCategory;
+      fgWhere.product = {
+        ...(fgWhere.product || {}),
+        dispatchCategory: userCategory,
+      };
+      woWhere.salesOrderItem = {
+        product: { dispatchCategory: userCategory },
+      };
     }
 
     const records = await this.prisma.finishedGoods.findMany({
@@ -770,7 +807,11 @@ export class ProductionWorkflowService {
             productionPlan: {
               include: {
                 salesOrder: {
-                  include: { customer: true },
+                  include: {
+                    customer: true,
+                    quotation: { include: { lead: true } },
+                    sourceQuotation: { include: { lead: true } },
+                  },
                 },
               },
             },
@@ -801,6 +842,7 @@ export class ProductionWorkflowService {
         },
         qcInspections: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
+      orderBy: { updatedAt: 'desc' },
     });
 
     const syntheticRecords = qcApprovedWorkOrders
@@ -823,6 +865,7 @@ export class ProductionWorkflowService {
           workOrderId: wo.id,
           productId: wo.productId || item?.productId || 'UNKNOWN_PROD',
           salesOrderId: so?.id || null,
+          salesOrderNumber: so?.orderNumber || null,
           quantity: Number(qcApprovedQty),
           availableQuantity: Number(qcApprovedQty),
           allocatedQuantity: 0,
@@ -874,6 +917,8 @@ export class ProductionWorkflowService {
         ...entry,
         jobNo: wo?.workOrderNumber || entry.jobNo || entry.workOrderId,
         productionPlanId: wo?.productionPlanId,
+        salesOrderId: entry.salesOrderId || so?.id || null,
+        salesOrderNumber: so?.orderNumber || (entry as any).salesOrderNumber || null,
         customerName:
           leadCustomerName ||
           customer?.companyName ||
@@ -1131,7 +1176,7 @@ export class ProductionWorkflowService {
       ...syntheticRecords,
       ...soSyntheticRecords,
       ...catalogSyntheticRecords,
-    ].filter(isCatalogProduct);
+    ];
 
     const stockHistorySums = await this.prisma.stockHistory.groupBy({
       by: ['productId', 'event'],
