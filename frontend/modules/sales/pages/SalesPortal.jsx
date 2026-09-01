@@ -1273,7 +1273,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
 
         if (status === 'SEND_TO_PLANT_HEAD_DIRECT' || status === 'SEND_TO_PLANT') {
           try {
-            await backendFetch(`/api/backend/sales/orders/send-to-plant-head`, {
+            await backendFetch(`/api/backend/sales/orders/${encodedId}/send-to-plant-head`, {
               method: 'POST',
               body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId },
             });
@@ -1282,44 +1282,29 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             return true;
           } catch (directErr) {
             try {
-              await backendFetch(`/api/backend/sales/orders/action`, {
+              await backendFetch(`/api/backend/sales/orders/${encodedId}/action`, {
                 method: 'POST',
                 body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId },
               });
               showToast('Order sent to Plant Head.');
               await loadOrders();
               return true;
-            } catch (actionErr) {
-              try {
-                await backendFetch(`/api/backend/sales/orders/${encodedId}/action`, {
-                  method: 'POST',
-                  body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId },
-                });
-                showToast('Order sent to Plant Head.');
-                await loadOrders();
-                return true;
-              } catch (err) {
-                Swal.fire({
-                  icon: 'error',
-                  title: 'Unable to Send Order',
-                  text: err?.message || actionErr?.message || directErr?.message || 'Unable to send order to Plant Head.',
-                });
-                return false;
-              }
+            } catch (err) {
+              Swal.fire({
+                icon: 'error',
+                title: 'Unable to Send Order',
+                text: err?.message || directErr?.message || 'Unable to send order to Plant Head.',
+              });
+              return false;
             }
           }
         }
 
         if (['SUBMIT', 'CONFIRM'].includes(status)) {
           try {
-            await backendFetch(`/api/backend/sales/orders/action`, {
+            await backendFetch(`/api/backend/sales/orders/${encodedId}/action`, {
               method: 'POST',
               body: { action: status, orderId: orderDbId, id: orderDbId },
-            }).catch(async () => {
-              await backendFetch(`/api/backend/sales/orders/${encodedId}/action`, {
-                method: 'POST',
-                body: { action: status, orderId: orderDbId, id: orderDbId },
-              });
             });
             showToast(
               status === 'SUBMIT'
