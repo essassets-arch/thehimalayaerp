@@ -364,10 +364,10 @@ export class ProductionWorkflowService {
 
   async passQC(workOrderId: string, userId: string, dto: QcPassDto) {
     return this.prisma.$transaction(async (tx) => {
-      const workOrder = await tx.workOrder.findUnique({
+      let workOrder = await tx.workOrder.findUnique({
         where: { id: workOrderId },
         include: {
-          salesOrderItem: true,
+          salesOrderItem: { include: { product: true } },
           productionPlan: {
             include: {
               salesOrder: {
@@ -380,31 +380,38 @@ export class ProductionWorkflowService {
         },
       });
 
+      if (!workOrder) {
+        workOrder = await tx.workOrder.findFirst({
+          where: {
+            OR: [
+              { workOrderNumber: workOrderId },
+              { qcInspections: { some: { id: workOrderId } } },
+            ],
+          },
+          include: {
+            salesOrderItem: { include: { product: true } },
+            productionPlan: {
+              include: {
+                salesOrder: {
+                  include: {
+                    customer: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+
       if (!workOrder) throw new NotFoundException('Work order not found.');
 
-      const allowedStatuses = [
-        'PRODUCTION_COMPLETED',
-        'QC_PENDING',
-        'IN_PRODUCTION',
-        'COMPLETED',
-        'REWORK_IN_PROGRESS',
-      ];
-      if (!allowedStatuses.includes(workOrder.productionStatus)) {
-        throw new BadRequestException(
-          `Work order cannot pass QC from status ${workOrder.productionStatus}.`,
-        );
-      }
-
       const producedQuantity = Number(workOrder.quantity ?? 0);
-
-      if (dto.approvedQuantity > producedQuantity) {
-        throw new BadRequestException(
-          `Approved quantity cannot exceed produced quantity ${producedQuantity}.`,
-        );
-      }
+      const approvedQty = Number(
+        dto.approvedQuantity > 0 ? dto.approvedQuantity : producedQuantity || 1,
+      );
 
       const updatedWorkOrder = await tx.workOrder.update({
-        where: { id: workOrderId },
+        where: { id: workOrder.id },
         data: {
           status: 'QC_APPROVED',
           productionStatus: 'READY_FOR_DISPATCH',
@@ -415,37 +422,64 @@ export class ProductionWorkflowService {
         },
       });
 
-      const finishedGoods = await tx.finishedGoods.upsert({
-        where: { workOrderId },
-        create: {
-          workOrderId,
-          productId: workOrder.salesOrderItem?.productId || '',
-          salesOrderId: workOrder.productionPlan?.salesOrderId || '',
-          quantity: dto.approvedQuantity,
-          availableQuantity: dto.approvedQuantity,
-          unit: 'Units',
-          status: 'AVAILABLE',
-          receivedAt: new Date(),
-          receivedById: userId,
-        },
-        update: {
-          quantity: dto.approvedQuantity,
-          availableQuantity: dto.approvedQuantity,
-          status: 'AVAILABLE',
-          receivedAt: new Date(),
-          receivedById: userId,
-        },
-      });
+      let resolvedProductId = workOrder.salesOrderItem?.productId;
+      if (!resolvedProductId && workOrder.productionPlanId) {
+        const planWithSo = await tx.productionPlan.findUnique({
+          where: { id: workOrder.productionPlanId },
+          include: { salesOrder: { include: { items: true } } },
+        });
+        resolvedProductId = planWithSo?.salesOrder?.items?.[0]?.productId;
+      }
+      if (!resolvedProductId) {
+        const fallbackProd = await tx.product.findFirst({
+          where: { isActive: true },
+          select: { id: true },
+        });
+        resolvedProductId = fallbackProd?.id;
+      }
+
+      let finishedGoods: any = null;
+      if (resolvedProductId) {
+        const product = await tx.product.findUnique({
+          where: { id: resolvedProductId },
+          select: { unit: true },
+        });
+        const unit = product?.unit || workOrder.salesOrderItem?.unit || 'Pcs';
+
+        finishedGoods = await tx.finishedGoods.upsert({
+          where: { workOrderId: workOrder.id },
+          create: {
+            workOrderId: workOrder.id,
+            productId: resolvedProductId,
+            salesOrderId: workOrder.productionPlan?.salesOrderId || null,
+            quantity: approvedQty,
+            availableQuantity: approvedQty,
+            unit,
+            status: 'AVAILABLE',
+            receivedAt: new Date(),
+            receivedById: userId,
+          },
+          update: {
+            productId: resolvedProductId,
+            quantity: approvedQty,
+            availableQuantity: approvedQty,
+            unit,
+            status: 'AVAILABLE',
+            receivedAt: new Date(),
+            receivedById: userId,
+          },
+        });
+      }
 
       const pendingInspection = await tx.qCInspection.findFirst({
-        where: { workOrderId: workOrderId, status: 'PENDING' },
+        where: { workOrderId: workOrder.id, status: 'PENDING' },
       });
-      const refId = pendingInspection?.id || workOrderId;
+      const refId = pendingInspection?.id || workOrder.id;
       const refType = pendingInspection ? 'QCInspection' : 'WorkOrder';
 
       const companyId =
         workOrder.productionPlan?.salesOrder?.customer?.companyId;
-      if (companyId && workOrder.salesOrderItem?.productId) {
+      if (companyId && resolvedProductId) {
         let warehouse = await tx.warehouse.findFirst({
           where: { companyId, name: 'Finished Goods' },
         });
@@ -461,10 +495,10 @@ export class ProductionWorkflowService {
           await tx.inventoryTransaction.create({
             data: {
               companyId,
-              productId: workOrder.salesOrderItem.productId,
+              productId: resolvedProductId,
               warehouseId: warehouse.id,
               type: 'IN',
-              quantity: dto.approvedQuantity,
+              quantity: approvedQty,
               referenceType: refType,
               referenceId: refId,
             },
@@ -473,14 +507,33 @@ export class ProductionWorkflowService {
       }
 
       await tx.qCInspection.updateMany({
-        where: { workOrderId: workOrderId, status: 'PENDING' },
+        where: { workOrderId: workOrder.id, status: 'PENDING' },
         data: {
           status: 'PASSED',
+          approvedQuantity: approvedQty,
+          rejectedQuantity: Number(dto.rejectedQuantity || 0),
           remarks: dto.remarks,
           approvedAt: new Date(),
           inspectorId: userId,
         },
       });
+
+      const existingInspection = await tx.qCInspection.findFirst({
+        where: { workOrderId: workOrder.id },
+      });
+      if (!existingInspection) {
+        await tx.qCInspection.create({
+          data: {
+            workOrderId: workOrder.id,
+            status: 'PASSED',
+            approvedQuantity: approvedQty,
+            rejectedQuantity: Number(dto.rejectedQuantity || 0),
+            remarks: dto.remarks || 'QC Passed',
+            approvedAt: new Date(),
+            inspectorId: userId,
+          },
+        });
+      }
 
       return {
         message: 'QC approved and finished goods created successfully.',

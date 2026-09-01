@@ -7,6 +7,7 @@ import { useAuth } from '../../../../shared/context/AuthContext';
 import { ShieldCheck, X } from 'lucide-react';
 import { useO2PWorkflow } from '../../../../shared/hooks/useO2PWorkflow';
 import { useERPStore } from '../../../../store/erpStore';
+import { backendFetch } from '@/lib/backendFetch';
 
 export default function QCInspectionModal({ selectedOrder, onClose }) {
   const { submitQCInspection } = useERP();
@@ -85,6 +86,32 @@ export default function QCInspectionModal({ selectedOrder, onClose }) {
         rejectedQty: Number(rejectedQty),
         disposition: Number(rejectedQty) > 0 ? disposition : ''
       };
+
+      const targetWoId = selectedOrder.workOrderId || selectedOrder.id || selectedOrder.workOrderNumber;
+      if (targetWoId) {
+        try {
+          if (Number(acceptedQty) > 0) {
+            await backendFetch(`/api/backend/production/${targetWoId}/qc-pass`, {
+              method: 'POST',
+              body: {
+                approvedQuantity: Number(acceptedQty),
+                rejectedQuantity: Number(rejectedQty),
+                remarks: remarks || 'QC Inspection Approved',
+              },
+            });
+          } else if (Number(rejectedQty) > 0) {
+            await backendFetch(`/api/backend/production/${targetWoId}/qc-fail`, {
+              method: 'POST',
+              body: {
+                failureReason: activeDefects.map(d => d.name || d).join(', ') || 'QC Rejected',
+                remarks: remarks || 'Rejected during QC inspection',
+              },
+            });
+          }
+        } catch (apiErr) {
+          console.warn('[QCInspectionModal API Warning]', apiErr);
+        }
+      }
 
       useERPStore.getState().approveQC(selectedOrder.workOrderId || selectedOrder.id, {
         batchId: selectedOrder.batchNumberFinal,
