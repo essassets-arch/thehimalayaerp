@@ -355,7 +355,8 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
         if (emp.documents && emp.documents.length > 0) {
           const addls: AdditionalDoc[] = [];
           emp.documents.forEach((doc: any) => {
-            const previewUrl = `/api/backend/uploads/employees/${doc.storageKey}`;
+            const rawKey = doc.storageKey || doc.fileUrl;
+            const previewUrl = getBackendAssetUrl(rawKey);
             const meta = {
               id: doc.id,
               fileName: doc.documentName || doc.originalFileName || doc.documentType,
@@ -363,7 +364,7 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
               size: doc.fileSize || 0,
               category: doc.documentType,
               title: doc.documentName || doc.documentType,
-              storageKey: doc.storageKey,
+              storageKey: rawKey,
               uploadedAt: doc.createdAt || new Date().toISOString(),
             };
             if (doc.documentType === 'AADHAAR_CARD') {
@@ -372,6 +373,10 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
               setPanDoc({ meta, previewUrl, blob: null });
             } else if (doc.documentType === 'BANK_PASSBOOK') {
               setBankDoc({ meta, previewUrl, blob: null });
+            } else if (doc.documentType === 'PHOTOGRAPH') {
+              setPhotoPreview(previewUrl);
+            } else if (doc.documentType === 'SIGNATURE') {
+              setSigPreview(previewUrl);
             } else {
               addls.push({
                 rowId: doc.id,
@@ -704,28 +709,59 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
 
         if (aadhaarDoc.blob) {
           const fd = new FormData();
+          fd.append('file', aadhaarDoc.blob);
           fd.append('document', aadhaarDoc.blob);
+          fd.append('documentType', 'AADHAAR_CARD');
           fd.append('category', 'AADHAAR_CARD');
-          await employeesService.uploadEmployeeDocument(editId, fd).catch(() => {});
+          fd.append('documentName', 'Aadhaar Card');
+          await employeesService.uploadEmployeeDocument(editId, fd).catch((e) => console.warn('Aadhaar upload notice:', e));
         }
         if (panDoc.blob) {
           const fd = new FormData();
+          fd.append('file', panDoc.blob);
           fd.append('document', panDoc.blob);
+          fd.append('documentType', 'PAN_CARD');
           fd.append('category', 'PAN_CARD');
-          await employeesService.uploadEmployeeDocument(editId, fd).catch(() => {});
+          fd.append('documentName', 'PAN Card');
+          await employeesService.uploadEmployeeDocument(editId, fd).catch((e) => console.warn('PAN upload notice:', e));
         }
         if (bankDoc.blob) {
           const fd = new FormData();
+          fd.append('file', bankDoc.blob);
           fd.append('document', bankDoc.blob);
+          fd.append('documentType', 'BANK_PASSBOOK');
           fd.append('category', 'BANK_PASSBOOK');
-          await employeesService.uploadEmployeeDocument(editId, fd).catch(() => {});
+          fd.append('documentName', 'Bank Passbook / Cheque');
+          await employeesService.uploadEmployeeDocument(editId, fd).catch((e) => console.warn('Bank doc upload notice:', e));
+        }
+        if (photographFile) {
+          const fd = new FormData();
+          fd.append('file', photographFile);
+          fd.append('document', photographFile);
+          fd.append('documentType', 'PHOTOGRAPH');
+          fd.append('category', 'PHOTOGRAPH');
+          fd.append('documentName', 'Employee Passport Photo');
+          await employeesService.uploadEmployeeDocument(editId, fd).catch((e) => console.warn('Photo upload notice:', e));
+        }
+        if (signatureFile) {
+          const fd = new FormData();
+          fd.append('file', signatureFile);
+          fd.append('document', signatureFile);
+          fd.append('documentType', 'SIGNATURE');
+          fd.append('category', 'SIGNATURE');
+          fd.append('documentName', 'Digital Signature');
+          await employeesService.uploadEmployeeDocument(editId, fd).catch((e) => console.warn('Signature upload notice:', e));
         }
         for (const doc of additionalDocs) {
           if (doc.blob) {
             const fd = new FormData();
+            fd.append('file', doc.blob);
             fd.append('document', doc.blob);
-            fd.append('category', doc.docType.toUpperCase().replaceAll(' ', '_'));
-            await employeesService.uploadEmployeeDocument(editId, fd).catch(() => {});
+            const docType = doc.docType.toUpperCase().replaceAll(' ', '_');
+            fd.append('documentType', docType);
+            fd.append('category', docType);
+            fd.append('documentName', doc.customTitle || doc.docType);
+            await employeesService.uploadEmployeeDocument(editId, fd).catch((e) => console.warn('Addl doc upload notice:', e));
           }
         }
 

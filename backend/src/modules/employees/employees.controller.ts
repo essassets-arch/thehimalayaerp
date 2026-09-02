@@ -20,6 +20,7 @@ import {
 import {
   FileFieldsInterceptor,
   FileInterceptor,
+  AnyFilesInterceptor,
 } from '@nestjs/platform-express';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -189,17 +190,17 @@ export class EmployeesController {
   @Post('employees/:id/documents')
   @RequirePermissions('hr.employees.documents.upload')
   @UseInterceptors(
-    FileInterceptor('file', {
-      storage: undefined,
-      limits: { fileSize: 5 * 1024 * 1024 },
+    AnyFilesInterceptor({
+      limits: { fileSize: 10 * 1024 * 1024 },
     }),
   )
   addDocument(
     @Param('id') id: string,
-    @UploadedFile() file: any,
+    @UploadedFiles() files: any[],
     @Body() body: any,
     @Req() req: any,
   ) {
+    const file = files?.[0] || req.file;
     if (!file)
       throw new BadRequestException({
         code: 'MANDATORY_DOCUMENT_MISSING',
