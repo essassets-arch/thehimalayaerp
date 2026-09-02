@@ -281,7 +281,15 @@ export class EmployeesService {
 
   async get(id: string, user: any) {
     const employee = await this.prisma.employee.findFirst({
-      where: { id, companyId: this.companyId(user) },
+      where: {
+        companyId: this.companyId(user),
+        OR: [
+          { id },
+          { employeeCode: id },
+          { publicId: id },
+          { userId: id },
+        ],
+      },
       include: {
         department: true,
         workLocation: true,

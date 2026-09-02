@@ -29,10 +29,12 @@ import ExitClearanceFormModal from '../components/ExitClearanceFormModal';
 import HRDashboardView from '../components/HRDashboardView';
 import { exportToCSV, exportToExcel } from '../../../services/export.service';
 
-
-
 export default function HRPortal() {
-  const params = useParams(); const view = params?.slug?.[0];
+  const params = useParams();
+  const slug = Array.isArray(params?.slug) ? params.slug : (params?.slug ? [params.slug] : []);
+  const view = slug[0] || 'dashboard';
+  const subId = slug[1] || null;
+
   const { state, dispatch, syncData } = useERP();
   const { user } = useAuth();
   const showToast = useNotificationStore(s => s.showToast);
@@ -41,10 +43,11 @@ export default function HRPortal() {
 
   // Roster states
   const [dbEmployees, setDbEmployees] = useState([]);
+  const [inspectEmployeeId, setInspectEmployeeId] = useState(null);
 
   const loadEmployees = async () => {
     try {
-      const res = await employeesService.listEmployees({ page: 1, limit: 50 });
+      const res = await employeesService.listEmployees({ page: 1, limit: 1000 });
       if (res && res.items) {
         setDbEmployees(res.items);
       }
@@ -76,7 +79,7 @@ export default function HRPortal() {
     try {
       const today = new Date();
       const [listRes, payrollOverviewRes] = await Promise.allSettled([
-        employeesService.listEmployees({ page: 1, limit: 100, search: globalSearch }),
+        employeesService.listEmployees({ page: 1, limit: 1000, search: globalSearch }),
         employeesService.getPayrollOverview({ month: today.getMonth() + 1, year: today.getFullYear(), search: globalSearch })
       ]);
 
@@ -106,11 +109,10 @@ export default function HRPortal() {
   useEffect(() => {
     loadDirectory();
   }, [view, globalSearch]);
+
   const leaves = state.leaves || [];
   const shifts = state.shifts || [];
   const exitClearances = state.exitClearances || [];
-
-  // Legacy register staff form state removed — handled by EmployeeRegistrationForm component
 
   // Exit clearance state
   const [showExitModal, setShowExitModal] = useState(false);
@@ -119,8 +121,6 @@ export default function HRPortal() {
 
   // Selected Alert state for Inspector
   const [selectedAlert, setSelectedAlert] = useState(null);
-
-  // ── AUDIT LOG HELPER ──
   const logActivity = (action, remarks) => {
     dispatch({
       type: 'ADD_AUDIT_LOG',
@@ -280,8 +280,24 @@ export default function HRPortal() {
     );
   };
 
-  // 2. EMPLOYEES DIRECTORY
+  // 2. EMPLOYEES DIRECTORY & INSPECT
   const renderEmployees = () => {
+    const activeInspectId = (view === 'employees' && subId) ? subId : inspectEmployeeId;
+
+    if (activeInspectId) {
+      return (
+        <EmployeeDetails 
+          id={activeInspectId} 
+          onBack={() => {
+            setInspectEmployeeId(null);
+            if (subId) {
+              navigate.push('/hr/employees');
+            }
+          }} 
+        />
+      );
+    }
+
     const rawStaffData = directoryEmployees.length > 0 ? directoryEmployees : dbEmployees;
     const parseEmpNum = (code) => {
       const m = String(code || '').match(/(\d+)/);
@@ -355,10 +371,13 @@ export default function HRPortal() {
           actions={(row) => (
             <div style={{ display: 'flex', gap: '8px' }}>
               <button 
-                title="View Full Profile"
+                title="View Full Profile & Master Record"
                 className="action-btn"
                 style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', padding: '6px 12px', borderRadius: '6px', color: '#0284C7', cursor: 'pointer', fontWeight: '700', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                onClick={() => navigate.push(`/hr/employees/${row.id}`)}
+                onClick={() => {
+                  setInspectEmployeeId(row.id || row.employeeCode);
+                  navigate.push(`/hr/employees/${row.id || row.employeeCode}`);
+                }}
               >
                 <Eye size={14} /> Inspect
               </button>
@@ -366,7 +385,7 @@ export default function HRPortal() {
                 title="Edit Employee Information"
                 className="action-btn"
                 style={{ background: '#FEF3C7', border: '1px solid #FDE68A', padding: '6px 12px', borderRadius: '6px', color: '#B45309', cursor: 'pointer', fontWeight: '700', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                onClick={() => navigate.push(`/hr/register-staff?edit=${row.id}`)}
+                onClick={() => navigate.push(`/hr/register-staff?edit=${row.id || row.employeeCode}`)}
               >
                 <Edit3 size={14} /> Edit
               </button>

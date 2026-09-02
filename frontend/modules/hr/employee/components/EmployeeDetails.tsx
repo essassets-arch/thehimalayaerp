@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { employeesService } from '@/services/hr/employeesService';
 import { useNotificationStore } from '@/store/notificationStore';
+import { getBackendAssetUrl } from '@/lib/assetUrl';
 import EmployeeAttendanceSummary from './EmployeeAttendanceSummary';
 import { 
   User, Briefcase, Phone, Mail, Building, MapPin, 
@@ -32,7 +33,7 @@ const Card = ({ title, children, icon: Icon }: any) => (
   </section>
 );
 
-export default function EmployeeDetails({ id }: { id: string }) {
+export default function EmployeeDetails({ id, onBack }: { id: string; onBack?: () => void }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const showToast = useNotificationStore(s => s.showToast);
@@ -198,14 +199,22 @@ export default function EmployeeDetails({ id }: { id: string }) {
 
   return (
     <main className={styles.page}>
-      <button className={styles.back} onClick={() => router.push('/hr/employees')}>
+      <button className={styles.back} onClick={() => onBack ? onBack() : router.push('/hr/employees')}>
         <ArrowLeft size={16} style={{ marginRight: '6px' }} /> Back to Employee Roster
       </button>
 
       {/* Hero Header */}
       <header className={styles.hero}>
         <div className={styles.avatar}>
-          {employee.fullName?.[0]?.toUpperCase() || 'E'}
+          {employee.selfieUrl ? (
+            <img 
+              src={getBackendAssetUrl(employee.selfieUrl)} 
+              alt={employee.fullName} 
+              style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} 
+            />
+          ) : (
+            employee.fullName?.[0]?.toUpperCase() || 'E'
+          )}
         </div>
         <div className={styles.name}>
           <p>Personnel File &amp; Master Record</p>
@@ -360,7 +369,7 @@ export default function EmployeeDetails({ id }: { id: string }) {
               docs.map((doc: any) => (
                 <Field key={doc.id} label={doc.documentType?.replaceAll('_', ' ')}>
                   <a 
-                    href={`/api/backend/uploads/employees/${doc.storageKey}`} 
+                    href={getBackendAssetUrl(doc.storageKey || doc.fileUrl || doc.url || `/api/backend/uploads/employees/${doc.storageKey}`)} 
                     target="_blank" 
                     rel="noreferrer"
                     style={{ color: '#0284c7', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
