@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { hash } from 'bcrypt';
 import { Prisma, EmployeeDocumentType, EmployeeStatus } from '@prisma/client';
-import { createCipheriv, createHash, randomBytes, randomUUID } from 'crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { EmployeeFilesService } from './employee-files.service';
 import { CreateEmployeeDto, EmployeeQueryDto } from './dto/employee.dto';
@@ -99,6 +99,29 @@ export class EmployeesService {
     return `${iv.toString('base64')}.${cipher.getAuthTag().toString('base64')}.${ciphertext.toString('base64')}`;
   }
 
+  private decrypt(encrypted: string): string | null {
+    if (!encrypted || typeof encrypted !== 'string') return null;
+    try {
+      const parts = encrypted.split('.');
+      if (parts.length === 3) {
+        const [ivB64, tagB64, dataB64] = parts;
+        const iv = Buffer.from(ivB64, 'base64');
+        const tag = Buffer.from(tagB64, 'base64');
+        const data = Buffer.from(dataB64, 'base64');
+        const decipher = createDecipheriv('aes-256-gcm', this.key(), iv);
+        decipher.setAuthTag(tag);
+        const decrypted = Buffer.concat([
+          decipher.update(data),
+          decipher.final(),
+        ]);
+        return decrypted.toString('utf8');
+      }
+      return encrypted;
+    } catch {
+      return encrypted;
+    }
+  }
+
   private hash(value: string) {
     return createHash('sha256').update(this.key()).update(value).digest('hex');
   }
@@ -176,7 +199,7 @@ export class EmployeesService {
     ]);
 
     // Natural sort by employeeCode number if default sort by createdAt/employeeCode
-    const mapped = items.map(mapEmployee);
+    const mapped = items.map((item) => mapEmployee(item, (val) => this.decrypt(val)));
     if (
       !query.sortBy ||
       query.sortBy === 'employeeCode' ||
@@ -308,7 +331,7 @@ export class EmployeesService {
       },
     });
     if (!employee) throw new NotFoundException('Employee not found.');
-    return mapEmployee(employee);
+    return mapEmployee(employee, (val) => this.decrypt(val));
   }
 
   async create(
@@ -677,7 +700,7 @@ export class EmployeesService {
         });
         return created;
       });
-      return mapEmployee(employee);
+      return mapEmployee(employee, (val) => this.decrypt(val));
     } catch (error) {
       await this.files.removeEmployeeFiles(employeeId);
       throw error;
@@ -956,7 +979,7 @@ export class EmployeesService {
         after: { version: updated.version, changedFields: Object.keys(data) },
       },
     });
-    return mapEmployee(updated);
+    return mapEmployee(updated, (val) => this.decrypt(val));
   }
 
   async status(id: string, payload: any, user: any, requestId?: string) {
@@ -983,7 +1006,7 @@ export class EmployeesService {
         after: { status: updated.status, reason: payload.reason },
       },
     });
-    return mapEmployee(updated);
+    return mapEmployee(updated, (val) => this.decrypt(val));
   }
 
   departments(user: any) {

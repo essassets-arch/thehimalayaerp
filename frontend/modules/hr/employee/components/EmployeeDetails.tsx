@@ -451,12 +451,12 @@ export default function EmployeeDetails({ id, onBack }: { id: string; onBack?: (
           {/* Card 5: Statutory & Banking */}
           <Card title="Statutory Compliance & Bank" icon={CreditCard}>
             <Field label="Income Tax PAN Number">{v(employee.panNumber)}</Field>
-            <Field label="Aadhaar Card">{v(employee.aadhaarMasked)}</Field>
+            <Field label="Aadhaar Card">{v(employee.aadhaarNumber || employee.aadhaarMasked)}</Field>
             <Field label="Universal Account Number (UAN)">{v(employee.uanNumber)}</Field>
             <Field label="ESIC Registration Number">{v(employee.esicNumber)}</Field>
             <Field label="Bank Institution Name">{v(employee.bankName)}</Field>
             <Field label="Account Holder Name">{v(employee.accountHolderName)}</Field>
-            <Field label="Bank Account Number">{v(employee.bankAccountMasked)}</Field>
+            <Field label="Bank Account Number">{v(employee.bankAccountNumber || employee.bankAccountMasked)}</Field>
             <Field label="Account Type">{v(employee.bankAccountType)}</Field>
             <Field label="IFSC Code">{v(employee.ifscCode)}</Field>
           </Card>
