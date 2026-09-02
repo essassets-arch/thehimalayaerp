@@ -56,10 +56,10 @@ async function main() {
       data: {
         password: hrPasswordHash,
         isActive: true,
-        name: 'Nahin V'
+        name: 'HR Manager'
       }
     });
-    console.log('✅ Updated hr@himalayaerp.com user password to HR@hcppl');
+    console.log('✅ Updated hr@himalayaerp.com user password to HR@hcppl and name to HR Manager');
 
     if (nahinUser && nahinUser.id !== targetUser.id) {
       try {
@@ -86,10 +86,11 @@ async function main() {
       where: { id: primaryEmp.id },
       data: {
         workEmail: 'hr@himalayaerp.com',
-        fullName: 'Nahin V',
-        firstName: 'Nahin',
-        lastName: 'V',
+        fullName: 'HR Manager',
+        firstName: 'HR',
+        lastName: 'Manager',
         jobTitle: 'HR Manager',
+        accountHolderName: 'HR Manager',
         status: 'ACTIVE',
         userId: targetUser ? targetUser.id : null
       }

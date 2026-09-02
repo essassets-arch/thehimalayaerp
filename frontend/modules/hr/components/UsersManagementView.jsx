@@ -334,7 +334,7 @@ export default function UsersManagementView() {
                 <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '0 12px', background: '#fff', gap: '8px' }}>
                   <UserPlus size={16} color="#94A3B8" style={{ flexShrink: 0 }} />
                   <input type="text" required style={{ border: 'none', background: 'transparent', width: '100%', padding: '10px 0', outline: 'none', color: '#334155', fontSize: '14px' }} 
-                    value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="e.g. Nahin V" />
+                    value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="e.g. HR Manager" />
                 </div>
               </div>
 

@@ -145,7 +145,7 @@ async function main() {
         publicId: `USR-HR-${Date.now()}`,
         email: hrEmail,
         password: hrHashedPassword,
-        name: 'Nahin V',
+        name: 'HR Manager',
         roleId: hrRole.id,
         companyId: company.id,
         isActive: true,
@@ -158,7 +158,7 @@ async function main() {
     hrUser = await prisma.user.update({
       where: { id: hrUser.id },
       data: {
-        name: 'Nahin V',
+        name: 'HR Manager',
         password: hrHashedPassword,
         roleId: hrRole.id,
         companyId: company.id,
@@ -184,9 +184,9 @@ async function main() {
         companyId: company.id,
         userId: hrUser.id,
         employeeCode: `EMP-HR-001`,
-        firstName: 'Nahin',
-        lastName: 'V',
-        fullName: 'Nahin V',
+        firstName: 'HR',
+        lastName: 'Manager',
+        fullName: 'HR Manager',
         dateOfBirth: new Date('1995-01-01'),
         gender: 'MALE',
         jobTitle: 'HR Executive',
@@ -206,7 +206,7 @@ async function main() {
         aadhaarLastFour: randomAadhaar.slice(-4),
         aadhaarHash: crypto.createHash('sha256').update(randomAadhaar).digest('hex'),
         bankName: 'HDFC Bank',
-        accountHolderName: 'Nahin V',
+        accountHolderName: 'HR Manager',
         bankAccountType: 'SAVINGS',
         bankAccountEncrypted: 'encrypted',
         bankAccountLastFour: randBank.slice(-4),
@@ -215,7 +215,7 @@ async function main() {
         baseSalary: 45000,
       }
     });
-    console.log(`✅ Created Employee record for Nahin V in ${hrDept.name}`);
+    console.log(`✅ Created Employee record for HR Manager in ${hrDept.name}`);
   } else {
     await prisma.employee.update({
       where: { id: hrEmployee.id },

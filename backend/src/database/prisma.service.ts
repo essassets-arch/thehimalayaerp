@@ -300,7 +300,7 @@ export class PrismaService
         },
         {
           email: 'hr@himalayaerp.com',
-          name: 'Nahin V',
+          name: 'HR Manager',
           role: 'HR',
           empCode: 'EMP-HR-001',
           pass: 'HR@hcppl',

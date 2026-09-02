@@ -3669,7 +3669,7 @@ async function main() {
     { email: 'sales7@himalayaerp.com', rawPassword: 'Himalaya@2026', name: 'Sales Seven', firstName: 'Sales', lastName: 'Seven', roleCode: 'SALES_EXECUTIVE', deptName: 'Sales Department', jobTitle: 'Sales Executive' },
     { email: 'supersales1@himalayaerp.com', rawPassword: 'supersales123', name: 'SuperSales One', firstName: 'SuperSales', lastName: 'One', roleCode: 'SUPER_SALES', deptName: 'Sales Department', jobTitle: 'SuperSales Lead' },
     { email: 'supersales2@himalayaerp.com', rawPassword: 'supersales124', name: 'SuperSales Two', firstName: 'SuperSales', lastName: 'Two', roleCode: 'SUPER_SALES', deptName: 'Sales Department', jobTitle: 'SuperSales Lead' },
-    { email: 'hr@himalayaerp.com', rawPassword: 'HR@hcppl', name: 'Nahin V', firstName: 'Nahin', lastName: 'V', roleCode: 'HR', deptName: 'HR Department', jobTitle: 'HR Manager' },
+    { email: 'hr@himalayaerp.com', rawPassword: 'HR@hcppl', name: 'HR Manager', firstName: 'HR', lastName: 'Manager', roleCode: 'HR', deptName: 'HR Department', jobTitle: 'HR Manager' },
     { email: 'super.admin@himalayaerp.com', rawPassword: 'SuperAdmin@hcppl', name: 'Super Admin', firstName: 'Super', lastName: 'Admin', roleCode: 'SUPER_ADMIN', deptName: 'Super Admin Department', jobTitle: 'Chief Executive Officer / Super Admin' },
   ];
 

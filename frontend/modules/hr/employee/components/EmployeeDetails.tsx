@@ -269,11 +269,9 @@ export default function EmployeeDetails({ id, onBack }: { id: string; onBack?: (
     }
   };
 
-  if (!employee) return <div className={styles.state}>{error || 'Loading employee details…'}</div>;
-
-  const rawDocs = employee.documents || [];
   const allMediaDocs = useMemo(() => {
-    const list = [...rawDocs];
+    if (!employee) return [];
+    const list = [...(employee.documents || [])];
     if (employee.selfieUrl && !list.some((d: any) => d.documentType === 'PHOTOGRAPH' || d.storageKey === employee.selfieUrl)) {
       list.unshift({
         id: 'photo-hero',
@@ -293,7 +291,9 @@ export default function EmployeeDetails({ id, onBack }: { id: string; onBack?: (
       });
     }
     return list;
-  }, [rawDocs, employee.selfieUrl, employee.signatureUrl]);
+  }, [employee]);
+
+  if (!employee) return <div className={styles.state}>{error || 'Loading employee details…'}</div>;
 
   return (
     <main className={styles.page}>
