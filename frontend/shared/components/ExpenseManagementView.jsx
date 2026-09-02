@@ -40,7 +40,7 @@ export default function ExpenseManagementView({ roleMode }) {
   const fetchPendingClaims = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await expenseService.getPendingExpenses();
+      const data = await expenseService.getPendingExpenses(effectiveRoleMode);
       const claims = Array.isArray(data) ? data : [];
       setPendingClaims(claims);
       

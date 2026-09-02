@@ -98,11 +98,11 @@ export class ExpenseController {
   }
 
   @Get('pending')
-  getPendingExpenses(@Req() req: any) {
+  getPendingExpenses(@Query('stage') stage: string, @Req() req: any) {
     const userId = req.user?.sub || req.user?.id;
     const companyId =
       req.headers['x-company-id'] || req.user?.companyId;
-    return this.expenseService.getPendingExpenses(userId, companyId);
+    return this.expenseService.getPendingExpenses(userId, companyId, stage);
   }
 
   @Get('all')

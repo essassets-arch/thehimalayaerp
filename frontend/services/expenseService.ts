@@ -143,10 +143,11 @@ export const expenseService = {
   },
 
   /**
-   * Fetch pending claims filtered strictly by user role on backend.
+   * Fetch pending claims filtered by stage or user role on backend.
    */
-  getPendingExpenses: async (): Promise<ExpenseClaimItem[]> => {
-    const res: any = await apiClient.get('/expenses/pending');
+  getPendingExpenses: async (stage?: string): Promise<ExpenseClaimItem[]> => {
+    const qs = stage ? `?stage=${encodeURIComponent(stage)}` : '';
+    const res: any = await apiClient.get(`/expenses/pending${qs}`);
     if (res && res.success && res.data) {
       return Array.isArray(res.data) ? res.data : [];
     }

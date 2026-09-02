@@ -168,7 +168,7 @@ export class ExpenseService {
    * - SUPER_ADMIN: PENDING_SUPERADMIN
    * - FINANCE: PENDING_FINANCE
    */
-  async getPendingExpenses(userId: string, companyIdFromReq?: string) {
+  async getPendingExpenses(userId: string, companyIdFromReq?: string, stage?: string) {
     const companyId = await this.resolveCompanyId(userId, companyIdFromReq);
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -179,18 +179,39 @@ export class ExpenseService {
     const roleCode = String(user.role?.code || '').toUpperCase();
 
     let targetStatus: ExpenseClaimStatus;
-    if (roleCode === 'SUPER_ADMIN' || roleCode === 'ADMIN') {
-      targetStatus = ExpenseClaimStatus.PENDING_SUPERADMIN;
-    } else if (
-      roleCode === 'FINANCE' ||
-      roleCode === 'FINANCE_EXECUTIVE' ||
-      roleCode === 'FINANCE_HEAD'
-    ) {
+    const normalizedStage = (stage || '').toUpperCase();
+
+    if (normalizedStage === 'FINANCE' || normalizedStage === 'PENDING_FINANCE') {
       targetStatus = ExpenseClaimStatus.PENDING_FINANCE;
-    } else if (roleCode === 'HR' || roleCode === 'HR_MANAGER') {
+    } else if (
+      normalizedStage === 'SUPER_ADMIN' ||
+      normalizedStage === 'SUPERADMIN' ||
+      normalizedStage === 'PENDING_SUPERADMIN'
+    ) {
+      targetStatus = ExpenseClaimStatus.PENDING_SUPERADMIN;
+    } else if (normalizedStage === 'HR' || normalizedStage === 'PENDING_HR') {
       targetStatus = ExpenseClaimStatus.PENDING_HR;
     } else {
-      return [];
+      if (roleCode === 'SUPER_ADMIN' || roleCode === 'ADMIN') {
+        targetStatus = ExpenseClaimStatus.PENDING_SUPERADMIN;
+      } else if (
+        roleCode === 'FINANCE' ||
+        roleCode === 'FINANCE_EXECUTIVE' ||
+        roleCode === 'FINANCE_HEAD' ||
+        roleCode === 'FINANCE_MANAGER' ||
+        roleCode === 'ACCOUNTS' ||
+        roleCode === 'ACCOUNTANT'
+      ) {
+        targetStatus = ExpenseClaimStatus.PENDING_FINANCE;
+      } else if (
+        roleCode === 'HR' ||
+        roleCode === 'HR_MANAGER' ||
+        roleCode === 'HR_EXECUTIVE'
+      ) {
+        targetStatus = ExpenseClaimStatus.PENDING_HR;
+      } else {
+        targetStatus = ExpenseClaimStatus.PENDING_HR;
+      }
     }
 
     const claims = await this.prisma.expenseClaim.findMany({
