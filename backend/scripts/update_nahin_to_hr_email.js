@@ -7,99 +7,107 @@ async function main() {
 
   const hrPasswordHash = await bcrypt.hash('HR@hcppl', 12);
   
-  // 1. Check users
-  const existingHrUser = await prisma.user.findUnique({ where: { email: 'hr@himalayaerp.com' } });
+  // 1. Fetch relevant users
+  const hrUser = await prisma.user.findUnique({ where: { email: 'hr@himalayaerp.com' } });
   const nahinUser = await prisma.user.findUnique({ where: { email: 'nahin.v@himalayaerp.com' } });
 
-  let targetUserId = null;
-
-  if (existingHrUser && nahinUser) {
-    console.log('ℹ️ Both hr@ and nahin.v@ users exist. Harmonizing...');
-    // Update password of hr@ user
-    await prisma.user.update({
-      where: { id: existingHrUser.id },
-      data: { password: hrPasswordHash, isActive: true, name: nahinUser.name || 'Nahin V' }
-    });
-    // Relink any employees pointing to nahinUser to existingHrUser
-    await prisma.employee.updateMany({
-      where: { userId: nahinUser.id },
-      data: { userId: existingHrUser.id }
-    });
-    // Remove obsolete nahinUser
-    try {
-      await prisma.user.delete({ where: { id: nahinUser.id } });
-      console.log('✅ Removed duplicate user nahin.v@himalayaerp.com');
-    } catch (e) {
-      console.log('ℹ️ Kept nahinUser id due to foreign key constraints, updated email to backup.');
-      await prisma.user.update({
-        where: { id: nahinUser.id },
-        data: { email: `nahin.v.migrated.${Date.now()}@himalayaerp.com` }
-      });
-    }
-    targetUserId = existingHrUser.id;
-  } else if (nahinUser && !existingHrUser) {
-    await prisma.user.update({
-      where: { id: nahinUser.id },
-      data: {
-        email: 'hr@himalayaerp.com',
-        password: hrPasswordHash,
-      }
-    });
-    console.log('✅ Updated User email from nahin.v@himalayaerp.com to hr@himalayaerp.com');
-    targetUserId = nahinUser.id;
-  } else if (existingHrUser) {
-    await prisma.user.update({
-      where: { id: existingHrUser.id },
-      data: { password: hrPasswordHash, isActive: true }
-    });
-    console.log('✅ Updated existing hr@himalayaerp.com user password to HR@hcppl');
-    targetUserId = existingHrUser.id;
-  }
-
-  // 2. Check Employees
-  const existingHrEmp = await prisma.employee.findFirst({ where: { workEmail: 'hr@himalayaerp.com' } });
-  const nahinEmps = await prisma.employee.findMany({
+  // 2. Fetch all potentially conflicting employees
+  const allEmployees = await prisma.employee.findMany({
     where: {
       OR: [
+        { workEmail: 'hr@himalayaerp.com' },
         { workEmail: 'nahin.v@himalayaerp.com' },
-        { personalEmail: 'nahin.v@himalayaerp.com' }
+        { personalEmail: 'nahin.v@himalayaerp.com' },
+        ...(hrUser ? [{ userId: hrUser.id }] : []),
+        ...(nahinUser ? [{ userId: nahinUser.id }] : [])
       ]
     }
   });
 
-  if (existingHrEmp) {
-    console.log(`ℹ️ Employee with workEmail: hr@himalayaerp.com already exists (id: ${existingHrEmp.id}, code: ${existingHrEmp.employeeCode})`);
-    if (targetUserId) {
-      await prisma.employee.update({
-        where: { id: existingHrEmp.id },
-        data: { userId: targetUserId }
-      });
-    }
+  console.log(`Found ${allEmployees.length} employee record(s) involved in migration.`);
 
-    for (const emp of nahinEmps) {
-      if (emp.id !== existingHrEmp.id) {
-        // Change duplicate nahin emp workEmail to backup or link
-        await prisma.employee.update({
-          where: { id: emp.id },
-          data: {
-            workEmail: `nahin.v.old.${Date.now()}@himalayaerp.com`,
-            personalEmail: null
-          }
+  // 3. STEP A: Unlink userId and assign unique temporary emails to clear unique constraints
+  for (const emp of allEmployees) {
+    await prisma.employee.update({
+      where: { id: emp.id },
+      data: {
+        userId: null,
+        workEmail: `temp.${emp.id.slice(0, 8)}.${Date.now()}@himalayaerp.com`,
+        personalEmail: null
+      }
+    });
+  }
+
+  // 4. STEP B: Harmonize User accounts
+  let targetUser = hrUser;
+  if (!targetUser && nahinUser) {
+    targetUser = await prisma.user.update({
+      where: { id: nahinUser.id },
+      data: {
+        email: 'hr@himalayaerp.com',
+        password: hrPasswordHash,
+        isActive: true
+      }
+    });
+    console.log('✅ Updated User email from nahin.v@ to hr@himalayaerp.com');
+  } else if (targetUser) {
+    await prisma.user.update({
+      where: { id: targetUser.id },
+      data: {
+        password: hrPasswordHash,
+        isActive: true,
+        name: 'Nahin V'
+      }
+    });
+    console.log('✅ Updated hr@himalayaerp.com user password to HR@hcppl');
+
+    if (nahinUser && nahinUser.id !== targetUser.id) {
+      try {
+        await prisma.user.delete({ where: { id: nahinUser.id } });
+        console.log('✅ Removed duplicate user nahin.v@himalayaerp.com');
+      } catch {
+        await prisma.user.update({
+          where: { id: nahinUser.id },
+          data: { email: `nahin.v.archived.${Date.now()}@himalayaerp.com`, isActive: false }
         });
-        console.log(`✅ Shifted legacy duplicate employee ${emp.employeeCode} email to avoid unique conflict.`);
+        console.log('ℹ️ Archived duplicate user nahin.v@himalayaerp.com');
       }
     }
-  } else {
-    for (const emp of nahinEmps) {
-      await prisma.employee.update({
-        where: { id: emp.id },
-        data: {
-          workEmail: 'hr@himalayaerp.com',
-          personalEmail: emp.personalEmail === 'nahin.v@himalayaerp.com' ? 'hr@himalayaerp.com' : emp.personalEmail,
-          userId: targetUserId || emp.userId
-        }
-      });
-      console.log(`✅ Updated Employee ${emp.employeeCode} (${emp.fullName}) workEmail to hr@himalayaerp.com`);
+  }
+
+  // 5. STEP C: Select and establish primary HR employee
+  // Prefer employee with code EMP-1 or EMP-HR-001 or earliest created
+  const primaryEmp = allEmployees.find(e => e.employeeCode === 'EMP-1') ||
+                     allEmployees.find(e => e.employeeCode === 'EMP-HR-001') ||
+                     allEmployees[0];
+
+  if (primaryEmp) {
+    await prisma.employee.update({
+      where: { id: primaryEmp.id },
+      data: {
+        workEmail: 'hr@himalayaerp.com',
+        fullName: 'Nahin V',
+        firstName: 'Nahin',
+        lastName: 'V',
+        jobTitle: 'HR Manager',
+        status: 'ACTIVE',
+        userId: targetUser ? targetUser.id : null
+      }
+    });
+    console.log(`✅ Configured primary HR Employee: ${primaryEmp.employeeCode} (${primaryEmp.fullName}) -> hr@himalayaerp.com`);
+
+    // Clean up any other duplicate employees
+    for (const otherEmp of allEmployees) {
+      if (otherEmp.id !== primaryEmp.id) {
+        await prisma.employee.update({
+          where: { id: otherEmp.id },
+          data: {
+            workEmail: `archived.${otherEmp.employeeCode}.${Date.now()}@himalayaerp.com`,
+            userId: null
+          }
+        });
+        console.log(`ℹ️ Archived secondary employee ${otherEmp.employeeCode}`);
+      }
     }
   }
 
