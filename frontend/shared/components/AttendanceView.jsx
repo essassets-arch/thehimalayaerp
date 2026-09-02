@@ -835,26 +835,31 @@ export default function AttendanceView({ employees: propEmployees }) {
                       { 
                         header: 'Biometric Photo', 
                         accessor: 'selfieUrl',
-                        render: (row) => (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
-                            {row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl ? (
-                              <SecureImage 
-                                src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} 
-                                alt={`${row.name || 'Staff'} selfie`} 
-                                style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7', flexShrink: 0 }} 
-                                fallbackText="Selfie" 
-                                allowZoom={true} 
-                              />
-                            ) : (
-                              <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1', flexShrink: 0 }}>
-                                <Camera size={14} color="#64748b" />
-                              </div>
-                            )}
-                            <span style={{ fontSize: '11.5px', fontWeight: '700', color: (row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl) ? '#0284c7' : '#64748b', whiteSpace: 'nowrap' }}>
-                              {(row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl) ? '📸 Verified' : 'Biometric ID'}
-                            </span>
-                          </div>
-                        )
+                        render: (row) => {
+                          const photoSrc = row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl;
+                          const empName = row.name || 'Staff';
+                          const initials = empName.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'EM';
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+                              {photoSrc ? (
+                                <SecureImage 
+                                  src={photoSrc} 
+                                  alt={`${empName} selfie`} 
+                                  style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7', flexShrink: 0 }} 
+                                  fallbackText={initials} 
+                                  allowZoom={true} 
+                                />
+                              ) : (
+                                <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #38bdf8', color: '#fff', fontSize: '11px', fontWeight: '800', flexShrink: 0 }}>
+                                  {initials}
+                                </div>
+                              )}
+                              <span style={{ fontSize: '11.5px', fontWeight: '700', color: photoSrc ? '#0284c7' : '#64748b', whiteSpace: 'nowrap' }}>
+                                {photoSrc ? '📸 Verified' : 'Biometric ID'}
+                              </span>
+                            </div>
+                          );
+                        }
                       },
                       { 
                         header: 'ID', 
@@ -1036,19 +1041,19 @@ export default function AttendanceView({ employees: propEmployees }) {
                                   src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} 
                                   alt={`${row.name || 'Staff'} selfie`} 
                                   style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #0284c7', flexShrink: 0 }} 
-                                  fallbackText="Selfie" 
+                                  fallbackText={(row.name || 'EM').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()} 
                                   allowZoom={true} 
                                 />
                               ) : (
-                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1', flexShrink: 0 }}>
-                                  <Camera size={16} color="#64748b" />
+                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #38bdf8', color: '#fff', fontSize: '11.5px', fontWeight: '800', flexShrink: 0 }}>
+                                  {(row.name || 'EM').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()}
                                 </div>
                               )}
                               <div>
                                 <strong style={{ fontSize: '14px', color: '#0f172a', display: 'block' }}>{row.name}</strong>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                                  <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px', border: '1px solid #e2e8f0', color: '#475569', fontWeight: 700 }}>
-                                    {row.id}
+                                  <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px', border: '1px solid #e2e8f0', color: '#2563eb', fontWeight: 700 }}>
+                                    {row.employeeCode || row.id}
                                   </code>
                                   {row.department && <span style={{ fontSize: '11px', color: '#64748b' }}>• {row.department}</span>}
                                 </div>
@@ -1062,49 +1067,24 @@ export default function AttendanceView({ employees: propEmployees }) {
                             </span>
                           </div>
 
-                          {/* Date & Location */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#475569' }}>
-                            <span>📅 {row.date || 'Today'}</span>
-                            {row.coords ? (
-                              <span style={{ color: '#0284c7', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11.5px' }}>
-                                <MapPin size={12} /> {row.location || 'GPS Verified'}
-                              </span>
-                            ) : (
-                              <span style={{ color: '#94a3b8', fontSize: '11px' }}>No GPS</span>
-                            )}
-                          </div>
-
-                          {/* Punch In / Out 2-Column Grid Strip */}
-                          <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: '1fr 1fr',
-                            background: '#f8fafc',
-                            border: '1px solid #f1f5f9',
-                            borderRadius: '8px',
-                            padding: '8px 12px',
-                            gap: '8px',
-                            textAlign: 'center'
-                          }}>
+                          {/* Middle: Timing details */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #f1f5f9', fontSize: '12px' }}>
                             <div>
-                              <span style={{ fontSize: '10px', fontWeight: 750, color: '#16a34a', textTransform: 'uppercase', display: 'block' }}>Punch In</span>
-                              <strong style={{ fontSize: '13px', color: row.punchIn !== '—' ? '#16A34A' : '#94a3b8', fontFamily: 'monospace' }}>
-                                {row.punchIn}
-                              </strong>
+                              <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Punch In</span>
+                              <strong style={{ color: '#0f172a' }}>{row.punchIn}</strong>
                             </div>
-                            <div style={{ borderLeft: '1px solid #e2e8f0' }}>
-                              <span style={{ fontSize: '10px', fontWeight: 750, color: '#dc2626', textTransform: 'uppercase', display: 'block' }}>Punch Out</span>
-                              <strong style={{ fontSize: '13px', color: row.punchOut !== '—' ? '#DC2626' : '#94a3b8', fontFamily: 'monospace' }}>
-                                {row.punchOut}
-                              </strong>
+                            <div>
+                              <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Punch Out</span>
+                              <strong style={{ color: '#0f172a' }}>{row.punchOut}</strong>
                             </div>
-                          </div>
-
-                          {/* Tap to inspect badge / button */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '8px', fontSize: '11.5px' }}>
-                            <span style={{ color: isSelected ? '#0284c7' : '#64748b', fontWeight: 700 }}>
-                              {isSelected ? '✓ Biometric Preview Active' : '🔍 Tap to inspect biometric selfie'}
-                            </span>
-                            <span style={{ color: '#0284c7', fontWeight: 800 }}>View Details →</span>
+                            <div>
+                              <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Duration</span>
+                              <span style={{ color: '#0284c7', fontWeight: '700' }}>{row.workedDuration || '—'}</span>
+                            </div>
+                            <div>
+                              <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>Location</span>
+                              <span style={{ color: '#475569', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{row.location}</span>
+                            </div>
                           </div>
                         </div>
                       );
@@ -1163,13 +1143,13 @@ export default function AttendanceView({ employees: propEmployees }) {
                     <div style={{ display: 'flex', gap: '8px', width: '100%', height: '100%', minHeight: '200px', flex: 1 }}>
                       {activePreview?.punchInSelfieUrl ? (
                         <div style={{ flex: 1, position: 'relative', minHeight: '180px', height: '100%', borderRadius: '8px', overflow: 'hidden', background: '#0f172a' }}>
-                          <SecureImage src={activePreview.punchInSelfieUrl} alt="Punch In Selfie" style={{ width: '100%', height: '100%', minHeight: '180px', objectFit: 'contain' }} fallbackText="Punch In Selfie" />
+                          <SecureImage src={activePreview.punchInSelfieUrl} alt="Punch In Selfie" style={{ width: '100%', height: '100%', minHeight: '180px', objectFit: 'contain' }} fallbackText="Punch In" allowZoom={true} />
                           <div style={{ position: 'absolute', bottom: '6px', left: '6px', background: 'rgba(0,0,0,0.85)', color: '#10B981', fontSize: '10px', fontWeight: '900', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.4)', letterSpacing: '0.5px', zIndex: 2 }}>🟢 PUNCH IN</div>
                         </div>
                       ) : null}
                       {activePreview?.punchOutSelfieUrl ? (
                         <div style={{ flex: 1, position: 'relative', minHeight: '180px', height: '100%', borderRadius: '8px', overflow: 'hidden', background: '#0f172a' }}>
-                          <SecureImage src={activePreview.punchOutSelfieUrl} alt="Punch Out Selfie" style={{ width: '100%', height: '100%', minHeight: '180px', objectFit: 'contain' }} fallbackText="Punch Out Selfie" />
+                          <SecureImage src={activePreview.punchOutSelfieUrl} alt="Punch Out Selfie" style={{ width: '100%', height: '100%', minHeight: '180px', objectFit: 'contain' }} fallbackText="Punch Out" allowZoom={true} />
                           <div style={{ position: 'absolute', bottom: '6px', left: '6px', background: 'rgba(0,0,0,0.85)', color: '#EF4444', fontSize: '10px', fontWeight: '900', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(239,68,68,0.4)', letterSpacing: '0.5px', zIndex: 2 }}>🔴 PUNCH OUT</div>
                         </div>
                       ) : (
@@ -1184,7 +1164,7 @@ export default function AttendanceView({ employees: propEmployees }) {
                   ) : (
                     activePreview?.selfieUrl ? (
                       <div style={{ flex: 1, width: '100%', height: '100%', minHeight: '200px', position: 'relative', background: '#0f172a', borderRadius: '8px', overflow: 'hidden' }}>
-                        <SecureImage src={activePreview.selfieUrl} alt="Webcam Capture" style={{ width: '100%', height: '100%', minHeight: '200px', objectFit: 'contain', borderRadius: '8px' }} fallbackText="Selfie Capture" />
+                        <SecureImage src={activePreview.selfieUrl} alt="Webcam Capture" style={{ width: '100%', height: '100%', minHeight: '200px', objectFit: 'contain', borderRadius: '8px' }} fallbackText="Biometric Capture" allowZoom={true} />
                       </div>
                     ) : (
                       <div style={{ textAlign: 'center', color: '#64748B', padding: '32px 16px' }}>
@@ -1207,7 +1187,12 @@ export default function AttendanceView({ employees: propEmployees }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0', fontSize: '12.5px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>
                       <span style={{ color: '#64748B', fontWeight: '600' }}>Employee Name:</span>
-                      <strong style={{ color: '#0F172A' }}>{activePreview.name} ({activePreview.id})</strong>
+                      <strong style={{ color: '#0F172A' }}>
+                        {activePreview.name} ({(() => {
+                          const raw = String(activePreview.employeeCode || activePreview.employeeId || activePreview.id || '').trim();
+                          return (raw && raw !== '—' && raw.length <= 10 && !raw.includes('-')) ? raw : (activePreview.employeeCode && activePreview.employeeCode !== '—' ? activePreview.employeeCode : `EMP-${raw.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase()}`);
+                        })()})
+                      </strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>
                       <span style={{ color: '#64748B', fontWeight: '600' }}>Punch Action:</span>

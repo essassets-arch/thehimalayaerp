@@ -364,10 +364,10 @@ export class ProductionWorkflowService {
 
   async passQC(workOrderId: string, userId: string, dto: QcPassDto) {
     return this.prisma.$transaction(async (tx) => {
-      const workOrder = await tx.workOrder.findUnique({
+      let workOrder = await tx.workOrder.findUnique({
         where: { id: workOrderId },
         include: {
-          salesOrderItem: true,
+          salesOrderItem: { include: { product: true } },
           productionPlan: {
             include: {
               salesOrder: {
@@ -380,31 +380,38 @@ export class ProductionWorkflowService {
         },
       });
 
+      if (!workOrder) {
+        workOrder = await tx.workOrder.findFirst({
+          where: {
+            OR: [
+              { workOrderNumber: workOrderId },
+              { qcInspections: { some: { id: workOrderId } } },
+            ],
+          },
+          include: {
+            salesOrderItem: { include: { product: true } },
+            productionPlan: {
+              include: {
+                salesOrder: {
+                  include: {
+                    customer: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+
       if (!workOrder) throw new NotFoundException('Work order not found.');
 
-      const allowedStatuses = [
-        'PRODUCTION_COMPLETED',
-        'QC_PENDING',
-        'IN_PRODUCTION',
-        'COMPLETED',
-        'REWORK_IN_PROGRESS',
-      ];
-      if (!allowedStatuses.includes(workOrder.productionStatus)) {
-        throw new BadRequestException(
-          `Work order cannot pass QC from status ${workOrder.productionStatus}.`,
-        );
-      }
-
       const producedQuantity = Number(workOrder.quantity ?? 0);
-
-      if (dto.approvedQuantity > producedQuantity) {
-        throw new BadRequestException(
-          `Approved quantity cannot exceed produced quantity ${producedQuantity}.`,
-        );
-      }
+      const approvedQty = Number(
+        dto.approvedQuantity > 0 ? dto.approvedQuantity : producedQuantity || 1,
+      );
 
       const updatedWorkOrder = await tx.workOrder.update({
-        where: { id: workOrderId },
+        where: { id: workOrder.id },
         data: {
           status: 'QC_APPROVED',
           productionStatus: 'READY_FOR_DISPATCH',
@@ -415,37 +422,64 @@ export class ProductionWorkflowService {
         },
       });
 
-      const finishedGoods = await tx.finishedGoods.upsert({
-        where: { workOrderId },
-        create: {
-          workOrderId,
-          productId: workOrder.salesOrderItem?.productId || '',
-          salesOrderId: workOrder.productionPlan?.salesOrderId || '',
-          quantity: dto.approvedQuantity,
-          availableQuantity: dto.approvedQuantity,
-          unit: 'Units',
-          status: 'AVAILABLE',
-          receivedAt: new Date(),
-          receivedById: userId,
-        },
-        update: {
-          quantity: dto.approvedQuantity,
-          availableQuantity: dto.approvedQuantity,
-          status: 'AVAILABLE',
-          receivedAt: new Date(),
-          receivedById: userId,
-        },
-      });
+      let resolvedProductId = workOrder.salesOrderItem?.productId;
+      if (!resolvedProductId && workOrder.productionPlanId) {
+        const planWithSo = await tx.productionPlan.findUnique({
+          where: { id: workOrder.productionPlanId },
+          include: { salesOrder: { include: { items: true } } },
+        });
+        resolvedProductId = planWithSo?.salesOrder?.items?.[0]?.productId;
+      }
+      if (!resolvedProductId) {
+        const fallbackProd = await tx.product.findFirst({
+          where: { isActive: true },
+          select: { id: true },
+        });
+        resolvedProductId = fallbackProd?.id;
+      }
+
+      let finishedGoods: any = null;
+      if (resolvedProductId) {
+        const product = await tx.product.findUnique({
+          where: { id: resolvedProductId },
+          select: { unit: true },
+        });
+        const unit = product?.unit || workOrder.salesOrderItem?.unit || 'Pcs';
+
+        finishedGoods = await tx.finishedGoods.upsert({
+          where: { workOrderId: workOrder.id },
+          create: {
+            workOrderId: workOrder.id,
+            productId: resolvedProductId,
+            salesOrderId: workOrder.productionPlan?.salesOrderId || null,
+            quantity: approvedQty,
+            availableQuantity: approvedQty,
+            unit,
+            status: 'AVAILABLE',
+            receivedAt: new Date(),
+            receivedById: userId,
+          },
+          update: {
+            productId: resolvedProductId,
+            quantity: approvedQty,
+            availableQuantity: approvedQty,
+            unit,
+            status: 'AVAILABLE',
+            receivedAt: new Date(),
+            receivedById: userId,
+          },
+        });
+      }
 
       const pendingInspection = await tx.qCInspection.findFirst({
-        where: { workOrderId: workOrderId, status: 'PENDING' },
+        where: { workOrderId: workOrder.id, status: 'PENDING' },
       });
-      const refId = pendingInspection?.id || workOrderId;
+      const refId = pendingInspection?.id || workOrder.id;
       const refType = pendingInspection ? 'QCInspection' : 'WorkOrder';
 
       const companyId =
         workOrder.productionPlan?.salesOrder?.customer?.companyId;
-      if (companyId && workOrder.salesOrderItem?.productId) {
+      if (companyId && resolvedProductId) {
         let warehouse = await tx.warehouse.findFirst({
           where: { companyId, name: 'Finished Goods' },
         });
@@ -461,10 +495,10 @@ export class ProductionWorkflowService {
           await tx.inventoryTransaction.create({
             data: {
               companyId,
-              productId: workOrder.salesOrderItem.productId,
+              productId: resolvedProductId,
               warehouseId: warehouse.id,
               type: 'IN',
-              quantity: dto.approvedQuantity,
+              quantity: approvedQty,
               referenceType: refType,
               referenceId: refId,
             },
@@ -473,14 +507,33 @@ export class ProductionWorkflowService {
       }
 
       await tx.qCInspection.updateMany({
-        where: { workOrderId: workOrderId, status: 'PENDING' },
+        where: { workOrderId: workOrder.id, status: 'PENDING' },
         data: {
           status: 'PASSED',
+          approvedQuantity: approvedQty,
+          rejectedQuantity: Number(dto.rejectedQuantity || 0),
           remarks: dto.remarks,
           approvedAt: new Date(),
           inspectorId: userId,
         },
       });
+
+      const existingInspection = await tx.qCInspection.findFirst({
+        where: { workOrderId: workOrder.id },
+      });
+      if (!existingInspection) {
+        await tx.qCInspection.create({
+          data: {
+            workOrderId: workOrder.id,
+            status: 'PASSED',
+            approvedQuantity: approvedQty,
+            rejectedQuantity: Number(dto.rejectedQuantity || 0),
+            remarks: dto.remarks || 'QC Passed',
+            approvedAt: new Date(),
+            inspectorId: userId,
+          },
+        });
+      }
 
       return {
         message: 'QC approved and finished goods created successfully.',
@@ -734,28 +787,65 @@ export class ProductionWorkflowService {
       }
     }
 
-    const fgWhere: any = {
-      product: {
-        companyId: companyId ? companyId : undefined,
+    const fgWhere: any = {};
+    if (companyId) {
+      fgWhere.OR = [
+        { product: { companyId } },
+        { product: { companyId: null } },
+        { product: null },
+      ];
+    }
+
+    const qcPassedInspections = await this.prisma.qCInspection.findMany({
+      where: {
+        status: { in: ['APPROVED', 'PASSED'] },
       },
-    };
+      select: { workOrderId: true },
+    });
+    const extraWoIds = qcPassedInspections
+      .map((i) => i.workOrderId)
+      .filter(Boolean) as string[];
+
     const woWhere: any = {
-      salesOrderItem: {
-        product: {
-          companyId: companyId ? companyId : undefined,
-        },
-      },
       OR: [
-        { status: { in: ['READY_FOR_DISPATCH', 'COMPLETED', 'QC_APPROVED'] } },
-        { productionStatus: 'READY_FOR_DISPATCH' },
+        {
+          status: {
+            in: [
+              'READY_FOR_DISPATCH',
+              'COMPLETED',
+              'QC_APPROVED',
+              'QC_PASSED',
+              'PASSED',
+              'CLOSED',
+            ],
+          },
+        },
+        {
+          productionStatus: {
+            in: ['READY_FOR_DISPATCH', 'COMPLETED', 'QC_PASSED', 'FINISHED'],
+          },
+        },
         { qcResult: 'PASS' },
-        { qcInspections: { some: { status: 'APPROVED' } } },
+        {
+          qcInspections: {
+            some: { status: { in: ['APPROVED', 'PASSED'] } },
+          },
+        },
       ],
     };
 
+    if (extraWoIds.length > 0) {
+      woWhere.OR.push({ id: { in: extraWoIds } });
+    }
+
     if (userCategory) {
-      fgWhere.product.dispatchCategory = userCategory;
-      woWhere.salesOrderItem.product.dispatchCategory = userCategory;
+      fgWhere.product = {
+        ...(fgWhere.product || {}),
+        dispatchCategory: userCategory,
+      };
+      woWhere.salesOrderItem = {
+        product: { dispatchCategory: userCategory },
+      };
     }
 
     const records = await this.prisma.finishedGoods.findMany({
@@ -770,7 +860,11 @@ export class ProductionWorkflowService {
             productionPlan: {
               include: {
                 salesOrder: {
-                  include: { customer: true },
+                  include: {
+                    customer: true,
+                    quotation: { include: { lead: true } },
+                    sourceQuotation: { include: { lead: true } },
+                  },
                 },
               },
             },
@@ -789,10 +883,19 @@ export class ProductionWorkflowService {
       include: {
         salesOrderItem: { include: { product: true } },
         productionPlan: {
-          include: { salesOrder: { include: { customer: true } } },
+          include: {
+            salesOrder: {
+              include: {
+                customer: true,
+                quotation: { include: { lead: true } },
+                sourceQuotation: { include: { lead: true } },
+              },
+            },
+          },
         },
         qcInspections: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
+      orderBy: { updatedAt: 'desc' },
     });
 
     const syntheticRecords = qcApprovedWorkOrders
@@ -800,6 +903,11 @@ export class ProductionWorkflowService {
       .map((wo: any) => {
         const so = wo.productionPlan?.salesOrder;
         const customer = so?.customer;
+        const leadCustomerName =
+          so?.quotation?.lead?.companyName ||
+          so?.quotation?.lead?.projectName ||
+          so?.sourceQuotation?.lead?.companyName ||
+          so?.sourceQuotation?.lead?.projectName;
         const item = wo.salesOrderItem;
         const product = item?.product;
         const qcApprovedQty =
@@ -810,6 +918,7 @@ export class ProductionWorkflowService {
           workOrderId: wo.id,
           productId: wo.productId || item?.productId || 'UNKNOWN_PROD',
           salesOrderId: so?.id || null,
+          salesOrderNumber: so?.orderNumber || null,
           quantity: Number(qcApprovedQty),
           availableQuantity: Number(qcApprovedQty),
           allocatedQuantity: 0,
@@ -831,6 +940,7 @@ export class ProductionWorkflowService {
           jobNo: wo.workOrderNumber,
           productionPlanId: wo.productionPlanId,
           customerName:
+            leadCustomerName ||
             customer?.companyName ||
             customer?.contactPerson ||
             customer?.name ||
@@ -850,12 +960,20 @@ export class ProductionWorkflowService {
       const so = wo?.productionPlan?.salesOrder;
       const product = entry.product || wo?.salesOrderItem?.product;
       const customer = so?.customer;
+      const leadCustomerName =
+        so?.quotation?.lead?.companyName ||
+        so?.quotation?.lead?.projectName ||
+        so?.sourceQuotation?.lead?.companyName ||
+        so?.sourceQuotation?.lead?.projectName;
 
       return {
         ...entry,
         jobNo: wo?.workOrderNumber || entry.jobNo || entry.workOrderId,
         productionPlanId: wo?.productionPlanId,
+        salesOrderId: entry.salesOrderId || so?.id || null,
+        salesOrderNumber: so?.orderNumber || (entry as any).salesOrderNumber || null,
         customerName:
+          leadCustomerName ||
           customer?.companyName ||
           customer?.contactPerson ||
           customer?.name ||
@@ -890,6 +1008,8 @@ export class ProductionWorkflowService {
       },
       include: {
         customer: true,
+        quotation: { include: { lead: true } },
+        sourceQuotation: { include: { lead: true } },
         items: { include: { product: true } },
       },
     });
@@ -897,6 +1017,11 @@ export class ProductionWorkflowService {
     const soSyntheticRecords: any[] = [];
     for (const so of readySalesOrders as any[]) {
       if (existingSoIds.has(so.id)) continue;
+      const soLeadName =
+        so.quotation?.lead?.companyName ||
+        so.quotation?.lead?.projectName ||
+        so.sourceQuotation?.lead?.companyName ||
+        so.sourceQuotation?.lead?.projectName;
       for (const item of so.items || []) {
         soSyntheticRecords.push({
           id: `fg-so-${so.id}-${item.id}`,
@@ -931,6 +1056,7 @@ export class ProductionWorkflowService {
           product: item.product,
           jobNo: so.orderNumber,
           customerName:
+            soLeadName ||
             so.customer?.companyName ||
             so.customer?.contactPerson ||
             so.customer?.name ||
@@ -1098,60 +1224,101 @@ export class ProductionWorkflowService {
       }
     }
 
+    const passedQcInspections = await this.prisma.qCInspection.findMany({
+      where: {
+        status: { in: ['APPROVED', 'PASSED'] },
+      },
+      include: {
+        workOrder: {
+          include: {
+            salesOrderItem: { include: { product: true } },
+            productionPlan: {
+              include: {
+                salesOrder: {
+                  include: {
+                    customer: true,
+                    quotation: { include: { lead: true } },
+                    sourceQuotation: { include: { lead: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const coveredWoIds = new Set([
+      ...records.map((r: any) => r.workOrderId),
+      ...qcApprovedWorkOrders.map((w: any) => w.id),
+    ].filter(Boolean));
+
+    const qcInspectionRecords: any[] = [];
+    for (const insp of passedQcInspections) {
+      const wo = insp.workOrder;
+      if (!wo) continue;
+      if (coveredWoIds.has(wo.id)) continue;
+      coveredWoIds.add(wo.id);
+
+      const so = wo.productionPlan?.salesOrder;
+      const customer = so?.customer;
+      const leadCustomerName =
+        so?.quotation?.lead?.companyName ||
+        so?.quotation?.lead?.projectName ||
+        so?.sourceQuotation?.lead?.companyName ||
+        so?.sourceQuotation?.lead?.projectName;
+      const item = wo.salesOrderItem;
+      const product = item?.product;
+      const qcApprovedQty = Number(insp.approvedQuantity || wo.quantity || 1);
+
+      qcInspectionRecords.push({
+        id: `fg-qc-${insp.id}`,
+        workOrderId: wo.id,
+        productId: (wo as any).productId || item?.productId || product?.id || 'UNKNOWN_PROD',
+        salesOrderId: so?.id || null,
+        salesOrderNumber: so?.orderNumber || null,
+        quantity: qcApprovedQty,
+        availableQuantity: qcApprovedQty,
+        allocatedQuantity: 0,
+        dispatchedQuantity: 0,
+        unit: item?.unit || product?.unit || 'Pcs',
+        status:
+          wo.status === 'READY_FOR_DISPATCH' ||
+          wo.status === 'DISPATCHED' ||
+          wo.sentToDispatchAt
+            ? 'READY_FOR_DISPATCH'
+            : 'AVAILABLE',
+        location: 'Factory Staging Area',
+        receivedAt: (insp.approvedAt || insp.createdAt || new Date()).toISOString(),
+        receivedById: insp.inspectorId || null,
+        workOrder: wo,
+        product,
+        jobNo: wo.workOrderNumber,
+        productionPlanId: wo.productionPlanId,
+        customerName:
+          leadCustomerName ||
+          customer?.companyName ||
+          customer?.contactPerson ||
+          'Internal',
+        productName:
+          product?.name || (item as any)?.productNameSnapshot || (wo as any).productName || 'Finished Good',
+        productCode:
+          product?.sku ||
+          product?.publicId ||
+          (item as any)?.productCodeSnapshot ||
+          (wo as any).productCode ||
+          '-',
+      });
+    }
+
     const rawList = [
       ...mappedExisting,
       ...syntheticRecords,
+      ...qcInspectionRecords,
       ...soSyntheticRecords,
       ...catalogSyntheticRecords,
-    ].filter(isCatalogProduct);
-
-    const stockHistorySums = await this.prisma.stockHistory.groupBy({
-      by: ['productId', 'event'],
-      where: {
-        companyId: companyId ? companyId : undefined,
-        event: {
-          in: [
-            'PRODUCTION_IN',
-            'PRODUCTION_REVERSAL',
-            'DISPATCH_OUT',
-            'DISPATCH_REVERSAL',
-            'EXTRA_COVER_IN',
-            'EXTRA_COVER_REVERSAL',
-            'EXTRA_FRAME_IN',
-            'EXTRA_FRAME_REVERSAL',
-          ],
-        },
-      },
-      _sum: { quantity: true },
-    });
-
-    const prodInMap = new Map<string, number>();
-    const dispatchMap = new Map<string, number>();
-    const extraCoverMap = new Map<string, number>();
-    const extraFrameMap = new Map<string, number>();
-
-    for (const g of stockHistorySums) {
-      const pId = g.productId;
-      const qty = Number(g._sum.quantity || 0);
-      if (g.event === 'PRODUCTION_IN' || g.event === 'PRODUCTION_REVERSAL') {
-        prodInMap.set(pId, (prodInMap.get(pId) || 0) + qty);
-      } else if (
-        g.event === 'DISPATCH_OUT' ||
-        g.event === 'DISPATCH_REVERSAL'
-      ) {
-        dispatchMap.set(pId, (dispatchMap.get(pId) || 0) + qty);
-      } else if (
-        g.event === 'EXTRA_COVER_IN' ||
-        g.event === 'EXTRA_COVER_REVERSAL'
-      ) {
-        extraCoverMap.set(pId, (extraCoverMap.get(pId) || 0) + qty);
-      } else if (
-        g.event === 'EXTRA_FRAME_IN' ||
-        g.event === 'EXTRA_FRAME_REVERSAL'
-      ) {
-        extraFrameMap.set(pId, (extraFrameMap.get(pId) || 0) + qty);
-      }
-    }
+    ];
 
     const enrichedList = rawList.map((item: any) => {
       const pId = item.productId || item.product?.id || item.id;
@@ -1160,47 +1327,22 @@ export class ProductionWorkflowService {
             .replace(/^fg-prod-/, '')
             .replace(/^fg-wo-/, '')
             .replace(/^fg-so-/, '')
+            .replace(/^fg-qc-/, '')
         : '';
-      const prodObjId = item.product?.id || '';
-      const pCode =
-        item.productCode || item.product?.sku || item.product?.publicId || '';
 
-      const getVal = (map: Map<string, number>) => {
-        return (
-          (cleanPId ? map.get(cleanPId) : 0) ||
-          (prodObjId ? map.get(prodObjId) : 0) ||
-          (pId ? map.get(pId) : 0) ||
-          (pCode ? map.get(pCode) : 0) ||
-          0
-        );
-      };
-
-      const prodInVal = getVal(prodInMap);
-      const dispatchVal = getVal(dispatchMap);
-      const rawExtraCover = getVal(extraCoverMap);
-      const rawExtraFrame = getVal(extraFrameMap);
-
-      const netStock = Math.max(0, prodInVal - Math.abs(dispatchVal));
-      const finalQuantity =
-        Number(item.quantity) > 0 ? Number(item.quantity) : netStock;
-      const finalAvailable =
-        Number(item.availableQuantity) > 0
-          ? Number(item.availableQuantity)
-          : netStock;
+      const finalQuantity = Number(item.quantity ?? 0);
+      const finalAvailable = Number(item.availableQuantity ?? item.quantity ?? 0);
 
       return {
         ...item,
         productId: cleanPId || item.productId,
         quantity: finalQuantity,
         availableQuantity: finalAvailable,
-        productionIn: prodInVal,
-        extraCover: Math.max(0, rawExtraCover),
-        extraFrame: Math.max(0, rawExtraFrame),
-        dispatchOut: Math.abs(dispatchVal),
-        openingStock: Math.max(
-          0,
-          finalQuantity - prodInVal + Math.abs(dispatchVal),
-        ),
+        productionIn: finalQuantity,
+        extraCover: 0,
+        extraFrame: 0,
+        dispatchOut: 0,
+        openingStock: finalQuantity,
       };
     });
 

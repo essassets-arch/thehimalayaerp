@@ -239,9 +239,10 @@ export class ProductionService {
           );
 
           if (workOrderQty > 0) {
+            const workOrderNumber = await this.sequenceService.generateWorkOrderNumber(new Date(), tx);
             const wo = await tx.workOrder.create({
               data: {
-                workOrderNumber: `WO-${new Date().getFullYear()}-${String(count + i + 1).padStart(5, '0')}`,
+                workOrderNumber,
                 productionPlanId: id,
                 salesOrderItemId: item.id,
                 quantity: workOrderQty,

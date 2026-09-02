@@ -243,8 +243,22 @@ export default function FinishedGoodsPage() {
         const item = row.original as any;
         const rawSo = item.workOrder?.productionPlan?.salesOrder?.orderNumber || item.salesOrderNumber || item.salesOrder?.orderNumber;
         const numPart = (item.jobNo || item.workOrderId || "").replace(/\D/g, "").slice(-5);
-        const soNo = rawSo || `SO-2026-${(numPart || "00001").padStart(5, "0")}`;
+        const soNo = rawSo || (item.salesOrderId ? `SO-2026-${(numPart || "00001").padStart(5, "0")}` : (item.jobNo || "-"));
         return <span className="font-bold text-blue-600 hover:underline">{soNo}</span>;
+      },
+    },
+    {
+      id: "customer",
+      header: "Customer",
+      size: 160,
+      cell: ({ row }) => {
+        const item = row.original as any;
+        const custName = item.customerName || item.workOrder?.productionPlan?.salesOrder?.customer?.companyName || "Internal Stock";
+        return (
+          <span className="font-medium text-slate-700 dark:text-slate-200">
+            {custName}
+          </span>
+        );
       },
     },
     {

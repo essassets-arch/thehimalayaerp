@@ -22,12 +22,24 @@ import { ConvertQuotationToOrderDto } from './dto/convert-quotation-to-order.dto
 import { IsOptional, IsString } from 'class-validator';
 
 export class WorkflowActionDto {
+  @IsOptional()
   @IsString()
-  action: string;
+  action?: string;
 
   @IsOptional()
   @IsString()
   remarks?: string;
+
+  @IsOptional()
+  @IsString()
+  orderId?: string;
+
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  expectedVersion?: number;
 }
 
 @Controller('sales/orders')

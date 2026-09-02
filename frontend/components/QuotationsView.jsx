@@ -329,14 +329,12 @@ export default function QuotationsView({
   };
   const resolveQuotationCustomerName = (q) => {
     if (!q) return '—';
+    const leadName = q.lead?.companyName || q.lead?.projectName || q.lead?.customerName;
+    const directCustName = q.customer?.companyName || q.customer?.name;
     return (
       q.customerName ||
       q.customer_name ||
-      q.customer?.companyName ||
-      q.customer?.name ||
-      q.lead?.companyName ||
-      q.lead?.customerName ||
-      q.lead?.projectName ||
+      (q.leadId || q.lead ? leadName || directCustName : directCustName || leadName) ||
       q.leadName ||
       q.clientName ||
       q.partyName ||

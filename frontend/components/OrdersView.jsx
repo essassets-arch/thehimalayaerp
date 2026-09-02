@@ -421,12 +421,35 @@ export default function OrdersView({
     return { action: 'SEND_TO_PLANT', label: actionLabel };
   };
 
+  const resolveOrderCustomerName = (o) => {
+    if (!o) return '—';
+    const leadName =
+      o.quotation?.lead?.companyName ||
+      o.quotation?.lead?.projectName ||
+      o.quotation?.lead?.customerName ||
+      o.sourceQuotation?.lead?.companyName ||
+      o.sourceQuotation?.lead?.projectName ||
+      o.sourceQuotation?.lead?.customerName;
+    const directCustName = o.customer?.companyName || o.customer?.name;
+    return (
+      o.customerName ||
+      o.customer_name ||
+      (o.quotationId || o.sourceQuotationId || o.quotation || o.sourceQuotation
+        ? leadName || directCustName
+        : directCustName || leadName) ||
+      o.clientName ||
+      o.companyName ||
+      o.leadName ||
+      '—'
+    );
+  };
+
   const validOrders = orders.filter(o => {
     if (!o) return false;
     const orderReference = o.orderNo || o.orderNumber || o.orderId || o.id;
     const hasOrderReference = Boolean(orderReference);
-    const cust = o.customerName || o.customer?.companyName || o.customer?.name || o.clientName || o.companyName || o.leadName || o.customer;
-    const hasCustomer = Boolean(cust);
+    const cust = resolveOrderCustomerName(o);
+    const hasCustomer = Boolean(cust && cust !== '—');
     const hasItems =
       (Array.isArray(o.items) && o.items.length > 0) ||
       (Array.isArray(o.detailedItems) && o.detailedItems.length > 0) ||
@@ -440,8 +463,7 @@ export default function OrdersView({
   });
 
   const filteredOrders = validOrders.filter(o => {
-    const custVal = o.customerName || o.customer?.companyName || o.customer?.name || o.clientName || o.companyName || o.leadName || '';
-    const custName = typeof custVal === 'string' ? custVal : (custVal?.companyName || custVal?.name || '');
+    const custName = resolveOrderCustomerName(o);
 
     let itemsStr = '';
     if (typeof o.products === 'string') {
@@ -559,7 +581,7 @@ export default function OrdersView({
 
   const currentDetailsOrder = selectedOrder ? orders.find(o => o.orderNo === selectedOrder.orderNo) : null;
   // Resolve client information
-  const detailsCustName = currentDetailsOrder ? (currentDetailsOrder.customerName || currentDetailsOrder.customer?.name || '') : '';
+  const detailsCustName = currentDetailsOrder ? resolveOrderCustomerName(currentDetailsOrder) : '';
   const clientLead = currentDetailsOrder ? leads.find(l => (l.companyName || '').toLowerCase() === detailsCustName.toLowerCase()) : null;
   const clientCustomer = currentDetailsOrder ? customers.find(c => (c.companyName || c.name || '').toLowerCase() === detailsCustName.toLowerCase()) : null;
 
@@ -724,7 +746,7 @@ export default function OrdersView({
                   return (
                     <tr key={o.id || o.orderNo}>
                       <td data-label="Order" className={styles.orderIdCol} style={{ fontWeight: 800, fontFamily: 'monospace' }}>{o.orderNo || o.orderNumber}</td>
-                      <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{o.customerName || o.customer?.name || o.customer?.companyName || '—'}</td>
+                      <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{resolveOrderCustomerName(o)}</td>
                       <td data-label="Sales Person" style={{ color: '#475569', fontSize: '13px' }}>{salesPerson}</td>
                       <td data-label="Order Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
                       <td data-label="Lost Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800, color: '#dc2626' }}>{formatINR(lostVal)}</td>
@@ -760,7 +782,7 @@ export default function OrdersView({
                   return (
                     <tr key={o.id || o.orderNo}>
                       <td data-label="Order No" className={styles.orderIdCol} style={{ fontWeight: 800, fontFamily: 'monospace' }}>{o.orderNo}</td>
-                      <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{o.customerName || o.customer?.name || o.customer?.companyName || '—'}</td>
+                      <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{resolveOrderCustomerName(o)}</td>
                       <td data-label="Delivery Date">{deliveryDate}</td>
                       <td data-label="Order Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
                       <td data-label="Paid Amount" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>{formatINR(paid)}</td>
@@ -867,7 +889,7 @@ export default function OrdersView({
                       </span>
                     </td>
                     <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: '600' }}>
-                      {o.customerName || o.customer?.name || o.customer?.companyName || '—'}
+                      {resolveOrderCustomerName(o)}
                     </td>
                     <td data-label="Products / Items" className={styles.productsCol}>
                       {renderOrderProducts(o)}

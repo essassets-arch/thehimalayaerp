@@ -41,8 +41,12 @@ export default function SecureImage({
 
   const isSmallAvatar = style.borderRadius === '50%' || (parseInt(style.width, 10) <= 48 && parseInt(style.height, 10) <= 48);
 
-  if (!resolvedUrl || error) {
-    if (isSmallAvatar) {
+    const isSmall = (typeof style.width === 'number' && style.width <= 48) || 
+                    (typeof style.width === 'string' && parseInt(style.width, 10) <= 48) || 
+                    style.borderRadius === '50%';
+
+    if (isSmall) {
+      const isInitials = Boolean(fallbackText && fallbackText.length <= 4 && fallbackText !== 'N/A' && fallbackText !== 'Selfie');
       return (
         <div
           className={`secure-image-fallback ${className}`}
@@ -50,18 +54,21 @@ export default function SecureImage({
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: '#e0f2fe',
-            color: '#0284c7',
-            borderRadius: '50%',
+            background: isInitials ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#e0f2fe',
+            color: isInitials ? '#ffffff' : '#0284c7',
+            borderRadius: style.borderRadius || '50%',
             width: style.width || '34px',
             height: style.height || '34px',
+            fontSize: '11px',
+            fontWeight: '800',
             border: style.border || '1.5px solid #0284c7',
             flexShrink: 0,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
             ...style,
           }}
           title={alt || fallbackText}
         >
-          <Camera size={Math.min(18, Math.max(12, Math.floor(parseInt(style.width || 34, 10) * 0.45)))} color="#0284c7" />
+          {isInitials ? fallbackText : <Camera size={Math.min(18, Math.max(12, Math.floor(parseInt(style.width || 34, 10) * 0.45)))} color="#0284c7" />}
         </div>
       );
     }
@@ -74,19 +81,20 @@ export default function SecureImage({
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#f8fafc',
+          background: '#0f172a',
           color: '#94a3b8',
           borderRadius: style.borderRadius || '8px',
           width: style.width || '100%',
-          height: style.height || '120px',
-          padding: '8px',
+          height: style.height || '100%',
+          minHeight: style.height || '120px',
+          padding: '12px',
           textAlign: 'center',
-          border: '1px dashed #cbd5e1',
+          border: '1px dashed #334155',
           ...style,
         }}
       >
-        <ImageIcon size={20} style={{ marginBottom: '4px', opacity: 0.7 }} />
-        <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>
+        <ImageIcon size={22} style={{ marginBottom: '6px', color: '#64748b', opacity: 0.8 }} />
+        <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>
           {fallbackText}
         </span>
       </div>

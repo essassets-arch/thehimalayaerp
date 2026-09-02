@@ -177,4 +177,36 @@ export class SequenceService {
 
     return tx ? runner(tx) : this.prisma.$transaction(runner);
   }
+
+  /**
+   * Generates next Work Order number (e.g. WO-2026-00001).
+   * Concurrency-safe and collision-checked against existing DB records.
+   */
+  async generateWorkOrderNumber(
+    date: Date = new Date(),
+    tx?: Prisma.TransactionClient,
+  ): Promise<string> {
+    const year = date.getFullYear();
+    const key = `work_order_number_${year}`;
+    const prefix = `WO-${year}-`;
+
+    const runner = async (client: Prisma.TransactionClient) => {
+      let candidate = await this.generateNextWithTx(client, key, prefix, 5);
+      let exists = await client.workOrder.findUnique({
+        where: { workOrderNumber: candidate },
+        select: { id: true },
+      });
+
+      while (exists) {
+        candidate = await this.generateNextWithTx(client, key, prefix, 5);
+        exists = await client.workOrder.findUnique({
+          where: { workOrderNumber: candidate },
+          select: { id: true },
+        });
+      }
+      return candidate;
+    };
+
+    return tx ? runner(tx) : this.prisma.$transaction(runner);
+  }
 }

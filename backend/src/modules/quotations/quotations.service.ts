@@ -64,10 +64,30 @@ export class QuotationsService {
 
     const customerMap = new Map(customers.map((c) => [c.id, c]));
 
-    return quotations.map((q) => ({
-      ...q,
-      customer: q.customerId ? customerMap.get(q.customerId) || null : null,
-    }));
+    return quotations.map((q) => {
+      const cust = q.customerId ? customerMap.get(q.customerId) || null : null;
+      const leadName = q.lead?.companyName || q.lead?.projectName || '';
+      const directCustName = cust?.companyName || '';
+      const customerName = (q.leadId || q.lead ? leadName || directCustName : directCustName) || '';
+      const groupName = (q.leadId || q.lead
+        ? q.lead?.groupName || cust?.companyName || ''
+        : cust?.companyName || '') || '';
+      const gstName = (q.leadId || q.lead
+        ? q.lead?.gstName || q.lead?.companyName || cust?.companyName || ''
+        : cust?.companyName || '') || customerName;
+      const gstNumber = (q.leadId || q.lead
+        ? q.lead?.gstNumber || cust?.gstin || ''
+        : cust?.gstin || '') || '';
+
+      return {
+        ...q,
+        customer: cust,
+        customerName,
+        groupName,
+        gstName,
+        gstNumber,
+      };
+    });
   }
 
   async getQuotation(
@@ -110,9 +130,26 @@ export class QuotationsService {
         where: { id: quotation.customerId },
       });
     }
+    const leadName = quotation.lead?.companyName || quotation.lead?.projectName || '';
+    const directCustName = customer?.companyName || '';
+    const customerName = (quotation.leadId || quotation.lead ? leadName || directCustName : directCustName) || '';
+    const groupName = (quotation.leadId || quotation.lead
+      ? quotation.lead?.groupName || customer?.companyName || ''
+      : customer?.companyName || '') || '';
+    const gstName = (quotation.leadId || quotation.lead
+      ? quotation.lead?.gstName || quotation.lead?.companyName || customer?.companyName || ''
+      : customer?.companyName || '') || customerName;
+    const gstNumber = (quotation.leadId || quotation.lead
+      ? quotation.lead?.gstNumber || customer?.gstin || ''
+      : customer?.gstin || '') || '';
+
     return {
       ...quotation,
       customer,
+      customerName,
+      groupName,
+      gstName,
+      gstNumber,
     };
   }
 

@@ -17,12 +17,18 @@ export class WorkflowService {
       },
     });
     if (!state) {
+      state = await db.workflowState.findFirst({
+        where: {
+          workflow: { code: workflowCode },
+        },
+        orderBy: { sequence: 'asc' },
+      });
+    }
+    if (!state) {
       // Auto-seed for prototype development
       console.warn(
         `[WorkflowService] Auto-seeding initial state for workflow ${workflowCode}`,
       );
-
-      await db.company.findFirst();
 
       let workflow = await db.workflowDefinition.findUnique({
         where: { code: workflowCode },
@@ -68,6 +74,7 @@ export class WorkflowService {
       action: t.actionName,
       label: t.actionLabel,
       requiresApproval: t.requiresApproval,
+      toState: t.toStateId,
     }));
   }
 
@@ -171,10 +178,10 @@ export class WorkflowService {
     }
 
     const fromState = transition.workflow.states.find(
-      (s) => s.id === transition.fromStateId,
+      (s: any) => s.id === transition.fromStateId,
     );
     const toState = transition.workflow.states.find(
-      (s) => s.id === transition.toStateId,
+      (s: any) => s.id === transition.toStateId,
     );
     const company = await db.company.findFirst({
       select: { id: true },
@@ -182,47 +189,69 @@ export class WorkflowService {
     });
 
     // Record history using the new generic WorkflowHistory schema
-    await db.workflowHistory.create({
-      data: {
-        entityId: params.entityId,
-        entityType: params.entityType,
-        fromStatus: fromState?.name || 'Unknown',
-        toStatus: toState?.name || 'Unknown',
-        action: params.actionName,
-        userId: params.userId,
-        remarks: params.remarks,
-      },
-    });
-    await db.auditLog.create({
-      data: {
-        actorUserId: params.userId,
-        companyId: company?.id,
-        action: params.actionName,
-        entityType: params.entityType,
-        entityId: params.entityId,
-        before: {
-          workflowStateId: transition.fromStateId,
-          workflowState: fromState?.code || fromState?.name || 'Unknown',
+    try {
+      await db.workflowHistory.create({
+        data: {
+          entityId: params.entityId,
+          entityType: params.entityType,
+          fromStatus: fromState?.name || 'Unknown',
+          toStatus: toState?.name || 'Unknown',
+          action: params.actionName,
+          userId: params.userId,
+          remarks: params.remarks,
         },
-        after: {
-          workflowStateId: transition.toStateId,
-          workflowState: toState?.code || toState?.name || 'Unknown',
-        },
-      },
-    });
+      });
+    } catch (histErr) {
+      console.warn('[WorkflowService] Failed to record workflow history:', histErr);
+    }
 
-    // Create a generic notification for the state transition
-    await db.notification.create({
-      data: {
-        companyId: company?.id || 'SYSTEM',
-        userId: params.userId, // Normally this would be the assigned user or manager
-        title: `${params.entityType} Update`,
-        message: `${params.entityType} transitioned to ${toState?.name || 'Unknown'} via ${params.actionName}`,
-        entityType: params.entityType,
-        entityId: params.entityId,
-        status: 'UNREAD',
-      },
-    });
+    try {
+      await db.auditLog.create({
+        data: {
+          actorUserId: params.userId,
+          companyId: company?.id,
+          action: params.actionName,
+          entityType: params.entityType,
+          entityId: params.entityId,
+          before: {
+            workflowStateId: transition.fromStateId,
+            workflowState: fromState?.code || fromState?.name || 'Unknown',
+          },
+          after: {
+            workflowStateId: transition.toStateId,
+            workflowState: toState?.code || toState?.name || 'Unknown',
+          },
+        },
+      });
+    } catch (auditErr) {
+      console.warn('[WorkflowService] Failed to record audit log:', auditErr);
+    }
+
+    // Create a generic notification for the state transition if user exists
+    try {
+      const userExists = params.userId
+        ? await db.user.findUnique({
+            where: { id: params.userId },
+            select: { id: true },
+          })
+        : null;
+
+      if (userExists && company?.id) {
+        await db.notification.create({
+          data: {
+            companyId: company.id,
+            userId: userExists.id,
+            title: `${params.entityType} Update`,
+            message: `${params.entityType} transitioned to ${toState?.name || 'Unknown'} via ${params.actionName}`,
+            entityType: params.entityType,
+            entityId: params.entityId,
+            status: 'UNREAD',
+          },
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[WorkflowService] Failed to create notification:', notifErr);
+    }
 
     return {
       nextStateId: transition.toStateId,

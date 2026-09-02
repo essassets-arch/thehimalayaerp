@@ -15,12 +15,16 @@ catch_error() {
 }
 trap 'catch_error $? $LINENO' ERR
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_ROOT}"
+
 echo "======================================================================"
 echo "🚀 HIMALAYA ERP — AUTOMATED DEPLOYMENT STAGE"
 echo "======================================================================"
 
 if [ ! -f ".env" ]; then
-    echo "❌ Error: .env file missing on VPS. Create .env from .env.docker.example first."
+    echo "❌ Error: .env file missing on VPS in ${REPO_ROOT}. Create .env from .env.docker.example first."
     exit 1
 fi
 
