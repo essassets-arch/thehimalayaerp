@@ -1026,13 +1026,20 @@ export class EmployeesService {
   }
 
   async addDocument(id: string, file: any, body: any, user: any) {
-    await this.get(id, user);
-    const stored = await this.files.store(id, file, 'additional');
+    const employee = await this.get(id, user);
+    const targetId = employee.id;
+    const stored = await this.files.store(targetId, file, 'additional');
+
+    const rawType = (body.documentType || body.category || EmployeeDocumentType.OTHER).toUpperCase().replaceAll(' ', '_');
+    const validDocType = (Object.values(EmployeeDocumentType) as string[]).includes(rawType)
+      ? (rawType as EmployeeDocumentType)
+      : EmployeeDocumentType.OTHER;
+
     const document = await this.prisma.employeeDocument.create({
       data: {
-        employeeId: id,
-        documentType: body.documentType || EmployeeDocumentType.OTHER,
-        documentName: body.documentName || file.originalname,
+        employeeId: targetId,
+        documentType: validDocType,
+        documentName: body.documentName || body.customTitle || file.originalname,
         originalFileName: file.originalname,
         ...stored,
         mimeType: file.mimetype,
@@ -1042,6 +1049,7 @@ export class EmployeesService {
         uploadedById: user.sub,
       },
     });
+
     await this.prisma.auditLog.create({
       data: {
         actorUserId: user.sub,
@@ -1049,36 +1057,25 @@ export class EmployeesService {
         action: 'EMPLOYEE_DOCUMENT_UPLOADED',
         entityType: 'EmployeeDocument',
         entityId: document.id,
-        after: { employeeId: id, documentType: document.documentType },
+        after: { employeeId: targetId, documentType: document.documentType },
       },
     });
     return document;
   }
 
   async deleteDocument(employeeId: string, documentId: string, user: any) {
-    await this.get(employeeId, user);
+    const employee = await this.get(employeeId, user);
+    const targetId = employee.id;
     const document = await this.prisma.employeeDocument.findFirst({
-      where: { id: documentId, employeeId },
+      where: { id: documentId, employeeId: targetId },
     });
     if (!document) throw new NotFoundException('Document not found.');
-    const mandatoryTypes: EmployeeDocumentType[] = [
-      EmployeeDocumentType.AADHAAR_CARD,
-      EmployeeDocumentType.PAN_CARD,
-      EmployeeDocumentType.BANK_PASSBOOK,
-      EmployeeDocumentType.CANCELLED_CHEQUE,
-    ];
-    if (
-      document.status === 'VERIFIED' &&
-      mandatoryTypes.includes(document.documentType)
-    ) {
-      this.error(
-        400,
-        'VERIFIED_DOCUMENT_REPLACEMENT_REQUIRED',
-        'A verified mandatory document requires an authorised replacement.',
-      );
-    }
     await this.prisma.employeeDocument.delete({ where: { id: documentId } });
-    await this.files.remove(document.storageKey);
+    try {
+      await this.files.remove(document.storageKey);
+    } catch {
+      // ignore storage removal error if missing
+    }
     await this.prisma.auditLog.create({
       data: {
         actorUserId: user.sub,
@@ -1086,7 +1083,7 @@ export class EmployeesService {
         action: 'EMPLOYEE_DOCUMENT_DELETED',
         entityType: 'EmployeeDocument',
         entityId: documentId,
-        before: { employeeId, documentType: document.documentType },
+        before: { employeeId: targetId, documentType: document.documentType },
       },
     });
     return { deleted: true };
