@@ -67,14 +67,21 @@ export const complaintsService = {
    * Submit a new complaint. Complainant identity is bound to JWT automatically on backend.
    */
   submitComplaint: async (payload: CreateComplaintPayload): Promise<ComplaintItem> => {
-    return apiClient.post('/complaints', payload);
+    const res: any = await apiClient.post('/complaints', payload);
+    if (res && res.success === false) {
+      throw new Error(res.message || 'Failed to submit complaint');
+    }
+    return res?.data || res;
   },
 
   /**
    * Fetch current user's submitted complaints.
    */
   getMyComplaints: async (): Promise<ComplaintItem[]> => {
-    const res = await apiClient.get('/complaints/my');
+    const res: any = await apiClient.get('/complaints/my');
+    if (res && res.success && res.data) {
+      return Array.isArray(res.data) ? res.data : (res.data.items || []);
+    }
     return Array.isArray(res) ? res : (res?.data || res?.items || []);
   },
 
@@ -97,7 +104,11 @@ export const complaintsService = {
 
     const qs = query.toString();
     const url = `/hr/complaints${qs ? `?${qs}` : ''}`;
-    return apiClient.get(url);
+    const res: any = await apiClient.get(url);
+    if (res && res.success && res.data) {
+      return res.data;
+    }
+    return res || { items: [], stats: { total: 0, pending: 0, inReview: 0, resolved: 0, rejected: 0 }, pagination: {} };
   },
 
   /**
@@ -107,6 +118,10 @@ export const complaintsService = {
     id: string,
     payload: { status: 'PENDING' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED'; hrRemarks?: string }
   ): Promise<ComplaintItem> => {
-    return apiClient.patch(`/hr/complaints/${id}/status`, payload);
+    const res: any = await apiClient.patch(`/hr/complaints/${id}/status`, payload);
+    if (res && res.success === false) {
+      throw new Error(res.message || 'Failed to update complaint status');
+    }
+    return res?.data || res;
   },
 };
