@@ -239,25 +239,25 @@ export type EmployeeDraftValues = z.infer<typeof employeeDraftSchema>;
 // ────────────────────────────────────────────────────────────────
 export const employeeEditSchema = z.object({
   employeeCode: z.string().optional(),
-  firstName: z.string().min(1, 'First Name is mandatory').trim(),
-  lastName: z.string().min(1, 'Last Name is mandatory').trim(),
-  name: z.string().min(1, 'Full Name is mandatory').trim(),
+  firstName: z.string().optional().default(''),
+  lastName: z.string().optional().default(''),
+  name: z.string().optional().default(''),
 
   // Employment
-  designation: z.string().min(1, 'Job Title is mandatory').trim(),
-  department: z.string().min(1, 'Department is mandatory'),
+  designation: z.string().optional().default(''),
+  department: z.string().optional().default(''),
   customDepartment: z.string().optional(),
   managerId: z.string().optional().nullable(),
-  workLocation: z.string().min(1, 'Work Location is mandatory'),
+  workLocation: z.string().optional().default(''),
   customWorkLocation: z.string().optional(),
   employmentType: z.string().optional().default('Full-time'),
-  joiningDate: z.string().min(1, 'Date of Joining is mandatory'),
+  joiningDate: z.string().optional().default(''),
   probationEndDate: z.string().optional().nullable(),
   salary: z.preprocess((val) => val === '' || val === undefined || val === null ? 0 : Number(val), z.number().min(0, 'Salary must be 0 or greater').optional().default(0)),
   baseSalary: z.preprocess((val) => val === '' || val === undefined || val === null ? 0 : Number(val), z.number().min(0, 'Salary must be 0 or greater').optional().default(0)),
 
   // Contact
-  email: z.string().min(1, 'Work Email is mandatory').email('Invalid Work Email format'),
+  email: z.string().optional().default(''),
   personalEmail: z.string().optional().nullable(),
   phone: z
     .string()

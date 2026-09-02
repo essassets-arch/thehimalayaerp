@@ -660,6 +660,20 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
         const genders: Record<string, string> = {
           Male: 'MALE', Female: 'FEMALE', Other: 'OTHER', 'Prefer not to say': 'PREFER_NOT_TO_SAY',
         };
+        const normalizeDateStr = (val?: string | null) => {
+          if (!val || typeof val !== 'string') return undefined;
+          const s = val.trim();
+          if (!s) return undefined;
+          const dmyMatch = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+          if (dmyMatch) {
+            const day = dmyMatch[1].padStart(2, '0');
+            const month = dmyMatch[2].padStart(2, '0');
+            const year = dmyMatch[3];
+            return `${year}-${month}-${day}`;
+          }
+          return s;
+        };
+
         const updatePayload: any = {
           version: existingEmployee?.version,
           firstName: data.firstName ? data.firstName.trim() : undefined,
@@ -667,19 +681,19 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
           fullName: (data.firstName || data.lastName)
             ? `${(data.firstName || '').trim()} ${(data.lastName || '').trim()}`.trim()
             : (data.name ? data.name.trim() : undefined),
-          dateOfBirth: data.dob ? data.dob : undefined,
+          dateOfBirth: normalizeDateStr(data.dob),
           gender: data.gender ? (genders[data.gender] || data.gender.toUpperCase()) : undefined,
           jobTitle: data.designation ? data.designation.trim() : undefined,
           departmentId: data.department === 'CUSTOM' ? (data.customDepartment?.trim() || 'CUSTOM') : (data.department || undefined),
           customDepartment: data.department === 'CUSTOM' ? data.customDepartment?.trim() : undefined,
           departmentName: data.department === 'CUSTOM' ? data.customDepartment?.trim() : undefined,
-          workLocationId: data.workLocation === 'CUSTOM' ? (data.customWorkLocation?.trim() || 'CUSTOM') : (data.workLocation || undefined),
+          workLocationId: data.workLocation === 'CUSTOM' ? (data.customWorkLocation?.trim() || 'CUSTOM') : (data.workLocation && data.workLocation !== 'Select Location' ? data.workLocation : undefined),
           customWorkLocation: data.workLocation === 'CUSTOM' ? data.customWorkLocation?.trim() : undefined,
           workLocationName: data.workLocation === 'CUSTOM' ? data.customWorkLocation?.trim() : undefined,
           reportingManagerId: data.managerId || null,
           employmentType: data.employmentType ? (employmentTypes[data.employmentType] || data.employmentType.toUpperCase()) : undefined,
-          joiningDate: data.joiningDate ? data.joiningDate : undefined,
-          probationEndDate: data.probationEndDate || null,
+          joiningDate: normalizeDateStr(data.joiningDate),
+          probationEndDate: normalizeDateStr(data.probationEndDate) || null,
           workEmail: data.email ? data.email.trim().toLowerCase() : undefined,
           personalEmail: data.personalEmail ? data.personalEmail.trim().toLowerCase() : null,
           phoneNumber: data.phone ? normalizeIndianPhone(data.phone) : undefined,
@@ -700,11 +714,17 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
           baseSalary: (data.baseSalary !== undefined && data.baseSalary !== null && String(data.baseSalary).trim() !== '') ? Number(data.baseSalary) : (data.salary ? Number(data.salary) : 0),
         };
 
-        if (data.aadhaar && !data.aadhaar.includes('X') && data.aadhaar.replace(/\D/g, '').length >= 4) {
-          updatePayload.aadhaarNumber = data.aadhaar.replace(/\D/g, '');
+        if (data.aadhaar && !data.aadhaar.includes('X') && !data.aadhaar.includes('•') && !data.aadhaar.includes('*')) {
+          const cleanAadhaar = data.aadhaar.replace(/\D/g, '');
+          if (cleanAadhaar.length >= 10) {
+            updatePayload.aadhaarNumber = cleanAadhaar;
+          }
         }
-        if (data.bankAccount && !data.bankAccount.includes('X') && data.bankAccount.replace(/\D/g, '').length >= 4) {
-          updatePayload.bankAccountNumber = data.bankAccount.replace(/\D/g, '');
+        if (data.bankAccount && !data.bankAccount.includes('X') && !data.bankAccount.includes('•') && !data.bankAccount.includes('*')) {
+          const cleanBank = data.bankAccount.replace(/\D/g, '');
+          if (cleanBank.length >= 4) {
+            updatePayload.bankAccountNumber = cleanBank;
+          }
         }
 
         if (aadhaarDoc.blob) {

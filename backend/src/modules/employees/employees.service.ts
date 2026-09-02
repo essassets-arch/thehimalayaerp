@@ -744,6 +744,24 @@ export class EmployeesService {
       );
     }
 
+    const parseDateSafe = (val: any, fallback?: Date | null): Date | null => {
+      if (val === null) return null;
+      if (val === undefined) return fallback !== undefined ? fallback : null;
+      if (val instanceof Date && !isNaN(val.getTime())) return val;
+      if (typeof val === 'string') {
+        const s = val.trim();
+        if (!s) return null;
+        const dmy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+        if (dmy) {
+          const d = new Date(Date.UTC(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10)));
+          if (!isNaN(d.getTime())) return d;
+        }
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) return d;
+      }
+      return fallback !== undefined ? fallback : null;
+    };
+
     const data: any = {};
 
     // 1. Identity & Name
@@ -765,32 +783,62 @@ export class EmployeesService {
       data.fullName = payload.fullName?.trim();
     }
     if (payload.dateOfBirth !== undefined) {
-      data.dateOfBirth = payload.dateOfBirth
-        ? new Date(payload.dateOfBirth)
-        : current.dateOfBirth;
+      data.dateOfBirth = parseDateSafe(payload.dateOfBirth, current.dateOfBirth);
     }
     if (payload.gender !== undefined) data.gender = payload.gender;
 
     // 2. Employment
     if (payload.jobTitle !== undefined)
       data.jobTitle = payload.jobTitle?.trim();
-    if (payload.departmentId !== undefined)
-      data.departmentId = payload.departmentId || null;
-    if (payload.reportingManagerId !== undefined)
-      data.reportingManagerId = payload.reportingManagerId || null;
-    if (payload.workLocationId !== undefined)
-      data.workLocationId = payload.workLocationId || null;
+
+    if (payload.departmentId) {
+      if (payload.departmentId === 'CUSTOM' || payload.customDepartment) {
+        const dept = await this.createDepartment({ name: payload.customDepartment || payload.departmentName || 'Custom Department' }, user);
+        data.departmentId = dept.id;
+      } else {
+        const deptExists = await this.prisma.department.findUnique({ where: { id: payload.departmentId } });
+        data.departmentId = deptExists ? deptExists.id : current.departmentId;
+      }
+    } else if (payload.customDepartment) {
+      const dept = await this.createDepartment({ name: payload.customDepartment }, user);
+      data.departmentId = dept.id;
+    } else if (payload.departmentId === null) {
+      data.departmentId = null;
+    }
+
+    if (payload.workLocationId) {
+      if (payload.workLocationId === 'CUSTOM' || payload.customWorkLocation) {
+        const loc = await this.createWorkLocation({ name: payload.customWorkLocation || payload.workLocationName || 'Custom Location' }, user);
+        data.workLocationId = loc.id;
+      } else if (payload.workLocationId !== 'Select Location') {
+        const locExists = await this.prisma.workLocation.findUnique({ where: { id: payload.workLocationId } });
+        data.workLocationId = locExists ? locExists.id : current.workLocationId;
+      }
+    } else if (payload.customWorkLocation) {
+      const loc = await this.createWorkLocation({ name: payload.customWorkLocation }, user);
+      data.workLocationId = loc.id;
+    } else if (payload.workLocationId === null) {
+      data.workLocationId = null;
+    }
+
+    if (payload.reportingManagerId) {
+      if (payload.reportingManagerId === id || payload.reportingManagerId === current.id) {
+        data.reportingManagerId = null;
+      } else {
+        const mgrExists = await this.prisma.employee.findUnique({ where: { id: payload.reportingManagerId } });
+        data.reportingManagerId = mgrExists ? mgrExists.id : null;
+      }
+    } else if (payload.reportingManagerId === null) {
+      data.reportingManagerId = null;
+    }
+
     if (payload.employmentType !== undefined)
       data.employmentType = payload.employmentType;
     if (payload.joiningDate !== undefined) {
-      data.joiningDate = payload.joiningDate
-        ? new Date(payload.joiningDate)
-        : current.joiningDate;
+      data.joiningDate = parseDateSafe(payload.joiningDate, current.joiningDate);
     }
     if (payload.probationEndDate !== undefined) {
-      data.probationEndDate = payload.probationEndDate
-        ? new Date(payload.probationEndDate)
-        : null;
+      data.probationEndDate = parseDateSafe(payload.probationEndDate, null);
     }
     if (payload.status !== undefined) data.status = payload.status;
     if (payload.branchName !== undefined)
@@ -839,7 +887,7 @@ export class EmployeesService {
     if (payload.ifscCode !== undefined)
       data.ifscCode = payload.ifscCode?.trim().toUpperCase();
 
-    if (payload.aadhaarNumber && !payload.aadhaarNumber.includes('X')) {
+    if (payload.aadhaarNumber && !payload.aadhaarNumber.includes('X') && !payload.aadhaarNumber.includes('•') && !payload.aadhaarNumber.includes('*')) {
       const aadhaar = payload.aadhaarNumber.replace(/\D/g, '');
       if (aadhaar.length >= 4) {
         data.aadhaarNumberEncrypted = this.encrypt(aadhaar);
@@ -848,7 +896,7 @@ export class EmployeesService {
       }
     }
 
-    if (payload.bankAccountNumber && !payload.bankAccountNumber.includes('X')) {
+    if (payload.bankAccountNumber && !payload.bankAccountNumber.includes('X') && !payload.bankAccountNumber.includes('•') && !payload.bankAccountNumber.includes('*')) {
       const bankAccount = payload.bankAccountNumber.replace(/\D/g, '');
       if (bankAccount.length >= 4) {
         data.bankAccountEncrypted = this.encrypt(bankAccount);
@@ -856,10 +904,6 @@ export class EmployeesService {
         data.bankAccountHash = this.hash(bankAccount);
       }
     }
-
-    if (payload.selfieUrl !== undefined) data.selfieUrl = payload.selfieUrl;
-    if (payload.signatureUrl !== undefined)
-      data.signatureUrl = payload.signatureUrl;
 
     let userId = current.userId || null;
     const targetEmail = data.workEmail || current.workEmail;
@@ -879,9 +923,20 @@ export class EmployeesService {
         }
       }
     }
+    if (current.userId) {
+      const userUpdate: any = {};
+      if (data.workEmail) userUpdate.email = data.workEmail;
+      if (data.fullName) userUpdate.name = data.fullName;
+      if (Object.keys(userUpdate).length > 0) {
+        await this.prisma.user.update({
+          where: { id: current.userId },
+          data: userUpdate,
+        }).catch(() => {});
+      }
+    }
 
     const updated = await this.prisma.employee.update({
-      where: { id },
+      where: { id: current.id },
       data: {
         ...data,
         userId,
