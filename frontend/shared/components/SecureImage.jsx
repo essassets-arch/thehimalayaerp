@@ -39,8 +39,7 @@ export default function SecureImage({
     setRetryWithDirect(false);
   }, [src]);
 
-  const isSmallAvatar = style.borderRadius === '50%' || (parseInt(style.width, 10) <= 48 && parseInt(style.height, 10) <= 48);
-
+  if (!resolvedUrl || error) {
     const isSmall = (typeof style.width === 'number' && style.width <= 48) || 
                     (typeof style.width === 'string' && parseInt(style.width, 10) <= 48) || 
                     style.borderRadius === '50%';
