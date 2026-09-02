@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Swal from 'sweetalert2';
 import { employeesService } from '@/services/hr/employeesService';
 import { useNotificationStore } from '@/store/notificationStore';
-import { getBackendAssetUrl } from '@/lib/assetUrl';
+import { getBackendAssetUrl, downloadAssetFile } from '@/lib/assetUrl';
 import SecureImage from '@/shared/components/SecureImage';
 import EmployeeAttendanceSummary from './EmployeeAttendanceSummary';
 import { 
@@ -662,11 +662,9 @@ export default function EmployeeDetails({ id, onBack }: { id: string; onBack?: (
                                 </a>
                               )}
 
-                              <a
-                                href={assetUrl}
-                                download
-                                target="_blank"
-                                rel="noreferrer"
+                              <button
+                                type="button"
+                                onClick={() => downloadAssetFile(assetUrl, doc.documentName || `${categoryLabel}`)}
                                 title="Download File"
                                 style={{
                                   background: '#f8fafc',
@@ -678,11 +676,10 @@ export default function EmployeeDetails({ id, onBack }: { id: string; onBack?: (
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   cursor: 'pointer',
-                                  textDecoration: 'none'
                                 }}
                               >
                                 <Download size={13} />
-                              </a>
+                              </button>
 
                               {doc.id !== 'photo-hero' && doc.id !== 'sig-hero' && (
                                 <button
@@ -864,11 +861,9 @@ export default function EmployeeDetails({ id, onBack }: { id: string; onBack?: (
                 )}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <a
-                  href={lightboxImage.url}
-                  download
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => downloadAssetFile(lightboxImage.url, lightboxImage.title)}
                   style={{
                     background: 'rgba(255,255,255,0.18)',
                     color: '#ffffff',
@@ -880,11 +875,11 @@ export default function EmployeeDetails({ id, onBack }: { id: string; onBack?: (
                     gap: '6px',
                     fontSize: '12.5px',
                     fontWeight: 600,
-                    textDecoration: 'none',
+                    cursor: 'pointer',
                   }}
                 >
                   <Download size={14} /> Download
-                </a>
+                </button>
                 <button
                   onClick={() => setLightboxImage(null)}
                   style={{

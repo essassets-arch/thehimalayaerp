@@ -73,3 +73,28 @@ export function getFileDownloadUrl(path?: string | null, downloadName?: string):
   if (!url) return '';
   return downloadName ? `${url}?download=${encodeURIComponent(downloadName)}` : url;
 }
+
+export async function downloadAssetFile(url: string, filename?: string) {
+  if (!url) return;
+  try {
+    const token = typeof window !== 'undefined' ? (window.sessionStorage.getItem('token') || window.localStorage.getItem('token')) : null;
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error('Download failed');
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename || url.split('/').pop()?.split('?')[0] || 'document';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+  } catch {
+    if (typeof window !== 'undefined') {
+      window.open(url, '_blank');
+    }
+  }
+}
