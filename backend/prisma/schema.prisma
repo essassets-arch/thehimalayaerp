@@ -77,6 +77,7 @@ model Company {
   deviceSessions                 DeviceSession[]
   latestUserLocations            LatestUserLocation[]
   userLocationHistories          UserLocationHistory[]
+  employeeComplaints             EmployeeComplaint[]
 }
 
 model Branch {
@@ -186,6 +187,8 @@ model User {
   deviceSessions                DeviceSession[]
   latestUserLocations           LatestUserLocation[]
   userLocationHistories         UserLocationHistory[]
+  employeeComplaints            EmployeeComplaint[]
+  resolvedComplaints            EmployeeComplaint[]    @relation("ComplaintResolver")
 }
 
 model RefreshSession {
@@ -722,6 +725,7 @@ model Employee {
   leaveRequests          LeaveRequest[]
   manualAttendanceRequests ManualAttendanceRequest[]
   attendances            Attendance[]
+  employeeComplaints     EmployeeComplaint[]
 
   @@index([companyId, status])
   @@index([departmentId])
@@ -4040,6 +4044,49 @@ model BackOfficeDailyReport {
 
   @@index([companyId, reportDate])
   @@index([userId, reportDate])
+}
+
+enum EmployeeComplaintPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum EmployeeComplaintStatus {
+  PENDING
+  IN_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+model EmployeeComplaint {
+  id              String                    @id @default(uuid())
+  publicId        String                    @unique
+  companyId       String
+  userId          String
+  employeeId      String?
+  ticketCode      String                    @unique
+  category        String
+  subject         String
+  description     String                    @db.Text
+  priority        EmployeeComplaintPriority @default(MEDIUM)
+  status          EmployeeComplaintStatus   @default(PENDING)
+  hrRemarks       String?                   @db.Text
+  resolvedAt      DateTime?
+  resolvedById    String?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  company         Company                   @relation(fields: [companyId], references: [id])
+  user            User                      @relation(fields: [userId], references: [id])
+  employee        Employee?                 @relation(fields: [employeeId], references: [id])
+  resolvedBy      User?                     @relation("ComplaintResolver", fields: [resolvedById], references: [id])
+
+  @@index([companyId, status])
+  @@index([userId])
+  @@index([employeeId])
+  @@index([createdAt])
 }
 
 

@@ -6,12 +6,13 @@ import StatusBadge from './StatusBadge';
 import { 
   User, Calendar, CalendarDays, FileText, CreditCard, 
   Upload, FileDown, PlusCircle, RefreshCw,
-  Mail, Phone, ShieldCheck, MapPin, LogIn, LogOut, Clock, Fingerprint, Camera
+  Mail, Phone, ShieldCheck, MapPin, LogIn, LogOut, Clock, Fingerprint, Camera, ShieldAlert, Send
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import DataTable from './DataTable';
 import { getBackendAssetUrl } from '../../lib/assetUrl';
 import SecureImage from './SecureImage';
+import { complaintsService } from '../../services/hr/complaintsService';
 
 export default function MyProfileView() {
   const [activeTab, setActiveTab] = useState('attendance');
@@ -107,6 +108,73 @@ export default function MyProfileView() {
     reason: '',
     attachment: ''
   });
+
+  // Complaints states
+  const [complaints, setComplaints] = useState([]);
+  const [loadingComplaints, setLoadingComplaints] = useState(false);
+  const [submittingComplaint, setSubmittingComplaint] = useState(false);
+  const [showComplaintModal, setShowComplaintModal] = useState(false);
+  const [complaintForm, setComplaintForm] = useState({
+    category: 'Workplace Environment',
+    priority: 'MEDIUM',
+    subject: '',
+    description: ''
+  });
+
+  const fetchComplaints = useCallback(async () => {
+    setLoadingComplaints(true);
+    try {
+      const data = await complaintsService.getMyComplaints();
+      setComplaints(data || []);
+    } catch (e) {
+      console.error('Failed to load my complaints', e);
+    } finally {
+      setLoadingComplaints(false);
+    }
+  }, []);
+
+  const handleSubmitComplaint = async (e) => {
+    e.preventDefault();
+    if (!complaintForm.subject.trim() || !complaintForm.description.trim()) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Missing Fields',
+        text: 'Please provide both a subject and a detailed description for your complaint.',
+        confirmButtonColor: '#0284c7'
+      });
+      return;
+    }
+
+    setSubmittingComplaint(true);
+    try {
+      const created = await complaintsService.submitComplaint(complaintForm);
+      Swal.fire({
+        icon: 'success',
+        title: 'Complaint Submitted to HR',
+        text: `Your ticket (${created.ticketCode}) has been securely logged and sent to HR.`,
+        confirmButtonColor: '#0284c7'
+      });
+
+      setComplaintForm({
+        category: 'Workplace Environment',
+        priority: 'MEDIUM',
+        subject: '',
+        description: ''
+      });
+      setShowComplaintModal(false);
+      await fetchComplaints();
+    } catch (err) {
+      console.error('Failed to submit complaint:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Submission Failed',
+        text: err?.message || 'Unable to submit complaint. Please try again.',
+        confirmButtonColor: '#0284c7'
+      });
+    } finally {
+      setSubmittingComplaint(false);
+    }
+  };
 
   // New Expense form state
   const [expenseForm, setExpenseForm] = useState({
@@ -343,7 +411,8 @@ export default function MyProfileView() {
     fetchExpenses();
     fetchLeaves();
     fetchLeaveBalance();
-  }, [fetchProfile, fetchAttendance, fetchManualRequests, fetchSalarySlips, fetchExpenses, fetchLeaves, fetchLeaveBalance]);
+    fetchComplaints();
+  }, [fetchProfile, fetchAttendance, fetchManualRequests, fetchSalarySlips, fetchExpenses, fetchLeaves, fetchLeaveBalance, fetchComplaints]);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -468,6 +537,59 @@ export default function MyProfileView() {
         </div>
       </div>
 
+      {/* ── WORKPLACE COMPLAINT & GRIEVANCE QUICK ACTION CARD ── */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
+          borderRadius: '16px',
+          border: '1.5px solid #bfdbfe',
+          padding: '16px 20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.06)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1d4ed8' }}>
+            <ShieldAlert size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0f172a' }}>
+              Workplace Complaint &amp; Grievance Center
+            </div>
+            <div style={{ fontSize: '12.5px', color: '#475569' }}>
+              Have an issue or workplace concern? Submit a confidential complaint to HR.
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('complaints');
+            setShowComplaintModal(true);
+          }}
+          style={{
+            background: '#0284c7',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '8px 18px',
+            fontSize: '13px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+          }}
+        >
+          Write a Complaint →
+        </button>
+      </div>
+
       {/* 2. Navigation Tabs */}
       <div className="hr-tabs-wrapper">
         <div 
@@ -504,7 +626,8 @@ export default function MyProfileView() {
             { key: 'attendance', label: 'Attendance Records', icon: CalendarDays },
             { key: 'salary', label: 'Salary Slips', icon: FileText },
             { key: 'expenses', label: 'Expense Center', icon: CreditCard },
-            { key: 'leaves', label: 'Leave Management', icon: Calendar }
+            { key: 'leaves', label: 'Leave Management', icon: Calendar },
+            { key: 'complaints', label: 'Complaint Center', icon: ShieldAlert }
           ].map(tab => {
             const isActive = activeTab === tab.key;
             const TabIcon = tab.icon;
@@ -1173,7 +1296,371 @@ export default function MyProfileView() {
           </div>
         )}
 
+        {/* ── COMPLAINTS TAB CONTENT ── */}
+        {activeTab === 'complaints' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', alignItems: 'start' }}>
+              
+              {/* Submit Complaint Card Form */}
+              <form
+                onSubmit={handleSubmitComplaint}
+                className="app-card"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  border: '1.5px solid #e2e8f0',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+                  margin: 0
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ShieldAlert size={18} color="#0284c7" />
+                    Submit Workplace Complaint
+                  </h3>
+                  <span style={{ fontSize: '11px', background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                    Confidential
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>
+                      Category *
+                    </label>
+                    <select
+                      className="form-input"
+                      style={{ marginTop: '6px', padding: '8px 10px', borderRadius: '8px' }}
+                      value={complaintForm.category}
+                      onChange={(e) => setComplaintForm(prev => ({ ...prev, category: e.target.value }))}
+                    >
+                      <option value="Workplace Environment">Workplace Environment</option>
+                      <option value="Harassment / Misconduct">Harassment / Misconduct</option>
+                      <option value="Payroll & Compensation">Payroll &amp; Compensation</option>
+                      <option value="Management / Hierarchy">Management / Hierarchy</option>
+                      <option value="Facility / Infrastructure">Facility / Infrastructure</option>
+                      <option value="Other Issue">Other Issue</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>
+                      Priority *
+                    </label>
+                    <select
+                      className="form-input"
+                      style={{ marginTop: '6px', padding: '8px 10px', borderRadius: '8px' }}
+                      value={complaintForm.priority}
+                      onChange={(e) => setComplaintForm(prev => ({ ...prev, priority: e.target.value }))}
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                      <option value="CRITICAL">Critical / Urgent</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>
+                    Subject / Short Summary *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Brief summary of your grievance or workplace issue..."
+                    className="form-input"
+                    style={{ marginTop: '6px', padding: '8px 12px', borderRadius: '8px' }}
+                    value={complaintForm.subject}
+                    onChange={(e) => setComplaintForm(prev => ({ ...prev, subject: e.target.value }))}
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>
+                    Detailed Description *
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    placeholder="Provide specific details, dates, individuals involved, and the nature of the issue..."
+                    className="form-input"
+                    style={{ marginTop: '6px', padding: '8px 12px', borderRadius: '8px', resize: 'vertical' }}
+                    value={complaintForm.description}
+                    onChange={(e) => setComplaintForm(prev => ({ ...prev, description: e.target.value }))}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '14px' }}>
+                  <button
+                    type="submit"
+                    disabled={submittingComplaint}
+                    className="action-btn profile-submit-btn"
+                    style={{
+                      background: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '9px 20px',
+                      fontWeight: '800',
+                      cursor: submittingComplaint ? 'wait' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <Send size={15} />
+                    {submittingComplaint ? 'Submitting to HR...' : 'Send Complaint'}
+                  </button>
+                </div>
+              </form>
+
+              {/* My Submitted Complaints History */}
+              <div
+                className="app-card"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  border: '1.5px solid #e2e8f0',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+                  margin: 0
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                    My Filed Complaints Log ({complaints.length})
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={fetchComplaints}
+                    disabled={loadingComplaints}
+                    style={{ background: 'transparent', border: 'none', color: '#0284c7', cursor: 'pointer', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <RefreshCw size={12} className={loadingComplaints ? 'spin' : ''} /> Refresh
+                  </button>
+                </div>
+
+                {loadingComplaints && complaints.length === 0 ? (
+                  <p style={{ color: '#64748b', fontSize: '13px' }}>Loading your complaints history...</p>
+                ) : complaints.length === 0 ? (
+                  <div style={{ padding: '30px 20px', textAlign: 'center', color: '#64748b' }}>
+                    <ShieldAlert size={32} color="#94a3b8" style={{ margin: '0 auto 8px auto' }} />
+                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>No Complaints Filed</div>
+                    <div style={{ fontSize: '12px', marginTop: '2px' }}>You haven't submitted any workplace complaints.</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '550px', overflowY: 'auto', paddingRight: '4px' }}>
+                    {complaints.map((c) => {
+                      const isPending = c.status === 'PENDING';
+                      const isResolved = c.status === 'RESOLVED';
+                      const isRejected = c.status === 'REJECTED';
+
+                      const badgeStyle = isResolved
+                        ? { bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0', label: 'Resolved' }
+                        : isRejected
+                        ? { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca', label: 'Rejected' }
+                        : isPending
+                        ? { bg: '#fffbeb', color: '#b45309', border: '#fde68a', label: 'Pending Review' }
+                        : { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe', label: 'In Investigation' };
+
+                      return (
+                        <div
+                          key={c.id}
+                          style={{
+                            border: '1.5px solid #e2e8f0',
+                            borderRadius: '10px',
+                            padding: '14px',
+                            background: isPending ? '#fffdf7' : '#ffffff',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                            <div>
+                              <span style={{ fontSize: '12px', fontWeight: '800', color: '#0284c7' }}>
+                                {c.ticketCode}
+                              </span>
+                              <span style={{ fontSize: '11px', background: '#f1f5f9', color: '#475569', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px', fontWeight: '700' }}>
+                                {c.category}
+                              </span>
+                            </div>
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                background: badgeStyle.bg,
+                                color: badgeStyle.color,
+                                border: `1px solid ${badgeStyle.border}`
+                              }}
+                            >
+                              {badgeStyle.label}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#0f172a' }}>
+                            {c.subject}
+                          </div>
+
+                          <div style={{ fontSize: '12.5px', color: '#475569', lineHeight: 1.45, whiteSpace: 'pre-wrap', background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                            {c.description}
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                            <span>Filed: {new Date(c.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                            <span style={{ fontWeight: '700', color: c.priority === 'HIGH' || c.priority === 'CRITICAL' ? '#dc2626' : '#64748b' }}>
+                              {c.priority} PRIORITY
+                            </span>
+                          </div>
+
+                          {c.hrRemarks && (
+                            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '8px 10px', fontSize: '12px', color: '#15803d', fontWeight: '600', marginTop: '4px' }}>
+                              <strong>HR Response / Resolution:</strong> {c.hrRemarks}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
+
       </main>
+
+      {/* ── WRITE COMPLAINT POPUP MODAL ── */}
+      {showComplaintModal && (
+        <div
+          onClick={() => setShowComplaintModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '16px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '560px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+              border: '1.5px solid #cbd5e1'
+            }}
+          >
+            <div style={{ padding: '18px 24px', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTopLeftRadius: '15px', borderTopRightRadius: '15px' }}>
+              <div style={{ fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldAlert size={18} color="#38bdf8" />
+                Submit Workplace Grievance / Complaint
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowComplaintModal(false)}
+                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitComplaint} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Category *</label>
+                  <select
+                    value={complaintForm.category}
+                    onChange={(e) => setComplaintForm(prev => ({ ...prev, category: e.target.value }))}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '13px' }}
+                  >
+                    <option value="Workplace Environment">Workplace Environment</option>
+                    <option value="Harassment / Misconduct">Harassment / Misconduct</option>
+                    <option value="Payroll & Compensation">Payroll &amp; Compensation</option>
+                    <option value="Management / Hierarchy">Management / Hierarchy</option>
+                    <option value="Facility / Infrastructure">Facility / Infrastructure</option>
+                    <option value="Other Issue">Other Issue</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Priority *</label>
+                  <select
+                    value={complaintForm.priority}
+                    onChange={(e) => setComplaintForm(prev => ({ ...prev, priority: e.target.value }))}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '13px' }}
+                  >
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                    <option value="CRITICAL">Critical / Urgent</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Subject *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Summary of workplace issue..."
+                  value={complaintForm.subject}
+                  onChange={(e) => setComplaintForm(prev => ({ ...prev, subject: e.target.value }))}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Detailed Description *</label>
+                <textarea
+                  required
+                  rows={4}
+                  placeholder="Provide specific details for HR investigation..."
+                  value={complaintForm.description}
+                  onChange={(e) => setComplaintForm(prev => ({ ...prev, description: e.target.value }))}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowComplaintModal(false)}
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#ffffff', color: '#475569', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingComplaint}
+                  style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#0284c7', color: '#ffffff', fontSize: '13px', fontWeight: '800', cursor: submittingComplaint ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Send size={15} />
+                  {submittingComplaint ? 'Submitting...' : 'Send Complaint'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

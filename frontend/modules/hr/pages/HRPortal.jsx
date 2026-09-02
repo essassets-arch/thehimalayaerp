@@ -27,6 +27,7 @@ import UsersManagementView from '../components/UsersManagementView';
 import HRNotificationsView from '../components/HRNotificationsView';
 import ExitClearanceFormModal from '../components/ExitClearanceFormModal';
 import HRDashboardView from '../components/HRDashboardView';
+import HRComplaintCenterView from '../components/HRComplaintCenterView';
 import { exportToCSV, exportToExcel } from '../../../services/export.service';
 
 export default function HRPortal() {
@@ -924,6 +925,10 @@ export default function HRPortal() {
         return renderPayroll();
       case 'notifications':
         return <HRNotificationsView />;
+      case 'complain-center':
+      case 'complaint-center':
+      case 'complaints':
+        return <HRComplaintCenterView />;
       case 'users':
         return <UsersManagementView />;
       default:

@@ -353,7 +353,8 @@ export const navigationConfig = {
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/hr/profile' },
     { id: 'expense-management', label: 'Expense Management', icon: CreditCard, path: '/hr/expense-management' },
     { id: 'leave-approvals', label: 'Leave Approvals', icon: Calendar, path: '/hr/leave-approvals' },
-    { id: 'attendance-requests', label: 'Attendance Requests', icon: Clock, path: '/hr/attendance-requests' }
+    { id: 'attendance-requests', label: 'Attendance Requests', icon: Clock, path: '/hr/attendance-requests' },
+    { id: 'complain-center', label: 'Complaint Center', icon: ShieldAlert, path: '/hr/complain-center' }
   ],
   'Back Office': [
     { id: 'dashboard', label: 'Daily Reports Dashboard', icon: LayoutGrid, path: '/back-office/daily-report' },

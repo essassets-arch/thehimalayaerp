@@ -62,6 +62,7 @@ import { SearchModule } from './modules/search/search.module';
 import { LocationModule } from './modules/location/location.module';
 import { FilesModule } from './modules/files/files.module';
 import { BackOfficeModule } from './modules/back-office/back-office.module';
+import { ComplaintsModule } from './modules/complaints/complaints.module';
 
 @Module({
   imports: [
@@ -128,6 +129,7 @@ import { BackOfficeModule } from './modules/back-office/back-office.module';
     LocationModule,
     FilesModule,
     BackOfficeModule,
+    ComplaintsModule,
   ],
   controllers: [AppController],
   providers: [

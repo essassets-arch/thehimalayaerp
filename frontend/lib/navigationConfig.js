@@ -194,6 +194,7 @@ export const navigationConfig = {
     { id: 'payroll', label: 'Prepare Salary', icon: CreditCard, path: '/hr/salary/prepare' },
     { id: 'payslips', label: 'Payslips', icon: Receipt, path: '/hr/salary/payslips' },
     { id: 'payroll-history', label: 'Payroll History', icon: History, path: '/hr/salary/history' },
+    { id: 'complain-center', label: 'Complaint Center', icon: ShieldAlert, path: '/hr/complain-center' },
     { id: 'notifications', label: 'HR Notifications', icon: Bell, path: '/hr/notifications' }
   ],
   'Settings Admin': [
