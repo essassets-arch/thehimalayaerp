@@ -447,21 +447,26 @@ export class NotificationsService {
   }
 
   async broadcast(body: any, companyId: string) {
-    const { roleCodes, title, message, route } = body;
-    const targetRoles = Array.isArray(roleCodes) ? roleCodes : [roleCodes];
+    const { roleCodes, userIds, title, message, route, priority } = body;
+    const targetRoles = Array.isArray(roleCodes) ? roleCodes : roleCodes ? [roleCodes] : [];
+    const specificUserIds = Array.isArray(userIds) ? userIds : userIds ? [userIds] : [];
+
+    let whereClause: any = {
+      isActive: true,
+      ...(companyId ? { companyId } : {}),
+    };
+
+    if (specificUserIds.length > 0) {
+      whereClause.id = { in: specificUserIds };
+    } else if (targetRoles.length > 0 && !targetRoles.includes('ALL')) {
+      whereClause.OR = [
+        { role: { code: { in: targetRoles } } },
+        { role: { name: { in: targetRoles } } },
+      ];
+    }
 
     const users = await this.prisma.user.findMany({
-      where: {
-        companyId,
-        isActive: true,
-        ...(targetRoles.includes('ALL')
-          ? {}
-          : {
-              role: {
-                code: { in: targetRoles },
-              },
-            }),
-      },
+      where: whereClause,
       select: { id: true },
     });
 
@@ -469,8 +474,16 @@ export class NotificationsService {
       return {
         success: true,
         count: 0,
-        message: 'No users found matching selected roles.',
+        message: 'No active users found matching selected criteria.',
       };
+    }
+
+    let parsedPriority: NotificationPriority = NotificationPriority.HIGH;
+    if (priority) {
+      const pUpper = String(priority).toUpperCase();
+      if (pUpper === 'CRITICAL' || pUpper === 'URGENT') parsedPriority = NotificationPriority.CRITICAL;
+      else if (pUpper === 'LOW') parsedPriority = NotificationPriority.LOW;
+      else if (pUpper === 'MEDIUM' || pUpper === 'NORMAL') parsedPriority = NotificationPriority.MEDIUM;
     }
 
     for (const u of users) {
@@ -478,9 +491,10 @@ export class NotificationsService {
         companyId,
         userId: u.id,
         type: 'BROADCAST',
-        title: title || 'System Announcement',
+        priority: parsedPriority,
+        title: title || 'Corporate Announcement',
         message: message || '',
-        route,
+        route: route || '/notifications',
       });
     }
 
