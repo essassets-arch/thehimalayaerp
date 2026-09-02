@@ -537,59 +537,6 @@ export default function MyProfileView() {
         </div>
       </div>
 
-      {/* ── WORKPLACE COMPLAINT & GRIEVANCE QUICK ACTION CARD ── */}
-      <div
-        style={{
-          background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
-          borderRadius: '16px',
-          border: '1.5px solid #bfdbfe',
-          padding: '16px 20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
-          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.06)'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1d4ed8' }}>
-            <ShieldAlert size={22} />
-          </div>
-          <div>
-            <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0f172a' }}>
-              Workplace Complaint &amp; Grievance Center
-            </div>
-            <div style={{ fontSize: '12.5px', color: '#475569' }}>
-              Have an issue or workplace concern? Submit a confidential complaint to HR.
-            </div>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab('complaints');
-            setShowComplaintModal(true);
-          }}
-          style={{
-            background: '#0284c7',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '8px 18px',
-            fontSize: '13px',
-            fontWeight: '700',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
-          }}
-        >
-          Write a Complaint →
-        </button>
-      </div>
-
       {/* 2. Navigation Tabs */}
       <div className="hr-tabs-wrapper">
         <div 
