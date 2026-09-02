@@ -5,10 +5,12 @@ import StatusBadge from './StatusBadge';
 import DataTable from './DataTable';
 import { 
   CheckCircle, XCircle, FileText, Image as ImageIcon, 
-  User, Calendar, Clock, RefreshCw, AlertCircle, ShieldCheck, DollarSign, X, CreditCard
+  User, Calendar, Clock, RefreshCw, AlertCircle, ShieldCheck, 
+  DollarSign, X, CreditCard, Eye, ArrowRight, Check
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { expenseService } from '../../services/expenseService';
+import { getBackendAssetUrl } from '../../lib/assetUrl';
 
 export default function ExpenseManagementView({ roleMode }) {
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
@@ -20,6 +22,7 @@ export default function ExpenseManagementView({ roleMode }) {
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [pendingClaims, setPendingClaims] = useState([]);
   const [selectedClaim, setSelectedClaim] = useState(null);
+  const [inspectModalClaim, setInspectModalClaim] = useState(null);
   const [remarks, setRemarks] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [previewReceiptModal, setPreviewReceiptModal] = useState(null);
@@ -78,60 +81,150 @@ export default function ExpenseManagementView({ roleMode }) {
     }
   }, [activeTab, fetchPendingClaims, fetchAllClaims]);
 
-  const handleDecision = async (action) => {
-    if (!selectedClaim) return;
+  /**
+   * Handle Decision (Approve / Reject) with SweetAlert2 Yes/No Confirmation
+   */
+  const handleDecision = async (action, claimToProcess = selectedClaim) => {
+    if (!claimToProcess) return;
     
-    if (action === 'reject' && !remarks.trim()) {
-      Swal.fire({
+    if (action === 'reject') {
+      const { value: rejectReason, isConfirmed } = await Swal.fire({
+        title: 'Reject Expense Claim?',
+        html: `
+          <div style="text-align: left; display: flex; flex-direction: column; gap: 8px;">
+            <p style="margin: 0 0 8px 0; font-size: 13.5px; color: #475569;">
+              Are you sure you want to decline claim <strong>${claimToProcess.claimNumber || 'EXP'}</strong> (₹${Number(claimToProcess.amount).toLocaleString('en-IN')}) submitted by <strong>${claimToProcess.employeeName || claimToProcess.user?.name}</strong>?
+            </p>
+            <label style="font-weight: 700; font-size: 12.5px; color: #1e293b;">Reason for Rejection *</label>
+            <textarea id="swal-reject-reason" class="swal2-textarea" style="margin: 0; width: 100%; box-sizing: border-box; font-size: 13px; min-height: 80px;" placeholder="Please specify the reason for declining this claim...">${remarks}</textarea>
+          </div>
+        `,
         icon: 'warning',
-        title: 'Rejection Reason Required',
-        text: 'Please provide a clear reason for declining this expense claim in the remarks field.',
-        confirmButtonColor: '#0284c7'
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Yes, Reject Claim',
+        cancelButtonText: 'Cancel',
+        focusConfirm: false,
+        preConfirm: () => {
+          const val = document.getElementById('swal-reject-reason')?.value;
+          if (!val || !val.trim()) {
+            Swal.showValidationMessage('Please provide a reason for declining this claim!');
+            return false;
+          }
+          return val.trim();
+        }
       });
-      return;
-    }
 
-    try {
-      setProcessing(true);
-      if (action === 'approve') {
-        await expenseService.approveExpense(selectedClaim.id, {
-          remarks: remarks.trim() || undefined,
-          paymentReference: effectiveRoleMode === 'FINANCE' ? (paymentReference.trim() || undefined) : undefined,
-        });
+      if (!isConfirmed || !rejectReason) return;
 
-        Swal.fire({
-          icon: 'success',
-          title: effectiveRoleMode === 'FINANCE' ? 'Expense Settled & Processed' : 'Claim Approved',
-          text: effectiveRoleMode === 'HR' 
-            ? 'Claim has been forwarded to Super Admin for approval.' 
-            : effectiveRoleMode === 'SUPER_ADMIN'
-            ? 'Claim has been forwarded to Finance for payment processing.'
-            : 'Expense claim has been marked as settled & finalized.',
-          confirmButtonColor: '#0284c7'
-        });
-      } else {
-        await expenseService.rejectExpense(selectedClaim.id, {
-          remarks: remarks.trim(),
-        });
-
+      try {
+        setProcessing(true);
+        await expenseService.rejectExpense(claimToProcess.id, { remarks: rejectReason });
         Swal.fire({
           icon: 'success',
           title: 'Claim Rejected',
           text: 'The claimant has been notified of the rejection reason.',
           confirmButtonColor: '#0284c7'
         });
+        setRemarks('');
+        setInspectModalClaim(null);
+        await fetchPendingClaims();
+        fetchAllClaims();
+      } catch (err) {
+        console.error('Failed to reject claim:', err);
+        Swal.fire({
+          icon: 'error',
+          title: 'Action Failed',
+          text: err?.message || 'Failed to reject claim',
+          confirmButtonColor: '#0284c7'
+        });
+      } finally {
+        setProcessing(false);
       }
+      return;
+    }
+
+    // ── Approval Flow ──
+    const targetStageText = effectiveRoleMode === 'HR' 
+      ? 'Super Admin for authorization' 
+      : effectiveRoleMode === 'SUPER_ADMIN' 
+      ? 'Finance for disbursement' 
+      : 'Final Settlement (Paid & Stored in History)';
+
+    const confirmBtnText = effectiveRoleMode === 'FINANCE'
+      ? 'Yes, Settle & Finalize Payment'
+      : effectiveRoleMode === 'SUPER_ADMIN'
+      ? 'Yes, Approve to Finance'
+      : 'Yes, Approve to Super Admin';
+
+    const { value: confirmData, isConfirmed } = await Swal.fire({
+      title: effectiveRoleMode === 'FINANCE' ? 'Finalize & Settle Expense?' : 'Approve Expense Claim?',
+      html: `
+        <div style="text-align: left; display: flex; flex-direction: column; gap: 10px;">
+          <p style="margin: 0 0 6px 0; font-size: 13.5px; color: #475569;">
+            Are you sure you want to approve claim <strong>${claimToProcess.claimNumber || 'EXP'}</strong> of <strong>₹${Number(claimToProcess.amount).toLocaleString('en-IN')}</strong> submitted by <strong>${claimToProcess.employeeName || claimToProcess.user?.name}</strong>?
+          </p>
+          <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #0369a1; font-weight: 600;">
+            Next Step: <strong>${targetStageText}</strong>
+          </div>
+          ${effectiveRoleMode === 'FINANCE' ? `
+            <div style="margin-top: 4px;">
+              <label style="font-weight: 700; font-size: 12.5px; color: #1e293b;">Payment / Disbursal Reference (Optional)</label>
+              <input id="swal-payment-ref" class="swal2-input" style="margin: 4px 0 0 0; width: 100%; box-sizing: border-box; font-size: 13px; height: 38px;" placeholder="e.g. UTR / Cheque / Bank Transfer Ref" value="${paymentReference}" />
+            </div>
+          ` : ''}
+          <div style="margin-top: 4px;">
+            <label style="font-weight: 700; font-size: 12.5px; color: #1e293b;">Approval Remarks (Optional)</label>
+            <textarea id="swal-approval-remarks" class="swal2-textarea" style="margin: 4px 0 0 0; width: 100%; box-sizing: border-box; font-size: 13px; min-height: 60px;" placeholder="Add remarks or notes...">${remarks}</textarea>
+          </div>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#16a34a',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: confirmBtnText,
+      cancelButtonText: 'Cancel',
+      focusConfirm: false,
+      preConfirm: () => {
+        const rem = document.getElementById('swal-approval-remarks')?.value || '';
+        const pRef = document.getElementById('swal-payment-ref')?.value || '';
+        return { remarks: rem.trim(), paymentReference: pRef.trim() };
+      }
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      setProcessing(true);
+      await expenseService.approveExpense(claimToProcess.id, {
+        remarks: confirmData.remarks || remarks.trim() || undefined,
+        paymentReference: effectiveRoleMode === 'FINANCE' ? (confirmData.paymentReference || paymentReference.trim() || undefined) : undefined
+      });
+
+      Swal.fire({
+        icon: 'success',
+        title: effectiveRoleMode === 'FINANCE' ? 'Expense Settled & Stored in History! 🎉' : 'Claim Approved Successfully',
+        text: effectiveRoleMode === 'HR'
+          ? 'Claim has been verified and forwarded to Super Admin.'
+          : effectiveRoleMode === 'SUPER_ADMIN'
+          ? 'Claim has been authorized and forwarded to Finance for payment.'
+          : 'Payment has been settled and moved to Company Claims History Log.',
+        confirmButtonColor: '#0284c7'
+      });
 
       setRemarks('');
       setPaymentReference('');
+      setInspectModalClaim(null);
       await fetchPendingClaims();
       fetchAllClaims();
     } catch (err) {
-      console.error(`Failed to execute expense decision ${action}`, err);
+      console.error('Failed to approve claim:', err);
       Swal.fire({
         icon: 'error',
-        title: 'Action Failed',
-        text: err?.message || 'Failed to update expense claim state.',
+        title: 'Approval Failed',
+        text: err?.message || 'Failed to approve claim',
         confirmButtonColor: '#0284c7'
       });
     } finally {
@@ -145,6 +238,7 @@ export default function ExpenseManagementView({ roleMode }) {
       const q = historySearch.toLowerCase();
       const matchesSearch = !historySearch || 
         (claim.employeeName || '').toLowerCase().includes(q) ||
+        (claim.userRoleName || '').toLowerCase().includes(q) ||
         (claim.claimNumber || '').toLowerCase().includes(q) ||
         (claim.expenseName || '').toLowerCase().includes(q) ||
         (claim.department || '').toLowerCase().includes(q);
@@ -170,12 +264,14 @@ export default function ExpenseManagementView({ roleMode }) {
       render: (row) => new Date(row.expenseDate).toLocaleDateString()
     },
     {
-      header: 'Employee',
+      header: 'Employee / Claimant',
       accessor: 'employeeName',
       render: (row) => (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <strong>{row.employeeName || row.user?.name || 'Staff Member'}</strong>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>{row.designation || 'Staff'} • <span style={{ color: '#0284c7' }}>{row.department || 'Operations'}</span></span>
+          <span style={{ fontSize: '11px', color: '#64748b' }}>
+            <span style={{ fontWeight: '700', color: '#0369a1' }}>{row.userRoleName || row.designation || 'Staff'}</span> • {row.department || 'Operations'}
+          </span>
         </div>
       )
     },
@@ -200,7 +296,7 @@ export default function ExpenseManagementView({ roleMode }) {
       render: (row) => row.receiptUrl ? (
         <button
           type="button"
-          onClick={() => setPreviewReceiptModal(row.receiptUrl)}
+          onClick={() => setPreviewReceiptModal(getBackendAssetUrl(row.receiptUrl))}
           style={{ background: '#e0f2fe', color: '#0369a1', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer' }}
         >
           👁️ View Bill
@@ -214,22 +310,22 @@ export default function ExpenseManagementView({ roleMode }) {
   const renderHistoryActions = (row) => (
     <button
       type="button"
-      onClick={() => {
-        setSelectedClaim(row);
-        setActiveTab('pending');
-      }}
+      onClick={() => setInspectModalClaim(row)}
       style={{
-        padding: '6px 12px',
+        padding: '6px 14px',
         borderRadius: '6px',
-        border: '1px solid #e2e8f0',
-        background: '#f8fafc',
+        border: '1px solid #0284c7',
+        background: '#f0f9ff',
         color: '#0284c7',
         fontSize: '12px',
-        fontWeight: '700',
-        cursor: 'pointer'
+        fontWeight: '800',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px'
       }}
     >
-      Inspect
+      <Eye size={13} /> Inspect
     </button>
   );
 
@@ -249,9 +345,9 @@ export default function ExpenseManagementView({ roleMode }) {
           </div>
           <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
             {effectiveRoleMode === 'SUPER_ADMIN' 
-              ? 'Authorize verified HR claims and route them to Finance for disbursement.' 
+              ? 'Authorize verified claims and route them to Finance for disbursement.' 
               : effectiveRoleMode === 'FINANCE'
-              ? 'Verify final management authorizations and execute payment settlements.'
+              ? 'Verify management authorizations and execute payment settlements (Done / Settle).'
               : 'Audit employee claims, receipts, and forward valid submissions to Super Admin.'}
           </p>
         </div>
@@ -347,8 +443,8 @@ export default function ExpenseManagementView({ roleMode }) {
               <span style={{ fontSize: '13px', fontWeight: '800', color: '#334155' }}>
                 Pending Tasks ({pendingClaims.length})
               </span>
-              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
-                Stage: {effectiveRoleMode === 'SUPER_ADMIN' ? 'Super Admin' : effectiveRoleMode === 'FINANCE' ? 'Finance' : 'HR'}
+              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>
+                Stage: {effectiveRoleMode === 'SUPER_ADMIN' ? 'Super Admin Review' : effectiveRoleMode === 'FINANCE' ? 'Finance Settlement' : 'HR Review'}
               </span>
             </div>
 
@@ -398,8 +494,8 @@ export default function ExpenseManagementView({ roleMode }) {
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: '#64748b', fontWeight: '600' }}>
                         <span>Submitted by: <strong>{claim.employeeName || claim.user?.name}</strong></span>
-                        <span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', fontSize: '10px' }}>
-                          {claim.department}
+                        <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: '700' }}>
+                          {claim.userRoleName || claim.designation}
                         </span>
                       </div>
 
@@ -430,7 +526,7 @@ export default function ExpenseManagementView({ roleMode }) {
                     <div>
                       <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>{selectedClaim.employeeName || selectedClaim.user?.name}</h4>
                       <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
-                        {selectedClaim.designation} • <span style={{ color: '#0284c7' }}>{selectedClaim.department}</span>
+                        <span style={{ color: '#0369a1', fontWeight: '700' }}>{selectedClaim.userRoleName || selectedClaim.designation}</span> • <span style={{ color: '#0284c7' }}>{selectedClaim.department}</span>
                       </p>
                     </div>
                   </div>
@@ -475,7 +571,7 @@ export default function ExpenseManagementView({ roleMode }) {
                       
                       {selectedClaim.hrRemarks && (
                         <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#0369a1' }}>
-                          <strong>HR Approval ({selectedClaim.hrApprovedBy || 'HR'}):</strong>
+                          <strong>HR Approval ({selectedClaim.hrApprovedBy || 'HR Manager'}):</strong>
                           <p style={{ margin: '4px 0 0 0' }}>{selectedClaim.hrRemarks}</p>
                           {selectedClaim.hrApprovedAt && <span style={{ fontSize: '10.5px', color: '#0284c7', display: 'block', marginTop: '4px' }}>{new Date(selectedClaim.hrApprovedAt).toLocaleString()}</span>}
                         </div>
@@ -491,7 +587,7 @@ export default function ExpenseManagementView({ roleMode }) {
 
                       {selectedClaim.financeRemarks && (
                         <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#166534' }}>
-                          <strong>Finance Settlement ({selectedClaim.financeProcessedBy || 'Finance'}):</strong>
+                          <strong>Finance Settlement ({selectedClaim.financeProcessedBy || 'Finance Head'}):</strong>
                           <p style={{ margin: '4px 0 0 0' }}>{selectedClaim.financeRemarks}</p>
                           {selectedClaim.paymentReference && <span style={{ display: 'block', marginTop: '2px', fontWeight: '700' }}>Ref: {selectedClaim.paymentReference}</span>}
                           {selectedClaim.financeProcessedAt && <span style={{ fontSize: '10.5px', color: '#15803d', display: 'block', marginTop: '4px' }}>{new Date(selectedClaim.financeProcessedAt).toLocaleString()}</span>}
@@ -504,17 +600,21 @@ export default function ExpenseManagementView({ roleMode }) {
                   <div>
                     <h5 style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Receipt Bill Attachment</h5>
                     {selectedClaim.receiptUrl ? (
-                      <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                      <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
                         <img
-                          src={selectedClaim.receiptUrl}
+                          src={getBackendAssetUrl(selectedClaim.receiptUrl)}
                           alt="Receipt Bill"
-                          style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '6px', cursor: 'pointer', objectFit: 'contain' }}
-                          onClick={() => setPreviewReceiptModal(selectedClaim.receiptUrl)}
+                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '6px', cursor: 'pointer', objectFit: 'contain' }}
+                          onClick={() => setPreviewReceiptModal(getBackendAssetUrl(selectedClaim.receiptUrl))}
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = selectedClaim.receiptUrl;
+                          }}
                         />
                         <button
                           type="button"
-                          onClick={() => setPreviewReceiptModal(selectedClaim.receiptUrl)}
-                          style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px' }}
+                          onClick={() => setPreviewReceiptModal(getBackendAssetUrl(selectedClaim.receiptUrl))}
+                          style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px' }}
                         >
                           👁️ View Full-Screen Receipt
                         </button>
@@ -609,7 +709,7 @@ export default function ExpenseManagementView({ roleMode }) {
                       justifyContent: 'center',
                       gap: '6px',
                       padding: '9px 20px',
-                      background: '#16a34a',
+                      background: effectiveRoleMode === 'FINANCE' ? '#15803d' : '#16a34a',
                       border: 'none',
                       borderRadius: '8px',
                       color: '#ffffff',
@@ -624,7 +724,7 @@ export default function ExpenseManagementView({ roleMode }) {
                       ? 'Approve (Forward to Super Admin)' 
                       : effectiveRoleMode === 'SUPER_ADMIN'
                       ? 'Approve (Forward to Finance)'
-                      : 'Process & Settle Expense'}
+                      : '✓ Done / Settle & Finalize Payment'}
                   </button>
                 </div>
 
@@ -649,7 +749,7 @@ export default function ExpenseManagementView({ roleMode }) {
               <span style={{ fontSize: '13px', fontWeight: '800', color: '#475569', whiteSpace: 'nowrap' }}>Search Query:</span>
               <input
                 type="text"
-                placeholder="Filter by claim number, employee, description, department..."
+                placeholder="Filter by claim number, employee, role, description, department..."
                 value={historySearch}
                 onChange={e => setHistorySearch(e.target.value)}
                 style={{
@@ -736,7 +836,7 @@ export default function ExpenseManagementView({ roleMode }) {
                               <strong style={{ fontSize: '14px', color: '#0f172a' }}>{claim.expenseName}</strong>
                             </div>
                             <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                              {claim.employeeName} • <span style={{ color: '#0284c7', fontWeight: 600 }}>{claim.department}</span>
+                              {claim.employeeName} • <span style={{ color: '#0369a1', fontWeight: '700' }}>{claim.userRoleName || claim.designation}</span>
                             </div>
                           </div>
                           <StatusBadge status={claim.status} />
@@ -765,7 +865,7 @@ export default function ExpenseManagementView({ roleMode }) {
                           {claim.receiptUrl && (
                             <button
                               type="button"
-                              onClick={() => setPreviewReceiptModal(claim.receiptUrl)}
+                              onClick={() => setPreviewReceiptModal(getBackendAssetUrl(claim.receiptUrl))}
                               style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #bfdbfe', background: '#eff6ff', fontSize: '12px', fontWeight: 700, color: '#0369a1', cursor: 'pointer' }}
                             >
                               👁️ View Receipt
@@ -773,13 +873,10 @@ export default function ExpenseManagementView({ roleMode }) {
                           )}
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedClaim(claim);
-                              setActiveTab('pending');
-                            }}
+                            onClick={() => setInspectModalClaim(claim)}
                             style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: 'none', background: '#0284c7', fontSize: '12px', fontWeight: 700, color: '#fff', cursor: 'pointer' }}
                           >
-                            Review Claim
+                            Inspect Claim
                           </button>
                         </div>
                       </div>
@@ -788,6 +885,180 @@ export default function ExpenseManagementView({ roleMode }) {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── INSPECT HISTORICAL CLAIM MODAL ── */}
+      {inspectModalClaim && (
+        <div
+          onClick={() => setInspectModalClaim(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '16px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '680px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #cbd5e1',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ padding: '16px 20px', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTopLeftRadius: '15px', borderTopRightRadius: '15px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CreditCard size={18} color="#38bdf8" />
+                <span style={{ fontSize: '15px', fontWeight: '800' }}>
+                  Claim Inspection ({inspectModalClaim.claimNumber || 'EXP'})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectModalClaim(null)}
+                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              
+              {/* Profile Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <User size={20} color="#0284c7" />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>
+                      {inspectModalClaim.employeeName || inspectModalClaim.user?.name}
+                    </h4>
+                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                      <strong style={{ color: '#0369a1' }}>{inspectModalClaim.userRoleName || inspectModalClaim.designation}</strong> • {inspectModalClaim.department}
+                    </span>
+                  </div>
+                </div>
+                <StatusBadge status={inspectModalClaim.status} />
+              </div>
+
+              {/* Data Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: '#f1f5f9', padding: '14px', borderRadius: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>Description</span>
+                  <strong style={{ fontSize: '13px', color: '#1e293b', display: 'block', marginTop: '2px' }}>{inspectModalClaim.expenseName}</strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>Claim Amount</span>
+                  <strong style={{ fontSize: '14.5px', color: '#0284c7', display: 'block', marginTop: '2px', fontWeight: '900' }}>
+                    ₹{Number(inspectModalClaim.amount).toLocaleString('en-IN')}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>Expense Date</span>
+                  <strong style={{ fontSize: '12.5px', color: '#1e293b', display: 'block', marginTop: '2px' }}>
+                    {new Date(inspectModalClaim.expenseDate).toLocaleDateString()}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase' }}>Submitted At</span>
+                  <strong style={{ fontSize: '12.5px', color: '#1e293b', display: 'block', marginTop: '2px' }}>
+                    {new Date(inspectModalClaim.createdAt).toLocaleString()}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Full Timeline of Approvals */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '800', color: '#334155', textTransform: 'uppercase' }}>Audit &amp; Approval Timeline</span>
+                
+                {/* 1. Submission */}
+                <div style={{ borderLeft: '3px solid #94a3b8', paddingLeft: '12px', paddingBottom: '6px' }}>
+                  <strong style={{ fontSize: '12px', color: '#334155' }}>1. Submitted by Claimant</strong>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#64748b' }}>
+                    {inspectModalClaim.employeeName || inspectModalClaim.user?.name} ({inspectModalClaim.userRoleName || 'Staff'}) on {new Date(inspectModalClaim.createdAt).toLocaleString()}
+                  </p>
+                </div>
+
+                {/* 2. HR Approval */}
+                {inspectModalClaim.hrRemarks && (
+                  <div style={{ borderLeft: '3px solid #0284c7', paddingLeft: '12px', paddingBottom: '6px' }}>
+                    <strong style={{ fontSize: '12px', color: '#0369a1' }}>2. HR Verification ({inspectModalClaim.hrApprovedBy || 'HR'})</strong>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#334155' }}>{inspectModalClaim.hrRemarks}</p>
+                    {inspectModalClaim.hrApprovedAt && <span style={{ fontSize: '10.5px', color: '#64748b' }}>{new Date(inspectModalClaim.hrApprovedAt).toLocaleString()}</span>}
+                  </div>
+                )}
+
+                {/* 3. Super Admin Approval */}
+                {inspectModalClaim.superAdminRemarks && (
+                  <div style={{ borderLeft: '3px solid #eab308', paddingLeft: '12px', paddingBottom: '6px' }}>
+                    <strong style={{ fontSize: '12px', color: '#854d0e' }}>3. Super Admin Authorization ({inspectModalClaim.superAdminApprovedBy || 'Super Admin'})</strong>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#334155' }}>{inspectModalClaim.superAdminRemarks}</p>
+                    {inspectModalClaim.superAdminApprovedAt && <span style={{ fontSize: '10.5px', color: '#64748b' }}>{new Date(inspectModalClaim.superAdminApprovedAt).toLocaleString()}</span>}
+                  </div>
+                )}
+
+                {/* 4. Finance Settlement */}
+                {inspectModalClaim.financeRemarks && (
+                  <div style={{ borderLeft: '3px solid #16a34a', paddingLeft: '12px', paddingBottom: '6px' }}>
+                    <strong style={{ fontSize: '12px', color: '#166534' }}>4. Finance Settlement ({inspectModalClaim.financeProcessedBy || 'Finance Head'})</strong>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#334155' }}>{inspectModalClaim.financeRemarks}</p>
+                    {inspectModalClaim.paymentReference && <span style={{ fontSize: '11px', color: '#15803d', fontWeight: '700', display: 'block' }}>Ref: {inspectModalClaim.paymentReference}</span>}
+                    {inspectModalClaim.financeProcessedAt && <span style={{ fontSize: '10.5px', color: '#64748b' }}>{new Date(inspectModalClaim.financeProcessedAt).toLocaleString()}</span>}
+                  </div>
+                )}
+              </div>
+
+              {/* Receipt Bill Preview */}
+              {inspectModalClaim.receiptUrl && (
+                <div>
+                  <span style={{ fontSize: '12px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Receipt Bill Attachment</span>
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                    <img
+                      src={getBackendAssetUrl(inspectModalClaim.receiptUrl)}
+                      alt="Receipt Attachment"
+                      style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '6px', cursor: 'pointer' }}
+                      onClick={() => setPreviewReceiptModal(getBackendAssetUrl(inspectModalClaim.receiptUrl))}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPreviewReceiptModal(getBackendAssetUrl(inspectModalClaim.receiptUrl))}
+                      style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer', padding: '4px 10px', borderRadius: '6px' }}
+                    >
+                      👁️ View Full-Screen Receipt
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '12px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setInspectModalClaim(null)}
+                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer' }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -215,6 +215,7 @@ export class ExpenseService {
         : c.user.name,
       department: c.employee?.department?.name || 'General Operations',
       designation: c.employee?.jobTitle || c.user.role?.name || 'Staff Member',
+      userRoleName: c.user.role?.name || c.user.role?.code || 'Staff Member',
     }));
   }
 
@@ -262,6 +263,7 @@ export class ExpenseService {
         : c.user.name,
       department: c.employee?.department?.name || 'General Operations',
       designation: c.employee?.jobTitle || c.user.role?.name || 'Staff Member',
+      userRoleName: c.user.role?.name || c.user.role?.code || 'Staff Member',
     }));
   }
 
