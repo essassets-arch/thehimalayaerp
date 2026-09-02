@@ -17,11 +17,20 @@ export function getBackendAssetUrl(path?: string | null): string {
     return trimmed;
   }
 
-  // 2. Strip any accidental hardcoded localhost / 127.0.0.1 origins
-  let cleaned = trimmed.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, '');
+  // 2. Strip accidental domain prefixes (localhost, 127.0.0.1, thehimalaya.cloud) when pointing to internal assets
+  let cleaned = trimmed.replace(
+    /^https?:\/\/(localhost|127\.0\.0\.1|thehimalaya\.cloud|www\.thehimalaya\.cloud)(:\d+)?/i,
+    ''
+  );
 
-  // 3. External HTTPS / HTTP URLs (e.g. Cloudinary, AWS S3, Google Storage)
-  if (cleaned.startsWith('https://') || (cleaned.startsWith('http://') && !cleaned.includes('localhost'))) {
+  // 3. External HTTPS / HTTP URLs (e.g. Cloudinary, AWS S3, Google Storage, Firebase)
+  // Only keep as external if not pointing to localhost / thehimalaya.cloud
+  if (
+    cleaned.startsWith('https://') ||
+    (cleaned.startsWith('http://') &&
+      !cleaned.includes('localhost') &&
+      !cleaned.includes('thehimalaya.cloud'))
+  ) {
     return cleaned;
   }
 

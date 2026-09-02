@@ -15,17 +15,19 @@ function saveBase64Image(base64Str: string, folder: string): string | null {
   if (!base64Str.startsWith('data:image/')) return base64Str; // already a URL/path
 
   try {
-    const uploadDir = join(process.cwd(), 'uploads', folder);
+    const uploadRoot = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
+    const uploadDir = join(uploadRoot, folder);
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
 
-    const matches = base64Str.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+    const matches = base64Str.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
     if (!matches || matches.length !== 3) {
       return null;
     }
 
-    const ext = matches[1];
+    let ext = matches[1].toLowerCase();
+    if (ext === 'jpeg') ext = 'jpg';
     const data = matches[2];
     const buffer = Buffer.from(data, 'base64');
 
@@ -34,6 +36,18 @@ function saveBase64Image(base64Str: string, folder: string): string | null {
     const filePath = join(uploadDir, filename);
 
     fs.writeFileSync(filePath, buffer);
+
+    // Also mirror to frontend/public/uploads if running locally
+    try {
+      const frontendDir = join(process.cwd(), '..', 'frontend', 'public', 'uploads', folder);
+      if (fs.existsSync(join(process.cwd(), '..', 'frontend', 'public'))) {
+        if (!fs.existsSync(frontendDir)) fs.mkdirSync(frontendDir, { recursive: true });
+        fs.writeFileSync(join(frontendDir, filename), buffer);
+      }
+    } catch {
+      // Non-fatal if frontend directory not writable
+    }
+
     return `/uploads/${folder}/${filename}`;
   } catch (err) {
     console.error('Failed to save base64 image:', err);
@@ -230,9 +244,9 @@ export class AttendanceService {
           'GPS accuracy must be a positive number.',
         );
       }
-      if (!isTestMode && accuracyVal > 500) {
+      if (!isTestMode && accuracyVal > 50) {
         throw new BadRequestException(
-          'GPS accuracy too low (> 500m). Please move to an open area with clear GPS reception.',
+          'GPS accuracy too low (> 50m). Please move to an open area with clear GPS reception.',
         );
       }
     }
@@ -338,9 +352,9 @@ export class AttendanceService {
           'GPS accuracy must be a positive number.',
         );
       }
-      if (!isTestMode && accuracyVal > 500) {
+      if (!isTestMode && accuracyVal > 50) {
         throw new BadRequestException(
-          'GPS accuracy too low (> 500m). Please move to an open area with clear GPS reception.',
+          'GPS accuracy too low (> 50m). Please move to an open area with clear GPS reception.',
         );
       }
     }

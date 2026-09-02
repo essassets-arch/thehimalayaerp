@@ -838,7 +838,13 @@ export default function AttendanceView({ employees: propEmployees }) {
                         render: (row) => (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
                             {row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl ? (
-                              <SecureImage src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} alt="Selfie preview" style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7', flexShrink: 0 }} fallbackText="N/A" allowZoom={false} />
+                              <SecureImage 
+                                src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} 
+                                alt={`${row.name || 'Staff'} selfie`} 
+                                style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #0284c7', flexShrink: 0 }} 
+                                fallbackText="Selfie" 
+                                allowZoom={true} 
+                              />
                             ) : (
                               <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1', flexShrink: 0 }}>
                                 <Camera size={14} color="#64748b" />
@@ -964,7 +970,7 @@ export default function AttendanceView({ employees: propEmployees }) {
                         }
                       }
                     ]}
-                    data={formattedLogs}                 data={formattedLogs}
+                    data={formattedLogs}
                     searchQuery=""
                     searchField="name"
                     onRowClick={(row) => setSelectedLogPreview(row)}
@@ -1026,7 +1032,13 @@ export default function AttendanceView({ employees: propEmployees }) {
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               {row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl ? (
-                                <SecureImage src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} alt="Selfie preview" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #0284c7', flexShrink: 0 }} fallbackText="N/A" allowZoom={false} />
+                                <SecureImage 
+                                  src={row.punchInSelfieUrl || row.punchOutSelfieUrl || row.selfieUrl} 
+                                  alt={`${row.name || 'Staff'} selfie`} 
+                                  style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #0284c7', flexShrink: 0 }} 
+                                  fallbackText="Selfie" 
+                                  allowZoom={true} 
+                                />
                               ) : (
                                 <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #cbd5e1', flexShrink: 0 }}>
                                   <Camera size={16} color="#64748b" />
@@ -1148,34 +1160,34 @@ export default function AttendanceView({ employees: propEmployees }) {
                 {/* Photo preview monitor box */}
                 <div style={{ flex: 1, minHeight: '220px', background: '#0B0F19', borderRadius: '12px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px', border: '2px solid #1E293B', overflow: 'hidden' }}>
                   {activePreview?.punchInSelfieUrl || activePreview?.punchOutSelfieUrl ? (
-                    <div style={{ display: 'flex', gap: '8px', width: '100%', height: '100%', flex: 1 }}>
+                    <div style={{ display: 'flex', gap: '8px', width: '100%', height: '100%', minHeight: '200px', flex: 1 }}>
                       {activePreview?.punchInSelfieUrl ? (
-                        <div style={{ flex: 1, position: 'relative', height: '100%', borderRadius: '8px', overflow: 'hidden' }}>
-                          <SecureImage src={activePreview.punchInSelfieUrl} alt="Punch In Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} fallbackText="Selfie Missing" />
-                          <div style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(0,0,0,0.75)', color: '#10B981', fontSize: '9px', fontWeight: '900', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.3)', letterSpacing: '0.5px' }}>PUNCH IN</div>
+                        <div style={{ flex: 1, position: 'relative', minHeight: '180px', height: '100%', borderRadius: '8px', overflow: 'hidden', background: '#0f172a' }}>
+                          <SecureImage src={activePreview.punchInSelfieUrl} alt="Punch In Selfie" style={{ width: '100%', height: '100%', minHeight: '180px', objectFit: 'contain' }} fallbackText="Punch In Selfie" />
+                          <div style={{ position: 'absolute', bottom: '6px', left: '6px', background: 'rgba(0,0,0,0.85)', color: '#10B981', fontSize: '10px', fontWeight: '900', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.4)', letterSpacing: '0.5px', zIndex: 2 }}>🟢 PUNCH IN</div>
                         </div>
                       ) : null}
                       {activePreview?.punchOutSelfieUrl ? (
-                        <div style={{ flex: 1, position: 'relative', height: '100%', borderRadius: '8px', overflow: 'hidden' }}>
-                          <SecureImage src={activePreview.punchOutSelfieUrl} alt="Punch Out Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} fallbackText="Selfie Missing" />
-                          <div style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(0,0,0,0.75)', color: '#EF4444', fontSize: '9px', fontWeight: '900', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(239,68,68,0.3)', letterSpacing: '0.5px' }}>PUNCH OUT</div>
+                        <div style={{ flex: 1, position: 'relative', minHeight: '180px', height: '100%', borderRadius: '8px', overflow: 'hidden', background: '#0f172a' }}>
+                          <SecureImage src={activePreview.punchOutSelfieUrl} alt="Punch Out Selfie" style={{ width: '100%', height: '100%', minHeight: '180px', objectFit: 'contain' }} fallbackText="Punch Out Selfie" />
+                          <div style={{ position: 'absolute', bottom: '6px', left: '6px', background: 'rgba(0,0,0,0.85)', color: '#EF4444', fontSize: '10px', fontWeight: '900', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(239,68,68,0.4)', letterSpacing: '0.5px', zIndex: 2 }}>🔴 PUNCH OUT</div>
                         </div>
                       ) : (
                         activePreview?.punchInSelfieUrl ? (
-                          <div style={{ flex: 1, background: '#111827', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '10px', fontWeight: '700', border: '1px dashed #1e293b' }}>
-                            <Camera size={18} color="#1e293b" style={{ marginBottom: '4px' }} />
-                            No Punch Out
+                          <div style={{ flex: 1, minHeight: '180px', background: '#111827', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '11px', fontWeight: '700', border: '1px dashed #1e293b' }}>
+                            <Camera size={22} color="#334155" style={{ marginBottom: '6px' }} />
+                            No Punch Out Registered
                           </div>
                         ) : null
                       )}
                     </div>
                   ) : (
                     activePreview?.selfieUrl ? (
-                      <div style={{ flex: 1, width: '100%', height: '100%', position: 'relative' }}>
-                        <SecureImage src={activePreview.selfieUrl} alt="Webcam Capture" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} fallbackText="Selfie Missing" />
+                      <div style={{ flex: 1, width: '100%', height: '100%', minHeight: '200px', position: 'relative', background: '#0f172a', borderRadius: '8px', overflow: 'hidden' }}>
+                        <SecureImage src={activePreview.selfieUrl} alt="Webcam Capture" style={{ width: '100%', height: '100%', minHeight: '200px', objectFit: 'contain', borderRadius: '8px' }} fallbackText="Selfie Capture" />
                       </div>
                     ) : (
-                      <div style={{ textAlign: 'center', color: '#64748B', padding: '24px' }}>
+                      <div style={{ textAlign: 'center', color: '#64748B', padding: '32px 16px' }}>
                         <Camera size={44} color="#334155" style={{ display: 'block', margin: '0 auto 12px auto' }} />
                         <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#0EA5E9', fontWeight: '800', display: 'block', marginBottom: '8px' }}>BIOMETRIC SCANNER READY</span>
                         <span style={{ fontSize: '12px', color: '#475569' }}>Select employee check-in log to inspect photo capture</span>

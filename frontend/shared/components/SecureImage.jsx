@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { getBackendAssetUrl } from '@/lib/assetUrl';
-import { Image as ImageIcon, AlertCircle, Eye, Download, X } from 'lucide-react';
+import { Image as ImageIcon, AlertCircle, Eye, Download, X, Camera } from 'lucide-react';
 
 export default function SecureImage({
   src,
@@ -17,10 +17,55 @@ export default function SecureImage({
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [retryWithDirect, setRetryWithDirect] = useState(false);
 
-  const resolvedUrl = getBackendAssetUrl(src);
+  const resolvedUrl = useMemo(() => {
+    if (!src || typeof src !== 'string') return '';
+    const primary = getBackendAssetUrl(src);
+    if (!retryWithDirect) return primary;
+
+    // Fallback: If categorical serve endpoint failed, try direct /uploads/ path
+    const trimmed = src.trim();
+    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
+    const clean = trimmed
+      .replace(/^https?:\/\/(localhost|127\.0\.0\.1|thehimalaya\.cloud|www\.thehimalaya\.cloud)(:\d+)?/i, '')
+      .replace(/^\/?(api\/(backend|v1)\/)?(files\/serve\/|uploads\/)?/i, '');
+    return `/uploads/${clean}`;
+  }, [src, retryWithDirect]);
+
+  useEffect(() => {
+    setError(false);
+    setLoading(true);
+    setRetryWithDirect(false);
+  }, [src]);
+
+  const isSmallAvatar = style.borderRadius === '50%' || (parseInt(style.width, 10) <= 48 && parseInt(style.height, 10) <= 48);
 
   if (!resolvedUrl || error) {
+    if (isSmallAvatar) {
+      return (
+        <div
+          className={`secure-image-fallback ${className}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#e0f2fe',
+            color: '#0284c7',
+            borderRadius: '50%',
+            width: style.width || '34px',
+            height: style.height || '34px',
+            border: style.border || '1.5px solid #0284c7',
+            flexShrink: 0,
+            ...style,
+          }}
+          title={alt || fallbackText}
+        >
+          <Camera size={Math.min(18, Math.max(12, Math.floor(parseInt(style.width || 34, 10) * 0.45)))} color="#0284c7" />
+        </div>
+      );
+    }
+
     return (
       <div
         className={`secure-image-fallback ${className}`}
@@ -29,7 +74,7 @@ export default function SecureImage({
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#f1f5f9',
+          background: '#f8fafc',
           color: '#94a3b8',
           borderRadius: style.borderRadius || '8px',
           width: style.width || '100%',
@@ -41,7 +86,7 @@ export default function SecureImage({
         }}
       >
         <ImageIcon size={20} style={{ marginBottom: '4px', opacity: 0.7 }} />
-        <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748b' }}>
+        <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>
           {fallbackText}
         </span>
       </div>
@@ -103,8 +148,12 @@ export default function SecureImage({
           }}
           onLoad={() => setLoading(false)}
           onError={() => {
-            setLoading(false);
-            setError(true);
+            if (!retryWithDirect && src && typeof src === 'string' && !src.startsWith('data:') && !src.startsWith('blob:')) {
+              setRetryWithDirect(true);
+            } else {
+              setLoading(false);
+              setError(true);
+            }
           }}
           {...props}
         />

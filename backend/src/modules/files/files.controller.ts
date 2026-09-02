@@ -44,7 +44,10 @@ export class FilesController {
       'Content-Length': resolved.size,
       'Cache-Control': 'public, max-age=86400, immutable',
       'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
       'Cross-Origin-Resource-Policy': 'cross-origin',
+      'Cross-Origin-Embedder-Policy': 'unsafe-none',
     });
 
     const stream = createReadStream(resolved.fullPath);
@@ -70,7 +73,10 @@ export class FilesController {
       'Content-Length': resolved.size,
       'Cache-Control': 'public, max-age=86400, immutable',
       'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
       'Cross-Origin-Resource-Policy': 'cross-origin',
+      'Cross-Origin-Embedder-Policy': 'unsafe-none',
     });
 
     const stream = createReadStream(resolved.fullPath);
@@ -95,7 +101,10 @@ export class FilesController {
       'Content-Length': resolved.size,
       'Cache-Control': 'public, max-age=86400, immutable',
       'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
       'Cross-Origin-Resource-Policy': 'cross-origin',
+      'Cross-Origin-Embedder-Policy': 'unsafe-none',
     });
 
     const stream = createReadStream(resolved.fullPath);

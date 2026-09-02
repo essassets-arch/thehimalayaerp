@@ -65,12 +65,25 @@ async function bootstrap() {
   app.use(compression());
   app.use(cookieParser());
 
-  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
-  app.use(
-    '/api/backend/uploads',
-    express.static(join(process.cwd(), 'uploads')),
-  );
-  app.use('/api/v1/uploads', express.static(join(process.cwd(), 'uploads')));
+  const uploadDir = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
+  if (!require('fs').existsSync(uploadDir)) {
+    require('fs').mkdirSync(uploadDir, { recursive: true });
+  }
+
+  const staticOptions = {
+    setHeaders: (res: any) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+      res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+    },
+  };
+
+  app.use('/uploads', express.static(uploadDir, staticOptions));
+  app.use('/api/backend/uploads', express.static(uploadDir, staticOptions));
+  app.use('/api/v1/uploads', express.static(uploadDir, staticOptions));
 
   const corsOriginsConfig =
     configService.get<string>('corsOrigin') ||

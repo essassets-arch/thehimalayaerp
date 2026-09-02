@@ -44,7 +44,7 @@ export interface FileResolveResult {
 @Injectable()
 export class FilesService {
   private readonly logger = new Logger(FilesService.name);
-  private readonly uploadsRoot = join(process.cwd(), 'uploads');
+  private readonly uploadsRoot = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
 
   constructor(private readonly prisma: PrismaService) {
     // Ensure base upload directories exist
@@ -57,6 +57,9 @@ export class FilesService {
       'qc',
       'dispatch',
       'receipts',
+      'payment-proof',
+      'payments',
+      'temp-exports',
     ];
     if (!existsSync(this.uploadsRoot)) {
       mkdirSync(this.uploadsRoot, { recursive: true });
@@ -92,45 +95,71 @@ export class FilesService {
     );
     clean = normalize(clean).replace(/^(\.\.[\/\\])+/, ''); // Strip directory traversal
 
+    const roots = Array.from(new Set([
+      this.uploadsRoot,
+      join(process.cwd(), 'uploads'),
+      '/app/uploads',
+    ])).filter(r => existsSync(r));
+
     const possiblePaths: string[] = [];
 
-    // 1. If category provided, check category folder
-    if (category) {
-      possiblePaths.push(join(this.uploadsRoot, category, basename(clean)));
-      possiblePaths.push(join(this.uploadsRoot, category, clean));
+    const fileNameOnly = basename(clean);
+    const ext = extname(fileNameOnly).toLowerCase();
+    const nameWithoutExt = ext ? fileNameOnly.slice(0, -ext.length) : fileNameOnly;
+
+    // Potential extension variants (.jpeg <-> .jpg, etc.)
+    const altFileNames = [fileNameOnly];
+    if (ext === '.jpeg') altFileNames.push(`${nameWithoutExt}.jpg`);
+    if (ext === '.jpg') altFileNames.push(`${nameWithoutExt}.jpeg`);
+    if (!ext) {
+      altFileNames.push(`${fileNameOnly}.jpg`, `${fileNameOnly}.jpeg`, `${fileNameOnly}.png`, `${fileNameOnly}.webp`, `${fileNameOnly}.pdf`);
     }
 
-    // 2. Direct subpath inside uploads
-    possiblePaths.push(join(this.uploadsRoot, clean));
-
-    // 3. Search subdirectories by filename (static fallbacks + dynamically scanned folders)
-    const fileNameOnly = basename(clean);
     let subDirs = [
+      'attendance',
+      'employees',
       'pod',
       'attachments',
       'brand-analysis',
-      'employees',
-      'attendance',
       'qc',
       'dispatch',
       'receipts',
       'payment-proof',
       'payments',
+      'temp-exports',
     ];
-    try {
-      if (existsSync(this.uploadsRoot)) {
-        const items = readdirSync(this.uploadsRoot, { withFileTypes: true });
+
+    for (const root of roots) {
+      try {
+        const items = readdirSync(root, { withFileTypes: true });
         const dynamicDirs = items
           .filter((item) => item.isDirectory())
           .map((item) => item.name);
         subDirs = Array.from(new Set([...subDirs, ...dynamicDirs]));
+      } catch (e) {
+        // Continue
       }
-    } catch (e) {
-      // Fallback to static list on error
-    }
 
-    for (const sub of subDirs) {
-      possiblePaths.push(join(this.uploadsRoot, sub, fileNameOnly));
+      // 1. If category provided, check category folder
+      if (category) {
+        for (const fName of altFileNames) {
+          possiblePaths.push(join(root, category, fName));
+        }
+        possiblePaths.push(join(root, category, clean));
+      }
+
+      // 2. Direct subpath inside uploads
+      for (const fName of altFileNames) {
+        possiblePaths.push(join(root, fName));
+      }
+      possiblePaths.push(join(root, clean));
+
+      // 3. Search all subdirectories
+      for (const sub of subDirs) {
+        for (const fName of altFileNames) {
+          possiblePaths.push(join(root, sub, fName));
+        }
+      }
     }
 
     // 4. Check frontend public uploads if running in monolith/dev
@@ -144,7 +173,9 @@ export class FilesService {
     if (existsSync(frontendUploads)) {
       possiblePaths.push(join(frontendUploads, clean));
       for (const sub of subDirs) {
-        possiblePaths.push(join(frontendUploads, sub, fileNameOnly));
+        for (const fName of altFileNames) {
+          possiblePaths.push(join(frontendUploads, sub, fName));
+        }
       }
     }
 
@@ -155,8 +186,8 @@ export class FilesService {
         try {
           const stats = statSync(resolved);
           if (stats.isFile()) {
-            const ext = extname(resolved).toLowerCase();
-            const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+            const foundExt = extname(resolved).toLowerCase();
+            const mimeType = MIME_TYPES[foundExt] || 'application/octet-stream';
             return {
               fullPath: resolved,
               fileName: basename(resolved),
