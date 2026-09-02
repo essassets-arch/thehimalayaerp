@@ -447,9 +447,34 @@ export class NotificationsService {
   }
 
   async broadcast(body: any, companyId: string) {
-    const { roleCodes, userIds, title, message, route, priority } = body;
+    const { roleCodes, userIds, employeeIds, title, message, route, priority } = body;
     const targetRoles = Array.isArray(roleCodes) ? roleCodes : roleCodes ? [roleCodes] : [];
-    const specificUserIds = Array.isArray(userIds) ? userIds : userIds ? [userIds] : [];
+    let specificUserIds = Array.isArray(userIds) ? userIds : userIds ? [userIds] : [];
+    const specificEmpIds = Array.isArray(employeeIds) ? employeeIds : employeeIds ? [employeeIds] : [];
+
+    // Map employeeIds / employeeCodes to userIds if provided
+    if (specificEmpIds.length > 0) {
+      try {
+        const emps = await this.prisma.employee.findMany({
+          where: {
+            OR: [
+              { id: { in: specificEmpIds } },
+              { employeeCode: { in: specificEmpIds } },
+            ],
+            ...(companyId ? { companyId } : {}),
+          },
+          select: { userId: true, id: true, employeeCode: true },
+        });
+        const mappedUserIds = emps
+          .map((e) => e.userId)
+          .filter(Boolean) as string[];
+        specificUserIds = Array.from(
+          new Set([...specificUserIds, ...mappedUserIds, ...specificEmpIds]),
+        );
+      } catch (err) {
+        // Fallback
+      }
+    }
 
     let whereClause: any = {
       isActive: true,
@@ -457,7 +482,11 @@ export class NotificationsService {
     };
 
     if (specificUserIds.length > 0) {
-      whereClause.id = { in: specificUserIds };
+      whereClause.OR = [
+        { id: { in: specificUserIds } },
+        { employee: { id: { in: specificUserIds } } },
+        { employee: { employeeCode: { in: specificUserIds } } },
+      ];
     } else if (targetRoles.length > 0 && !targetRoles.includes('ALL')) {
       whereClause.OR = [
         { role: { code: { in: targetRoles } } },

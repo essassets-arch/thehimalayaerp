@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useERP } from '../../../shared/context/ERPContext';
@@ -11,7 +11,8 @@ import { employeesService } from '../../../services/hr/employeesService';
 import { 
   Bell, Calendar, Clock, CheckCircle2, AlertTriangle, UserCheck, 
   ArrowRight, ShieldCheck, FileText, UserX, CreditCard, ChevronRight, 
-  Check, X, Filter, RefreshCw, Send, Megaphone, Users, ShieldAlert, Sparkles, CheckSquare
+  Check, X, Filter, RefreshCw, Send, Megaphone, Users, User, ShieldAlert, 
+  Sparkles, CheckSquare, Search, AtSign
 } from 'lucide-react';
 
 export default function HRNotificationsView() {
@@ -23,9 +24,17 @@ export default function HRNotificationsView() {
   // Main view mode: 'broadcast' (Announcement broadcast & delivery history) or 'approvals' (HR Action Center)
   const [mainSection, setMainSection] = useState('broadcast');
 
+  // Recipient Target Mode: 'DEPARTMENT' (Role/Dept broadcast) vs 'USER_WISE' (Specific staff / users)
+  const [recipientMode, setRecipientMode] = useState('DEPARTMENT');
+
   // Roster & employee list
   const [employees, setEmployees] = useState([]);
+  const [systemUsers, setSystemUsers] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
+
+  // User-wise search & selection
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
 
   // Broadcast composer state
   const [notifComposer, setNotifComposer] = useState({
@@ -57,22 +66,86 @@ export default function HRNotificationsView() {
     { code: 'SUPER_ADMIN', name: 'Management' }
   ];
 
-  // Fetch employees
+  // Fetch employees and users
   useEffect(() => {
     async function loadData() {
       try {
-        const res = await employeesService.listEmployees({ page: 1, limit: 100 });
-        if (res && res.items) {
-          setEmployees(res.items);
+        setLoadingEmployees(true);
+        const [empRes, userRes] = await Promise.allSettled([
+          employeesService.listEmployees({ page: 1, limit: 200 }),
+          apiClient.get('/admin/users')
+        ]);
+
+        if (empRes.status === 'fulfilled' && empRes.value?.items) {
+          setEmployees(empRes.value.items);
+        }
+        if (userRes.status === 'fulfilled') {
+          const uData = Array.isArray(userRes.value) ? userRes.value : (userRes.value?.data || []);
+          setSystemUsers(uData);
         }
       } catch (err) {
-        console.error('Error fetching employees in HR notifications:', err);
+        console.error('Error fetching employees/users in HR notifications:', err);
       } finally {
         setLoadingEmployees(false);
       }
     }
     loadData();
   }, []);
+
+  // Merged selectable staff directory
+  const selectableStaff = useMemo(() => {
+    const list = [];
+    const seenIds = new Set();
+
+    // Add employees
+    employees.forEach(emp => {
+      const uId = emp.userId || emp.id || emp.employeeCode;
+      if (!seenIds.has(uId)) {
+        seenIds.add(uId);
+        list.push({
+          id: emp.userId || emp.id,
+          employeeId: emp.id,
+          employeeCode: emp.employeeCode || emp.id,
+          name: emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Staff Member',
+          email: emp.workEmail || emp.email || '—',
+          department: typeof emp.department === 'object' ? (emp.department?.name || 'Operations') : (emp.department || 'Operations'),
+          designation: emp.jobTitle || 'Staff Member',
+          avatar: emp.selfieUrl || null
+        });
+      }
+    });
+
+    // Add any standalone system users
+    systemUsers.forEach(u => {
+      if (!seenIds.has(u.id)) {
+        seenIds.add(u.id);
+        list.push({
+          id: u.id,
+          employeeId: u.id,
+          employeeCode: u.employeeCode || `USR-${u.id.slice(0, 4)}`,
+          name: u.name || u.fullName || u.email?.split('@')[0] || 'User',
+          email: u.email || '—',
+          department: u.role?.name || u.role || 'Staff',
+          designation: u.role?.name || u.role || 'User',
+          avatar: null
+        });
+      }
+    });
+
+    return list;
+  }, [employees, systemUsers]);
+
+  // Filtered selectable staff by search term
+  const filteredSelectableStaff = useMemo(() => {
+    if (!userSearchQuery.trim()) return selectableStaff;
+    const q = userSearchQuery.toLowerCase();
+    return selectableStaff.filter(s => 
+      s.name.toLowerCase().includes(q) ||
+      s.employeeCode.toLowerCase().includes(q) ||
+      s.department.toLowerCase().includes(q) ||
+      s.email.toLowerCase().includes(q)
+    );
+  }, [selectableStaff, userSearchQuery]);
 
   // Fetch broadcast history
   const fetchBroadcastHistory = useCallback(async () => {
@@ -97,11 +170,11 @@ export default function HRNotificationsView() {
     fetchBroadcastHistory();
   }, [fetchBroadcastHistory]);
 
-  const isAllSelected = selectedNotifDepts.includes('ALL');
+  const isAllDeptsSelected = selectedNotifDepts.includes('ALL');
 
   const toggleDept = (code) => {
     if (code === 'ALL') {
-      if (isAllSelected) {
+      if (isAllDeptsSelected) {
         setSelectedNotifDepts([]);
       } else {
         setSelectedNotifDepts(['ALL']);
@@ -117,15 +190,40 @@ export default function HRNotificationsView() {
     }
   };
 
-  // Handle Broadcast Submission
+  const toggleUserSelection = (userId) => {
+    setSelectedUserIds(prev => {
+      if (prev.includes(userId)) {
+        return prev.filter(id => id !== userId);
+      } else {
+        return [...prev, userId];
+      }
+    });
+  };
+
+  const selectAllUsers = () => {
+    const allIds = filteredSelectableStaff.map(s => s.id);
+    setSelectedUserIds(allIds);
+  };
+
+  const clearAllUsers = () => {
+    setSelectedUserIds([]);
+  };
+
+  // Handle Broadcast / User-Wise Submission
   const handleSendNotification = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!notifComposer.title.trim() || !notifComposer.message.trim()) {
       showToast('Please specify an announcement title and message body.');
       return;
     }
-    if (selectedNotifDepts.length === 0) {
+
+    if (recipientMode === 'DEPARTMENT' && selectedNotifDepts.length === 0) {
       showToast('Please select at least one department or All Departments.');
+      return;
+    }
+
+    if (recipientMode === 'USER_WISE' && selectedUserIds.length === 0) {
+      showToast('Please select at least one employee/user to receive the notification.');
       return;
     }
 
@@ -135,12 +233,18 @@ export default function HRNotificationsView() {
         title: notifComposer.title.trim(),
         message: notifComposer.message.trim(),
         priority: notifComposer.priority || 'High',
-        roleCodes: selectedNotifDepts,
         route: notifComposer.route || '/notifications'
       };
 
+      if (recipientMode === 'USER_WISE') {
+        payload.userIds = selectedUserIds;
+      } else {
+        payload.roleCodes = selectedNotifDepts;
+      }
+
       const res = await apiClient.post('/notifications/broadcast', payload);
-      showToast(`Announcement broadcasted successfully to all target recipients! 📢`);
+      const targetCount = recipientMode === 'USER_WISE' ? selectedUserIds.length : (isAllDeptsSelected ? 'All' : selectedNotifDepts.length);
+      showToast(`Notification sent successfully to ${recipientMode === 'USER_WISE' ? `${targetCount} selected user(s)` : `${targetCount} department(s)`}! 📢`);
       
       setNotifComposer({
         title: '',
@@ -149,12 +253,13 @@ export default function HRNotificationsView() {
         route: '/notifications'
       });
       setSelectedNotifDepts(['ALL']);
+      setSelectedUserIds([]);
       
       await syncData();
       await fetchBroadcastHistory();
     } catch (err) {
       console.error('Failed to send announcement:', err);
-      showToast(`Failed to broadcast announcement: ${err.message || 'Server error'}`);
+      showToast(`Failed to send notification: ${err.message || 'Server error'}`);
     } finally {
       setSendingBroadcast(false);
     }
@@ -299,23 +404,23 @@ export default function HRNotificationsView() {
               <Megaphone size={22} color="#38BDF8" />
             </div>
             <h1 style={{ fontSize: '22px', fontWeight: '800', margin: 0, letterSpacing: '-0.02em', color: '#F8FAFC' }}>
-              HR Broadcast & Notification Management
+              HR Corporate Notifications &amp; User-Wise Alerts
             </h1>
           </div>
           <p style={{ margin: 0, fontSize: '13px', color: '#94A3B8' }}>
-            Publish global announcements to all staff, broadcast targeted departmental notices, and manage approval alerts.
+            Send announcements to specific users or entire departments, deliver real-time push alerts, and track read confirmations.
           </p>
         </div>
 
         {/* Quick KPI Stats */}
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <div style={{ background: 'rgba(255, 255, 255, 0.07)', backdropFilter: 'blur(8px)', padding: '10px 18px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-            <span style={{ fontSize: '11px', color: '#94A3B8', display: 'block', textTransform: 'uppercase', fontWeight: '700' }}>Broadcasts Sent</span>
+            <span style={{ fontSize: '11px', color: '#94A3B8', display: 'block', textTransform: 'uppercase', fontWeight: '700' }}>Notifications Sent</span>
             <strong style={{ fontSize: '20px', color: '#F8FAFC', fontWeight: '800' }}>{broadcastHistory.length}</strong>
           </div>
           <div style={{ background: 'rgba(14, 165, 233, 0.15)', padding: '10px 18px', borderRadius: '12px', border: '1px solid rgba(14, 165, 233, 0.3)' }}>
-            <span style={{ fontSize: '11px', color: '#BAE6FD', display: 'block', textTransform: 'uppercase', fontWeight: '700' }}>Staff Members</span>
-            <strong style={{ fontSize: '20px', color: '#38BDF8', fontWeight: '800' }}>{employees.length || '—'}</strong>
+            <span style={{ fontSize: '11px', color: '#BAE6FD', display: 'block', textTransform: 'uppercase', fontWeight: '700' }}>Registered Staff</span>
+            <strong style={{ fontSize: '20px', color: '#38BDF8', fontWeight: '800' }}>{selectableStaff.length || '—'}</strong>
           </div>
           <div style={{ background: 'rgba(245, 158, 11, 0.15)', padding: '10px 18px', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
             <span style={{ fontSize: '11px', color: '#FDE68A', display: 'block', textTransform: 'uppercase', fontWeight: '700' }}>Approval Alerts</span>
@@ -357,7 +462,7 @@ export default function HRNotificationsView() {
               userSelect: 'none'
             }}
           >
-            <Megaphone size={16} /> Broadcast Announcements &amp; Delivery Log
+            <Megaphone size={16} /> Notification Center (Department &amp; User-Wise)
           </button>
 
           <button
@@ -385,37 +490,88 @@ export default function HRNotificationsView() {
       </div>
 
       {/* ═════════════════════════════════════════════════════════════════ */}
-      {/* SECTION 1: BROADCAST ANNOUNCEMENTS & LIVE DELIVERY LOG           */}
+      {/* SECTION 1: BROADCAST & USER-WISE NOTIFICATIONS                   */}
       {/* ═════════════════════════════════════════════════════════════════ */}
       {mainSection === 'broadcast' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px', width: '100%', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '20px', width: '100%', alignItems: 'start' }}>
             
-            {/* Column 1: Compose Announcement Form */}
+            {/* Column 1: Compose Notification Form */}
             <form onSubmit={handleSendNotification} className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.03)', margin: 0, width: '100%', boxSizing: 'border-box' }}>
               <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 2px 0' }}>
-                    📢 Compose Corporate Announcement
+                    📢 Compose &amp; Dispatch Notification
                   </h3>
                   <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-                    Sends real-time bell notification and Firebase push message to target employees.
+                    Deliver real-time in-app bell alerts and instant push notifications to staff.
                   </span>
                 </div>
+              </div>
+
+              {/* Recipient Targeting Mode Selector (Department-wise vs User-wise) */}
+              <div style={{ background: '#f1f5f9', padding: '4px', borderRadius: '10px', display: 'flex', gap: '4px', border: '1px solid #e2e8f0' }}>
+                <button
+                  type="button"
+                  onClick={() => setRecipientMode('DEPARTMENT')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '7px',
+                    fontSize: '12px',
+                    fontWeight: '800',
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: recipientMode === 'DEPARTMENT' ? '#ffffff' : 'transparent',
+                    color: recipientMode === 'DEPARTMENT' ? '#0284c7' : '#64748b',
+                    boxShadow: recipientMode === 'DEPARTMENT' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Users size={14} /> Department / Role Broadcast
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRecipientMode('USER_WISE')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '7px',
+                    fontSize: '12px',
+                    fontWeight: '800',
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: recipientMode === 'USER_WISE' ? '#ffffff' : 'transparent',
+                    color: recipientMode === 'USER_WISE' ? '#0284c7' : '#64748b',
+                    boxShadow: recipientMode === 'USER_WISE' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <User size={14} /> 👤 User-Wise / Individual Staff ({selectedUserIds.length})
+                </button>
               </div>
               
               {/* Title & Priority */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>
-                    Announcement Title *
+                    Notification Title *
                   </label>
                   <input
                     type="text" 
                     required 
                     className="form-input" 
-                    placeholder="e.g. Annual Town Hall Meeting & Holiday Schedule"
+                    placeholder="e.g. Performance Review Submission / Shift Update"
                     value={notifComposer.title} 
                     onChange={e => setNotifComposer({ ...notifComposer, title: e.target.value })}
                     style={{ marginTop: '6px' }}
@@ -440,71 +596,171 @@ export default function HRNotificationsView() {
                 </div>
               </div>
 
-              {/* Department Target Selector */}
-              <div className="form-group" style={{ margin: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b', margin: 0 }}>
-                    Target Audience / Departments *
-                  </label>
-                  <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '700' }}>
-                    {isAllSelected ? 'All Active Employees Selected' : `${selectedNotifDepts.length} Department(s) Selected`}
-                  </span>
-                </div>
-                
-                {/* Select All Toggle */}
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                  <button
-                    type="button"
-                    onClick={() => toggleDept('ALL')}
-                    style={{
-                      padding: '7px 14px',
-                      borderRadius: '20px',
-                      fontSize: '12px',
-                      fontWeight: '800',
-                      cursor: 'pointer',
-                      border: '1.5px solid ' + (isAllSelected ? '#0284c7' : '#cbd5e1'),
-                      background: isAllSelected ? '#e0f2fe' : '#ffffff',
-                      color: isAllSelected ? '#0369a1' : '#475569',
-                      transition: 'all 0.15s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <Users size={14} /> 📢 All Users &amp; Departments (Global)
-                  </button>
-                </div>
+              {/* TARGET SELECTION A: DEPARTMENT WISE */}
+              {recipientMode === 'DEPARTMENT' && (
+                <div className="form-group" style={{ margin: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b', margin: 0 }}>
+                      Target Departments *
+                    </label>
+                    <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '700' }}>
+                      {isAllDeptsSelected ? 'All Active Employees' : `${selectedNotifDepts.length} Dept(s) Selected`}
+                    </span>
+                  </div>
+                  
+                  {/* Select All Toggle */}
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => toggleDept('ALL')}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        border: '1.5px solid ' + (isAllDeptsSelected ? '#0284c7' : '#cbd5e1'),
+                        background: isAllDeptsSelected ? '#e0f2fe' : '#ffffff',
+                        color: isAllDeptsSelected ? '#0369a1' : '#475569',
+                        transition: 'all 0.15s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <Users size={14} /> 📢 All Users &amp; Departments (Global)
+                    </button>
+                  </div>
 
-                {/* Checkbox Grid for individual selection */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', gap: '8px', background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                  {DEPARTMENTS.map(dept => {
-                    const isChecked = isAllSelected || selectedNotifDepts.includes(dept.code);
-                    return (
-                      <label key={dept.code} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: isAllSelected ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600', color: '#334155' }}>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          disabled={isAllSelected}
-                          onChange={() => toggleDept(dept.code)}
-                          style={{ width: '16px', height: '16px', cursor: isAllSelected ? 'not-allowed' : 'pointer', accentColor: '#0284c7' }}
-                        />
-                        {dept.name}
-                      </label>
-                    );
-                  })}
+                  {/* Checkbox Grid for individual selection */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', gap: '8px', background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    {DEPARTMENTS.map(dept => {
+                      const isChecked = isAllDeptsSelected || selectedNotifDepts.includes(dept.code);
+                      return (
+                        <label key={dept.code} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: isAllDeptsSelected ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600', color: '#334155' }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            disabled={isAllDeptsSelected}
+                            onChange={() => toggleDept(dept.code)}
+                            style={{ width: '16px', height: '16px', cursor: isAllDeptsSelected ? 'not-allowed' : 'pointer', accentColor: '#0284c7' }}
+                          />
+                          {dept.name}
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* TARGET SELECTION B: USER-WISE SELECTION */}
+              {recipientMode === 'USER_WISE' && (
+                <div className="form-group" style={{ margin: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b', margin: 0 }}>
+                      Select Target Staff / Users *
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '800', background: '#e0f2fe', padding: '2px 8px', borderRadius: '6px' }}>
+                        {selectedUserIds.length} Selected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={selectAllUsers}
+                        style={{ background: 'transparent', border: 'none', color: '#0284c7', fontSize: '11px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+                      >
+                        Select All
+                      </button>
+                      <span style={{ color: '#cbd5e1' }}>•</span>
+                      <button
+                        type="button"
+                        onClick={clearAllUsers}
+                        style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '11px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Search filter for staff */}
+                  <div style={{ position: 'relative', marginBottom: '10px' }}>
+                    <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      placeholder="Search employee by name, code, role or department..."
+                      value={userSearchQuery}
+                      onChange={e => setUserSearchQuery(e.target.value)}
+                      style={{ width: '100%', padding: '7px 10px 7px 32px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px', background: '#ffffff', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  {/* Scrollable list of staff members with checkboxes */}
+                  <div style={{ maxHeight: '220px', overflowY: 'auto', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {loadingEmployees && selectableStaff.length === 0 ? (
+                      <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                        Loading staff directory...
+                      </div>
+                    ) : filteredSelectableStaff.length === 0 ? (
+                      <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                        No employees found matching "{userSearchQuery}".
+                      </div>
+                    ) : (
+                      filteredSelectableStaff.map(staff => {
+                        const isChecked = selectedUserIds.includes(staff.id);
+                        return (
+                          <div
+                            key={staff.id}
+                            onClick={() => toggleUserSelection(staff.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '8px 12px',
+                              borderRadius: '8px',
+                              background: isChecked ? '#e0f2fe' : '#ffffff',
+                              border: isChecked ? '1px solid #7dd3fc' : '1px solid #f1f5f9',
+                              cursor: 'pointer',
+                              transition: 'all 0.1s ease'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {}} // Handled by container onClick
+                                style={{ width: '16px', height: '16px', accentColor: '#0284c7', cursor: 'pointer' }}
+                              />
+                              <div>
+                                <strong style={{ fontSize: '12.5px', color: '#0f172a', display: 'block' }}>
+                                  {staff.name}
+                                </strong>
+                                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                  {staff.employeeCode} • {staff.designation} ({staff.department})
+                                </span>
+                              </div>
+                            </div>
+
+                            <span style={{ fontSize: '10.5px', color: isChecked ? '#0369a1' : '#94a3b8', fontWeight: '700' }}>
+                              {isChecked ? '✓ Selected' : '+ Add'}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Message Details Body */}
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>
-                  Announcement Message Content *
+                  Notification Message Details *
                 </label>
                 <textarea
                   required 
                   className="form-input" 
                   rows="4" 
-                  placeholder="Type the full corporate notice or policy update here..."
+                  placeholder={recipientMode === 'USER_WISE' ? "Type specific instructions or personalized notification message..." : "Type the corporate announcement message details here..."}
                   value={notifComposer.message} 
                   onChange={e => setNotifComposer({ ...notifComposer, message: e.target.value })}
                   style={{ marginTop: '6px', resize: 'vertical' }}
@@ -546,20 +802,25 @@ export default function HRNotificationsView() {
                     gap: '8px'
                   }}
                 >
-                  <Send size={15} /> {sendingBroadcast ? 'Broadcasting Notice...' : 'Broadcast Announcement'}
+                  <Send size={15} /> 
+                  {sendingBroadcast 
+                    ? 'Sending Notification...' 
+                    : recipientMode === 'USER_WISE' 
+                      ? `Send to ${selectedUserIds.length} User(s)` 
+                      : 'Broadcast Announcement'}
                 </button>
               </div>
             </form>
 
-            {/* Column 2: Live Broadcast Delivery Log */}
+            {/* Column 2: Live Broadcast & Notification Delivery Log */}
             <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.03)', margin: 0, width: '100%', boxSizing: 'border-box' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
                 <div>
                   <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 2px 0' }}>
-                    Broadcast Delivery &amp; Read Status Stream
+                    Notification Stream &amp; Delivery Log
                   </h3>
                   <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-                    Live history of all published announcements with recipient delivery details.
+                    Live status of all sent notifications with recipient read confirmations.
                   </span>
                 </div>
 
@@ -593,7 +854,7 @@ export default function HRNotificationsView() {
               ) : filteredHistory.length === 0 ? (
                 <div style={{ padding: '60px 0', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>
                   <Bell size={32} color="#cbd5e1" style={{ display: 'block', margin: '0 auto 10px auto' }} />
-                  No broadcast history records found.
+                  No notification history records found.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '540px', overflowY: 'auto', paddingRight: '4px', width: '100%', minWidth: 0 }}>
