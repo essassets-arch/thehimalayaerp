@@ -577,12 +577,51 @@ export class NotificationsService {
 
   async sendTestPushToUser(userId: string, companyId: string) {
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true },
+    });
+    const userRoleCode = (user?.role?.code || 'SUPER_ADMIN').toUpperCase();
+    const userRoleName = user?.role?.name || 'Admin';
+
+    let defaultRoute = '/notifications';
+    let moduleTag = 'SYSTEM';
+
+    if (userRoleCode.includes('HR')) {
+      defaultRoute = '/hr/employees';
+      moduleTag = 'HR';
+    } else if (userRoleCode.includes('SUPER_ADMIN') || userRoleCode.includes('ADMIN')) {
+      defaultRoute = '/super-admin';
+      moduleTag = 'SUPER_ADMIN';
+    } else if (userRoleCode.includes('SALES')) {
+      defaultRoute = '/sales';
+      moduleTag = 'SALES';
+    } else if (userRoleCode.includes('PLANT')) {
+      defaultRoute = '/plant-head';
+      moduleTag = 'PLANT_HEAD';
+    } else if (userRoleCode.includes('PRODUCTION')) {
+      defaultRoute = '/production';
+      moduleTag = 'PRODUCTION';
+    } else if (userRoleCode.includes('STORE')) {
+      defaultRoute = '/store';
+      moduleTag = 'STORE';
+    } else if (userRoleCode.includes('QC')) {
+      defaultRoute = '/qc';
+      moduleTag = 'QC';
+    } else if (userRoleCode.includes('FINANCE')) {
+      defaultRoute = '/finance';
+      moduleTag = 'FINANCE';
+    } else if (userRoleCode.includes('DISPATCH')) {
+      defaultRoute = '/dispatch';
+      moduleTag = 'DISPATCH';
+    }
+
     const payload = {
-      title: 'FCM Verification 🚀',
-      message:
-        'Dual-channel push notifications are fully configured and functional!',
-      route: '/plant-head/incoming-orders',
+      title: `${userRoleName} Alerts 🚀`,
+      message: `Notifications for ${userRoleName} are active and functional!`,
+      route: defaultRoute,
       type: 'TEST',
+      module: moduleTag,
     };
 
     // 1. Create PostgreSQL Notification first (Source of Truth) so diagnostics has log
@@ -591,6 +630,7 @@ export class NotificationsService {
         companyId: resolvedCompanyId,
         userId,
         type: payload.type,
+        module: payload.module,
         title: payload.title,
         message: payload.message,
         route: payload.route,

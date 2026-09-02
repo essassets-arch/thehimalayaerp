@@ -24,6 +24,38 @@ const getPriorityMeta = (priority, read) => {
   return { color: '#10b981', bg: 'rgba(16,185,129,0.08)', Icon: Info };
 };
 
+const getModuleBadge = (moduleStr, type) => {
+  const m = (moduleStr || type || 'SYSTEM').toUpperCase().replace(/\s+/g, '_');
+  if (m.includes('HR') || m.includes('EMPLOYEE') || m.includes('LEAVE') || m.includes('ATTENDANCE')) {
+    return { label: '#HR', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' };
+  }
+  if (m.includes('SUPER_ADMIN') || m.includes('ADMIN')) {
+    return { label: '#SUPER_ADMIN', color: '#b45309', bg: '#fef3c7', border: '#fde68a' };
+  }
+  if (m.includes('SALES') || m.includes('LEAD') || m.includes('QUOTATION') || m.includes('ORDER')) {
+    return { label: '#SALES', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' };
+  }
+  if (m.includes('PLANT') || m.includes('PLANT_HEAD')) {
+    return { label: '#PLANT_HEAD', color: '#7e22ce', bg: '#faf5ff', border: '#e9d5ff' };
+  }
+  if (m.includes('PRODUCTION') || m.includes('WORK_ORDER')) {
+    return { label: '#PRODUCTION', color: '#c2410c', bg: '#fff7ed', border: '#ffedd5' };
+  }
+  if (m.includes('STORE') || m.includes('INVENTORY') || m.includes('STOCK')) {
+    return { label: '#STORE', color: '#0e7490', bg: '#ecfeff', border: '#cffafe' };
+  }
+  if (m.includes('QC') || m.includes('QUALITY')) {
+    return { label: '#QC', color: '#be185d', bg: '#fdf2f8', border: '#fbcfe8' };
+  }
+  if (m.includes('FINANCE') || m.includes('PAYMENT') || m.includes('SALARY')) {
+    return { label: '#FINANCE', color: '#0f766e', bg: '#f0fdfa', border: '#ccfbf1' };
+  }
+  if (m.includes('DISPATCH') || m.includes('LOGISTICS')) {
+    return { label: '#DISPATCH', color: '#334155', bg: '#f8fafc', border: '#cbd5e1' };
+  }
+  return { label: `#${m}`, color: '#475569', bg: '#f1f5f9', border: '#cbd5e1' };
+};
+
 const formatRelativeTime = (dateStr) => {
   if (!dateStr) return '';
   // Try to parse ISO or simple date strings
@@ -106,8 +138,7 @@ export default function HeroBanner({
 
   const handleViewAll = () => {
     setShowNotifications(false);
-    setModalNotifFilter('Unread');
-    setShowAllNotificationsModal(true);
+    navigate.push('/notifications');
   };
   const dropdownRef = useRef(null);
   const searchContainerRef = useRef(null);
@@ -1216,7 +1247,22 @@ export default function HeroBanner({
                           onClick={() => {
                             if (n.id) markAsRead(n.id);
                             setShowNotifications(false);
-                            if (n.route) navigate.push(n.route);
+                            if (n.route && typeof n.route === 'string' && n.route.startsWith('/')) {
+                              navigate.push(n.route);
+                            } else {
+                              const m = (n.module || '').toUpperCase();
+                              const r = (user?.role || '').toUpperCase();
+                              if (m.includes('HR') || r.includes('HR')) navigate.push('/hr/employees');
+                              else if (m.includes('SUPER') || m.includes('ADMIN') || r.includes('SUPER') || r.includes('ADMIN')) navigate.push('/super-admin');
+                              else if (m.includes('SALES') || r.includes('SALES')) navigate.push('/sales');
+                              else if (m.includes('PLANT') || r.includes('PLANT')) navigate.push('/plant-head');
+                              else if (m.includes('PRODUCTION') || r.includes('PRODUCTION')) navigate.push('/production');
+                              else if (m.includes('STORE') || r.includes('STORE')) navigate.push('/store');
+                              else if (m.includes('QC') || r.includes('QC')) navigate.push('/qc');
+                              else if (m.includes('FINANCE') || r.includes('FINANCE')) navigate.push('/finance');
+                              else if (m.includes('DISPATCH') || r.includes('DISPATCH')) navigate.push('/dispatch');
+                              else navigate.push('/notifications');
+                            }
                           }}
                           onMouseEnter={e => { e.currentTarget.style.background = '#F5FAFE'; }}
                           onMouseLeave={e => { e.currentTarget.style.background = (n.isRead || n.is_read) ? 'transparent' : 'rgba(248,250,252,0.8)'; }}
@@ -1258,18 +1304,33 @@ export default function HeroBanner({
                             }}>
                               {n.message}
                             </p>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px', alignItems: 'center' }}>
-                              <span style={{ fontSize: '10px', color: '#8893A7', fontWeight: '500' }}>
-                                <span style={{ marginRight: '6px', color: '#5E6B82', fontWeight: '700' }}>#{n.module || 'SYSTEM'}</span>
-                                {formatRelativeTime(n.createdAt || n.created_at || n.date)}
-                              </span>
-                              {!n.is_read && (
-                                <span style={{
-                                  width: '6px', height: '6px', borderRadius: '50%',
-                                  background: '#3b82f6', display: 'inline-block', flexShrink: 0,
-                                }} />
-                              )}
-                            </div>
+                            {(() => {
+                              const modBadge = getModuleBadge(n.module, n.type);
+                              return (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '10px', color: '#8893A7', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    <span style={{
+                                      padding: '1px 5px',
+                                      borderRadius: '4px',
+                                      background: modBadge.bg,
+                                      color: modBadge.color,
+                                      border: `1px solid ${modBadge.border}`,
+                                      fontWeight: '800',
+                                      fontSize: '9.5px',
+                                    }}>
+                                      {modBadge.label}
+                                    </span>
+                                    {formatRelativeTime(n.createdAt || n.created_at || n.date)}
+                                  </span>
+                                  {!n.is_read && (
+                                    <span style={{
+                                      width: '6px', height: '6px', borderRadius: '50%',
+                                      background: '#3b82f6', display: 'inline-block', flexShrink: 0,
+                                    }} />
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       );
