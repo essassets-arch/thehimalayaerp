@@ -27,9 +27,12 @@ export default function SecureImage({
     // Fallback: If categorical serve endpoint failed, try direct /uploads/ path
     const trimmed = src.trim();
     if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
-    const clean = trimmed
+    let clean = trimmed
       .replace(/^https?:\/\/(localhost|127\.0\.0\.1|thehimalaya\.cloud|www\.thehimalaya\.cloud)(:\d+)?/i, '')
       .replace(/^\/?(api\/(backend|v1)\/)?(files\/serve\/|uploads\/)?/i, '');
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\//i.test(clean)) {
+      clean = `employees/${clean}`;
+    }
     return `/uploads/${clean}`;
   }, [src, retryWithDirect]);
 

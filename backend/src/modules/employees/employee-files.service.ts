@@ -55,4 +55,30 @@ export class EmployeeFilesService {
       throw new BadRequestException('Invalid storage key');
     await fs.rm(resolved, { force: true });
   }
+
+  resolve(storageKey: string) {
+    if (!storageKey) return null;
+    const cleanKey = storageKey.replace(/^employees\//i, '').replace(/^\/+/, '');
+    const candidatePaths = [
+      join(this.root, cleanKey),
+      join(this.root, storageKey),
+      join(process.cwd(), 'uploads', storageKey),
+      join(process.cwd(), 'uploads', 'employees', cleanKey),
+      join('/app/uploads/employees', cleanKey),
+      join('/app/uploads', storageKey),
+    ];
+    for (const p of candidatePaths) {
+      if (require('fs').existsSync(p)) {
+        try {
+          const stats = require('fs').statSync(p);
+          if (stats.isFile()) {
+            const ext = require('path').extname(p).toLowerCase();
+            const mimeType = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.pdf' ? 'application/pdf' : 'application/octet-stream';
+            return { fullPath: p, fileName: require('path').basename(p), mimeType, size: stats.size };
+          }
+        } catch {}
+      }
+    }
+    return null;
+  }
 }

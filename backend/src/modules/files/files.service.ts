@@ -153,6 +153,9 @@ export class FilesService {
         possiblePaths.push(join(root, fName));
       }
       possiblePaths.push(join(root, clean));
+      const cleanWithoutEmployees = clean.replace(/^employees\//i, '');
+      possiblePaths.push(join(root, 'employees', cleanWithoutEmployees));
+      possiblePaths.push(join(root, 'employees', clean));
 
       // 3. Search all subdirectories
       for (const sub of subDirs) {
@@ -160,6 +163,7 @@ export class FilesService {
           possiblePaths.push(join(root, sub, fName));
         }
         possiblePaths.push(join(root, sub, clean));
+        possiblePaths.push(join(root, sub, cleanWithoutEmployees));
       }
     }
 

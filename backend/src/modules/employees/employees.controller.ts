@@ -1,5 +1,7 @@
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
+import { createReadStream } from 'fs';
 import {
   UseGuards,
   BadRequestException,
@@ -13,6 +15,7 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UploadedFile,
   UploadedFiles,
   UseInterceptors,
@@ -212,6 +215,57 @@ export class EmployeesController {
         field: 'file',
       });
     return this.employees.addDocument(id, file, body, req.user);
+  }
+
+  @Public()
+  @Get('employees/:employeeId/documents/:documentId/file')
+  async getEmployeeDocumentFile(
+    @Param('employeeId') employeeId: string,
+    @Param('documentId') documentId: string,
+    @Res() res: any,
+  ) {
+    const doc = await this.employees.getDocument(employeeId, documentId);
+    if (!doc) {
+      return res.status(404).json({ message: 'Document not found' });
+    }
+    const resolved = this.employees.resolveEmployeeDocFile(doc.storageKey);
+    if (!resolved) {
+      return res.status(404).json({ message: 'Stored file not found on disk' });
+    }
+    res.set({
+      'Content-Type': doc.mimeType || resolved.mimeType,
+      'Content-Length': resolved.size,
+      'Cache-Control': 'public, max-age=86400, immutable',
+      'Access-Control-Allow-Origin': '*',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+      'Cross-Origin-Embedder-Policy': 'unsafe-none',
+    });
+    return createReadStream(resolved.fullPath).pipe(res);
+  }
+
+  @Public()
+  @Get('employees/documents/:documentId/file')
+  async getDocumentFileById(
+    @Param('documentId') documentId: string,
+    @Res() res: any,
+  ) {
+    const doc = await this.employees.getDocument('any', documentId);
+    if (!doc) {
+      return res.status(404).json({ message: 'Document not found' });
+    }
+    const resolved = this.employees.resolveEmployeeDocFile(doc.storageKey);
+    if (!resolved) {
+      return res.status(404).json({ message: 'Stored file not found on disk' });
+    }
+    res.set({
+      'Content-Type': doc.mimeType || resolved.mimeType,
+      'Content-Length': resolved.size,
+      'Cache-Control': 'public, max-age=86400, immutable',
+      'Access-Control-Allow-Origin': '*',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+      'Cross-Origin-Embedder-Policy': 'unsafe-none',
+    });
+    return createReadStream(resolved.fullPath).pipe(res);
   }
 
   @Delete('employees/:employeeId/documents/:documentId')

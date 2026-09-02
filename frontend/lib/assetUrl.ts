@@ -37,6 +37,11 @@ export function getBackendAssetUrl(path?: string | null): string {
   // 4. Clean leading slashes and API prefix duplicates
   cleaned = cleaned.replace(/^\/?(api\/(backend|v1)\/)?/i, '');
 
+  // If path is a nested employee upload like "<uuid>/<folder>/<file>", ensure "employees/" prefix
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\//i.test(cleaned)) {
+    cleaned = `employees/${cleaned}`;
+  }
+
   let resolved = '';
 
   // 5. If it points to uploads directory

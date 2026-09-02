@@ -1138,6 +1138,19 @@ export class EmployeesService {
     return document;
   }
 
+  async getDocument(employeeId: string, documentId: string) {
+    return this.prisma.employeeDocument.findFirst({
+      where: {
+        id: documentId,
+        ...(employeeId && employeeId !== 'any' ? { employeeId } : {}),
+      },
+    });
+  }
+
+  resolveEmployeeDocFile(storageKey: string) {
+    return this.files.resolve(storageKey);
+  }
+
   async deleteDocument(employeeId: string, documentId: string, user: any) {
     const employee = await this.get(employeeId, user);
     const targetId = employee.id;
