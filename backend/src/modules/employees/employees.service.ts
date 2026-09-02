@@ -1125,6 +1125,22 @@ export class EmployeesService {
       },
     });
 
+    if (validDocType === EmployeeDocumentType.PHOTOGRAPH) {
+      await this.prisma.employee
+        .update({
+          where: { id: targetId },
+          data: { selfieUrl: stored.storageKey },
+        })
+        .catch(() => {});
+    } else if (validDocType === EmployeeDocumentType.SIGNATURE) {
+      await this.prisma.employee
+        .update({
+          where: { id: targetId },
+          data: { signatureUrl: stored.storageKey },
+        })
+        .catch(() => {});
+    }
+
     await this.prisma.auditLog.create({
       data: {
         actorUserId: user.sub,
