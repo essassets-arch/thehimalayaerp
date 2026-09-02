@@ -313,20 +313,23 @@ export class ExpenseService {
    */
   async getExpenseReceiptStream(
     claimIdOrNumber: string,
-    userId: string,
+    userId?: string,
     companyIdFromReq?: string,
   ) {
-    const companyId = await this.resolveCompanyId(userId, companyIdFromReq);
+    const where: any = {
+      OR: [
+        { id: claimIdOrNumber },
+        { publicId: claimIdOrNumber },
+        { claimNumber: claimIdOrNumber },
+      ],
+    };
+
+    if (companyIdFromReq) {
+      where.companyId = companyIdFromReq;
+    }
 
     const claim = await this.prisma.expenseClaim.findFirst({
-      where: {
-        companyId,
-        OR: [
-          { id: claimIdOrNumber },
-          { publicId: claimIdOrNumber },
-          { claimNumber: claimIdOrNumber },
-        ],
-      },
+      where,
     });
 
     if (!claim) {

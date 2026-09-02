@@ -19,6 +19,11 @@ function SecureReceiptImage({ claim, onPreview }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
 
+  useEffect(() => {
+    setImgLoaded(false);
+    setImgError(false);
+  }, [claim?.id, claim?.receiptUrl]);
+
   if (!claim || !claim.receiptUrl) {
     return (
       <div style={{ border: '1px dashed #cbd5e1', borderRadius: '8px', padding: '20px 16px', textAlign: 'center', color: '#94a3b8', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
@@ -28,9 +33,27 @@ function SecureReceiptImage({ claim, onPreview }) {
     );
   }
 
-  const receiptEndpoint = claim.receiptUrl.startsWith('data:') || claim.receiptUrl.startsWith('blob:')
-    ? claim.receiptUrl
-    : `/api/backend/expenses/${claim.id || claim.claimNumber}/receipt`;
+  const getReceiptUrl = () => {
+    if (claim.receiptUrl.startsWith('data:') || claim.receiptUrl.startsWith('blob:')) {
+      return claim.receiptUrl;
+    }
+    const base = `/api/backend/expenses/${claim.id || claim.claimNumber}/receipt`;
+    if (typeof window !== 'undefined') {
+      let token = window.sessionStorage.getItem('token') || window.localStorage.getItem('token');
+      if (!token) {
+        try {
+          const authStorageStr = window.localStorage.getItem('auth-storage');
+          if (authStorageStr) {
+            token = JSON.parse(authStorageStr)?.state?.accessToken;
+          }
+        } catch (_) {}
+      }
+      if (token) return `${base}?token=${encodeURIComponent(token)}`;
+    }
+    return base;
+  };
+
+  const receiptEndpoint = getReceiptUrl();
 
   return (
     <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', minHeight: '140px', justifyContent: 'center', position: 'relative' }}>

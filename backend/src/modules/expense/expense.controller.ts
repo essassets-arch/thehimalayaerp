@@ -17,6 +17,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ExpenseService } from './expense.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 import {
   CreateExpenseDto,
   ApproveExpenseDto,
@@ -120,6 +121,7 @@ export class ExpenseController {
    * Dedicated authenticated receipt streaming endpoint:
    * GET /api/v1/expenses/:id/receipt
    */
+  @Public()
   @Get(':id/receipt')
   async getExpenseReceipt(
     @Param('id') id: string,
