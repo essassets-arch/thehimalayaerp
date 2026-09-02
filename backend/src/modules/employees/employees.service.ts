@@ -1028,12 +1028,32 @@ export class EmployeesService {
   async addDocument(id: string, file: any, body: any, user: any) {
     const employee = await this.get(id, user);
     const targetId = employee.id;
-    const stored = await this.files.store(targetId, file, 'additional');
 
-    const rawType = (body.documentType || body.category || EmployeeDocumentType.OTHER).toUpperCase().replaceAll(' ', '_');
+    let rawType = (body.documentType || body.category || EmployeeDocumentType.OTHER).toUpperCase().replaceAll(' ', '_');
+    if (rawType === 'AADHAAR' || rawType === 'AADHAAR_CARD_PROOF') rawType = 'AADHAAR_CARD';
+    if (rawType === 'PAN' || rawType === 'PAN_CARD_PROOF') rawType = 'PAN_CARD';
+    if (rawType === 'BANK' || rawType === 'BANK_PROOF' || rawType === 'BANK_PASSBOOK_/_CHEQUE') rawType = 'BANK_PASSBOOK';
+    if (rawType === 'PHOTO' || rawType === 'PASSPORT_PHOTO') rawType = 'PHOTOGRAPH';
+    if (rawType === 'SIG' || rawType === 'DIGITAL_SIGNATURE') rawType = 'SIGNATURE';
+
     const validDocType = (Object.values(EmployeeDocumentType) as string[]).includes(rawType)
       ? (rawType as EmployeeDocumentType)
       : EmployeeDocumentType.OTHER;
+
+    const folder =
+      validDocType === EmployeeDocumentType.PHOTOGRAPH
+        ? 'photograph'
+        : validDocType === EmployeeDocumentType.SIGNATURE
+          ? 'signature'
+          : validDocType === EmployeeDocumentType.AADHAAR_CARD
+            ? 'aadhaar'
+            : validDocType === EmployeeDocumentType.PAN_CARD
+              ? 'pan'
+              : validDocType === EmployeeDocumentType.BANK_PASSBOOK
+                ? 'bank'
+                : 'additional';
+
+    const stored = await this.files.store(targetId, file, folder);
 
     const document = await this.prisma.employeeDocument.create({
       data: {
