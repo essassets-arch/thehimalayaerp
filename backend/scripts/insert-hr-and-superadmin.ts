@@ -130,8 +130,8 @@ async function main() {
     console.log(`Found Role: ${superAdminRole.name} (${superAdminRole.code})`);
   }
 
-  // 5. Insert / Update HR User: nahin.v@himalayaerp.com / HR@hcppl
-  const hrEmail = 'nahin.v@himalayaerp.com';
+  // 5. Insert / Update HR User: hr@himalayaerp.com / HR@hcppl
+  const hrEmail = 'hr@himalayaerp.com';
   const hrPlainPassword = 'HR@hcppl';
   const hrHashedPassword = await bcrypt.hash(hrPlainPassword, 12);
 

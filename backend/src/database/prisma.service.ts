@@ -299,7 +299,7 @@ export class PrismaService
           deptName: 'Super Admin Department',
         },
         {
-          email: 'nahin.v@himalayaerp.com',
+          email: 'hr@himalayaerp.com',
           name: 'Nahin V',
           role: 'HR',
           empCode: 'EMP-HR-001',

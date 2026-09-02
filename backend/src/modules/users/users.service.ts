@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 
 const KNOWN_USER_PASSWORDS: Record<string, string> = {
   'super.admin@himalayaerp.com': 'SuperAdmin@hcppl',
+  'hr@himalayaerp.com': 'HR@hcppl',
   'nahin.v@himalayaerp.com': 'HR@hcppl',
   'superadmin@himalayaerp.com': 'SuperAdmin@hcppl',
   'abbas.b@himalayaerp.com': 'dataAnalyst#2101',
