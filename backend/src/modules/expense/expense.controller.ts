@@ -7,10 +7,12 @@ import {
   Param,
   Query,
   Req,
+  Res,
   UseGuards,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ExpenseService } from './expense.service';
@@ -22,6 +24,7 @@ import {
   ExpenseQueryDto,
 } from './dto/expense.dto';
 import { FilesService } from '../files/files.service';
+import { createReadStream } from 'fs';
 
 @Controller('expenses')
 @UseGuards(JwtAuthGuard)
@@ -111,6 +114,50 @@ export class ExpenseController {
     const companyId =
       req.headers['x-company-id'] || req.user?.companyId;
     return this.expenseService.getAllExpenses(companyId, userId, query);
+  }
+
+  /**
+   * Dedicated authenticated receipt streaming endpoint:
+   * GET /api/v1/expenses/:id/receipt
+   */
+  @Get(':id/receipt')
+  async getExpenseReceipt(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Res() res: any,
+  ) {
+    const userId = req.user?.sub || req.user?.id;
+    const companyId = req.headers['x-company-id'] || req.user?.companyId;
+
+    const result = await this.expenseService.getExpenseReceiptStream(
+      id,
+      userId,
+      companyId,
+    );
+
+    if (!result) {
+      return res.status(HttpStatus.NOT_FOUND).json({
+        statusCode: 404,
+        message: `Receipt attachment not found for expense claim '${id}'`,
+      });
+    }
+
+    res.set({
+      'Content-Type': result.mimeType || 'image/jpeg',
+      'Content-Length': result.size,
+      'Cache-Control': 'private, max-age=86400',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+    });
+
+    if (result.isBuffer && result.buffer) {
+      return res.end(result.buffer);
+    }
+
+    const stream = createReadStream(result.fullPath);
+    return stream.pipe(res);
   }
 
   @Patch(':id/approve')

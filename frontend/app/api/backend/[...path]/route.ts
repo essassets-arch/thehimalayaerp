@@ -246,8 +246,14 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     });
   }
 
-  const cookieToken = request.cookies.get('accessToken')?.value;
-  const token = authorization?.replace(/^Bearer\s+/i, '') || cookieToken;
+  const cookieToken =
+    request.cookies.get('accessToken')?.value ||
+    request.cookies.get('token')?.value ||
+    request.cookies.get('himalaya_token')?.value;
+  const token =
+    authorization?.replace(/^Bearer\s+/i, '') ||
+    request.nextUrl.searchParams.get('token') ||
+    cookieToken;
 
   console.log(`[NEXT_API_PROXY] ${method} ${requestedPath} -> NestJS: ${backendPath}`);
 

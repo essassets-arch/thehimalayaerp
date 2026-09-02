@@ -1,18 +1,97 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import StatusBadge from './StatusBadge';
 import DataTable from './DataTable';
 import { 
   CheckCircle, XCircle, FileText, Image as ImageIcon, 
   User, Calendar, Clock, RefreshCw, AlertCircle, ShieldCheck, 
-  DollarSign, X, CreditCard, Eye, ArrowRight, Check
+  DollarSign, X, CreditCard, Eye, ArrowRight, Check, Loader2
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { expenseService } from '../../services/expenseService';
-import { getBackendAssetUrl } from '../../lib/assetUrl';
+import { useSearchParams } from 'next/navigation';
+
+/**
+ * Dedicated Secure Receipt Image Component with Loading Spinner & Graceful Fallback
+ */
+function SecureReceiptImage({ claim, onPreview }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  if (!claim || !claim.receiptUrl) {
+    return (
+      <div style={{ border: '1px dashed #cbd5e1', borderRadius: '8px', padding: '20px 16px', textAlign: 'center', color: '#94a3b8', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+        <ImageIcon size={22} />
+        No receipt attachment uploaded with this claim.
+      </div>
+    );
+  }
+
+  const receiptEndpoint = claim.receiptUrl.startsWith('data:') || claim.receiptUrl.startsWith('blob:')
+    ? claim.receiptUrl
+    : `/api/backend/expenses/${claim.id || claim.claimNumber}/receipt`;
+
+  return (
+    <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', minHeight: '140px', justifyContent: 'center', position: 'relative' }}>
+      {!imgLoaded && !imgError && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0284c7', fontSize: '12px', padding: '20px' }}>
+          <Loader2 size={16} className="spin" />
+          <span>Loading receipt image...</span>
+        </div>
+      )}
+
+      {imgError ? (
+        <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12.5px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+          <ImageIcon size={24} color="#0284c7" />
+          <span>Receipt Bill Attached</span>
+          <button
+            type="button"
+            onClick={() => onPreview(receiptEndpoint)}
+            style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer', padding: '4px 10px', borderRadius: '6px', marginTop: '4px' }}
+          >
+            👁️ Open Receipt Full-Screen
+          </button>
+        </div>
+      ) : (
+        <img
+          src={receiptEndpoint}
+          alt="Receipt Bill Attachment"
+          style={{
+            maxWidth: '100%',
+            maxHeight: '220px',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            objectFit: 'contain',
+            display: imgLoaded ? 'block' : 'none',
+            border: '1px solid #e2e8f0'
+          }}
+          onLoad={() => setImgLoaded(true)}
+          onError={() => {
+            setImgError(true);
+            setImgLoaded(true);
+          }}
+          onClick={() => onPreview(receiptEndpoint)}
+        />
+      )}
+
+      {imgLoaded && !imgError && (
+        <button
+          type="button"
+          onClick={() => onPreview(receiptEndpoint)}
+          style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px' }}
+        >
+          👁️ Click to View Receipt Full-Screen
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function ExpenseManagementView({ roleMode }) {
+  const searchParams = useSearchParams();
+  const deepLinkedExpenseId = searchParams?.get('expenseId') || '';
+
   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
   const effectiveRoleMode = roleMode || (
     currentPath.includes('/super-admin') ? 'SUPER_ADMIN' :
@@ -44,8 +123,15 @@ export default function ExpenseManagementView({ roleMode }) {
       const claims = Array.isArray(data) ? data : [];
       setPendingClaims(claims);
       
-      // Auto-select first item or preserve existing selection
+      // Auto-select deep-linked item or first item
       if (claims.length > 0) {
+        if (deepLinkedExpenseId) {
+          const matched = claims.find(c => c.claimNumber === deepLinkedExpenseId || c.id === deepLinkedExpenseId || c.publicId === deepLinkedExpenseId);
+          if (matched) {
+            setSelectedClaim(matched);
+            return;
+          }
+        }
         setSelectedClaim(prev => {
           if (!prev) return claims[0];
           const matched = claims.find(c => c.id === prev.id);
@@ -59,19 +145,28 @@ export default function ExpenseManagementView({ roleMode }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [effectiveRoleMode, deepLinkedExpenseId]);
 
   const fetchAllClaims = useCallback(async () => {
     try {
       setLoadingAll(true);
       const data = await expenseService.getAllExpenses();
-      setAllClaims(Array.isArray(data) ? data : []);
+      const claims = Array.isArray(data) ? data : [];
+      setAllClaims(claims);
+
+      // If deep linked ID is in history, open inspect modal
+      if (deepLinkedExpenseId && claims.length > 0) {
+        const matched = claims.find(c => c.claimNumber === deepLinkedExpenseId || c.id === deepLinkedExpenseId);
+        if (matched) {
+          setInspectModalClaim(matched);
+        }
+      }
     } catch (err) {
       console.error('Failed to retrieve all expense claims', err);
     } finally {
       setLoadingAll(false);
     }
-  }, []);
+  }, [deepLinkedExpenseId]);
 
   useEffect(() => {
     if (activeTab === 'pending') {
@@ -171,7 +266,7 @@ export default function ExpenseManagementView({ roleMode }) {
           ${effectiveRoleMode === 'FINANCE' ? `
             <div style="margin-top: 4px;">
               <label style="font-weight: 700; font-size: 12.5px; color: #1e293b;">Payment / Disbursal Reference (Optional)</label>
-              <input id="swal-payment-ref" class="swal2-input" style="margin: 4px 0 0 0; width: 100%; box-sizing: border-box; font-size: 13px; height: 38px;" placeholder="e.g. UTR / Cheque / Bank Transfer Ref" value="${paymentReference}" />
+              <input id="swal-payment-ref" class="swal2-input" style="margin: 4px 0 0 0; width: 100%; box-sizing: border-box; font-size: 13px; height: 38px;" placeholder="e.g. UTR-98214810293, Cheque #004921, Bank Transfer Ref" value="${paymentReference}" />
             </div>
           ` : ''}
           <div style="margin-top: 4px;">
@@ -296,7 +391,7 @@ export default function ExpenseManagementView({ roleMode }) {
       render: (row) => row.receiptUrl ? (
         <button
           type="button"
-          onClick={() => setPreviewReceiptModal(getBackendAssetUrl(row.receiptUrl))}
+          onClick={() => setPreviewReceiptModal(`/api/backend/expenses/${row.id || row.claimNumber}/receipt`)}
           style={{ background: '#e0f2fe', color: '#0369a1', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer' }}
         >
           👁️ View Bill
@@ -599,32 +694,7 @@ export default function ExpenseManagementView({ roleMode }) {
                   {/* Receipt Image Panel */}
                   <div>
                     <h5 style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: '800', color: '#0f172a' }}>Receipt Bill Attachment</h5>
-                    {selectedClaim.receiptUrl ? (
-                      <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
-                        <img
-                          src={getBackendAssetUrl(selectedClaim.receiptUrl)}
-                          alt="Receipt Bill"
-                          style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '6px', cursor: 'pointer', objectFit: 'contain' }}
-                          onClick={() => setPreviewReceiptModal(getBackendAssetUrl(selectedClaim.receiptUrl))}
-                          onError={(e) => {
-                            e.currentTarget.onerror = null;
-                            e.currentTarget.src = selectedClaim.receiptUrl;
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setPreviewReceiptModal(getBackendAssetUrl(selectedClaim.receiptUrl))}
-                          style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px' }}
-                        >
-                          👁️ View Full-Screen Receipt
-                        </button>
-                      </div>
-                    ) : (
-                      <div style={{ border: '1px dashed #cbd5e1', borderRadius: '8px', padding: '20px 16px', textAlign: 'center', color: '#94a3b8', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                        <ImageIcon size={22} />
-                        No receipt attachment uploaded with this claim.
-                      </div>
-                    )}
+                    <SecureReceiptImage claim={selectedClaim} onPreview={(url) => setPreviewReceiptModal(url)} />
                   </div>
 
                   {/* Finance Payment Reference Field */}
@@ -633,7 +703,7 @@ export default function ExpenseManagementView({ roleMode }) {
                       <label style={{ fontSize: '12.5px', fontWeight: '800', color: '#0f172a' }}>Payment / Disbursal Reference (Optional)</label>
                       <input
                         type="text"
-                        placeholder="e.g. UTR-98234710293, Cheque #004921, Bank Transfer Ref"
+                        placeholder="e.g. UTR-98214810293, Cheque #004921, Bank Transfer Ref"
                         value={paymentReference}
                         onChange={e => setPaymentReference(e.target.value)}
                         style={{
@@ -865,8 +935,8 @@ export default function ExpenseManagementView({ roleMode }) {
                           {claim.receiptUrl && (
                             <button
                               type="button"
-                              onClick={() => setPreviewReceiptModal(getBackendAssetUrl(claim.receiptUrl))}
-                              style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #bfdbfe', background: '#eff6ff', fontSize: '12px', fontWeight: 700, color: '#0369a1', cursor: 'pointer' }}
+                              onClick={() => setPreviewReceiptModal(`/api/backend/expenses/${claim.id || claim.claimNumber}/receipt`)}
+                              style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #bfdbfe', background: '#eff6ff', fontSize: '12px', fontWeight: 750, color: '#0369a1', cursor: 'pointer' }}
                             >
                               👁️ View Receipt
                             </button>
@@ -874,7 +944,7 @@ export default function ExpenseManagementView({ roleMode }) {
                           <button
                             type="button"
                             onClick={() => setInspectModalClaim(claim)}
-                            style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: 'none', background: '#0284c7', fontSize: '12px', fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+                            style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: 'none', background: '#0284c7', fontSize: '12px', fontWeight: 750, color: '#fff', cursor: 'pointer' }}
                           >
                             Inspect Claim
                           </button>
@@ -1029,21 +1099,7 @@ export default function ExpenseManagementView({ roleMode }) {
               {inspectModalClaim.receiptUrl && (
                 <div>
                   <span style={{ fontSize: '12px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Receipt Bill Attachment</span>
-                  <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
-                    <img
-                      src={getBackendAssetUrl(inspectModalClaim.receiptUrl)}
-                      alt="Receipt Attachment"
-                      style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '6px', cursor: 'pointer' }}
-                      onClick={() => setPreviewReceiptModal(getBackendAssetUrl(inspectModalClaim.receiptUrl))}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPreviewReceiptModal(getBackendAssetUrl(inspectModalClaim.receiptUrl))}
-                      style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer', padding: '4px 10px', borderRadius: '6px' }}
-                    >
-                      👁️ View Full-Screen Receipt
-                    </button>
-                  </div>
+                  <SecureReceiptImage claim={inspectModalClaim} onPreview={(url) => setPreviewReceiptModal(url)} />
                 </div>
               )}
 
@@ -1104,11 +1160,24 @@ export default function ExpenseManagementView({ roleMode }) {
                 <X size={18} />
               </button>
             </div>
-            <div style={{ flex: 1, overflow: 'auto', padding: '16px', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ flex: 1, overflow: 'auto', padding: '16px', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>
               <img
                 src={previewReceiptModal}
                 alt="Receipt Full Preview"
                 style={{ maxWidth: '100%', maxHeight: '72vh', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const parent = e.currentTarget.parentElement;
+                  if (parent && !parent.querySelector('.receipt-error-msg')) {
+                    const div = document.createElement('div');
+                    div.className = 'receipt-error-msg';
+                    div.style.textAlign = 'center';
+                    div.style.padding = '30px';
+                    div.style.color = '#475569';
+                    div.innerHTML = `<p style="font-weight:700;font-size:14px;color:#0f172a;">Receipt Image Attached</p><a href="${previewReceiptModal}" target="_blank" style="color:#0284c7;text-decoration:underline;font-weight:700;">Click here to download/view receipt file</a>`;
+                    parent.appendChild(div);
+                  }
+                }}
               />
             </div>
           </div>

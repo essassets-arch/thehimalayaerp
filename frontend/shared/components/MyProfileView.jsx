@@ -14,9 +14,16 @@ import { getBackendAssetUrl } from '../../lib/assetUrl';
 import SecureImage from './SecureImage';
 import { complaintsService } from '../../services/hr/complaintsService';
 import { expenseService } from '../../services/expenseService';
+import { useSearchParams } from 'next/navigation';
 
 export default function MyProfileView() {
-  const [activeTab, setActiveTab] = useState('attendance');
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams?.get('tab');
+  const deepLinkedExpenseId = searchParams?.get('expenseId');
+
+  const [activeTab, setActiveTab] = useState(
+    (requestedTab === 'expenses' || deepLinkedExpenseId) ? 'expenses' : 'attendance'
+  );
   const [profile, setProfile] = useState(null);
   const [attendance, setAttendance] = useState([]);
   const [salarySlips, setSalarySlips] = useState([]);
@@ -1206,7 +1213,7 @@ export default function MyProfileView() {
                         <div style={{ marginTop: '2px', display: 'flex', justifyContent: 'flex-start' }}>
                           <button
                             type="button"
-                            onClick={() => setPreviewReceiptModal(getBackendAssetUrl(exp.receiptUrl))}
+                            onClick={() => setPreviewReceiptModal(exp.receiptUrl.startsWith('data:') ? exp.receiptUrl : `/api/backend/expenses/${exp.id || exp.claimNumber}/receipt`)}
                             style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer', padding: '4px 10px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
                             👁️ View Receipt Bill
@@ -1769,11 +1776,24 @@ export default function MyProfileView() {
                 <X size={18} />
               </button>
             </div>
-            <div style={{ flex: 1, overflow: 'auto', padding: '16px', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ flex: 1, overflow: 'auto', padding: '16px', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '280px' }}>
               <img
                 src={previewReceiptModal}
                 alt="Receipt Full Preview"
                 style={{ maxWidth: '100%', maxHeight: '72vh', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const parent = e.currentTarget.parentElement;
+                  if (parent && !parent.querySelector('.receipt-profile-error')) {
+                    const div = document.createElement('div');
+                    div.className = 'receipt-profile-error';
+                    div.style.textAlign = 'center';
+                    div.style.padding = '30px';
+                    div.style.color = '#475569';
+                    div.innerHTML = `<p style="font-weight:700;font-size:14px;color:#0f172a;">Receipt Bill Attached</p><a href="${previewReceiptModal}" target="_blank" style="color:#0284c7;text-decoration:underline;font-weight:700;">Click here to download or open receipt image</a>`;
+                    parent.appendChild(div);
+                  }
+                }}
               />
             </div>
           </div>

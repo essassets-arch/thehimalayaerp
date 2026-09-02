@@ -1,23 +1,24 @@
 import {
   Injectable,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
   Logger,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
-import { NotificationsService } from '../notifications/notifications.service';
-import {
-  ExpenseClaimStatus,
-  ExpenseClaimHistoryAction,
-} from '@prisma/client';
 import {
   CreateExpenseDto,
   ApproveExpenseDto,
   RejectExpenseDto,
   ExpenseQueryDto,
 } from './dto/expense.dto';
+import {
+  ExpenseClaimStatus,
+  ExpenseClaimHistoryAction,
+} from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
+import { FilesService } from '../files/files.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ExpenseService {
@@ -26,33 +27,37 @@ export class ExpenseService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly filesService: FilesService,
   ) {}
 
+  /**
+   * Resolve user company ID safely with fallback for single-tenant / dev environments
+   */
   private async resolveCompanyId(
-    userId: string,
+    userId?: string,
     companyIdFromReq?: string,
   ): Promise<string> {
-    if (companyIdFromReq) {
-      const company = await this.prisma.company.findUnique({
-        where: { id: companyIdFromReq },
+    if (companyIdFromReq) return companyIdFromReq;
+    if (userId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { companyId: true },
       });
-      if (company) return company.id;
+      if (user?.companyId) return user.companyId;
     }
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { companyId: true },
+    const fallbackCompany = await this.prisma.company.findFirst({
+      select: { id: true },
     });
-    if (user?.companyId) return user.companyId;
-
-    const fallbackCompany = await this.prisma.company.findFirst();
     if (!fallbackCompany) {
-      throw new NotFoundException('Company tenant not found');
+      throw new BadRequestException('No valid company found in system.');
     }
     return fallbackCompany.id;
   }
 
   /**
-   * Submit an Expense Claim (JWT bound claimant)
+   * Submit an Expense Claim (JWT bound claimant).
+   * Commits database records first (ExpenseClaim + ApprovalHistory),
+   * then dispatches real-time bell + FCM push notifications.
    */
   async createExpense(
     dto: CreateExpenseDto,
@@ -84,51 +89,55 @@ export class ExpenseService {
     });
     const claimNumber = `EXP-${1001 + count}`;
 
-    const claim = await this.prisma.expenseClaim.create({
-      data: {
-        publicId: randomUUID(),
-        companyId,
-        userId,
-        employeeId: user.employee?.id || null,
-        claimNumber,
-        expenseName: dto.expenseName.trim(),
-        amount: amountNum,
-        expenseDate: new Date(dto.expenseDate),
-        receiptUrl: dto.receiptUrl || null,
-        status: ExpenseClaimStatus.PENDING_HR,
-      },
-      include: {
-        user: { select: { id: true, name: true, email: true, role: true } },
-        employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
-      },
+    // 1. Transactional DB Write (Commit DB first)
+    const claim = await this.prisma.$transaction(async (tx) => {
+      const newClaim = await tx.expenseClaim.create({
+        data: {
+          publicId: randomUUID(),
+          companyId,
+          userId,
+          employeeId: user.employee?.id || null,
+          claimNumber,
+          expenseName: dto.expenseName.trim(),
+          amount: amountNum,
+          expenseDate: new Date(dto.expenseDate),
+          receiptUrl: dto.receiptUrl || null,
+          status: ExpenseClaimStatus.PENDING_HR,
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true } },
+          employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
+        },
+      });
+
+      await tx.expenseClaimApprovalHistory.create({
+        data: {
+          expenseClaimId: newClaim.id,
+          action: ExpenseClaimHistoryAction.SUBMITTED,
+          fromStatus: null,
+          toStatus: ExpenseClaimStatus.PENDING_HR,
+          actorId: userId,
+          actorName: user.name,
+          actorRole: user.role?.code || 'STAFF',
+          remarks: 'Expense claim submitted by claimant',
+        },
+      });
+
+      return newClaim;
     });
 
-    // Create Initial Audit History
-    await this.prisma.expenseClaimApprovalHistory.create({
-      data: {
-        expenseClaimId: claim.id,
-        action: ExpenseClaimHistoryAction.SUBMITTED,
-        fromStatus: null,
-        toStatus: ExpenseClaimStatus.PENDING_HR,
-        actorId: userId,
-        actorName: user.name,
-        actorRole: user.role?.code || 'STAFF',
-        remarks: 'Expense claim submitted by claimant',
-      },
-    });
-
-    // Notify HR / Super Admin
+    // 2. Post-Commit Real-Time Event & Push Notification to HR & Super Admin
     try {
       await this.notificationsService.notifyRole({
         companyId,
-        roles: ['HR', 'SUPER_ADMIN'],
+        roles: ['HR', 'HR_MANAGER', 'SUPER_ADMIN'],
         type: 'EXPENSE_SUBMITTED',
         module: 'HR',
         priority: 'HIGH',
-        title: `New Expense Claim Submitted (₹${amountNum.toLocaleString('en-IN')}) 💼`,
-        message: `${user.name} (${user.role?.name || 'Staff'}) submitted an expense claim of ₹${amountNum.toLocaleString('en-IN')} for "${claim.expenseName}".`,
-        route: `/hr/expense-management?expenseId=${claim.id}`,
-        eventKey: `expense.claim.submitted:${claim.id}`,
+        title: `Expense Claim Submitted (${claim.claimNumber}) 💼`,
+        message: `${user.name} submitted expense claim ${claim.claimNumber} for ₹${amountNum.toLocaleString('en-IN')}.`,
+        route: `/hr/expense-management?expenseId=${claim.claimNumber}`,
+        eventKey: `expense.claim.submitted:${claim.claimNumber}`,
         entityType: 'ExpenseClaim',
         entityId: claim.id,
         actorUserId: userId,
@@ -142,17 +151,17 @@ export class ExpenseService {
   }
 
   /**
-   * Get claimant's own submitted expense claims
+   * Get current user's submitted expense claims with approval trails
    */
   async getMyExpenses(userId: string, companyIdFromReq?: string) {
     const companyId = await this.resolveCompanyId(userId, companyIdFromReq);
-    return this.prisma.expenseClaim.findMany({
+    const claims = await this.prisma.expenseClaim.findMany({
       where: {
         userId,
         companyId,
       },
       include: {
-        user: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true, email: true, role: true } },
         employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
         history: { orderBy: { createdAt: 'asc' } },
       },
@@ -160,10 +169,20 @@ export class ExpenseService {
         createdAt: 'desc',
       },
     });
+
+    return claims.map((c) => ({
+      ...c,
+      employeeName: c.employee?.employeeCode
+        ? `${c.user.name} (${c.employee.employeeCode})`
+        : c.user.name,
+      department: c.employee?.department?.name || 'General Operations',
+      designation: c.employee?.jobTitle || c.user.role?.name || 'Staff Member',
+      userRoleName: c.user.role?.name || c.user.role?.code || 'Staff Member',
+    }));
   }
 
   /**
-   * Get pending actionable claims strictly scoped by reviewer role:
+   * Get pending actionable claims strictly scoped by stage / reviewer role:
    * - HR: PENDING_HR
    * - SUPER_ADMIN: PENDING_SUPERADMIN
    * - FINANCE: PENDING_FINANCE
@@ -289,10 +308,84 @@ export class ExpenseService {
   }
 
   /**
-   * Approve an Expense Claim across the state machine:
+   * Dedicated stream resolver for expense receipt attachments.
+   * Validates company authorization, reads the physical disk file, and returns stream metadata.
+   */
+  async getExpenseReceiptStream(
+    claimIdOrNumber: string,
+    userId: string,
+    companyIdFromReq?: string,
+  ) {
+    const companyId = await this.resolveCompanyId(userId, companyIdFromReq);
+
+    const claim = await this.prisma.expenseClaim.findFirst({
+      where: {
+        companyId,
+        OR: [
+          { id: claimIdOrNumber },
+          { publicId: claimIdOrNumber },
+          { claimNumber: claimIdOrNumber },
+        ],
+      },
+    });
+
+    if (!claim) {
+      throw new NotFoundException(`Expense claim '${claimIdOrNumber}' not found`);
+    }
+
+    if (!claim.receiptUrl) {
+      return null;
+    }
+
+    // 1. Data URI format (base64 image)
+    if (claim.receiptUrl.startsWith('data:')) {
+      const matches = claim.receiptUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const mimeType = matches[1];
+        const buffer = Buffer.from(matches[2], 'base64');
+        return {
+          isBuffer: true,
+          buffer,
+          mimeType,
+          size: buffer.length,
+          fileName: `${claim.claimNumber}-receipt.jpg`,
+          fullPath: '',
+        };
+      }
+    }
+
+    // 2. Resolve on disk via FilesService
+    const cleanUrl = claim.receiptUrl.replace(/^https?:\/\/[^\/]+/i, '');
+    const resolved = this.filesService.resolveFile(cleanUrl, 'expenses');
+    if (resolved) {
+      return {
+        ...resolved,
+        isBuffer: false,
+        buffer: null,
+      };
+    }
+
+    // 3. Fallback resolve by extracted filename / uuid
+    const cleanFilename = cleanUrl.split('/').pop()?.split('?')[0] || '';
+    const resolvedFallback = this.filesService.resolveFile(cleanFilename, 'expenses');
+    if (resolvedFallback) {
+      return {
+        ...resolvedFallback,
+        isBuffer: false,
+        buffer: null,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Approve an Expense Claim across the multi-tier state machine:
    * - HR: PENDING_HR -> PENDING_SUPERADMIN
    * - SUPER_ADMIN: PENDING_SUPERADMIN -> PENDING_FINANCE
    * - FINANCE: PENDING_FINANCE -> FINANCE_PROCESSED
+   *
+   * Enforces DB transaction COMMIT before dispatching notifications.
    */
   async approveExpense(
     id: string,
@@ -334,7 +427,7 @@ export class ExpenseService {
     };
 
     if (
-      (reviewerRole === 'HR' || reviewerRole === 'HR_MANAGER') &&
+      (reviewerRole === 'HR' || reviewerRole === 'HR_MANAGER' || reviewerRole === 'SUPER_ADMIN') &&
       claim.status === ExpenseClaimStatus.PENDING_HR
     ) {
       newStatus = ExpenseClaimStatus.PENDING_SUPERADMIN;
@@ -349,11 +442,11 @@ export class ExpenseService {
 
       notificationConfig = {
         type: 'EXPENSE_HR_APPROVED',
-        roles: ['SUPER_ADMIN'],
+        roles: ['SUPER_ADMIN', 'ADMIN'],
         title: `Expense Claim Approved by HR (${claim.claimNumber}) 📋`,
-        message: `HR (${reviewerName}) approved ${claim.employee?.fullName || claim.user.name}'s claim of ₹${Number(claim.amount).toLocaleString('en-IN')}. Ready for Super Admin review.`,
-        route: `/super-admin/expense-management?expenseId=${claim.id}`,
-        eventKey: `expense.claim.hr_approved:${claim.id}`,
+        message: `HR (${reviewerName}) verified claim ${claim.claimNumber} (₹${Number(claim.amount).toLocaleString('en-IN')}). Ready for Super Admin review.`,
+        route: `/super-admin/expense-management?expenseId=${claim.claimNumber}`,
+        eventKey: `expense.claim.hr-approved:${claim.claimNumber}`,
       };
     } else if (
       (reviewerRole === 'SUPER_ADMIN' || reviewerRole === 'ADMIN') &&
@@ -371,17 +464,21 @@ export class ExpenseService {
 
       notificationConfig = {
         type: 'EXPENSE_SUPERADMIN_APPROVED',
-        roles: ['FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_HEAD'],
-        title: `Expense Claim Approved by Super Admin (${claim.claimNumber}) 🏛️`,
-        message: `Super Admin (${reviewerName}) approved claim ${claim.claimNumber} for ₹${Number(claim.amount).toLocaleString('en-IN')}. Ready for Finance processing.`,
-        route: `/finance/expense-management?expenseId=${claim.id}`,
-        eventKey: `expense.claim.superadmin_approved:${claim.id}`,
+        roles: ['FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_HEAD', 'FINANCE_MANAGER', 'ACCOUNTANT', 'ACCOUNTS'],
+        title: `Expense Claim Authorized by Super Admin (${claim.claimNumber}) 🏛️`,
+        message: `Super Admin (${reviewerName}) authorized claim ${claim.claimNumber} for ₹${Number(claim.amount).toLocaleString('en-IN')}. Ready for Finance processing.`,
+        route: `/finance/expense-management?expenseId=${claim.claimNumber}`,
+        eventKey: `expense.claim.superadmin-approved:${claim.claimNumber}`,
       };
     } else if (
       (reviewerRole === 'FINANCE' ||
         reviewerRole === 'FINANCE_EXECUTIVE' ||
         reviewerRole === 'FINANCE_HEAD' ||
-        reviewerRole === 'SUPER_ADMIN') &&
+        reviewerRole === 'FINANCE_MANAGER' ||
+        reviewerRole === 'ACCOUNTS' ||
+        reviewerRole === 'ACCOUNTANT' ||
+        reviewerRole === 'SUPER_ADMIN' ||
+        reviewerRole === 'ADMIN') &&
       claim.status === ExpenseClaimStatus.PENDING_FINANCE
     ) {
       newStatus = ExpenseClaimStatus.FINANCE_PROCESSED;
@@ -400,8 +497,8 @@ export class ExpenseService {
         recipientUserId: claim.userId,
         title: `Expense Claim Processed & Settled (${claim.claimNumber}) 🎉`,
         message: `Your claim ${claim.claimNumber} of ₹${Number(claim.amount).toLocaleString('en-IN')} has been finalized and settled by Finance.${dto.paymentReference ? ` Ref: ${dto.paymentReference}` : ''}`,
-        route: `/profile?tab=expenses&expenseId=${claim.id}`,
-        eventKey: `expense.claim.finance_processed:${claim.id}`,
+        route: `/profile?tab=expenses&expenseId=${claim.claimNumber}`,
+        eventKey: `expense.claim.finance-processed:${claim.claimNumber}`,
       };
     } else {
       throw new BadRequestException(
@@ -409,52 +506,40 @@ export class ExpenseService {
       );
     }
 
-    const updated = await this.prisma.expenseClaim.update({
-      where: { id },
-      data: updateData,
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-        employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
-        history: { orderBy: { createdAt: 'asc' } },
-      },
+    // 1. Transactional DB Update (Commit DB first)
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const claimRecord = await tx.expenseClaim.update({
+        where: { id },
+        data: updateData,
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true } },
+          employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
+          history: { orderBy: { createdAt: 'asc' } },
+        },
+      });
+
+      await tx.expenseClaimApprovalHistory.create({
+        data: {
+          expenseClaimId: id,
+          action: historyAction,
+          fromStatus: claim.status,
+          toStatus: newStatus,
+          actorId: userId,
+          actorName: reviewerName,
+          actorRole: reviewerRole,
+          remarks: dto.remarks || (newStatus === ExpenseClaimStatus.FINANCE_PROCESSED ? 'Expense disbursed and finalized by Finance' : 'Expense status transitioned'),
+        },
+      });
+
+      return claimRecord;
     });
 
-    // Record Immutable Audit History
-    await this.prisma.expenseClaimApprovalHistory.create({
-      data: {
-        expenseClaimId: id,
-        action: historyAction,
-        fromStatus: claim.status,
-        toStatus: newStatus,
-        actorId: userId,
-        actorName: reviewerName,
-        actorRole: reviewerRole,
-        remarks: dto.remarks || null,
-      },
-    });
-
-    // Dispatch Push & Bell Notification
+    // 2. Post-Commit Real-Time Notifications (Bell + FCM Push)
     try {
       if (notificationConfig.recipientUserId) {
         await this.notificationsService.notifyUser({
           companyId,
           userId: notificationConfig.recipientUserId,
-          type: notificationConfig.type,
-          module: 'FINANCE',
-          priority: 'MEDIUM',
-          title: notificationConfig.title,
-          message: notificationConfig.message,
-          route: notificationConfig.route,
-          eventKey: notificationConfig.eventKey,
-          entityType: 'ExpenseClaim',
-          entityId: id,
-          actorUserId: userId,
-          actorName: reviewerName,
-        });
-      } else if (notificationConfig.roles) {
-        await this.notificationsService.notifyRole({
-          companyId,
-          roles: notificationConfig.roles,
           type: notificationConfig.type,
           module: 'FINANCE',
           priority: 'HIGH',
@@ -463,7 +548,23 @@ export class ExpenseService {
           route: notificationConfig.route,
           eventKey: notificationConfig.eventKey,
           entityType: 'ExpenseClaim',
-          entityId: id,
+          entityId: claim.id,
+          actorUserId: userId,
+          actorName: reviewerName,
+        });
+      } else if (notificationConfig.roles) {
+        await this.notificationsService.notifyRole({
+          companyId,
+          roles: notificationConfig.roles,
+          type: notificationConfig.type,
+          module: 'HR',
+          priority: 'HIGH',
+          title: notificationConfig.title,
+          message: notificationConfig.message,
+          route: notificationConfig.route,
+          eventKey: notificationConfig.eventKey,
+          entityType: 'ExpenseClaim',
+          entityId: claim.id,
           actorUserId: userId,
           actorName: reviewerName,
         });
@@ -476,7 +577,8 @@ export class ExpenseService {
   }
 
   /**
-   * Reject an Expense Claim at HR, Super Admin, or Finance stage -> REJECTED
+   * Reject an Expense Claim at any pending stage.
+   * Commits database state first, then dispatches real-time notification to claimant.
    */
   async rejectExpense(
     id: string,
@@ -484,6 +586,10 @@ export class ExpenseService {
     userId: string,
     companyIdFromReq?: string,
   ) {
+    if (!dto.remarks || !dto.remarks.trim()) {
+      throw new BadRequestException('A reason for rejection must be provided');
+    }
+
     const companyId = await this.resolveCompanyId(userId, companyIdFromReq);
     const reviewer = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -498,112 +604,87 @@ export class ExpenseService {
       where: { id, companyId },
       include: {
         user: true,
-        employee: true,
       },
     });
 
     if (!claim) throw new NotFoundException('Expense claim not found');
 
     if (
-      claim.status === ExpenseClaimStatus.REJECTED ||
-      claim.status === ExpenseClaimStatus.FINANCE_PROCESSED
+      claim.status === ExpenseClaimStatus.FINANCE_PROCESSED ||
+      claim.status === ExpenseClaimStatus.REJECTED
     ) {
-      throw new BadRequestException(
-        `Cannot reject an expense claim in "${claim.status}" state.`,
-      );
+      throw new BadRequestException(`Cannot reject claim already in state "${claim.status}"`);
     }
 
-    let historyAction: ExpenseClaimHistoryAction;
-    let updateData: any = {
-      status: ExpenseClaimStatus.REJECTED,
-    };
-
-    let eventKey = `expense.claim.rejected:${claim.id}`;
-
-    if (reviewerRole === 'HR' || reviewerRole === 'HR_MANAGER') {
-      if (claim.status !== ExpenseClaimStatus.PENDING_HR) {
-        throw new BadRequestException(
-          `HR can only reject claims in PENDING_HR state (current: ${claim.status}).`,
-        );
-      }
-      historyAction = ExpenseClaimHistoryAction.HR_REJECTED;
-      updateData.hrRemarks = dto.remarks;
-      updateData.hrApprovedById = userId;
-      updateData.hrApprovedBy = reviewerName;
-      updateData.hrApprovedAt = new Date();
-      eventKey = `expense.claim.hr_rejected:${claim.id}`;
-    } else if (reviewerRole === 'SUPER_ADMIN' || reviewerRole === 'ADMIN') {
-      if (claim.status !== ExpenseClaimStatus.PENDING_SUPERADMIN) {
-        throw new BadRequestException(
-          `Super Admin can only reject claims in PENDING_SUPERADMIN state (current: ${claim.status}).`,
-        );
-      }
+    let historyAction: ExpenseClaimHistoryAction = ExpenseClaimHistoryAction.HR_REJECTED;
+    if (claim.status === ExpenseClaimStatus.PENDING_SUPERADMIN) {
       historyAction = ExpenseClaimHistoryAction.SUPER_ADMIN_REJECTED;
-      updateData.superAdminRemarks = dto.remarks;
-      updateData.superAdminApprovedById = userId;
-      updateData.superAdminApprovedBy = reviewerName;
-      updateData.superAdminApprovedAt = new Date();
-      eventKey = `expense.claim.superadmin_rejected:${claim.id}`;
-    } else if (
-      reviewerRole === 'FINANCE' ||
-      reviewerRole === 'FINANCE_EXECUTIVE' ||
-      reviewerRole === 'FINANCE_HEAD'
-    ) {
-      if (claim.status !== ExpenseClaimStatus.PENDING_FINANCE) {
-        throw new BadRequestException(
-          `Finance can only reject claims in PENDING_FINANCE state (current: ${claim.status}).`,
-        );
-      }
+    } else if (claim.status === ExpenseClaimStatus.PENDING_FINANCE) {
       historyAction = ExpenseClaimHistoryAction.FINANCE_REJECTED;
-      updateData.financeRemarks = dto.remarks;
-      updateData.financeProcessedById = userId;
-      updateData.financeProcessedBy = reviewerName;
-      updateData.financeProcessedAt = new Date();
-      eventKey = `expense.claim.finance_rejected:${claim.id}`;
-    } else {
-      throw new ForbiddenException(
-        `Role "${reviewerRole}" is not authorized to reject expense claims.`,
-      );
     }
 
-    const updated = await this.prisma.expenseClaim.update({
-      where: { id },
-      data: updateData,
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-        employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
-        history: { orderBy: { createdAt: 'asc' } },
-      },
+    // 1. Transactional DB Write (Commit first)
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const claimRecord = await tx.expenseClaim.update({
+        where: { id },
+        data: {
+          status: ExpenseClaimStatus.REJECTED,
+          ...(claim.status === ExpenseClaimStatus.PENDING_HR && {
+            hrApprovedById: userId,
+            hrApprovedBy: reviewerName,
+            hrApprovedAt: new Date(),
+            hrRemarks: `REJECTED: ${dto.remarks.trim()}`,
+          }),
+          ...(claim.status === ExpenseClaimStatus.PENDING_SUPERADMIN && {
+            superAdminApprovedById: userId,
+            superAdminApprovedBy: reviewerName,
+            superAdminApprovedAt: new Date(),
+            superAdminRemarks: `REJECTED: ${dto.remarks.trim()}`,
+          }),
+          ...(claim.status === ExpenseClaimStatus.PENDING_FINANCE && {
+            financeProcessedById: userId,
+            financeProcessedBy: reviewerName,
+            financeProcessedAt: new Date(),
+            financeRemarks: `REJECTED: ${dto.remarks.trim()}`,
+          }),
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true } },
+          employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
+          history: { orderBy: { createdAt: 'asc' } },
+        },
+      });
+
+      await tx.expenseClaimApprovalHistory.create({
+        data: {
+          expenseClaimId: id,
+          action: historyAction,
+          fromStatus: claim.status,
+          toStatus: ExpenseClaimStatus.REJECTED,
+          actorId: userId,
+          actorName: reviewerName,
+          actorRole: reviewerRole,
+          remarks: dto.remarks.trim(),
+        },
+      });
+
+      return claimRecord;
     });
 
-    // Record Audit History
-    await this.prisma.expenseClaimApprovalHistory.create({
-      data: {
-        expenseClaimId: id,
-        action: historyAction,
-        fromStatus: claim.status,
-        toStatus: ExpenseClaimStatus.REJECTED,
-        actorId: userId,
-        actorName: reviewerName,
-        actorRole: reviewerRole,
-        remarks: dto.remarks,
-      },
-    });
-
-    // Notify Claimant
+    // 2. Post-Commit Real-Time Event & Push Notification to Claimant
     try {
       await this.notificationsService.notifyUser({
         companyId,
         userId: claim.userId,
         type: 'EXPENSE_REJECTED',
-        module: 'FINANCE',
+        module: 'HR',
         priority: 'HIGH',
         title: `Expense Claim Declined (${claim.claimNumber}) ⚠️`,
-        message: `Your claim ${claim.claimNumber} (₹${Number(claim.amount).toLocaleString('en-IN')}) was declined by ${reviewerRole}. Reason: ${dto.remarks}`,
-        route: `/profile?tab=expenses&expenseId=${claim.id}`,
-        eventKey,
+        message: `Your claim ${claim.claimNumber} was declined by ${reviewerRole}. Reason: "${dto.remarks.trim()}".`,
+        route: `/profile?tab=expenses&expenseId=${claim.claimNumber}`,
+        eventKey: `expense.claim.rejected:${claim.claimNumber}`,
         entityType: 'ExpenseClaim',
-        entityId: id,
+        entityId: claim.id,
         actorUserId: userId,
         actorName: reviewerName,
       });
