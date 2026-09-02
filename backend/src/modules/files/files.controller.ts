@@ -22,6 +22,38 @@ export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
   /**
+   * Universal wildcard file-serving endpoint for nested paths (e.g. /files/serve/employees/uuid/folder/file.png):
+   * GET /api/v1/files/serve/*
+   */
+  @Get('serve/*')
+  serveWildcardFile(@Req() req: any, @Res() res: any) {
+    const rawUrl = req.url || '';
+    const parts = rawUrl.split('/serve/');
+    const rawPath = parts.length > 1 ? parts.slice(1).join('/serve/').split('?')[0] : '';
+    const resolved = this.filesService.resolveFile(rawPath);
+    if (!resolved) {
+      return res.status(HttpStatus.NOT_FOUND).json({
+        statusCode: 404,
+        message: `File '${rawPath}' not found`,
+      });
+    }
+
+    res.set({
+      'Content-Type': resolved.mimeType,
+      'Content-Length': resolved.size,
+      'Cache-Control': 'public, max-age=86400, immutable',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+      'Cross-Origin-Embedder-Policy': 'unsafe-none',
+    });
+
+    const stream = createReadStream(resolved.fullPath);
+    return stream.pipe(res);
+  }
+
+  /**
    * Universal file-serving endpoint for categorical paths:
    * GET /api/v1/files/serve/:category/:filename
    */

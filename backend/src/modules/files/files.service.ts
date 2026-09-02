@@ -159,6 +159,7 @@ export class FilesService {
         for (const fName of altFileNames) {
           possiblePaths.push(join(root, sub, fName));
         }
+        possiblePaths.push(join(root, sub, clean));
       }
     }
 
