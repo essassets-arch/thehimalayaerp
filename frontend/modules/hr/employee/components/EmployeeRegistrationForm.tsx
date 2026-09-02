@@ -177,7 +177,14 @@ function DocUploadBox({
       {hasFile && value.meta && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
           {value.previewUrl ? (
-            <img src={value.previewUrl} alt="preview" style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px' }} />
+            <img
+              src={value.previewUrl}
+              alt="preview"
+              style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px' }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
           ) : (
             <div style={{ width: '48px', height: '48px', background: '#e0f2fe', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <FileText size={22} color="#0284c7" />
@@ -361,7 +368,11 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
           const addls: AdditionalDoc[] = [];
           emp.documents.forEach((doc: any) => {
             const rawKey = doc.storageKey || doc.fileUrl;
-            const previewUrl = getBackendAssetUrl(rawKey);
+            const isImg = Boolean(
+              doc.mimeType?.startsWith('image/') || 
+              /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(doc.documentName || doc.originalFileName || rawKey || '')
+            );
+            const previewUrl = isImg ? getBackendAssetUrl(rawKey) : null;
             const meta = {
               id: doc.id,
               fileName: doc.documentName || doc.originalFileName || doc.documentType,
@@ -379,9 +390,9 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
             } else if (doc.documentType === 'BANK_PASSBOOK') {
               setBankDoc({ meta, previewUrl, blob: null });
             } else if (doc.documentType === 'PHOTOGRAPH') {
-              setPhotoPreview(previewUrl);
+              setPhotoPreview(getBackendAssetUrl(rawKey));
             } else if (doc.documentType === 'SIGNATURE') {
-              setSigPreview(previewUrl);
+              setSigPreview(getBackendAssetUrl(rawKey));
             } else {
               addls.push({
                 rowId: doc.id,

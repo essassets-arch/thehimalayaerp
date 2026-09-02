@@ -16,6 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { FilesService } from './files.service';
 import { createReadStream } from 'fs';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('files')
 export class FilesController {
@@ -25,6 +26,7 @@ export class FilesController {
    * Universal wildcard file-serving endpoint for nested paths (e.g. /files/serve/employees/uuid/folder/file.png):
    * GET /api/v1/files/serve/*
    */
+  @Public()
   @Get('serve/*')
   serveWildcardFile(@Req() req: any, @Res() res: any) {
     const rawUrl = req.url || '';
@@ -57,6 +59,7 @@ export class FilesController {
    * Universal file-serving endpoint for categorical paths:
    * GET /api/v1/files/serve/:category/:filename
    */
+  @Public()
   @Get('serve/:category/:filename')
   serveCategoricalFile(
     @Param('category') category: string,
@@ -90,6 +93,7 @@ export class FilesController {
    * Universal file-serving endpoint for flat paths:
    * GET /api/v1/files/serve/:filename
    */
+  @Public()
   @Get('serve/:filename')
   serveFlatFile(@Param('filename') filename: string, @Res() res: any) {
     const resolved = this.filesService.resolveFile(filename);
@@ -118,6 +122,7 @@ export class FilesController {
   /**
    * GET /api/v1/files/:fileId
    */
+  @Public()
   @Get(':fileId')
   serveByFileId(@Param('fileId') fileId: string, @Res() res: any) {
     const resolved = this.filesService.resolveFile(fileId);
@@ -191,6 +196,7 @@ export class FilesController {
    * Direct file download stream with Content-Disposition attachment:
    * GET /api/v1/files/download/:token
    */
+  @Public()
   @Get('download/:token')
   downloadExportFile(
     @Param('token') token: string,
