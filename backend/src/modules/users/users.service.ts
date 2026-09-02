@@ -84,36 +84,52 @@ export class UsersService {
         select: {
           id: true,
           employeeCode: true,
+          fullName: true,
+          firstName: true,
+          lastName: true,
           workEmail: true,
+          jobTitle: true,
           userId: true,
           department: { select: { name: true } },
+          status: true,
+          createdAt: true,
+          updatedAt: true,
         },
       }),
     ]);
 
-    const empByUserId = new Map();
-    const empByEmail = new Map();
+    const empByUserId = new Map<string, any>();
+    const empByEmail = new Map<string, any>();
+    const matchedEmpIds = new Set<string>();
+
     for (const emp of allEmployees) {
       if (emp.userId) empByUserId.set(emp.userId, emp);
-      if (emp.workEmail) empByEmail.set(emp.workEmail.toLowerCase(), emp);
+      if (emp.workEmail) empByEmail.set(emp.workEmail.toLowerCase().trim(), emp);
     }
 
-    const mapped = users.map((u) => {
+    const mapped: any[] = [];
+
+    for (const u of users) {
       const linkedEmp =
         u.employee ||
         empByUserId.get(u.id) ||
-        empByEmail.get(u.email.toLowerCase());
+        empByEmail.get((u.email || '').toLowerCase().trim());
+
+      if (linkedEmp?.id) {
+        matchedEmpIds.add(linkedEmp.id);
+      }
+
       const empCode = linkedEmp?.employeeCode || u.publicId;
       const normalizedEmail = (u.email || '').toLowerCase().trim();
-      return {
+      mapped.push({
         id: u.id,
         publicId: empCode,
         employeeCode: empCode,
         employeeId: linkedEmp?.id || null,
-        name: u.name,
-        email: u.email,
+        name: u.name || linkedEmp?.fullName || `${linkedEmp?.firstName || ''} ${linkedEmp?.lastName || ''}`.trim(),
+        email: u.email || linkedEmp?.workEmail || '',
         password: KNOWN_USER_PASSWORDS[normalizedEmail] || 'Himalaya@2026',
-        role: u.role?.name || 'Staff',
+        role: u.role?.name || linkedEmp?.jobTitle || 'Staff',
         roleCode: u.role?.code || 'STAFF',
         roleId: u.roleId,
         department:
@@ -126,8 +142,34 @@ export class UsersService {
         status: u.isActive ? 'Active' : 'Inactive',
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
-      };
-    });
+      });
+    }
+
+    // Include any employees that don't have a linked user account yet
+    for (const emp of allEmployees) {
+      if (!matchedEmpIds.has(emp.id) && !mapped.some((m) => m.employeeId === emp.id || m.employeeCode === emp.employeeCode)) {
+        const empCode = emp.employeeCode || `EMP-${emp.id.slice(0, 4)}`;
+        const empName = emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Staff Member';
+        mapped.push({
+          id: emp.userId || emp.id,
+          publicId: empCode,
+          employeeCode: empCode,
+          employeeId: emp.id,
+          name: empName,
+          email: emp.workEmail || '',
+          password: 'N/A',
+          role: emp.jobTitle || 'Staff Member',
+          roleCode: 'STAFF',
+          roleId: null,
+          department: emp.department?.name || 'Operations',
+          dispatchCategory: null,
+          isActive: emp.status === 'ACTIVE' || emp.status === 'CONFIRMED' || emp.status === 'ON_PROBATION',
+          status: emp.status || 'Active',
+          createdAt: emp.createdAt,
+          updatedAt: emp.updatedAt,
+        });
+      }
+    }
 
     const getNum = (code: string | null | undefined) => {
       if (!code) return 999999;

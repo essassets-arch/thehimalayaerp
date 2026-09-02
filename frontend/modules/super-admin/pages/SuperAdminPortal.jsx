@@ -6612,14 +6612,47 @@ export default function SuperAdminPortal() {
 
     // Build selectable staff from backendUsers and employees
     const selectableStaff = [];
-    const seenStaffIds = new Set();
+    const seenCodes = new Set();
+    const seenEmails = new Set();
+    const seenIds = new Set();
+
+    (backendUsers || []).forEach(u => {
+      const code = (u.employeeCode || u.publicId || '').trim();
+      const email = (u.email || '').toLowerCase().trim();
+      const uid = u.id || u.userId || u.employeeId;
+
+      if (code) seenCodes.add(code.toLowerCase());
+      if (email && email.includes('@')) seenEmails.add(email);
+      if (uid) seenIds.add(uid);
+
+      selectableStaff.push({
+        id: u.id,
+        employeeId: u.employeeId || u.id,
+        name: u.name || u.fullName || (email ? email.split('@')[0] : 'User'),
+        code: u.employeeCode || u.publicId || `USR-${String(u.id).slice(0, 4)}`,
+        role: u.role?.name || u.role || u.jobTitle || 'Staff',
+        department: typeof u.department === 'object' ? (u.department?.name || 'Operations') : (u.department || u.role?.name || 'Staff')
+      });
+    });
 
     (employees || []).forEach(emp => {
-      const uId = emp.userId || emp.id || emp.employeeCode;
-      if (uId && !seenStaffIds.has(uId)) {
-        seenStaffIds.add(uId);
+      const code = (emp.employeeCode || emp.id || '').trim();
+      const email = (emp.workEmail || emp.email || '').toLowerCase().trim();
+      const uid = emp.userId || emp.id;
+
+      const isSeen =
+        (code && seenCodes.has(code.toLowerCase())) ||
+        (email && email.includes('@') && seenEmails.has(email)) ||
+        (uid && seenIds.has(uid));
+
+      if (!isSeen) {
+        if (code) seenCodes.add(code.toLowerCase());
+        if (email && email.includes('@')) seenEmails.add(email);
+        if (uid) seenIds.add(uid);
+
         selectableStaff.push({
           id: emp.userId || emp.id,
+          employeeId: emp.id,
           name: emp.name || emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Staff Member',
           code: emp.employeeCode || emp.id,
           role: emp.jobTitle || emp.role || 'Staff',
@@ -6628,18 +6661,13 @@ export default function SuperAdminPortal() {
       }
     });
 
-    (backendUsers || []).forEach(u => {
-      if (u.id && !seenStaffIds.has(u.id)) {
-        seenStaffIds.add(u.id);
-        selectableStaff.push({
-          id: u.id,
-          name: u.name || u.fullName || u.email?.split('@')[0] || 'User',
-          code: u.employeeCode || `USR-${u.id.slice(0, 4)}`,
-          role: u.role?.name || u.role || 'User',
-          department: u.department || u.role?.name || 'Staff'
-        });
-      }
-    });
+    const getNum = (code) => {
+      if (!code) return 999999;
+      const m = String(code).match(/(\d+)/);
+      return m ? parseInt(m[1], 10) : 999999;
+    };
+
+    selectableStaff.sort((a, b) => getNum(a.code) - getNum(b.code));
 
     const filteredSelectableStaff = selectableStaff.filter(s => {
       if (!notifUserSearchQuery.trim()) return true;

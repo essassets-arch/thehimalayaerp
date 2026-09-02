@@ -72,7 +72,7 @@ export default function HRNotificationsView() {
       try {
         setLoadingEmployees(true);
         const [empRes, userRes] = await Promise.allSettled([
-          employeesService.listEmployees({ page: 1, limit: 200 }),
+          employeesService.listEmployees({ page: 1, limit: 1000 }),
           apiClient.get('/admin/users')
         ]);
 
@@ -95,13 +95,48 @@ export default function HRNotificationsView() {
   // Merged selectable staff directory
   const selectableStaff = useMemo(() => {
     const list = [];
+    const seenCodes = new Set();
+    const seenEmails = new Set();
     const seenIds = new Set();
 
-    // Add employees
-    employees.forEach(emp => {
-      const uId = emp.userId || emp.id || emp.employeeCode;
-      if (!seenIds.has(uId)) {
-        seenIds.add(uId);
+    // 1. Process systemUsers (primary source of user accounts)
+    (systemUsers || []).forEach(u => {
+      const code = (u.employeeCode || u.publicId || '').trim();
+      const email = (u.email || '').toLowerCase().trim();
+      const uid = u.id || u.userId || u.employeeId;
+
+      if (code) seenCodes.add(code.toLowerCase());
+      if (email && email.includes('@')) seenEmails.add(email);
+      if (uid) seenIds.add(uid);
+
+      list.push({
+        id: u.id,
+        employeeId: u.employeeId || u.id,
+        employeeCode: u.employeeCode || u.publicId || `USR-${String(u.id).slice(0, 4)}`,
+        name: u.name || u.fullName || (email ? email.split('@')[0] : 'User'),
+        email: u.email || '—',
+        department: typeof u.department === 'object' ? (u.department?.name || 'Operations') : (u.department || u.role || 'Staff'),
+        designation: u.role?.name || u.role || u.jobTitle || 'Staff Member',
+        avatar: u.selfieUrl || u.avatar || null
+      });
+    });
+
+    // 2. Process employees (add any not already in systemUsers)
+    (employees || []).forEach(emp => {
+      const code = (emp.employeeCode || emp.id || '').trim();
+      const email = (emp.workEmail || emp.email || '').toLowerCase().trim();
+      const uid = emp.userId || emp.id;
+
+      const isSeen = 
+        (code && seenCodes.has(code.toLowerCase())) ||
+        (email && email.includes('@') && seenEmails.has(email)) ||
+        (uid && seenIds.has(uid));
+
+      if (!isSeen) {
+        if (code) seenCodes.add(code.toLowerCase());
+        if (email && email.includes('@')) seenEmails.add(email);
+        if (uid) seenIds.add(uid);
+
         list.push({
           id: emp.userId || emp.id,
           employeeId: emp.id,
@@ -115,23 +150,14 @@ export default function HRNotificationsView() {
       }
     });
 
-    // Add any standalone system users
-    systemUsers.forEach(u => {
-      if (!seenIds.has(u.id)) {
-        seenIds.add(u.id);
-        list.push({
-          id: u.id,
-          employeeId: u.id,
-          employeeCode: u.employeeCode || `USR-${u.id.slice(0, 4)}`,
-          name: u.name || u.fullName || u.email?.split('@')[0] || 'User',
-          email: u.email || '—',
-          department: u.role?.name || u.role || 'Staff',
-          designation: u.role?.name || u.role || 'User',
-          avatar: null
-        });
-      }
-    });
+    // Natural sort by employee number (e.g. EMP-1, EMP-2, EMP-3, ... EMP-26, etc.)
+    const getNum = (code) => {
+      if (!code) return 999999;
+      const m = String(code).match(/(\d+)/);
+      return m ? parseInt(m[1], 10) : 999999;
+    };
 
+    list.sort((a, b) => getNum(a.employeeCode) - getNum(b.employeeCode));
     return list;
   }, [employees, systemUsers]);
 
@@ -143,6 +169,7 @@ export default function HRNotificationsView() {
       s.name.toLowerCase().includes(q) ||
       s.employeeCode.toLowerCase().includes(q) ||
       s.department.toLowerCase().includes(q) ||
+      s.designation.toLowerCase().includes(q) ||
       s.email.toLowerCase().includes(q)
     );
   }, [selectableStaff, userSearchQuery]);
