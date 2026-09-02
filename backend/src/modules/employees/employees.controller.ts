@@ -188,7 +188,11 @@ export class EmployeesController {
   }
 
   @Post('employees/:id/documents')
-  @RequirePermissions('hr.employees.documents.upload')
+  @RequirePermissions(
+    'hr.employees.documents.upload',
+    'hr.employees.update',
+    'hr.employees.create',
+  )
   @UseInterceptors(
     AnyFilesInterceptor({
       limits: { fileSize: 10 * 1024 * 1024 },
@@ -211,7 +215,11 @@ export class EmployeesController {
   }
 
   @Delete('employees/:employeeId/documents/:documentId')
-  @RequirePermissions('hr.employees.documents.delete')
+  @RequirePermissions(
+    'hr.employees.documents.delete',
+    'hr.employees.update',
+    'hr.employees.delete',
+  )
   deleteDocument(
     @Param('employeeId') employeeId: string,
     @Param('documentId') documentId: string,
