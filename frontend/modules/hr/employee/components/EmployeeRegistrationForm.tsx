@@ -102,26 +102,29 @@ function DocUploadBox({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const hasFile = !!value.meta;
+  const inputId = `doc-upload-${category.toLowerCase()}-${label.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
 
   const handleFile = async (file: File) => {
-    if (!accept.split(',').some(t => file.type.includes(t.trim().split('/')[1]))) {
-      Swal.fire('Invalid File', `Only ${accept} files are allowed.`, 'error');
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isImg = file.type.startsWith('image/') || file.name.match(/\.(jpg|jpeg|png|webp|gif|heic|heif|bmp)$/i);
+    if (!isPdf && !isImg && file.type && !accept.split(',').some(t => file.type.includes(t.trim().split('/')[1]))) {
+      Swal.fire('Invalid File', 'Only PDF or JPG/PNG image files are allowed.', 'error');
       return;
     }
     if (file.size > maxSize) {
       Swal.fire('File Too Large', `Maximum allowed size is ${formatBytes(maxSize)}.`, 'error');
       return;
     }
-    if (value.previewUrl) URL.revokeObjectURL(value.previewUrl);
+    if (value.previewUrl && value.previewUrl.startsWith('blob:')) URL.revokeObjectURL(value.previewUrl);
 
     const storageKey = `draft_${category}_${Date.now()}`;
-    await saveFile(storageKey, file);
-    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+    await saveFile(storageKey, file).catch(() => {});
+    const previewUrl = isImg ? URL.createObjectURL(file) : null;
     onChange({
       meta: {
         id: genId(),
         fileName: file.name,
-        mimeType: file.type,
+        mimeType: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
         size: file.size,
         category,
         title: label,
@@ -134,7 +137,7 @@ function DocUploadBox({
   };
 
   const handleRemove = () => {
-    if (value.previewUrl) URL.revokeObjectURL(value.previewUrl);
+    if (value.previewUrl && value.previewUrl.startsWith('blob:')) URL.revokeObjectURL(value.previewUrl);
     onChange({ meta: null, previewUrl: null, blob: null });
     if (inputRef.current) inputRef.current.value = '';
   };
@@ -148,7 +151,8 @@ function DocUploadBox({
       transition: 'all 0.2s ease',
       display: 'flex',
       flexDirection: 'column',
-      gap: '10px'
+      gap: '10px',
+      position: 'relative'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>{label}</span>
@@ -160,9 +164,9 @@ function DocUploadBox({
               </button>
             </a>
           )}
-          <button type="button" onClick={() => inputRef.current?.click()} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>
+          <label htmlFor={inputId} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>
             <Upload size={12} /> {hasFile ? 'Replace' : 'Upload'}
-          </button>
+          </label>
           {hasFile && (
             <button type="button" onClick={handleRemove} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>
               <Trash2 size={12} />
@@ -186,17 +190,18 @@ function DocUploadBox({
         </div>
       )}
       {!hasFile && (
-        <div style={{ textAlign: 'center', padding: '12px 0', color: '#64748b', fontSize: '12px' }}>
-          <Upload size={22} style={{ marginBottom: '4px', opacity: 0.5 }} />
+        <label htmlFor={inputId} style={{ textAlign: 'center', padding: '12px 0', color: '#64748b', fontSize: '12px', cursor: 'pointer', display: 'block' }}>
+          <Upload size={22} style={{ marginBottom: '4px', opacity: 0.5, margin: '0 auto 4px', display: 'block' }} />
           <div>Click Upload to attach (PDF, JPG, PNG — max {formatBytes(maxSize)})</div>
-        </div>
+        </label>
       )}
       {error && <span style={{ fontSize: '11.5px', color: '#ef4444', fontWeight: '600' }}><AlertCircle size={12} /> {error}</span>}
       <input
+        id={inputId}
         ref={inputRef}
         type="file"
         accept={accept}
-        style={{ display: 'none' }}
+        style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0,0,0,0)', border: 0 }}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
       />
     </div>
@@ -518,7 +523,7 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
   // Draft auto-save
   const formValues = watch();
   useEffect(() => {
-    if (!isDraftReady) return;
+    if (isEditMode || !isDraftReady) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       try {
