@@ -304,9 +304,9 @@ export default function EmployeeDetails({ id, onBack }: { id: string; onBack?: (
       {/* Hero Header */}
       <header className={styles.hero}>
         <div className={styles.avatar}>
-          {employee.selfieUrl ? (
+          {(employee.documents?.find((d: any) => d.documentType === 'PHOTOGRAPH')?.storageKey || employee.selfieUrl) ? (
             <img 
-              src={getBackendAssetUrl(employee.selfieUrl)} 
+              src={getBackendAssetUrl(employee.documents?.find((d: any) => d.documentType === 'PHOTOGRAPH')?.storageKey || employee.selfieUrl)} 
               alt={employee.fullName} 
               style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} 
             />
