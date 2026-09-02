@@ -94,7 +94,7 @@ interface QuickAccount {
 const QUICK_ACCOUNTS: QuickAccount[] = [
   // Super Admin & HR
   { email: 'super.admin@himalayaerp.com', password: 'SuperAdmin@hcppl', name: 'Super Admin', role: 'Super Admin', dept: 'Super Admin Department', category: 'Admin & HR', color: '#6366F1' },
-  { email: 'nahin.v@himalayaerp.com', password: 'HR@hcppl', name: 'Nahin V', role: 'HR Manager', dept: 'HR Department', category: 'Admin & HR', color: '#EC4899' },
+  { email: 'hr@himalayaerp.com', password: 'HR@hcppl', name: 'Nahin V', role: 'HR Manager', dept: 'HR Department', category: 'Admin & HR', color: '#EC4899' },
   { email: 'abbas.b@himalayaerp.com', password: 'dataAnalyst#2101', name: 'Abbas B', role: 'Back Office', dept: 'Back Office Department', category: 'Admin & HR', color: '#0284c7' },
 
   // Sales & SuperSales
