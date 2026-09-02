@@ -352,13 +352,81 @@ export class EmployeesService {
         'probationEndDate',
       );
     }
-    const [department, location, manager, duplicate] = await Promise.all([
-      this.prisma.department.findFirst({
-        where: { id: dto.departmentId, companyId, isActive: true },
-      }),
-      this.prisma.workLocation.findFirst({
-        where: { id: dto.workLocationId, companyId, isActive: true },
-      }),
+    // Dynamically resolve or create custom Department
+    let department = await this.prisma.department.findFirst({
+      where: { id: dto.departmentId, companyId, isActive: true },
+    });
+
+    const customDeptName = (
+      dto.customDepartment ||
+      (dto.departmentId === 'CUSTOM' ? dto.departmentName : null) ||
+      (!department && dto.departmentId && dto.departmentId !== 'CUSTOM' ? dto.departmentId : null)
+    )?.trim();
+
+    if (!department && customDeptName && customDeptName !== 'CUSTOM') {
+      department = await this.prisma.department.findFirst({
+        where: {
+          companyId,
+          OR: [
+            { id: customDeptName },
+            { name: { equals: customDeptName, mode: 'insensitive' } },
+            { code: { equals: customDeptName.toUpperCase().replace(/[^A-Z0-9]/g, '_'), mode: 'insensitive' } },
+          ],
+        },
+      });
+
+      if (!department) {
+        const generatedCode = `DEPT_${customDeptName.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 20)}_${randomBytes(2).toString('hex').toUpperCase()}`;
+        department = await this.prisma.department.create({
+          data: {
+            companyId,
+            name: customDeptName,
+            code: generatedCode,
+            isActive: true,
+          },
+        });
+      }
+      dto.departmentId = department.id;
+    }
+
+    // Dynamically resolve or create custom Work Location
+    let location = await this.prisma.workLocation.findFirst({
+      where: { id: dto.workLocationId, companyId, isActive: true },
+    });
+
+    const customLocName = (
+      dto.customWorkLocation ||
+      (dto.workLocationId === 'CUSTOM' ? dto.workLocationName : null) ||
+      (!location && dto.workLocationId && dto.workLocationId !== 'CUSTOM' ? dto.workLocationId : null)
+    )?.trim();
+
+    if (!location && customLocName && customLocName !== 'CUSTOM') {
+      location = await this.prisma.workLocation.findFirst({
+        where: {
+          companyId,
+          OR: [
+            { id: customLocName },
+            { name: { equals: customLocName, mode: 'insensitive' } },
+            { code: { equals: customLocName.toUpperCase().replace(/[^A-Z0-9]/g, '_'), mode: 'insensitive' } },
+          ],
+        },
+      });
+
+      if (!location) {
+        const generatedCode = `LOC_${customLocName.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 20)}_${randomBytes(2).toString('hex').toUpperCase()}`;
+        location = await this.prisma.workLocation.create({
+          data: {
+            companyId,
+            name: customLocName,
+            code: generatedCode,
+            isActive: true,
+          },
+        });
+      }
+      dto.workLocationId = location.id;
+    }
+
+    const [manager, duplicate] = await Promise.all([
       dto.reportingManagerId
         ? this.prisma.employee.findFirst({
             where: {
@@ -861,10 +929,61 @@ export class EmployeesService {
       orderBy: { name: 'asc' },
     });
   }
+
+  async createDepartment(body: any, user: any) {
+    const companyId = this.companyId(user);
+    const name = (body.name || body.departmentName || '').trim();
+    if (!name) throw new BadRequestException('Department name is required.');
+
+    let existing = await this.prisma.department.findFirst({
+      where: { companyId, name: { equals: name, mode: 'insensitive' } },
+    });
+    if (existing) return existing;
+
+    const code = (
+      body.code ||
+      `DEPT_${name.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 20)}_${randomBytes(2).toString('hex').toUpperCase()}`
+    ).trim();
+
+    return this.prisma.department.create({
+      data: {
+        companyId,
+        name,
+        code,
+        isActive: true,
+      },
+    });
+  }
+
   locations(user: any) {
     return this.prisma.workLocation.findMany({
       where: { companyId: this.companyId(user), isActive: true },
       orderBy: { name: 'asc' },
+    });
+  }
+
+  async createWorkLocation(body: any, user: any) {
+    const companyId = this.companyId(user);
+    const name = (body.name || body.locationName || '').trim();
+    if (!name) throw new BadRequestException('Work location name is required.');
+
+    let existing = await this.prisma.workLocation.findFirst({
+      where: { companyId, name: { equals: name, mode: 'insensitive' } },
+    });
+    if (existing) return existing;
+
+    const code = (
+      body.code ||
+      `LOC_${name.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 20)}_${randomBytes(2).toString('hex').toUpperCase()}`
+    ).trim();
+
+    return this.prisma.workLocation.create({
+      data: {
+        companyId,
+        name,
+        code,
+        isActive: true,
+      },
     });
   }
   managers(user: any, excludeId?: string) {

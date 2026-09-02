@@ -31,10 +31,12 @@ export const employeeRegistrationSchema = z
     // Employment
     designation: z.string().min(1, 'Job Title is mandatory').trim(),
     department: z.string().min(1, 'Department is mandatory'),
+    customDepartment: z.string().optional(),
     managerId: z.string().optional(),
     // Locations are configured in the database, so retain their ID rather
     // than constraining registration to a stale, hard-coded list.
     workLocation: z.string().min(1, 'Work Location is mandatory'),
+    customWorkLocation: z.string().optional(),
     employmentType: z.enum(
       ['Full-time', 'Part-time', 'Contract', 'Intern', 'Temporary', 'Consultant'],
       { message: 'Employment Type is mandatory' }
@@ -149,6 +151,24 @@ export const employeeRegistrationSchema = z
     },
     { message: 'ESIC must be exactly 17 digits', path: ['esic'] }
   )
+  .refine(
+    (d) => {
+      if (d.department === 'CUSTOM') {
+        return !!d.customDepartment && d.customDepartment.trim().length >= 2;
+      }
+      return true;
+    },
+    { message: 'Please write the custom department name', path: ['customDepartment'] }
+  )
+  .refine(
+    (d) => {
+      if (d.workLocation === 'CUSTOM') {
+        return !!d.customWorkLocation && d.customWorkLocation.trim().length >= 2;
+      }
+      return true;
+    },
+    { message: 'Please write the custom work location name', path: ['customWorkLocation'] }
+  )
   .refine((d) => !!d.aadhaarCardDoc?.id, {
     message: 'Aadhaar Card upload is mandatory',
     path: ['aadhaarCardDoc'],
@@ -174,8 +194,10 @@ export const employeeDraftSchema = z.object({
   name: z.string().optional(),
   designation: z.string().optional(),
   department: z.string().optional(),
+  customDepartment: z.string().optional(),
   managerId: z.string().optional(),
   workLocation: z.string().optional(),
+  customWorkLocation: z.string().optional(),
   employmentType: z.string().optional(),
   joiningDate: z.string().optional(),
   probationEndDate: z.string().optional().nullable(),
@@ -224,8 +246,10 @@ export const employeeEditSchema = z.object({
   // Employment
   designation: z.string().min(1, 'Job Title is mandatory').trim(),
   department: z.string().min(1, 'Department is mandatory'),
+  customDepartment: z.string().optional(),
   managerId: z.string().optional().nullable(),
   workLocation: z.string().min(1, 'Work Location is mandatory'),
+  customWorkLocation: z.string().optional(),
   employmentType: z.string().optional().default('Full-time'),
   joiningDate: z.string().min(1, 'Date of Joining is mandatory'),
   probationEndDate: z.string().optional().nullable(),

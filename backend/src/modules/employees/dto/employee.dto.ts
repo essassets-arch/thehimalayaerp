@@ -30,8 +30,12 @@ export class CreateEmployeeDto {
   @IsEnum(Gender) gender!: Gender;
   @IsString() @IsNotEmpty() jobTitle!: string;
   @IsString() @IsNotEmpty() departmentId!: string;
+  @IsOptional() @IsString() customDepartment?: string;
+  @IsOptional() @IsString() departmentName?: string;
   @IsOptional() @IsString() reportingManagerId?: string;
   @IsString() @IsNotEmpty() workLocationId!: string;
+  @IsOptional() @IsString() customWorkLocation?: string;
+  @IsOptional() @IsString() workLocationName?: string;
   @IsEnum(EmploymentType) employmentType!: EmploymentType;
   @IsDateString() joiningDate!: string;
   @IsOptional() @IsDateString() probationEndDate?: string;

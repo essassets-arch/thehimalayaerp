@@ -41,7 +41,11 @@ export const employeesService = {
   deleteEmployeeDocument: (employeeId: string, documentId: string) =>
     backendFetch<void>(`${base}/${employeeId}/documents/${documentId}`, { method: 'DELETE' }),
   listDepartments: () => backendFetch<any[]>('/api/backend/hr/departments', { cacheTtlMs: 0 }),
+  createDepartment: (payload: { name: string; code?: string }) =>
+    backendFetch<any>('/api/backend/hr/departments', { method: 'POST', body: payload }),
   listWorkLocations: () => backendFetch<any[]>('/api/backend/hr/work-locations', { cacheTtlMs: 0 }),
+  createWorkLocation: (payload: { name: string; code?: string }) =>
+    backendFetch<any>('/api/backend/hr/work-locations', { method: 'POST', body: payload }),
   listReportingManagers: (excludeId?: string) =>
     backendFetch<any[]>(`${base}/managers${excludeId ? `?excludeId=${encodeURIComponent(excludeId)}` : ''}`, { cacheTtlMs: 0 }),
   getNextEmployeeCode: () =>

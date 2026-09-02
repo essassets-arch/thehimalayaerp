@@ -291,6 +291,9 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
   const [deptSearch, setDeptSearch] = useState('');
   const [deptOpen, setDeptOpen] = useState(false);
   const watchedDept = watch('department');
+  const watchedWorkLoc = watch('workLocation');
+  const watchedCustomDept = watch('customDepartment');
+  const watchedCustomWorkLoc = watch('customWorkLocation');
 
   // Load existing employee if in edit mode
   useEffect(() => {
@@ -662,8 +665,12 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
           dateOfBirth: data.dob ? data.dob : undefined,
           gender: data.gender ? (genders[data.gender] || data.gender.toUpperCase()) : undefined,
           jobTitle: data.designation ? data.designation.trim() : undefined,
-          departmentId: data.department || undefined,
-          workLocationId: data.workLocation || undefined,
+          departmentId: data.department === 'CUSTOM' ? (data.customDepartment?.trim() || 'CUSTOM') : (data.department || undefined),
+          customDepartment: data.department === 'CUSTOM' ? data.customDepartment?.trim() : undefined,
+          departmentName: data.department === 'CUSTOM' ? data.customDepartment?.trim() : undefined,
+          workLocationId: data.workLocation === 'CUSTOM' ? (data.customWorkLocation?.trim() || 'CUSTOM') : (data.workLocation || undefined),
+          customWorkLocation: data.workLocation === 'CUSTOM' ? data.customWorkLocation?.trim() : undefined,
+          workLocationName: data.workLocation === 'CUSTOM' ? data.customWorkLocation?.trim() : undefined,
           reportingManagerId: data.managerId || null,
           employmentType: data.employmentType ? (employmentTypes[data.employmentType] || data.employmentType.toUpperCase()) : undefined,
           joiningDate: data.joiningDate ? data.joiningDate : undefined,
@@ -761,9 +768,13 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
         dateOfBirth: data.dob,
         gender: genders[data.gender],
         jobTitle: data.designation,
-        departmentId: data.department,
+        departmentId: data.department === 'CUSTOM' ? (data.customDepartment?.trim() || 'CUSTOM') : data.department,
+        customDepartment: data.department === 'CUSTOM' ? data.customDepartment?.trim() : undefined,
+        departmentName: data.department === 'CUSTOM' ? data.customDepartment?.trim() : undefined,
         reportingManagerId: data.managerId || undefined,
-        workLocationId: data.workLocation,
+        workLocationId: data.workLocation === 'CUSTOM' ? (data.customWorkLocation?.trim() || 'CUSTOM') : data.workLocation,
+        customWorkLocation: data.workLocation === 'CUSTOM' ? data.customWorkLocation?.trim() : undefined,
+        workLocationName: data.workLocation === 'CUSTOM' ? data.customWorkLocation?.trim() : undefined,
         employmentType: employmentTypes[data.employmentType],
         joiningDate: data.joiningDate,
         probationEndDate: data.probationEndDate || undefined,
@@ -1169,51 +1180,135 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
                   <input {...register('designation')} style={inputStyle(!!errors.designation)} placeholder="e.g. Senior Operations Exec" />
                 </FormField>
                 
-                {/* Searchable Department */}
-                <FormField label="Department" required error={errors.department?.message as string}>
-                  <div style={{ position: 'relative' }}>
-                    <div
-                      onClick={() => setDeptOpen(prev => !prev)}
-                      style={{ ...selectStyle(!!errors.department), display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                    >
-                      <span style={{ color: watchedDept ? '#0f172a' : '#64748b', fontWeight: watchedDept ? '600' : 'normal' }}>
-                        {watchedDept
-                          ? departments.find(d => d.id === watchedDept)?.name || watchedDept
-                          : 'Select Department'}
+                {/* Searchable Department + Custom Option */}
+                <FormField label="Department" required error={(errors.department?.message || errors.customDepartment?.message) as string}>
+                  {watchedDept === 'CUSTOM' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          {...register('customDepartment')}
+                          autoFocus
+                          style={{ ...inputStyle(!!errors.customDepartment), borderColor: '#2563eb', background: '#eff6ff' }}
+                          placeholder="Type custom department name..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setValue('department', '', { shouldValidate: true });
+                            setValue('customDepartment', '');
+                          }}
+                          style={{
+                            background: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '8px',
+                            padding: '0 12px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            color: '#475569',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          Select List
+                        </button>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: '600' }}>
+                        ✨ Writing new custom department
                       </span>
-                      {deptOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </div>
-                    {deptOpen && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', marginTop: '4px' }}>
-                        <div style={{ padding: '8px' }}>
-                          <input
-                            autoFocus
-                            value={deptSearch}
-                            onChange={e => setDeptSearch(e.target.value)}
-                            placeholder="Search department..."
-                            style={{ ...inputStyle(false), marginBottom: 0 }}
-                            onClick={e => e.stopPropagation()}
-                          />
-                        </div>
-                        <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                          {filteredDepts.map(d => (
+                  ) : (
+                    <div style={{ position: 'relative' }}>
+                      <div
+                        onClick={() => setDeptOpen(prev => !prev)}
+                        style={{ ...selectStyle(!!errors.department), display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                      >
+                        <span style={{ color: watchedDept ? '#0f172a' : '#64748b', fontWeight: watchedDept ? '600' : 'normal' }}>
+                          {watchedDept
+                            ? departments.find(d => d.id === watchedDept)?.name || watchedDept
+                            : 'Select Department'}
+                        </span>
+                        {deptOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </div>
+                      {deptOpen && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', marginTop: '4px' }}>
+                          <div style={{ padding: '8px' }}>
+                            <input
+                              autoFocus
+                              value={deptSearch}
+                              onChange={e => setDeptSearch(e.target.value)}
+                              placeholder="Search or type department..."
+                              style={{ ...inputStyle(false), marginBottom: 0 }}
+                              onClick={e => e.stopPropagation()}
+                            />
+                          </div>
+                          <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                            {deptSearch.trim() && (
+                              <div
+                                onClick={() => {
+                                  setValue('department', 'CUSTOM', { shouldValidate: true });
+                                  setValue('customDepartment', deptSearch.trim(), { shouldValidate: true });
+                                  setDeptOpen(false);
+                                  setDeptSearch('');
+                                }}
+                                style={{
+                                  padding: '8px 12px',
+                                  cursor: 'pointer',
+                                  fontSize: '12.5px',
+                                  color: '#2563eb',
+                                  background: '#eff6ff',
+                                  fontWeight: '700',
+                                  borderBottom: '1px solid #dbeafe',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px'
+                                }}
+                              >
+                                ✨ Use "{deptSearch.trim()}" as Custom Department
+                              </div>
+                            )}
+
+                            {filteredDepts.map(d => (
+                              <div
+                                key={d.id}
+                                onClick={() => {
+                                  setValue('department', d.id, { shouldValidate: true });
+                                  setValue('customDepartment', '');
+                                  setDeptOpen(false);
+                                  setDeptSearch('');
+                                }}
+                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#0f172a', background: watchedDept === d.id ? '#f1f5f9' : 'transparent', fontWeight: watchedDept === d.id ? '700' : 'normal' }}
+                              >
+                                {d.name}
+                              </div>
+                            ))}
+
                             <div
-                              key={d.id}
                               onClick={() => {
-                                setValue('department', d.id, { shouldValidate: true });
+                                setValue('department', 'CUSTOM', { shouldValidate: true });
+                                setValue('customDepartment', deptSearch.trim() || '', { shouldValidate: true });
                                 setDeptOpen(false);
                                 setDeptSearch('');
                               }}
-                              style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#0f172a', background: watchedDept === d.id ? '#f1f5f9' : 'transparent', fontWeight: watchedDept === d.id ? '700' : 'normal' }}
+                              style={{
+                                padding: '9px 12px',
+                                cursor: 'pointer',
+                                fontSize: '12.5px',
+                                color: '#2563eb',
+                                background: '#f8fafc',
+                                fontWeight: '700',
+                                borderTop: '1px solid #e2e8f0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                              }}
                             >
-                              {d.name}
+                              ✨ + Write Custom Department...
                             </div>
-                          ))}
-                          {filteredDepts.length === 0 && <div style={{ padding: '10px', fontSize: '12px', color: '#64748b' }}>No departments found</div>}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                   <input type="hidden" {...register('department')} />
                 </FormField>
               </div>
@@ -1229,11 +1324,62 @@ export default function EmployeeRegistrationForm({ editEmployeeId }: { editEmplo
                   </select>
                 </FormField>
 
-                <FormField label="Work Location" required error={errors.workLocation?.message as string}>
-                  <select {...register('workLocation')} required aria-required="true" style={selectStyle(!!errors.workLocation)}>
-                    <option value="">Select Location</option>
-                    {workLocations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
-                  </select>
+                {/* Work Location + Custom Option */}
+                <FormField label="Work Location" required error={(errors.workLocation?.message || errors.customWorkLocation?.message) as string}>
+                  {watchedWorkLoc === 'CUSTOM' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          {...register('customWorkLocation')}
+                          autoFocus
+                          style={{ ...inputStyle(!!errors.customWorkLocation), borderColor: '#2563eb', background: '#eff6ff' }}
+                          placeholder="Type custom work location name..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setValue('workLocation', '', { shouldValidate: true });
+                            setValue('customWorkLocation', '');
+                          }}
+                          style={{
+                            background: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '8px',
+                            padding: '0 12px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            color: '#475569',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          Select List
+                        </button>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: '600' }}>
+                        ✨ Writing new custom work location
+                      </span>
+                    </div>
+                  ) : (
+                    <select
+                      {...register('workLocation')}
+                      required
+                      aria-required="true"
+                      style={selectStyle(!!errors.workLocation)}
+                      onChange={(e) => {
+                        register('workLocation').onChange(e);
+                        if (e.target.value === 'CUSTOM') {
+                          setValue('customWorkLocation', '', { shouldValidate: false });
+                        }
+                      }}
+                    >
+                      <option value="">Select Location</option>
+                      {workLocations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+                      <option value="CUSTOM" style={{ fontWeight: '700', color: '#2563eb' }}>
+                        ✨ + Write Custom Location...
+                      </option>
+                    </select>
+                  )}
                 </FormField>
 
                 <FormField label="Employment Type" required error={errors.employmentType?.message as string}>

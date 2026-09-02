@@ -116,10 +116,22 @@ export class EmployeesController {
     return this.employees.departments(req.user);
   }
 
+  @Post('departments')
+  @RequirePermissions('hr.departments.read', 'hr.employees.create')
+  createDepartment(@Body() body: any, @Req() req: any) {
+    return this.employees.createDepartment(body, req.user);
+  }
+
   @Get('work-locations')
   @RequirePermissions('hr.locations.read')
   locations(@Req() req: any) {
     return this.employees.locations(req.user);
+  }
+
+  @Post('work-locations')
+  @RequirePermissions('hr.locations.read', 'hr.employees.create')
+  createWorkLocation(@Body() body: any, @Req() req: any) {
+    return this.employees.createWorkLocation(body, req.user);
   }
 
   @Get('employees/:id')
