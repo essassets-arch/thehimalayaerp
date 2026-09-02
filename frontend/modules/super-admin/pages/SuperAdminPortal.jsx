@@ -482,11 +482,16 @@ export default function SuperAdminPortal() {
     title: '',
     message: '',
     department: 'All',
-    priority: 'High'
+    priority: 'High',
+    route: '/notifications'
   });
+  const [notifRecipientMode, setNotifRecipientMode] = useState('DEPARTMENT'); // 'DEPARTMENT' | 'USER_WISE'
+  const [notifUserSearchQuery, setNotifUserSearchQuery] = useState('');
+  const [selectedNotifUserIds, setSelectedNotifUserIds] = useState([]);
   const [selectedNotifDepts, setSelectedNotifDepts] = useState(['ALL']);
   const [broadcastHistory, setBroadcastHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [notifHistoryFilter, setNotifHistoryFilter] = useState('ALL');
 
   const fetchBroadcastHistory = useCallback(async () => {
     try {
@@ -1391,27 +1396,45 @@ export default function SuperAdminPortal() {
 
   // ── ANNOUNCEMENT / NOTIFICATIONS ──
   const handleSendNotification = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!notifComposer.title || !notifComposer.message) {
-      showToast('Please specify a title and message body.');
+      showToast('Please specify an announcement title and message body.');
       return;
     }
-    if (selectedNotifDepts.length === 0) {
-      showToast('Please select at least one department or All.');
+    if (notifRecipientMode === 'DEPARTMENT' && selectedNotifDepts.length === 0) {
+      showToast('Please select at least one department or All Departments.');
+      return;
+    }
+    if (notifRecipientMode === 'USER_WISE' && selectedNotifUserIds.length === 0) {
+      showToast('Please select at least one employee/user.');
       return;
     }
 
     try {
-      await apiClient.post('/notifications/broadcast', {
-        title: notifComposer.title,
-        message: notifComposer.message,
-        roleCodes: selectedNotifDepts
-      });
+      const payload = {
+        title: notifComposer.title.trim(),
+        message: notifComposer.message.trim(),
+        priority: notifComposer.priority || 'High',
+        route: notifComposer.route || '/notifications'
+      };
 
-      logActivity('Broadcast Notification Sent', `Sent announcement: ${notifComposer.title} to: ${selectedNotifDepts.join(', ')}`, 'Global Notifications');
-      showToast('Global Announcement broadcasted successfully.');
-      setNotifComposer({ title: '', message: '', department: 'All', priority: 'High' });
+      if (notifRecipientMode === 'USER_WISE') {
+        payload.userIds = selectedNotifUserIds;
+      } else {
+        payload.roleCodes = selectedNotifDepts;
+      }
+
+      await apiClient.post('/notifications/broadcast', payload);
+
+      const targetDesc = notifRecipientMode === 'USER_WISE'
+        ? `${selectedNotifUserIds.length} user(s)`
+        : selectedNotifDepts.join(', ');
+
+      logActivity('Broadcast Notification Sent', `Sent announcement: "${notifComposer.title}" to: ${targetDesc}`, 'Global Notifications');
+      showToast(`Notification broadcasted successfully to ${targetDesc}! 📢`);
+      setNotifComposer({ title: '', message: '', department: 'All', priority: 'High', route: '/notifications' });
       setSelectedNotifDepts(['ALL']);
+      setSelectedNotifUserIds([]);
       await syncData();
       await fetchBroadcastHistory();
     } catch (err) {
@@ -6562,7 +6585,9 @@ export default function SuperAdminPortal() {
       { code: 'QC_INSPECTOR', name: 'QC' },
       { code: 'DISPATCH_EXECUTIVE', name: 'Dispatch' },
       { code: 'FINANCE_EXECUTIVE', name: 'Finance' },
-      { code: 'HR', name: 'HR' }
+      { code: 'HR', name: 'HR' },
+      { code: 'PLANT_HEAD', name: 'Plant Head' },
+      { code: 'SUPER_ADMIN', name: 'Management' }
     ];
 
     const isAllSelected = selectedNotifDepts.includes('ALL');
@@ -6585,146 +6610,438 @@ export default function SuperAdminPortal() {
       }
     };
 
+    // Build selectable staff from backendUsers and employees
+    const selectableStaff = [];
+    const seenStaffIds = new Set();
+
+    (employees || []).forEach(emp => {
+      const uId = emp.userId || emp.id || emp.employeeCode;
+      if (uId && !seenStaffIds.has(uId)) {
+        seenStaffIds.add(uId);
+        selectableStaff.push({
+          id: emp.userId || emp.id,
+          name: emp.name || emp.fullName || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Staff Member',
+          code: emp.employeeCode || emp.id,
+          role: emp.jobTitle || emp.role || 'Staff',
+          department: typeof emp.department === 'object' ? (emp.department?.name || 'Operations') : (emp.department || 'Operations')
+        });
+      }
+    });
+
+    (backendUsers || []).forEach(u => {
+      if (u.id && !seenStaffIds.has(u.id)) {
+        seenStaffIds.add(u.id);
+        selectableStaff.push({
+          id: u.id,
+          name: u.name || u.fullName || u.email?.split('@')[0] || 'User',
+          code: u.employeeCode || `USR-${u.id.slice(0, 4)}`,
+          role: u.role?.name || u.role || 'User',
+          department: u.department || u.role?.name || 'Staff'
+        });
+      }
+    });
+
+    const filteredSelectableStaff = selectableStaff.filter(s => {
+      if (!notifUserSearchQuery.trim()) return true;
+      const q = notifUserSearchQuery.toLowerCase();
+      return (
+        s.name.toLowerCase().includes(q) ||
+        s.code.toLowerCase().includes(q) ||
+        s.role.toLowerCase().includes(q) ||
+        s.department.toLowerCase().includes(q)
+      );
+    });
+
+    const toggleUserSelect = (uid) => {
+      setSelectedNotifUserIds(prev => {
+        if (prev.includes(uid)) {
+          return prev.filter(x => x !== uid);
+        } else {
+          return [...prev, uid];
+        }
+      });
+    };
+
+    const selectAllUsers = () => {
+      setSelectedNotifUserIds(filteredSelectableStaff.map(s => s.id));
+    };
+
+    const clearAllUsers = () => {
+      setSelectedNotifUserIds([]);
+    };
+
+    const filteredBroadcastHistory = (broadcastHistory || []).filter(item => {
+      if (notifHistoryFilter === 'ALL') return true;
+      if (notifHistoryFilter === 'READ') return item.status === 'READ' || item.isRead;
+      if (notifHistoryFilter === 'UNREAD') return item.status !== 'READ' && !item.isRead;
+      return true;
+    });
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text-primary)', margin: '0 0 4px 4px' }}>Notification Management</h2>
+          <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text-primary)', margin: '0 0 4px 4px' }}>
+            📢 Corporate Notification &amp; Broadcast Management
+          </h2>
           <span style={{ fontSize: '12px', color: '#475569', marginLeft: '4px' }}>
-            Broadcast alerts to specific departments, multiple channels, or publish globally to all roles.
+            Dispatch announcements to specific users or broadcast across organizational departments.
           </span>
         </div>
 
         {/* Two-Column Responsive Layout Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '20px', width: '100%', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px', width: '100%', alignItems: 'start' }}>
           
           {/* Column 1: Compose Form */}
-          <form onSubmit={handleSendNotification} className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0, width: '100%', boxSizing: 'border-box' }}>
+          <form onSubmit={handleSendNotification} className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.03)', margin: 0, width: '100%', boxSizing: 'border-box' }}>
             <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px', margin: '0 0 4px 0' }}>
-              Compose Announcement
+              📢 Compose &amp; Dispatch Notification
             </h3>
+
+            {/* Recipient Targeting Mode Switcher */}
+            <div style={{ background: '#f1f5f9', padding: '4px', borderRadius: '10px', display: 'flex', gap: '4px', border: '1px solid #e2e8f0' }}>
+              <button
+                type="button"
+                onClick={() => setNotifRecipientMode('DEPARTMENT')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '7px',
+                  fontSize: '12px',
+                  fontWeight: '800',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: notifRecipientMode === 'DEPARTMENT' ? '#ffffff' : 'transparent',
+                  color: notifRecipientMode === 'DEPARTMENT' ? '#0284c7' : '#64748b',
+                  boxShadow: notifRecipientMode === 'DEPARTMENT' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Users size={14} /> Department / Role Broadcast
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNotifRecipientMode('USER_WISE')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '7px',
+                  fontSize: '12px',
+                  fontWeight: '800',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: notifRecipientMode === 'USER_WISE' ? '#ffffff' : 'transparent',
+                  color: notifRecipientMode === 'USER_WISE' ? '#0284c7' : '#64748b',
+                  boxShadow: notifRecipientMode === 'USER_WISE' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <User size={14} /> 👤 User-Wise / Individual Staff ({selectedNotifUserIds.length})
+              </button>
+            </div>
             
-            <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label" style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>Announcement Title *</label>
-              <input
-                type="text" required className="form-input" placeholder="e.g. Scheduled System Upgrades"
-                value={notifComposer.title} onChange={e => setNotifComposer({ ...notifComposer, title: e.target.value })}
-                style={{ marginTop: '6px' }}
-              />
-            </div>
+            {/* Title & Priority */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>
+                  Notification Title *
+                </label>
+                <input
+                  type="text" required className="form-input" placeholder="e.g. Scheduled System Upgrades"
+                  value={notifComposer.title} onChange={e => setNotifComposer({ ...notifComposer, title: e.target.value })}
+                  style={{ marginTop: '6px' }}
+                />
+              </div>
 
-            {/* Department Selector */}
-            <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label" style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b', display: 'block', marginBottom: '8px' }}>
-                Target Departments *
-              </label>
-              
-              {/* Select All Toggle */}
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                <button
-                  type="button"
-                  onClick={() => toggleDept('ALL')}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    border: '1.5px solid ' + (isAllSelected ? '#0ea5e9' : '#cbd5e1'),
-                    background: isAllSelected ? '#e0f2fe' : '#ffffff',
-                    color: isAllSelected ? '#0369a1' : '#475569',
-                    transition: 'all 0.15s ease'
-                  }}
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>
+                  Urgency Priority
+                </label>
+                <select
+                  className="form-select"
+                  value={notifComposer.priority || 'High'}
+                  onChange={e => setNotifComposer({ ...notifComposer, priority: e.target.value })}
+                  style={{ marginTop: '6px', fontWeight: '700' }}
                 >
-                  📢 All Departments
-                </button>
-              </div>
-
-              {/* Checkbox Grid for individual selection */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px', background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                {DEPARTMENTS.map(dept => {
-                  const isChecked = isAllSelected || selectedNotifDepts.includes(dept.code);
-                  return (
-                    <label key={dept.code} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12.5px', fontWeight: '600', color: '#334155' }}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        disabled={isAllSelected}
-                        onChange={() => toggleDept(dept.code)}
-                        style={{ width: '16px', height: '16px', cursor: isAllSelected ? 'not-allowed' : 'pointer' }}
-                      />
-                      {dept.name}
-                    </label>
-                  );
-                })}
+                  <option value="High">🔴 High Priority</option>
+                  <option value="Normal">🔵 Normal Priority</option>
+                  <option value="Urgent">⚡ Critical / Urgent</option>
+                  <option value="Low">⚪ General Notice</option>
+                </select>
               </div>
             </div>
 
+            {/* Target Mode A: Department Selector */}
+            {notifRecipientMode === 'DEPARTMENT' && (
+              <div className="form-group" style={{ margin: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b', margin: 0 }}>
+                    Target Departments *
+                  </label>
+                  <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '700' }}>
+                    {isAllSelected ? 'All Active Employees Selected' : `${selectedNotifDepts.length} Dept(s) Selected`}
+                  </span>
+                </div>
+                
+                {/* Select All Toggle */}
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => toggleDept('ALL')}
+                    style={{
+                      padding: '7px 14px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      border: '1.5px solid ' + (isAllSelected ? '#0284c7' : '#cbd5e1'),
+                      background: isAllSelected ? '#e0f2fe' : '#ffffff',
+                      color: isAllSelected ? '#0369a1' : '#475569',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <Users size={14} /> 📢 All Departments (Global)
+                  </button>
+                </div>
+
+                {/* Checkbox Grid for individual selection */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', gap: '8px', background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  {DEPARTMENTS.map(dept => {
+                    const isChecked = isAllSelected || selectedNotifDepts.includes(dept.code);
+                    return (
+                      <label key={dept.code} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: isAllSelected ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600', color: '#334155' }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          disabled={isAllSelected}
+                          onChange={() => toggleDept(dept.code)}
+                          style={{ width: '16px', height: '16px', cursor: isAllSelected ? 'not-allowed' : 'pointer', accentColor: '#0284c7' }}
+                        />
+                        {dept.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Target Mode B: User-Wise Selector */}
+            {notifRecipientMode === 'USER_WISE' && (
+              <div className="form-group" style={{ margin: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b', margin: 0 }}>
+                    Select Target Staff / Users *
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '800', background: '#e0f2fe', padding: '2px 8px', borderRadius: '6px' }}>
+                      {selectedNotifUserIds.length} Selected
+                    </span>
+                    <button
+                      type="button"
+                      onClick={selectAllUsers}
+                      style={{ background: 'transparent', border: 'none', color: '#0284c7', fontSize: '11px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+                    >
+                      Select All
+                    </button>
+                    <span style={{ color: '#cbd5e1' }}>•</span>
+                    <button
+                      type="button"
+                      onClick={clearAllUsers}
+                      style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '11px', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search filter */}
+                <div style={{ position: 'relative', marginBottom: '10px' }}>
+                  <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="text"
+                    placeholder="Search staff by name, code, role or department..."
+                    value={notifUserSearchQuery}
+                    onChange={e => setNotifUserSearchQuery(e.target.value)}
+                    style={{ width: '100%', padding: '7px 10px 7px 32px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px', background: '#ffffff', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                {/* User checklist */}
+                <div style={{ maxHeight: '220px', overflowY: 'auto', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {filteredSelectableStaff.length === 0 ? (
+                    <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                      No employees found matching "{notifUserSearchQuery}".
+                    </div>
+                  ) : (
+                    filteredSelectableStaff.map(staff => {
+                      const isChecked = selectedNotifUserIds.includes(staff.id);
+                      return (
+                        <div
+                          key={staff.id}
+                          onClick={() => toggleUserSelect(staff.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            background: isChecked ? '#e0f2fe' : '#ffffff',
+                            border: isChecked ? '1px solid #7dd3fc' : '1px solid #f1f5f9',
+                            cursor: 'pointer',
+                            transition: 'all 0.1s ease'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}}
+                              style={{ width: '16px', height: '16px', accentColor: '#0284c7', cursor: 'pointer' }}
+                            />
+                            <div>
+                              <strong style={{ fontSize: '12.5px', color: '#0f172a', display: 'block' }}>
+                                {staff.name}
+                              </strong>
+                              <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                {staff.code} • {staff.role} ({staff.department})
+                              </span>
+                            </div>
+                          </div>
+
+                          <span style={{ fontSize: '10.5px', color: isChecked ? '#0369a1' : '#94a3b8', fontWeight: '700' }}>
+                            {isChecked ? '✓ Selected' : '+ Add'}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label" style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>Message Details Body *</label>
+              <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>
+                Message Details Body *
+              </label>
               <textarea
-                required className="form-input" rows="4" placeholder="Type announcement details here..."
+                required className="form-input" rows="4" 
+                placeholder={notifRecipientMode === 'USER_WISE' ? "Type specific instructions or direct notice here..." : "Type announcement details here..."}
                 value={notifComposer.message} onChange={e => setNotifComposer({ ...notifComposer, message: e.target.value })}
                 style={{ marginTop: '6px', resize: 'vertical' }}
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginTop: '8px' }}>
-              <button type="submit" className="action-btn" style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)' }}>
-                Broadcast Announcement
+            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginTop: '4px' }}>
+              <button 
+                type="submit" 
+                className="action-btn" 
+                style={{ 
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', 
+                  color: '#ffffff', 
+                  border: 'none', 
+                  padding: '11px 22px', 
+                  borderRadius: '8px', 
+                  fontWeight: '800', 
+                  fontSize: '13px',
+                  cursor: 'pointer', 
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <Send size={15} />
+                {notifRecipientMode === 'USER_WISE' 
+                  ? `Send to ${selectedNotifUserIds.length} User(s)` 
+                  : 'Broadcast Announcement'}
               </button>
             </div>
           </form>
 
           {/* Column 2: Broadcast History Log */}
-          <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0, width: '100%', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                All Notifications Delivery History
-              </h3>
-              <button
-                type="button"
-                onClick={fetchBroadcastHistory}
-                disabled={loadingHistory}
-                style={{ background: 'transparent', border: 'none', color: '#0284c7', cursor: 'pointer', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}
-              >
-                <RefreshCw size={12} className={loadingHistory ? 'spin' : ''} /> Refresh
-              </button>
+          <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.03)', margin: 0, width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 2px 0' }}>
+                  Notifications Delivery History &amp; Status
+                </h3>
+                <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                  Live delivery audit log and user read receipts.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <select
+                  value={notifHistoryFilter}
+                  onChange={e => setNotifHistoryFilter(e.target.value)}
+                  style={{ fontSize: '11.5px', fontWeight: '700', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155' }}
+                >
+                  <option value="ALL">All ({broadcastHistory.length})</option>
+                  <option value="READ">Read</option>
+                  <option value="UNREAD">Unread</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={fetchBroadcastHistory}
+                  disabled={loadingHistory}
+                  style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#0284c7', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11.5px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <RefreshCw size={12} className={loadingHistory ? 'spin' : ''} /> Refresh
+                </button>
+              </div>
             </div>
 
             {loadingHistory && broadcastHistory.length === 0 ? (
-              <div style={{ padding: '40px 0', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>
+              <div style={{ padding: '60px 0', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>
+                <RefreshCw size={24} className="spin" color="#0284c7" style={{ display: 'block', margin: '0 auto 12px auto' }} />
                 Loading history stream...
               </div>
-            ) : broadcastHistory.length === 0 ? (
-              <div style={{ padding: '40px 0', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>
+            ) : filteredBroadcastHistory.length === 0 ? (
+              <div style={{ padding: '60px 0', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>
+                <Bell size={32} color="#cbd5e1" style={{ display: 'block', margin: '0 auto 10px auto' }} />
                 No notifications logged yet.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '520px', overflowY: 'auto', paddingRight: '4px', width: '100%', minWidth: 0 }}>
-                {broadcastHistory.map((notif, idx) => (
-                  <div key={idx} style={{ padding: '12px 14px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '6px', minHeight: 'fit-content', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                      <strong style={{ fontSize: '13.5px', color: '#0f172a', fontWeight: '800' }}>{notif.title}</strong>
-                      <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                        {new Date(notif.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: '12.5px', color: '#475569', margin: 0, lineHeight: '1.4', wordBreak: 'break-word' }}>
-                      {notif.message}
-                    </p>
-                    
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '8px', marginTop: '4px', fontSize: '11.5px', color: '#64748b', fontWeight: '600' }}>
-                      <div>
-                        Recipient: <strong style={{ color: '#334155' }}>{notif.recipientName}</strong> ({notif.recipientRole})
-                      </div>
-                      <div>
-                        <span style={{ background: notif.status === 'READ' ? '#dcfce7' : '#fee2e2', color: notif.status === 'READ' ? '#15803d' : '#b91c1c', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: '800' }}>
-                          {notif.status === 'READ' ? 'Read' : 'Unread'}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '540px', overflowY: 'auto', paddingRight: '4px', width: '100%', minWidth: 0 }}>
+                {filteredBroadcastHistory.map((notif, idx) => {
+                  const isRead = notif.status === 'READ' || notif.isRead;
+                  return (
+                    <div key={idx} style={{ padding: '14px 16px', border: '1px solid #e2e8f0', borderRadius: '10px', background: isRead ? '#f8fafc' : '#ffffff', display: 'flex', flexDirection: 'column', gap: '6px', minHeight: 'fit-content', flexShrink: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                        <strong style={{ fontSize: '13.5px', color: '#0f172a', fontWeight: '800' }}>{notif.title}</strong>
+                        <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                          {new Date(notif.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
+                      <p style={{ fontSize: '12.5px', color: '#475569', margin: 0, lineHeight: '1.4', wordBreak: 'break-word' }}>
+                        {notif.message}
+                      </p>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '8px', marginTop: '4px', fontSize: '11.5px', color: '#64748b', fontWeight: '600' }}>
+                        <div>
+                          Recipient: <strong style={{ color: '#334155' }}>{notif.recipientName || 'Staff Member'}</strong> {notif.recipientRole ? `(${notif.recipientRole})` : ''}
+                        </div>
+                        <div>
+                          <span style={{ background: isRead ? '#dcfce7' : '#fee2e2', color: isRead ? '#15803d' : '#b91c1c', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: '800' }}>
+                            {isRead ? '✓ Read' : '● Unread'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
