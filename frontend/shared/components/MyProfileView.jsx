@@ -13,6 +13,7 @@ import DataTable from './DataTable';
 import { getBackendAssetUrl } from '../../lib/assetUrl';
 import SecureImage from './SecureImage';
 import { complaintsService } from '../../services/hr/complaintsService';
+import { expenseService } from '../../services/expenseService';
 
 export default function MyProfileView() {
   const [activeTab, setActiveTab] = useState('attendance');
@@ -88,8 +89,6 @@ export default function MyProfileView() {
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [loadingSalary, setLoadingSalary] = useState(false);
-  const [loadingExpenses, setLoadingExpenses] = useState(false);
-  const [submittingExpense, setSubmittingExpense] = useState(false);
 
   // Manual Attendance Requests states
   const [manualRequests, setManualRequests] = useState([]);
@@ -176,13 +175,18 @@ export default function MyProfileView() {
     }
   };
 
-  // New Expense form state
+  // Expense Claim states
   const [expenseForm, setExpenseForm] = useState({
     expenseName: '',
     amount: '',
     expenseDate: new Date().toISOString().split('T')[0],
-    receiptBase64: ''
+    receiptUrl: ''
   });
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState('');
+  const [submittingExpense, setSubmittingExpense] = useState(false);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
+  const [previewReceiptModal, setPreviewReceiptModal] = useState(null);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -300,10 +304,8 @@ export default function MyProfileView() {
   const fetchExpenses = useCallback(async () => {
     try {
       setLoadingExpenses(true);
-      const res = await apiClient.get(`/expenses/my?t=${Date.now()}`);
-      if (res && res.success && Array.isArray(res.data)) {
-        setExpenses(res.data);
-      }
+      const data = await expenseService.getMyExpenses();
+      setExpenses(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to load expense history', e);
     } finally {
@@ -417,47 +419,103 @@ export default function MyProfileView() {
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
+    if (!file.type.match(/^image\/(jpeg|png|gif)$/i)) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Invalid File Type',
+        text: 'Only JPG, PNG, and GIF image files are supported for receipt bills.',
+        confirmButtonColor: '#0284c7'
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'File Too Large',
+        text: 'Receipt bill attachment must not exceed 5 MB.',
+        confirmButtonColor: '#0284c7'
+      });
+      return;
+    }
+
+    setReceiptFile(file);
     const reader = new FileReader();
     reader.onload = () => {
-      setExpenseForm(prev => ({ ...prev, receiptBase64: reader.result }));
+      setReceiptPreview(reader.result);
     };
     reader.readAsDataURL(file);
   };
 
   const handleExpenseSubmit = async (e) => {
     e.preventDefault();
-    if (!expenseForm.expenseName || !expenseForm.amount || !expenseForm.expenseDate) {
-      alert('Please specify name, amount, and date.');
+    if (!expenseForm.expenseName.trim() || !expenseForm.amount || !expenseForm.expenseDate) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Missing Required Fields',
+        text: 'Please specify expense description, positive amount, and expense date.',
+        confirmButtonColor: '#0284c7'
+      });
+      return;
+    }
+
+    const numAmount = Number(expenseForm.amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Invalid Amount',
+        text: 'Please enter a valid positive amount (₹).',
+        confirmButtonColor: '#0284c7'
+      });
       return;
     }
 
     try {
       setSubmittingExpense(true);
-      await apiClient.post('/expenses', {
-        expenseName: expenseForm.expenseName,
-        amount: Number(expenseForm.amount),
+      let uploadedReceiptUrl = expenseForm.receiptUrl || null;
+
+      if (receiptFile) {
+        const uploadRes = await expenseService.uploadReceipt(receiptFile);
+        uploadedReceiptUrl = uploadRes.url;
+      }
+
+      const claim = await expenseService.submitExpense({
+        expenseName: expenseForm.expenseName.trim(),
+        amount: numAmount,
         expenseDate: expenseForm.expenseDate,
-        receiptUrl: expenseForm.receiptBase64 || null
+        receiptUrl: uploadedReceiptUrl || undefined
       });
 
-      // Clear form
+      Swal.fire({
+        icon: 'success',
+        title: 'Expense Claim Submitted',
+        text: `Your claim (${claim.claimNumber}) for ₹${numAmount.toLocaleString('en-IN')} has been submitted to HR for review.`,
+        confirmButtonColor: '#0284c7'
+      });
+
+      // Reset form
       setExpenseForm({
         expenseName: '',
         amount: '',
         expenseDate: new Date().toISOString().split('T')[0],
-        receiptBase64: ''
+        receiptUrl: ''
       });
+      setReceiptFile(null);
+      setReceiptPreview('');
       
-      // Reset input element
       const fileInput = document.getElementById('receipt-upload-input');
       if (fileInput) fileInput.value = '';
 
-      // Refresh list
       await fetchExpenses();
     } catch (err) {
-      console.error('Failed to submit expense:', err);
-      alert(`Failed to submit expense: ${err.message || 'Server error'}`);
+      console.error('Failed to submit expense claim:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Submission Failed',
+        text: err?.message || 'Unable to submit expense claim. Please try again.',
+        confirmButtonColor: '#0284c7'
+      });
     } finally {
       setSubmittingExpense(false);
     }
@@ -977,48 +1035,54 @@ export default function MyProfileView() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', alignItems: 'start' }}>
             
             {/* Submit Expense Form */}
-            <form onSubmit={handleExpenseSubmit} className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0 }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px', margin: '0 0 4px 0' }}>
-                Submit Expense Claim
-              </h3>
+            <form onSubmit={handleExpenseSubmit} className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '14px', padding: '24px', border: '1.5px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CreditCard size={18} color="#0284c7" />
+                  Submit Expense Claim
+                </h3>
+                <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                  Corporate Claim
+                </span>
+              </div>
               
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>Expense Description *</label>
+                <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>Expense Description *</label>
                 <input
-                  type="text" required className="form-input" placeholder="e.g. Travel tickets to Haridwar plant"
+                  type="text" required className="form-input" placeholder="e.g. Client travel tickets to Haridwar plant"
                   value={expenseForm.expenseName} onChange={e => setExpenseForm(prev => ({ ...prev, expenseName: e.target.value }))}
-                  style={{ marginTop: '6px' }}
+                  style={{ marginTop: '6px', padding: '8px 12px', borderRadius: '8px' }}
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>Amount (₹) *</label>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>Amount (₹) *</label>
                   <input
                     type="number" min="1" step="0.01" required className="form-input" placeholder="Claim amount"
                     value={expenseForm.amount} onChange={e => setExpenseForm(prev => ({ ...prev, amount: e.target.value }))}
-                    style={{ marginTop: '6px' }}
+                    style={{ marginTop: '6px', padding: '8px 12px', borderRadius: '8px' }}
                   />
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>Expense Date *</label>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>Expense Date *</label>
                   <input
                     type="date" required className="form-input"
                     value={expenseForm.expenseDate} onChange={e => setExpenseForm(prev => ({ ...prev, expenseDate: e.target.value }))}
-                    style={{ marginTop: '6px' }}
+                    style={{ marginTop: '6px', padding: '8px 12px', borderRadius: '8px' }}
                   />
                 </div>
               </div>
 
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontWeight: '700', fontSize: '13px', color: '#1e293b' }}>Upload Bill Receipt</label>
+                <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>Upload Bill Receipt</label>
                 <div 
                   onClick={() => document.getElementById('receipt-upload-input').click()}
                   style={{
                     marginTop: '6px',
                     border: '2px dashed #CBD5E1',
                     borderRadius: '12px',
-                    padding: '24px 16px',
+                    padding: '20px 16px',
                     textAlign: 'center',
                     background: '#F8FAFC',
                     cursor: 'pointer',
@@ -1027,7 +1091,7 @@ export default function MyProfileView() {
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px'
+                    gap: '6px'
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = '#0284c7';
@@ -1038,9 +1102,9 @@ export default function MyProfileView() {
                     e.currentTarget.style.background = '#F8FAFC';
                   }}
                 >
-                  <Upload size={24} style={{ color: '#64748B' }} />
-                  <span style={{ fontSize: '13.5px', color: '#1e293b', fontWeight: '600' }}>
-                    Click to upload receipt
+                  <Upload size={22} style={{ color: '#0284c7' }} />
+                  <span style={{ fontSize: '13px', color: '#1e293b', fontWeight: '700' }}>
+                    Click to upload receipt bill
                   </span>
                   <span style={{ fontSize: '11px', color: '#64748B' }}>
                     JPG, PNG or GIF (Max 5MB)
@@ -1048,33 +1112,38 @@ export default function MyProfileView() {
                 </div>
                 <input
                   id="receipt-upload-input"
-                  type="file" accept="image/*" onChange={handleFileChange}
+                  type="file" accept="image/jpeg,image/png,image/gif" onChange={handleFileChange}
                   style={{ display: 'none' }}
                 />
               </div>
 
-              {expenseForm.receiptBase64 && (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#F5FAFE', padding: '12px', borderRadius: '8px', border: '1px solid #DCE5F0' }}>
-                  <img src={expenseForm.receiptBase64} alt="Receipt Preview" style={{ width: '50px', height: '50px', borderRadius: '6px', objectFit: 'cover' }} />
-                  <div>
-                    <span style={{ fontSize: '12.5px', color: '#24345C', fontWeight: '700', display: 'block' }}>Receipt Image Loaded</span>
-                    <button type="button" onClick={() => setExpenseForm(prev => ({ ...prev, receiptBase64: '' }))} style={{ background: 'transparent', border: 'none', color: '#ef4444', fontWeight: '700', cursor: 'pointer', padding: 0, fontSize: '11px', marginTop: '2px' }}>Remove File</button>
+              {receiptPreview && (
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#F5FAFE', padding: '10px 12px', borderRadius: '8px', border: '1px solid #DCE5F0' }}>
+                  <img src={receiptPreview} alt="Receipt Preview" style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'cover' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: '12px', color: '#0f172a', fontWeight: '700', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {receiptFile?.name || 'Receipt Image Attached'}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>
+                      {(receiptFile?.size ? (receiptFile.size / 1024).toFixed(1) + ' KB' : 'Ready to upload')}
+                    </span>
                   </div>
+                  <button type="button" onClick={() => { setReceiptFile(null); setReceiptPreview(''); }} style={{ background: '#fef2f2', border: '1px solid #fecdd3', color: '#dc2626', fontWeight: '700', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', fontSize: '11px' }}>Remove</button>
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginTop: '8px' }}>
-                <button type="submit" disabled={submittingExpense} className="action-btn profile-submit-btn" style={{ background: '#0284c7', color: '#ffffff', opacity: submittingExpense ? 0.7 : 1 }}>
-                  Submit Expense Claim
+              <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginTop: '4px' }}>
+                <button type="submit" disabled={submittingExpense} className="action-btn profile-submit-btn" style={{ background: '#0284c7', color: '#ffffff', opacity: submittingExpense ? 0.7 : 1, padding: '10px 20px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                  {submittingExpense ? 'Submitting Claim...' : 'Submit Expense Claim'}
                 </button>
               </div>
             </form>
 
             {/* Claims History Log */}
-            <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                  Claims History Log
+            <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: '#ffffff', borderRadius: '14px', padding: '24px', border: '1.5px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                  My Filed Expense Claims Log ({expenses.length})
                 </h3>
                 <button type="button" onClick={fetchExpenses} disabled={loadingExpenses} style={{ background: 'transparent', border: 'none', color: '#0284c7', cursor: 'pointer', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <RefreshCw size={12} className={loadingExpenses ? 'spin' : ''} /> Refresh
@@ -1082,40 +1151,66 @@ export default function MyProfileView() {
               </div>
 
               {loadingExpenses && expenses.length === 0 ? (
-                <p style={{ color: '#64748b' }}>Loading logs...</p>
+                <p style={{ color: '#64748b', fontSize: '13px' }}>Loading expense logs...</p>
               ) : expenses.length === 0 ? (
-                <p style={{ color: '#64748b' }}>No expense claims submitted yet.</p>
+                <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b' }}>
+                  <CreditCard size={32} color="#94a3b8" style={{ margin: '0 auto 8px auto', display: 'block' }} />
+                  <p style={{ margin: 0, fontSize: '13px', fontWeight: '600' }}>No expense claims submitted yet.</p>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '11.5px', color: '#94a3b8' }}>Fill out the form on the left to submit a claim for HR &amp; Finance approval.</p>
+                </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '450px', overflowY: 'auto', paddingRight: '4px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '550px', overflowY: 'auto', paddingRight: '4px' }}>
                   {expenses.map(exp => (
-                    <div key={exp.id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div key={exp.id} style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                        <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{exp.expenseName}</strong>
-                        <strong style={{ fontSize: '13.5px', color: '#0284c7' }}>₹{Number(exp.amount).toLocaleString('en-IN')}</strong>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: '800', background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px' }}>
+                              {exp.claimNumber || 'EXP'}
+                            </span>
+                            <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{exp.expenseName}</strong>
+                          </div>
+                          <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', display: 'block' }}>
+                            Claim Date: {new Date(exp.expenseDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <strong style={{ fontSize: '14px', color: '#0284c7', fontWeight: '800' }}>
+                          ₹{Number(exp.amount).toLocaleString('en-IN')}
+                        </strong>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#94a3b8', fontWeight: '600' }}>
-                        <span>Claim Date: {new Date(exp.expenseDate).toLocaleDateString()}</span>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#94a3b8', fontWeight: '600', borderTop: '1px dashed #e2e8f0', paddingTop: '6px' }}>
+                        <span>Workflow State</span>
                         <StatusBadge status={exp.status} />
                       </div>
-                      
-                      {exp.receiptUrl && (
-                        <div style={{ marginTop: '4px', borderTop: '1px dashed #e2e8f0', paddingTop: '8px' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const w = window.open();
-                              w.document.write(`<img src="${exp.receiptUrl}" style="max-width:100%; max-height:100vh; object-fit:contain; display:block; margin:auto;" />`);
-                            }}
-                            style={{ background: 'transparent', border: 'none', color: '#0284c7', fontSize: '11px', fontWeight: '800', cursor: 'pointer', padding: 0 }}
-                          >
-                            👁️ View Receipt Bill Image
-                          </button>
+
+                      {/* Approval Remarks History */}
+                      {exp.hrRemarks && (
+                        <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '6px', padding: '6px 10px', fontSize: '11.5px', color: '#0369a1', fontWeight: '600' }}>
+                          <strong>HR ({exp.hrApprovedBy || 'Reviewer'}):</strong> {exp.hrRemarks}
                         </div>
                       )}
-
-                      {exp.remarks && (
-                        <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '6px', padding: '6px 10px', fontSize: '11.5px', color: '#b45309', fontWeight: '600', marginTop: '4px' }}>
-                          Remarks: {exp.remarks}
+                      {exp.superAdminRemarks && (
+                        <div style={{ background: '#fefce8', border: '1px solid #fef08a', borderRadius: '6px', padding: '6px 10px', fontSize: '11.5px', color: '#854d0e', fontWeight: '600' }}>
+                          <strong>Super Admin ({exp.superAdminApprovedBy || 'Super Admin'}):</strong> {exp.superAdminRemarks}
+                        </div>
+                      )}
+                      {exp.financeRemarks && (
+                        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '6px 10px', fontSize: '11.5px', color: '#166534', fontWeight: '600' }}>
+                          <strong>Finance ({exp.financeProcessedBy || 'Finance'}):</strong> {exp.financeRemarks}
+                          {exp.paymentReference && <span> • Ref: {exp.paymentReference}</span>}
+                        </div>
+                      )}
+                      
+                      {exp.receiptUrl && (
+                        <div style={{ marginTop: '2px', display: 'flex', justifyContent: 'flex-start' }}>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewReceiptModal(exp.receiptUrl)}
+                            style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer', padding: '4px 10px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            👁️ View Receipt Bill
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1629,6 +1724,58 @@ export default function MyProfileView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── FULLSCREEN RECEIPT VIEWER MODAL ── */}
+      {previewReceiptModal && (
+        <div
+          onClick={() => setPreviewReceiptModal(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999999,
+            padding: '24px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '850px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              position: 'relative'
+            }}
+          >
+            <div style={{ padding: '14px 20px', background: '#0f172a', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', fontWeight: '800' }}>Receipt Bill Attachment</span>
+              <button
+                type="button"
+                onClick={() => setPreviewReceiptModal(null)}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: '16px', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img
+                src={previewReceiptModal}
+                alt="Receipt Full Preview"
+                style={{ maxWidth: '100%', maxHeight: '72vh', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+              />
+            </div>
           </div>
         </div>
       )}

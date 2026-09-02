@@ -33,6 +33,7 @@ export interface NotifyRoleDto {
   entityId?: string;
   actorUserId?: string;
   actorName?: string;
+  eventKey?: string;
   eventKeyPrefix?: string;
 }
 
@@ -268,6 +269,7 @@ export class NotificationsService {
       entityId,
       actorUserId,
       actorName,
+      eventKey,
       eventKeyPrefix,
     } = dto;
 
@@ -293,7 +295,11 @@ export class NotificationsService {
 
     const createdNotifications: any[] = [];
     for (const u of users) {
-      const eventKey = eventKeyPrefix ? `${eventKeyPrefix}:${u.id}` : undefined;
+      const uEventKey = eventKey
+        ? `${eventKey}:${u.id}`
+        : eventKeyPrefix
+        ? `${eventKeyPrefix}:${u.id}`
+        : undefined;
       const notif = await this.notifyUser({
         companyId,
         userId: u.id,
@@ -307,7 +313,7 @@ export class NotificationsService {
         entityId,
         actorUserId,
         actorName,
-        eventKey,
+        eventKey: uEventKey,
       });
       createdNotifications.push(notif);
     }

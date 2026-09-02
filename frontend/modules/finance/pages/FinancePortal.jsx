@@ -39,6 +39,7 @@ import FinanceSalespersonDetailView from './FinanceSalespersonDetailView';
 import SalesAnalyticsSummaryCard from '../components/SalesAnalyticsSummaryCard';
 import SalesPortal from '../../sales/pages/SalesPortal';
 import FinanceManagerDashboardView from '../components/FinanceManagerDashboardView';
+import ExpenseManagementView from '../../../shared/components/ExpenseManagementView';
 
 const financeMenu = {
   "Finance": [
@@ -53,6 +54,7 @@ const financeMenu = {
     "customers",
     "vendors",
     "expenses",
+    "expense-management",
     "ledger",
     "reports",
     "settings",
@@ -81,6 +83,7 @@ const financeMenu = {
     "customers",
     "vendors",
     "expenses",
+    "expense-management",
     "ledger",
     "reports",
     "settings",
@@ -3583,6 +3586,7 @@ export default function FinancePortal({ initialView, forceView }) {
       {/* Procurement & Vendor Views */}
       {view === 'vendors' && <div data-testid="finance-vendors-view" className="sales-portal-view"><VendorManagement /></div>}
       {view === 'expenses' && <div data-testid="finance-expenses-view" className="sales-portal-view">{renderExpenses()}</div>}
+      {view === 'expense-management' && <div data-testid="finance-expense-management-view" className="sales-portal-view"><ExpenseManagementView roleMode="FINANCE" /></div>}
 
       {/* Accounting & Ledger Views */}
       {view === 'ledger' && <div data-testid="finance-ledger-view" className="sales-portal-view">{renderLedgerWorkspace()}</div>}

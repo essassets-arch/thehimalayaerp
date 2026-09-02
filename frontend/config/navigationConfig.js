@@ -326,6 +326,7 @@ export const navigationConfig = {
     },
 
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/finance/reports' },
+    { id: 'expense-management', label: 'Expense Management', icon: CreditCard, path: '/finance/expense-management' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/finance/profile' }
   ],
 

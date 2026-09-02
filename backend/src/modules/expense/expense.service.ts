@@ -2,489 +2,592 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
+  Logger,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  ExpenseClaimStatus,
+  ExpenseClaimHistoryAction,
+} from '@prisma/client';
+import {
+  CreateExpenseDto,
+  ApproveExpenseDto,
+  RejectExpenseDto,
+  ExpenseQueryDto,
+} from './dto/expense.dto';
 
 @Injectable()
 export class ExpenseService {
+  private readonly logger = new Logger(ExpenseService.name);
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly notificationsService?: NotificationsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
-  private async getActiveCompanyId(companyId: string): Promise<string> {
-    const companyExists = await this.prisma.company.findUnique({
-      where: { id: companyId },
+  private async resolveCompanyId(
+    userId: string,
+    companyIdFromReq?: string,
+  ): Promise<string> {
+    if (companyIdFromReq) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyIdFromReq },
+      });
+      if (company) return company.id;
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { companyId: true },
     });
-    if (companyExists) return companyId;
-    const firstCompany = await this.prisma.company.findFirst();
-    return firstCompany?.id || companyId;
+    if (user?.companyId) return user.companyId;
+
+    const fallbackCompany = await this.prisma.company.findFirst();
+    if (!fallbackCompany) {
+      throw new NotFoundException('Company tenant not found');
+    }
+    return fallbackCompany.id;
   }
 
-  async createExpense(body: any, userId: string, companyId: string) {
-    const activeCompanyId = await this.getActiveCompanyId(companyId);
+  /**
+   * Submit an Expense Claim (JWT bound claimant)
+   */
+  async createExpense(
+    dto: CreateExpenseDto,
+    userId: string,
+    companyIdFromReq?: string,
+  ) {
+    if (!userId) throw new ForbiddenException('User authentication required');
+    const companyId = await this.resolveCompanyId(userId, companyIdFromReq);
 
-    let user: any = null;
-    if (userId) {
-      user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        include: { role: true },
-      });
-    }
-
-    if (!user) {
-      user = await this.prisma.user.findFirst({ include: { role: true } });
-    }
-
-    const effectiveUserId = user?.id || userId || 'user-default';
-
-    const employee = await this.prisma.employee.findFirst({
-      where: {
-        OR: [{ userId: effectiveUserId }, { id: effectiveUserId }],
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        role: true,
+        employee: {
+          include: { department: true },
+        },
       },
-      include: { department: true },
     });
 
-    const employeeId = employee?.id || effectiveUserId;
-    const employeeName = employee?.fullName || user?.name || 'Employee';
-    const userRoleCode = String(user?.role?.code || '').toUpperCase();
+    if (!user) throw new NotFoundException('User profile not found');
 
-    const deptName = String(employee?.department?.name || '').toLowerCase();
-    const jobTitle = String(employee?.jobTitle || '').toLowerCase();
-    const isHrOrPlantHead =
-      userRoleCode === 'HR' ||
-      userRoleCode === 'PLANT_HEAD' ||
-      deptName.includes('hr') ||
-      deptName.includes('human resources') ||
-      deptName.includes('plant head') ||
-      jobTitle.includes('hr') ||
-      jobTitle.includes('human resources') ||
-      jobTitle.includes('plant head');
+    const amountNum = Number(dto.amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      throw new BadRequestException('Expense amount must be a positive number');
+    }
 
-    const status = isHrOrPlantHead ? 'PENDING_SUPER_ADMIN' : 'PENDING_HR';
+    const count = await this.prisma.expenseClaim.count({
+      where: { companyId },
+    });
+    const claimNumber = `EXP-${1001 + count}`;
 
-    const expense = await this.prisma.expense.create({
+    const claim = await this.prisma.expenseClaim.create({
       data: {
-        companyId: activeCompanyId,
-        employeeId,
-        expenseName: body.expenseName || body.item || body.name || 'Expense',
-        amount: Number(body.amount),
-        expenseDate: new Date(body.expenseDate || body.date || Date.now()),
-        receiptUrl: body.receiptUrl || null,
-        status,
-      },
-    });
-
-    if (status === 'PENDING_HR' && this.notificationsService) {
-      await this.notificationsService.notifyRole({
-        companyId: activeCompanyId,
-        role: 'HR',
-        type: 'EXPENSE_SUBMITTED',
-        title: 'New Expense Claim Submitted',
-        message: `${employeeName} submitted an expense claim of ₹${body.amount} for approval.`,
-        route: '/hr/expenses',
-        entityType: 'Expense',
-        entityId: expense.id,
-      });
-    } else if (this.notificationsService) {
-      await this.notificationsService.notifyRole({
-        companyId: activeCompanyId,
-        role: 'SUPER_ADMIN',
-        type: 'EXPENSE_SUBMITTED',
-        title: 'Direct Expense Claim Submitted',
-        message: `${employeeName} submitted an expense claim of ₹${body.amount} directly to Super Admin.`,
-        route: '/super-admin/expense-management',
-        entityType: 'Expense',
-        entityId: expense.id,
-      });
-    }
-
-    return expense;
-  }
-
-  async getMyExpenses(userId: string, companyId: string) {
-    const activeCompanyId = await this.getActiveCompanyId(companyId);
-    let user: any = null;
-    if (userId) {
-      user = await this.prisma.user.findUnique({ where: { id: userId } });
-    }
-    if (!user) {
-      user = await this.prisma.user.findFirst();
-    }
-    const effectiveUserId = user?.id || userId;
-
-    const employee = await this.prisma.employee.findFirst({
-      where: {
-        OR: [{ userId: effectiveUserId }, { id: effectiveUserId }],
-      },
-    });
-
-    const possibleEmployeeIds = Array.from(
-      new Set([
+        publicId: randomUUID(),
+        companyId,
         userId,
-        effectiveUserId,
-        ...(employee?.id ? [employee.id] : []),
-      ]),
-    ).filter(Boolean);
-
-    const expenses = await this.prisma.expense.findMany({
-      where: {
-        employeeId: { in: possibleEmployeeIds },
+        employeeId: user.employee?.id || null,
+        claimNumber,
+        expenseName: dto.expenseName.trim(),
+        amount: amountNum,
+        expenseDate: new Date(dto.expenseDate),
+        receiptUrl: dto.receiptUrl || null,
+        status: ExpenseClaimStatus.PENDING_HR,
       },
-      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { id: true, name: true, email: true, role: true } },
+        employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
+      },
     });
 
-    return expenses;
+    // Create Initial Audit History
+    await this.prisma.expenseClaimApprovalHistory.create({
+      data: {
+        expenseClaimId: claim.id,
+        action: ExpenseClaimHistoryAction.SUBMITTED,
+        fromStatus: null,
+        toStatus: ExpenseClaimStatus.PENDING_HR,
+        actorId: userId,
+        actorName: user.name,
+        actorRole: user.role?.code || 'STAFF',
+        remarks: 'Expense claim submitted by claimant',
+      },
+    });
+
+    // Notify HR / Super Admin
+    try {
+      await this.notificationsService.notifyRole({
+        companyId,
+        roles: ['HR', 'SUPER_ADMIN'],
+        type: 'EXPENSE_SUBMITTED',
+        module: 'HR',
+        priority: 'HIGH',
+        title: `New Expense Claim Submitted (₹${amountNum.toLocaleString('en-IN')}) 💼`,
+        message: `${user.name} (${user.role?.name || 'Staff'}) submitted an expense claim of ₹${amountNum.toLocaleString('en-IN')} for "${claim.expenseName}".`,
+        route: `/hr/expense-management?expenseId=${claim.id}`,
+        eventKey: `expense.claim.submitted:${claim.id}`,
+        entityType: 'ExpenseClaim',
+        entityId: claim.id,
+        actorUserId: userId,
+        actorName: user.name,
+      });
+    } catch (notifErr: any) {
+      this.logger.warn(`Failed to dispatch expense submission notification: ${notifErr.message}`);
+    }
+
+    return claim;
   }
 
-  async getPendingExpenses(userId: string, companyId: string) {
-    const activeCompanyId = await this.getActiveCompanyId(companyId);
+  /**
+   * Get claimant's own submitted expense claims
+   */
+  async getMyExpenses(userId: string, companyIdFromReq?: string) {
+    const companyId = await this.resolveCompanyId(userId, companyIdFromReq);
+    return this.prisma.expenseClaim.findMany({
+      where: {
+        userId,
+        companyId,
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
+        history: { orderBy: { createdAt: 'asc' } },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
 
+  /**
+   * Get pending actionable claims strictly scoped by reviewer role:
+   * - HR: PENDING_HR
+   * - SUPER_ADMIN: PENDING_SUPERADMIN
+   * - FINANCE: PENDING_FINANCE
+   */
+  async getPendingExpenses(userId: string, companyIdFromReq?: string) {
+    const companyId = await this.resolveCompanyId(userId, companyIdFromReq);
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { role: true },
     });
 
     if (!user) throw new NotFoundException('User not found');
-    const userRoleCode = String(user.role?.code || '').toUpperCase();
+    const roleCode = String(user.role?.code || '').toUpperCase();
 
-    let statusFilter: any = 'PENDING_HR';
-    if (userRoleCode === 'SUPER_ADMIN') {
-      statusFilter = 'PENDING_SUPER_ADMIN';
-    } else if (userRoleCode !== 'HR') {
-      throw new ForbiddenException(
-        'You do not have access to pending approvals.',
-      );
+    let targetStatus: ExpenseClaimStatus;
+    if (roleCode === 'SUPER_ADMIN' || roleCode === 'ADMIN') {
+      targetStatus = ExpenseClaimStatus.PENDING_SUPERADMIN;
+    } else if (
+      roleCode === 'FINANCE' ||
+      roleCode === 'FINANCE_EXECUTIVE' ||
+      roleCode === 'FINANCE_HEAD'
+    ) {
+      targetStatus = ExpenseClaimStatus.PENDING_FINANCE;
+    } else if (roleCode === 'HR' || roleCode === 'HR_MANAGER') {
+      targetStatus = ExpenseClaimStatus.PENDING_HR;
+    } else {
+      return [];
     }
 
-    const expenses = await this.prisma.expense.findMany({
+    const claims = await this.prisma.expenseClaim.findMany({
       where: {
-        companyId: activeCompanyId,
-        status: statusFilter,
+        companyId,
+        status: targetStatus,
       },
-      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { id: true, name: true, email: true, role: true } },
+        employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
+        history: { orderBy: { createdAt: 'asc' } },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
     });
 
-    const employeeIds = expenses.map((e) => e.employeeId);
-    const employees = await this.prisma.employee.findMany({
-      where: { id: { in: employeeIds } },
-      include: { department: true },
-    });
-
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: employeeIds } },
-      include: { role: true },
-    });
-
-    const profileMap = new Map<string, any>();
-    for (const emp of employees) {
-      const correspondingUser = users.find(
-        (u) => u.id === emp.userId || u.id === emp.id,
-      );
-      profileMap.set(emp.id, {
-        name: emp.fullName,
-        department: emp.department?.name || 'Operations',
-        designation: emp.jobTitle || 'Staff Member',
-        roleCode: correspondingUser?.role?.code || '',
-      });
-    }
-    for (const u of users) {
-      if (!profileMap.has(u.id)) {
-        profileMap.set(u.id, {
-          name: u.name,
-          department: 'Operations',
-          designation: u.role?.name || 'User',
-          roleCode: u.role?.code || '',
-        });
-      }
-    }
-
-    const mapped = expenses.map((e) => {
-      const prof = profileMap.get(e.employeeId) || {
-        name: 'Staff Member',
-        department: 'Operations',
-        designation: 'Staff',
-        roleCode: '',
-      };
-      return {
-        ...e,
-        employeeName: prof.name,
-        department: prof.department,
-        designation: prof.designation,
-        roleCode: prof.roleCode,
-      };
-    });
-
-    if (userRoleCode === 'HR') {
-      return mapped.filter((e) => {
-        const dept = String(e.department || '').toLowerCase();
-        const desig = String(e.designation || '').toLowerCase();
-        const rCode = String(e.roleCode || '').toLowerCase();
-        return !(
-          dept.includes('hr') ||
-          dept.includes('human resources') ||
-          dept.includes('plant head') ||
-          desig.includes('hr') ||
-          desig.includes('human resources') ||
-          desig.includes('plant head') ||
-          rCode.includes('hr') ||
-          rCode.includes('plant_head')
-        );
-      });
-    }
-
-    return mapped;
+    return claims.map((c) => ({
+      ...c,
+      employeeName: c.employee?.employeeCode
+        ? `${c.user.name} (${c.employee.employeeCode})`
+        : c.user.name,
+      department: c.employee?.department?.name || 'General Operations',
+      designation: c.employee?.jobTitle || c.user.role?.name || 'Staff Member',
+    }));
   }
 
-  async getAllExpenses(companyId: string, userId?: string) {
-    const activeCompanyId = await this.getActiveCompanyId(companyId);
+  /**
+   * Get all company expense claims with optional search and status filter
+   */
+  async getAllExpenses(
+    companyIdFromReq: string | undefined,
+    userId: string,
+    query?: ExpenseQueryDto,
+  ) {
+    const companyId = await this.resolveCompanyId(userId, companyIdFromReq);
 
-    let requesterRole = '';
-    if (userId) {
-      const reqUser = await this.prisma.user.findUnique({
-        where: { id: userId },
-        include: { role: true },
-      });
-      requesterRole = String(reqUser?.role?.code || '').toUpperCase();
+    const where: any = { companyId };
+    if (query?.status && query.status !== 'all' && query.status !== 'ALL') {
+      where.status = query.status as ExpenseClaimStatus;
     }
 
-    const expenses = await this.prisma.expense.findMany({
-      where: { companyId: activeCompanyId },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const employeeIds = expenses.map((e) => e.employeeId);
-    const employees = await this.prisma.employee.findMany({
-      where: { id: { in: employeeIds } },
-      include: { department: true },
-    });
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: employeeIds } },
-      include: { role: true },
-    });
-
-    const profileMap = new Map<string, any>();
-    for (const emp of employees) {
-      const correspondingUser = users.find(
-        (u) => u.id === emp.userId || u.id === emp.id,
-      );
-      profileMap.set(emp.id, {
-        name: emp.fullName,
-        department: emp.department?.name || 'Operations',
-        designation: emp.jobTitle || 'Staff Member',
-        roleCode: correspondingUser?.role?.code || '',
-      });
-    }
-    for (const u of users) {
-      if (!profileMap.has(u.id)) {
-        profileMap.set(u.id, {
-          name: u.name,
-          department: 'Operations',
-          designation: u.role?.name || 'User',
-          roleCode: u.role?.code || '',
-        });
-      }
+    if (query?.search && query.search.trim()) {
+      const q = query.search.trim();
+      where.OR = [
+        { claimNumber: { contains: q, mode: 'insensitive' } },
+        { expenseName: { contains: q, mode: 'insensitive' } },
+        { user: { name: { contains: q, mode: 'insensitive' } } },
+        { employee: { employeeCode: { contains: q, mode: 'insensitive' } } },
+      ];
     }
 
-    const mapped = expenses.map((e) => {
-      const prof = profileMap.get(e.employeeId) || {
-        name: 'Staff Member',
-        department: 'Operations',
-        designation: 'Staff',
-        roleCode: '',
-      };
-      return {
-        ...e,
-        employeeName: prof.name,
-        department: prof.department,
-        designation: prof.designation,
-        roleCode: prof.roleCode,
-      };
+    const claims = await this.prisma.expenseClaim.findMany({
+      where,
+      include: {
+        user: { select: { id: true, name: true, email: true, role: true } },
+        employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
+        history: { orderBy: { createdAt: 'asc' } },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
 
-    if (requesterRole === 'HR') {
-      return mapped.filter((e) => {
-        const dept = String(e.department || '').toLowerCase();
-        const desig = String(e.designation || '').toLowerCase();
-        const rCode = String(e.roleCode || '').toLowerCase();
-        return !(
-          dept.includes('hr') ||
-          dept.includes('human resources') ||
-          dept.includes('plant head') ||
-          desig.includes('hr') ||
-          desig.includes('human resources') ||
-          desig.includes('plant head') ||
-          rCode.includes('hr') ||
-          rCode.includes('plant_head')
-        );
-      });
-    }
-
-    return mapped;
+    return claims.map((c) => ({
+      ...c,
+      employeeName: c.employee?.employeeCode
+        ? `${c.user.name} (${c.employee.employeeCode})`
+        : c.user.name,
+      department: c.employee?.department?.name || 'General Operations',
+      designation: c.employee?.jobTitle || c.user.role?.name || 'Staff Member',
+    }));
   }
 
+  /**
+   * Approve an Expense Claim across the state machine:
+   * - HR: PENDING_HR -> PENDING_SUPERADMIN
+   * - SUPER_ADMIN: PENDING_SUPERADMIN -> PENDING_FINANCE
+   * - FINANCE: PENDING_FINANCE -> FINANCE_PROCESSED
+   */
   async approveExpense(
     id: string,
-    body: any,
+    dto: ApproveExpenseDto,
     userId: string,
-    companyId: string,
+    companyIdFromReq?: string,
   ) {
-    const activeCompanyId = await this.getActiveCompanyId(companyId);
-
+    const companyId = await this.resolveCompanyId(userId, companyIdFromReq);
     const reviewer = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { role: true },
     });
+    if (!reviewer) throw new NotFoundException('Reviewer profile not found');
 
-    if (!reviewer) throw new NotFoundException('Reviewer not found');
     const reviewerRole = String(reviewer.role?.code || '').toUpperCase();
     const reviewerName = reviewer.name;
 
-    const expense = await this.prisma.expense.findUnique({
-      where: { id },
+    const claim = await this.prisma.expenseClaim.findFirst({
+      where: { id, companyId },
+      include: {
+        user: true,
+        employee: { include: { department: true } },
+      },
     });
-    if (!expense) throw new NotFoundException('Expense claim not found');
 
+    if (!claim) throw new NotFoundException('Expense claim not found');
+
+    let newStatus: ExpenseClaimStatus;
+    let historyAction: ExpenseClaimHistoryAction;
     let updateData: any = {};
-    let notificationRecipientId: string | null = null;
-    let notificationTitle = '';
-    let notificationMessage = '';
+    let notificationConfig: {
+      type: string;
+      roles?: string[];
+      recipientUserId?: string;
+      title: string;
+      message: string;
+      route: string;
+      eventKey: string;
+    };
 
-    if (reviewerRole === 'HR' && expense.status === 'PENDING_HR') {
+    if (
+      (reviewerRole === 'HR' || reviewerRole === 'HR_MANAGER') &&
+      claim.status === ExpenseClaimStatus.PENDING_HR
+    ) {
+      newStatus = ExpenseClaimStatus.PENDING_SUPERADMIN;
+      historyAction = ExpenseClaimHistoryAction.HR_APPROVED;
       updateData = {
-        status: 'APPROVED',
+        status: newStatus,
+        hrApprovedById: userId,
         hrApprovedBy: reviewerName,
         hrApprovedAt: new Date(),
-        remarks: body.remarks || expense.remarks,
+        hrRemarks: dto.remarks || null,
       };
 
-      const emp = await this.prisma.employee.findUnique({
-        where: { id: expense.employeeId },
-      });
-      notificationRecipientId = emp?.userId || expense.employeeId;
-      notificationTitle = 'Expense Claim Approved';
-      notificationMessage = `Your expense claim of ₹${expense.amount} has been approved by HR.`;
+      notificationConfig = {
+        type: 'EXPENSE_HR_APPROVED',
+        roles: ['SUPER_ADMIN'],
+        title: `Expense Claim Approved by HR (${claim.claimNumber}) 📋`,
+        message: `HR (${reviewerName}) approved ${claim.employee?.fullName || claim.user.name}'s claim of ₹${Number(claim.amount).toLocaleString('en-IN')}. Ready for Super Admin review.`,
+        route: `/super-admin/expense-management?expenseId=${claim.id}`,
+        eventKey: `expense.claim.hr_approved:${claim.id}`,
+      };
     } else if (
-      reviewerRole === 'SUPER_ADMIN' &&
-      expense.status === 'PENDING_SUPER_ADMIN'
+      (reviewerRole === 'SUPER_ADMIN' || reviewerRole === 'ADMIN') &&
+      claim.status === ExpenseClaimStatus.PENDING_SUPERADMIN
     ) {
+      newStatus = ExpenseClaimStatus.PENDING_FINANCE;
+      historyAction = ExpenseClaimHistoryAction.SUPER_ADMIN_APPROVED;
       updateData = {
-        status: 'APPROVED',
-        superApprovedBy: reviewerName,
-        superApprovedAt: new Date(),
-        remarks: body.remarks || expense.remarks,
+        status: newStatus,
+        superAdminApprovedById: userId,
+        superAdminApprovedBy: reviewerName,
+        superAdminApprovedAt: new Date(),
+        superAdminRemarks: dto.remarks || null,
       };
 
-      const emp = await this.prisma.employee.findUnique({
-        where: { id: expense.employeeId },
-      });
-      notificationRecipientId = emp?.userId || expense.employeeId;
-      notificationTitle = 'Expense Claim Approved';
-      notificationMessage = `Your expense claim of ₹${expense.amount} has been fully approved by Super Admin.`;
+      notificationConfig = {
+        type: 'EXPENSE_SUPERADMIN_APPROVED',
+        roles: ['FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_HEAD'],
+        title: `Expense Claim Approved by Super Admin (${claim.claimNumber}) 🏛️`,
+        message: `Super Admin (${reviewerName}) approved claim ${claim.claimNumber} for ₹${Number(claim.amount).toLocaleString('en-IN')}. Ready for Finance processing.`,
+        route: `/finance/expense-management?expenseId=${claim.id}`,
+        eventKey: `expense.claim.superadmin_approved:${claim.id}`,
+      };
+    } else if (
+      (reviewerRole === 'FINANCE' ||
+        reviewerRole === 'FINANCE_EXECUTIVE' ||
+        reviewerRole === 'FINANCE_HEAD' ||
+        reviewerRole === 'SUPER_ADMIN') &&
+      claim.status === ExpenseClaimStatus.PENDING_FINANCE
+    ) {
+      newStatus = ExpenseClaimStatus.FINANCE_PROCESSED;
+      historyAction = ExpenseClaimHistoryAction.FINANCE_PROCESSED;
+      updateData = {
+        status: newStatus,
+        financeProcessedById: userId,
+        financeProcessedBy: reviewerName,
+        financeProcessedAt: new Date(),
+        financeRemarks: dto.remarks || null,
+        paymentReference: dto.paymentReference || null,
+      };
+
+      notificationConfig = {
+        type: 'EXPENSE_FINANCE_PROCESSED',
+        recipientUserId: claim.userId,
+        title: `Expense Claim Processed & Settled (${claim.claimNumber}) 🎉`,
+        message: `Your claim ${claim.claimNumber} of ₹${Number(claim.amount).toLocaleString('en-IN')} has been finalized and settled by Finance.${dto.paymentReference ? ` Ref: ${dto.paymentReference}` : ''}`,
+        route: `/profile?tab=expenses&expenseId=${claim.id}`,
+        eventKey: `expense.claim.finance_processed:${claim.id}`,
+      };
     } else {
-      throw new ForbiddenException(
-        'You do not have permission to approve this claim at its current state.',
+      throw new BadRequestException(
+        `Cannot transition expense claim from status "${claim.status}" under role "${reviewerRole}".`,
       );
     }
 
-    const updated = await this.prisma.expense.update({
+    const updated = await this.prisma.expenseClaim.update({
       where: { id },
       data: updateData,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
+        history: { orderBy: { createdAt: 'asc' } },
+      },
     });
 
-    if (notificationRecipientId) {
-      const targetUser = await this.prisma.user.findUnique({
-        where: { id: notificationRecipientId },
-      });
-      if (targetUser) {
-        await this.notificationsService?.notifyUser({
-          companyId: activeCompanyId,
-          userId: notificationRecipientId,
-          type: 'EXPENSE_CLAIM_APPROVED',
+    // Record Immutable Audit History
+    await this.prisma.expenseClaimApprovalHistory.create({
+      data: {
+        expenseClaimId: id,
+        action: historyAction,
+        fromStatus: claim.status,
+        toStatus: newStatus,
+        actorId: userId,
+        actorName: reviewerName,
+        actorRole: reviewerRole,
+        remarks: dto.remarks || null,
+      },
+    });
+
+    // Dispatch Push & Bell Notification
+    try {
+      if (notificationConfig.recipientUserId) {
+        await this.notificationsService.notifyUser({
+          companyId,
+          userId: notificationConfig.recipientUserId,
+          type: notificationConfig.type,
           module: 'FINANCE',
           priority: 'MEDIUM',
-          title: notificationTitle,
-          message: notificationMessage,
-          entityType: 'EXPENSE',
+          title: notificationConfig.title,
+          message: notificationConfig.message,
+          route: notificationConfig.route,
+          eventKey: notificationConfig.eventKey,
+          entityType: 'ExpenseClaim',
           entityId: id,
           actorUserId: userId,
           actorName: reviewerName,
-          eventKey: `EXPENSE_CLAIM_APPROVED:${id}:${notificationRecipientId}`,
+        });
+      } else if (notificationConfig.roles) {
+        await this.notificationsService.notifyRole({
+          companyId,
+          roles: notificationConfig.roles,
+          type: notificationConfig.type,
+          module: 'FINANCE',
+          priority: 'HIGH',
+          title: notificationConfig.title,
+          message: notificationConfig.message,
+          route: notificationConfig.route,
+          eventKey: notificationConfig.eventKey,
+          entityType: 'ExpenseClaim',
+          entityId: id,
+          actorUserId: userId,
+          actorName: reviewerName,
         });
       }
+    } catch (notifErr: any) {
+      this.logger.warn(`Failed to dispatch expense approval notification: ${notifErr.message}`);
     }
 
     return updated;
   }
 
+  /**
+   * Reject an Expense Claim at HR, Super Admin, or Finance stage -> REJECTED
+   */
   async rejectExpense(
     id: string,
-    body: any,
+    dto: RejectExpenseDto,
     userId: string,
-    companyId: string,
+    companyIdFromReq?: string,
   ) {
-    const activeCompanyId = await this.getActiveCompanyId(companyId);
-
+    const companyId = await this.resolveCompanyId(userId, companyIdFromReq);
     const reviewer = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { role: true },
     });
-    if (!reviewer) throw new NotFoundException('Reviewer not found');
+    if (!reviewer) throw new NotFoundException('Reviewer profile not found');
+
     const reviewerRole = String(reviewer.role?.code || '').toUpperCase();
     const reviewerName = reviewer.name;
 
-    const expense = await this.prisma.expense.findUnique({
-      where: { id },
+    const claim = await this.prisma.expenseClaim.findFirst({
+      where: { id, companyId },
+      include: {
+        user: true,
+        employee: true,
+      },
     });
-    if (!expense) throw new NotFoundException('Expense claim not found');
+
+    if (!claim) throw new NotFoundException('Expense claim not found');
 
     if (
-      (reviewerRole === 'HR' && expense.status === 'PENDING_HR') ||
-      (reviewerRole === 'SUPER_ADMIN' &&
-        expense.status === 'PENDING_SUPER_ADMIN')
+      claim.status === ExpenseClaimStatus.REJECTED ||
+      claim.status === ExpenseClaimStatus.FINANCE_PROCESSED
     ) {
-      const updated = await this.prisma.expense.update({
-        where: { id },
-        data: {
-          status: 'REJECTED',
-          remarks: body.remarks || 'Rejected by reviewer',
-          ...(reviewerRole === 'HR'
-            ? { hrApprovedBy: reviewerName, hrApprovedAt: new Date() }
-            : { superApprovedBy: reviewerName, superApprovedAt: new Date() }),
-        },
-      });
-
-      const emp = await this.prisma.employee.findUnique({
-        where: { id: expense.employeeId },
-      });
-      const employeeUserId = emp?.userId || expense.employeeId;
-
-      const targetUser = await this.prisma.user.findUnique({
-        where: { id: employeeUserId },
-      });
-      if (targetUser) {
-        await this.notificationsService?.notifyUser({
-          companyId: activeCompanyId,
-          userId: employeeUserId,
-          type: 'EXPENSE_CLAIM_REJECTED',
-          module: 'FINANCE',
-          priority: 'HIGH',
-          title: 'Expense Claim Rejected',
-          message: `Your expense claim of ₹${expense.amount} has been declined. Remarks: ${body.remarks || 'No remarks provided.'}`,
-          entityType: 'EXPENSE',
-          entityId: id,
-          actorUserId: userId,
-          actorName: reviewerName,
-          eventKey: `EXPENSE_CLAIM_REJECTED:${id}:${employeeUserId}`,
-        });
-      }
-
-      return updated;
-    } else {
-      throw new ForbiddenException(
-        'You do not have permission to decline this claim at its current state.',
+      throw new BadRequestException(
+        `Cannot reject an expense claim in "${claim.status}" state.`,
       );
     }
+
+    let historyAction: ExpenseClaimHistoryAction;
+    let updateData: any = {
+      status: ExpenseClaimStatus.REJECTED,
+    };
+
+    let eventKey = `expense.claim.rejected:${claim.id}`;
+
+    if (reviewerRole === 'HR' || reviewerRole === 'HR_MANAGER') {
+      if (claim.status !== ExpenseClaimStatus.PENDING_HR) {
+        throw new BadRequestException(
+          `HR can only reject claims in PENDING_HR state (current: ${claim.status}).`,
+        );
+      }
+      historyAction = ExpenseClaimHistoryAction.HR_REJECTED;
+      updateData.hrRemarks = dto.remarks;
+      updateData.hrApprovedById = userId;
+      updateData.hrApprovedBy = reviewerName;
+      updateData.hrApprovedAt = new Date();
+      eventKey = `expense.claim.hr_rejected:${claim.id}`;
+    } else if (reviewerRole === 'SUPER_ADMIN' || reviewerRole === 'ADMIN') {
+      if (claim.status !== ExpenseClaimStatus.PENDING_SUPERADMIN) {
+        throw new BadRequestException(
+          `Super Admin can only reject claims in PENDING_SUPERADMIN state (current: ${claim.status}).`,
+        );
+      }
+      historyAction = ExpenseClaimHistoryAction.SUPER_ADMIN_REJECTED;
+      updateData.superAdminRemarks = dto.remarks;
+      updateData.superAdminApprovedById = userId;
+      updateData.superAdminApprovedBy = reviewerName;
+      updateData.superAdminApprovedAt = new Date();
+      eventKey = `expense.claim.superadmin_rejected:${claim.id}`;
+    } else if (
+      reviewerRole === 'FINANCE' ||
+      reviewerRole === 'FINANCE_EXECUTIVE' ||
+      reviewerRole === 'FINANCE_HEAD'
+    ) {
+      if (claim.status !== ExpenseClaimStatus.PENDING_FINANCE) {
+        throw new BadRequestException(
+          `Finance can only reject claims in PENDING_FINANCE state (current: ${claim.status}).`,
+        );
+      }
+      historyAction = ExpenseClaimHistoryAction.FINANCE_REJECTED;
+      updateData.financeRemarks = dto.remarks;
+      updateData.financeProcessedById = userId;
+      updateData.financeProcessedBy = reviewerName;
+      updateData.financeProcessedAt = new Date();
+      eventKey = `expense.claim.finance_rejected:${claim.id}`;
+    } else {
+      throw new ForbiddenException(
+        `Role "${reviewerRole}" is not authorized to reject expense claims.`,
+      );
+    }
+
+    const updated = await this.prisma.expenseClaim.update({
+      where: { id },
+      data: updateData,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        employee: { select: { id: true, employeeCode: true, jobTitle: true, department: true } },
+        history: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+
+    // Record Audit History
+    await this.prisma.expenseClaimApprovalHistory.create({
+      data: {
+        expenseClaimId: id,
+        action: historyAction,
+        fromStatus: claim.status,
+        toStatus: ExpenseClaimStatus.REJECTED,
+        actorId: userId,
+        actorName: reviewerName,
+        actorRole: reviewerRole,
+        remarks: dto.remarks,
+      },
+    });
+
+    // Notify Claimant
+    try {
+      await this.notificationsService.notifyUser({
+        companyId,
+        userId: claim.userId,
+        type: 'EXPENSE_REJECTED',
+        module: 'FINANCE',
+        priority: 'HIGH',
+        title: `Expense Claim Declined (${claim.claimNumber}) ⚠️`,
+        message: `Your claim ${claim.claimNumber} (₹${Number(claim.amount).toLocaleString('en-IN')}) was declined by ${reviewerRole}. Reason: ${dto.remarks}`,
+        route: `/profile?tab=expenses&expenseId=${claim.id}`,
+        eventKey,
+        entityType: 'ExpenseClaim',
+        entityId: id,
+        actorUserId: userId,
+        actorName: reviewerName,
+      });
+    } catch (notifErr: any) {
+      this.logger.warn(`Failed to dispatch expense rejection notification: ${notifErr.message}`);
+    }
+
+    return updated;
   }
 }

@@ -29,6 +29,12 @@ export default function StatusBadge({ status }) {
       'FINANCE_ANALYSIS_IN_PROGRESS': 'Finance Analysis In Progress',
       'FINANCE_ANALYSIS_COMPLETED': 'Finance Analysis Completed',
       'FINANCE_REJECTED': 'Finance Rejected',
+      // Expense Claim Workflow statuses
+      'PENDING_HR': 'Pending HR Review',
+      'PENDING_SUPERADMIN': 'Pending Super Admin Review',
+      'PENDING_FINANCE': 'Pending Finance Processing',
+      'FINANCE_PROCESSED': 'Processed / Settled',
+      'REJECTED': 'Declined',
     };
     return displayMap[stat] || stat.replace(/_/g, ' ');
   };

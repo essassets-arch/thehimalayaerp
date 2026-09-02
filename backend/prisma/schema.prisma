@@ -78,6 +78,7 @@ model Company {
   latestUserLocations            LatestUserLocation[]
   userLocationHistories          UserLocationHistory[]
   employeeComplaints             EmployeeComplaint[]
+  expenseClaims                  ExpenseClaim[]
 }
 
 model Branch {
@@ -189,6 +190,7 @@ model User {
   userLocationHistories         UserLocationHistory[]
   employeeComplaints            EmployeeComplaint[]
   resolvedComplaints            EmployeeComplaint[]    @relation("ComplaintResolver")
+  expenseClaims                 ExpenseClaim[]
 }
 
 model RefreshSession {
@@ -726,6 +728,7 @@ model Employee {
   manualAttendanceRequests ManualAttendanceRequest[]
   attendances            Attendance[]
   employeeComplaints     EmployeeComplaint[]
+  expenseClaims          ExpenseClaim[]
 
   @@index([companyId, status])
   @@index([departmentId])
@@ -4088,6 +4091,85 @@ model EmployeeComplaint {
   @@index([employeeId])
   @@index([createdAt])
 }
+
+enum ExpenseClaimStatus {
+  PENDING_HR
+  PENDING_SUPERADMIN
+  PENDING_FINANCE
+  FINANCE_PROCESSED
+  REJECTED
+}
+
+enum ExpenseClaimHistoryAction {
+  SUBMITTED
+  HR_APPROVED
+  HR_REJECTED
+  SUPER_ADMIN_APPROVED
+  SUPER_ADMIN_REJECTED
+  FINANCE_PROCESSED
+  FINANCE_REJECTED
+}
+
+model ExpenseClaim {
+  id                     String                        @id @default(uuid())
+  publicId               String                        @unique
+  companyId              String
+  userId                 String
+  employeeId             String?
+  claimNumber            String                        @unique
+  expenseName            String
+  amount                 Decimal                       @db.Decimal(14, 2)
+  expenseDate            DateTime
+  receiptUrl             String?
+  status                 ExpenseClaimStatus            @default(PENDING_HR)
+  
+  hrApprovedById         String?
+  hrApprovedBy           String?
+  hrApprovedAt           DateTime?
+  hrRemarks              String?                       @db.Text
+  
+  superAdminApprovedById String?
+  superAdminApprovedBy   String?
+  superAdminApprovedAt   DateTime?
+  superAdminRemarks      String?                       @db.Text
+  
+  financeProcessedById   String?
+  financeProcessedBy     String?
+  financeProcessedAt     DateTime?
+  financeRemarks         String?                       @db.Text
+  paymentReference       String?
+  
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
+
+  company                Company                       @relation(fields: [companyId], references: [id])
+  user                   User                          @relation(fields: [userId], references: [id])
+  employee               Employee?                     @relation(fields: [employeeId], references: [id])
+  history                ExpenseClaimApprovalHistory[]
+
+  @@index([companyId, status])
+  @@index([userId])
+  @@index([employeeId])
+  @@index([createdAt])
+}
+
+model ExpenseClaimApprovalHistory {
+  id             String                    @id @default(uuid())
+  expenseClaimId String
+  action         ExpenseClaimHistoryAction
+  fromStatus     ExpenseClaimStatus?
+  toStatus       ExpenseClaimStatus
+  actorId        String
+  actorName      String
+  actorRole      String
+  remarks        String?                   @db.Text
+  createdAt      DateTime                  @default(now())
+
+  expenseClaim   ExpenseClaim              @relation(fields: [expenseClaimId], references: [id], onDelete: Cascade)
+
+  @@index([expenseClaimId, createdAt])
+}
+
 
 
 
