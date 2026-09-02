@@ -61,6 +61,20 @@ export class ComplaintsService {
     });
     const ticketCode = `CMP-${1001 + count}`;
 
+    let priority: EmployeeComplaintPriority = EmployeeComplaintPriority.MEDIUM;
+    if (dto.priority) {
+      const p = String(dto.priority).trim().toUpperCase();
+      if (p === 'CRITICAL' || p === 'URGENT' || p === 'EMERGENCY') {
+        priority = EmployeeComplaintPriority.CRITICAL;
+      } else if (p === 'HIGH') {
+        priority = EmployeeComplaintPriority.HIGH;
+      } else if (p === 'LOW') {
+        priority = EmployeeComplaintPriority.LOW;
+      } else {
+        priority = EmployeeComplaintPriority.MEDIUM;
+      }
+    }
+
     const complaint = await this.prisma.employeeComplaint.create({
       data: {
         publicId: randomUUID(),
@@ -71,7 +85,7 @@ export class ComplaintsService {
         category: dto.category.trim(),
         subject: dto.subject.trim(),
         description: dto.description.trim(),
-        priority: dto.priority || EmployeeComplaintPriority.MEDIUM,
+        priority,
         status: EmployeeComplaintStatus.PENDING,
       },
       include: {

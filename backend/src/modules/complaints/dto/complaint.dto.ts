@@ -17,8 +17,8 @@ export class CreateComplaintDto {
   description: string;
 
   @IsOptional()
-  @IsEnum(EmployeeComplaintPriority)
-  priority?: EmployeeComplaintPriority;
+  @IsString()
+  priority?: string;
 }
 
 export class UpdateComplaintStatusDto {

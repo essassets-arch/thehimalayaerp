@@ -1332,36 +1332,48 @@ export default function MyProfileView() {
                     <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>
                       Category *
                     </label>
-                    <select
+                    <input
+                      type="text"
+                      list="profile-complaint-categories"
+                      required
+                      placeholder="Type or choose category..."
                       className="form-input"
-                      style={{ marginTop: '6px', padding: '8px 10px', borderRadius: '8px' }}
+                      style={{ marginTop: '6px', padding: '8px 12px', borderRadius: '8px' }}
                       value={complaintForm.category}
                       onChange={(e) => setComplaintForm(prev => ({ ...prev, category: e.target.value }))}
-                    >
-                      <option value="Workplace Environment">Workplace Environment</option>
-                      <option value="Harassment / Misconduct">Harassment / Misconduct</option>
-                      <option value="Payroll & Compensation">Payroll &amp; Compensation</option>
-                      <option value="Management / Hierarchy">Management / Hierarchy</option>
-                      <option value="Facility / Infrastructure">Facility / Infrastructure</option>
-                      <option value="Other Issue">Other Issue</option>
-                    </select>
+                    />
+                    <datalist id="profile-complaint-categories">
+                      <option value="Workplace Environment" />
+                      <option value="Harassment / Misconduct" />
+                      <option value="Payroll & Compensation" />
+                      <option value="Management / Hierarchy" />
+                      <option value="Facility / Infrastructure" />
+                      <option value="Health & Safety" />
+                      <option value="Leave / Attendance Dispute" />
+                      <option value="Other Issue" />
+                    </datalist>
                   </div>
 
                   <div className="form-group" style={{ margin: 0 }}>
                     <label className="form-label" style={{ fontWeight: '700', fontSize: '12.5px', color: '#1e293b' }}>
                       Priority *
                     </label>
-                    <select
+                    <input
+                      type="text"
+                      list="profile-complaint-priorities"
+                      required
+                      placeholder="Type or choose priority (e.g. Medium, High, Critical)..."
                       className="form-input"
-                      style={{ marginTop: '6px', padding: '8px 10px', borderRadius: '8px' }}
+                      style={{ marginTop: '6px', padding: '8px 12px', borderRadius: '8px' }}
                       value={complaintForm.priority}
                       onChange={(e) => setComplaintForm(prev => ({ ...prev, priority: e.target.value }))}
-                    >
-                      <option value="LOW">Low</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HIGH">High</option>
-                      <option value="CRITICAL">Critical / Urgent</option>
-                    </select>
+                    />
+                    <datalist id="profile-complaint-priorities">
+                      <option value="LOW" />
+                      <option value="MEDIUM" />
+                      <option value="HIGH" />
+                      <option value="CRITICAL" />
+                    </datalist>
                   </div>
                 </div>
 
@@ -1588,31 +1600,43 @@ export default function MyProfileView() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Category *</label>
-                  <select
+                  <input
+                    type="text"
+                    list="modal-complaint-categories"
+                    required
+                    placeholder="Type or choose category..."
                     value={complaintForm.category}
                     onChange={(e) => setComplaintForm(prev => ({ ...prev, category: e.target.value }))}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '13px' }}
-                  >
-                    <option value="Workplace Environment">Workplace Environment</option>
-                    <option value="Harassment / Misconduct">Harassment / Misconduct</option>
-                    <option value="Payroll & Compensation">Payroll &amp; Compensation</option>
-                    <option value="Management / Hierarchy">Management / Hierarchy</option>
-                    <option value="Facility / Infrastructure">Facility / Infrastructure</option>
-                    <option value="Other Issue">Other Issue</option>
-                  </select>
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                  <datalist id="modal-complaint-categories">
+                    <option value="Workplace Environment" />
+                    <option value="Harassment / Misconduct" />
+                    <option value="Payroll & Compensation" />
+                    <option value="Management / Hierarchy" />
+                    <option value="Facility / Infrastructure" />
+                    <option value="Health & Safety" />
+                    <option value="Leave / Attendance Dispute" />
+                    <option value="Other Issue" />
+                  </datalist>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Priority *</label>
-                  <select
+                  <input
+                    type="text"
+                    list="modal-complaint-priorities"
+                    required
+                    placeholder="Type or choose priority..."
                     value={complaintForm.priority}
                     onChange={(e) => setComplaintForm(prev => ({ ...prev, priority: e.target.value }))}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '13px' }}
-                  >
-                    <option value="LOW">Low</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="HIGH">High</option>
-                    <option value="CRITICAL">Critical / Urgent</option>
-                  </select>
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                  />
+                  <datalist id="modal-complaint-priorities">
+                    <option value="LOW" />
+                    <option value="MEDIUM" />
+                    <option value="HIGH" />
+                    <option value="CRITICAL" />
+                  </datalist>
                 </div>
               </div>
 
