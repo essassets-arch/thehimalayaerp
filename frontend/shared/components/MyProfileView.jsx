@@ -6,7 +6,7 @@ import StatusBadge from './StatusBadge';
 import { 
   User, Calendar, CalendarDays, FileText, CreditCard, 
   Upload, FileDown, PlusCircle, RefreshCw,
-  Mail, Phone, ShieldCheck, MapPin, LogIn, LogOut, Clock, Fingerprint, Camera, ShieldAlert, Send
+  Mail, Phone, ShieldCheck, MapPin, LogIn, LogOut, Clock, Fingerprint, Camera, ShieldAlert, Send, X
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import DataTable from './DataTable';
