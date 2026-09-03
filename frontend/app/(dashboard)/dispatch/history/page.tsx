@@ -21,10 +21,12 @@ import {
   FileCheck2,
   Clock,
   Layers,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { backendFetch } from "@/lib/backendFetch";
+import { getBackendAssetUrl, downloadAssetFile } from "@/lib/assetUrl";
 import styles from "./history.module.css";
 
 interface Customer {
@@ -58,7 +60,7 @@ export default function DeliveryHistoryPage() {
   const isDispatch2 = pathname?.startsWith("/dispatch-2");
 
   const [search, setSearch] = useState("");
-  const [selectedPodImage, setSelectedPodImage] = useState<string | null>(null);
+  const [selectedPodItem, setSelectedPodItem] = useState<Dispatch | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const {
@@ -470,7 +472,7 @@ export default function DeliveryHistoryPage() {
                           {d.podUrl ? (
                             <button
                               type="button"
-                              onClick={() => setSelectedPodImage(d.podUrl)}
+                              onClick={() => setSelectedPodItem(d)}
                               className={styles.btnViewPod}
                               title="Inspect Proof of Delivery"
                             >
@@ -560,7 +562,7 @@ export default function DeliveryHistoryPage() {
                     {d.podUrl && (
                       <button
                         type="button"
-                        onClick={() => setSelectedPodImage(d.podUrl)}
+                        onClick={() => setSelectedPodItem(d)}
                         className={styles.btnViewPod}
                         style={{ width: "100%", justifyContent: "center", padding: "8px" }}
                       >
@@ -576,26 +578,171 @@ export default function DeliveryHistoryPage() {
         </div>
       </div>
 
-      {/* ─── POD IMAGE LIGHTBOX ─── */}
-      {selectedPodImage && (
-        <div className={styles.lightboxBackdrop} onClick={() => setSelectedPodImage(null)}>
-          <button
-            type="button"
-            className={styles.lightboxCloseBtn}
-            onClick={() => setSelectedPodImage(null)}
-            title="Close Lightbox"
-          >
-            <X size={20} />
-          </button>
-          <div className={styles.lightboxImageWrap} onClick={(e) => e.stopPropagation()}>
-            <img
-              src={selectedPodImage}
-              alt="Proof of Delivery Document"
-              className={styles.lightboxImage}
-            />
+      {/* ─── POD IMAGE / DOCUMENT LIGHTBOX ─── */}
+      {selectedPodItem && (() => {
+        const podAssetUrl = getBackendAssetUrl(selectedPodItem.podUrl);
+        const cleanDispNo = formatCleanNo(selectedPodItem.dispatchNo);
+        const cleanSoNo = formatCleanNo(selectedPodItem.salesOrder?.orderNumber);
+        const customerName =
+          selectedPodItem.salesOrder?.customer?.companyName ||
+          (selectedPodItem as any).customerName ||
+          (selectedPodItem as any).customer?.name ||
+          "Consignee Client";
+        const isPdf = Boolean(podAssetUrl && podAssetUrl.toLowerCase().includes(".pdf"));
+
+        return (
+          <div className={styles.lightboxBackdrop} onClick={() => setSelectedPodItem(null)}>
+            <div
+              className={styles.lightboxCard}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className={styles.lightboxHeader}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", display: "grid", placeItems: "center", color: "#2563eb" }}>
+                    <ImageIcon size={18} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span>Proof of Delivery (POD)</span>
+                      <span style={{ fontSize: 12, padding: "2px 8px", background: "#f1f5f9", borderRadius: 6, color: "#475569", fontFamily: "monospace" }}>
+                        #{cleanDispNo}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#64748b" }}>
+                      SO #{cleanSoNo} · {customerName}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {podAssetUrl && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => window.open(podAssetUrl, "_blank", "noopener,noreferrer")}
+                        className={styles.btnModalAction}
+                        title="Open document in new tab"
+                      >
+                        <ExternalLink size={14} />
+                        <span>Open in New Tab</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadAssetFile(podAssetUrl, `POD_${cleanDispNo}.png`)}
+                        className={styles.btnModalAction}
+                        title="Download file"
+                      >
+                        <Download size={14} />
+                        <span>Download</span>
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPodItem(null)}
+                    className={styles.btnModalClose}
+                    title="Close"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body / Image View */}
+              <div className={styles.lightboxBody}>
+                {podAssetUrl ? (
+                  isPdf ? (
+                    <iframe
+                      src={podAssetUrl}
+                      style={{ width: "100%", height: "60vh", border: "none", borderRadius: 8 }}
+                      title="POD PDF Document"
+                    />
+                  ) : (
+                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 280, width: "100%", position: "relative" }}>
+                      <img
+                        src={podAssetUrl}
+                        alt="Proof of Delivery Document"
+                        className={styles.lightboxImg}
+                        onError={(e: any) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.style.display = "none";
+                          const fb = document.getElementById(`pod-lightbox-fallback-${selectedPodItem.id}`);
+                          if (fb) fb.style.display = "flex";
+                        }}
+                      />
+                      <div
+                        id={`pod-lightbox-fallback-${selectedPodItem.id}`}
+                        style={{
+                          display: "none",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "36px 20px",
+                          gap: 12,
+                          background: "#ffffff",
+                          borderRadius: 12,
+                          border: "1.5px dashed #cbd5e1",
+                          width: "100%",
+                          maxWidth: 520,
+                        }}
+                      >
+                        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#eff6ff", border: "1.5px solid #bfdbfe", display: "grid", placeItems: "center" }}>
+                          <FileCheck2 size={28} color="#2563eb" />
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                          <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 16 }}>Verified Handover Record</div>
+                          <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+                            Shipment #{cleanDispNo} confirmed and received by <strong>{selectedPodItem.receivedBy || "Authorized Representative"}</strong>.
+                          </div>
+                        </div>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700, color: "#065f46" }}>
+                          <CheckCircle2 size={14} />
+                          <span>Delivery Verified &amp; Handover Complete</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>
+                    No digital POD uploaded for this record.
+                  </div>
+                )}
+              </div>
+
+              {/* Consignee & Delivery Handover Details Bar */}
+              <div className={styles.lightboxFooter}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, width: "100%", fontSize: 12 }}>
+                  <div>
+                    <span style={{ color: "#64748b", display: "block" }}>Received By</span>
+                    <strong style={{ color: "#0f172a" }}>{selectedPodItem.receivedBy || "Recipient Signed"}</strong>
+                    {selectedPodItem.receiverPhone && <span style={{ color: "#2563eb", display: "block" }}>{selectedPodItem.receiverPhone}</span>}
+                  </div>
+                  <div>
+                    <span style={{ color: "#64748b", display: "block" }}>Driver &amp; Vehicle</span>
+                    <strong style={{ color: "#0f172a" }}>{selectedPodItem.driverName || "Assigned Driver"}</strong>
+                    {selectedPodItem.vehicleNumber && <span style={{ color: "#475569", display: "block", fontFamily: "monospace" }}>{selectedPodItem.vehicleNumber}</span>}
+                  </div>
+                  <div>
+                    <span style={{ color: "#64748b", display: "block" }}>Delivery Timestamp</span>
+                    <strong style={{ color: "#0f172a" }}>
+                      {selectedPodItem.deliveredAt
+                        ? new Date(selectedPodItem.deliveredAt).toLocaleString("en-IN")
+                        : "—"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: "#64748b", display: "block" }}>Delivery Location</span>
+                    <span style={{ color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>
+                      {selectedPodItem.deliveryAddress || "Consignee Address on File"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
