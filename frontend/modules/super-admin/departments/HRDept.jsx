@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import DepartmentHeader from '../components/DepartmentHeader';
 import DepartmentKPI from '../components/DepartmentKPI';
 import EmployeeTable from '../components/EmployeeTable';
@@ -9,9 +9,12 @@ import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import ExitClearanceFormModal from '../../hr/components/ExitClearanceFormModal';
 import { exportToCSV, exportToExcel } from '../../../services/export.service';
+import { useERP } from '../../../shared/context/ERPContext';
 import { FileText, Eye, Download, FileSpreadsheet, ShieldCheck } from 'lucide-react';
 
-export default function HRDept({ state, deptEmployee, setDeptEmployee, onBack, navigate, showToast, showExitClearanceOnly = false }) {
+export default function HRDept({ state: propState, deptEmployee, setDeptEmployee, onBack, navigate, showToast, showExitClearanceOnly = false }) {
+  const { state: erpState, dispatch } = useERP();
+  const state = propState || erpState || {};
   const [showExitModal, setShowExitModal] = useState(false);
   const [selectedExitRecord, setSelectedExitRecord] = useState(null);
 
@@ -456,10 +459,36 @@ export default function HRDept({ state, deptEmployee, setDeptEmployee, onBack, n
 
         <ExitClearanceFormModal
           isOpen={showExitModal}
-          onClose={() => setShowExitModal(false)}
+          onClose={() => {
+            setShowExitModal(false);
+            setSelectedExitRecord(null);
+          }}
+          onSubmit={(updatedRecord) => {
+            const clearedCount = Object.values(updatedRecord.checkpoints || {}).filter(Boolean).length;
+            const progress = Math.round((clearedCount / (Object.keys(updatedRecord.checkpoints || {}).length || 4)) * 100);
+            const finalRecord = {
+              ...updatedRecord,
+              progress,
+              status: updatedRecord.approval?.finalHrStatus === 'Cleared' ? 'Cleared' : progress === 100 ? 'Cleared' : 'In Progress'
+            };
+            const existing = (exitClearances || []).find(ex => ex.empId === finalRecord.empId || ex.id === finalRecord.empId);
+            if (existing) {
+              dispatch({ type: 'UPDATE_EXIT_CLEARANCE', payload: finalRecord });
+            } else {
+              dispatch({ type: 'ADD_EXIT_CLEARANCE', payload: finalRecord });
+            }
+            try {
+              const stored = JSON.parse(localStorage.getItem('himalaya_exit_clearances') || '[]');
+              const filtered = stored.filter(x => x.empId !== finalRecord.empId && x.id !== finalRecord.empId);
+              localStorage.setItem('himalaya_exit_clearances', JSON.stringify([finalRecord, ...filtered]));
+            } catch {}
+            if (showToast) showToast(`Exit clearance saved for ${finalRecord.name}`);
+            setShowExitModal(false);
+            setSelectedExitRecord(null);
+          }}
           employees={state.employees || []}
           initialData={selectedExitRecord}
-          readOnly={true}
+          readOnly={false}
         />
       </div>
     );
@@ -534,10 +563,36 @@ export default function HRDept({ state, deptEmployee, setDeptEmployee, onBack, n
 
       <ExitClearanceFormModal
         isOpen={showExitModal}
-        onClose={() => setShowExitModal(false)}
+        onClose={() => {
+          setShowExitModal(false);
+          setSelectedExitRecord(null);
+        }}
+        onSubmit={(updatedRecord) => {
+          const clearedCount = Object.values(updatedRecord.checkpoints || {}).filter(Boolean).length;
+          const progress = Math.round((clearedCount / (Object.keys(updatedRecord.checkpoints || {}).length || 4)) * 100);
+          const finalRecord = {
+            ...updatedRecord,
+            progress,
+            status: updatedRecord.approval?.finalHrStatus === 'Cleared' ? 'Cleared' : progress === 100 ? 'Cleared' : 'In Progress'
+          };
+          const existing = (exitClearances || []).find(ex => ex.empId === finalRecord.empId || ex.id === finalRecord.empId);
+          if (existing) {
+            dispatch({ type: 'UPDATE_EXIT_CLEARANCE', payload: finalRecord });
+          } else {
+            dispatch({ type: 'ADD_EXIT_CLEARANCE', payload: finalRecord });
+          }
+          try {
+            const stored = JSON.parse(localStorage.getItem('himalaya_exit_clearances') || '[]');
+            const filtered = stored.filter(x => x.empId !== finalRecord.empId && x.id !== finalRecord.empId);
+            localStorage.setItem('himalaya_exit_clearances', JSON.stringify([finalRecord, ...filtered]));
+          } catch {}
+          if (showToast) showToast(`Exit clearance saved for ${finalRecord.name}`);
+          setShowExitModal(false);
+          setSelectedExitRecord(null);
+        }}
         employees={state.employees || []}
         initialData={selectedExitRecord}
-        readOnly={true}
+        readOnly={false}
       />
     </div>
   );
