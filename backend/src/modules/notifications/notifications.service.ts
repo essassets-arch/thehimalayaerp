@@ -273,21 +273,71 @@ export class NotificationsService {
       eventKeyPrefix,
     } = dto;
 
-    const targetRoles = roles || (role ? [role] : []);
-    if (targetRoles.length === 0) {
+    const rawRoles = roles || (role ? [role] : []);
+    if (rawRoles.length === 0) {
       return [];
     }
 
-    const users = await this.prisma.user.findMany({
+    const ROLE_ALIASES: Record<string, string[]> = {
+      PRODUCTION: ['PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'PRODUCTION', 'PRODUCTION_MANAGER', 'PRODUCTION_HEAD'],
+      PRODUCTION_PLANNER: ['PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'PRODUCTION', 'PRODUCTION_MANAGER'],
+      PRODUCTION_OPERATOR: ['PRODUCTION_OPERATOR', 'PRODUCTION_PLANNER', 'PRODUCTION'],
+      PRODUCTION_MANAGER: ['PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'PRODUCTION', 'PRODUCTION_MANAGER', 'PRODUCTION_HEAD'],
+      DISPATCH: ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH_2', 'DISPATCH'],
+      DISPATCH_1: ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH', 'DISPATCH_2'],
+      DISPATCH_2: ['DISPATCH_2', 'DISPATCH_EXECUTIVE', 'DISPATCH', 'DISPATCH_1'],
+      DISPATCH_EXECUTIVE: ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH_2', 'DISPATCH'],
+      PLANT_HEAD: ['PLANT_HEAD'],
+      SALES: ['SALES_EXECUTIVE', 'SALES_MANAGER', 'SUPER_SALES', 'SALES'],
+      SALES_EXECUTIVE: ['SALES_EXECUTIVE', 'SALES_MANAGER', 'SUPER_SALES'],
+      SALES_MANAGER: ['SALES_MANAGER', 'SALES_EXECUTIVE', 'SUPER_SALES'],
+      SUPER_SALES: ['SUPER_SALES', 'SALES_MANAGER', 'SALES_EXECUTIVE'],
+      QC: ['QC_INSPECTOR', 'QC'],
+      QC_INSPECTOR: ['QC_INSPECTOR', 'QC'],
+      STORE: ['STORE_MANAGER', 'STORE'],
+      STORE_MANAGER: ['STORE_MANAGER', 'STORE'],
+      FINANCE: ['FINANCE_MANAGER', 'FINANCE_EXECUTIVE', 'FINANCE'],
+      FINANCE_MANAGER: ['FINANCE_MANAGER', 'FINANCE_EXECUTIVE', 'FINANCE'],
+      FINANCE_EXECUTIVE: ['FINANCE_EXECUTIVE', 'FINANCE_MANAGER', 'FINANCE'],
+      HR: ['HR'],
+      ADMIN: ['SUPER_ADMIN', 'ADMIN'],
+      SUPER_ADMIN: ['SUPER_ADMIN', 'ADMIN'],
+    };
+
+    const expandedRoles = new Set<string>();
+    for (const r of rawRoles) {
+      const upper = String(r || '').toUpperCase();
+      expandedRoles.add(upper);
+      if (ROLE_ALIASES[upper]) {
+        for (const alias of ROLE_ALIASES[upper]) {
+          expandedRoles.add(alias);
+        }
+      }
+    }
+    const targetRoles = Array.from(expandedRoles);
+
+    let users = await this.prisma.user.findMany({
       where: {
-        companyId,
+        ...(companyId ? { companyId } : {}),
         isActive: true,
         role: {
           code: { in: targetRoles },
         },
       },
-      select: { id: true },
+      select: { id: true, companyId: true },
     });
+
+    if (users.length === 0 && companyId) {
+      users = await this.prisma.user.findMany({
+        where: {
+          isActive: true,
+          role: {
+            code: { in: targetRoles },
+          },
+        },
+        select: { id: true, companyId: true },
+      });
+    }
 
     if (users.length === 0) {
       return [];
@@ -301,7 +351,7 @@ export class NotificationsService {
         ? `${eventKeyPrefix}:${u.id}`
         : undefined;
       const notif = await this.notifyUser({
-        companyId,
+        companyId: u.companyId || companyId,
         userId: u.id,
         type,
         module,

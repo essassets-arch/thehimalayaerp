@@ -776,39 +776,39 @@ export default function ProductionPortal() {
     backendWorkOrders
       .filter(workOrder => String(workOrder.workflowState?.code || workOrder.status).toUpperCase() === 'CREATED')
       .forEach(workOrder => {
-      const plan = workOrder.productionPlan || {};
-      const salesOrder = plan.salesOrder || {};
-      const orderId = salesOrder.id || plan.salesOrderId || workOrder.id;
-      const existing = grouped.get(orderId) || {
-        id: salesOrder.id || orderId,
-        orderNo: salesOrder.orderNumber || salesOrder.orderNo || orderId,
-        customerName: salesOrder.customer?.companyName || 'N/A',
-        detailedItems: [],
-        products: '',
-        estimatedQuantity: 0,
-        totalQuantity: 0,
-        targetDate: plan.plannedEndDate || '',
-        priority: 'Medium',
-        status: plan.status || workOrder.status || 'RELEASED',
-        workflowStatus: plan.workflowState?.code || plan.status || 'RELEASED',
-        productionPlanId: plan.id,
-        workOrderIds: [],
-        hasBackendWorkOrder: true,
-      };
-      const salesItem = salesOrder.items?.find(item => item.id === workOrder.salesOrderItemId);
-      const productName = salesItem?.productNameSnapshot || 'Production Item';
-      const itemQuantity = Number(workOrder.quantity || salesItem?.orderedQuantity || 0);
-      existing.detailedItems.push({
-        productName,
-        quantity: itemQuantity,
-        unit: salesItem?.unit || 'Units',
+        const plan = workOrder.productionPlan || {};
+        const salesOrder = plan.salesOrder || {};
+        const orderId = salesOrder.id || plan.salesOrderId || workOrder.id;
+        const existing = grouped.get(orderId) || {
+          id: salesOrder.id || orderId,
+          orderNo: salesOrder.orderNumber || salesOrder.orderNo || orderId,
+          customerName: salesOrder.customer?.companyName || 'N/A',
+          detailedItems: [],
+          products: '',
+          estimatedQuantity: 0,
+          totalQuantity: 0,
+          targetDate: plan.plannedEndDate || '',
+          priority: 'Medium',
+          status: plan.status || workOrder.status || 'RELEASED',
+          workflowStatus: plan.workflowState?.code || plan.status || 'RELEASED',
+          productionPlanId: plan.id,
+          workOrderIds: [],
+          hasBackendWorkOrder: true,
+        };
+        const salesItem = salesOrder.items?.find(item => item.id === workOrder.salesOrderItemId);
+        const productName = salesItem?.productNameSnapshot || 'Production Item';
+        const itemQuantity = Number(workOrder.quantity || salesItem?.orderedQuantity || 0);
+        existing.detailedItems.push({
+          productName,
+          quantity: itemQuantity,
+          unit: salesItem?.unit || 'Units',
+        });
+        existing.products = [...new Set(existing.detailedItems.map(item => item.productName))].join(', ');
+        existing.estimatedQuantity += itemQuantity;
+        existing.totalQuantity += itemQuantity;
+        existing.workOrderIds.push(workOrder.id);
+        grouped.set(orderId, existing);
       });
-      existing.products = [...new Set(existing.detailedItems.map(item => item.productName))].join(', ');
-      existing.estimatedQuantity += itemQuantity;
-      existing.totalQuantity += itemQuantity;
-      existing.workOrderIds.push(workOrder.id);
-      grouped.set(orderId, existing);
-    });
     return Array.from(grouped.values());
   }, [backendWorkOrders]);
 
@@ -862,8 +862,8 @@ export default function ProductionPortal() {
         } catch { /* ignore if already active */ }
       }
 
-      await loadBackendWorkOrders().catch(() => {});
-      await syncData().catch(() => {});
+      await loadBackendWorkOrders().catch(() => { });
+      await syncData().catch(() => { });
 
       showToast(
         isAccept
@@ -1747,8 +1747,8 @@ export default function ProductionPortal() {
     const monthProduction = monthShiftProduced > 0
       ? monthShiftProduced
       : workOrders
-          .filter(wo => ['Completed', 'Testing', 'QC Pending', 'QC Passed'].includes(wo.status))
-          .reduce((sum, wo) => sum + (wo.producedQty || wo.quantity || 0), 0);
+        .filter(wo => ['Completed', 'Testing', 'QC Pending', 'QC Passed'].includes(wo.status))
+        .reduce((sum, wo) => sum + (wo.producedQty || wo.quantity || 0), 0);
 
     const shiftTargetSum = (globalSummary?.shiftEntries || []).reduce((sum, e) => sum + (Number(e.targetQty) || 0), 0);
     const shiftProducedSum = (globalSummary?.shiftEntries || []).reduce((sum, e) => sum + (Number(e.producedQty) || 0), 0);
@@ -1800,16 +1800,16 @@ export default function ProductionPortal() {
     // Dynamic Machine OEE Data
     const machineOEEData = (machines && machines.length > 0)
       ? machines.slice(0, 6).map(m => ({
-          name: m.machineName || m.name || m.machineId || 'Machine',
-          OEE: m.status === 'OPERATIONAL' || m.status === 'RUNNING' ? 92 : (m.status === 'IDLE' ? 76 : 48)
-        }))
+        name: m.machineName || m.name || m.machineId || 'Machine',
+        OEE: m.status === 'OPERATIONAL' || m.status === 'RUNNING' ? 92 : (m.status === 'IDLE' ? 76 : 48)
+      }))
       : [
-          { name: 'Mixer-1', OEE: 85 },
-          { name: 'Mixer-2', OEE: 82 },
-          { name: 'Extruder-1', OEE: 91 },
-          { name: 'Kiln-3', OEE: 79 },
-          { name: 'Assy Alpha', OEE: 88 }
-        ];
+        { name: 'Mixer-1', OEE: 85 },
+        { name: 'Mixer-2', OEE: 82 },
+        { name: 'Extruder-1', OEE: 91 },
+        { name: 'Kiln-3', OEE: 79 },
+        { name: 'Assy Alpha', OEE: 88 }
+      ];
 
     const liveAvailability = totalWOs > 0
       ? Math.min(100, Math.max(70, Number((((totalWOs - overdueCount) / totalWOs) * 100).toFixed(1))))
@@ -2138,7 +2138,7 @@ export default function ProductionPortal() {
                   const m = Math.floor((totalSec % 3600) / 60);
                   const s = totalSec % 60;
                   const durationStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                  
+
                   return (
                     <span style={{
                       fontFamily: '"Courier New", monospace',
@@ -2202,9 +2202,9 @@ export default function ProductionPortal() {
         '';
       const searchVal = (
         custName ||
-        row.productInterested || 
-        row.products || 
-        row.orderNo || 
+        row.productInterested ||
+        row.products ||
+        row.orderNo ||
         ''
       ).toLowerCase();
       return searchVal.includes(globalSearch.toLowerCase());
@@ -2355,17 +2355,17 @@ export default function ProductionPortal() {
                 const priority = row.priority || 'Medium';
 
                 return (
-                  <div 
-                    key={row.id || row.orderNo} 
-                    style={{ 
-                      background: '#ffffff', 
-                      border: '1.5px solid #e2e8f0', 
-                      borderRadius: '12px', 
-                      padding: '16px', 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      gap: '14px', 
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.01)' 
+                  <div
+                    key={row.id || row.orderNo}
+                    style={{
+                      background: '#ffffff',
+                      border: '1.5px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '14px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.01)'
                     }}
                   >
                     {/* Card Info Grid */}
@@ -2374,10 +2374,10 @@ export default function ProductionPortal() {
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                             <span
-                              style={{ 
-                                color: '#1e40af', 
-                                cursor: 'pointer', 
-                                textDecoration: 'underline', 
+                              style={{
+                                color: '#1e40af',
+                                cursor: 'pointer',
+                                textDecoration: 'underline',
                                 fontWeight: 'bold',
                                 fontSize: '13.5px',
                                 wordBreak: 'break-all'
@@ -2413,14 +2413,14 @@ export default function ProductionPortal() {
                     </div>
 
                     {/* Actions Row */}
-                    <div 
-                      style={{ 
-                        borderTop: '1px solid #f1f5f9', 
-                        paddingTop: '12px', 
-                        display: 'flex', 
-                        justifyContent: 'flex-end', 
+                    <div
+                      style={{
+                        borderTop: '1px solid #f1f5f9',
+                        paddingTop: '12px',
+                        display: 'flex',
+                        justifyContent: 'flex-end',
                         alignItems: 'center',
-                        gap: '8px' 
+                        gap: '8px'
                       }}
                     >
                       {/* Action Buttons */}
@@ -2430,10 +2430,10 @@ export default function ProductionPortal() {
                             <button
                               type="button"
                               onClick={() => handleBackendIncomingDecision(row, 'ACCEPT')}
-                              style={{ 
-                                margin: 0, 
-                                background: '#16a34a', 
-                                color: '#fff', 
+                              style={{
+                                margin: 0,
+                                background: '#16a34a',
+                                color: '#fff',
                                 cursor: 'pointer',
                                 padding: '6px 12px',
                                 border: 'none',
@@ -2447,10 +2447,10 @@ export default function ProductionPortal() {
                             <button
                               type="button"
                               onClick={() => handleBackendIncomingDecision(row, 'REJECT')}
-                              style={{ 
-                                margin: 0, 
-                                background: '#ef4444', 
-                                color: '#fff', 
+                              style={{
+                                margin: 0,
+                                background: '#ef4444',
+                                color: '#fff',
                                 cursor: 'pointer',
                                 padding: '6px 12px',
                                 border: 'none',
@@ -2464,11 +2464,11 @@ export default function ProductionPortal() {
                             <button
                               type="button"
                               onClick={() => setSelectedOrderDetails(row)}
-                              style={{ 
-                                margin: 0, 
-                                background: '#fff', 
-                                color: '#475569', 
-                                border: '1px solid #cbd5e1', 
+                              style={{
+                                margin: 0,
+                                background: '#fff',
+                                color: '#475569',
+                                border: '1px solid #cbd5e1',
                                 cursor: 'pointer',
                                 padding: '6px 12px',
                                 borderRadius: '6px',
@@ -2487,11 +2487,11 @@ export default function ProductionPortal() {
                             <button
                               type="button"
                               onClick={() => setSelectedOrderDetails(row)}
-                              style={{ 
-                                margin: 0, 
-                                background: '#fff', 
-                                color: '#475569', 
-                                border: '1px solid #cbd5e1', 
+                              style={{
+                                margin: 0,
+                                background: '#fff',
+                                color: '#475569',
+                                border: '1px solid #cbd5e1',
                                 cursor: 'pointer',
                                 padding: '6px 12px',
                                 borderRadius: '6px',
@@ -2508,17 +2508,17 @@ export default function ProductionPortal() {
                               <button
                                 type="button"
                                 onClick={() => handleCreateWorkOrder(row)}
-                                style={{ 
-                                  margin: 0, 
-                                  background: '#1e3a8a', 
-                                  color: '#fff', 
-                                  border: 'none', 
-                                  padding: '6px 12px', 
-                                  borderRadius: '6px', 
-                                  fontWeight: 'bold', 
-                                  cursor: 'pointer', 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
+                                style={{
+                                  margin: 0,
+                                  background: '#1e3a8a',
+                                  color: '#fff',
+                                  border: 'none',
+                                  padding: '6px 12px',
+                                  borderRadius: '6px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
                                   gap: '4px',
                                   fontSize: '12px'
                                 }}
@@ -2529,19 +2529,19 @@ export default function ProductionPortal() {
                               <button
                                 type="button"
                                 onClick={() => navigate.push('/production/work-orders')}
-                                style={{ 
-                                  margin: 0, 
-                                  background: '#059669', 
-                                  color: '#fff', 
-                                  border: 'none', 
-                                  padding: '6px 12px', 
-                                  borderRadius: '6px', 
-                                  fontWeight: 'bold', 
-                                  cursor: 'pointer', 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
-                                  gap: '4px', 
-                                  fontSize: '12px' 
+                                style={{
+                                  margin: 0,
+                                  background: '#059669',
+                                  color: '#fff',
+                                  border: 'none',
+                                  padding: '6px 12px',
+                                  borderRadius: '6px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontSize: '12px'
                                 }}
                               >
                                 <Briefcase size={12} /> Open Work Orders
@@ -3681,7 +3681,7 @@ export default function ProductionPortal() {
                 </span>
               )
             },
-            { 
+            {
               header: 'Customer', accessor: 'orderNo', render: (row) => {
                 const orderRef = row.orderNo || row.order_no || row.orderId;
                 const order = orders.find(o => String(o.orderNo) === String(orderRef) || String(o.id) === String(orderRef) || String(o.order_no) === String(orderRef));
@@ -3689,14 +3689,14 @@ export default function ProductionPortal() {
               }
             },
             { header: 'Product Item', accessor: 'productName', render: (row) => <span style={{ fontWeight: 600 }}>{row.productName || 'Custom Product'}</span> },
-            { 
-              header: 'Produced Qty', 
-              accessor: 'producedQty', 
+            {
+              header: 'Produced Qty',
+              accessor: 'producedQty',
               render: (row) => (
                 <span style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', padding: '3px 8px', borderRadius: '6px', fontWeight: '800', fontSize: '12px' }}>
                   {(row.producedQty || row.quantity || 0).toLocaleString()} SETS
                 </span>
-              ) 
+              )
             },
             {
               header: 'Quality Status',
@@ -4192,8 +4192,8 @@ export default function ProductionPortal() {
               transition: 'all 0.2s ease',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = kpi.color; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = `${kpi.color}30`; }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = kpi.color; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = `${kpi.color}30`; }}
             >
               <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600', marginBottom: '8px' }}>{kpi.title}</div>
               <div style={{ fontSize: '28px', fontWeight: '800', color: kpi.color }}>{kpi.value}</div>
@@ -4206,50 +4206,50 @@ export default function ProductionPortal() {
           <div style={{ background: 'var(--color-bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
             <h3 style={{ fontSize: '16px', marginBottom: '16px', color: 'var(--color-text-primary)' }}>Production Status Distribution</h3>
             <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <PieChart width={300} height={300}>
-                  <Pie 
-                    data={charts.productionStatus?.some(d => d.value > 0) ? charts.productionStatus : [{ name: 'No Data', value: 1 }]} 
-                    cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value"
-                  >
-                    {(charts.productionStatus?.some(d => d.value > 0) ? charts.productionStatus : [{ name: 'No Data', value: 1 }]).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.name === 'No Data' ? '#334155' : COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  {charts.productionStatus?.some(d => d.value > 0) && <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />}
-                  <Legend />
-                </PieChart>
+              <PieChart width={300} height={300}>
+                <Pie
+                  data={charts.productionStatus?.some(d => d.value > 0) ? charts.productionStatus : [{ name: 'No Data', value: 1 }]}
+                  cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value"
+                >
+                  {(charts.productionStatus?.some(d => d.value > 0) ? charts.productionStatus : [{ name: 'No Data', value: 1 }]).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.name === 'No Data' ? '#334155' : COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                {charts.productionStatus?.some(d => d.value > 0) && <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />}
+                <Legend />
+              </PieChart>
             </div>
           </div>
 
           <div style={{ background: 'var(--color-bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
             <h3 style={{ fontSize: '16px', marginBottom: '16px', color: 'var(--color-text-primary)' }}>Daily Production Trend (7 Days)</h3>
             <div style={{ height: '300px', width: '100%', overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
-                <BarChart width={400} height={300} data={charts.dailyTrend || []}>
-                  <XAxis dataKey="name" stroke="#64748b" />
-                  <YAxis stroke="#64748b" />
-                  <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
-                  <Legend />
-                  <Bar dataKey="completed" name="Completed" fill="#4ade80" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="active" name="Active" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                </BarChart>
+              <BarChart width={400} height={300} data={charts.dailyTrend || []}>
+                <XAxis dataKey="name" stroke="#64748b" />
+                <YAxis stroke="#64748b" />
+                <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                <Legend />
+                <Bar dataKey="completed" name="Completed" fill="#4ade80" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="active" name="Active" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+              </BarChart>
             </div>
           </div>
 
           <div style={{ background: 'var(--color-bg-card)', padding: '24px', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
             <h3 style={{ fontSize: '16px', marginBottom: '16px', color: 'var(--color-text-primary)' }}>QC Pass vs Fail</h3>
             <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <PieChart width={300} height={300}>
-                  <Pie 
-                    data={charts.qcStatus?.some(d => d.value > 0) ? charts.qcStatus : [{ name: 'No Data', value: 1 }]} 
-                    cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value"
-                  >
-                    {(charts.qcStatus?.some(d => d.value > 0) ? charts.qcStatus : [{ name: 'No Data', value: 1 }]).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.name === 'No Data' ? '#334155' : (entry.name === 'Failed' ? '#f87171' : '#4ade80')} />
-                    ))}
-                  </Pie>
-                  {charts.qcStatus?.some(d => d.value > 0) && <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />}
-                  <Legend />
-                </PieChart>
+              <PieChart width={300} height={300}>
+                <Pie
+                  data={charts.qcStatus?.some(d => d.value > 0) ? charts.qcStatus : [{ name: 'No Data', value: 1 }]}
+                  cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value"
+                >
+                  {(charts.qcStatus?.some(d => d.value > 0) ? charts.qcStatus : [{ name: 'No Data', value: 1 }]).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.name === 'No Data' ? '#334155' : (entry.name === 'Failed' ? '#f87171' : '#4ade80')} />
+                  ))}
+                </Pie>
+                {charts.qcStatus?.some(d => d.value > 0) && <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />}
+                <Legend />
+              </PieChart>
             </div>
           </div>
         </div>
@@ -4299,7 +4299,7 @@ export default function ProductionPortal() {
 
         {/* Very Bottom: Collapsible Detailed Reports */}
         <div style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: '16px', padding: '24px' }}>
-          <div 
+          <div
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
             onClick={() => setShowDetailedReports(!showDetailedReports)}
           >
@@ -4311,7 +4311,7 @@ export default function ProductionPortal() {
               {showDetailedReports ? 'Hide Reports' : 'Show Reports'}
             </button>
           </div>
-          
+
           {showDetailedReports && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '16px', marginTop: '24px' }}>
               {reportCategories.map(cat => {
@@ -4328,8 +4328,8 @@ export default function ProductionPortal() {
                     gap: '16px',
                     transition: 'all 0.2s ease'
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = cat.color; e.currentTarget.style.background = `${cat.color}10`; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = cat.color; e.currentTarget.style.background = `${cat.color}10`; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
                   >
                     <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: `${cat.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: cat.color }}>
                       <Icon size={20} />
@@ -4565,7 +4565,7 @@ export default function ProductionPortal() {
                           <td style={{ padding: '12px 10px', color: '#64748b' }}>{m.location || '—'}</td>
                           <td style={{ padding: '12px 10px', textAlign: 'center' }}>
                             <div style={{ display: 'inline-flex', background: '#F5FAFE', padding: '4px', borderRadius: '10px', border: '1px solid #DCE5F0', gap: '4px' }}>
-                              
+
                               <button
                                 type="button"
                                 onClick={() => updateLocalStatus(m.id, 'USE')}

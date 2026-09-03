@@ -15,9 +15,10 @@ import { WorkflowModule } from '../workflow/workflow.module';
 import { SequenceModule } from '../../common/sequence/sequence.module';
 import { FinishedGoodsStockService } from './finished-goods-stock.service';
 import { InventoryModule } from '../inventory/inventory.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [WorkflowModule, SequenceModule, InventoryModule],
+  imports: [WorkflowModule, SequenceModule, InventoryModule, NotificationsModule],
   controllers: [
     ProductionController,
     ProductionTestingController,

@@ -52,7 +52,7 @@ export const NotificationProvider = ({ children }) => {
         fetchUnreadCount().catch((e) =>
           console.warn('[NotificationProvider] Failed to poll unread count:', e)
         );
-      }, 15000);
+      }, 5000);
 
       return () => clearInterval(interval);
     }

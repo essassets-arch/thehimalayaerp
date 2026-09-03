@@ -7,12 +7,14 @@ import { PrismaService } from '../../database/prisma.service';
 import { ProductionStatus, QCResult } from '@prisma/client';
 import { QcPassDto } from './dto/qc-pass.dto';
 import { InventoryService } from '../inventory/inventory.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ProductionWorkflowService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventoryService: InventoryService,
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async getQcHistoryInspections() {
@@ -258,6 +260,25 @@ export class ProductionWorkflowService {
 
         updatedList.push(updated);
       }
+
+      if (this.notificationsService && updatedList.length > 0) {
+        this.notificationsService
+          .notifyRole({
+            companyId: '88c57ebc-b3b7-49e3-8d5d-6321a0e89015',
+            roles: ['DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH_1', 'DISPATCH'],
+            type: 'DISPATCH_ORDER_READY',
+            title: 'New Items Ready for Dispatch',
+            message: `${updatedList.length} Work Order(s) finished production and are now queued for dispatch.`,
+            route: '/dispatch/orders',
+            entityType: 'WorkOrder',
+            entityId: updatedList[0]?.id,
+            eventKeyPrefix: `DISPATCH_READY:${Date.now()}`,
+          })
+          .catch((err) =>
+            console.warn('[ProductionWorkflow Notification] Failed to notify Dispatch:', err),
+          );
+      }
+
       return { success: true, count: updatedList.length, data: updatedList };
     });
   }

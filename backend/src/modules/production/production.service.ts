@@ -115,14 +115,15 @@ export class ProductionService {
       },
     });
 
-    if (this.notificationsService && plan.salesOrder?.customer?.companyId) {
+    if (this.notificationsService) {
+      const companyId = plan.salesOrder?.customer?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
       this.notificationsService
         .notifyRole({
-          companyId: plan.salesOrder.customer.companyId,
-          role: 'PRODUCTION_MANAGER',
+          companyId,
+          roles: ['PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'PRODUCTION'],
           type: 'PRODUCTION_PLAN_CREATED',
           title: 'Production Plan Created',
-          message: `${plan.planNumber} — Production plan for ${plan.salesOrder.orderNumber} has been created.`,
+          message: `${plan.planNumber} — Production plan for ${plan.salesOrder?.orderNumber || 'Order'} has been created.`,
           route: '/production/incoming-orders',
           entityType: 'ProductionPlan',
           entityId: plan.id,
@@ -130,7 +131,7 @@ export class ProductionService {
         })
         .catch((err) =>
           console.warn(
-            '[ProductionService Notification] Failed to notify PRODUCTION_MANAGER:',
+            '[ProductionService Notification] Failed to notify Production Team:',
             err.message,
           ),
         );

@@ -835,7 +835,28 @@ export class SalesService {
               err.message,
             ),
           );
-      } else if (dto.action === 'PLANT_APPROVE') {
+      } else if (dto.action === 'PLANT_APPROVE' || dto.action === 'PLAN_PRODUCTION') {
+        // 1. Notify Production Team of new incoming approved order
+        notificationsService
+          .notifyRole({
+            companyId,
+            roles: ['PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'PRODUCTION'],
+            type: 'SALES_ORDER_PLANT_APPROVED_INCOMING',
+            title: 'New Incoming Production Order',
+            message: `${order.orderNumber} — Plant Head has approved and scheduled order for production planning.`,
+            route: '/production/incoming-orders',
+            entityType: 'SalesOrder',
+            entityId: order.id,
+            eventKeyPrefix: `SALES_ORDER:${order.id}:PLANT_APPROVED_PROD`,
+          })
+          .catch((err) =>
+            console.warn(
+              '[SalesService Notification] Failed to notify Production Team:',
+              err.message,
+            ),
+          );
+
+        // 2. Notify Sales Executive
         const recipientId = order.salesExecutiveId || order.createdById;
         if (recipientId) {
           this.prisma.user

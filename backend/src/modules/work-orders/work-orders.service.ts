@@ -416,7 +416,7 @@ export class WorkOrdersService {
         this.notificationsService
           .notifyRole({
             companyId,
-            role: 'DISPATCH_EXECUTIVE',
+            roles: ['DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH_1', 'DISPATCH'],
             type: 'DISPATCH_ORDER_READY',
             title: 'Order Ready for Dispatch',
             message: `${wo.workOrderNumber} — Production completed and sent to Dispatch.`,
@@ -477,7 +477,7 @@ export class WorkOrdersService {
         this.notificationsService
           .notifyRole({
             companyId,
-            role: 'DISPATCH_EXECUTIVE',
+            roles: ['DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH_1', 'DISPATCH'],
             type: 'DISPATCH_ORDER_READY',
             title: 'Order Ready for Dispatch',
             message: `${so.orderNumber} — Sent to Dispatch.`,
@@ -548,7 +548,7 @@ export class WorkOrdersService {
         this.notificationsService
           .notifyRole({
             companyId,
-            role: 'DISPATCH_EXECUTIVE',
+            roles: ['DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH_1', 'DISPATCH'],
             type: 'DISPATCH_ORDER_READY',
             title: 'Finished Goods Ready for Dispatch',
             message: `${fg.product?.name || 'Item'} — Sent to Dispatch Queue.`,
