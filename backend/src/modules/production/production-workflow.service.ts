@@ -100,7 +100,7 @@ export class ProductionWorkflowService {
       const workOrders = await this.prisma.workOrder.findMany({
         where: {
           NOT: {
-            status: { in: ['COMPLETED', 'CANCELLED', 'CLOSED', 'ARCHIVED'] as any },
+            status: { in: ['COMPLETED', 'CANCELLED', 'CLOSED'] as any },
           },
         },
         orderBy: { updatedAt: 'desc' },
@@ -195,7 +195,7 @@ export class ProductionWorkflowService {
       const activePlans = await this.prisma.productionPlan.findMany({
         where: {
           NOT: {
-            status: { in: ['COMPLETED', 'CANCELLED', 'ARCHIVED'] as any },
+            status: { in: ['COMPLETED', 'CANCELLED'] as any },
           },
         },
         include: {
@@ -273,7 +273,7 @@ export class ProductionWorkflowService {
         where: {
           deletedAt: null,
           NOT: {
-            status: { in: ['COMPLETED', 'CANCELLED', 'CLOSED', 'DELIVERED'] as any },
+            status: { in: ['COMPLETED', 'CANCELLED', 'LOST'] as any },
           },
         },
         orderBy: { createdAt: 'desc' },
