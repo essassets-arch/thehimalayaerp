@@ -2742,32 +2742,70 @@ export default function ProductionPortal() {
                 (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
               const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
               return (
-                <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button
-                    className="btn-small btn-primary-small"
-                    style={{ margin: 0, padding: '6px 12px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                    type="button"
+                    style={{
+                      margin: 0,
+                      padding: '6px 12px',
+                      background: '#f8fafc',
+                      color: '#475569',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontWeight: '600',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
                     onClick={() => setSelectedOrderDetails(row)}
                   >
                     View
                   </button>
                   {!hasWO && !isActiveProduction ? (
                     <button
-                      className="action-btn btn-small"
-                      style={{ margin: 0, background: 'var(--color-primary)', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      type="button"
+                      style={{
+                        margin: 0,
+                        background: '#2563eb',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        fontWeight: '600',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        boxShadow: '0 1px 3px rgba(37,99,235,0.3)'
+                      }}
                       onClick={() => handleCreateWorkOrder(row)}
                     >
-                      <Play size={12} fill="#000" /> Activate Work Order
+                      <Play size={12} fill="#ffffff" color="#ffffff" /> Activate Work Order
                     </button>
                   ) : (
                     <button
-                      className="btn-small"
-                      style={{ margin: 0, background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+                      type="button"
+                      style={{
+                        margin: 0,
+                        background: '#059669',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        fontWeight: '600',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        boxShadow: '0 1px 3px rgba(5,150,105,0.3)'
+                      }}
                       onClick={() => navigate.push('/production/work-orders')}
                     >
                       <CheckCircle2 size={12} /> Open Work Orders
                     </button>
                   )}
-                </>
+                </div>
               );
             }}
             emptyMessage="No incoming orders from Plant Head yet. Orders planned by Plant Head will appear here."
