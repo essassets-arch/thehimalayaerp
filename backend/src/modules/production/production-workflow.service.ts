@@ -99,14 +99,9 @@ export class ProductionWorkflowService {
     try {
       const workOrders = await this.prisma.workOrder.findMany({
         where: {
-          OR: [
-            { status: 'CREATED' as any },
-            { status: 'PLANNED' as any },
-            { status: 'MATERIAL_PENDING' as any },
-            { status: 'READY' as any },
-            { workflowState: { code: 'CREATED' } },
-            { workflowState: { code: 'PLANNED' } },
-          ],
+          NOT: {
+            status: { in: ['COMPLETED', 'CANCELLED', 'CLOSED', 'ARCHIVED'] as any },
+          },
         },
         orderBy: { updatedAt: 'desc' },
         include: {
@@ -277,18 +272,9 @@ export class ProductionWorkflowService {
       const assignedSalesOrders: any[] = await this.prisma.salesOrder.findMany({
         where: {
           deletedAt: null,
-          OR: [
-            { status: 'PRODUCTION_PLANNED' as any },
-            { status: 'PLANT_APPROVED' as any },
-            { status: 'READY_FOR_PRODUCTION' as any },
-            { status: 'PLANT_HEAD_ACCEPTED' as any },
-            { status: 'PLANNED' as any },
-            { workflowState: { code: 'PRODUCTION_PLANNED' } },
-            { workflowState: { code: 'PLANT_APPROVED' } },
-            { workflowState: { code: 'READY_FOR_PRODUCTION' } },
-            { workflowState: { code: 'PLANT_HEAD_ACCEPTED' } },
-            { workflowState: { code: 'PLANNED' } },
-          ],
+          NOT: {
+            status: { in: ['COMPLETED', 'CANCELLED', 'CLOSED', 'DELIVERED'] as any },
+          },
         },
         orderBy: { createdAt: 'desc' },
         include: {

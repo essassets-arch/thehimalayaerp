@@ -697,12 +697,12 @@ export default function ProductionPortal() {
   }, [loadIncomingOrders, loadBackendWorkOrders, syncData]);
 
   useEffect(() => {
-    if (view === 'incoming-orders') {
-      void refreshAllIncoming();
+    if (view === 'incoming-orders' || pathname?.includes('/incoming-orders')) {
+      void loadIncomingOrders();
     }
     if (!['dashboard', 'incoming-orders', 'work-orders', 'production-work'].includes(view)) return;
     void loadBackendWorkOrders();
-  }, [view, refreshAllIncoming, loadBackendWorkOrders]);
+  }, [view, pathname, loadIncomingOrders, loadBackendWorkOrders]);
   const [mrStatusFilter, setMrStatusFilter] = useState('All');
 
   const [reworkTab, setReworkTab] = useState('failed-list');
