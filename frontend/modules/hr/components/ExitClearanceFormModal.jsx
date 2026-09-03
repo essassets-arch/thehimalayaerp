@@ -616,18 +616,19 @@ export default function ExitClearanceFormModal({ isOpen, onClose, onSubmit, empl
 
         {/* Form Container */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Main Title Block */}
-          <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '12px' }}>
-            <div style={{ fontSize: '11px', fontWeight: '800', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#475569' }}>
-              HIMALAYA ENTERPRISES • HUMAN RESOURCES DEPARTMENT
+          <fieldset disabled={readOnly} style={{ border: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '20px', pointerEvents: readOnly ? 'none' : 'auto' }}>
+            {/* Main Title Block */}
+            <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '12px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '800', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#475569' }}>
+                HIMALAYA ENTERPRISES • HUMAN RESOURCES DEPARTMENT
+              </div>
+              <h1 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.4px' }}>
+                EMPLOYEE RESIGNATION & EXIT CLEARANCE FORM
+              </h1>
             </div>
-            <h1 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.4px' }}>
-              EMPLOYEE RESIGNATION & EXIT CLEARANCE FORM
-            </h1>
-          </div>
 
-          {/* Employee Selection Dropdown (No print) */}
-          {employees.length > 0 && !initialData && (
+            {/* Employee Selection Dropdown (No print) */}
+            {employees.length > 0 && !initialData && !readOnly && (
             <div className="no-print" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '12px 16px' }}>
               <label style={{ fontSize: '12px', fontWeight: '800', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                 <ShieldCheck size={15} color="#0284c7" /> Select Employee from Roster to Auto-populate:
@@ -1165,6 +1166,7 @@ export default function ExitClearanceFormModal({ isOpen, onClose, onSubmit, empl
               </div>
             </div>
           </div>
+          </fieldset>
 
           {/* Form Action Footer (No Print) */}
           {readOnly ? (

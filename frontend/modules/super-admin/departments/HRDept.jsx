@@ -351,7 +351,7 @@ export default function HRDept({ state: propState, deptEmployee, setDeptEmployee
                     setShowExitModal(true);
                   }}
                 >
-                  <FileText size={13} color="#0284c7" /> View / Edit Form
+                  <FileText size={13} color="#0284c7" /> View Form (Read-Only)
                 </button>
               )
             }
@@ -439,7 +439,7 @@ export default function HRDept({ state: propState, deptEmployee, setDeptEmployee
                 setShowExitModal(true);
               }}
             >
-              <FileText size={14} color="#38bdf8" /> View / Edit Form
+              <FileText size={14} color="#38bdf8" /> View Form (Read-Only)
             </button>
           </div>
         ))}
@@ -463,32 +463,9 @@ export default function HRDept({ state: propState, deptEmployee, setDeptEmployee
             setShowExitModal(false);
             setSelectedExitRecord(null);
           }}
-          onSubmit={(updatedRecord) => {
-            const clearedCount = Object.values(updatedRecord.checkpoints || {}).filter(Boolean).length;
-            const progress = Math.round((clearedCount / (Object.keys(updatedRecord.checkpoints || {}).length || 4)) * 100);
-            const finalRecord = {
-              ...updatedRecord,
-              progress,
-              status: updatedRecord.approval?.finalHrStatus === 'Cleared' ? 'Cleared' : progress === 100 ? 'Cleared' : 'In Progress'
-            };
-            const existing = (exitClearances || []).find(ex => ex.empId === finalRecord.empId || ex.id === finalRecord.empId);
-            if (existing) {
-              dispatch({ type: 'UPDATE_EXIT_CLEARANCE', payload: finalRecord });
-            } else {
-              dispatch({ type: 'ADD_EXIT_CLEARANCE', payload: finalRecord });
-            }
-            try {
-              const stored = JSON.parse(localStorage.getItem('himalaya_exit_clearances') || '[]');
-              const filtered = stored.filter(x => x.empId !== finalRecord.empId && x.id !== finalRecord.empId);
-              localStorage.setItem('himalaya_exit_clearances', JSON.stringify([finalRecord, ...filtered]));
-            } catch {}
-            if (showToast) showToast(`Exit clearance saved for ${finalRecord.name}`);
-            setShowExitModal(false);
-            setSelectedExitRecord(null);
-          }}
           employees={state.employees || []}
           initialData={selectedExitRecord}
-          readOnly={false}
+          readOnly={true}
         />
       </div>
     );
@@ -567,32 +544,9 @@ export default function HRDept({ state: propState, deptEmployee, setDeptEmployee
           setShowExitModal(false);
           setSelectedExitRecord(null);
         }}
-        onSubmit={(updatedRecord) => {
-          const clearedCount = Object.values(updatedRecord.checkpoints || {}).filter(Boolean).length;
-          const progress = Math.round((clearedCount / (Object.keys(updatedRecord.checkpoints || {}).length || 4)) * 100);
-          const finalRecord = {
-            ...updatedRecord,
-            progress,
-            status: updatedRecord.approval?.finalHrStatus === 'Cleared' ? 'Cleared' : progress === 100 ? 'Cleared' : 'In Progress'
-          };
-          const existing = (exitClearances || []).find(ex => ex.empId === finalRecord.empId || ex.id === finalRecord.empId);
-          if (existing) {
-            dispatch({ type: 'UPDATE_EXIT_CLEARANCE', payload: finalRecord });
-          } else {
-            dispatch({ type: 'ADD_EXIT_CLEARANCE', payload: finalRecord });
-          }
-          try {
-            const stored = JSON.parse(localStorage.getItem('himalaya_exit_clearances') || '[]');
-            const filtered = stored.filter(x => x.empId !== finalRecord.empId && x.id !== finalRecord.empId);
-            localStorage.setItem('himalaya_exit_clearances', JSON.stringify([finalRecord, ...filtered]));
-          } catch {}
-          if (showToast) showToast(`Exit clearance saved for ${finalRecord.name}`);
-          setShowExitModal(false);
-          setSelectedExitRecord(null);
-        }}
         employees={state.employees || []}
         initialData={selectedExitRecord}
-        readOnly={false}
+        readOnly={true}
       />
     </div>
   );
