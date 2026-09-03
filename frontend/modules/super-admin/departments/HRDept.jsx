@@ -17,21 +17,21 @@ export default function HRDept({ state, deptEmployee, setDeptEmployee, onBack, n
 
   const defaultExitClearances = [
     {
-      empId: 'EMP-014',
+      empId: 'EMP-005',
       name: 'Neha Shah',
-      department: 'Marketing & Sales',
+      department: 'Finance',
       effectiveDate: '2026-06-30',
       empDetails: {
+        id: 'EMP-005',
         name: 'Neha Shah',
-        id: 'EMP-014',
-        designation: 'Marketing Executive',
-        department: 'Marketing & Sales',
-        dateOfJoining: '2022-04-10',
+        designation: 'Senior Accountant',
+        department: 'Finance',
+        dateOfJoining: '2021-03-15',
         resignationDate: '2026-05-30',
         lastWorkingDay: '2026-06-30',
         noticePeriod: '30',
         noticeServed: '30',
-        reportingManager: 'Sales Director'
+        reportingManager: 'Anil Kumar (VP Finance)'
       },
       clearance: {
         workHandover: 'Completed',
@@ -40,7 +40,7 @@ export default function HRDept({ state, deptEmployee, setDeptEmployee, onBack, n
         adminClearance: 'Cleared',
         managerClearance: 'Cleared',
         exitInterview: 'Done',
-        leaveBalance: '4',
+        leaveBalance: '5',
         fullAndFinal: 'Completed'
       },
       assets: {
@@ -50,38 +50,38 @@ export default function HRDept({ state, deptEmployee, setDeptEmployee, onBack, n
         mobileCharger: true,
         idCard: true,
         keys: true,
-        headsetDisk: true,
+        headsetDisk: false,
         documentsFiles: true,
-        other: 'Marketing Collateral Drive'
+        other: 'Access token returned'
       },
       approval: {
-        remarks: 'All clearance formalities completed seamlessly.',
+        remarks: 'Handover complete. All financial ledger access revoked.',
         empSignature: 'Neha Shah',
-        empSigDate: '2026-05-30',
-        mgrSignature: 'Sales Director',
-        mgrSigDate: '2026-06-05',
-        hrSignature: 'HR Head',
-        hrSigDate: '2026-06-10',
+        empSigDate: '2026-06-30',
+        mgrSignature: 'Anil Kumar',
+        mgrSigDate: '2026-06-30',
+        hrSignature: 'Raman HR',
+        hrSigDate: '2026-06-30',
         finalHrStatus: 'Cleared',
-        hrSignOff: 'HR Head - Sign Off',
-        hrSignOffDate: '2026-06-10',
-        companyStamp: 'Himalaya Enterprises - HR Official Seal'
+        hrSignOff: 'Raman HR',
+        hrSignOffDate: '2026-06-30',
+        companyStamp: 'Himalaya Enterprises - HR Seal'
       },
       checkpoints: { IT: true, Finance: true, Store: true, HR: true },
       progress: 100,
       status: 'Cleared'
     },
     {
-      empId: 'EMP-009',
+      empId: 'EMP-002',
       name: 'Ramanathan Swamy',
-      department: 'Plant Operations',
+      department: 'Operations',
       effectiveDate: '2026-07-15',
       empDetails: {
+        id: 'EMP-002',
         name: 'Ramanathan Swamy',
-        id: 'EMP-009',
-        designation: 'Senior Shift Engineer',
-        department: 'Plant Operations',
-        dateOfJoining: '2021-08-15',
+        designation: 'Operations Lead',
+        department: 'Operations',
+        dateOfJoining: '2022-04-10',
         resignationDate: '2026-06-15',
         lastWorkingDay: '2026-07-15',
         noticePeriod: '30',
@@ -128,7 +128,16 @@ export default function HRDept({ state, deptEmployee, setDeptEmployee, onBack, n
     }
   ];
 
-  const exitClearances = state?.exitClearances?.length > 0 ? state.exitClearances : defaultExitClearances;
+  const exitClearances = useMemo(() => {
+    if (state?.exitClearances?.length > 0) return state.exitClearances;
+    try {
+      if (typeof window !== 'undefined') {
+        const stored = JSON.parse(localStorage.getItem('himalaya_exit_clearances') || '[]');
+        if (Array.isArray(stored) && stored.length > 0) return stored;
+      }
+    } catch {}
+    return defaultExitClearances;
+  }, [state?.exitClearances]);
 
   const totalEmployees = state.employees?.length || 0;
   const onLeaveCount = (state.leaves || []).filter(l => l.status === 'Approved' || l.status === 'PH Pending').length;
@@ -216,60 +225,130 @@ export default function HRDept({ state, deptEmployee, setDeptEmployee, onBack, n
       <div className="desktop-only">
         <DataTable 
           columns={[
-            { header: 'Employee Code', accessor: 'empId' },
-            { header: 'Resigning Staff', accessor: 'name', render: (row) => <strong>{row.name}</strong> },
-            { header: 'Department', accessor: 'department' },
-            { header: 'Effective Date', accessor: 'effectiveDate' },
             { 
-              header: 'Department Checkpoints Status', 
+              header: 'Employee Code', 
               accessor: 'empId',
               render: (row) => (
-                <div style={{ display: 'flex', gap: '6px', fontSize: '10px', fontWeight: 'bold' }}>
-                  <span style={{ background: row.checkpoints?.IT ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.IT ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>IT</span>
-                  <span style={{ background: row.checkpoints?.Finance ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.Finance ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>FIN</span>
-                  <span style={{ background: row.checkpoints?.Store ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.Store ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>STORE</span>
-                  <span style={{ background: row.checkpoints?.HR ? '#E6F4EA' : '#FCE8E6', color: row.checkpoints?.HR ? '#137333' : '#C5221F', padding: '2px 6px', borderRadius: '4px' }}>HR</span>
+                <span style={{ fontWeight: '800', color: '#0284c7', background: 'rgba(2, 132, 199, 0.08)', padding: '3px 8px', borderRadius: '6px', fontSize: '12px' }}>
+                  {row.empId}
+                </span>
+              )
+            },
+            { 
+              header: 'Resigning Staff', 
+              accessor: 'name', 
+              render: (row) => (
+                <div>
+                  <strong style={{ color: '#0f172a', fontSize: '13.5px' }}>{row.name}</strong>
+                  <div style={{ fontSize: '11.5px', color: '#64748b' }}>{row.empDetails?.designation || row.designation || 'Staff'}</div>
+                </div>
+              ) 
+            },
+            { 
+              header: 'Department', 
+              accessor: 'department',
+              render: (row) => (
+                <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600' }}>
+                  {row.department}
+                </span>
+              )
+            },
+            { 
+              header: 'Effective Date', 
+              accessor: 'effectiveDate',
+              render: (row) => (
+                <span style={{ fontSize: '12.5px', color: '#334155', fontWeight: '600' }}>
+                  {row.effectiveDate || 'N/A'}
+                </span>
+              )
+            },
+            { 
+              header: 'Department Checkpoints', 
+              accessor: 'empId',
+              render: (row) => (
+                <div style={{ display: 'flex', gap: '6px', fontSize: '11px', flexWrap: 'wrap' }}>
+                  {Object.entries(row.checkpoints || { IT: false, Finance: false, Store: false, HR: false }).map(([dept, isCleared]) => (
+                    <span 
+                      key={dept} 
+                      style={{ 
+                        background: isCleared ? 'rgba(22, 163, 74, 0.1)' : 'rgba(234, 179, 8, 0.1)', 
+                        color: isCleared ? '#16a34a' : '#b45309', 
+                        border: `1px solid ${isCleared ? 'rgba(22, 163, 74, 0.3)' : 'rgba(234, 179, 8, 0.3)'}`,
+                        padding: '2px 7px', 
+                        borderRadius: '4px',
+                        fontWeight: '700'
+                      }}
+                    >
+                      {dept}
+                    </span>
+                  ))}
                 </div>
               )
             },
             { 
               header: 'Clearance Progress', 
-              accessor: 'progress',
-              render: (row) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '120px' }}>
-                  <div style={{ flex: 1, background: '#E2E8F0', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${row.progress}%`, background: row.progress === 100 ? '#10B981' : '#3B82F6', height: '100%' }} />
+              accessor: 'progress', 
+              render: (row) => {
+                const pct = row.progress || 0;
+                return (
+                  <div style={{ width: '120px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: '800', marginBottom: '3px', color: pct === 100 ? '#16a34a' : '#0284c7' }}>
+                      <span>{pct}%</span>
+                      <span>{pct === 100 ? 'Complete' : 'In Progress'}</span>
+                    </div>
+                    <div style={{ width: '100%', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? 'linear-gradient(90deg, #16a34a 0%, #22c55e 100%)' : 'linear-gradient(90deg, #0284c7 0%, #38bdf8 100%)', borderRadius: '3px' }} />
+                    </div>
                   </div>
-                  <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{row.progress}%</span>
-                </div>
-              )
+                );
+              } 
             },
-            { header: 'Overall Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} /> },
+            { 
+              header: 'Overall Status', 
+              accessor: 'status', 
+              render: (row) => (
+                <span style={{ 
+                  padding: '4px 10px', 
+                  borderRadius: '6px', 
+                  fontSize: '11.5px', 
+                  fontWeight: '800',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: row.status === 'Cleared' ? 'rgba(22, 163, 74, 0.15)' : 'rgba(2, 132, 199, 0.15)',
+                  color: row.status === 'Cleared' ? '#16a34a' : '#0284c7' 
+                }}>
+                  {row.status === 'Cleared' ? '✓ Cleared' : '⏳ In Progress'}
+                </span>
+              ) 
+            },
             {
-              header: 'Action',
+              header: 'Official Form',
               accessor: 'empId',
               render: (row) => (
                 <button
                   type="button"
+                  className="action-btn"
                   style={{
-                    background: '#0f172a',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '6px 12px',
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    padding: '5px 12px',
                     borderRadius: '6px',
+                    color: '#0f172a',
                     fontSize: '11.5px',
-                    fontWeight: 'bold',
+                    fontWeight: '700',
                     cursor: 'pointer',
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '4px'
+                    gap: '5px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                   }}
                   onClick={() => {
                     setSelectedExitRecord(row);
                     setShowExitModal(true);
                   }}
                 >
-                  <Eye size={13} /> View Form (Read-Only)
+                  <FileText size={13} color="#0284c7" /> View / Edit Form
                 </button>
               )
             }
@@ -357,7 +436,7 @@ export default function HRDept({ state, deptEmployee, setDeptEmployee, onBack, n
                 setShowExitModal(true);
               }}
             >
-              <Eye size={14} /> View Form (Read-Only)
+              <FileText size={14} color="#38bdf8" /> View / Edit Form
             </button>
           </div>
         ))}
