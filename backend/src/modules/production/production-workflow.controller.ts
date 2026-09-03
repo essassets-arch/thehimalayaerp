@@ -30,9 +30,10 @@ export class ProductionWorkflowController {
   )
   async getIncomingOrders(@Req() req: any, @Res({ passthrough: true }) res: any) {
     res.set({
-      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
       'Pragma': 'no-cache',
       'Expires': '0',
+      'Vary': 'Cookie, Authorization',
     });
     const data = await this.workflowService.getIncomingOrders();
     return { success: true, data };

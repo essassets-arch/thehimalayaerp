@@ -646,12 +646,15 @@ export default function ProductionPortal() {
   }, []);
 
   const loadIncomingOrders = useCallback(async () => {
+    setLoadingIncomingOrders(true);
+    setBackendIncomingList([]);
     try {
       const res = await backendFetch(`/api/backend/production/incoming-orders?_t=${Date.now()}`, {
         cache: 'no-store',
         headers: {
-          'Cache-Control': 'no-cache, no-store, max-age=0',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
           'Pragma': 'no-cache',
+          'Expires': '0',
         },
       });
       const items = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
@@ -659,6 +662,8 @@ export default function ProductionPortal() {
     } catch (error) {
       console.error('[Production] Unable to load incoming orders:', error);
       setBackendIncomingList([]);
+    } finally {
+      setLoadingIncomingOrders(false);
     }
   }, []);
 
@@ -2284,14 +2289,7 @@ export default function ProductionPortal() {
 
   const renderIncomingOrders = () => {
     // Strictly render live database records from backend API
-    let planned = [];
-    if (backendIncomingList && backendIncomingList.length > 0) {
-      planned = backendIncomingList;
-    } else if (!loadingIncomingOrders && backendIncomingOrders.length > 0) {
-      planned = backendIncomingOrders;
-    } else if (!loadingIncomingOrders && directBackendOrders.length > 0) {
-      planned = incomingOrders;
-    }
+    let planned = backendIncomingList || [];
 
     planned = [...planned].sort((a, b) => {
       const tA = new Date(a.createdAt || a.targetDate || 0).getTime();
