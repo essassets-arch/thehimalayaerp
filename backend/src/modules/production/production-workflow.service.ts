@@ -95,6 +95,196 @@ export class ProductionWorkflowService {
     }));
   }
 
+  async getIncomingOrders() {
+    try {
+      const workOrders = await this.prisma.workOrder.findMany({
+        where: {
+          OR: [
+            { productionStatus: 'CREATED' as any },
+            { productionStatus: 'PLANNED' as any },
+            { productionStatus: 'NOT_STARTED' as any },
+            { workflowState: { code: 'CREATED' } },
+            { workflowState: { code: 'PLANNED' } },
+          ],
+        },
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          workflowState: true,
+          productionPlan: {
+            include: {
+              salesOrder: {
+                include: {
+                  customer: true,
+                  quotation: { include: { lead: true } },
+                  sourceQuotation: { include: { lead: true } },
+                  items: {
+                    include: {
+                      product: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          salesOrderItem: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      });
+
+      const grouped = new Map<string, any>();
+
+      for (const wo of workOrders) {
+        const plan = wo.productionPlan || ({} as any);
+        const salesOrder = plan.salesOrder || ({} as any);
+        const orderId = salesOrder.id || plan.salesOrderId || wo.id;
+        const lead = salesOrder.sourceQuotation?.lead || salesOrder.quotation?.lead;
+        const leadCustomer =
+          lead?.companyName ||
+          lead?.customerName ||
+          lead?.name ||
+          lead?.projectName ||
+          lead?.contactPerson;
+        const directCustomer =
+          salesOrder.customer?.companyName ||
+          salesOrder.customer?.name ||
+          salesOrder.customer?.contactPerson;
+        const resolvedCustomer =
+          salesOrder.customerName ||
+          salesOrder.customer_name ||
+          (salesOrder.quotationId || salesOrder.sourceQuotationId
+            ? leadCustomer || directCustomer
+            : directCustomer || leadCustomer) ||
+          salesOrder.companyName ||
+          salesOrder.clientName ||
+          'N/A';
+
+        const existing = grouped.get(orderId) || {
+          id: salesOrder.id || orderId,
+          orderNo: salesOrder.orderNumber || salesOrder.orderNo || orderId,
+          customerName: resolvedCustomer,
+          detailedItems: [],
+          products: '',
+          estimatedQuantity: 0,
+          totalQuantity: 0,
+          targetDate: plan.plannedEndDate || salesOrder.requiredDeliveryDate || '',
+          priority: plan.priority || 'Medium',
+          status: plan.status || wo.productionStatus || 'RELEASED',
+          workflowStatus: wo.workflowState?.code || plan.workflowState?.code || 'RELEASED',
+          productionPlanId: plan.id,
+          workOrderIds: [],
+          hasBackendWorkOrder: true,
+          createdAt: wo.createdAt || plan.createdAt || salesOrder.createdAt,
+        };
+
+        const salesItem = salesOrder.items?.find((item: any) => item.id === wo.salesOrderItemId) || wo.salesOrderItem;
+        const productName = salesItem?.productNameSnapshot || salesItem?.product?.name || wo.salesOrderItem?.product?.name || 'Production Item';
+        const itemQuantity = Number(wo.quantity || salesItem?.orderedQuantity || 0);
+
+        existing.detailedItems.push({
+          productName,
+          quantity: itemQuantity,
+          unit: salesItem?.unit || 'Units',
+        });
+        existing.products = [...new Set(existing.detailedItems.map((item: any) => item.productName))].join(', ');
+        existing.estimatedQuantity += itemQuantity;
+        existing.totalQuantity += itemQuantity;
+        existing.workOrderIds.push(wo.id);
+        grouped.set(orderId, existing);
+      }
+
+      const assignedSalesOrders = await this.prisma.salesOrder.findMany({
+        where: {
+          OR: [
+            { planningStatus: 'PRODUCTION_PLANNED' as any },
+            { planningStatus: 'PLANT_APPROVED' as any },
+            { planningStatus: 'READY_FOR_PRODUCTION' as any },
+            { planningStatus: 'PLANT_HEAD_ACCEPTED' as any },
+            { planningStatus: 'PLANNED' as any },
+          ],
+          NOT: {
+            productionStatus: {
+              in: ['IN_PRODUCTION', 'PRODUCTION_STARTED', 'QC_PENDING', 'PRODUCTION_COMPLETED', 'COMPLETED'] as any,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          customer: true,
+          quotation: { include: { lead: true } },
+          sourceQuotation: { include: { lead: true } },
+          items: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      });
+
+      for (const so of assignedSalesOrders) {
+        if (!grouped.has(so.id) && !grouped.has(so.orderNumber)) {
+          const lead = so.sourceQuotation?.lead || so.quotation?.lead;
+          const leadCustomer =
+            lead?.companyName ||
+            lead?.customerName ||
+            lead?.name ||
+            lead?.projectName ||
+            lead?.contactPerson;
+          const directCustomer =
+            so.customer?.companyName ||
+            so.customer?.name ||
+            so.customer?.contactPerson;
+          const resolvedCustomer =
+            so.customerName ||
+            so.customer_name ||
+            (so.quotationId || so.sourceQuotationId
+              ? leadCustomer || directCustomer
+              : directCustomer || leadCustomer) ||
+            so.companyName ||
+            so.clientName ||
+            'N/A';
+
+          const items = Array.isArray(so.items) ? so.items : [];
+          const detailedItems = items.map((i: any) => ({
+            productName: i.productNameSnapshot || i.product?.name || 'Item',
+            quantity: Number(i.orderedQuantity ?? i.quantity ?? 1),
+            unit: i.unit || 'Units',
+          }));
+          const totalQuantity = detailedItems.reduce((sum: number, it: any) => sum + it.quantity, 0);
+
+          grouped.set(so.id, {
+            id: so.id,
+            orderNo: so.orderNumber || so.orderNo || so.id,
+            customerName: resolvedCustomer,
+            detailedItems,
+            products: detailedItems.map((it: any) => it.productName).join(', ') || 'Custom Engineered Product',
+            estimatedQuantity: totalQuantity,
+            totalQuantity: totalQuantity,
+            targetDate: so.requiredDeliveryDate || '',
+            priority: 'Medium',
+            status: so.planningStatus || 'PRODUCTION_PLANNED',
+            workflowStatus: so.planningStatus || 'PRODUCTION_PLANNED',
+            workOrderIds: [],
+            hasBackendWorkOrder: false,
+            createdAt: so.createdAt,
+          });
+        }
+      }
+
+      return Array.from(grouped.values()).sort((a: any, b: any) => {
+        const numA = parseInt(String(a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
+        const numB = parseInt(String(b.orderNo || b.id || '').replace(/\D/g, '')) || 0;
+        if (numA && numB && numA !== numB) return numB - numA;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+    } catch (err) {
+      console.error('[ProductionWorkflow] getIncomingOrders failed:', err);
+      return [];
+    }
+  }
+
   async getJobsByStatus(statuses: ProductionStatus[]) {
     try {
       const isQcFailedQuery = statuses.includes('QC_FAILED' as any);

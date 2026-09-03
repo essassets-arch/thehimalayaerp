@@ -625,9 +625,38 @@ export default function ProductionPortal() {
   };
 
 
+  const [backendIncomingList, setBackendIncomingList] = useState([]);
+  const [loadingIncomingOrders, setLoadingIncomingOrders] = useState(false);
+
+  const loadIncomingOrders = useCallback(async () => {
+    try {
+      setLoadingIncomingOrders(true);
+      const res = await backendFetch(`/api/backend/production/incoming-orders?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, max-age=0',
+          'Pragma': 'no-cache',
+        },
+      });
+      const items = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      setBackendIncomingList(items);
+    } catch (error) {
+      console.error('[Production] Unable to load incoming orders:', error);
+      setBackendIncomingList([]);
+    } finally {
+      setLoadingIncomingOrders(false);
+    }
+  }, []);
+
   const loadBackendWorkOrders = useCallback(async () => {
     try {
-      const result = await backendFetch('/api/backend/production/work-orders');
+      const result = await backendFetch(`/api/backend/production/work-orders?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, max-age=0',
+          'Pragma': 'no-cache',
+        },
+      });
       setBackendWorkOrders(Array.isArray(result) ? result : result?.data || []);
     } catch (error) {
       console.error('[Production] Unable to load backend work orders', error);
@@ -636,12 +665,15 @@ export default function ProductionPortal() {
   }, []);
 
   useEffect(() => {
+    if (view === 'incoming-orders') {
+      void loadIncomingOrders();
+    }
     if (!['dashboard', 'incoming-orders', 'work-orders', 'production-work'].includes(view)) return;
     void loadBackendWorkOrders();
     if (typeof loadSalesOrders === 'function') {
       void loadSalesOrders();
     }
-  }, [view, loadBackendWorkOrders, loadSalesOrders]);
+  }, [view, loadIncomingOrders, loadBackendWorkOrders, loadSalesOrders]);
   const [mrStatusFilter, setMrStatusFilter] = useState('All');
 
   const [reworkTab, setReworkTab] = useState('failed-list');
@@ -904,6 +936,7 @@ export default function ProductionPortal() {
         } catch { /* ignore if already active */ }
       }
 
+      await loadIncomingOrders().catch(() => { });
       await loadBackendWorkOrders().catch(() => { });
       await syncData().catch(() => { });
 
@@ -2221,14 +2254,22 @@ export default function ProductionPortal() {
   };
 
   const renderIncomingOrders = () => {
-    // Show orders approved / assigned by Plant Head waiting to be activated into Work Orders
-    const plannedMap = new Map();
-    backendIncomingOrders.forEach(order => plannedMap.set(order.id || order.orderNo, order));
-    incomingOrders.forEach(order => {
-      const key = order.id || order.orderNo;
-      if (!plannedMap.has(key)) plannedMap.set(key, order);
-    });
-    const planned = Array.from(plannedMap.values()).sort((a, b) => {
+    // Show fresh live orders from backend /api/backend/production/incoming-orders
+    let planned = [];
+    if (backendIncomingList && backendIncomingList.length > 0) {
+      planned = backendIncomingList;
+    } else if (!loadingIncomingOrders && backendIncomingOrders.length > 0) {
+      planned = backendIncomingOrders;
+    } else if (!loadingIncomingOrders) {
+      const plannedMap = new Map();
+      backendIncomingOrders.forEach(order => plannedMap.set(order.id || order.orderNo, order));
+      incomingOrders.forEach(order => {
+        const key = order.id || order.orderNo;
+        if (!plannedMap.has(key)) plannedMap.set(key, order);
+      });
+      planned = Array.from(plannedMap.values());
+    }
+    planned = [...planned].sort((a, b) => {
       const tA = new Date(a.createdAt || a.targetDate || 0).getTime();
       const tB = new Date(b.createdAt || b.targetDate || 0).getTime();
       const numA = parseInt(String(a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
@@ -2356,11 +2397,43 @@ export default function ProductionPortal() {
 
     return (
       <div className="app-card" style={{ padding: isMobile ? '12px' : '20px' }}>
-        <div className="card-top-bar" style={{ marginBottom: isMobile ? '12px' : '20px' }}>
-          <h2 className="card-heading">Incoming Production Orders</h2>
+        <div className="card-top-bar" style={{ marginBottom: isMobile ? '12px' : '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h2 className="card-heading" style={{ margin: 0 }}>Incoming Production Orders</h2>
+            <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b' }}>Live production orders assigned by Plant Head awaiting acceptance</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadIncomingOrders()}
+            disabled={loadingIncomingOrders}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 14px',
+              borderRadius: '8px',
+              border: '1.5px solid #DCE5F0',
+              background: '#ffffff',
+              color: '#24345C',
+              fontSize: '12.5px',
+              fontWeight: '700',
+              cursor: loadingIncomingOrders ? 'not-allowed' : 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            }}
+            title="Fetch latest incoming orders from server"
+          >
+            <RefreshCw size={14} className={loadingIncomingOrders ? 'animate-spin' : ''} color="#2F4375" />
+            {loadingIncomingOrders ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
 
-        {isMobile ? (
+        {loadingIncomingOrders ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', gap: '12px' }}>
+            <RefreshCw size={28} className="animate-spin" style={{ color: '#2F4375' }} />
+            <div style={{ fontSize: '14px', fontWeight: '700', color: '#24345C' }}>Loading fresh incoming orders...</div>
+            <div style={{ fontSize: '12px', color: '#8893A7' }}>Fetching live server state with zero cache</div>
+          </div>
+        ) : isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {filteredPlanned.length === 0 ? (
               <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '30px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>

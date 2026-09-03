@@ -8,6 +8,7 @@ import {
   Body,
   Param,
   Req,
+  Res,
 } from '@nestjs/common';
 import { ProductionWorkflowService } from './production-workflow.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -17,6 +18,25 @@ import { QcPassDto } from './dto/qc-pass.dto';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ProductionWorkflowController {
   constructor(private readonly workflowService: ProductionWorkflowService) {}
+
+  // ==========================================
+  // INCOMING ORDERS
+  // ==========================================
+  @Get('production/incoming-orders')
+  @RequirePermissions(
+    'production.floor.read',
+    'production.plan.read',
+    'production.productionworkflow.read',
+  )
+  async getIncomingOrders(@Req() req: any, @Res({ passthrough: true }) res: any) {
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    });
+    const data = await this.workflowService.getIncomingOrders();
+    return { success: true, data };
+  }
 
   // ==========================================
   // DASHBOARD
