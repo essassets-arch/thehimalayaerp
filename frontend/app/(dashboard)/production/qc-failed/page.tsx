@@ -171,8 +171,19 @@ export default function QCFailedPage() {
     const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
     const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
 
-    const customerObj = job.productionPlan?.salesOrder?.customer || job.salesOrder?.customer || job.customer;
-    const customerName = customerObj?.companyName || customerObj?.name || job.customerName || 'Standard Client';
+    const so = job.productionPlan?.salesOrder || job.salesOrder;
+    const leadObj = so?.quotation?.lead || so?.sourceQuotation?.lead || job.quotation?.lead || job.sourceQuotation?.lead;
+    const customerObj = so?.customer || job.customer;
+    const customerName =
+      customerObj?.companyName ||
+      customerObj?.name ||
+      leadObj?.companyName ||
+      leadObj?.projectName ||
+      leadObj?.customerName ||
+      so?.customerName ||
+      job.customerName ||
+      job.companyName ||
+      'Consignee Client';
     const address = customerObj?.address || customerObj?.city || job.customerAddress || 'Plant Warehouse';
     const gst = customerObj?.gstin || customerObj?.gst || job.customerGst || '27ABCDE4321G2Z8';
 
@@ -369,11 +380,19 @@ export default function QCFailedPage() {
                 const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                 const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                 const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
+                const so = job.productionPlan?.salesOrder || job.salesOrder;
+                const leadObj = so?.quotation?.lead || so?.sourceQuotation?.lead || job.quotation?.lead || job.sourceQuotation?.lead;
+                const customerObj = so?.customer || job.customer;
                 const customerName =
-                  job.productionPlan?.salesOrder?.customer?.companyName ||
-                  job.productionPlan?.salesOrder?.customer?.name ||
+                  customerObj?.companyName ||
+                  customerObj?.name ||
+                  leadObj?.companyName ||
+                  leadObj?.projectName ||
+                  leadObj?.customerName ||
+                  so?.customerName ||
                   job.customerName ||
-                  'Standard Client';
+                  job.companyName ||
+                  'Consignee Client';
                 const prodName = getProductName(job);
                 const isSent = isSentToFloor(job);
 
@@ -517,11 +536,19 @@ export default function QCFailedPage() {
                     const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                     const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                     const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
+                    const so = job.productionPlan?.salesOrder || job.salesOrder;
+                    const leadObj = so?.quotation?.lead || so?.sourceQuotation?.lead || job.quotation?.lead || job.sourceQuotation?.lead;
+                    const customerObj = so?.customer || job.customer;
                     const customerName =
-                      job.productionPlan?.salesOrder?.customer?.companyName ||
-                      job.productionPlan?.salesOrder?.customer?.name ||
+                      customerObj?.companyName ||
+                      customerObj?.name ||
+                      leadObj?.companyName ||
+                      leadObj?.projectName ||
+                      leadObj?.customerName ||
+                      so?.customerName ||
                       job.customerName ||
-                      'Standard Client';
+                      job.companyName ||
+                      'Consignee Client';
                     const prodName = getProductName(job);
                     const isSent = isSentToFloor(job);
 

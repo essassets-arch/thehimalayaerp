@@ -66,6 +66,23 @@ const DEFECT_OPTIONS = [
   'Other',
 ];
 
+const resolveCustomerName = (job: any): string => {
+  const so = job.productionPlan?.salesOrder || job.salesOrder;
+  const leadObj = so?.quotation?.lead || so?.sourceQuotation?.lead || job.quotation?.lead || job.sourceQuotation?.lead;
+  const customerObj = so?.customer || job.customer;
+  return (
+    customerObj?.companyName ||
+    customerObj?.name ||
+    leadObj?.companyName ||
+    leadObj?.projectName ||
+    leadObj?.customerName ||
+    so?.customerName ||
+    job.customerName ||
+    job.companyName ||
+    'Consignee Client'
+  );
+};
+
 export default function QCPendingPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [isClient, setIsClient] = useState(false);
@@ -358,7 +375,7 @@ export default function QCPendingPage() {
     const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
 
     const customerObj = job.productionPlan?.salesOrder?.customer || job.salesOrder?.customer || job.customer;
-    const customerName = customerObj?.companyName || customerObj?.name || job.customerName || 'Standard Client';
+    const customerName = resolveCustomerName(job);
     const address = customerObj?.address || customerObj?.city || job.customerAddress || 'Plant Warehouse';
     const gst = customerObj?.gstin || customerObj?.gst || job.customerGst || '27ABCDE4321G2Z8';
 
@@ -611,7 +628,7 @@ export default function QCPendingPage() {
                 const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                 const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                 const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
-                const customerName = job.productionPlan?.salesOrder?.customer?.companyName || job.productionPlan?.salesOrder?.customer?.name || job.customerName || 'Internal Client';
+                const customerName = resolveCustomerName(job);
                 const status = job.qcInspectionStatus || (activeTab === 'pending' ? 'QC PENDING' : 'PASSED');
 
                 return (
@@ -728,7 +745,7 @@ export default function QCPendingPage() {
                     const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                     const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                     const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
-                    const customerName = job.productionPlan?.salesOrder?.customer?.companyName || job.productionPlan?.salesOrder?.customer?.name || job.customerName || 'Internal Client';
+                    const customerName = resolveCustomerName(job);
                     const status = job.qcInspectionStatus || (activeTab === 'pending' ? 'QC PENDING' : 'PASSED');
 
                     return (

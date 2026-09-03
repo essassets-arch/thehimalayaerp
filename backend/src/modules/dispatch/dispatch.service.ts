@@ -98,7 +98,13 @@ export class DispatchService {
     return this.prisma.dispatch.findMany({
       where,
       include: {
-        salesOrder: { include: { customer: true, sourceQuotation: true } },
+        salesOrder: {
+          include: {
+            customer: true,
+            sourceQuotation: { include: { lead: true } },
+            quotation: { include: { lead: true } },
+          },
+        },
         items: { include: { salesOrderItem: true } },
         workflowState: true,
       },
@@ -169,7 +175,13 @@ export class DispatchService {
         ],
       },
       include: {
-        salesOrder: { include: { customer: true, sourceQuotation: true } },
+        salesOrder: {
+          include: {
+            customer: true,
+            sourceQuotation: { include: { lead: true } },
+            quotation: { include: { lead: true } },
+          },
+        },
         items: { include: { salesOrderItem: true } },
         workflowState: true,
       },

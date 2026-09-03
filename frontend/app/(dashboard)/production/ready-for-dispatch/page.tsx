@@ -226,15 +226,19 @@ export default function ReadyForDispatchPage() {
       const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
       const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
 
-      const customerObj =
-        job.productionPlan?.salesOrder?.customer ||
-        job.salesOrder?.customer ||
-        {};
+      const so = job.productionPlan?.salesOrder || job.salesOrder;
+      const leadObj = so?.quotation?.lead || so?.sourceQuotation?.lead || job.quotation?.lead || job.sourceQuotation?.lead;
+      const customerObj = so?.customer || job.customer || {};
       const customerName =
         customerObj.companyName ||
         customerObj.name ||
+        leadObj?.companyName ||
+        leadObj?.projectName ||
+        leadObj?.customerName ||
+        so?.customerName ||
         job.customerName ||
-        'Standard Client';
+        job.companyName ||
+        'Consignee Client';
       const customerAddress =
         customerObj.address ||
         customerObj.city ||

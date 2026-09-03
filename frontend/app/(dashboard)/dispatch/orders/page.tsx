@@ -585,11 +585,23 @@ export default function DispatchOrdersPage() {
             wo.product ||
             "Finished Manufacturing Product";
 
+          const leadObj = salesOrder?.quotation?.lead || salesOrder?.sourceQuotation?.lead || wo.quotation?.lead || wo.sourceQuotation?.lead;
+          const customerName =
+            customer?.companyName ||
+            customer?.name ||
+            leadObj?.companyName ||
+            leadObj?.projectName ||
+            leadObj?.customerName ||
+            salesOrder?.customerName ||
+            wo.customerName ||
+            wo.companyName ||
+            "Consignee Client";
+
           return {
             id: `wo-${wo.id}`,
             itemType: "WORK_ORDER",
             orderNumber: soNumber,
-            customerName: customer?.companyName || customer?.name || wo.customerName || "Standard Client",
+            customerName,
             deliveryAddress: address || "—",
             productName: prodName,
             productSku: wo.salesOrderItem?.product?.sku || wo.productCode,
@@ -647,11 +659,21 @@ export default function DispatchOrdersPage() {
 
             if (remaining <= 0 && alreadyDispatched > 0) return;
 
+            const leadObj = so.quotation?.lead || so.sourceQuotation?.lead;
+            const customerName =
+              so.customer?.companyName ||
+              so.customer?.name ||
+              leadObj?.companyName ||
+              leadObj?.projectName ||
+              leadObj?.customerName ||
+              so.customerName ||
+              "Consignee Client";
+
             unifiedSalesOrders.push({
               id: `so-${so.id}-${idx}`,
               itemType: "TRADING_SALES_ORDER",
               orderNumber: so.orderNumber || so.orderId || so.orderNo || "N/A",
-              customerName: so.customerName || so.customer?.companyName || "N/A",
+              customerName,
               deliveryAddress: formatAddress(so, so.customer),
               productName: item.productNameSnapshot || item.productName || item.name || "Trading Product",
               productSku: item.product?.sku || item.sku,

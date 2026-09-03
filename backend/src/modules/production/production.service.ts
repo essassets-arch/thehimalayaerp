@@ -23,7 +23,13 @@ export class ProductionService {
     return this.prisma.productionPlan.findMany({
       where: scope,
       include: {
-        salesOrder: { include: { customer: true } },
+        salesOrder: {
+          include: {
+            customer: true,
+            quotation: { include: { lead: true } },
+            sourceQuotation: { include: { lead: true } },
+          },
+        },
         _count: {
           select: { workOrders: true },
         },
@@ -39,7 +45,12 @@ export class ProductionService {
       where: { id, ...scope },
       include: {
         salesOrder: {
-          include: { items: true, customer: true },
+          include: {
+            items: true,
+            customer: true,
+            quotation: { include: { lead: true } },
+            sourceQuotation: { include: { lead: true } },
+          },
         },
         workOrders: true,
         workflowState: true,

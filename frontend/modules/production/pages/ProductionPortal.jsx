@@ -2169,6 +2169,13 @@ export default function ProductionPortal() {
       if (!globalSearch) return true;
       const custName =
         row.customerName ||
+        row.salesOrder?.customer?.companyName ||
+        row.salesOrder?.customer?.name ||
+        row.salesOrder?.sourceQuotation?.lead?.companyName ||
+        row.salesOrder?.sourceQuotation?.lead?.projectName ||
+        row.salesOrder?.sourceQuotation?.lead?.customerName ||
+        row.salesOrder?.quotation?.lead?.companyName ||
+        row.salesOrder?.customerName ||
         row.quotation?.lead?.companyName ||
         row.quotation?.lead?.projectName ||
         row.sourceQuotation?.lead?.companyName ||
@@ -2176,6 +2183,7 @@ export default function ProductionPortal() {
         row.companyName ||
         row.customer?.companyName ||
         row.customer?.name ||
+        row.clientName ||
         '';
       const searchVal = (
         custName ||
@@ -2310,6 +2318,13 @@ export default function ProductionPortal() {
 
                 const customerName =
                   row.customerName ||
+                  row.salesOrder?.customer?.companyName ||
+                  row.salesOrder?.customer?.name ||
+                  row.salesOrder?.sourceQuotation?.lead?.companyName ||
+                  row.salesOrder?.sourceQuotation?.lead?.projectName ||
+                  row.salesOrder?.sourceQuotation?.lead?.customerName ||
+                  row.salesOrder?.quotation?.lead?.companyName ||
+                  row.salesOrder?.customerName ||
                   row.quotation?.lead?.companyName ||
                   row.quotation?.lead?.projectName ||
                   row.sourceQuotation?.lead?.companyName ||
@@ -2317,6 +2332,7 @@ export default function ProductionPortal() {
                   row.companyName ||
                   row.customer?.companyName ||
                   row.customer?.name ||
+                  row.clientName ||
                   'N/A';
                 const quantityNeeded = `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units`;
                 const targetDate = row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD');
@@ -2550,6 +2566,13 @@ export default function ProductionPortal() {
                 accessor: 'customerName',
                 render: (row) =>
                   row.customerName ||
+                  row.salesOrder?.customer?.companyName ||
+                  row.salesOrder?.customer?.name ||
+                  row.salesOrder?.sourceQuotation?.lead?.companyName ||
+                  row.salesOrder?.sourceQuotation?.lead?.projectName ||
+                  row.salesOrder?.sourceQuotation?.lead?.customerName ||
+                  row.salesOrder?.quotation?.lead?.companyName ||
+                  row.salesOrder?.customerName ||
                   row.quotation?.lead?.companyName ||
                   row.quotation?.lead?.projectName ||
                   row.sourceQuotation?.lead?.companyName ||
@@ -2557,6 +2580,7 @@ export default function ProductionPortal() {
                   row.companyName ||
                   row.customer?.companyName ||
                   row.customer?.name ||
+                  row.clientName ||
                   'N/A'
               },
               { header: 'Product Item', accessor: 'productInterested', render: (row) => renderProductSummary(row) },
