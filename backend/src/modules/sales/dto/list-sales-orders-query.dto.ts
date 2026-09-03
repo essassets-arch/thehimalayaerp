@@ -1,6 +1,5 @@
-import { IsOptional, IsInt, Min, Max, IsString, IsEnum } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
-import { SalesOrderStatus } from '@prisma/client';
 
 export class ListSalesOrdersQueryDto {
   @IsOptional()
@@ -9,10 +8,6 @@ export class ListSalesOrdersQueryDto {
   @Min(1)
   page?: number = 1;
 
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -39,4 +34,10 @@ export class ListSalesOrdersQueryDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  _t?: string | number;
+
+  @IsOptional()
+  _?: string | number;
 }

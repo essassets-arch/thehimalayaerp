@@ -688,15 +688,13 @@ export default function ProductionPortal() {
     try {
       await Promise.allSettled([
         loadIncomingOrders(),
-        fetchDirectSalesOrders(),
-        typeof loadSalesOrders === 'function' ? loadSalesOrders() : Promise.resolve(),
         loadBackendWorkOrders(),
         typeof syncData === 'function' ? syncData() : Promise.resolve(),
       ]);
     } finally {
       setLoadingIncomingOrders(false);
     }
-  }, [loadIncomingOrders, fetchDirectSalesOrders, loadSalesOrders, loadBackendWorkOrders, syncData]);
+  }, [loadIncomingOrders, loadBackendWorkOrders, syncData]);
 
   useEffect(() => {
     if (view === 'incoming-orders') {
@@ -704,10 +702,7 @@ export default function ProductionPortal() {
     }
     if (!['dashboard', 'incoming-orders', 'work-orders', 'production-work'].includes(view)) return;
     void loadBackendWorkOrders();
-    if (typeof loadSalesOrders === 'function') {
-      void loadSalesOrders();
-    }
-  }, [view, refreshAllIncoming, loadBackendWorkOrders, loadSalesOrders]);
+  }, [view, refreshAllIncoming, loadBackendWorkOrders]);
   const [mrStatusFilter, setMrStatusFilter] = useState('All');
 
   const [reworkTab, setReworkTab] = useState('failed-list');
