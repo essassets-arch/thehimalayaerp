@@ -2283,33 +2283,17 @@ export default function ProductionPortal() {
   };
 
   const renderIncomingOrders = () => {
-    const plannedMap = new Map();
+    // Strictly render live database records from backend API
+    let planned = [];
+    if (backendIncomingList && backendIncomingList.length > 0) {
+      planned = backendIncomingList;
+    } else if (!loadingIncomingOrders && backendIncomingOrders.length > 0) {
+      planned = backendIncomingOrders;
+    } else if (!loadingIncomingOrders && directBackendOrders.length > 0) {
+      planned = incomingOrders;
+    }
 
-    // 1. Direct incoming orders endpoint
-    (backendIncomingList || []).forEach(order => {
-      if (order && (order.id || order.orderNo)) {
-        plannedMap.set(String(order.id || order.orderNo), order);
-      }
-    });
-
-    // 2. Direct backend work orders
-    (backendIncomingOrders || []).forEach(order => {
-      if (order && (order.id || order.orderNo)) {
-        const key = String(order.id || order.orderNo);
-        if (!plannedMap.has(key)) plannedMap.set(key, order);
-      }
-    });
-
-    // 3. Incoming sales orders (from direct sales orders + store)
-    (incomingOrders || []).forEach(order => {
-      if (order && (order.id || order.orderNo)) {
-        const key = String(order.id || order.orderNo);
-        if (!plannedMap.has(key)) plannedMap.set(key, order);
-      }
-    });
-
-    let planned = Array.from(plannedMap.values());
-    planned.sort((a, b) => {
+    planned = [...planned].sort((a, b) => {
       const tA = new Date(a.createdAt || a.targetDate || 0).getTime();
       const tB = new Date(b.createdAt || b.targetDate || 0).getTime();
       const numA = parseInt(String(a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
