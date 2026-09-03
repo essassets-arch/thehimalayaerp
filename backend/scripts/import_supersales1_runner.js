@@ -2,11 +2,12 @@ const { PrismaClient, Prisma } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
 
-const primaryUrl = process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public';
 const targetDbs = [
-  { name: 'Target Database', url: primaryUrl }
+  { name: 'Active DB (himalaya_erp_browser_test)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+  { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' },
+  { name: 'Test DB (himalaya_erp_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_test?schema=public' },
+  { name: 'Docker DB 5435', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public' }
 ];
-
 
 function parseCSV(content) {
   const result = [];
@@ -66,30 +67,30 @@ function parseCsvDate(str) {
   // Typo like 17-0702026
   let m = str.match(/^(\d{1,2})-(\d{1,2})0(\d{4})$/);
   if (m) {
-    return new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+    return new Date(Date.UTC(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10), 6, 0, 0));
   }
   
   m = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
   if (m) {
     let year = parseInt(m[3], 10);
     if (year === 2006) year = 2026;
-    return new Date(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+    return new Date(Date.UTC(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10), 6, 0, 0));
   }
   m = str.match(/^(\d{1,2})-(\d{1,2})-(\d{2})$/);
   if (m) {
     const year = 2000 + parseInt(m[3], 10);
-    return new Date(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+    return new Date(Date.UTC(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10), 6, 0, 0));
   }
   m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (m) {
     let year = parseInt(m[3], 10);
     if (year === 2006) year = 2026;
-    return new Date(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+    return new Date(Date.UTC(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10), 6, 0, 0));
   }
   m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/);
   if (m) {
     const year = 2000 + parseInt(m[3], 10);
-    return new Date(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+    return new Date(Date.UTC(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10), 6, 0, 0));
   }
   const d = new Date(str);
   return isNaN(d.getTime()) ? new Date() : d;
@@ -217,12 +218,19 @@ async function importSuperSales1IntoDb(config, consolidatedLeads) {
     const userId = user.id;
     console.log(`Resolved SuperSales 1 user: ${user.name} (${user.id}) in company: ${user.companyId}`);
 
+    // Update user name to "SuperSales 1" if needed
+    await prisma.user.update({
+      where: { id: userId },
+      data: { name: 'SuperSales 1' }
+    });
+
     // 2. Clear previous leads created by supersales1
     const cleared = await prisma.lead.deleteMany({
       where: {
         OR: [
           { createdById: userId },
           { salesExecutiveId: userId },
+          { assignedToId: userId },
           { remarks: 'Imported from Hussain Sir Super Sales 1 CSV' }
         ]
       }
@@ -240,7 +248,17 @@ async function importSuperSales1IntoDb(config, consolidatedLeads) {
     const workflowStateId = workflowState ? workflowState.id : null;
 
     // 4. Resolve all products for matching
-    const products = await prisma.product.findMany();
+    let products = [];
+    try {
+      products = await prisma.product.findMany();
+    } catch (prodErr) {
+      console.log(`Note: could not load full products via prisma (${prodErr.message.split('\n')[0]}), falling back.`);
+      try {
+        products = await prisma.$queryRawUnsafe(`SELECT id, code, name FROM "Product"`);
+      } catch (e) {
+        products = [];
+      }
+    }
     console.log(`Loaded ${products.length} products from catalog.`);
 
     // 5. Determine highest existing lead sequence number
@@ -336,16 +354,20 @@ async function importSuperSales1IntoDb(config, consolidatedLeads) {
     }
 
     // Update idSequence for next leads (both FY key and generic key)
-    await prisma.idSequence.upsert({
-      where: { key: 'lead_number_2627' },
-      update: { nextValue: sequenceCounter },
-      create: { key: 'lead_number_2627', nextValue: sequenceCounter }
-    });
-    await prisma.idSequence.upsert({
-      where: { key: 'lead_number' },
-      update: { nextValue: sequenceCounter },
-      create: { key: 'lead_number', nextValue: sequenceCounter }
-    });
+    try {
+      await prisma.idSequence.upsert({
+        where: { key: 'lead_number_2627' },
+        update: { nextValue: sequenceCounter },
+        create: { key: 'lead_number_2627', nextValue: sequenceCounter }
+      });
+      await prisma.idSequence.upsert({
+        where: { key: 'lead_number' },
+        update: { nextValue: sequenceCounter },
+        create: { key: 'lead_number', nextValue: sequenceCounter }
+      });
+    } catch (seqErr) {
+      console.log('Note on idSequence:', seqErr.message);
+    }
 
     console.log(`✅ [${config.name}] Successfully imported ${successCount} leads with ${consolidatedLeads.reduce((a, b) => a + b.items.length, 0)} total line items.`);
   } catch (e) {
@@ -357,12 +379,11 @@ async function importSuperSales1IntoDb(config, consolidatedLeads) {
 
 async function main() {
   const candidatePaths = [
+    path.resolve('d:/prototype-next-main/hussain_sir(super_sales1) (6).csv'),
+    path.resolve('hussain_sir(super_sales1) (6).csv'),
+    path.join(__dirname, '../hussain_sir(super_sales1) (6).csv'),
     path.resolve('hussain_sir(super_sales1) (2).csv'),
     path.join(__dirname, 'hussain_sir(super_sales1) (2).csv'),
-    path.join(__dirname, '../hussain_sir(super_sales1) (2).csv'),
-    path.resolve('d:/prototype-next-main/hussain_sir(super_sales1) (2).csv'),
-    path.resolve('/app/hussain_sir(super_sales1) (2).csv'),
-    path.resolve('/app/scripts/hussain_sir(super_sales1) (2).csv'),
   ];
 
   let csvPath = candidatePaths.find(p => fs.existsSync(p));
@@ -406,7 +427,7 @@ async function main() {
     const size = obj.size || '';
     const capacity = obj.capcity || obj.capacity || '';
     const qty = parseFloat(obj.qty) || 1;
-    const color = obj.color || 'GREY';
+    const color = obj.specification || obj.color || 'GREY';
     const unitPrice = parseFloat(obj.unit_pricew || obj.unit_price || 0) || 0;
     const subTotal = parseFloat(obj.sub_total || 0) || 0;
     const gst = obj.gst || '18%';
@@ -494,7 +515,11 @@ async function main() {
   console.log(`Parsed ${consolidatedLeads.length} valid consolidated leads with ${consolidatedLeads.reduce((a, b) => a + b.items.length, 0)} items.`);
 
   for (const db of targetDbs) {
-    await importSuperSales1IntoDb(db, consolidatedLeads);
+    try {
+      await importSuperSales1IntoDb(db, consolidatedLeads);
+    } catch (dbErr) {
+      console.error(`Failed on DB ${db.name}:`, dbErr.message);
+    }
   }
 }
 

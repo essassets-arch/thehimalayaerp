@@ -40,6 +40,7 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
     "db:reset:browser-test": "node scripts/reset-browser-test-db.js",
+    "db:clear:sales-production": "node scripts/clear-sales-production-data.js",
     "seed:browser-test": "ts-node prisma/seed-browser-test.ts",
     "validate:browser-test-seed": "ts-node scripts/validate-browser-test-seed.ts",
     "ensure:browser-test-credentials": "ts-node scripts/ensure-browser-test-credentials.ts",
