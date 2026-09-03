@@ -626,11 +626,27 @@ export default function ProductionPortal() {
 
 
   const [backendIncomingList, setBackendIncomingList] = useState([]);
+  const [directBackendOrders, setDirectBackendOrders] = useState([]);
   const [loadingIncomingOrders, setLoadingIncomingOrders] = useState(false);
+
+  const loadSalesOrders = useCallback(async () => {
+    try {
+      const res = await backendFetch(`/api/backend/sales/orders?page=1&pageSize=200&_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, max-age=0',
+          'Pragma': 'no-cache',
+        },
+      });
+      const items = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      setDirectBackendOrders(items);
+    } catch (err) {
+      console.warn('[Production] Failed to load direct sales orders:', err);
+    }
+  }, []);
 
   const loadIncomingOrders = useCallback(async () => {
     try {
-      setLoadingIncomingOrders(true);
       const res = await backendFetch(`/api/backend/production/incoming-orders?_t=${Date.now()}`, {
         cache: 'no-store',
         headers: {
@@ -643,8 +659,6 @@ export default function ProductionPortal() {
     } catch (error) {
       console.error('[Production] Unable to load incoming orders:', error);
       setBackendIncomingList([]);
-    } finally {
-      setLoadingIncomingOrders(false);
     }
   }, []);
 
@@ -664,16 +678,28 @@ export default function ProductionPortal() {
     }
   }, []);
 
+  const refreshAllIncoming = useCallback(async () => {
+    setLoadingIncomingOrders(true);
+    try {
+      await Promise.allSettled([
+        loadIncomingOrders(),
+        loadSalesOrders(),
+        loadBackendWorkOrders(),
+        syncData(),
+      ]);
+    } finally {
+      setLoadingIncomingOrders(false);
+    }
+  }, [loadIncomingOrders, loadSalesOrders, loadBackendWorkOrders, syncData]);
+
   useEffect(() => {
     if (view === 'incoming-orders') {
-      void loadIncomingOrders();
+      void refreshAllIncoming();
     }
     if (!['dashboard', 'incoming-orders', 'work-orders', 'production-work'].includes(view)) return;
     void loadBackendWorkOrders();
-    if (typeof loadSalesOrders === 'function') {
-      void loadSalesOrders();
-    }
-  }, [view, loadIncomingOrders, loadBackendWorkOrders, loadSalesOrders]);
+    void loadSalesOrders();
+  }, [view, refreshAllIncoming, loadBackendWorkOrders, loadSalesOrders]);
   const [mrStatusFilter, setMrStatusFilter] = useState('All');
 
   const [reworkTab, setReworkTab] = useState('failed-list');
@@ -955,7 +981,7 @@ export default function ProductionPortal() {
     }
   };
   const incomingOrders = useMemo(() => {
-    const combinedOrders = [...(backendSalesOrders || []), ...(storeOrders || [])];
+    const combinedOrders = [...(directBackendOrders || []), ...(storeOrders || [])];
     const combinedState = {
       ...state,
       sales: {
@@ -968,10 +994,10 @@ export default function ProductionPortal() {
       const sourceQuotation = (state.sales?.quotations || []).find((q) => q.id === quotationRef);
       return normalizeProductionOrder(order, sourceQuotation);
     });
-  }, [state, storeOrders, backendSalesOrders]);
+  }, [state, storeOrders, directBackendOrders]);
 
   const orders = useMemo(() => {
-    const combinedOrders = [...(backendSalesOrders || []), ...(storeOrders || [])];
+    const combinedOrders = [...(directBackendOrders || []), ...(storeOrders || [])];
     const combinedState = {
       ...state,
       sales: {
@@ -984,7 +1010,7 @@ export default function ProductionPortal() {
       const sourceQuotation = (state.sales?.quotations || []).find((q) => q.id === quotationRef);
       return normalizeProductionOrder(order, sourceQuotation);
     });
-  }, [state, storeOrders, backendSalesOrders]);
+  }, [state, storeOrders, directBackendOrders]);
   const filteredStoreWOs = getProductionWorkOrders(state);
   const storeWorkOrders = (filteredStoreWOs && filteredStoreWOs.length > 0) ? filteredStoreWOs : mockWorkOrders;
   const workOrders = useMemo(() => {
@@ -2254,22 +2280,33 @@ export default function ProductionPortal() {
   };
 
   const renderIncomingOrders = () => {
-    // Show fresh live orders from backend /api/backend/production/incoming-orders
-    let planned = [];
-    if (backendIncomingList && backendIncomingList.length > 0) {
-      planned = backendIncomingList;
-    } else if (!loadingIncomingOrders && backendIncomingOrders.length > 0) {
-      planned = backendIncomingOrders;
-    } else if (!loadingIncomingOrders) {
-      const plannedMap = new Map();
-      backendIncomingOrders.forEach(order => plannedMap.set(order.id || order.orderNo, order));
-      incomingOrders.forEach(order => {
-        const key = order.id || order.orderNo;
+    const plannedMap = new Map();
+
+    // 1. Direct incoming orders endpoint
+    (backendIncomingList || []).forEach(order => {
+      if (order && (order.id || order.orderNo)) {
+        plannedMap.set(String(order.id || order.orderNo), order);
+      }
+    });
+
+    // 2. Direct backend work orders
+    (backendIncomingOrders || []).forEach(order => {
+      if (order && (order.id || order.orderNo)) {
+        const key = String(order.id || order.orderNo);
         if (!plannedMap.has(key)) plannedMap.set(key, order);
-      });
-      planned = Array.from(plannedMap.values());
-    }
-    planned = [...planned].sort((a, b) => {
+      }
+    });
+
+    // 3. Incoming sales orders (from direct sales orders + store)
+    (incomingOrders || []).forEach(order => {
+      if (order && (order.id || order.orderNo)) {
+        const key = String(order.id || order.orderNo);
+        if (!plannedMap.has(key)) plannedMap.set(key, order);
+      }
+    });
+
+    let planned = Array.from(plannedMap.values());
+    planned.sort((a, b) => {
       const tA = new Date(a.createdAt || a.targetDate || 0).getTime();
       const tB = new Date(b.createdAt || b.targetDate || 0).getTime();
       const numA = parseInt(String(a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
@@ -2404,7 +2441,7 @@ export default function ProductionPortal() {
           </div>
           <button
             type="button"
-            onClick={() => loadIncomingOrders()}
+            onClick={() => refreshAllIncoming()}
             disabled={loadingIncomingOrders}
             style={{
               display: 'inline-flex',
@@ -2427,7 +2464,7 @@ export default function ProductionPortal() {
           </button>
         </div>
 
-        {loadingIncomingOrders ? (
+        {loadingIncomingOrders && planned.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', gap: '12px' }}>
             <RefreshCw size={28} className="animate-spin" style={{ color: '#2F4375' }} />
             <div style={{ fontSize: '14px', fontWeight: '700', color: '#24345C' }}>Loading fresh incoming orders...</div>

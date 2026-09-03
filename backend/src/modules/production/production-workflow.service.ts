@@ -100,9 +100,10 @@ export class ProductionWorkflowService {
       const workOrders = await this.prisma.workOrder.findMany({
         where: {
           OR: [
-            { productionStatus: 'CREATED' as any },
-            { productionStatus: 'PLANNED' as any },
-            { productionStatus: 'NOT_STARTED' as any },
+            { status: 'CREATED' as any },
+            { status: 'PLANNED' as any },
+            { status: 'MATERIAL_PENDING' as any },
+            { status: 'READY' as any },
             { workflowState: { code: 'CREATED' } },
             { workflowState: { code: 'PLANNED' } },
           ],
