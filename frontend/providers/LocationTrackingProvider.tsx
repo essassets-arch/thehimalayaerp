@@ -264,13 +264,13 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
     const socket = io(socketUrl, {
       path: '/socket.io',
       auth: { token: cleanToken },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       upgrade: true,
       reconnection: true,
-      reconnectionAttempts: Infinity,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 10000,
+      timeout: 15000,
     });
 
     socketRef.current = socket;

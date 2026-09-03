@@ -163,19 +163,25 @@ export const initializePushNotifications = async () => {
       }
 
       // Mobile compatible showNotification via Service Worker registration
-      if (Notification.permission === 'granted') {
-        if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
-          navigator.serviceWorker.ready.then((reg) => {
-            reg.showNotification(title, {
-              body,
-              icon: '/icon.png',
-              badge: '/icon.png',
-              data: { route: payload.data?.route || '/' },
+      try {
+        if (typeof window !== 'undefined' && 'Notification' in window && window.Notification?.permission === 'granted') {
+          if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+            navigator.serviceWorker.ready.then((reg) => {
+              if (reg && typeof reg.showNotification === 'function') {
+                reg.showNotification(title, {
+                  body,
+                  icon: '/icon.png',
+                  badge: '/icon.png',
+                  data: { route: payload.data?.route || '/' },
+                });
+              }
+            }).catch((err) => {
+              console.warn('[Firebase Client] showNotification error:', err);
             });
-          }).catch((err) => {
-            console.warn('[Firebase Client] showNotification error:', err);
-          });
+          }
         }
+      } catch (notifErr) {
+        console.warn('[Firebase Client] Notification permission evaluation error:', notifErr);
       }
     });
 
