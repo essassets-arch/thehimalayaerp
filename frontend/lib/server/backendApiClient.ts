@@ -4,7 +4,7 @@ import crypto from 'crypto';
 const BACKEND_API_URL =
   process.env.BACKEND_INTERNAL_URL ||
   process.env.BACKEND_API_URL ||
-  'http://127.0.0.1:4000/api/v1';
+  'http://backend:4000/api/v1';
 
 function isValidUuid(id: string | null | undefined): boolean {
   if (!id) return false;
@@ -75,7 +75,7 @@ export async function forwardBackendRequest(
     const isMultipart = body instanceof FormData;
     const incomingHeaders = options.headers || {};
     const headers: Record<string, string> = {
-      ...(!isMultipart && { 'Content-Type': 'application/json' }),
+      ...(!isMultipart && method !== 'GET' && method !== 'HEAD' && body !== undefined && { 'Content-Type': 'application/json' }),
       ...incomingHeaders,
       'X-Request-ID': requestId,
     };
