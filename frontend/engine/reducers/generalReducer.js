@@ -27,7 +27,8 @@ export const generalReducer = (state, action) => {
         machines: Array.isArray(action.payload.machines) ? action.payload.machines : state.machines || [],
         bom: Array.isArray(action.payload.bom) ? action.payload.bom : state.bom || [],
         workOrders: Array.isArray(action.payload.workOrders) ? action.payload.workOrders : state.workOrders || [],
-        materialRequests: Array.isArray(action.payload.materialRequests) ? action.payload.materialRequests : state.materialRequests || []
+        materialRequests: Array.isArray(action.payload.materialRequests) ? action.payload.materialRequests : state.materialRequests || [],
+        exitClearances: Array.isArray(action.payload.exitClearances) ? action.payload.exitClearances : (state.exitClearances || [])
       };
 
     case 'RECORD_EVENT':
@@ -149,13 +150,28 @@ export const generalReducer = (state, action) => {
     case 'UPDATE_EXIT_CLEARANCE':
       return {
         ...state,
-        exitClearances: (state.exitClearances || []).map(ex => ex.empId === action.payload.empId ? { ...ex, ...action.payload } : ex)
+        exitClearances: (state.exitClearances || []).map(ex => (ex.empId === action.payload.empId || ex.id === action.payload.id) ? { ...ex, ...action.payload } : ex)
       };
 
     case 'ADD_EXIT_CLEARANCE':
       return {
         ...state,
-        exitClearances: [...(state.exitClearances || []), action.payload]
+        exitClearances: [
+          action.payload,
+          ...(state.exitClearances || []).filter(ex => ex.empId !== action.payload.empId && ex.id !== action.payload.id)
+        ]
+      };
+
+    case 'DELETE_EXIT_CLEARANCE':
+      return {
+        ...state,
+        exitClearances: (state.exitClearances || []).filter(ex => ex.empId !== action.payload && ex.id !== action.payload)
+      };
+
+    case 'SET_EXIT_CLEARANCES':
+      return {
+        ...state,
+        exitClearances: Array.isArray(action.payload) ? action.payload : []
       };
 
     case 'ADD_PAYMENT_REMINDER':

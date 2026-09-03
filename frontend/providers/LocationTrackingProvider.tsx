@@ -130,7 +130,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
             sessionId: sessionIdRef.current,
             locationPermission: state,
           },
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
   }, []);
@@ -187,7 +187,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
             backendFetch('/location/location-update', {
               method: 'POST',
               body: payload,
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
       },
@@ -265,7 +265,8 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       path: '/socket.io',
       auth: { token: cleanToken },
       transports: ['polling', 'websocket'],
-      upgrade: true,
+      .
+        upgrade: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
@@ -315,7 +316,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
         backendFetch('/location/heartbeat', {
           method: 'POST',
           body: { sessionId: currentSid },
-        }).catch(() => {});
+        }).catch(() => { });
       }
     };
 

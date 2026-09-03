@@ -34,6 +34,7 @@ import { grnService } from '../../services/procurement/grnService';
 import { vendorInvoiceService } from '../../services/procurement/vendorInvoiceService';
 import { vendorPaymentService } from '../../services/procurement/vendorPaymentService';
 import { backendFetch } from '../../lib/backendFetch';
+import { rootReducer } from '../../engine/reducers';
 
 let syncInFlight = false;
 let lastSyncStartedAt = 0;
@@ -535,6 +536,10 @@ export const useERP = () => {
           store.setState(nextState);
           break;
         default:
+          if (typeof rootReducer === 'function') {
+            nextState = rootReducer(nextState, action);
+            store.setState(nextState);
+          }
           break;
       }
     },
