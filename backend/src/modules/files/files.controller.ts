@@ -16,7 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { FilesService } from './files.service';
 import { createReadStream, existsSync } from 'fs';
-import { extname } from 'path';
+import { extname, resolve } from 'path';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('files')
@@ -28,25 +28,32 @@ export class FilesController {
     requestedPath: string,
     res: Response,
   ) {
-    if (resolved && resolved.fullPath && existsSync(resolved.fullPath)) {
-      res.set({
-        'Content-Type': resolved.mimeType,
-        'Cache-Control': 'public, max-age=86400, immutable',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-        'Access-Control-Allow-Headers': '*',
-        'Cross-Origin-Resource-Policy': 'cross-origin',
-        'Cross-Origin-Embedder-Policy': 'unsafe-none',
-      });
-      return res.sendFile(
-        resolved.fullPath,
-        { maxAge: 86400000, acceptRanges: true },
-        (err) => {
-          if (err && !res.headersSent) {
-            this.sendFallbackImage(requestedPath, res);
-          }
-        },
-      );
+    try {
+      if (resolved && resolved.fullPath && existsSync(resolved.fullPath)) {
+        res.set({
+          'Content-Type': resolved.mimeType,
+          'Cache-Control': 'public, max-age=86400, immutable',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Allow-Headers': '*',
+          'Cross-Origin-Resource-Policy': 'cross-origin',
+          'Cross-Origin-Embedder-Policy': 'unsafe-none',
+        });
+        const absolutePath = resolve(resolved.fullPath);
+        return res.sendFile(
+          absolutePath,
+          { maxAge: 86400000, acceptRanges: true },
+          (err) => {
+            if (err && !res.headersSent) {
+              this.sendFallbackImage(requestedPath, res);
+            }
+          },
+        );
+      }
+    } catch (err) {
+      if (!res.headersSent) {
+        return this.sendFallbackImage(requestedPath, res);
+      }
     }
 
     return this.sendFallbackImage(requestedPath, res);
