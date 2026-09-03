@@ -224,11 +224,18 @@ const _selectPlantHeadPlanningOrders = (store: ERPStoreState) => {
 const _selectProductionIncomingOrders = (store: ERPStoreState) => {
   const { orders } = getSales(store);
   return orders
-    .filter(
-      (o) =>
-        o.planningStatus === 'PRODUCTION_PLANNED' &&
-        (o.productionStatus === 'NOT_STARTED' || !o.productionStatus)
-    )
+    .filter((o: any) => {
+      const planSt = String(o.planningStatus || o.workflowStatus || o.status || '').toUpperCase();
+      const isPlantAssigned =
+        planSt === 'PRODUCTION_PLANNED' ||
+        planSt === 'PLANT_APPROVED' ||
+        planSt === 'READY_FOR_PRODUCTION' ||
+        planSt === 'PLANT_HEAD_ACCEPTED' ||
+        planSt === 'PLANNED';
+      const prodSt = String(o.productionStatus || '').toUpperCase();
+      const notStarted = !prodSt || prodSt === 'NOT_STARTED' || prodSt === 'CREATED' || prodSt === 'PLANNED';
+      return isPlantAssigned && notStarted;
+    })
     .filter((o: any) => hasManufacturingProducts(o))
     .map(toProductionSafeView);
 };

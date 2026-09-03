@@ -879,6 +879,22 @@ export default function ProductionPortal() {
       });
     }
   };
+  const incomingOrders = useMemo(() => {
+    const combinedOrders = [...(backendSalesOrders || []), ...(storeOrders || [])];
+    const combinedState = {
+      ...state,
+      sales: {
+        ...(state.sales || {}),
+        orders: combinedOrders
+      }
+    };
+    return selectProductionIncomingOrders(combinedState).map((order) => {
+      const quotationRef = order.quotationId;
+      const sourceQuotation = (state.sales?.quotations || []).find((q) => q.id === quotationRef);
+      return normalizeProductionOrder(order, sourceQuotation);
+    });
+  }, [state, storeOrders, backendSalesOrders]);
+
   const orders = useMemo(() => {
     const combinedOrders = [...(backendSalesOrders || []), ...(storeOrders || [])];
     const combinedState = {
@@ -2154,12 +2170,11 @@ export default function ProductionPortal() {
     );
   };
 
-  // ── 2. Incoming Orders ──
   const renderIncomingOrders = () => {
-    // Show orders approved by Plant Head waiting to be activated into Work Orders
+    // Show orders approved / assigned by Plant Head waiting to be activated into Work Orders
     const plannedMap = new Map();
     backendIncomingOrders.forEach(order => plannedMap.set(order.id || order.orderNo, order));
-    orders.forEach(order => {
+    incomingOrders.forEach(order => {
       const key = order.id || order.orderNo;
       if (!plannedMap.has(key)) plannedMap.set(key, order);
     });
