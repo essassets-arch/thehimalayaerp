@@ -265,8 +265,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       path: '/socket.io',
       auth: { token: cleanToken },
       transports: ['polling', 'websocket'],
-      .
-        upgrade: true,
+      upgrade: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
