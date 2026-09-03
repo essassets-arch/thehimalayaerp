@@ -47,7 +47,6 @@ export default function QCInspectionListPage() {
   });
 
   const filteredData = React.useMemo(() => {
-  const filteredData = React.useMemo(() => {
     if (!data) return [];
     if (!search) return data;
     const lower = search.toLowerCase();
