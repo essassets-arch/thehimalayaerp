@@ -31,15 +31,15 @@ export default function QCInspectionDetailsPage() {
   }
 
   const status = qc.workflowState?.code || qc.status;
-  const workOrder = qc.workOrder;
-  const plan = workOrder.productionPlan;
-  const so = plan.salesOrder;
+  const workOrder = qc.workOrder || {};
+  const plan = workOrder.productionPlan || {};
+  const so = plan.salesOrder || {};
 
   const headerDetails = [
-    { label: 'Work Order', value: workOrder.workOrderNumber },
-    { label: 'Sales Order', value: so.orderNumber },
-    { label: 'Customer', value: so.customer.companyName },
-    { label: 'Target Qty', value: workOrder.quantity },
+    { label: 'Work Order', value: workOrder.workOrderNumber || 'N/A' },
+    { label: 'Sales Order', value: so.orderNumber || 'N/A' },
+    { label: 'Customer', value: so.customer?.companyName || so.customer?.name || 'N/A' },
+    { label: 'Target Qty', value: workOrder.quantity || 0 },
     { label: 'Produced Qty', value: workOrder.productionBatches?.reduce((sum: number, b: any) => sum + Number(b.quantity), 0) || 0 },
   ];
 

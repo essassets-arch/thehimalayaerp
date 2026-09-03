@@ -71,8 +71,9 @@ export default function DispatchListPage() {
       ),
     },
     {
-      accessorKey: "salesOrder.orderNumber",
+      id: "salesOrder",
       header: "Sales Order",
+      accessorFn: (row) => row.salesOrder?.orderNumber || "—",
       cell: ({ row }) => (
         <span className="font-semibold text-slate-800 text-xs">
           #{row.original.salesOrder?.orderNumber || "—"}
@@ -80,14 +81,24 @@ export default function DispatchListPage() {
       ),
     },
     {
-      accessorKey: "salesOrder.customer.companyName",
+      id: "customer",
       header: "Customer",
+      accessorFn: (row) =>
+        row.salesOrder?.customer?.companyName ||
+        row.salesOrder?.customer?.name ||
+        "—",
       cell: ({ row }) => (
         <span
           className="text-slate-800 font-semibold text-xs truncate max-w-[200px] block"
-          title={row.original.salesOrder?.customer?.companyName || "—"}
+          title={
+            row.original.salesOrder?.customer?.companyName ||
+            row.original.salesOrder?.customer?.name ||
+            "—"
+          }
         >
-          {row.original.salesOrder?.customer?.companyName || "—"}
+          {row.original.salesOrder?.customer?.companyName ||
+            row.original.salesOrder?.customer?.name ||
+            "—"}
         </span>
       ),
     },

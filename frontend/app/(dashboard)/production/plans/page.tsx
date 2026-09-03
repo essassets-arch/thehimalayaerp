@@ -49,8 +49,9 @@ export default function ProductionPlanListPage() {
     if (!search) return data;
     const lower = search.toLowerCase();
     return data.filter((p: ProductionPlan) => 
-      p.planNumber.toLowerCase().includes(lower) || 
-      p.salesOrder.orderNumber.toLowerCase().includes(lower)
+      p.planNumber?.toLowerCase().includes(lower) || 
+      p.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+      p.salesOrder?.customer?.companyName?.toLowerCase().includes(lower)
     );
   }, [data, search]);
 
@@ -58,20 +59,30 @@ export default function ProductionPlanListPage() {
     {
       accessorKey: 'planNumber',
       header: 'Plan Number',
-      cell: ({ row }) => <span className="font-medium text-gray-900">{row.getValue('planNumber')}</span>,
+      cell: ({ row }) => <span className="font-medium text-gray-900">{row.original.planNumber}</span>,
     },
     {
-      accessorKey: 'salesOrder.orderNumber',
+      id: 'salesOrder',
       header: 'Sales Order',
+      accessorFn: (row) => row.salesOrder?.orderNumber || '—',
+      cell: ({ row }) => <span>{row.original.salesOrder?.orderNumber || '—'}</span>,
     },
     {
-      accessorKey: 'salesOrder.customer.companyName',
+      id: 'customer',
       header: 'Customer',
+      accessorFn: (row) => row.salesOrder?.customer?.companyName || row.salesOrder?.customer?.name || '—',
+      cell: ({ row }) => (
+        <span>
+          {row.original.salesOrder?.customer?.companyName ||
+            row.original.salesOrder?.customer?.name ||
+            '—'}
+        </span>
+      ),
     },
     {
       accessorKey: 'createdAt',
       header: 'Date Created',
-      cell: ({ row }) => format(new Date(row.getValue('createdAt')), 'MMM d, yyyy'),
+      cell: ({ row }) => row.original.createdAt ? format(new Date(row.original.createdAt), 'MMM d, yyyy') : '—',
     },
     {
       accessorKey: 'status',

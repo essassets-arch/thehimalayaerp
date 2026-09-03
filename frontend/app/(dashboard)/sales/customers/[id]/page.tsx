@@ -26,8 +26,8 @@ export default function Customer360Page() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold">{data.customer.companyName}</h1>
-        <p className="text-sm text-muted-foreground">{data.customer.customerCode}</p>
+        <h1 className="text-2xl font-semibold">{data?.customer?.companyName || data?.customer?.name || 'Customer Details'}</h1>
+        <p className="text-sm text-muted-foreground">{data?.customer?.customerCode || '—'}</p>
       </div>
       <div className="grid gap-4 md:grid-cols-4">
         {[

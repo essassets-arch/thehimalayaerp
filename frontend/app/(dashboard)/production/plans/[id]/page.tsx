@@ -35,8 +35,8 @@ export default function ProductionPlanDetailsPage() {
   const status = plan.workflowState?.code || plan.status;
 
   const headerDetails = [
-    { label: 'Sales Order', value: plan.salesOrder.orderNumber },
-    { label: 'Customer', value: plan.salesOrder.customer.companyName },
+    { label: 'Sales Order', value: plan.salesOrder?.orderNumber || 'N/A' },
+    { label: 'Customer', value: plan.salesOrder?.customer?.companyName || plan.salesOrder?.customer?.name || 'N/A' },
     { label: 'Start Date', value: plan.plannedStartDate ? new Date(plan.plannedStartDate).toLocaleDateString() : 'TBD' },
     { label: 'End Date', value: plan.plannedEndDate ? new Date(plan.plannedEndDate).toLocaleDateString() : 'TBD' },
     { label: 'Production Line', value: plan.productionLine || 'Unassigned' },

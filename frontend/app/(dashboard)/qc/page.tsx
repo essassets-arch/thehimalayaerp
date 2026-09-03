@@ -47,19 +47,22 @@ export default function QCInspectionListPage() {
   });
 
   const filteredData = React.useMemo(() => {
+  const filteredData = React.useMemo(() => {
     if (!data) return [];
     if (!search) return data;
     const lower = search.toLowerCase();
     return data.filter((q: QCInspection) => 
-      q.workOrder?.workOrderNumber.toLowerCase().includes(lower) || 
-      q.workOrder?.productionPlan?.salesOrder?.orderNumber.toLowerCase().includes(lower)
+      q.workOrder?.workOrderNumber?.toLowerCase().includes(lower) || 
+      q.workOrder?.productionPlan?.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+      q.workOrder?.productionPlan?.salesOrder?.customer?.companyName?.toLowerCase().includes(lower)
     );
   }, [data, search]);
 
   const columns: ColumnDef<QCInspection>[] = [
     {
-      accessorKey: 'workOrder.productionPlan.salesOrder.orderNumber',
+      id: 'salesOrder',
       header: 'Sales Order',
+      accessorFn: (row) => row.workOrder?.productionPlan?.salesOrder?.orderNumber || 'SO-2026-00001',
       cell: ({ row }) => (
         <span className="font-bold text-blue-600 hover:underline">
           {row.original.workOrder?.productionPlan?.salesOrder?.orderNumber || 'SO-2026-00001'}
@@ -67,9 +70,16 @@ export default function QCInspectionListPage() {
       ),
     },
     {
-      accessorKey: 'workOrder.productionPlan.salesOrder.customer.companyName',
+      id: 'customer',
       header: 'Customer',
-      cell: ({ row }) => row.original.workOrder?.productionPlan?.salesOrder?.customer?.companyName || 'N/A'
+      accessorFn: (row) =>
+        row.workOrder?.productionPlan?.salesOrder?.customer?.companyName ||
+        row.workOrder?.productionPlan?.salesOrder?.customer?.name ||
+        'N/A',
+      cell: ({ row }) =>
+        row.original.workOrder?.productionPlan?.salesOrder?.customer?.companyName ||
+        row.original.workOrder?.productionPlan?.salesOrder?.customer?.name ||
+        'N/A',
     },
     {
       accessorKey: 'createdAt',
