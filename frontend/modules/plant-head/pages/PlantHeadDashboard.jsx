@@ -10,6 +10,7 @@ import {
   FileCheck, RotateCcw, Wrench, Activity, DollarSign
 } from 'lucide-react';
 import { backendFetch } from '../../../lib/backendFetch';
+import { hasManufacturingItems } from './PlantHeadPortal';
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend
 } from 'recharts';
@@ -112,7 +113,7 @@ export const PlantHeadDashboard = () => {
       }
 
       if (incomingRes.status === 'fulfilled' && Array.isArray(incomingRes.value)) {
-        setIncomingOrders(incomingRes.value);
+        setIncomingOrders(incomingRes.value.filter(hasManufacturingItems));
       }
       setLoadingTarget(false);
 

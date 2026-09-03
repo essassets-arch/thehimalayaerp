@@ -155,6 +155,39 @@ const _selectPendingQuotations = (store: ERPStoreState): SalesQuotation[] =>
 const _selectSalesOrders = (store: ERPStoreState): SalesOrder[] =>
   getSales(store).orders;
 
+function isTradingProductItem(item: any): boolean {
+  if (!item) return false;
+  const pType = String(item.productType || item.product_type || item.product?.productType || item.product?.product_type || '').toUpperCase();
+  if (pType === 'TRADING') return true;
+  if (item.isTrading === true || item.product?.isTrading === true) return true;
+
+  const cat = String(item.category || item.product_family || item.product?.category || item.product?.product_family || '').toLowerCase();
+  if (cat.includes('trading') || cat.includes('rcc pipe') || cat.includes('frc cover') || cat.includes('coverblock') || cat.includes('others')) return true;
+
+  const name = String(item.productName || item.product_name || item.name || item.product?.name || item.productNameSnapshot || '').toUpperCase();
+  if (name.startsWith('FRCCP') || name.startsWith('FRCT') || name.startsWith('BTCB') || name.startsWith('WCB') || name.startsWith('DTCB') || name.includes('FRC COVER') || name.includes('RCC PIPE')) return true;
+
+  const sku = String(item.sku || item.productSku || item.product_sku || item.productCode || item.product?.sku || '').toUpperCase();
+  if (sku.startsWith('FRCCP') || sku.startsWith('FRCT') || sku.startsWith('BTCB') || sku.startsWith('WCB') || sku.startsWith('DTCB')) return true;
+
+  const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || '').toUpperCase();
+  if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('CAT 2') || dCat.includes('CATEGORY 2')) return true;
+
+  return false;
+}
+
+function hasManufacturingProducts(order: any): boolean {
+  if (!order) return false;
+  const rawItems = Array.isArray(order.detailedItems) && order.detailedItems.length
+    ? order.detailedItems
+    : (Array.isArray(order.items) && order.items.length ? order.items : []);
+  
+  if (rawItems.length === 0) {
+    return !isTradingProductItem(order);
+  }
+  return rawItems.some((it: any) => !isTradingProductItem(it));
+}
+
 /**
  * Plant Head incoming orders: orders with planningStatus === 'PENDING_ACCEPTANCE'.
  */
@@ -170,6 +203,7 @@ const _selectPlantHeadIncomingOrders = (store: ERPStoreState) => {
       normalizeStatus(o.planningStatus) === 'PENDING_ACCEPTANCE'
     )
     .filter((o: any) => !['ACCEPTED', 'REJECTED'].includes(normalizeStatus(o.plantHeadStatus)))
+    .filter((o: any) => hasManufacturingProducts(o))
     .map(toPlantHeadSafeView);
 };
 
@@ -180,6 +214,7 @@ const _selectPlantHeadPlanningOrders = (store: ERPStoreState) => {
   const { orders } = getSales(store);
   return orders
     .filter((o) => o.planningStatus === 'PLANT_HEAD_ACCEPTED')
+    .filter((o: any) => hasManufacturingProducts(o))
     .map(toPlantHeadSafeView);
 };
 
@@ -194,6 +229,7 @@ const _selectProductionIncomingOrders = (store: ERPStoreState) => {
         o.planningStatus === 'PRODUCTION_PLANNED' &&
         (o.productionStatus === 'NOT_STARTED' || !o.productionStatus)
     )
+    .filter((o: any) => hasManufacturingProducts(o))
     .map(toProductionSafeView);
 };
 
@@ -206,6 +242,7 @@ const _selectProductionWorkOrders = (store: ERPStoreState) => {
         o.planningStatus === 'PRODUCTION_PLANNED' ||
         ['WORK_ORDER_CREATED', 'PRODUCTION_ACCEPTED', 'IN_PRODUCTION', 'PAUSED', 'REWORK', 'PRODUCTION_COMPLETED', 'QC_PENDING'].includes(o.productionStatus)
     )
+    .filter((o: any) => hasManufacturingProducts(o))
     .map(toProductionSafeView);
 };
 

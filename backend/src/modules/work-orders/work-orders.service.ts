@@ -20,19 +20,54 @@ export class WorkOrdersService {
     const scope = getSalesScope(userId, role, 'WorkOrder');
     const where: any = { ...scope };
     if (statuses && statuses.length > 0) {
-      where.OR = [
-        { status: { in: statuses } },
-        { productionStatus: { in: statuses } },
-      ];
+      const validStatuses = statuses.filter((s) =>
+        [
+          'CREATED',
+          'MATERIAL_PENDING',
+          'READY',
+          'CANCELLED',
+          'STARTED',
+          'PARTIALLY_COMPLETED',
+          'COMPLETED',
+          'QC_PENDING',
+          'QC_APPROVED',
+          'READY_FOR_DISPATCH',
+          'DISPATCHED',
+          'CLOSED',
+        ].includes(s),
+      );
+
+      const validProdStatuses = statuses.filter((s) =>
+        [
+          'IN_PRODUCTION',
+          'QC_PENDING',
+          'QC_FAILED',
+          'REWORK_IN_PROGRESS',
+          'READY_FOR_DISPATCH',
+          'DISPATCHED',
+        ].includes(s),
+      );
+
+      const orConditions: any[] = [];
+      if (validProdStatuses.length > 0) {
+        orConditions.push({ productionStatus: { in: validProdStatuses } });
+      }
+      if (validStatuses.length > 0) {
+        orConditions.push({ status: { in: validStatuses } });
+      }
+
       if (
         statuses.includes('READY_FOR_DISPATCH') ||
         statuses.includes('SENT_TO_DISPATCH')
       ) {
-        where.OR.push(
-          { status: 'SENT_TO_DISPATCH' },
-          { productionStatus: 'SENT_TO_DISPATCH' },
+        orConditions.push(
+          { status: 'READY_FOR_DISPATCH' },
+          { productionStatus: 'READY_FOR_DISPATCH' },
           { sentToDispatchAt: { not: null } },
         );
+      }
+      if (orConditions.length > 0) {
+        where.OR = orConditions;
       }
     }
 

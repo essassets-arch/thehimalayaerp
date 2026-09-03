@@ -263,6 +263,22 @@ export function getAdvancedScope(
   return {};
 }
 
+export function getCustomerSalesScope(
+  userId?: string,
+  role?: string,
+): Record<string, any> {
+  if (!isSalespersonScopedRole(role)) return {};
+  if (!userId)
+    throw new UnauthorizedException('User ID required for sales scoping');
+  return {
+    OR: [
+      { createdById: userId },
+      { salesOrders: { some: { OR: [{ salesExecutiveId: userId }, { createdById: userId }] } } },
+      { sampleRequests: { some: { OR: [{ salesExecutiveId: userId }, { createdById: userId }] } } },
+    ],
+  };
+}
+
 export function getSalesScope(
   userId?: string,
   role?: string,
@@ -319,7 +335,7 @@ export function getSalesScope(
     return getWorkOrderSalesScope(userId, role);
   }
   if (targetModel === 'Customer') {
-    return { createdById: userId };
+    return getCustomerSalesScope(userId, role);
   }
   if (targetModel === 'createdById') {
     return { createdById: userId };

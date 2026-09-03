@@ -32,6 +32,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
+import { useERPStore } from '@/store/erpStore';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import './CustomerComplaints.css';
 
@@ -396,10 +397,62 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
         body: { adminRemarks: 'Approved by Plant Head' },
       });
 
+      // Update in-memory ERP store and localStorage
+      const store = useERPStore.getState();
+      const targetOrderId = complaint.order?.id || complaint.orderId;
+      const targetOrderNo = complaint.order?.orderNumber || complaint.orderNo;
+
+      if (store?.state?.sales?.orders) {
+        const orderItem = store.state.sales.orders.find(o =>
+          [o.id, o.orderNo, o.orderNumber, o.order_number].filter(Boolean).some(r =>
+            String(r).toLowerCase() === String(targetOrderId).toLowerCase() ||
+            String(r).toLowerCase() === String(targetOrderNo).toLowerCase()
+          )
+        );
+        if (orderItem) {
+          orderItem.status = 'LOST';
+          orderItem.orderStatus = 'LOST';
+          orderItem.workflowStatus = 'LOST';
+          orderItem.workflowStateCode = 'LOST';
+          orderItem.lostReason = `Customer Complaint Approved: ${complaint.subject || complaint.complaintType || 'Quality Issue'}`;
+          orderItem.lostComplaintId = complaint.complaintNo;
+          orderItem.lostAt = new Date().toISOString();
+        }
+      }
+
+      try {
+        const raw = localStorage.getItem('himalaya_erp_store');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const updateInArr = (arr) => {
+            if (!Array.isArray(arr)) return;
+            arr.forEach(o => {
+              if (
+                [o.id, o.orderNo, o.orderNumber, o.order_number].filter(Boolean).some(r =>
+                  String(r).toLowerCase() === String(targetOrderId).toLowerCase() ||
+                  String(r).toLowerCase() === String(targetOrderNo).toLowerCase()
+                )
+              ) {
+                o.status = 'LOST';
+                o.orderStatus = 'LOST';
+                o.workflowStatus = 'LOST';
+                o.workflowStateCode = 'LOST';
+                o.lostReason = `Customer Complaint Approved: ${complaint.subject || complaint.complaintType || 'Quality Issue'}`;
+                o.lostComplaintId = complaint.complaintNo;
+                o.lostAt = new Date().toISOString();
+              }
+            });
+          };
+          updateInArr(parsed?.state?.sales?.orders);
+          updateInArr(parsed?.sales?.orders);
+          localStorage.setItem('himalaya_erp_store', JSON.stringify(parsed));
+        }
+      } catch (e) {}
+
       Swal.fire({
         icon: 'success',
         title: 'Complaint Approved',
-        text: `Order ${orderNo} marked as LOST and sales values adjusted.`,
+        text: `Order ${orderNo} marked as LOST and moved to Lost Orders.`,
         timer: 2200,
         showConfirmButton: false,
       });

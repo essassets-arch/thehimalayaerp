@@ -203,12 +203,34 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
 
   const [selectedReplacementForHistory, setSelectedReplacementForHistory] = useState(null);
 
+  // Dedicated State for Ship Replacement Modal
+  const [activeShipReplacement, setActiveShipReplacement] = useState(null);
+  const [shipVehicle, setShipVehicle] = useState('');
+  const [shipLrNumber, setShipLrNumber] = useState('');
+  const [shipDriver, setShipDriver] = useState('');
+  const [shipTransport, setShipTransport] = useState('Himalaya Logistics');
+  const [shipDispatchDate, setShipDispatchDate] = useState(new Date().toISOString().slice(0, 10));
+  const [shipExpectedDelivery, setShipExpectedDelivery] = useState('');
+  const [shipErrors, setShipErrors] = useState({});
+  const [isSubmittingShip, setIsSubmittingShip] = useState(false);
+
+  // Dedicated State for Deliver Replacement Modal
+  const [activeDeliverReplacement, setActiveDeliverReplacement] = useState(null);
+  const [repReceiverName, setRepReceiverName] = useState('');
+  const [repReceiverPhone, setRepReceiverPhone] = useState('');
+  const [repDeliveryRemarks, setRepDeliveryRemarks] = useState('');
+  const [repPodFile, setRepPodFile] = useState(null);
+  const [repPodFileName, setRepPodFileName] = useState('');
+  const [repPodPreview, setRepPodPreview] = useState('');
+  const [repDeliverErrors, setRepDeliverErrors] = useState({});
+  const [isSubmittingDeliverRep, setIsSubmittingDeliverRep] = useState(false);
+
   const fetchReplacementDispatches = async () => {
     setReplacementLoading(true);
     try {
       const records = await backendFetch('/api/backend/replacements');
       setReplacementDispatches((records || [])
-        .filter((record) => record.status === 'APPROVED' || record.dispatchStatus === 'APPROVED' || record.dispatchStatus === 'DISPATCHED' || record.dispatchStatus === 'IN_TRANSIT' || record.dispatchStatus === 'DELIVERED')
+        .filter((record) => ['APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(record.status) || ['APPROVED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED'].includes(record.dispatchStatus))
         .map((record) => ({
           ...record,
           request_no: record.requestNumber || record.id,
@@ -2202,6 +2224,26 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       ? value.map(item => typeof item === 'string' ? item : item.productName || item.product_name || item.name).filter(Boolean).join(', ')
       : value;
 
+    const backendDispatchesMapped = (backendDispatches || []).map((d) => {
+      const order = orders.find((o) => o.orderNo === d.orderNumber || o.id === d.salesOrderId || d.salesOrder?.orderNumber === o.orderNo);
+      const items = d.items || [];
+      const prodText = items.map((i) => i.productName || i.salesOrderItem?.product?.name || i.name).filter(Boolean).join(', ') || d.salesOrder?.items?.[0]?.product?.name || 'Finished Goods';
+      const totalQty = items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0) || Number(d.quantity || 1);
+      return {
+        id: d.dispatchNumber || d.id,
+        orderNo: d.salesOrder?.orderNumber || d.orderNumber || order?.orderNo || `SO-${String(d.salesOrderId || '').slice(-6)}`,
+        type: 'Sales Order',
+        customerName: d.salesOrder?.customer?.companyName || d.salesOrder?.customer?.name || order?.customerName || 'Consignee',
+        product: prodText,
+        vehicleNo: d.vehicleNumber || d.vehicleNo || '—',
+        quantity: totalQty,
+        unit: 'Pcs',
+        status: d.status === 'DELIVERED' ? 'Delivered' : (d.status === 'IN_TRANSIT' || d.status === 'OUT_FOR_DELIVERY' ? 'In Transit' : d.status || 'Dispatched'),
+        date: d.dispatchDate ? String(d.dispatchDate).split('T')[0] : (d.createdAt ? String(d.createdAt).split('T')[0] : '—'),
+        _raw: d,
+      };
+    });
+
     const orderDispatchesMapped = dispatches.map(d => {
       const order = orders.find(o => o.orderNo === d.orderNo || String(o.id) === String(d.orderId || d.order_id || d.sales_order_id));
       return {
@@ -2219,7 +2261,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       };
     });
 
-    const existingOrderRefs = new Set(orderDispatchesMapped.map(row => String(row.orderNo)));
+    const existingOrderRefs = new Set([...backendDispatchesMapped, ...orderDispatchesMapped].map(row => String(row.orderNo)));
     const deliveredOrdersMapped = orders.filter(order => {
       const statuses = [order.status, order.workflowStatus, order.orderStatus, order.dispatch?.status].map(value => String(value || '').toUpperCase().replaceAll(' ', '_'));
       const ref = String(order.orderNo || order.order_no || order.public_id || order.id);
@@ -2265,7 +2307,15 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       date: r.delivery_date || r.dispatch_date || r.updated_at || r.created_at || '-', _raw: r
     }));
 
-    const allHistory = [...orderDispatchesMapped, ...deliveredOrdersMapped, ...sampleDispatchesMapped, ...sampleReturnsMapped, ...replacementsMapped]
+    const orderHistoryMap = new Map();
+    [...backendDispatchesMapped, ...orderDispatchesMapped, ...deliveredOrdersMapped].forEach((item) => {
+      if (item && item.id && !orderHistoryMap.has(item.id)) {
+        orderHistoryMap.set(item.id, item);
+      }
+    });
+    const combinedSalesOrders = Array.from(orderHistoryMap.values());
+
+    const allHistory = [...combinedSalesOrders, ...sampleDispatchesMapped, ...sampleReturnsMapped, ...replacementsMapped]
       .sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
     const unifiedHistory = historyFilter === 'All' ? allHistory : allHistory.filter(row => row.type === historyFilter);
     const badgeStyles = {
@@ -3531,116 +3581,119 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     );
   };
 
-  const handleShipReplacement = async (row) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const { value } = await Swal.fire({
-      title: `Ship ${row.request_no}`,
-      html: `
-        <div style="text-align:left; display:flex; flex-direction:column; gap:10px; font-size:13px;">
-          <label style="font-weight:800;">Vehicle</label>
-          <input id="rep-vehicle" class="swal2-input" style="margin:0; width:100%;" />
-          <label style="font-weight:800;">LR Number</label>
-          <input id="rep-lr" class="swal2-input" style="margin:0; width:100%;" />
-          <label style="font-weight:800;">Driver</label>
-          <input id="rep-driver" class="swal2-input" style="margin:0; width:100%;" />
-          <label style="font-weight:800;">Transport</label>
-          <input id="rep-transport" class="swal2-input" style="margin:0; width:100%;" />
-          <label style="font-weight:800;">Dispatch Date</label>
-          <input id="rep-dispatch-date" type="date" value="${today}" class="swal2-input" style="margin:0; width:100%;" />
-          <label style="font-weight:800;">Expected Delivery</label>
-          <input id="rep-expected-date" type="date" class="swal2-input" style="margin:0; width:100%;" />
-        </div>
-      `,
-      showCancelButton: true,
-      confirmButtonText: 'Ship',
-      preConfirm: () => ({
-        dispatchStatus: 'DISPATCHED',
-        vehicleNumber: document.getElementById('rep-vehicle').value.trim(),
-        lrNumber: document.getElementById('rep-lr').value.trim(),
-        driverName: document.getElementById('rep-driver').value.trim(),
-        transportCompany: document.getElementById('rep-transport').value.trim(),
-        dispatchDate: document.getElementById('rep-dispatch-date').value,
-        expectedDeliveryDate: document.getElementById('rep-expected-date').value || null
-      })
-    });
-    if (!value) return;
-    await backendFetch(`/api/backend/replacements/${row.id}/dispatch`, { method: 'PATCH', body: value });
-    showToast?.('Replacement dispatched.');
-    fetchReplacementDispatches();
+  const openShipReplacementModal = (row) => {
+    setActiveShipReplacement(row);
+    setShipVehicle(row.vehicle_number || '');
+    setShipLrNumber(row.lr_number || '');
+    setShipDriver(row.driver_name || '');
+    setShipTransport(row.transport_company || 'Himalaya Logistics');
+    setShipDispatchDate(new Date().toISOString().slice(0, 10));
+    setShipExpectedDelivery(row.expected_delivery ? String(row.expected_delivery).slice(0, 10) : '');
+    setShipErrors({});
   };
 
-  const handleDeliverReplacement = async (row) => {
-    const { value } = await Swal.fire({
-      title: `Deliver ${row.request_no}`,
-      html: `
-        <div style="display:flex; flex-direction:column; gap:16px;">
-          <div id="upload-area" style="border: 2px dashed var(--color-border); border-radius: 8px; padding: 32px; text-align: center; cursor: pointer; position: relative; transition: all 0.2s ease; background: var(--color-background-subtle);">
-            <input id="rep-pod" type="file" accept="image/jpeg,image/png,image/webp" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;" />
-            
-            <div id="upload-placeholder" style="display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-text-secondary);"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-              <div style="font-size: 14px; font-weight: 600; color: var(--color-text-primary);">Click to upload delivery proof</div>
-              <div style="font-size: 12px; color: var(--color-text-secondary);">JPG, PNG or WebP (max. 5MB)</div>
-            </div>
-            
-            <img id="upload-preview" src="" style="display: none; max-width: 100%; max-height: 200px; border-radius: 4px; margin: 0 auto; object-fit: contain; pointer-events: none;" />
-          </div>
-        </div>
-      `,
-      showCancelButton: true,
-      confirmButtonText: 'Confirm Delivery',
-      didOpen: () => {
-        const input = document.getElementById('rep-pod');
-        const preview = document.getElementById('upload-preview');
-        const placeholder = document.getElementById('upload-placeholder');
-        const area = document.getElementById('upload-area');
-        
-        input.addEventListener('change', (e) => {
-          const file = e.target.files[0];
-          if (file) {
-            const url = URL.createObjectURL(file);
-            preview.src = url;
-            preview.style.display = 'block';
-            placeholder.style.display = 'none';
-            area.style.padding = '8px';
-            area.style.borderStyle = 'solid';
-            area.style.borderColor = 'var(--color-primary)';
-          } else {
-            preview.src = '';
-            preview.style.display = 'none';
-            placeholder.style.display = 'flex';
-            area.style.padding = '32px';
-            area.style.borderStyle = 'dashed';
-            area.style.borderColor = 'var(--color-border)';
-          }
-        });
-      },
-      preConfirm: () => {
-        const proofFile = document.getElementById('rep-pod').files?.[0];
-        if (!proofFile) {
-          Swal.showValidationMessage('Delivery proof image is required.');
-          return false;
-        }
-        return { proofFile };
-      }
-    });
-    if (!value) return;
+  const closeShipReplacementModal = () => {
+    setActiveShipReplacement(null);
+    setShipErrors({});
+  };
+
+  const handleShipReplacementSubmit = async (e) => {
+    e.preventDefault();
+    const errors = {};
+    if (!shipVehicle.trim()) errors.vehicle = 'Vehicle number is required';
+    if (!shipLrNumber.trim()) errors.lrNumber = 'LR Number is required';
+    if (!shipDriver.trim()) errors.driver = 'Driver name is required';
+    if (!shipTransport.trim()) errors.transport = 'Transport company is required';
+    if (!shipDispatchDate) errors.dispatchDate = 'Dispatch date is required';
+    if (!shipExpectedDelivery) errors.expectedDelivery = 'Expected delivery date is required';
+
+    if (Object.keys(errors).length > 0) {
+      setShipErrors(errors);
+      return;
+    }
+
+    setIsSubmittingShip(true);
     try {
-      const upload = new FormData();
-      upload.append('file', value.proofFile);
-      upload.append('category', 'pod');
-      const uploadResponse = await fetch('/api/upload', { method: 'POST', body: upload });
-      if (!uploadResponse.ok) throw new Error((await uploadResponse.json()).message || 'Delivery proof upload failed');
-      const uploaded = await uploadResponse.json();
-      await backendFetch(`/api/backend/replacements/${row.id}/deliver`, {
+      await backendFetch(`/api/backend/replacements/${activeShipReplacement.id}/dispatch`, {
         method: 'PATCH',
-        body: { ...value, proofFile: undefined, proofUrl: uploaded.url },
+        body: {
+          dispatchStatus: 'DISPATCHED',
+          vehicleNumber: shipVehicle.trim(),
+          lrNumber: shipLrNumber.trim(),
+          driverName: shipDriver.trim(),
+          transportCompany: shipTransport.trim(),
+          dispatchDate: shipDispatchDate,
+          expectedDeliveryDate: shipExpectedDelivery
+        }
       });
-      showToast?.('Replacement delivered.');
-      fetchReplacementDispatches();
+      showToast?.(`Replacement ${activeShipReplacement.request_no} dispatched successfully.`);
+      closeShipReplacementModal();
+      await fetchReplacementDispatches();
+      navigate.push(`${basePath}/replacements?status=in-transit`);
+    } catch (err) {
+      console.error('Replacement dispatch failed:', err);
+      showToast?.(err?.message || 'Failed to dispatch replacement.');
+    } finally {
+      setIsSubmittingShip(false);
+    }
+  };
+
+  const openDeliverReplacementModal = (row) => {
+    setActiveDeliverReplacement(row);
+    setRepReceiverName(row.customer_name || '');
+    setRepReceiverPhone(row.customer_phone || '');
+    setRepDeliveryRemarks('');
+    setRepPodFile(null);
+    setRepPodFileName('');
+    setRepPodPreview('');
+    setRepDeliverErrors({});
+  };
+
+  const closeDeliverReplacementModal = () => {
+    setActiveDeliverReplacement(null);
+    setRepDeliverErrors({});
+  };
+
+  const handleDeliverReplacementSubmit = async (e) => {
+    e.preventDefault();
+    if (!repPodFile && !repPodPreview) {
+      setRepDeliverErrors({ pod: 'Proof of Delivery (POD) photo or document is required' });
+      return;
+    }
+
+    setIsSubmittingDeliverRep(true);
+    try {
+      let uploadedUrl = '';
+      if (repPodFile) {
+        const upload = new FormData();
+        upload.append('file', repPodFile);
+        upload.append('category', 'pod');
+        const uploadResponse = await fetch('/api/upload', { method: 'POST', body: upload });
+        if (uploadResponse.ok) {
+          const upJson = await uploadResponse.json();
+          uploadedUrl = upJson.url || upJson.filePath;
+        }
+      }
+
+      await backendFetch(`/api/backend/replacements/${activeDeliverReplacement.id}/deliver`, {
+        method: 'PATCH',
+        body: {
+          proofUrl: uploadedUrl || repPodPreview,
+          receiverName: repReceiverName.trim(),
+          receiverPhone: repReceiverPhone.trim(),
+          deliveryRemarks: repDeliveryRemarks.trim(),
+          deliveredAt: new Date().toISOString()
+        }
+      });
+      showToast?.(`Replacement ${activeDeliverReplacement.request_no} delivered successfully.`);
+      closeDeliverReplacementModal();
+      await fetchReplacementDispatches();
+      navigate.push(`${basePath}/replacements?status=history`);
     } catch (err) {
       console.error('Delivery confirmation failed:', err);
       showToast?.(err?.message || 'Failed to confirm delivery.');
+    } finally {
+      setIsSubmittingDeliverRep(false);
     }
   };
 
@@ -3649,8 +3702,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       await backendFetch(`/api/backend/replacements/${row.id}/in-transit`, {
         method: 'PATCH',
       });
-      showToast?.('Replacement delivery started.');
-      fetchReplacementDispatches();
+      showToast?.(`Replacement ${row.request_no} delivery route started.`);
+      await fetchReplacementDispatches();
       navigate.push(`${basePath}/replacements?status=delivered`);
     } catch (err) {
       console.error('Failed to start replacement delivery', err);
@@ -3668,19 +3721,22 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
 
     const inTransitList = replacementDispatches.filter(row => {
       const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
-      return status === 'DISPATCHED' || status === 'IN TRANSIT' || status === 'APPROVED' || status === 'READY FOR DISPATCH';
+      return status === 'DISPATCHED';
     });
 
     const deliveredList = replacementDispatches.filter(row => {
       const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
-      return status === 'IN TRANSIT' || status === 'DELIVERED';
+      return status === 'IN TRANSIT' || status === 'OUT FOR DELIVERY';
     });
 
-    const historyList = replacementDispatches;
+    const historyList = replacementDispatches.filter(row => {
+      const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
+      return status === 'DELIVERED' || status === 'COMPLETED';
+    });
 
     let filteredReplacementDispatches = [];
     if (replacementFilter === 'all' || replacementFilter === 'history') {
-      filteredReplacementDispatches = historyList;
+      filteredReplacementDispatches = replacementDispatches;
     } else if (replacementFilter === 'delivered') {
       filteredReplacementDispatches = deliveredList;
     } else if (replacementFilter === 'in-transit') {
@@ -3694,26 +3750,30 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
         {/* Header Title */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: 'var(--color-text-primary)' }}>Replacement Dispatch Management</h2>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
+              <ShieldCheck size={14} /> Replacement Logistics &amp; Fulfillment
+            </div>
+            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: 'var(--color-text-primary)' }}>Replacement Dispatch Queue</h2>
             <p style={{ margin: '4px 0 0', color: 'var(--color-text-secondary)', fontSize: '13px' }}>
-              Track approved customer replacements, create transit manifests, and monitor delivery confirmation.
+              Manage approved customer replacements, create transport bookings with LR numbers, and verify proof of delivery.
             </p>
           </div>
           <button
             onClick={fetchReplacementDispatches}
             disabled={replacementLoading}
             style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
+              padding: '9px 18px',
+              borderRadius: '10px',
               border: '1px solid var(--color-border)',
               background: '#FFFFFF',
-              color: 'var(--color-text-secondary)',
+              color: 'var(--color-text-primary)',
               fontSize: '13px',
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px'
+              gap: '6px',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
             }}
           >
             <Clock size={14} className={replacementLoading ? 'animate-spin' : ''} />
@@ -3726,8 +3786,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           {[
             { id: 'pending', label: 'Pending Dispatch', count: pendingList.length },
             { id: 'in-transit', label: 'In Transit', count: inTransitList.length },
-            { id: 'delivered', label: 'Delivered', count: deliveredList.length },
-            { id: 'history', label: 'History', count: historyList.length },
+            { id: 'delivered', label: 'Out for Delivery / POD', count: deliveredList.length },
+            { id: 'history', label: 'All History', count: replacementDispatches.length },
           ].map((tab) => {
             const isActive = (dispatchStatusParam || 'pending') === tab.id;
             return (
@@ -3780,11 +3840,9 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                 <thead>
                   <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569', fontWeight: 700 }}>
                     <th style={{ padding: '12px 14px' }}>Replacement No</th>
-                    <th style={{ padding: '12px 14px' }}>Order Ref</th>
-                    <th style={{ padding: '12px 14px' }}>Customer</th>
-                    <th style={{ padding: '12px 14px' }}>Product</th>
-                    <th style={{ padding: '12px 14px', textAlign: 'center' }}>Qty</th>
-                    <th style={{ padding: '12px 14px' }}>Vehicle / LR</th>
+                    <th style={{ padding: '12px 14px' }}>Customer &amp; Order</th>
+                    <th style={{ padding: '12px 14px' }}>Product &amp; Qty</th>
+                    <th style={{ padding: '12px 14px' }}>Logistics &amp; Vehicle</th>
                     <th style={{ padding: '12px 14px' }}>Status</th>
                     <th style={{ padding: '12px 14px', textAlign: 'right' }}>Actions</th>
                   </tr>
@@ -3792,7 +3850,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                 <tbody>
                   {filteredReplacementDispatches.length === 0 ? (
                     <tr>
-                      <td colSpan="8" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-text-muted)' }}>
+                      <td colSpan="6" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-text-muted)' }}>
                         <div style={{ fontSize: '28px', marginBottom: '8px' }}>📦</div>
                         <strong style={{ display: 'block', fontSize: '14px', color: '#334155' }}>No records found</strong>
                         <span style={{ fontSize: '12px', color: '#64748B' }}>No replacement items currently in this tab.</span>
@@ -3800,28 +3858,63 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                     </tr>
                   ) : filteredReplacementDispatches.map(row => (
                     <tr key={row.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '12px 14px', fontWeight: 800, fontFamily: 'monospace', color: '#1E3A8A' }}>
-                        {row.request_no}
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 800, fontFamily: 'monospace', color: '#1E3A8A', fontSize: '13.5px' }}>
+                          {row.request_no}
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#64748B' }}>
+                          {row.requestedAt ? String(row.requestedAt).slice(0, 10) : '—'}
+                        </span>
                       </td>
-                      <td style={{ padding: '12px 14px', color: '#334155', fontWeight: 600 }}>
-                        {row.order_number}
-                      </td>
-                      <td style={{ padding: '12px 14px', fontWeight: 700, color: '#0F172A' }}>
-                        {row.customer_name}
-                      </td>
-                      <td style={{ padding: '12px 14px', color: '#475569' }}>
-                        {row.product_name}
-                      </td>
-                      <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 800, color: '#2563EB' }}>
-                        {row.approved_qty}
-                      </td>
-                      <td style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>
-                        {row.vehicle_number ? (
-                          <div>
-                            <strong style={{ color: '#0F172A' }}>{row.vehicle_number}</strong>
-                            {row.lr_number && <div style={{ fontSize: '11px', color: '#64748B' }}>LR: {row.lr_number}</div>}
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 800, color: '#0F172A' }}>
+                          {row.customer_name}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#475569', marginTop: '2px' }}>
+                          Order Ref: <strong style={{ color: '#2563EB' }}>{row.order_number}</strong>
+                        </div>
+                        {row.customer_phone && row.customer_phone !== '—' && (
+                          <div style={{ fontSize: '11px', color: '#64748B' }}>
+                            Tel: {row.customer_phone}
                           </div>
-                        ) : '—'}
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 700, color: '#0F172A' }}>
+                          {row.product_name}
+                        </div>
+                        <span style={{
+                          display: 'inline-block',
+                          background: '#EFF6FF',
+                          color: '#1D4ED8',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11.5px',
+                          fontWeight: 800,
+                          marginTop: '3px'
+                        }}>
+                          {row.approved_qty} Units Approved
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: '12px' }}>
+                        {row.vehicle_number ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <div>
+                              <strong style={{ color: '#0F172A' }}>{row.vehicle_number}</strong>
+                              {row.lr_number && <span style={{ color: '#64748B', marginLeft: '6px' }}>(LR: {row.lr_number})</span>}
+                            </div>
+                            <div style={{ color: '#475569', fontSize: '11.5px' }}>
+                              Driver: {row.driver_name || '—'} · Carrier: {row.transport_company || 'Himalaya'}
+                            </div>
+                            {row.dispatch_date && (
+                              <div style={{ color: '#64748B', fontSize: '11px' }}>
+                                Dispatched: {String(row.dispatch_date).slice(0, 10)} {row.expected_delivery ? `· ETA: ${String(row.expected_delivery).slice(0, 10)}` : ''}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ color: '#94A3B8' }}>Awaiting Transport Allocation</span>
+                        )}
                       </td>
                       <td style={{ padding: '12px 14px' }}>
                         <StatusBadge status={row.dispatch_status || row.status} />
@@ -3829,41 +3922,82 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                       <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                           {/* Workflow Primary Actions */}
-                          {replacementFilter === 'pending' && !['DISPATCHED', 'IN_TRANSIT', 'DELIVERED'].includes(row.dispatch_status) && (
+                          {(!row.dispatch_status || ['APPROVED', 'READY_FOR_DISPATCH'].includes(row.dispatch_status)) && row.status === 'APPROVED' && (
                             <button
-                              className="btn-small btn-outline-small"
-                              onClick={() => handleShipReplacement(row)}
-                              style={{ fontWeight: 700, borderColor: '#2563EB', color: '#2563EB' }}
+                              type="button"
+                              onClick={() => openShipReplacementModal(row)}
+                              style={{
+                                padding: '7px 14px',
+                                borderRadius: '8px',
+                                background: '#2563EB',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                fontWeight: 800,
+                                fontSize: '12.5px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)'
+                              }}
                             >
-                              Create Dispatch
-                            </button>
-                          )}
-                          {replacementFilter === 'in-transit' && ['DISPATCHED', 'APPROVED', 'READY_FOR_DISPATCH'].includes(row.dispatch_status) && (
-                            <button
-                              className="btn-small btn-outline-small"
-                              onClick={() => handleStartReplacementDelivery(row)}
-                              style={{ fontWeight: 700, borderColor: '#16A34A', color: '#16A34A' }}
-                            >
-                              Start Delivery
-                            </button>
-                          )}
-                          {replacementFilter === 'delivered' && row.dispatch_status === 'IN_TRANSIT' && (
-                            <button
-                              className="btn-small btn-outline-small"
-                              onClick={() => handleDeliverReplacement(row)}
-                              style={{ fontWeight: 700, background: '#16A34A', color: '#FFFFFF', border: 'none' }}
-                            >
-                              Confirm Delivery
+                              <Truck size={14} /> Ship Replacement
                             </button>
                           )}
 
-                          {/* Individual History Action Button */}
+                          {row.dispatch_status === 'DISPATCHED' && (
+                            <button
+                              type="button"
+                              onClick={() => handleStartReplacementDelivery(row)}
+                              style={{
+                                padding: '7px 14px',
+                                borderRadius: '8px',
+                                background: '#16A34A',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                fontWeight: 800,
+                                fontSize: '12.5px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)'
+                              }}
+                            >
+                              <Truck size={14} /> Start Delivery
+                            </button>
+                          )}
+
+                          {row.dispatch_status === 'IN_TRANSIT' && (
+                            <button
+                              type="button"
+                              onClick={() => openDeliverReplacementModal(row)}
+                              style={{
+                                padding: '7px 14px',
+                                borderRadius: '8px',
+                                background: '#059669',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                fontWeight: 800,
+                                fontSize: '12.5px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)'
+                              }}
+                            >
+                              <FileCheck size={14} /> Confirm Delivery
+                            </button>
+                          )}
+
+                          {/* Individual History Timeline Action Button */}
                           <button
                             type="button"
                             onClick={() => setSelectedReplacementForHistory(row)}
                             style={{
-                              padding: '5px 10px',
-                              borderRadius: '6px',
+                              padding: '6px 12px',
+                              borderRadius: '8px',
                               border: '1px solid #CBD5E1',
                               background: '#F8FAFC',
                               color: '#334155',
@@ -4524,6 +4658,520 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             setSelectedDispatchForBill(null);
           }}
         />
+      )}
+
+      {/* Ship Replacement Consignment Modal */}
+      {activeShipReplacement && (
+        <div
+          className="modal-overlay active"
+          onClick={closeShipReplacementModal}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+        >
+          <div
+            className="modal-box"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '560px',
+              maxWidth: 'calc(100vw - 32px)',
+              borderRadius: '16px',
+              padding: '24px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Truck size={20} color="#2563EB" />
+                  Ship {activeShipReplacement.request_no}
+                </h3>
+                <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
+                  Enter transport manifest details to dispatch this replacement
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={closeShipReplacementModal}
+                style={{
+                  background: '#F1F5F9',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '30px',
+                  height: '30px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#64748B'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Consignment Context Preview */}
+            <div style={{
+              background: '#EFF6FF',
+              border: '1px solid #BFDBFE',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              marginBottom: '18px',
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '8px',
+              fontSize: '12.5px'
+            }}>
+              <div>
+                <span style={{ fontSize: '11px', color: '#1E40AF', fontWeight: 700, textTransform: 'uppercase' }}>Customer</span>
+                <div style={{ fontWeight: 800, color: '#1E3A8A', marginTop: '1px' }}>{activeShipReplacement.customer_name}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: '#1E40AF', fontWeight: 700, textTransform: 'uppercase' }}>Order Reference</span>
+                <div style={{ fontWeight: 800, color: '#1E3A8A', marginTop: '1px' }}>{activeShipReplacement.order_number}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: '#1E40AF', fontWeight: 700, textTransform: 'uppercase' }}>Material / Product</span>
+                <div style={{ fontWeight: 700, color: '#1E3A8A', marginTop: '1px' }}>{activeShipReplacement.product_name}</div>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: '#1E40AF', fontWeight: 700, textTransform: 'uppercase' }}>Approved Quantity</span>
+                <div style={{ fontWeight: 800, color: '#1D4ED8', marginTop: '1px' }}>{activeShipReplacement.approved_qty} Units</div>
+              </div>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleShipReplacementSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
+                    Vehicle Number <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={shipVehicle}
+                    onChange={(e) => setShipVehicle(e.target.value)}
+                    placeholder="e.g. UK07CB1234"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${shipErrors.vehicle ? '#EF4444' : '#CBD5E1'}`,
+                      fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {shipErrors.vehicle && <span style={{ color: '#EF4444', fontSize: '11px', fontWeight: 700, marginTop: '2px', display: 'block' }}>{shipErrors.vehicle}</span>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
+                    LR / Bilty Number <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={shipLrNumber}
+                    onChange={(e) => setShipLrNumber(e.target.value)}
+                    placeholder="e.g. LR-99201"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${shipErrors.lrNumber ? '#EF4444' : '#CBD5E1'}`,
+                      fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {shipErrors.lrNumber && <span style={{ color: '#EF4444', fontSize: '11px', fontWeight: 700, marginTop: '2px', display: 'block' }}>{shipErrors.lrNumber}</span>}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
+                    Driver Name <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={shipDriver}
+                    onChange={(e) => setShipDriver(e.target.value)}
+                    placeholder="e.g. Ramesh Kumar"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${shipErrors.driver ? '#EF4444' : '#CBD5E1'}`,
+                      fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {shipErrors.driver && <span style={{ color: '#EF4444', fontSize: '11px', fontWeight: 700, marginTop: '2px', display: 'block' }}>{shipErrors.driver}</span>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
+                    Transport Carrier <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={shipTransport}
+                    onChange={(e) => setShipTransport(e.target.value)}
+                    placeholder="e.g. Himalaya Own Fleet / TCI"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${shipErrors.transport ? '#EF4444' : '#CBD5E1'}`,
+                      fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {shipErrors.transport && <span style={{ color: '#EF4444', fontSize: '11px', fontWeight: 700, marginTop: '2px', display: 'block' }}>{shipErrors.transport}</span>}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
+                    Dispatch Date <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={shipDispatchDate}
+                    onChange={(e) => setShipDispatchDate(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${shipErrors.dispatchDate ? '#EF4444' : '#CBD5E1'}`,
+                      fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {shipErrors.dispatchDate && <span style={{ color: '#EF4444', fontSize: '11px', fontWeight: 700, marginTop: '2px', display: 'block' }}>{shipErrors.dispatchDate}</span>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
+                    Expected Delivery Date <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={shipExpectedDelivery}
+                    onChange={(e) => setShipExpectedDelivery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${shipErrors.expectedDelivery ? '#EF4444' : '#CBD5E1'}`,
+                      fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {shipErrors.expectedDelivery && <span style={{ color: '#EF4444', fontSize: '11px', fontWeight: 700, marginTop: '2px', display: 'block' }}>{shipErrors.expectedDelivery}</span>}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px', borderTop: '1px solid #E2E8F0', paddingTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={closeShipReplacementModal}
+                  disabled={isSubmittingShip}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#475569',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingShip}
+                  style={{
+                    padding: '9px 22px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#2563EB',
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.3)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {isSubmittingShip ? 'Shipping...' : 'Ship'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Deliver Replacement Proof (POD) Modal */}
+      {activeDeliverReplacement && (
+        <div
+          className="modal-overlay active"
+          onClick={closeDeliverReplacementModal}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+        >
+          <div
+            className="modal-box"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '520px',
+              maxWidth: 'calc(100vw - 32px)',
+              borderRadius: '16px',
+              padding: '24px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FileCheck size={20} color="#16A34A" />
+                  Confirm Delivery: {activeDeliverReplacement.request_no}
+                </h3>
+                <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
+                  Upload verified Proof of Delivery (POD) to complete this handover
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={closeDeliverReplacementModal}
+                style={{
+                  background: '#F1F5F9',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '30px',
+                  height: '30px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#64748B'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleDeliverReplacementSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
+                    Receiver Contact Name
+                  </label>
+                  <input
+                    type="text"
+                    value={repReceiverName}
+                    onChange={(e) => setRepReceiverName(e.target.value)}
+                    placeholder="Recipient name"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
+                    Receiver Phone
+                  </label>
+                  <input
+                    type="text"
+                    value={repReceiverPhone}
+                    onChange={(e) => setRepReceiverPhone(e.target.value)}
+                    placeholder="e.g. +91 9876543210"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
+                  Handover Remarks (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={repDeliveryRemarks}
+                  onChange={(e) => setRepDeliveryRemarks(e.target.value)}
+                  placeholder="e.g. Received in good condition at client warehouse"
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #CBD5E1',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Upload Proof Area */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>
+                  Proof of Delivery (POD) Document / Image <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <label
+                  style={{
+                    border: `2px dashed ${repDeliverErrors.pod ? '#EF4444' : repPodPreview ? '#16A34A' : '#CBD5E1'}`,
+                    borderRadius: '12px',
+                    padding: repPodPreview ? '14px' : '22px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    background: repPodPreview ? '#F0FDF4' : '#F8FAFC',
+                    transition: 'all 0.2s ease',
+                    textAlign: 'center'
+                  }}
+                >
+                  {repPodPreview ? (
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <img
+                        src={repPodPreview}
+                        alt="POD Preview"
+                        style={{ maxHeight: '140px', maxWidth: '100%', borderRadius: '6px', objectFit: 'contain' }}
+                      />
+                      <span style={{ fontSize: '12px', color: '#16A34A', fontWeight: 700 }}>{repPodFileName || 'POD Attached'}</span>
+                      <span style={{ fontSize: '11px', color: '#64748B', textDecoration: 'underline' }}>Click to change photo</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
+                        <FileCheck size={20} />
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>Click or drop POD image here</div>
+                      <div style={{ fontSize: '11.5px', color: '#64748B' }}>Supports JPG, PNG, WebP (Max 5MB)</div>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setRepPodFile(file);
+                        setRepPodFileName(file.name);
+                        setRepPodPreview(URL.createObjectURL(file));
+                        setRepDeliverErrors({});
+                      }
+                    }}
+                  />
+                </label>
+                {repDeliverErrors.pod && <span style={{ color: '#EF4444', fontSize: '11px', fontWeight: 700, marginTop: '2px', display: 'block' }}>{repDeliverErrors.pod}</span>}
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px', borderTop: '1px solid #E2E8F0', paddingTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={closeDeliverReplacementModal}
+                  disabled={isSubmittingDeliverRep}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#475569',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingDeliverRep}
+                  style={{
+                    padding: '9px 22px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#16A34A',
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.3)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {isSubmittingDeliverRep ? 'Confirming...' : 'Confirm Delivery'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </>
   );

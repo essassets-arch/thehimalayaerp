@@ -13,8 +13,19 @@ export class ListSalesOrdersQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(500)
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
   pageSize?: number = 25;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  limit?: number;
 
   @IsOptional()
   @IsString()
@@ -24,8 +35,8 @@ export class ListSalesOrdersQueryDto {
   @IsString()
   workflowStateId?: string;
 
-  // Filter by the new unified SalesOrderStatus (replaces the old per-module status fields)
+  // Filter by SalesOrderStatus or comma-separated statuses
   @IsOptional()
-  @IsEnum(SalesOrderStatus)
-  status?: SalesOrderStatus;
+  @IsString()
+  status?: string;
 }

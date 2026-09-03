@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
@@ -11,7 +12,10 @@ import {
   Req,
   Query,
   Headers,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { DispatchService } from './dispatch.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -112,6 +116,48 @@ export class DispatchController {
     @Headers() headers: Record<string, string>,
   ) {
     const { userId } = this.extractAuthData(req, headers);
+    return this.dispatchService.confirmDelivery(id, dto, userId);
+  }
+
+  @Post(':id/deliver')
+  @RequirePermissions(
+    'logistics.dispatches.confirm-delivery',
+    'logistics.dispatches.create',
+    'logistics.dispatches.read',
+  )
+  @UseInterceptors(
+    FileInterceptor('pod', {
+      limits: { fileSize: 25 * 1024 * 1024 },
+    }),
+  )
+  async deliverDispatch(
+    @Param('id') id: string,
+    @Body() body: any,
+    @UploadedFile() file: any,
+    @Req() req: any,
+    @Headers() headers: Record<string, string>,
+  ) {
+    const { userId } = this.extractAuthData(req, headers);
+    let podUrl = body.podUrl || body.podImageUrl;
+    if (file) {
+      const uploadDir = path.join(process.cwd(), 'uploads', 'pod');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const filename = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const filePath = path.join(uploadDir, filename);
+      fs.writeFileSync(filePath, file.buffer);
+      podUrl = `/uploads/pod/${filename}`;
+    }
+
+    const dto: ConfirmDeliveryDto = {
+      receiverName: body.receivedBy || body.receiverName || 'Authorized Receiver',
+      receiverPhone: body.receiverPhone || '',
+      deliveryRemarks: body.deliveryRemarks || '',
+      podImageUrl: podUrl || '/uploads/pod/default-pod.png',
+      deliveredAt: body.deliveredAt ? String(body.deliveredAt) : new Date().toISOString(),
+    };
+
     return this.dispatchService.confirmDelivery(id, dto, userId);
   }
 }

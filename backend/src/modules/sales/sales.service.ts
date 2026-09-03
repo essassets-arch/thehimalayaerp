@@ -41,21 +41,36 @@ export class SalesService {
     userId?: string,
     role?: string,
   ): Promise<SalesOrderListResponseDto> {
-    const { page = 1, pageSize = 100, search, status } = query;
+    const page = Number(query.page || 1);
+    const pageSize = Number(query.pageSize || query.limit || 100);
+    const { search, status } = query;
     const skip = (page - 1) * pageSize;
     const take = pageSize;
+    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
     const isOperationalScope =
-      role === 'DISPATCH_EXECUTIVE' ||
-      role === 'SUPER_ADMIN' ||
-      role === 'ADMIN' ||
-      role === 'PLANT_HEAD' ||
-      role === 'FINANCE_MANAGER' ||
-      role === 'FINANCE_EXECUTIVE';
+      normalizedRole.includes('DISPATCH') ||
+      normalizedRole === 'DISPATCH_EXECUTIVE' ||
+      normalizedRole === 'DISPATCH_2' ||
+      normalizedRole === 'DISPATCH_1' ||
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'ADMIN' ||
+      normalizedRole === 'PLANT_HEAD' ||
+      normalizedRole === 'FINANCE_MANAGER' ||
+      normalizedRole === 'FINANCE_EXECUTIVE' ||
+      !isSalespersonScopedRole(role);
     const scope = isOperationalScope ? {} : getOrderSalesScope(userId, role);
     const where: Prisma.SalesOrderWhereInput = { ...scope, deletedAt: null };
 
     if (status) {
-      where.OR = [{ status: status }, { workflowState: { code: status } }];
+      if (status.includes(',')) {
+        const statuses = status.split(',').map((s) => s.trim()).filter(Boolean);
+        where.OR = [
+          { status: { in: statuses as any } },
+          { workflowState: { code: { in: statuses } } },
+        ];
+      } else {
+        where.OR = [{ status: status as any }, { workflowState: { code: status } }];
+      }
     }
 
     if (search) {
@@ -103,7 +118,7 @@ export class SalesService {
             },
           },
           salesExecutive: { select: { id: true, name: true, email: true } },
-          items: true,
+          items: { include: { product: true, dispatchItems: true } },
           workflowState: true,
           productionPlans: {
             orderBy: { createdAt: 'desc' },
@@ -148,13 +163,18 @@ export class SalesService {
   }
 
   async getOrder(id: string, userId?: string, role?: string) {
+    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
     const isOperationalScope =
-      role === 'DISPATCH_EXECUTIVE' ||
-      role === 'SUPER_ADMIN' ||
-      role === 'ADMIN' ||
-      role === 'PLANT_HEAD' ||
-      role === 'FINANCE_MANAGER' ||
-      role === 'FINANCE_EXECUTIVE';
+      normalizedRole.includes('DISPATCH') ||
+      normalizedRole === 'DISPATCH_EXECUTIVE' ||
+      normalizedRole === 'DISPATCH_2' ||
+      normalizedRole === 'DISPATCH_1' ||
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'ADMIN' ||
+      normalizedRole === 'PLANT_HEAD' ||
+      normalizedRole === 'FINANCE_MANAGER' ||
+      normalizedRole === 'FINANCE_EXECUTIVE' ||
+      !isSalespersonScopedRole(role);
     const scope = isOperationalScope ? {} : getOrderSalesScope(userId, role);
     const rawId = String(id || '').trim();
     let decodedId = rawId;
@@ -564,13 +584,18 @@ export class SalesService {
     const cleanId = decodedOrderReference;
     const actionName = dto.action || 'SEND_TO_PLANT';
 
+    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
     const isOperationalScope =
-      role === 'DISPATCH_EXECUTIVE' ||
-      role === 'SUPER_ADMIN' ||
-      role === 'ADMIN' ||
-      role === 'PLANT_HEAD' ||
-      role === 'FINANCE_MANAGER' ||
-      role === 'FINANCE_EXECUTIVE';
+      normalizedRole.includes('DISPATCH') ||
+      normalizedRole === 'DISPATCH_EXECUTIVE' ||
+      normalizedRole === 'DISPATCH_2' ||
+      normalizedRole === 'DISPATCH_1' ||
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'ADMIN' ||
+      normalizedRole === 'PLANT_HEAD' ||
+      normalizedRole === 'FINANCE_MANAGER' ||
+      normalizedRole === 'FINANCE_EXECUTIVE' ||
+      !isSalespersonScopedRole(role);
     const scope = isOperationalScope ? {} : getSalesScope(userId, role, 'SalesOrder');
 
     const result = await this.prisma.$transaction(async (tx) => {

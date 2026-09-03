@@ -788,6 +788,33 @@ export class PlantHeadService {
     };
   }
 
+  private isTradingProduct(product: any, item?: any): boolean {
+    if (!product && !item) return false;
+    const pType = String(product?.productType || item?.productType || '').toUpperCase();
+    if (pType === 'TRADING') return true;
+    if (product?.isTrading === true || item?.isTrading === true) return true;
+
+    const cat = String(product?.category || product?.product_family || item?.category || '').toLowerCase();
+    if (cat.includes('trading') || cat.includes('rcc pipe') || cat.includes('frc cover') || cat.includes('coverblock') || cat.includes('others')) return true;
+
+    const name = String(product?.name || item?.productName || item?.name || item?.productNameSnapshot || '').toUpperCase();
+    if (name.startsWith('FRCCP') || name.startsWith('FRCT') || name.startsWith('BTCB') || name.startsWith('WCB') || name.startsWith('DTCB') || name.includes('FRC COVER') || name.includes('RCC PIPE')) return true;
+
+    const sku = String(product?.sku || item?.sku || item?.productSku || '').toUpperCase();
+    if (sku.startsWith('FRCCP') || sku.startsWith('FRCT') || sku.startsWith('BTCB') || sku.startsWith('WCB') || sku.startsWith('DTCB')) return true;
+
+    const dCat = String(product?.dispatchCategory || item?.dispatchCategory || '').toUpperCase();
+    if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('CAT 2') || dCat.includes('CATEGORY 2')) return true;
+
+    return false;
+  }
+
+  private isManufacturingOrder(order: any): boolean {
+    const items = Array.isArray(order.items) ? order.items : [];
+    if (items.length === 0) return true;
+    return items.some((it: any) => !this.isTradingProduct(it.product, it));
+  }
+
   async getIncomingOrders(companyId: string) {
     const orders = await this.prisma.salesOrder.findMany({
       where: {
@@ -831,7 +858,8 @@ export class PlantHeadService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return this.mapSalesOrdersWithFulfillment(orders);
+    const manufacturingOrders = orders.filter((o) => this.isManufacturingOrder(o));
+    return this.mapSalesOrdersWithFulfillment(manufacturingOrders);
   }
 
   async getPlanningOrders(companyId: string) {
@@ -877,7 +905,8 @@ export class PlantHeadService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return this.mapSalesOrdersWithFulfillment(orders);
+    const manufacturingOrders = orders.filter((o) => this.isManufacturingOrder(o));
+    return this.mapSalesOrdersWithFulfillment(manufacturingOrders);
   }
 
   async directDispatch(

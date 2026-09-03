@@ -99,10 +99,13 @@ export default function InTransitPage() {
   } = useQuery<Dispatch[]>({
     queryKey: ["in-transit-dispatches"],
     queryFn: async () => {
-      const payload = await backendFetch<Dispatch[]>(
-        "/api/backend/logistics/dispatches?status=IN_TRANSIT",
+      const payload = await backendFetch<any>(
+        "/api/backend/logistics/dispatches?status=IN_TRANSIT,OUT_FOR_DELIVERY",
       );
-      return Array.isArray(payload) ? payload : [];
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload?.data)) return payload.data;
+      if (Array.isArray(payload?.data?.data)) return payload.data.data;
+      return [];
     },
     refetchInterval: 30000,
   });
@@ -120,6 +123,7 @@ export default function InTransitPage() {
       );
       if (Array.isArray(payload)) return payload;
       if (Array.isArray(payload?.data)) return payload.data;
+      if (Array.isArray(payload?.data?.data)) return payload.data.data;
       return [];
     },
     refetchInterval: 30000,
@@ -204,17 +208,15 @@ export default function InTransitPage() {
         {
           method: "POST",
         },
-      );
-      toast.success("Delivery run started — redirecting to delivery board");
+      ).catch(() => {});
+      toast.success("Redirecting to delivery handover board");
       queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
       queryClient.invalidateQueries({ queryKey: ["delivery-run-dispatches"] });
       queryClient.invalidateQueries({ queryKey: ["delivery-history-dispatches"] });
       queryClient.invalidateQueries({ queryKey: ["pending-dispatch-unified-items"] });
       router.push(`${basePath}/delivery`);
-    } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to start delivery",
-      );
+    } catch {
+      router.push(`${basePath}/delivery`);
     } finally {
       setLoadingId(null);
     }
@@ -281,9 +283,6 @@ export default function InTransitPage() {
 
   return (
     <DispatchPageShell>
-      {/* Navigation Tabs */}
-      <DispatchNavigationTabs />
-
       <div className={styles.inTransitPage}>
         {/* ---------- HERO ---------- */}
         <section className={styles.inTransitHero}>
@@ -487,7 +486,7 @@ export default function InTransitPage() {
                         return (
                           <tr key={dispatchItem.id}>
                             {/* Dispatch No */}
-                            <td>
+                            <td data-label="Dispatch No.">
                               <span
                                 style={{
                                   display: "inline-flex",
@@ -509,7 +508,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Sales Order */}
-                            <td>
+                            <td data-label="Sales Order">
                               <span
                                 style={{
                                   display: "inline-flex",
@@ -529,7 +528,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Customer */}
-                            <td>
+                            <td data-label="Customer">
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <div
                                   style={{
@@ -568,7 +567,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Driver / Vehicle */}
-                            <td>
+                            <td data-label="Driver / Vehicle">
                               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                                 <span style={{ fontWeight: 700, color: "#0f172a", fontSize: 13 }}>
                                   {dispatchItem.driverName || "—"}
@@ -603,7 +602,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Dispatched At */}
-                            <td>
+                            <td data-label="Dispatched At">
                               <span style={{ color: "#475569", fontSize: 12, fontWeight: 600 }}>
                                 {dispatchItem.dispatchedAt
                                   ? new Date(dispatchItem.dispatchedAt).toLocaleString("en-IN", {
@@ -617,7 +616,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Expected Delivery */}
-                            <td>
+                            <td data-label="Expected Delivery">
                               <span
                                 style={{
                                   display: "inline-flex",
@@ -642,23 +641,26 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Status */}
-                            <td>
+                            <td data-label="Status">
                               <span className={styles.transitStatus}>
-                                <span className={styles.transitStatusDot} />
-                                IN TRANSIT
+                                <span className={styles.transitStatusDot} style={{ background: dispatchItem.status === 'OUT_FOR_DELIVERY' ? '#f59e0b' : '#3b82f6' }} />
+                                {dispatchItem.status === 'OUT_FOR_DELIVERY' ? 'OUT FOR DELIVERY' : 'IN TRANSIT'}
                               </span>
                             </td>
 
                             {/* Actions */}
-                            <td>
+                            <td data-label="Actions">
                               <button
                                 type="button"
                                 onClick={() => handleStartDelivery(dispatchItem.id)}
                                 disabled={loadingId === dispatchItem.id}
                                 className={styles.transitStartDelivery}
+                                style={{
+                                  background: dispatchItem.status === 'OUT_FOR_DELIVERY' ? '#16a34a' : '#2563eb'
+                                }}
                               >
                                 <Play style={{ width: 13, height: 13, fill: "currentColor" }} className={loadingId === dispatchItem.id ? "animate-spin" : ""} />
-                                <span>Start Delivery</span>
+                                <span>{dispatchItem.status === 'OUT_FOR_DELIVERY' ? 'Deliver & POD' : 'Start Delivery'}</span>
                               </button>
                             </td>
                           </tr>
@@ -713,7 +715,7 @@ export default function InTransitPage() {
                         return (
                           <tr key={dispatchItem.id}>
                             {/* Dispatch Number */}
-                            <td>
+                            <td data-label="Dispatch No.">
                               <span
                                 style={{
                                   display: "inline-flex",
@@ -735,7 +737,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Sales Order */}
-                            <td>
+                            <td data-label="Sales Order">
                               <span
                                 style={{
                                   display: "inline-flex",
@@ -755,7 +757,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Customer */}
-                            <td>
+                            <td data-label="Customer">
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <div
                                   style={{
@@ -794,7 +796,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Receiver Details */}
-                            <td>
+                            <td data-label="Receiver">
                               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                                   <User style={{ width: 13, height: 13, color: "#64748b" }} />
@@ -823,7 +825,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Driver / Vehicle */}
-                            <td>
+                            <td data-label="Driver / Vehicle">
                               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                                 <span style={{ fontWeight: 600, color: "#334155", fontSize: 13 }}>
                                   {dispatchItem.driverName || "—"}
@@ -850,7 +852,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Delivered At */}
-                            <td>
+                            <td data-label="Delivered At">
                               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                                 <Calendar style={{ width: 13, height: 13, color: "#64748b" }} />
                                 <span style={{ color: "#334155", fontSize: 12, fontWeight: 600 }}>
@@ -868,7 +870,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* POD Image */}
-                            <td style={{ textAlign: "center" }}>
+                            <td data-label="POD Proof" style={{ textAlign: "center" }}>
                               {dispatchItem.podUrl ? (
                                 <button
                                   type="button"
@@ -898,7 +900,7 @@ export default function InTransitPage() {
                             </td>
 
                             {/* Status */}
-                            <td style={{ textAlign: "center" }}>
+                            <td data-label="Status" style={{ textAlign: "center" }}>
                               <DispatchStatusBadge status={dispatchItem.status || "DELIVERED"} />
                             </td>
                           </tr>

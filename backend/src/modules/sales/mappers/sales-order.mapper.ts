@@ -227,15 +227,31 @@ export function mapSalesOrder(
       const dispatchMap = fulfillmentData?.dispatchMap;
       const allocationMap = fulfillmentData?.allocationMap;
 
+      const prodSku = String((item as any).product?.sku || (item as any).productCodeSnapshot || '').toUpperCase();
+      const prodName = String((item as any).product?.name || (item as any).productNameSnapshot || '').toUpperCase();
+      const prodCat = String((item as any).product?.category || (item as any).product?.product_family || '').toUpperCase();
+      const prodType = String((item as any).product?.productType || (item as any).productType || '').toUpperCase();
+      const prodDCat = String((item as any).product?.dispatchCategory || '').toUpperCase();
+
       const isTrading =
-        (
-          (item as any).product?.productType ||
-          (item as any).productType ||
-          ''
-        ).toUpperCase() === 'TRADING' ||
-        ((item as any).product?.category || '')
-          .toUpperCase()
-          .includes('TRADING');
+        prodType === 'TRADING' ||
+        prodDCat === 'D2' ||
+        prodCat.includes('TRADING') ||
+        prodCat.includes('RCC PIPE') ||
+        prodCat.includes('FRC COVER') ||
+        prodCat.includes('COVERBLOCK') ||
+        prodSku.startsWith('FRCCP') ||
+        prodSku.startsWith('FRCT') ||
+        prodSku.startsWith('BTCB') ||
+        prodSku.startsWith('WCB') ||
+        prodSku.startsWith('DTCB') ||
+        prodName.startsWith('FRCCP') ||
+        prodName.startsWith('FRCT') ||
+        prodName.startsWith('BTCB') ||
+        prodName.startsWith('WCB') ||
+        prodName.startsWith('DTCB') ||
+        prodName.includes('FRC COVER') ||
+        prodName.includes('RCC PIPE');
 
       const orderedQty = Number(item.orderedQuantity);
       const alreadyDispatchedQty = dispatchMap

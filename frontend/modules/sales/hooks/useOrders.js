@@ -40,7 +40,14 @@ export function useOrders(showToast, currentView) {
     for (const o of backendOrdersArr) {
       if (o) {
         const key = String(o.id || o.orderNo || o.orderNumber || '');
-        if (key) map.set(key, o);
+        if (key) {
+          const existing = map.get(key);
+          if (existing && (existing.status === 'LOST' || existing.orderStatus === 'LOST' || Boolean(existing.lostReason) || Boolean(existing.lossRecord))) {
+            map.set(key, { ...o, ...existing, status: 'LOST', orderStatus: 'LOST' });
+          } else {
+            map.set(key, { ...(existing || {}), ...o });
+          }
+        }
       }
     }
     return Array.from(map.values());

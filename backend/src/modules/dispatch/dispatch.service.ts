@@ -38,10 +38,27 @@ export class DispatchService {
 
   async listDispatches(userId?: string, role?: string, status?: string) {
     let scope = getSalesScope(userId, role, 'Dispatch');
+    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
 
-    if (
+    if (normalizedRole === 'DISPATCH_1') {
+      scope = {
+        ...scope,
+        OR: [
+          { dispatchCategory: { in: ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'] } },
+          { dispatchCategory: null },
+        ],
+      };
+    } else if (normalizedRole === 'DISPATCH_2') {
+      scope = {
+        ...scope,
+        OR: [
+          { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'] } },
+          { dispatchCategory: null },
+        ],
+      };
+    } else if (
       userId &&
-      (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')
+      (normalizedRole === 'DISPATCH_EXECUTIVE' || normalizedRole.includes('DISPATCH'))
     ) {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
@@ -70,7 +87,12 @@ export class DispatchService {
 
     const where: any = { ...scope };
     if (status) {
-      where.status = status;
+      if (typeof status === 'string' && status.includes(',')) {
+        const statuses = status.split(',').map((s: string) => s.trim()).filter(Boolean);
+        where.status = { in: statuses };
+      } else {
+        where.status = status;
+      }
     }
 
     return this.prisma.dispatch.findMany({
@@ -86,10 +108,27 @@ export class DispatchService {
 
   async getDispatch(id: string, userId?: string, role?: string) {
     let scope = getSalesScope(userId, role, 'Dispatch');
+    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
 
-    if (
+    if (normalizedRole === 'DISPATCH_1') {
+      scope = {
+        ...scope,
+        OR: [
+          { dispatchCategory: { in: ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'] } },
+          { dispatchCategory: null },
+        ],
+      };
+    } else if (normalizedRole === 'DISPATCH_2') {
+      scope = {
+        ...scope,
+        OR: [
+          { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'] } },
+          { dispatchCategory: null },
+        ],
+      };
+    } else if (
       userId &&
-      (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')
+      (normalizedRole === 'DISPATCH_EXECUTIVE' || normalizedRole.includes('DISPATCH'))
     ) {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
@@ -713,10 +752,8 @@ export class DispatchService {
       },
     });
     if (!dispatch) throw new NotFoundException('Dispatch not found');
-    if (dispatch.status !== 'IN_TRANSIT') {
-      throw new BadRequestException(
-        'Dispatch must be in IN_TRANSIT status to start delivery',
-      );
+    if (dispatch.status === 'OUT_FOR_DELIVERY' || dispatch.status === 'DELIVERED') {
+      return dispatch;
     }
 
     return this.prisma.dispatch.update({

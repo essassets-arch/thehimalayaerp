@@ -248,18 +248,20 @@ export default function ProductMasterUI({ role }) {
   };
 
   const openEdit = (p) => {
+    const pType = normalizeProductType(p.product_type || p.productType);
+    const autoDispatch = p.dispatch_category || (pType === 'TRADING' ? 'D2' : 'D1');
     setFormData({
       id: p.id,
       product_name: p.product_name || p.name || '',
       product_code: p.product_code || p.sku || '',
-      product_type: normalizeProductType(p.product_type || p.productType),
+      product_type: pType,
       product_family: p.product_family || p.category || '',
       variant_details: p.variant_details || '',
       unit_of_measure: p.unit_of_measure || p.unit || 'PCS',
       brand: p.brand || 'HIMALAYA',
       gst_rate: p.gst_rate ?? 18,
       hsn_sac_code: p.hsn_sac_code || '',
-      dispatch_category: p.dispatch_category || 'D1',
+      dispatch_category: autoDispatch,
       weight: p.weight || '',
       image_url: p.imageUrl || ''
     });
@@ -267,8 +269,14 @@ export default function ProductMasterUI({ role }) {
   };
 
   const openCreate = () => {
-    const defaultType = activeSubMenu === 'TRADING' ? 'TRADING' : 'MANUFACTURING';
-    setFormData({ ...initialFormState, product_type: defaultType });
+    const isTradingTab = activeSubMenu === 'TRADING';
+    const defaultType = isTradingTab ? 'TRADING' : 'MANUFACTURING';
+    const defaultDispatch = isTradingTab ? 'D2' : 'D1';
+    setFormData({ 
+      ...initialFormState, 
+      product_type: defaultType,
+      dispatch_category: defaultDispatch
+    });
     setIsModalOpen(true);
   };
 
@@ -279,15 +287,20 @@ export default function ProductMasterUI({ role }) {
     }
 
     setIsSubmitting(true);
+    const resolvedType = normalizeProductType(formData.product_type);
+    const resolvedDispatch = (formData.dispatch_category && formData.dispatch_category !== 'Unassigned')
+      ? formData.dispatch_category
+      : (resolvedType === 'TRADING' ? 'D2' : 'D1');
+
     const payload = {
       name: formData.product_name,
       sku: formData.product_code,
       category: formData.product_family,
       unit: formData.unit_of_measure,
       unitPrice: Number(formData.unitPrice || 0),
-      productType: normalizeProductType(formData.product_type),
+      productType: resolvedType,
       brand: formData.brand || 'HIMALAYA',
-      dispatchCategory: (formData.dispatch_category === 'Unassigned' || !formData.dispatch_category) ? null : formData.dispatch_category,
+      dispatchCategory: resolvedDispatch,
       gstRate: Number(formData.gst_rate || 18),
       hsnCode: formData.hsn_sac_code || '',
       variantDetails: formData.variant_details || '',
@@ -483,6 +496,77 @@ export default function ProductMasterUI({ role }) {
 
       </div>
 
+      {/* Operational Dispatch & Incharge Routing Banner */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid #E2E8F0',
+        borderRadius: '14px',
+        padding: '16px 20px',
+        marginBottom: '20px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+        gap: '16px'
+      }}>
+        {/* Manufacturing Route Card */}
+        <div style={{
+          background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
+          border: '1px solid #DDD6FE',
+          borderRadius: '12px',
+          padding: '14px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Factory size={18} color="#6D28D9" />
+              <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#4C1D95' }}>Manufacturing Products (Cat 1)</span>
+            </div>
+            <span style={{ fontSize: '11px', fontWeight: 800, background: '#6D28D9', color: '#FFFFFF', padding: '2px 8px', borderRadius: '12px' }}>
+              {mfgCount} Products
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#5B21B6', fontWeight: 700 }}>
+            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#6D28D9', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 800 }}>RA</div>
+            <span>Incharge: <strong>Ravikant T</strong> · Dispatch 1</span>
+            <span style={{ fontSize: '11px', color: '#7C3AED', fontWeight: 600 }}>({ 'ravikant.t@himalayaerp.com' })</span>
+          </div>
+          <div style={{ fontSize: '11px', color: '#6D28D9', lineHeight: 1.4, background: 'rgba(255,255,255,0.6)', padding: '6px 10px', borderRadius: '6px' }}>
+            <strong>Fulfillment Flow:</strong> Sales Order ➔ Send to Plant Head ➔ Production Planning ➔ Factory Floor Stations ➔ QC Passed ➔ <strong>Dispatch 1 (Ravikant T)</strong>
+          </div>
+        </div>
+
+        {/* Trading Route Card */}
+        <div style={{
+          background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+          border: '1px solid #A7F3D0',
+          borderRadius: '12px',
+          padding: '14px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShoppingBag size={18} color="#047857" />
+              <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#065F46' }}>Trading Products (Cat 2)</span>
+            </div>
+            <span style={{ fontSize: '11px', fontWeight: 800, background: '#047857', color: '#FFFFFF', padding: '2px 8px', borderRadius: '12px' }}>
+              {tradingCount} Products
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#065F46', fontWeight: 700 }}>
+            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#047857', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 800 }}>SD</div>
+            <span>Incharge: <strong>Sahad Dispatch</strong> · Dispatch 2</span>
+            <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600 }}>({ 'sahad.dispatch@himalayaerp.com' })</span>
+          </div>
+          <div style={{ fontSize: '11px', color: '#065F46', lineHeight: 1.4, background: 'rgba(255,255,255,0.6)', padding: '6px 10px', borderRadius: '6px' }}>
+            <strong>Fulfillment Flow:</strong> Sales Order ➔ Send to Dispatch ➔ <strong>Direct to Dispatch 2 (Sahad Dispatch)</strong> (Bypasses factory floor)
+          </div>
+        </div>
+      </div>
+
       {/* Products Submenu Navigation Tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'stretch', width: '100%' }}>
         <button
@@ -507,8 +591,8 @@ export default function ProductMasterUI({ role }) {
           }}
         >
           <Factory size={16} />
-          {!isMobile && "Manufacturing Products"}
-          {isMobile && "Mfg"}
+          {!isMobile && "Manufacturing (Dispatch 1 - Ravikant T)"}
+          {isMobile && "Mfg (D1)"}
           <span style={{
             background: activeSubMenu === 'MANUFACTURING' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
             color: activeSubMenu === 'MANUFACTURING' ? '#FFFFFF' : '#334155',
@@ -544,8 +628,8 @@ export default function ProductMasterUI({ role }) {
           }}
         >
           <ShoppingBag size={16} />
-          {!isMobile && "Trading Products"}
-          {isMobile && "Trading"}
+          {!isMobile && "Trading (Dispatch 2 - Sahad Dispatch)"}
+          {isMobile && "Trading (D2)"}
           <span style={{
             background: activeSubMenu === 'TRADING' ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
             color: activeSubMenu === 'TRADING' ? '#FFFFFF' : '#334155',
@@ -792,8 +876,8 @@ export default function ProductMasterUI({ role }) {
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <option value="D1">D1 (Dispatch 1)</option>
-                    <option value="D2">D2 (Dispatch 2)</option>
+                    <option value="D1">D1 (Dispatch 1 · Ravikant T · Cat 1)</option>
+                    <option value="D2">D2 (Dispatch 2 · Sahad Dispatch · Cat 2)</option>
                     <option value="Unassigned">⚠ Unassigned</option>
                   </select>
                 </div>
@@ -968,8 +1052,8 @@ export default function ProductMasterUI({ role }) {
                             transition: 'all 0.15s ease'
                           }}
                         >
-                          <option value="D1" style={{ background: '#fff', color: '#1D4ED8', fontWeight: 'bold' }}>D1 (Dispatch 1)</option>
-                          <option value="D2" style={{ background: '#fff', color: '#047857', fontWeight: 'bold' }}>D2 (Dispatch 2)</option>
+                          <option value="D1" style={{ background: '#fff', color: '#1D4ED8', fontWeight: 'bold' }}>D1 (Dispatch 1 · Ravikant T · Cat 1)</option>
+                          <option value="D2" style={{ background: '#fff', color: '#047857', fontWeight: 'bold' }}>D2 (Dispatch 2 · Sahad Dispatch · Cat 2)</option>
                           <option value="Unassigned" style={{ background: '#fff', color: '#B45309', fontWeight: 'bold' }}>⚠ Unassigned</option>
                         </select>
                       </td>
@@ -1118,7 +1202,15 @@ export default function ProductMasterUI({ role }) {
                   <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Type *</label>
                   <select 
                     value={formData.product_type} 
-                    onChange={e => setFormData({ ...formData, product_type: e.target.value })} 
+                    onChange={e => {
+                      const newType = e.target.value;
+                      const autoDispatch = newType === 'TRADING' ? 'D2' : 'D1';
+                      setFormData({ 
+                        ...formData, 
+                        product_type: newType,
+                        dispatch_category: autoDispatch
+                      });
+                    }} 
                     style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none' }}
                   >
                     {productTypes.map(({ value, label }) => (
@@ -1129,7 +1221,7 @@ export default function ProductMasterUI({ role }) {
                   </select>
                   <span style={{ display: 'block', fontSize: '11px', color: formData.product_type === 'TRADING' ? '#059669' : '#4F46E5', marginTop: '4px', fontWeight: 600 }}>
                     {formData.product_type === 'TRADING' 
-                      ? '⚡ Trading products bypass factory floor planning and go directly to Dispatch when ordered.'
+                      ? '⚡ Trading products bypass factory floor planning and go directly to Dispatch 2 when ordered.'
                       : '⚙️ Manufactured products create Plant Head Production Plans and factory Work Orders.'}
                   </span>
                 </div>
@@ -1181,16 +1273,33 @@ export default function ProductMasterUI({ role }) {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Dispatch Category Routing</label>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Dispatch Category Routing *</label>
                   <select 
-                    value={formData.dispatch_category || 'Unassigned'} 
+                    value={formData.dispatch_category || (formData.product_type === 'TRADING' ? 'D2' : 'D1')} 
                     onChange={e => setFormData({ ...formData, dispatch_category: e.target.value })} 
-                    style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none', fontWeight: 'bold' }}
+                    style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '13.5px', outline: 'none', fontWeight: 'bold' }}
                   >
-                    <option value="D1">D1 (Dispatch 1 — Ravikant Tiwari Queue)</option>
-                    <option value="D2">D2 (Dispatch 2 — Sahad Mansuri Queue)</option>
+                    <option value="D1">D1 (Dispatch 1 — Ravikant T · Cat 1 · ravikant.t@himalayaerp.com)</option>
+                    <option value="D2">D2 (Dispatch 2 — Sahad Dispatch · Cat 2 · sahad.dispatch@himalayaerp.com)</option>
                     <option value="Unassigned">⚠ Unassigned / Pending</option>
                   </select>
+                  <div style={{
+                    marginTop: '6px',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    lineHeight: 1.35,
+                    background: formData.dispatch_category === 'D2' || formData.product_type === 'TRADING' ? '#ECFDF5' : '#F5F3FF',
+                    color: formData.dispatch_category === 'D2' || formData.product_type === 'TRADING' ? '#065F46' : '#5B21B6',
+                    border: formData.dispatch_category === 'D2' || formData.product_type === 'TRADING' ? '1px solid #A7F3D0' : '1px solid #DDD6FE'
+                  }}>
+                    {formData.dispatch_category === 'D2' || formData.product_type === 'TRADING' ? (
+                      <span><strong>🛍️ Trading Route:</strong> Assigned to <strong>Sahad Dispatch (Dispatch 2)</strong>. Direct Sales Order to Dispatch fulfillment.</span>
+                    ) : (
+                      <span><strong>🏭 Manufacturing Route:</strong> Assigned to <strong>Ravikant T (Dispatch 1)</strong>. Follows Plant Head Production Planning ➔ Work Orders ➔ QC Inspection ➔ Dispatch 1.</span>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>

@@ -2,39 +2,34 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Truck,
-  CheckSquare,
   Upload,
   ArrowRight,
   User,
   MapPin,
   X,
-  Package,
   History,
   CheckCircle2,
   Image as ImageIcon,
   ExternalLink,
   Phone,
   Calendar,
+  Search,
+  RefreshCw,
+  Download,
+  Copy,
+  ShieldCheck,
+  Building2,
+  FileCheck2,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
+import Swal from "sweetalert2";
 
 import { backendFetch } from "@/lib/backendFetch";
-import {
-  DispatchPageShell,
-  DispatchPageHeader,
-  DispatchNavigationTabs,
-  DispatchToolbar,
-  DispatchTableCard,
-  SalesOrderNumberBadge,
-  DispatchStatusBadge,
-  DispatchActionButton,
-  DispatchLoadingState,
-  DispatchEmptyState,
-  DispatchErrorState,
-} from "../components";
+import styles from "./delivery.module.css";
 
 /* ── Types ───────────────────────────────────────────────────────────── */
 interface Customer {
@@ -82,77 +77,6 @@ interface Dispatch {
   items: DispatchItem[];
 }
 
-export default function DeliveryRunPage() {
-  const queryClient = useQueryClient();
-  const router = useRouter();
-  const pathname = usePathname();
-  const isDispatch2 = pathname?.startsWith("/dispatch-2");
-  const basePath = isDispatch2 ? "/dispatch-2" : "/dispatch";
-
-  const [activeTab, setActiveTab] = useState<"delivery" | "history">("delivery");
-  const [selectedDispatch, setSelectedDispatch] = useState<Dispatch | null>(null);
-  const [selectedPodImage, setSelectedPodImage] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [receiverName, setReceiverName] = useState("");
-  const [receiverMobile, setReceiverMobile] = useState("");
-  const [deliveryImage, setDeliveryImage] = useState<File | null>(null);
-  const [deliveryImagePreview, setDeliveryImagePreview] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  /* Image preview */
-  useEffect(() => {
-    if (!deliveryImage) { setDeliveryImagePreview(""); return; }
-    const url = URL.createObjectURL(deliveryImage);
-    setDeliveryImagePreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [deliveryImage]);
-
-  /* Escape key + body scroll lock */
-  useEffect(() => {
-    if (!selectedDispatch && !selectedPodImage) return;
-    const prev = document.body.style.overflow;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isSubmitting) {
-        setSelectedDispatch(null);
-        setSelectedPodImage(null);
-      }
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
-    return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
-  }, [selectedDispatch, selectedPodImage, isSubmitting]);
-
-  /* Query 1: Active Out for Delivery Dispatches */
-  const { data: dispatches = [], isLoading, isRefetching, error, refetch } =
-    useQuery<Dispatch[]>({
-      queryKey: ["delivery-run-dispatches"],
-      queryFn: async () => {
-        const payload = await backendFetch<Dispatch[]>(
-          "/api/backend/logistics/dispatches?status=OUT_FOR_DELIVERY"
-        );
-        return Array.isArray(payload) ? payload : [];
-      },
-      refetchInterval: 30000,
-    });
-
-  /* Query 2: Delivered History Dispatches */
-  const {
-    data: historyDispatches = [],
-    isLoading: isHistoryLoading,
-    refetch: refetchHistory,
-  } = useQuery<Dispatch[]>({
-    queryKey: ["delivery-history-dispatches"],
-    queryFn: async () => {
-      const payload = await backendFetch<any>(
-        "/api/backend/logistics/dispatches?status=DELIVERED"
-      );
-      if (Array.isArray(payload)) return payload;
-      if (Array.isArray(payload?.data)) return payload.data;
-      return [];
-    },
-    refetchInterval: 30000,
-  });
-
 function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
   if (!cat) return null;
   const s = String(cat).trim().toUpperCase();
@@ -165,27 +89,113 @@ function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
   return null;
 }
 
+export default function DeliveryRunPage() {
+  const queryClient = useQueryClient();
+  const pathname = usePathname();
+  const isDispatch2 = pathname?.startsWith("/dispatch-2");
+
+  const [activeTab, setActiveTab] = useState<"delivery" | "history">("delivery");
+  const [selectedDispatch, setSelectedDispatch] = useState<Dispatch | null>(null);
+  const [selectedPodImage, setSelectedPodImage] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  // Modal Form State
+  const [receiverName, setReceiverName] = useState("");
+  const [receiverMobile, setReceiverMobile] = useState("");
+  const [deliveryRemarks, setDeliveryRemarks] = useState("");
+  const [deliveryImage, setDeliveryImage] = useState<File | null>(null);
+  const [deliveryImagePreview, setDeliveryImagePreview] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 1. Fetch Dispatches out for delivery
+  const {
+    data: dispatches = [],
+    isLoading,
+    isRefetching,
+    error,
+    refetch,
+  } = useQuery<Dispatch[]>({
+    queryKey: ["delivery-run-dispatches"],
+    queryFn: async () => {
+      const payload = await backendFetch<any>(
+        "/api/backend/logistics/dispatches?status=IN_TRANSIT,OUT_FOR_DELIVERY",
+      );
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload?.data)) return payload.data;
+      if (Array.isArray(payload?.data?.data)) return payload.data.data;
+      return [];
+    },
+    refetchInterval: 15000,
+  });
+
+  // 2. Fetch Delivered History Dispatches
+  const {
+    data: historyDispatches = [],
+    isLoading: isHistoryLoading,
+    refetch: refetchHistory,
+  } = useQuery<Dispatch[]>({
+    queryKey: ["delivery-run-history"],
+    queryFn: async () => {
+      const payload = await backendFetch<any>(
+        "/api/backend/logistics/dispatches?status=DELIVERED",
+      );
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload?.data)) return payload.data;
+      if (Array.isArray(payload?.data?.data)) return payload.data.data;
+      return [];
+    },
+    refetchInterval: 30000,
+  });
+
+  // Clean up object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (deliveryImagePreview && deliveryImagePreview.startsWith("blob:")) {
+        URL.revokeObjectURL(deliveryImagePreview);
+      }
+    };
+  }, [deliveryImagePreview]);
+
+  const copyToClipboard = (text: string) => {
+    if (!navigator?.clipboard) return;
+    navigator.clipboard.writeText(text);
+    setCopiedText(text);
+    toast.success(`Copied: ${text}`);
+    setTimeout(() => setCopiedText(null), 2000);
+  };
+
+  const formatCleanNo = (num?: string | null) => {
+    if (!num) return "—";
+    return num.replace(/\s*-\s*/g, "-").replace(/\s+/g, "");
+  };
+
+  // Filter Active Queue
   const activeDeliveryQueue = useMemo(() => {
     const targetCat = isDispatch2 ? "D2" : "D1";
-    const filtered = dispatches.filter((d) => {
-      if (d.status !== "OUT_FOR_DELIVERY") return false;
+    const categoryFiltered = dispatches.filter((d) => {
       const rawCat = (d as any).dispatchCategory || (d as any).dispatch_category;
       if (!rawCat) return true;
       const norm = normalizeDispatchCategory(rawCat);
       if (!norm) return true;
       return norm === targetCat;
     });
-    if (!search.trim()) return filtered;
+
+    if (!search.trim()) return categoryFiltered;
     const lower = search.toLowerCase();
-    return filtered.filter(
+    return categoryFiltered.filter(
       (d) =>
         d.dispatchNo?.toLowerCase().includes(lower) ||
         d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
         d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
-        d.driverName?.toLowerCase().includes(lower)
+        d.driverName?.toLowerCase().includes(lower) ||
+        d.driverPhone?.toLowerCase().includes(lower) ||
+        d.vehicleNumber?.toLowerCase().includes(lower) ||
+        d.deliveryAddress?.toLowerCase().includes(lower)
     );
   }, [dispatches, search, isDispatch2]);
 
+  // Filter History Dispatches
   const filteredHistoryDispatches = useMemo(() => {
     const targetCat = isDispatch2 ? "D2" : "D1";
     const categoryFiltered = historyDispatches.filter((d) => {
@@ -212,966 +222,856 @@ function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
         d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
         d.receivedBy?.toLowerCase().includes(lower) ||
         d.receiverPhone?.toLowerCase().includes(lower) ||
-        d.driverName?.toLowerCase().includes(lower)
+        d.driverName?.toLowerCase().includes(lower) ||
+        d.vehicleNumber?.toLowerCase().includes(lower)
     );
   }, [historyDispatches, search, isDispatch2]);
 
-  const isMobileValid = /^[6-9]\d{9}$/.test(receiverMobile);
-  const mobileValidationMessage = useMemo(() => {
-    if (!receiverMobile) return null;
-    if (receiverMobile.length < 10) {
-      return `${10 - receiverMobile.length} more digit${10 - receiverMobile.length > 1 ? "s" : ""} required`;
-    }
-    if (!/^[6-9]/.test(receiverMobile)) {
-      return "Must start with 6, 7, 8, or 9";
-    }
-    return "✓ Valid 10-digit mobile";
-  }, [receiverMobile]);
-
-  const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
-    setReceiverMobile(digits);
-  };
-
-  /* Handlers */
-  const openModal = (item: Dispatch) => {
-    setSelectedDispatch(item);
+  // Modal Handlers
+  const openModal = (dispatchItem: Dispatch) => {
+    setSelectedDispatch(dispatchItem);
     setReceiverName("");
     setReceiverMobile("");
+    setDeliveryRemarks("");
     setDeliveryImage(null);
+    setDeliveryImagePreview("");
   };
 
-  const handleConfirmDelivery = async () => {
+  const closeModal = () => {
+    setSelectedDispatch(null);
+    setReceiverName("");
+    setReceiverMobile("");
+    setDeliveryRemarks("");
+    setDeliveryImage(null);
+    if (deliveryImagePreview && deliveryImagePreview.startsWith("blob:")) {
+      URL.revokeObjectURL(deliveryImagePreview);
+    }
+    setDeliveryImagePreview("");
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(file.type)) {
+      toast.error("Please upload a valid image file (JPG, PNG, WebP) or PDF.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size cannot exceed 5 MB.");
+      return;
+    }
+
+    setDeliveryImage(file);
+    if (file.type.startsWith("image/")) {
+      const objectUrl = URL.createObjectURL(file);
+      setDeliveryImagePreview(objectUrl);
+    } else {
+      setDeliveryImagePreview("");
+    }
+  };
+
+  const removeImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeliveryImage(null);
+    if (deliveryImagePreview && deliveryImagePreview.startsWith("blob:")) {
+      URL.revokeObjectURL(deliveryImagePreview);
+    }
+    setDeliveryImagePreview("");
+  };
+
+  const handleConfirmDelivery = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!selectedDispatch) return;
-    if (!receiverName.trim()) { toast.error("Receiver Name is mandatory"); return; }
-    
-    const cleanMobile = receiverMobile.replace(/\D/g, "");
-    if (!cleanMobile) {
-      toast.error("Receiver Mobile is mandatory");
+
+    const trimmedName = receiverName.trim();
+    const trimmedMobile = receiverMobile.trim();
+
+    if (!trimmedName) {
+      toast.error("Receiver Name is required.");
       return;
     }
-    if (cleanMobile.length !== 10) {
-      toast.error(`Receiver Mobile must be exactly 10 digits (currently ${cleanMobile.length})`);
+    if (!trimmedMobile) {
+      toast.error("Receiver Mobile Phone is required.");
       return;
     }
-    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
-      toast.error("Receiver Mobile must be a valid 10-digit number starting with 6, 7, 8, or 9");
+    if (!/^[6-9]\d{9}$/.test(trimmedMobile)) {
+      toast.error("Please enter a valid 10-digit Indian mobile number (starts with 6-9).");
+      return;
+    }
+    if (!deliveryImage) {
+      toast.error("Proof of Delivery (POD) image or document is mandatory.");
       return;
     }
 
-    if (!deliveryImage) { toast.error("Delivery POD image is mandatory"); return; }
-
-    setIsSubmitting(true);
     try {
-      const uploadBody = new FormData();
-      uploadBody.append("file", deliveryImage);
-      uploadBody.append("category", "pod");
-      const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadBody });
-      const uploadResult = await uploadRes.json();
-      if (!uploadRes.ok || !uploadResult.url) {
-        throw new Error(uploadResult.message || "Failed to upload delivery proof image");
+      setIsSubmitting(true);
+      const formData = new FormData();
+      formData.append("receivedBy", trimmedName);
+      formData.append("receiverPhone", trimmedMobile);
+      if (deliveryRemarks.trim()) {
+        formData.append("deliveryRemarks", deliveryRemarks.trim());
+      }
+      formData.append("pod", deliveryImage);
+      if (selectedDispatch.version !== undefined) {
+        formData.append("version", String(selectedDispatch.version));
       }
 
-      await backendFetch(
-        `/api/backend/logistics/dispatches/${selectedDispatch.id}/confirm-delivery`,
+      const res = await backendFetch<any>(
+        `/api/backend/logistics/dispatches/${selectedDispatch.id}/deliver`,
         {
           method: "POST",
-          body: {
-            receiverName: receiverName.trim(),
-            receiverPhone: cleanMobile,
-            podImageUrl: uploadResult.url,
-            version: selectedDispatch.version || 1,
-          },
-        }
+          body: formData,
+        },
       );
 
-      toast.success(`Shipment ${selectedDispatch.dispatchNo} marked as Delivered`);
-      setSelectedDispatch(null);
+      if (res && res.error) {
+        throw new Error(res.error || "Failed to confirm delivery");
+      }
+
+      await Swal.fire({
+        icon: "success",
+        title: "Delivery Handover Recorded",
+        text: `Dispatch #${formatCleanNo(selectedDispatch.dispatchNo)} has been marked as DELIVERED with verified POD.`,
+        confirmButtonColor: "#16a34a",
+        confirmButtonText: "Done",
+      });
+
+      closeModal();
       queryClient.invalidateQueries({ queryKey: ["delivery-run-dispatches"] });
-      queryClient.invalidateQueries({ queryKey: ["delivery-history-dispatches"] });
-      queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-dispatch-unified-items"] });
-      setActiveTab("history");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to confirm delivery");
+      queryClient.invalidateQueries({ queryKey: ["delivery-run-history"] });
+      queryClient.invalidateQueries({ queryKey: ["dispatches-in-transit"] });
+    } catch (err: any) {
+      Swal.fire({
+        icon: "error",
+        title: "Handover Submission Failed",
+        text: err?.message || "An unexpected error occurred while confirming delivery.",
+        confirmButtonColor: "#ef4444",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleExportCsv = () => {
-    if (activeTab === "delivery") {
-      if (!activeDeliveryQueue.length) return;
-      const rows = activeDeliveryQueue.map((d) => ({
-        "Dispatch Number": (d.dispatchNo || "").replace(/\s+/g, ""),
-        "Sales Order": d.salesOrder?.orderNumber || "—",
-        Customer: d.salesOrder?.customer?.companyName || "—",
-        "Delivery Address": d.deliveryAddress || "—",
-        Driver: d.driverName || "—",
-        Status: d.status,
-      }));
-      const headers = Object.keys(rows[0]);
-      const csv = [
-        headers.join(","),
-        ...rows.map((r) =>
-          headers.map((h) => `"${String((r as any)[h] ?? "").replace(/"/g, '""')}"`).join(",")
-        ),
-      ].join("\n");
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
-      a.download = `out_for_delivery_${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-    } else {
-      if (!filteredHistoryDispatches.length) return;
-      const exportRows = filteredHistoryDispatches.map((d) => ({
-        "Dispatch No": (d.dispatchNo || "").replace(/\s+/g, ""),
-        "Sales Order": d.salesOrder?.orderNumber || "—",
-        Customer: d.salesOrder?.customer?.companyName || "—",
-        "Received By": d.receivedBy || "—",
-        "Receiver Mobile": d.receiverPhone || "—",
-        Driver: d.driverName || "—",
-        "Delivered Timestamp": d.deliveredAt ? new Date(d.deliveredAt).toLocaleString("en-IN") : "—",
-        Status: d.status,
-      }));
-      const headers = Object.keys(exportRows[0]);
-      const csv = [
-        headers.join(","),
-        ...exportRows.map((r) =>
-          headers.map((h) => `"${String((r as any)[h] ?? "").replace(/"/g, '""')}"`).join(",")
-        ),
-      ].join("\n");
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
-      a.download = `dispatch_history_${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-    }
+    const isDelivery = activeTab === "delivery";
+    const items = isDelivery ? activeDeliveryQueue : filteredHistoryDispatches;
+    if (!items.length) return;
+
+    const rows = items.map((d) => ({
+      "Dispatch #": formatCleanNo(d.dispatchNo),
+      "Sales Order #": formatCleanNo(d.salesOrder?.orderNumber),
+      Customer: d.salesOrder?.customer?.companyName || "—",
+      "Delivery Address": d.deliveryAddress || "—",
+      Driver: d.driverName || "—",
+      "Driver Phone": d.driverPhone || "—",
+      "Vehicle Number": d.vehicleNumber || "—",
+      Transporter: d.transporterName || "—",
+      "Received By": d.receivedBy || "—",
+      "Receiver Mobile": d.receiverPhone || "—",
+      "Delivered Timestamp": d.deliveredAt ? new Date(d.deliveredAt).toLocaleString("en-IN") : "—",
+      "POD Image URL": d.podUrl || "—",
+      Status: d.status,
+    }));
+
+    const headers = Object.keys(rows[0]);
+    const csv = [
+      headers.join(","),
+      ...rows.map((r) =>
+        headers.map((h) => `"${String((r as any)[h] ?? "").replace(/"/g, '""')}"`).join(","),
+      ),
+    ].join("\n");
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    a.download = `${isDelivery ? "active_deliveries" : "delivery_history"}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
   };
 
-  const formatCleanNo = (num?: string | null) => {
-    if (!num) return "—";
-    return num.replace(/\s*-\s*/g, "-").replace(/\s+/g, "");
-  };
+  // Metrics
+  const totalWithPod = filteredHistoryDispatches.filter((d) => Boolean(d.podUrl)).length;
+  const podPercentage =
+    filteredHistoryDispatches.length > 0
+      ? Math.round((totalWithPod / filteredHistoryDispatches.length) * 100)
+      : 0;
 
   return (
-    <DispatchPageShell>
-      <DispatchNavigationTabs />
+    <div className={styles.pageContainer}>
+      <div className={styles.contentWrapper}>
+        {/* ─── HERO HEADER ─── */}
+        <section className={styles.heroContainer}>
+          <div className={styles.heroGlow1} />
+          <div className={styles.heroGlow2} />
 
-      {/* ── Page Header ── */}
-      <DispatchPageHeader
-        title={activeTab === "delivery" ? "Out for Delivery (Final Mile)" : "Dispatch History & POD"}
-        description={
-          activeTab === "delivery"
-            ? "Record final handover details. Select a dispatch, upload proof of delivery (POD), capture receiver details and mark as Delivered."
-            : "Review all completed and delivered shipments with verified receiver details and POD image proofs."
-        }
-        eyebrow="Final Mile Operations"
-        icon={activeTab === "delivery" ? Truck : History}
-        stats={[
-          {
-            label: "Out for Delivery",
-            value: activeDeliveryQueue.length,
-            icon: Truck,
-            color: "bg-indigo-50 text-indigo-600",
-          },
-          {
-            label: "Delivered History",
-            value: filteredHistoryDispatches.length,
-            icon: CheckCircle2,
-            color: "bg-emerald-50 text-emerald-600",
-          },
-        ]}
-        onRefresh={() => {
-          refetch();
-          refetchHistory();
-        }}
-        isRefreshing={isRefetching || isHistoryLoading}
-      />
-
-      {/* ── Sub-Tab Switcher ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, marginBottom: 16 }}>
-        <button
-          type="button"
-          onClick={() => setActiveTab("delivery")}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "8px 18px",
-            borderRadius: 10,
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: "pointer",
-            transition: "all 0.15s ease",
-            background: activeTab === "delivery" ? "#2563eb" : "#ffffff",
-            color: activeTab === "delivery" ? "#ffffff" : "#64748b",
-            border: activeTab === "delivery" ? "1px solid #2563eb" : "1px solid #e2e8f0",
-            boxShadow: activeTab === "delivery" ? "0 1px 2px rgba(37,99,235,0.2)" : "none",
-          }}
-        >
-          <Truck size={15} />
-          <span>Out for Delivery</span>
-          <span
-            style={{
-              padding: "1px 7px",
-              borderRadius: 999,
-              fontSize: 11,
-              fontWeight: 800,
-              background: activeTab === "delivery" ? "rgba(255,255,255,0.25)" : "#f1f5f9",
-              color: activeTab === "delivery" ? "#ffffff" : "#475569",
-            }}
-          >
-            {activeDeliveryQueue.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("history")}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "8px 18px",
-            borderRadius: 10,
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: "pointer",
-            transition: "all 0.15s ease",
-            background: activeTab === "history" ? "#2563eb" : "#ffffff",
-            color: activeTab === "history" ? "#ffffff" : "#64748b",
-            border: activeTab === "history" ? "1px solid #2563eb" : "1px solid #e2e8f0",
-            boxShadow: activeTab === "history" ? "0 1px 2px rgba(37,99,235,0.2)" : "none",
-          }}
-        >
-          <History size={15} />
-          <span>Dispatch History</span>
-          <span
-            style={{
-              padding: "1px 7px",
-              borderRadius: 999,
-              fontSize: 11,
-              fontWeight: 800,
-              background: activeTab === "history" ? "rgba(255,255,255,0.25)" : "#f1f5f9",
-              color: activeTab === "history" ? "#ffffff" : "#475569",
-            }}
-          >
-            {filteredHistoryDispatches.length}
-          </span>
-        </button>
-      </div>
-
-      {/* ── Toolbar ── */}
-      <DispatchToolbar
-        searchValue={search}
-        onSearchChange={setSearch}
-        searchPlaceholder={
-          activeTab === "delivery"
-            ? "Search dispatch number, customer or driver..."
-            : "Search dispatch no, order, customer, driver or receiver..."
-        }
-        onExportCsv={
-          (activeTab === "delivery" ? activeDeliveryQueue.length : filteredHistoryDispatches.length) > 0
-            ? handleExportCsv
-            : undefined
-        }
-        title={activeTab === "delivery" ? "Delivery Run Queue" : "Completed Deliveries"}
-        subtitle={
-          activeTab === "delivery"
-            ? `Showing ${activeDeliveryQueue.length} shipment${activeDeliveryQueue.length !== 1 ? "s" : ""} out for delivery`
-            : `Showing ${filteredHistoryDispatches.length} completed delivery record${filteredHistoryDispatches.length !== 1 ? "s" : ""}`
-        }
-      />
-
-      {/* ── TAB 1: OUT FOR DELIVERY ── */}
-      {activeTab === "delivery" && (
-        <>
-          {isLoading && <DispatchLoadingState count={5} />}
-          {error && !isLoading && <DispatchErrorState onRetry={() => refetch()} />}
-          {!isLoading && !error && activeDeliveryQueue.length === 0 && (
-            <DispatchEmptyState
-              title={search ? "No Matching Active Deliveries" : "No Active Delivery Runs"}
-              description={
-                search
-                  ? `No delivery runs match "${search}". Clear your search to see all.`
-                  : "No shipments are currently out for delivery. Start a delivery run from the In-Transit list."
-              }
-              onRetry={() => refetch()}
-            />
-          )}
-
-          {!isLoading && !error && activeDeliveryQueue.length > 0 && (
-            <>
-              {/* Desktop table (≥ 768px) */}
-              <div className="hidden md:block">
-                <DispatchTableCard minTableWidth={1100}>
-                  <table className="w-full text-sm text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="dsp-th min-w-[180px]">Dispatch Number</th>
-                        <th className="dsp-th min-w-[160px]">Sales Order</th>
-                        <th className="dsp-th min-w-[200px]">Customer</th>
-                        <th className="dsp-th min-w-[160px]">Driver</th>
-                        <th className="dsp-th text-center min-w-[150px]">Status</th>
-                        <th className="dsp-th text-right min-w-[170px]">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {activeDeliveryQueue.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
-                          <td className="dsp-td">
-                            <SalesOrderNumberBadge orderNumber={item.dispatchNo} />
-                          </td>
-                          <td className="dsp-td">
-                            <span className="font-semibold text-slate-900">
-                              #{item.salesOrder?.orderNumber}
-                            </span>
-                          </td>
-                          <td className="dsp-td">
-                            <span
-                              className="font-semibold text-slate-900 block max-w-[220px] truncate"
-                              title={item.salesOrder?.customer?.companyName || "—"}
-                            >
-                              {item.salesOrder?.customer?.companyName || "—"}
-                            </span>
-                          </td>
-                          <td className="dsp-td">
-                            <span className="text-slate-800 font-medium">
-                              {item.driverName || "—"}
-                            </span>
-                          </td>
-                          <td className="dsp-td text-center">
-                            <DispatchStatusBadge status={item.status} />
-                          </td>
-                          <td className="dsp-td text-right">
-                            <DispatchActionButton
-                              label="Confirm Delivery"
-                              icon={ArrowRight}
-                              onClick={() => openModal(item)}
-                              variant="primary"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </DispatchTableCard>
+          <div className={styles.heroTopRow}>
+            <div className={styles.heroTitleSection}>
+              <div className={styles.heroBadge}>
+                <ShieldCheck size={13} />
+                <span>Final Mile Handover · Delivery Confirmation</span>
               </div>
-
-              {/* Mobile cards (< 768px) */}
-              <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4 dispatch-mobile-card-grid">
-                {activeDeliveryQueue.map((item) => (
-                  <div key={item.id} className="dsp-card">
-                    {/* Card Header */}
-                    <div className="dsp-card-head">
-                      <div className="dsp-card-head-row">
-                        <SalesOrderNumberBadge orderNumber={item.dispatchNo} />
-                        <DispatchStatusBadge status={item.status} />
-                      </div>
-                      {item.salesOrder?.orderNumber && (
-                        <span className="dsp-card-so">
-                          Sales Order: #{item.salesOrder.orderNumber}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Card Body */}
-                    <div className="dsp-card-body">
-                      {/* Customer */}
-                      <div className="dsp-card-row">
-                        <div className="dsp-card-icon">
-                          <User size={15} />
-                        </div>
-                        <div className="dsp-card-info">
-                          <p className="dsp-card-label">Customer</p>
-                          <p className="dsp-card-value">
-                            {item.salesOrder?.customer?.companyName || "—"}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Driver */}
-                      <div className="dsp-card-row">
-                        <div className="dsp-card-icon">
-                          <Truck size={15} />
-                        </div>
-                        <div className="dsp-card-info">
-                          <p className="dsp-card-label">Driver</p>
-                          <p className="dsp-card-value">
-                            {item.driverName || "—"}
-                            {item.driverPhone && (
-                              <span className="dsp-card-phone"> · {item.driverPhone}</span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Delivery Address */}
-                      {item.deliveryAddress && (
-                        <div className="dsp-card-row">
-                          <div className="dsp-card-icon">
-                            <MapPin size={15} />
-                          </div>
-                          <div className="dsp-card-info">
-                            <p className="dsp-card-label">Delivery Address</p>
-                            <p className="dsp-card-value dsp-card-addr">{item.deliveryAddress}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Card Footer */}
-                    <div className="dsp-card-foot">
-                      <button
-                        type="button"
-                        onClick={() => openModal(item)}
-                        className="dsp-confirm-btn"
-                      >
-                        <CheckSquare size={15} />
-                        <span>Confirm Delivery</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </>
-      )}
-
-      {/* ── TAB 2: DISPATCH HISTORY ── */}
-      {activeTab === "history" && (
-        <>
-          {isHistoryLoading && <DispatchLoadingState count={5} />}
-
-          {!isHistoryLoading && filteredHistoryDispatches.length === 0 && (
-            <DispatchEmptyState
-              title={search ? "No Matching History Found" : "No Completed Deliveries"}
-              description={
-                search
-                  ? `No delivered shipments match "${search}". Try clearing your search.`
-                  : "No completed delivery runs recorded yet. Confirmed deliveries will appear here."
-              }
-              onRetry={() => refetchHistory()}
-            />
-          )}
-
-          {!isHistoryLoading && filteredHistoryDispatches.length > 0 && (
-            <DispatchTableCard minTableWidth={1120}>
-              <table className="w-full text-sm text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="dsp-th" style={{ width: 150 }}>Dispatch No.</th>
-                    <th className="dsp-th" style={{ width: 155 }}>Sales Order</th>
-                    <th className="dsp-th" style={{ width: 180 }}>Customer</th>
-                    <th className="dsp-th" style={{ width: 220 }}>Receiver Details</th>
-                    <th className="dsp-th" style={{ width: 180 }}>Driver / Vehicle</th>
-                    <th className="dsp-th" style={{ width: 170 }}>Delivered At</th>
-                    <th className="dsp-th text-center" style={{ width: 110 }}>POD Proof</th>
-                    <th className="dsp-th text-center" style={{ width: 130 }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {filteredHistoryDispatches.map((dispatchItem) => {
-                    const cleanDispNo = formatCleanNo(dispatchItem.dispatchNo);
-                    const cleanSoNo = formatCleanNo(dispatchItem.salesOrder?.orderNumber);
-
-                    return (
-                      <tr
-                        key={dispatchItem.id}
-                        className="hover:bg-slate-50/80 transition-colors group"
-                      >
-                        {/* Dispatch Number */}
-                        <td className="dsp-td">
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 6,
-                              padding: "4px 8px",
-                              borderRadius: 8,
-                              background: "#eff6ff",
-                              border: "1px solid #bfdbfe",
-                              color: "#1d4ed8",
-                              fontWeight: 700,
-                              fontFamily: "monospace",
-                              fontSize: 12,
-                            }}
-                          >
-                            <Truck style={{ width: 14, height: 14, color: "#3b82f6" }} />
-                            #{cleanDispNo}
-                          </span>
-                        </td>
-
-                        {/* Sales Order */}
-                        <td className="dsp-td">
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              padding: "3px 8px",
-                              borderRadius: 6,
-                              background: "#f1f5f9",
-                              border: "1px solid #e2e8f0",
-                              color: "#0f172a",
-                              fontWeight: 700,
-                              fontFamily: "monospace",
-                              fontSize: 12,
-                            }}
-                          >
-                            #{cleanSoNo}
-                          </span>
-                        </td>
-
-                        {/* Customer */}
-                        <td className="dsp-td">
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div
-                              style={{
-                                width: 26,
-                                height: 26,
-                                borderRadius: "50%",
-                                background: "#f8fafc",
-                                border: "1px solid #e2e8f0",
-                                color: "#475569",
-                                fontWeight: 800,
-                                fontSize: 11,
-                                display: "grid",
-                                placeItems: "center",
-                                textTransform: "uppercase",
-                                flexShrink: 0,
-                              }}
-                            >
-                              {(dispatchItem.salesOrder?.customer?.companyName || "C")[0]}
-                            </div>
-                            <span
-                              style={{
-                                fontWeight: 700,
-                                color: "#0f172a",
-                                fontSize: 13,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                display: "block",
-                                maxWidth: 150,
-                              }}
-                              title={dispatchItem.salesOrder?.customer?.companyName || "—"}
-                            >
-                              {dispatchItem.salesOrder?.customer?.companyName || "—"}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Receiver Details */}
-                        <td className="dsp-td">
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                              <User style={{ width: 13, height: 13, color: "#64748b" }} />
-                              <span style={{ fontWeight: 700, color: "#0f172a", fontSize: 13 }}>
-                                {dispatchItem.receivedBy || "—"}
-                              </span>
-                            </div>
-                            {dispatchItem.receiverPhone && (
-                              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                <Phone style={{ width: 12, height: 12, color: "#16a34a" }} />
-                                <a
-                                  href={`tel:${dispatchItem.receiverPhone}`}
-                                  style={{
-                                    color: "#16a34a",
-                                    fontSize: 11,
-                                    fontFamily: "monospace",
-                                    fontWeight: 700,
-                                    textDecoration: "none",
-                                  }}
-                                >
-                                  +91 {dispatchItem.receiverPhone}
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Driver / Vehicle */}
-                        <td className="dsp-td">
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                            <span style={{ fontWeight: 600, color: "#334155", fontSize: 13 }}>
-                              {dispatchItem.driverName || "—"}
-                            </span>
-                            {dispatchItem.vehicleNumber && (
-                              <span
-                                style={{
-                                  display: "inline-block",
-                                  width: "max-content",
-                                  padding: "2px 6px",
-                                  borderRadius: 4,
-                                  background: "#f1f5f9",
-                                  border: "1px solid #cbd5e1",
-                                  color: "#475569",
-                                  fontFamily: "monospace",
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {dispatchItem.vehicleNumber}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Delivered At */}
-                        <td className="dsp-td">
-                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                            <Calendar style={{ width: 13, height: 13, color: "#64748b" }} />
-                            <span style={{ color: "#334155", fontSize: 12, fontWeight: 600 }}>
-                              {dispatchItem.deliveredAt
-                                ? new Date(dispatchItem.deliveredAt).toLocaleString("en-IN", {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })
-                                : "—"}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* POD Image */}
-                        <td className="dsp-td text-center">
-                          {dispatchItem.podUrl ? (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedPodImage(dispatchItem.podUrl)}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 4,
-                                padding: "4px 8px",
-                                borderRadius: 6,
-                                background: "#f0fdf4",
-                                border: "1px solid #bbf7d0",
-                                color: "#166534",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                cursor: "pointer",
-                              }}
-                            >
-                              <ImageIcon style={{ width: 12, height: 12 }} />
-                              <span>View POD</span>
-                            </button>
-                          ) : (
-                            <span style={{ color: "#94a3b8", fontSize: 11, fontStyle: "italic" }}>
-                              No image
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Status */}
-                        <td className="dsp-td text-center">
-                          <DispatchStatusBadge status={dispatchItem.status || "DELIVERED"} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </DispatchTableCard>
-          )}
-        </>
-      )}
-
-      {/* ── Delivery Confirmation Modal ── */}
-      {selectedDispatch && (
-        <div
-          className="dsp-modal-overlay"
-          role="presentation"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !isSubmitting) setSelectedDispatch(null);
-          }}
-        >
-          <div
-            className="dsp-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="dsp-modal-title"
-          >
-            {/* Modal Header */}
-            <div className="dsp-modal-head">
-              <div>
-                <h3 id="dsp-modal-title" className="dsp-modal-title">
-                  Delivery Confirmation
-                </h3>
-                <p className="dsp-modal-dispatch-no">{selectedDispatch.dispatchNo}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedDispatch(null)}
-                disabled={isSubmitting}
-                aria-label="Close modal"
-                className="dsp-modal-close"
-              >
-                <X size={16} />
-              </button>
+              <h1 className={styles.heroTitle}>Out for Delivery &amp; Handover Registry</h1>
+              <p className={styles.heroSubtitle}>
+                Execute client delivery handovers, capture recipient signatures &amp; phone contacts, and upload verified Proof of Delivery (POD) image records.
+              </p>
             </div>
 
-            {/* Modal Body */}
-            <div className="dsp-modal-body">
-              {/* Summary */}
-              <div className="dsp-summary">
-                <div className="dsp-summary-row">
-                  <span className="dsp-summary-key">Sales Order</span>
-                  <span className="dsp-summary-val">#{selectedDispatch.salesOrder?.orderNumber}</span>
-                </div>
-                <div className="dsp-summary-row">
-                  <span className="dsp-summary-key">Customer</span>
-                  <span className="dsp-summary-val">{selectedDispatch.salesOrder?.customer?.companyName}</span>
-                </div>
-                {selectedDispatch.deliveryAddress && (
-                  <div className="dsp-summary-row">
-                    <span className="dsp-summary-key">Address</span>
-                    <span className="dsp-summary-val dsp-summary-addr">{selectedDispatch.deliveryAddress}</span>
-                  </div>
-                )}
-                {selectedDispatch.driverName && (
-                  <div className="dsp-summary-row">
-                    <span className="dsp-summary-key">Driver</span>
-                    <span className="dsp-summary-val">{selectedDispatch.driverName}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Form */}
-              <div className="dsp-form-grid">
-                <div className="dsp-field">
-                  <label htmlFor="dsp-receiver-name" className="dsp-label">
-                    Receiver Name <span className="dsp-required">*</span>
-                  </label>
-                  <input
-                    id="dsp-receiver-name"
-                    type="text"
-                    value={receiverName}
-                    onChange={(e) => setReceiverName(e.target.value)}
-                    placeholder="Who received the package?"
-                    className="dsp-input"
-                    autoComplete="off"
-                  />
-                </div>
-
-                <div className="dsp-field">
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <label htmlFor="dsp-receiver-mobile" className="dsp-label">
-                      Receiver Mobile <span className="dsp-required">*</span>
-                    </label>
-                    {receiverMobile && (
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: isMobileValid ? "#16a34a" : "#dc2626",
-                        }}
-                      >
-                        {mobileValidationMessage}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ position: "relative", display: "flex", alignItems: "center", width: "100%" }}>
-                    <span
-                      style={{
-                        position: "absolute",
-                        left: 12,
-                        color: "#64748b",
-                        fontSize: 13,
-                        fontWeight: 700,
-                        pointerEvents: "none",
-                        fontFamily: "monospace",
-                      }}
-                    >
-                      +91
-                    </span>
-                    <input
-                      id="dsp-receiver-mobile"
-                      type="tel"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={10}
-                      value={receiverMobile}
-                      onChange={handleMobileChange}
-                      placeholder="9876543210"
-                      className="dsp-input"
-                      style={{
-                        paddingLeft: 46,
-                        fontFamily: "monospace",
-                        letterSpacing: "0.05em",
-                        fontWeight: 600,
-                        borderColor: receiverMobile ? (isMobileValid ? "#86efac" : "#fca5a5") : undefined,
-                      }}
-                      autoComplete="off"
-                    />
-                  </div>
-                  <span style={{ fontSize: 11, color: "#64748b", marginTop: 4, display: "block" }}>
-                    Enter exactly 10-digit Indian mobile number (e.g. 9876543210)
-                  </span>
-                </div>
-              </div>
-
-              {/* POD Upload */}
-              <div className="dsp-field">
-                <label className="dsp-label">
-                  Delivery Image (POD) <span className="dsp-required">*</span>
-                </label>
-                <label className="dsp-pod-zone">
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="dsp-pod-input"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      if (file && file.size > 5 * 1024 * 1024) {
-                        toast.error("Image must be 5 MB or smaller");
-                        return;
-                      }
-                      setDeliveryImage(file);
-                    }}
-                  />
-                  {deliveryImagePreview ? (
-                    <div className="dsp-pod-preview">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={deliveryImagePreview} alt="POD Preview" className="dsp-pod-img" />
-                      <span className="dsp-pod-replace">Click to replace image</span>
-                    </div>
-                  ) : (
-                    <div className="dsp-pod-placeholder">
-                      <Upload size={28} />
-                      <span className="dsp-pod-title">Upload delivery proof image</span>
-                      <span className="dsp-pod-hint">JPG, PNG or WebP · max 5 MB</span>
-                    </div>
-                  )}
-                </label>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="dsp-modal-foot">
+            <div className={styles.heroActions}>
               <button
                 type="button"
-                onClick={() => setSelectedDispatch(null)}
-                disabled={isSubmitting}
-                className="dsp-btn-cancel"
+                onClick={() => {
+                  refetch();
+                  refetchHistory();
+                }}
+                className={styles.btnActionLight}
+                title="Refresh delivery live feed"
               >
-                Cancel
+                <RefreshCw size={14} className={isRefetching || isHistoryLoading ? "animate-spin" : ""} />
+                <span>Refresh Feed</span>
               </button>
+
               <button
                 type="button"
-                disabled={!receiverName.trim() || !isMobileValid || !deliveryImage || isSubmitting}
-                onClick={handleConfirmDelivery}
-                className="dsp-btn-confirm"
-                style={{ opacity: !receiverName.trim() || !isMobileValid || !deliveryImage ? 0.6 : 1 }}
+                onClick={handleExportCsv}
+                className={styles.btnActionPrimary}
+                title="Export current view as CSV manifest"
               >
-                <CheckSquare size={15} />
-                <span>{isSubmitting ? "Confirming…" : "Confirm Delivery"}</span>
+                <Download size={14} />
+                <span>Export Manifest</span>
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </section>
 
-      {/* ── POD Image Lightbox Modal ── */}
-      {selectedPodImage && (
-        <div
-          role="presentation"
-          onClick={() => setSelectedPodImage(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9999,
-            background: "rgba(15, 23, 42, 0.75)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "20px",
-          }}
-        >
-          <div
-            role="dialog"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: "16px",
-              padding: "20px",
-              maxWidth: "600px",
-              width: "100%",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "14px",
-              }}
-            >
-              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: 0, color: "#0f172a" }}>
-                Proof of Delivery (POD)
-              </h3>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <a
-                  href={selectedPodImage}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    color: "#2563eb",
-                    textDecoration: "none",
-                  }}
-                >
-                  <ExternalLink style={{ width: 14, height: 14 }} />
-                  Open Full Size
-                </a>
+        {/* ─── MAIN WORKSPACE CARD ─── */}
+        <div className={styles.mainCard}>
+          {/* Controls Bar: Tabs & Search Filter */}
+          <div className={styles.controlBar}>
+            {/* Horizontally Scrollable Tab Switcher */}
+            <div className={styles.tabSwitcherWrapper}>
+              <div className={styles.tabSwitcher}>
                 <button
                   type="button"
-                  onClick={() => setSelectedPodImage(null)}
-                  style={{
-                    border: "none",
-                    background: "#f1f5f9",
-                    borderRadius: "8px",
-                    padding: "6px",
-                    cursor: "pointer",
-                    display: "grid",
-                    placeItems: "center",
-                  }}
+                  onClick={() => setActiveTab("delivery")}
+                  className={`${styles.tabBtn} ${activeTab === "delivery" ? styles.tabBtnActive : ""}`}
                 >
-                  <X style={{ width: 16, height: 16, color: "#64748b" }} />
+                  <Truck size={15} />
+                  <span>Out for Delivery</span>
+                  <span className={`${styles.tabBadge} ${activeTab === "delivery" ? styles.tabBadgeActive : ""}`}>
+                    {activeDeliveryQueue.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("history")}
+                  className={`${styles.tabBtn} ${activeTab === "history" ? styles.tabBtnActive : ""}`}
+                >
+                  <History size={15} />
+                  <span>Dispatch History &amp; POD</span>
+                  <span className={`${styles.tabBadge} ${activeTab === "history" ? styles.tabBadgeActive : ""}`}>
+                    {filteredHistoryDispatches.length}
+                  </span>
                 </button>
               </div>
             </div>
 
-            <div
-              style={{
-                borderRadius: "12px",
-                overflow: "hidden",
-                border: "1px solid #e2e8f0",
-                background: "#000",
-                maxHeight: "70vh",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={selectedPodImage}
-                alt="Proof of Delivery"
-                style={{ width: "100%", maxHeight: "68vh", objectFit: "contain" }}
-              />
+            {/* Filter Toolbar */}
+            <div className={styles.filterToolbar}>
+              <div className={styles.searchBox}>
+                <Search size={16} className={styles.searchIcon} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={
+                    activeTab === "delivery"
+                      ? "Search dispatch #, sales order, customer, driver or address..."
+                      : "Search dispatch #, sales order, customer, receiver or vehicle..."
+                  }
+                  className={styles.searchInput}
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className={styles.searchClear}
+                    title="Clear search"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+
+              <div className={styles.toolbarActions}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    refetch();
+                    refetchHistory();
+                  }}
+                  className={styles.btnActionLight}
+                  style={{ color: "#334155", borderColor: "#cbd5e1" }}
+                  title="Refresh dispatch data"
+                >
+                  <RefreshCw size={14} className={isRefetching || isHistoryLoading ? "animate-spin" : ""} />
+                  <span>Refresh</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  className={styles.btnActionPrimary}
+                  title="Export current view to CSV"
+                >
+                  <Download size={14} />
+                  <span>Export CSV</span>
+                </button>
+              </div>
             </div>
+          </div>
+
+          {/* ─── TAB 1: ACTIVE DELIVERY QUEUE ─── */}
+          {activeTab === "delivery" && (
+            <>
+              {isLoading && (
+                <div style={{ padding: 40, display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ height: 48, background: "#f1f5f9", borderRadius: 8 }} />
+                  <div style={{ height: 48, background: "#f1f5f9", borderRadius: 8 }} />
+                  <div style={{ height: 48, background: "#f1f5f9", borderRadius: 8 }} />
+                </div>
+              )}
+
+              {error && !isLoading && (
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIconBox} style={{ color: "#ef4444", background: "#fef2f2" }}>
+                    <ShieldCheck size={28} />
+                  </div>
+                  <h3 className={styles.emptyTitle}>Unable to Load Deliveries</h3>
+                  <p className={styles.emptyDesc}>
+                    An error occurred while fetching the active delivery queue. Please verify your connection or click retry.
+                  </p>
+                  <button type="button" onClick={() => refetch()} className={styles.btnActionPrimary} style={{ marginTop: 14 }}>
+                    Retry Loading
+                  </button>
+                </div>
+              )}
+
+              {!isLoading && !error && activeDeliveryQueue.length === 0 && (
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIconBox}>
+                    <Truck size={28} />
+                  </div>
+                  <h3 className={styles.emptyTitle}>
+                    {search ? "No Matching Deliveries" : "No Active Delivery Runs"}
+                  </h3>
+                  <p className={styles.emptyDesc}>
+                    {search
+                      ? `No shipments match "${search}". Try clearing your search query.`
+                      : "There are currently no shipments marked out for delivery. Shipments can be released from In-Transit."}
+                  </p>
+                  {search && (
+                    <button type="button" onClick={() => setSearch("")} className={styles.btnActionLight} style={{ marginTop: 14, color: "#0f172a" }}>
+                      Clear Search Filter
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Desktop Table View */}
+              {!isLoading && !error && activeDeliveryQueue.length > 0 && (
+                <div className={styles.tableContainer}>
+                  <table className={styles.dataTable}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 170 }}>Dispatch Number</th>
+                        <th style={{ width: 160 }}>Sales Order</th>
+                        <th>Customer &amp; Destination</th>
+                        <th style={{ width: 220 }}>Driver &amp; Carrier</th>
+                        <th style={{ width: 150, textAlign: "center" }}>Status</th>
+                        <th style={{ width: 180, textAlign: "right" }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeDeliveryQueue.map((item) => {
+                        const cleanDispNo = formatCleanNo(item.dispatchNo);
+                        const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
+
+                        return (
+                          <tr key={item.id}>
+                            {/* Dispatch Number */}
+                            <td>
+                              <div
+                                className={styles.badgeDispatchNo}
+                                onClick={() => copyToClipboard(cleanDispNo)}
+                                title="Click to copy Dispatch #"
+                              >
+                                <Truck size={13} color="#2563eb" />
+                                <span>#{cleanDispNo}</span>
+                                {copiedText === cleanDispNo ? (
+                                  <CheckCircle2 size={12} color="#16a34a" />
+                                ) : (
+                                  <Copy size={11} color="#94a3b8" />
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Sales Order */}
+                            <td>
+                              <span className={styles.badgeOrderNo}>
+                                #{cleanSoNo}
+                              </span>
+                            </td>
+
+                            {/* Customer & Destination */}
+                            <td>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                <span style={{ fontWeight: 700, color: "#0f172a", fontSize: "13.5px" }}>
+                                  {item.salesOrder?.customer?.companyName || "Consignee Client"}
+                                </span>
+                                {item.deliveryAddress && (
+                                  <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#64748b", fontSize: "12px" }} title={item.deliveryAddress}>
+                                    <MapPin size={12} color="#f59e0b" style={{ flexShrink: 0 }} />
+                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>
+                                      {item.deliveryAddress}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Driver & Carrier */}
+                            <td>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <User size={13} color="#64748b" />
+                                  <span style={{ fontWeight: 700, color: "#0f172a" }}>{item.driverName || "Driver Assigned"}</span>
+                                </div>
+                                {item.driverPhone && (
+                                  <a
+                                    href={`tel:${item.driverPhone}`}
+                                    style={{ display: "flex", alignItems: "center", gap: 5, color: "#2563eb", fontSize: "12px", textDecoration: "none" }}
+                                  >
+                                    <Phone size={11} />
+                                    <span>{item.driverPhone}</span>
+                                  </a>
+                                )}
+                                {item.vehicleNumber && (
+                                  <span style={{ fontSize: "11px", color: "#64748b", fontFamily: "monospace" }}>
+                                    Plate: {item.vehicleNumber}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Status */}
+                            <td style={{ textAlign: "center" }}>
+                              <span className={styles.badgeStatusTransit}>
+                                <Clock size={12} />
+                                Out for Delivery
+                              </span>
+                            </td>
+
+                            {/* Confirm Delivery Action */}
+                            <td style={{ textAlign: "right" }}>
+                              <button
+                                type="button"
+                                onClick={() => openModal(item)}
+                                className={styles.btnConfirmDelivery}
+                              >
+                                <CheckCircle2 size={14} />
+                                <span>Confirm Delivery</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Mobile Card List (< 768px) */}
+              {!isLoading && !error && activeDeliveryQueue.length > 0 && (
+                <div className={styles.mobileCardList}>
+                  {activeDeliveryQueue.map((item) => {
+                    const cleanDispNo = formatCleanNo(item.dispatchNo);
+                    const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
+
+                    return (
+                      <div key={item.id} className={styles.mobileCard}>
+                        <div className={styles.mobileCardHeader}>
+                          <div className={styles.badgeDispatchNo}>
+                            <Truck size={13} color="#2563eb" />
+                            <span>#{cleanDispNo}</span>
+                          </div>
+                          <span className={styles.badgeStatusTransit}>Out for Delivery</span>
+                        </div>
+
+                        <div className={styles.mobileCardRow}>
+                          <div className={styles.mobileCardIcon}>
+                            <Building2 size={14} />
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                              {item.salesOrder?.customer?.companyName || "Consignee Client"}
+                            </div>
+                            <div style={{ fontSize: "11.5px", color: "#64748b" }}>
+                              Order #{cleanSoNo}
+                            </div>
+                          </div>
+                        </div>
+
+                        {item.deliveryAddress && (
+                          <div className={styles.mobileCardRow}>
+                            <div className={styles.mobileCardIcon}>
+                              <MapPin size={14} color="#f59e0b" />
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#475569" }}>
+                              {item.deliveryAddress}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className={styles.mobileCardRow}>
+                          <div className={styles.mobileCardIcon}>
+                            <User size={14} />
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "12.5px" }}>
+                              {item.driverName || "Driver Assigned"}
+                            </div>
+                            {item.driverPhone && (
+                              <div style={{ fontSize: "12px", color: "#2563eb" }}>
+                                {item.driverPhone} · {item.vehicleNumber || "Fleet"}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => openModal(item)}
+                          className={styles.btnConfirmDelivery}
+                          style={{ width: "100%", justifyContent: "center", padding: "10px" }}
+                        >
+                          <CheckCircle2 size={15} />
+                          <span>Confirm Delivery Handover</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ─── TAB 2: DISPATCH HISTORY & POD ─── */}
+          {activeTab === "history" && (
+            <>
+              {isHistoryLoading && (
+                <div style={{ padding: 40, display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ height: 48, background: "#f1f5f9", borderRadius: 8 }} />
+                  <div style={{ height: 48, background: "#f1f5f9", borderRadius: 8 }} />
+                </div>
+              )}
+
+              {!isHistoryLoading && filteredHistoryDispatches.length === 0 && (
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIconBox} style={{ background: "#f0fdf4", color: "#16a34a" }}>
+                    <CheckCircle2 size={28} />
+                  </div>
+                  <h3 className={styles.emptyTitle}>
+                    {search ? "No Matching Completed Records" : "No Delivered Records"}
+                  </h3>
+                  <p className={styles.emptyDesc}>
+                    {search
+                      ? `No delivered dispatches match "${search}". Try clearing your search query.`
+                      : "Delivered shipments with verified proof of delivery (POD) will appear here."}
+                  </p>
+                </div>
+              )}
+
+              {!isHistoryLoading && filteredHistoryDispatches.length > 0 && (
+                <div className={styles.tableContainer}>
+                  <table className={styles.dataTable}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 160 }}>Dispatch No.</th>
+                        <th style={{ width: 150 }}>Sales Order</th>
+                        <th>Customer</th>
+                        <th style={{ width: 220 }}>Receiver Details</th>
+                        <th style={{ width: 190 }}>Driver / Vehicle</th>
+                        <th style={{ width: 170 }}>Delivered Timestamp</th>
+                        <th style={{ width: 130, textAlign: "center" }}>POD Proof</th>
+                        <th style={{ width: 130, textAlign: "center" }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredHistoryDispatches.map((item) => {
+                        const cleanDispNo = formatCleanNo(item.dispatchNo);
+                        const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
+
+                        return (
+                          <tr key={item.id}>
+                            <td>
+                              <div
+                                className={styles.badgeDispatchNo}
+                                onClick={() => copyToClipboard(cleanDispNo)}
+                                title="Click to copy Dispatch #"
+                              >
+                                <Truck size={13} color="#2563eb" />
+                                <span>#{cleanDispNo}</span>
+                              </div>
+                            </td>
+
+                            <td>
+                              <span className={styles.badgeOrderNo}>
+                                #{cleanSoNo}
+                              </span>
+                            </td>
+
+                            <td>
+                              <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                                {item.salesOrder?.customer?.companyName || "Consignee Client"}
+                              </div>
+                            </td>
+
+                            <td>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                  <User size={13} color="#16a34a" />
+                                  <span style={{ fontWeight: 700, color: "#0f172a" }}>{item.receivedBy || "Recipient Signed"}</span>
+                                </div>
+                                {item.receiverPhone && (
+                                  <span style={{ fontSize: "11.5px", color: "#64748b" }}>
+                                    Tel: {item.receiverPhone}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            <td>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                <span style={{ fontWeight: 600, color: "#334155" }}>{item.driverName || "Driver"}</span>
+                                {item.vehicleNumber && (
+                                  <span style={{ fontSize: "11px", color: "#64748b", fontFamily: "monospace" }}>
+                                    {item.vehicleNumber}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            <td>
+                              <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#475569", fontSize: "12px" }}>
+                                <Calendar size={12} color="#64748b" />
+                                <span>
+                                  {item.deliveredAt ? new Date(item.deliveredAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td style={{ textAlign: "center" }}>
+                              {item.podUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedPodImage(item.podUrl)}
+                                  className={styles.btnViewPod}
+                                  title="View Proof of Delivery"
+                                >
+                                  <ImageIcon size={13} color="#2563eb" />
+                                  <span>View POD</span>
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: "11.5px", color: "#94a3b8" }}>No Image</span>
+                              )}
+                            </td>
+
+                            <td style={{ textAlign: "center" }}>
+                              <span className={styles.badgeStatusDelivered}>
+                                <CheckCircle2 size={12} />
+                                Delivered
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ─── CONFIRM DELIVERY MODAL ─── */}
+      {selectedDispatch && (
+        <div className={styles.modalBackdrop} onClick={closeModal}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div className={styles.modalTitleGroup}>
+                <div className={styles.modalIconBox}>
+                  <CheckCircle2 size={24} />
+                </div>
+                <div>
+                  <h3 className={styles.modalTitle}>Confirm Delivery Handover</h3>
+                  <p className={styles.modalSubtitle}>
+                    Dispatch #{formatCleanNo(selectedDispatch.dispatchNo)}
+                  </p>
+                </div>
+              </div>
+              <button type="button" onClick={closeModal} className={styles.modalCloseBtn}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmDelivery}>
+              <div className={styles.modalBody}>
+                {/* Order Summary Box */}
+                <div className={styles.modalOrderSummary}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px" }}>
+                    <span style={{ color: "#64748b" }}>Consignee:</span>
+                    <span style={{ fontWeight: 800, color: "#0f172a" }}>
+                      {selectedDispatch.salesOrder?.customer?.companyName || "Client Consignee"}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px" }}>
+                    <span style={{ color: "#64748b" }}>Sales Order:</span>
+                    <span style={{ fontWeight: 700, fontFamily: "monospace", color: "#2563eb" }}>
+                      #{formatCleanNo(selectedDispatch.salesOrder?.orderNumber)}
+                    </span>
+                  </div>
+                  {selectedDispatch.deliveryAddress && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", borderTop: "1px dashed #e2e8f0", paddingTop: 6 }}>
+                      <span style={{ color: "#64748b" }}>Destination:</span>
+                      <span style={{ fontWeight: 500, color: "#334155", maxWidth: "65%", textAlign: "right" }}>
+                        {selectedDispatch.deliveryAddress}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Receiver Name */}
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>
+                    Receiver Person Name<span className={styles.formLabelRequired}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={receiverName}
+                    onChange={(e) => setReceiverName(e.target.value)}
+                    placeholder="e.g. Anand Sharma (Site Manager)"
+                    className={styles.formInput}
+                  />
+                </div>
+
+                {/* Receiver Phone */}
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>
+                    Receiver Mobile Number<span className={styles.formLabelRequired}>*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    value={receiverMobile}
+                    onChange={(e) => setReceiverMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="e.g. 9876543210 (10-digit mobile)"
+                    className={styles.formInput}
+                  />
+                </div>
+
+                {/* Delivery Remarks */}
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Handover Remarks / Notes</label>
+                  <textarea
+                    value={deliveryRemarks}
+                    onChange={(e) => setDeliveryRemarks(e.target.value)}
+                    placeholder="e.g. Received in good condition with signed gate pass."
+                    className={styles.formTextarea}
+                  />
+                </div>
+
+                {/* POD Upload */}
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>
+                    Proof of Delivery (POD) Image / Doc<span className={styles.formLabelRequired}>*</span>
+                  </label>
+                  {!deliveryImagePreview ? (
+                    <label className={styles.fileDropzone}>
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={handleImageChange}
+                        style={{ display: "none" }}
+                      />
+                      <Upload size={24} color="#3b82f6" />
+                      <span style={{ fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>
+                        Upload or Drag Signed POD Document
+                      </span>
+                      <span style={{ fontSize: "11.5px", color: "#64748b" }}>
+                        JPG, PNG, WebP or PDF (Max 5 MB)
+                      </span>
+                    </label>
+                  ) : (
+                    <div className={styles.previewImageWrap}>
+                      <img
+                        src={deliveryImagePreview}
+                        alt="POD Preview"
+                        className={styles.previewImage}
+                      />
+                      <button
+                        type="button"
+                        onClick={removeImage}
+                        className={styles.btnRemoveImage}
+                        title="Remove Image"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className={styles.modalFooter}>
+                <button type="button" onClick={closeModal} className={styles.btnModalCancel}>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={styles.btnModalSubmit}
+                >
+                  <CheckCircle2 size={15} />
+                  <span>{isSubmitting ? "Submitting..." : "Mark as Delivered"}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
-    </DispatchPageShell>
+
+      {/* ─── POD IMAGE LIGHTBOX ─── */}
+      {selectedPodImage && (
+        <div className={styles.lightboxBackdrop} onClick={() => setSelectedPodImage(null)}>
+          <button
+            type="button"
+            className={styles.lightboxCloseBtn}
+            onClick={() => setSelectedPodImage(null)}
+            title="Close Lightbox"
+          >
+            <X size={20} />
+          </button>
+          <div className={styles.lightboxImageWrap} onClick={(e) => e.stopPropagation()}>
+            <img
+              src={selectedPodImage}
+              alt="Proof of Delivery Document"
+              className={styles.lightboxImage}
+            />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

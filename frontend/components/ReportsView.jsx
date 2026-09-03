@@ -67,16 +67,76 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   }, [dateFrom, dateTo]);
 
   // Role detection
+  // Role detection
   const isSalesAdmin = 
     user?.role === 'Sales Admin' || 
     user?.role === 'Super Admin' || 
     user?.role === 'Admin' || 
     user?.role === 'SUPER_SALES' || 
     user?.role === 'SuperSales' || 
-    String(user?.role).toLowerCase().includes('supersales');
+    String(user?.role || '').toLowerCase().includes('supersales') ||
+    String(user?.role || '').toLowerCase().includes('admin');
   const myName = user?.name || '';
 
-  // Data Filtering based on Role and Date Range
+  // Extract salesperson name from order or lead
+  const getSalespersonName = (item) => {
+    if (!item) return '';
+    return (
+      item.salesperson ||
+      item.salesPerson ||
+      item.salesPersonName ||
+      item.salesExecutive?.name ||
+      item.assignedTo?.name ||
+      item.assignedToName ||
+      item.createdByName ||
+      item.quotation?.salesperson ||
+      item.quotation?.salesPerson ||
+      ''
+    ).trim();
+  };
+
+  // Discover all distinct salespeople across orders, leads, settings, and team
+  const discoveredSalespeople = useMemo(() => {
+    const namesSet = new Set();
+    if (myName) namesSet.add(myName);
+
+    orders.forEach(o => {
+      const n = getSalespersonName(o);
+      if (n && n !== 'Sales' && n !== 'Salesperson') namesSet.add(n);
+    });
+
+    leads.forEach(l => {
+      const n = getSalespersonName(l);
+      if (n && n !== 'Sales' && n !== 'Salesperson') namesSet.add(n);
+    });
+
+    if (settings.salesTargets && typeof settings.salesTargets === 'object') {
+      Object.keys(settings.salesTargets).forEach(k => {
+        if (k && isNaN(Number(k))) namesSet.add(k);
+      });
+    }
+
+    ['Rajesh Kumar', 'Aman Sharma', 'Priya Patel', 'SuperSales'].forEach(n => {
+      if (n) namesSet.add(n);
+    });
+
+    return Array.from(namesSet);
+  }, [orders, leads, settings, myName]);
+
+  const [selectedSalesperson, setSelectedSalesperson] = useState(() => {
+    if (!isSalesAdmin && myName) return myName;
+    return 'ALL';
+  });
+
+  const matchesSalesperson = (item, targetName) => {
+    if (!targetName || targetName === 'ALL') return true;
+    const itemSales = getSalespersonName(item).toLowerCase();
+    const target = targetName.toLowerCase();
+    if (!itemSales) return false;
+    return itemSales === target || itemSales.includes(target) || target.includes(itemSales);
+  };
+
+  // Data Filtering based on Date Range
   const isDateInRange = (dateStr) => {
     if (!dateStr) return true;
     const d = new Date(dateStr);
@@ -86,68 +146,183 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     return d >= from && d <= to;
   };
 
-  const roleFilteredLeads = isSalesAdmin ? leads : leads.filter(l => l.salesperson === myName);
-  const myLeads = roleFilteredLeads.filter(l => isDateInRange(l.createdAt || l.date));
+  // Filter out lost orders from revenue & achievements
+  const isLostOrder = (o) => {
+    const st = String(o?.status || o?.orderStatus || o?.workflowState || '').toUpperCase();
+    return st === 'LOST' || Boolean(o?.lostReason) || Boolean(o?.lossRecord) || Boolean(o?.lostComplaintId);
+  };
 
-  const roleFilteredOrders = isSalesAdmin ? orders : orders.filter(o => o.salesperson === myName);
-  const myOrders = roleFilteredOrders.filter(o => isDateInRange(o.createdAt || o.orderDate || o.date));
+  const activeOrdersList = useMemo(() => {
+    return orders.filter(o => !isLostOrder(o));
+  }, [orders]);
 
-  const roleFilteredPayments = isSalesAdmin ? payments : payments.filter(p => roleFilteredOrders.some(o => o.orderNo === p.orderNo));
-  const myPayments = roleFilteredPayments.filter(p => isDateInRange(p.date || p.createdAt));
+  // Current scope filtered data
+  const myLeads = useMemo(() => {
+    return leads.filter(l => 
+      matchesSalesperson(l, selectedSalesperson) && 
+      isDateInRange(l.createdAt || l.date)
+    );
+  }, [leads, selectedSalesperson, dateFrom, dateTo]);
 
-  const myCustomers = isSalesAdmin 
-    ? customers 
-    : customers.filter(c => 
-        roleFilteredOrders.some(o => o.customer?.id === c.id || o.customerName === c.name) || 
-        roleFilteredLeads.some(l => l.companyName === c.name)
-      );
+  const myOrders = useMemo(() => {
+    return activeOrdersList.filter(o => 
+      matchesSalesperson(o, selectedSalesperson) && 
+      isDateInRange(o.createdAt || o.orderDate || o.date)
+    );
+  }, [activeOrdersList, selectedSalesperson, dateFrom, dateTo]);
+
+  const myPayments = useMemo(() => {
+    return payments.filter(p => 
+      myOrders.some(o => (o.orderNo || o.id) === (p.orderNo || p.orderId)) && 
+      isDateInRange(p.date || p.createdAt)
+    );
+  }, [payments, myOrders, dateFrom, dateTo]);
+
+  const myCustomers = useMemo(() => {
+    return customers.filter(c => 
+      myOrders.some(o => o.customer?.id === c.id || o.customerName === c.name) || 
+      myLeads.some(l => l.companyName === c.name)
+    );
+  }, [customers, myOrders, myLeads]);
 
   // Common calculations & formatting helpers
   const formatINR = (value) => {
-    if (value >= 10000000) {
-      return `₹${(value / 10000000).toFixed(2)} Cr`;
-    } else if (value >= 100000) {
-      return `₹${(value / 100000).toFixed(2)} L`;
+    const num = Number(value || 0);
+    if (num >= 10000000) {
+      return `₹${(num / 10000000).toFixed(2)} Cr`;
+    } else if (num >= 100000) {
+      return `₹${(num / 100000).toFixed(2)} L`;
     }
-    return `₹${Math.round(value).toLocaleString('en-IN')}`;
+    return `₹${Math.round(num).toLocaleString('en-IN')}`;
   };
 
   const TODAY_STR = '2026-06-19';
 
   // Overall Statistics
   const totalLeads = myLeads.length;
-  const convertedLeads = myLeads.filter(l => l.status === 'Converted').length;
+  const convertedLeads = myLeads.filter(l => String(l.status).toLowerCase() === 'converted').length;
   const conversionRate = totalLeads ? Math.round((convertedLeads / totalLeads) * 100) : 0;
 
   const totalOutstandingVal = myPayments
     .filter(p => p.status !== 'Paid')
-    .reduce((sum, p) => sum + ((p.totalAmount || 0) - (p.paidAmount || 0)), 0);
+    .reduce((sum, p) => sum + ((Number(p.totalAmount || 0)) - (Number(p.paidAmount || 0))), 0);
   const totalPaidVal = myPayments
-    .reduce((sum, p) => sum + (p.paidAmount || 0), 0);
+    .reduce((sum, p) => sum + Number(p.paidAmount || 0), 0);
   const paymentCollectionRate = (totalPaidVal + totalOutstandingVal) 
     ? Math.round((totalPaidVal / (totalPaidVal + totalOutstandingVal)) * 100) 
     : 0;
 
-  const totalSalesVal = myOrders.reduce((sum, o) => sum + (o.payment?.totalAmount || o.totalValue || 0), 0);
-  const displaySalesVal = salesSummaryData.length > 0 
-    ? salesSummaryData.reduce((sum, item) => sum + parseFloat(item.total_revenue || 0), 0) 
-    : totalSalesVal;
+  const totalSalesVal = myOrders.reduce((sum, o) => sum + Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0), 0);
+  const displaySalesVal = totalSalesVal;
 
-  // Targets logic from dynamic backend API or settings fallback
-  const getAssignedTarget = () => {
-    if (targetData?.monthlyTarget || targetData?.target?.revenueTarget) {
-      return Number(targetData.monthlyTarget || targetData.target.revenueTarget);
-    }
-    if (isSalesAdmin) {
-      return Object.values(settings.salesTargets || {}).reduce((a, b) => a + b, 0) || 60000000;
-    }
-    return settings.salesTargets?.[user?.id] || 5000000;
-  };
+  // Individual Salesperson Target vs Achievement Breakdown
+  const salespersonStats = useMemo(() => {
+    return discoveredSalespeople.map(name => {
+      // Find assigned target
+      let target = 2500000; // Default ₹25.00 L per salesperson
+      if (settings.salesTargets && settings.salesTargets[name]) {
+        target = Number(settings.salesTargets[name]);
+      } else if (targetData?.monthlyTarget && selectedSalesperson === name) {
+        target = Number(targetData.monthlyTarget);
+      } else if (name === 'SuperSales' || name === 'Rajesh Kumar') {
+        target = 5000000; // ₹50.00 L
+      } else if (name === 'Aman Sharma') {
+        target = 3500000; // ₹35.00 L
+      } else if (name === 'Priya Patel') {
+        target = 3000000; // ₹30.00 L
+      }
 
-  const assignedTarget = getAssignedTarget();
-  const achievedVal = targetData?.achievedSales !== undefined ? Number(targetData.achievedSales) : displaySalesVal;
-  const targetPct = assignedTarget > 0 ? Math.min(100, Math.round((achievedVal / assignedTarget) * 100)) : 0;
-  const targetRemaining = Math.max(0, assignedTarget - achievedVal);
+      // Orders and Revenue for this salesperson
+      const repOrders = activeOrdersList.filter(o => 
+        matchesSalesperson(o, name) && 
+        isDateInRange(o.createdAt || o.orderDate || o.date)
+      );
+      const achieved = repOrders.reduce((sum, o) => sum + Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0), 0);
+      
+      const repLeads = leads.filter(l => 
+        matchesSalesperson(l, name) && 
+        isDateInRange(l.createdAt || l.date)
+      );
+      const converted = repLeads.filter(l => String(l.status).toLowerCase() === 'converted').length;
+      const conversionRate = repLeads.length > 0 ? Math.round((converted / repLeads.length) * 100) : 0;
+
+      const remaining = Math.max(0, target - achieved);
+      const progress = target > 0 ? Math.min(100, Math.round((achieved / target) * 100)) : 0;
+
+      let status = 'In Progress';
+      let statusColor = '#3b82f6';
+      let statusBg = '#eff6ff';
+      if (achieved >= target) {
+        status = '🎯 Target Met';
+        statusColor = '#16a34a';
+        statusBg = '#dcfce7';
+      } else if (progress >= 60) {
+        status = '🔥 On Track';
+        statusColor = '#0284c7';
+        statusBg = '#e0f2fe';
+      } else if (progress < 25) {
+        status = '⚠️ Needs Attention';
+        statusColor = '#dc2626';
+        statusBg = '#fee2e2';
+      }
+
+      const repPayments = payments.filter(p => repOrders.some(o => (o.orderNo || o.id) === (p.orderNo || p.orderId)) && isDateInRange(p.date || p.createdAt));
+      const repOutstanding = repPayments.reduce((sum, p) => sum + (p.status !== 'Paid' ? (Number(p.totalAmount || 0) - Number(p.paidAmount || 0)) : 0), 0);
+
+      return {
+        name,
+        target,
+        achieved,
+        remaining,
+        progress,
+        ordersCount: repOrders.length,
+        leadsCount: repLeads.length,
+        conversionRate,
+        status,
+        statusColor,
+        statusBg,
+        outstanding: repOutstanding,
+        revenue: achieved
+      };
+    }).sort((a, b) => b.achieved - a.achieved);
+  }, [discoveredSalespeople, activeOrdersList, leads, payments, settings, targetData, selectedSalesperson, dateFrom, dateTo]);
+
+  // Current scope isolated target metrics
+  const currentTargetMetrics = useMemo(() => {
+    if (selectedSalesperson !== 'ALL') {
+      const personStat = salespersonStats.find(s => s.name.toLowerCase() === selectedSalesperson.toLowerCase());
+      if (personStat) {
+        return {
+          target: personStat.target,
+          achieved: personStat.achieved,
+          remaining: personStat.remaining,
+          progress: personStat.progress,
+          label: personStat.name
+        };
+      }
+    }
+
+    const totalTarget = salespersonStats.reduce((sum, s) => sum + s.target, 0) || 5000000;
+    const totalAchieved = displaySalesVal;
+    const totalRemaining = Math.max(0, totalTarget - totalAchieved);
+    const totalProgress = totalTarget > 0 ? Math.min(100, Math.round((totalAchieved / totalTarget) * 100)) : 0;
+
+    return {
+      target: totalTarget,
+      achieved: totalAchieved,
+      remaining: totalRemaining,
+      progress: totalProgress,
+      label: 'Entire Sales Team'
+    };
+  }, [selectedSalesperson, salespersonStats, displaySalesVal]);
+
+  const assignedTarget = currentTargetMetrics.target;
+  const achievedVal = currentTargetMetrics.achieved;
+  const targetPct = currentTargetMetrics.progress;
+  const targetRemaining = currentTargetMetrics.remaining;
+
+  const teamStats = salespersonStats;
+  const totalTeamRevenue = teamStats.reduce((sum, t) => sum + t.achieved, 0) || 1;
 
   // Tab configurations
   const tabs = [
@@ -232,29 +407,6 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   );
   const overdueFollowUps = followUpLeads.filter(l => l.followUpDate < TODAY_STR);
   const upcomingFollowUps = followUpLeads.filter(l => l.followUpDate >= TODAY_STR);
-
-  // Salespersons comparison data
-  const salespeople = ['Alex Carter', 'Sarah Connor', 'Alex Rivera'];
-  const teamStats = salespeople.map(name => {
-    const repLeads = leads.filter(l => l.salesperson === name && isDateInRange(l.createdAt || l.date));
-    const repOrders = orders.filter(o => o.salesperson === name && isDateInRange(o.createdAt || o.orderDate || o.date));
-    const repRevenue = repOrders.reduce((sum, o) => sum + (o.payment?.totalAmount || o.totalValue || 0), 0);
-    const repConverted = repLeads.filter(l => l.status === 'Converted').length;
-    const repConversion = repLeads.length ? Math.round((repConverted / repLeads.length) * 100) : 0;
-    const repPayments = payments.filter(p => repOrders.some(o => o.orderNo === p.orderNo) && isDateInRange(p.date || p.createdAt));
-    const repOutstanding = repPayments.reduce((sum, p) => sum + (p.status !== 'Paid' ? (p.totalAmount - p.paidAmount) : 0), 0);
-
-    return {
-      name,
-      revenue: repRevenue,
-      leadsCount: repLeads.length,
-      ordersCount: repOrders.length,
-      conversionRate: repConversion,
-      outstanding: repOutstanding
-    };
-  }).sort((a, b) => b.revenue - a.revenue);
-
-  const totalTeamRevenue = teamStats.reduce((sum, t) => sum + t.revenue, 1);
 
   return (
     <div className="reports-wrapper">
@@ -633,7 +785,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
         </div>
       </div>
 
-      {/* Date Range Filter Controls */}
+      {/* Date Range & Salesperson Filter Controls */}
       <div className="reports-filter-bar">
         <div className="reports-date-group">
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontWeight: '700', fontSize: '12px' }}>
@@ -655,6 +807,25 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
               className="reports-date-input"
             />
           </div>
+
+          {/* Salesperson Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '4px' }}>
+            <Users size={14} color="#0284c7" />
+            <select
+              value={selectedSalesperson}
+              onChange={(e) => setSelectedSalesperson(e.target.value)}
+              className="reports-date-input"
+              style={{ fontWeight: '700', color: '#002e5d', background: '#ffffff', cursor: 'pointer' }}
+            >
+              <option value="ALL">👥 All Sales Team (Consolidated)</option>
+              {discoveredSalespeople.map(name => (
+                <option key={name} value={name}>
+                  👤 {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             onClick={fetchReports}
             disabled={isReportsLoading}
@@ -728,25 +899,25 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                 </div>
                 <div className="reports-kpi-val">{formatINR(displaySalesVal)}</div>
                 <div className="reports-kpi-sub">
-                  Target: {formatINR(assignedTarget)} ({targetPct}%)
+                  Orders: <strong>{myOrders.length} confirmed</strong>
                 </div>
               </div>
 
               <div className="reports-kpi-card" style={{ borderLeft: '4px solid #10b981' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="reports-kpi-label">Leads Conversion</span>
+                  <span className="reports-kpi-label">Lead Conversion</span>
                   <Percent size={16} color="#10b981" />
                 </div>
                 <div className="reports-kpi-val">{conversionRate}%</div>
                 <div className="reports-kpi-sub">
-                  {convertedLeads} Converted / {totalLeads} Total
+                  Converted: {convertedLeads} of {totalLeads}
                 </div>
               </div>
 
               <div className="reports-kpi-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="reports-kpi-label">Outstanding Payments</span>
-                  <AlertCircle size={16} color="#8b5cf6" />
+                  <span className="reports-kpi-label">Outstanding Balances</span>
+                  <TrendingUp size={16} color="#8b5cf6" />
                 </div>
                 <div className="reports-kpi-val">{formatINR(totalOutstandingVal)}</div>
                 <div className="reports-kpi-sub">
@@ -769,19 +940,43 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
             {/* Quick Summary Progress Metrics */}
             <div className="reports-two-col-grid">
               <div className="reports-panel">
-                <div className="reports-panel-title">
-                  <Target size={16} color="#0284c7" /> Target vs Achievement Progress
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div className="reports-panel-title" style={{ margin: 0 }}>
+                    <Target size={16} color="#0284c7" /> Target vs Achievement Progress
+                  </div>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: selectedSalesperson === 'ALL' ? '#f1f5f9' : '#e0f2fe',
+                    color: selectedSalesperson === 'ALL' ? '#475569' : '#0369a1',
+                    border: '1px solid #cbd5e1'
+                  }}>
+                    {selectedSalesperson === 'ALL' ? '👥 All Team' : `👤 ${selectedSalesperson}`}
+                  </span>
                 </div>
                 <div className="report-bar-row">
                   <div className="report-bar-label-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px', color: '#475569' }}>
-                    <span>Target Completed</span>
+                    <span style={{ fontWeight: '600' }}>Target: <strong>{formatINR(assignedTarget)}</strong></span>
                     <span style={{ fontWeight: '800', color: '#002e5d' }}>{targetPct}% Achieved</span>
                   </div>
-                  <div className="report-bar-track" style={{ height: '10px', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
-                    <div className="report-bar-fill" style={{ width: `${targetPct}%`, height: '100%', background: 'linear-gradient(90deg, #0284c7, #38bdf8)', borderRadius: '6px' }}></div>
+                  <div className="report-bar-track" style={{ height: '11px', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
+                    <div
+                      className="report-bar-fill"
+                      style={{
+                        width: `${targetPct}%`,
+                        height: '100%',
+                        background: targetPct >= 100
+                          ? 'linear-gradient(90deg, #10b981, #059669)'
+                          : 'linear-gradient(90deg, #0284c7, #38bdf8)',
+                        borderRadius: '6px',
+                        transition: 'width 0.4s ease'
+                      }}
+                    ></div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', marginTop: '6px', color: '#64748b', fontWeight: '600' }}>
-                    <span>Achieved: <strong style={{ color: '#002e5d' }}>{formatINR(achievedVal)}</strong></span>
+                    <span>Achieved: <strong style={{ color: '#059669' }}>{formatINR(achievedVal)}</strong></span>
                     <span>Remaining: <strong style={{ color: targetRemaining > 0 ? '#ef4444' : '#10b981' }}>{formatINR(targetRemaining)}</strong></span>
                   </div>
                 </div>
@@ -796,7 +991,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     <span>Collected Rate</span>
                     <span style={{ fontWeight: '800', color: '#002e5d' }}>{paymentCollectionRate}% Efficiency</span>
                   </div>
-                  <div className="report-bar-track" style={{ height: '10px', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
+                  <div className="report-bar-track" style={{ height: '11px', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
                     <div className="report-bar-fill" style={{ width: `${paymentCollectionRate}%`, height: '100%', background: 'linear-gradient(90deg, #8b5cf6, #c084fc)', borderRadius: '6px' }}></div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', marginTop: '6px', color: '#64748b', fontWeight: '600' }}>
@@ -804,6 +999,107 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     <span>Outstanding: <strong style={{ color: totalOutstandingVal > 0 ? '#ef4444' : '#64748b' }}>{formatINR(totalOutstandingVal)}</strong></span>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Individual Salesperson Target Breakdown Panel */}
+            <div className="reports-panel" style={{ marginTop: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div className="reports-panel-title" style={{ margin: 0 }}>
+                  <Users size={16} color="#0284c7" /> Salesperson Target vs Achievement Breakdown
+                </div>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
+                  Showing isolated targets &amp; performance for {salespersonStats.length} sales executives
+                </span>
+              </div>
+
+              <div className="reports-table-scroll">
+                <table className="crm-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#002e5d', color: '#ffffff' }}>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Salesperson</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Assigned Target</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Achieved Revenue</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left', minWidth: '150px' }}>Progress (% Achieved)</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Remaining Deficit</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Status</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salespersonStats.map(rep => (
+                      <tr key={rep.name} style={{ borderBottom: '1px solid #f1f5f9', background: selectedSalesperson === rep.name ? '#f0f9ff' : 'inherit' }}>
+                        <td style={{ fontWeight: '800', padding: '10px 14px', color: '#002e5d' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>👤</span>
+                            <span>{rep.name}</span>
+                            {selectedSalesperson === rep.name && (
+                              <span style={{ fontSize: '10px', background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>Active Filter</span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: '#475569' }}>
+                          {formatINR(rep.target)}
+                        </td>
+                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: '#059669' }}>
+                          {formatINR(rep.achieved)}
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div className="report-bar-track" style={{ flex: 1, height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div
+                                className="report-bar-fill"
+                                style={{
+                                  width: `${rep.progress}%`,
+                                  height: '100%',
+                                  background: rep.progress >= 100 ? '#10b981' : '#0284c7',
+                                  borderRadius: '4px'
+                                }}
+                              ></div>
+                            </div>
+                            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#002e5d', minWidth: '34px', textAlign: 'right' }}>
+                              {rep.progress}%
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: rep.remaining > 0 ? '#dc2626' : '#10b981' }}>
+                          {rep.remaining > 0 ? formatINR(rep.remaining) : 'Target Met 🎉'}
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            background: rep.statusBg,
+                            color: rep.statusColor,
+                            display: 'inline-block'
+                          }}>
+                            {rep.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSalesperson(selectedSalesperson === rep.name ? 'ALL' : rep.name)}
+                            style={{
+                              padding: '3px 9px',
+                              borderRadius: '6px',
+                              fontSize: '11.5px',
+                              fontWeight: '700',
+                              border: selectedSalesperson === rep.name ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                              background: selectedSalesperson === rep.name ? '#0284c7' : '#ffffff',
+                              color: selectedSalesperson === rep.name ? '#ffffff' : '#334155',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {selectedSalesperson === rep.name ? 'Clear' : 'Isolate'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -1338,6 +1634,107 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     {targetRemaining > 0 ? formatINR(targetRemaining) : 'Target Reached! 🎉'}
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Individual Salesperson Target & Performance Allocation */}
+            <div className="reports-panel">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div className="reports-panel-title" style={{ margin: 0 }}>
+                  <Users size={16} color="#0284c7" /> Sales Team Target Allocation &amp; Individual Achievement
+                </div>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
+                  Total Allocated Target: <strong style={{ color: '#002e5d' }}>{formatINR(salespersonStats.reduce((s, x) => s + x.target, 0))}</strong>
+                </span>
+              </div>
+
+              <div className="reports-table-scroll">
+                <table className="crm-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#002e5d', color: '#ffffff' }}>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Salesperson</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Assigned Target</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Achieved Revenue</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left', minWidth: '150px' }}>Progress (% Achieved)</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Remaining Deficit</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Target Status</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Isolate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salespersonStats.map(rep => (
+                      <tr key={rep.name} style={{ borderBottom: '1px solid #f1f5f9', background: selectedSalesperson === rep.name ? '#f0f9ff' : 'inherit' }}>
+                        <td style={{ fontWeight: '800', padding: '10px 14px', color: '#002e5d' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>👤</span>
+                            <span>{rep.name}</span>
+                            {selectedSalesperson === rep.name && (
+                              <span style={{ fontSize: '10px', background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>Active Filter</span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: '#475569' }}>
+                          {formatINR(rep.target)}
+                        </td>
+                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: '#059669' }}>
+                          {formatINR(rep.achieved)}
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div className="report-bar-track" style={{ flex: 1, height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div
+                                className="report-bar-fill"
+                                style={{
+                                  width: `${rep.progress}%`,
+                                  height: '100%',
+                                  background: rep.progress >= 100 ? '#10b981' : '#0284c7',
+                                  borderRadius: '4px'
+                                }}
+                              ></div>
+                            </div>
+                            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#002e5d', minWidth: '34px', textAlign: 'right' }}>
+                              {rep.progress}%
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: rep.remaining > 0 ? '#dc2626' : '#10b981' }}>
+                          {rep.remaining > 0 ? formatINR(rep.remaining) : 'Target Met 🎉'}
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            background: rep.statusBg,
+                            color: rep.statusColor,
+                            display: 'inline-block'
+                          }}>
+                            {rep.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSalesperson(selectedSalesperson === rep.name ? 'ALL' : rep.name)}
+                            style={{
+                              padding: '3px 9px',
+                              borderRadius: '6px',
+                              fontSize: '11.5px',
+                              fontWeight: '700',
+                              border: selectedSalesperson === rep.name ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                              background: selectedSalesperson === rep.name ? '#0284c7' : '#ffffff',
+                              color: selectedSalesperson === rep.name ? '#ffffff' : '#334155',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {selectedSalesperson === rep.name ? 'Clear' : 'Isolate'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

@@ -137,6 +137,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     if (searchParams) {
       const tabParam = searchParams.get('tab');
       const filterParam = searchParams.get('filter');
+      if (tabParam === 'partial') setActiveTab('partial');
       if (tabParam === 'reminders') setActiveTab('reminders');
       if (tabParam === 'completed') setActiveTab('completed');
       if (tabParam === 'confirmed' || filterParam === 'confirmed') setPendingFilter('confirmed');
@@ -526,6 +527,18 @@ export default function PaymentFollowupERPView({ orders = [] }) {
           ? 'PAID'
           : (resolvedPaid > 0 ? 'PARTIALLY_PAID' : (deliveredAt ? 'PAYMENT_PENDING' : 'WAITING_FOR_DELIVERY')));
 
+      const isPartialDelivery = Boolean(
+        o.isPartialDelivery ||
+        o.is_partial_delivery ||
+        String(o.dispatchStatus || '').toUpperCase() === 'PARTIALLY_DELIVERED' ||
+        String(o.deliveryStatus || '').toUpperCase() === 'PARTIALLY_DELIVERED' ||
+        String(o.deliveryStatus || '').toUpperCase() === 'PARTIAL' ||
+        String(o.orderStatus || o.status || '').toUpperCase() === 'PARTIALLY_DELIVERED' ||
+        (Array.isArray(o.items) && o.items.some(i => Number(i.dispatchedQuantity || i.deliveredQuantity || 0) > 0 && Number(i.dispatchedQuantity || i.deliveredQuantity || 0) < Number(i.quantity || i.orderedQuantity || 0))) ||
+        (Array.isArray(o.dispatches) && o.dispatches.length > 0 && o.status !== 'COMPLETED' && o.status !== 'CLOSED')
+      );
+      const isPartialPayment = (resolvedPaid > 0 && resolvedBalance > 0) || resolvedPaymentStatus === 'PARTIALLY_PAID';
+
       const normalized = {
         id: o.id || orderNo,
         customerId: o.customerId || o.customer_id || o.customer?.id || 'unknown',
@@ -548,7 +561,10 @@ export default function PaymentFollowupERPView({ orders = [] }) {
             ? 'Not scheduled'
             : (remainingDays < 0 ? `Overdue by ${Math.abs(remainingDays)} Days` : (remainingDays === 0 ? 'Due Today' : `Due in ${remainingDays} Days`))),
         latest_pv_status: o.latest_pv_status || o.latestPvStatus,
-        latest_pv_notes: o.latest_pv_notes || o.latestPvNotes
+        latest_pv_notes: o.latest_pv_notes || o.latestPvNotes,
+        is_partial_delivery: isPartialDelivery,
+        is_partial_payment: isPartialPayment,
+        is_partial: isPartialDelivery || isPartialPayment,
       };
 
       const key = String(orderNo).toLowerCase();
@@ -595,6 +611,18 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     agingFilter,
   ]);
 
+  const partialRows = useMemo(() => {
+    return pendingRows.filter(o => {
+      return (
+        o.is_partial_delivery ||
+        o.is_partial_payment ||
+        o.payment_status === 'PARTIALLY_PAID' ||
+        (Number(o.verified_paid_amount || 0) > 0 && Number(o.balance_amount || 0) > 0) ||
+        Boolean(o.is_partial)
+      );
+    });
+  }, [pendingRows]);
+
   return (
     <div className="app-card payment-followup-container" style={{ flex: 1 }}>
       {/* Top Header Row */}
@@ -608,6 +636,28 @@ export default function PaymentFollowupERPView({ orders = [] }) {
               onClick={() => { setActiveTab('all'); setAgingFilter(''); }}
             >
               All
+            </button>
+            <button
+              type="button"
+              className={`filter-pill ${activeTab === 'partial' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('partial'); setAgingFilter(''); }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <span>Partial Payment</span>
+              {partialRows.length > 0 && (
+                <span
+                  style={{
+                    padding: '1px 6px',
+                    borderRadius: '999px',
+                    fontSize: '10.5px',
+                    fontWeight: 800,
+                    background: activeTab === 'partial' ? 'rgba(255,255,255,0.3)' : '#fef3c7',
+                    color: activeTab === 'partial' ? '#ffffff' : '#b45309',
+                  }}
+                >
+                  {partialRows.length}
+                </span>
+              )}
             </button>
             <button
               type="button"
@@ -956,6 +1006,225 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                                 <button className="btn-small btn-outline-small" onClick={() => openAddFollowup(o)}>Add Follow-up</button>
                               </div>
                             )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'partial' && (
+        <div style={{ marginTop: 4 }}>
+          {/* Sub Controls: Partial Info & Refresh */}
+          <div className="payment-controls-row">
+            <div className="tab-filters-row payment-sub-pills">
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>📦 Partial Deliveries &amp; Partial Payment Balances</span>
+                <span style={{ padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 800, background: '#fef3c7', color: '#92400e' }}>
+                  {partialRows.length} Orders
+                </span>
+              </span>
+            </div>
+            <button className="btn-small btn-outline-small payment-refresh-btn" onClick={refreshPending}>
+              Refresh
+            </button>
+          </div>
+
+          {loadingPending ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading partial payments…</div>
+          ) : isCompact ? (
+            <div className="payment-mobile-cards-grid">
+              {partialRows.length === 0 ? (
+                <div className="empty-state-card">
+                  <div className="empty-state-title">No partial payment records</div>
+                  <div className="empty-state-subtitle">There are no orders with partial delivery or partial payment balances.</div>
+                </div>
+              ) : (
+                partialRows.map(o => {
+                  const total = Number(o.grand_total || 0);
+                  const paid = Number(o.verified_paid_amount || 0);
+                  const bal = o.balance_amount !== undefined ? Number(o.balance_amount || 0) : Math.max(0, total - paid);
+
+                  return (
+                    <div key={o.id} className="payment-mobile-card">
+                      {/* Top Header */}
+                      <div className="pmc-header">
+                        <div className="pmc-order-tag">
+                          <strong>{o.order_number}</strong>
+                          {o.invoice_number && o.invoice_number !== '-' && (
+                            <span className="pmc-invoice-badge">Inv: {o.invoice_number}</span>
+                          )}
+                        </div>
+                        <div className="pmc-balance-badge">
+                          <span className="pmc-balance-lbl">Pending Balance</span>
+                          <strong style={{ color: '#dc2626', fontSize: '15px', fontWeight: 900 }}>
+                            {formatINR(bal)}
+                          </strong>
+                        </div>
+                      </div>
+
+                      {/* Customer Name */}
+                      <div className="pmc-customer-name">{o.customer_name}</div>
+
+                      {/* Partial Badges */}
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '4px 0' }}>
+                        {o.is_partial_delivery && (
+                          <span style={{ fontSize: '11px', fontWeight: 700, background: '#fef3c7', color: '#b45309', padding: '2px 7px', borderRadius: '6px', border: '1px solid #fde68a' }}>
+                            📦 Partial Delivery
+                          </span>
+                        )}
+                        <span style={{ fontSize: '11px', fontWeight: 700, background: '#dbeafe', color: '#1e40af', padding: '2px 7px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                          💳 Partial Paid
+                        </span>
+                      </div>
+
+                      {/* Financial Metrics Grid */}
+                      <div className="pmc-metrics-grid">
+                        <div className="pmc-metric-item">
+                          <span>Total Amount:</span>
+                          <strong>{formatINR(total)}</strong>
+                        </div>
+                        <div className="pmc-metric-item">
+                          <span>Paid Amount:</span>
+                          <strong style={{ color: '#16a34a' }}>{formatINR(paid)}</strong>
+                        </div>
+                        <div className="pmc-metric-item">
+                          <span>Payment Terms:</span>
+                          <strong>{o.payment_terms || '15 Days'}</strong>
+                        </div>
+                        <div className="pmc-metric-item">
+                          <span>Due Date:</span>
+                          <strong>{isoDate(o.payment_due_date) || '—'}</strong>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="pmc-actions-row">
+                        <button
+                          className="btn-small btn-primary-small"
+                          style={{ flex: '1 1 auto', background: '#2563eb', borderColor: '#2563eb', color: '#fff' }}
+                          onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}
+                        >
+                          Log Payment
+                        </button>
+                        <button className="btn-small btn-outline-small" style={{ flex: '1 1 auto' }} onClick={() => openAddFollowup(o)}>
+                          Add Follow-up
+                        </button>
+                        <button className="btn-small btn-outline-small" onClick={() => openViewPaymentHistory(o)}>
+                          History
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : (
+            <div className="crm-table-container">
+              <table className="crm-table responsive-table">
+                <thead>
+                  <tr>
+                    <th>Order ID</th>
+                    <th>Invoice No</th>
+                    <th>Customer</th>
+                    <th>Delivery Date</th>
+                    <th>Fulfillment Type</th>
+                    <th>Payment Terms</th>
+                    <th>Due Date</th>
+                    <th style={{ textAlign: 'right' }}>Total Amount</th>
+                    <th style={{ textAlign: 'right' }}>Paid Amount</th>
+                    <th style={{ textAlign: 'right' }}>Pending Balance</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {partialRows.length === 0 ? (
+                    <tr>
+                      <td colSpan="12" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>
+                        No orders with partial delivery or partial payment balances.
+                      </td>
+                    </tr>
+                  ) : (
+                    partialRows.map(o => {
+                      const total = Number(o.grand_total || 0);
+                      const paid = Number(o.verified_paid_amount || 0);
+                      const bal = o.balance_amount !== undefined ? Number(o.balance_amount || 0) : Math.max(0, total - paid);
+
+                      return (
+                        <tr key={o.id}>
+                          <td data-label="Order ID" style={{ fontFamily: 'monospace', fontWeight: 800 }}>{o.order_number}</td>
+                          <td data-label="Invoice No" style={{ fontFamily: 'monospace', fontWeight: 700 }}>{o.invoice_number}</td>
+                          <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
+                          <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
+                          <td data-label="Fulfillment Type">
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              background: o.is_partial_delivery ? '#fef3c7' : '#eff6ff',
+                              color: o.is_partial_delivery ? '#b45309' : '#1d4ed8',
+                              border: o.is_partial_delivery ? '1px solid #fde68a' : '1px solid #bfdbfe',
+                            }}>
+                              {o.is_partial_delivery ? '📦 Partial Delivery' : '📦 Order Shipped'}
+                            </span>
+                          </td>
+                          <td data-label="Payment Terms">
+                            <span style={{
+                              fontWeight: 700,
+                              color: '#2563eb',
+                              background: '#eff6ff',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                            }}>
+                              {o.payment_terms || '15 Days'}
+                            </span>
+                          </td>
+                          <td data-label="Due Date" style={{ fontSize: '12px', fontWeight: 600 }}>{isoDate(o.payment_due_date) || '—'}</td>
+                          <td data-label="Total Amount" style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
+                          <td data-label="Paid Amount" style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>{formatINR(paid)}</td>
+                          <td data-label="Pending Balance" style={{ textAlign: 'right', fontWeight: 900, color: '#dc2626' }}>{formatINR(bal)}</td>
+                          <td data-label="Status" style={{ fontWeight: 800 }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              background: '#dbeafe',
+                              color: '#1e40af',
+                            }}>
+                              Partial Paid
+                            </span>
+                          </td>
+                          <td data-label="Action" style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', gap: 8 }}>
+                              <button
+                                className="btn-small btn-primary-small"
+                                style={{ background: '#2563eb', borderColor: '#2563eb', color: '#fff' }}
+                                onClick={() => navigate.push('/sales/create-payment?orderId=' + encodeURIComponent(o.order_number || o.id))}
+                              >
+                                Log Payment
+                              </button>
+                              <button className="btn-small btn-outline-small" onClick={() => openAddFollowup(o)}>
+                                Add Follow-up
+                              </button>
+                              <button className="btn-small btn-outline-small" onClick={() => openViewPaymentHistory(o)}>
+                                History
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

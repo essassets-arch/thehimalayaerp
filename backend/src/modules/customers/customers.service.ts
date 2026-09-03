@@ -99,18 +99,22 @@ export class CustomersService {
         ]
       : [];
 
-    const where: Prisma.CustomerWhereInput = {
-      companyId,
-      deletedAt: null,
-    };
+    const andConditions: Prisma.CustomerWhereInput[] = [
+      { companyId },
+      { deletedAt: null },
+    ];
 
-    if (searchConditions.length > 0 && scope.OR) {
-      where.AND = [{ OR: searchConditions }, { OR: scope.OR }];
-    } else if (searchConditions.length > 0) {
-      where.OR = searchConditions;
-    } else if (scope.OR) {
-      where.OR = scope.OR;
+    if (scope && Object.keys(scope).length > 0) {
+      andConditions.push(scope);
     }
+
+    if (searchConditions.length > 0) {
+      andConditions.push({ OR: searchConditions });
+    }
+
+    const where: Prisma.CustomerWhereInput = {
+      AND: andConditions,
+    };
 
     const [items, total] = await Promise.all([
       this.prisma.customer.findMany({

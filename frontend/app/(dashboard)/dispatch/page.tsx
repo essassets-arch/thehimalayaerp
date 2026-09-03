@@ -127,9 +127,6 @@ export default function DispatchListPage() {
 
   return (
     <DispatchPageShell>
-      {/* Navigation Tabs */}
-      <DispatchNavigationTabs />
-
       {/* Page Header */}
       <DispatchPageHeader
         title="Dispatch Dashboard"

@@ -319,9 +319,12 @@ export default function OrdersView({
 
   const getOrderStatusLabel = (order) => {
     if (!order) return 'Pending';
+    const status = String(order.status || order.orderStatus || '').toUpperCase();
+    if (status === 'LOST' || order.workflowStateCode === 'LOST' || Boolean(order.lostReason) || Boolean(order.lossRecord) || Boolean(order.lostComplaintId)) {
+      return 'Lost';
+    }
     if (order.commercialStatus === 'ORDER_CLOSED') return 'Closed';
     
-    const status = String(order.status || order.orderStatus || '').toUpperCase();
     const prodStatus = String(order.productionStatus || '').toUpperCase();
     const dispStatus = String(order.dispatchStatus || '').toUpperCase();
     
@@ -389,6 +392,10 @@ export default function OrdersView({
       order.orderStatus ||
       ''
     ).trim().toUpperCase();
+
+    if (backendStatus === 'LOST' || order.lostReason || order.lossRecord || order.lostComplaintId) {
+      return { action: null, label: 'Lost' };
+    }
 
     const isTrading = isTradingOrder(order);
 
@@ -491,11 +498,17 @@ export default function OrdersView({
     const dispatchStatusNorm = String(o.dispatchStatus || '').toUpperCase().replace(/[\s-_]+/g, '');
     const isDelivered = isDeliveredOrder(o);
 
+    const isLost = stageNorm === 'LOST' || stageNorm === 'CANCELLEDLOSS' || stageNorm === 'CANCELLEDEFFECT' || String(o.status || '').toUpperCase() === 'LOST' || String(o.orderStatus || '').toUpperCase() === 'LOST' || String(o.workflowState || '').toUpperCase() === 'LOST' || String(o.workflowStateCode || '').toUpperCase() === 'LOST' || String(o.commercialStatus || '').toUpperCase() === 'LOST' || Boolean(o.lostReason) || Boolean(o.lossRecord) || Boolean(o.lostComplaintId);
+
     let matchesFilter = false;
-    if (filter === 'All Orders') {
+    if (filter === 'Lost') {
+      matchesFilter = isLost;
+    } else if (isLost) {
+      matchesFilter = (filter === 'All Orders');
+    } else if (filter === 'All Orders') {
       matchesFilter = true;
     } else if (filter === 'Open Orders') {
-      matchesFilter = !isDelivered && !['CLOSED', 'CANCELLED'].includes(stageNorm);
+      matchesFilter = !isDelivered && !['CLOSED', 'CANCELLED', 'LOST'].includes(stageNorm);
     } else if (filter === 'In Production') {
       matchesFilter = [
         'INPRODUCTION',
@@ -536,8 +549,6 @@ export default function OrdersView({
       matchesFilter = isDelivered || stageNorm === 'DELIVERED' || dispatchStatusNorm === 'DELIVERED' || displayStage === 'Delivered';
     } else if (filter === 'Closed') {
       matchesFilter = stageNorm === 'CLOSED' || displayStage === 'Closed';
-    } else if (filter === 'Lost') {
-      matchesFilter = stageNorm === 'LOST' || stageNorm === 'CANCELLED-LOSS' || String(o.status || '').toUpperCase() === 'LOST' || String(o.workflowState || '').toUpperCase() === 'LOST' || Boolean(o.lostReason) || Boolean(o.lossRecord);
     } else {
       matchesFilter = stage === filter || stageNorm === filter.toUpperCase().replace(/[\s-_]+/g, '');
     }
@@ -1099,6 +1110,72 @@ export default function OrdersView({
             const orderNo = o.orderNo || o.id;
             const actionState = getOrderActionState(o);
             const statusLabel = isProductionUser ? (o.orderStage || 'In Production') : (filter === 'Delivered' ? paymentLabel : getOrderStatusLabel(o));
+
+            if (filter === 'Lost') {
+              const lostReason = o.lostReason || o.lossRecord?.reason || 'Customer Complaint Approved';
+              const complaintNo = o.lostComplaintId || o.lossRecord?.complaint?.complaintNo || '—';
+              const lostDate = o.lostAt ? String(o.lostAt).slice(0, 10) : (o.lossRecord?.lostDate ? String(o.lossRecord.lostDate).slice(0, 10) : (o.orderDate ? String(o.orderDate).slice(0, 10) : '-'));
+              const salesPerson = o.salesPersonName || o.salesExecutive?.name || 'Salesperson';
+              const lostVal = Number(o.lossRecord?.lostValue ?? total);
+
+              return (
+                <div key={orderNo} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #fee2e2', boxShadow: '0 2px 8px rgba(220,38,38,0.06)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span onClick={() => navigate.push(`/orders/${orderNo}`)} style={{ fontSize: '15px', fontWeight: '800', fontFamily: 'monospace', color: '#dc2626', textDecoration: 'underline', cursor: 'pointer' }}>{orderNo}</span>
+                    <span style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+                      LOST
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Customer</div>
+                      <div style={{ fontWeight: '700', color: '#1e293b' }}>{resolveOrderCustomerName(o)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Salesperson</div>
+                      <div style={{ color: '#475569' }}>{salesPerson}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Lost Value</div>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: '#dc2626' }}>{formatINR(lostVal)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Order Date</div>
+                      <div style={{ color: '#64748b' }}>{lostDate}</div>
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Reason</div>
+                      <span style={{ background: '#fef2f2', color: '#b91c1c', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', display: 'inline-block' }}>
+                        {lostReason}
+                      </span>
+                    </div>
+                    {complaintNo !== '—' && (
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>Complaint Reference</div>
+                        <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#2F4375' }}>{complaintNo}</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrder(o)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      background: '#f8fafc',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
+                      fontWeight: '700',
+                      color: '#334155',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    View Order Details
+                  </button>
+                </div>
+              );
+            }
 
             return (
               <div key={orderNo} style={{ background: '#fff', borderRadius: '12px', border: '1px solid #f1f3f5', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
