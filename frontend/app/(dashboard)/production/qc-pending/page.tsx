@@ -506,7 +506,7 @@ export default function QCPendingPage() {
   };
 
   const filteredJobs = useMemo(() => {
-    return jobs.filter((job: any) => {
+    const list = jobs.filter((job: any) => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       const soNo = (job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '').toLowerCase();
@@ -514,6 +514,16 @@ export default function QCPendingPage() {
       const customer = (job.productionPlan?.salesOrder?.customer?.companyName || job.productionPlan?.salesOrder?.customer?.name || job.customerName || '').toLowerCase();
       const product = (job.salesOrderItem?.product?.name || job.productName || '').toLowerCase();
       return soNo.includes(q) || woNo.includes(q) || customer.includes(q) || product.includes(q);
+    });
+
+    return [...list].sort((a: any, b: any) => {
+      const tA = new Date(a.createdAt || a.created_at || a.completedAt || 0).getTime();
+      const tB = new Date(b.createdAt || b.created_at || b.completedAt || 0).getTime();
+      const numA = parseInt(String(a.workOrderNumber || a.productionPlan?.salesOrder?.orderNumber || a.id || '').replace(/\D/g, '')) || 0;
+      const numB = parseInt(String(b.workOrderNumber || b.productionPlan?.salesOrder?.orderNumber || b.id || '').replace(/\D/g, '')) || 0;
+      if (numA && numB && numA !== numB) return numB - numA;
+      if (tA && tB && tA !== tB) return tB - tA;
+      return String(b.workOrderNumber || b.id || '').localeCompare(String(a.workOrderNumber || a.id || ''));
     });
   }, [jobs, searchQuery]);
 

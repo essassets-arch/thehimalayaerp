@@ -857,11 +857,12 @@ export default function DispatchOrdersPage() {
           totalDispatchedQty: dispatchedNum,
           isPartiallyDispatched: item.isPartiallyDispatched,
           items: [item],
-        });
-      }
+    return Array.from(map.values()).sort((a, b) => {
+      const numA = parseInt((a.orderNumber || "").replace(/\D/g, "")) || 0;
+      const numB = parseInt((b.orderNumber || "").replace(/\D/g, "")) || 0;
+      if (numA && numB && numA !== numB) return numB - numA;
+      return (b.orderNumber || "").localeCompare(a.orderNumber || "");
     });
-
-    return Array.from(map.values());
   }, [filteredPendingItems]);
 
   // Remaining Items (Partially Dispatched)

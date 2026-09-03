@@ -1007,7 +1007,15 @@ export default function ProductionPortal() {
         });
       }
     });
-    return Array.from(mergedWOsMap.values());
+    return Array.from(mergedWOsMap.values()).sort((a, b) => {
+      const tA = new Date(a.createdAt || a.created_at || a.targetDate || 0).getTime();
+      const tB = new Date(b.createdAt || b.created_at || b.targetDate || 0).getTime();
+      const numA = parseInt(String(a.workOrderNo || a.workOrderNumber || a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
+      const numB = parseInt(String(b.workOrderNo || b.workOrderNumber || b.orderNo || b.id || '').replace(/\D/g, '')) || 0;
+      if (numA && numB && numA !== numB) return numB - numA;
+      if (tA && tB && tA !== tB) return tB - tA;
+      return String(b.orderNo || b.id || '').localeCompare(String(a.orderNo || a.id || ''));
+    });
   }, [orders, storeWorkOrders, backendWorkOrders]);
   const mRequests = workflowMaterialRequests;
   const rawInventory = state.rawInventory || [];
@@ -2178,7 +2186,15 @@ export default function ProductionPortal() {
       const key = order.id || order.orderNo;
       if (!plannedMap.has(key)) plannedMap.set(key, order);
     });
-    const planned = Array.from(plannedMap.values());
+    const planned = Array.from(plannedMap.values()).sort((a, b) => {
+      const tA = new Date(a.createdAt || a.targetDate || 0).getTime();
+      const tB = new Date(b.createdAt || b.targetDate || 0).getTime();
+      const numA = parseInt(String(a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
+      const numB = parseInt(String(b.orderNo || b.id || '').replace(/\D/g, '')) || 0;
+      if (numA && numB && numA !== numB) return numB - numA;
+      if (tA && tB && tA !== tB) return tB - tA;
+      return String(b.orderNo || b.id || '').localeCompare(String(a.orderNo || a.id || ''));
+    });
 
     const filteredPlanned = planned.filter(row => {
       if (!globalSearch) return true;

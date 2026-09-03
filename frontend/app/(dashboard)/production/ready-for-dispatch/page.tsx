@@ -288,7 +288,12 @@ export default function ReadyForDispatchPage() {
       }
     });
 
-    return Object.values(groups);
+    return Object.values(groups).sort((a, b) => {
+      const numA = parseInt((a.salesOrderNumber || '').replace(/\D/g, '')) || 0;
+      const numB = parseInt((b.salesOrderNumber || '').replace(/\D/g, '')) || 0;
+      if (numA && numB && numA !== numB) return numB - numA;
+      return (b.salesOrderNumber || '').localeCompare(a.salesOrderNumber || '');
+    });
   };
 
   const allReadyGroups = useMemo(() => groupJobs(readyJobs), [readyJobs]);

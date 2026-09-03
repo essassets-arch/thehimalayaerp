@@ -237,15 +237,25 @@ export default function QCFailedPage() {
   };
 
   const currentList = activeTab === 'ACTIVE' ? activeJobs : historyJobs;
-  const filteredJobs = currentList.filter((job: any) => {
-    const q = searchQuery.toLowerCase();
-    const soNo = (job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '').toLowerCase();
-    const woNo = (job.workOrderNumber || job.id || '').toLowerCase();
-    const customer = (job.productionPlan?.salesOrder?.customer?.companyName || job.customerName || '').toLowerCase();
-    const product = getProductName(job).toLowerCase();
-    const reason = (job.failureReason || '').toLowerCase();
-    return soNo.includes(q) || woNo.includes(q) || customer.includes(q) || product.includes(q) || reason.includes(q);
-  });
+  const filteredJobs = currentList
+    .filter((job: any) => {
+      const q = searchQuery.toLowerCase();
+      const soNo = (job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '').toLowerCase();
+      const woNo = (job.workOrderNumber || job.id || '').toLowerCase();
+      const customer = (job.productionPlan?.salesOrder?.customer?.companyName || job.customerName || '').toLowerCase();
+      const product = getProductName(job).toLowerCase();
+      const reason = (job.failureReason || '').toLowerCase();
+      return soNo.includes(q) || woNo.includes(q) || customer.includes(q) || product.includes(q) || reason.includes(q);
+    })
+    .sort((a: any, b: any) => {
+      const tA = new Date(a.failedAt || a.createdAt || a.created_at || 0).getTime();
+      const tB = new Date(b.failedAt || b.createdAt || b.created_at || 0).getTime();
+      const numA = parseInt(String(a.workOrderNumber || a.id || '').replace(/\D/g, '')) || 0;
+      const numB = parseInt(String(b.workOrderNumber || b.id || '').replace(/\D/g, '')) || 0;
+      if (numA && numB && numA !== numB) return numB - numA;
+      if (tA && tB && tA !== tB) return tB - tA;
+      return String(b.workOrderNumber || b.id || '').localeCompare(String(a.workOrderNumber || a.id || ''));
+    });
 
   const renderHistoryStatus = (job: any) => {
     const prodStatus = String(job.productionStatus || job.status || '').toUpperCase();

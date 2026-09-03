@@ -212,9 +212,19 @@ export default function DeliveryRunPage() {
       return norm === targetCat;
     });
 
-    if (!search.trim()) return categoryFiltered;
+    const sorted = [...categoryFiltered].sort((a, b) => {
+      const tA = new Date(a.dispatchedAt || (a as any).createdAt || 0).getTime();
+      const tB = new Date(b.dispatchedAt || (b as any).createdAt || 0).getTime();
+      if (tA && tB && tA !== tB) return tB - tA;
+      const numA = parseInt((a.dispatchNo || "").replace(/\D/g, "")) || 0;
+      const numB = parseInt((b.dispatchNo || "").replace(/\D/g, "")) || 0;
+      if (numA && numB && numA !== numB) return numB - numA;
+      return (b.dispatchNo || "").localeCompare(a.dispatchNo || "");
+    });
+
+    if (!search.trim()) return sorted;
     const lower = search.toLowerCase();
-    return categoryFiltered.filter(
+    return sorted.filter(
       (d) =>
         d.dispatchNo?.toLowerCase().includes(lower) ||
         d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
