@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { calculateQuotationTotals, exportQuotationPDF, exportQuotationImage, shareQuotationImage } from '../services/export.service';
-import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical, User, Calendar, CreditCard, MapPin, Star, Phone, Mail, Globe, Percent, CheckSquare, Image } from 'lucide-react';
+import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical, User, Calendar, CreditCard, MapPin, Star, Phone, Mail, Globe, Percent, CheckSquare, Image as ImageIcon } from 'lucide-react';
 import Swal from 'sweetalert2';
 import CreateQuotation from './CreateQuotation';
 import { useERPStore } from '../shared/context/ERPContext';
@@ -1801,7 +1801,7 @@ export default function QuotationsView({
                   }}
                   style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                 >
-                  <Image size={14} /> Download Image
+                  <ImageIcon size={14} /> Download Image
                 </button>
                 <button
                   type="button"

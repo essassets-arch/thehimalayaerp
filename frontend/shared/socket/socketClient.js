@@ -33,8 +33,8 @@ export const connectSocket = (token, onNotification) => {
     reconnectionDelay: 1000,
     reconnectionDelayMax: 8000,
     timeout: 20000,
-    // Prefer WebSocket, fall back to polling automatically
-    transports: ['websocket', 'polling'],
+    // Use HTTP polling first then upgrade to WebSocket for seamless reverse proxy compatibility
+    transports: ['polling', 'websocket'],
   });
 
   socket.on('connect', () => {
