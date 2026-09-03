@@ -62,6 +62,48 @@ const formatDuration = (ms) => {
 const isRunningProductionStatus = (status) =>
   [STATUS.IN_PRODUCTION, 'PRODUCTION_STARTED', STATUS.REWORK].includes(status);
 
+const resolveOrderCustomerName = (o) => {
+  if (!o) return '';
+  const so = o.salesOrder || o.productionPlan?.salesOrder || o;
+  const lead =
+    so.sourceQuotation?.lead ||
+    so.quotation?.lead ||
+    o.sourceQuotation?.lead ||
+    o.quotation?.lead;
+  const leadName =
+    lead?.companyName ||
+    lead?.customerName ||
+    lead?.name ||
+    lead?.projectName ||
+    lead?.contactPerson;
+  const directCustName =
+    so.customer?.companyName ||
+    so.customer?.name ||
+    so.customer?.contactPerson ||
+    o.customer?.companyName ||
+    o.customer?.name ||
+    o.customer?.contactPerson;
+
+  return (
+    so.customerName ||
+    so.customer_name ||
+    o.customerName ||
+    o.customer_name ||
+    (so.quotationId || so.sourceQuotationId || so.quotation || so.sourceQuotation
+      ? leadName || directCustName
+      : directCustName || leadName) ||
+    so.clientName ||
+    so.companyName ||
+    so.contactPerson ||
+    so.leadName ||
+    o.clientName ||
+    o.companyName ||
+    o.contactPerson ||
+    o.leadName ||
+    ''
+  );
+};
+
 const normalizeProductionOrder = (order, sourceQuotation) => {
   const rawItems = Array.isArray(order?.detailedItems) && order.detailedItems.length
     ? order.detailedItems
@@ -79,7 +121,7 @@ const normalizeProductionOrder = (order, sourceQuotation) => {
   return {
     ...order,
     orderNo: order.orderNo || order.order_no || order.public_id || order.id,
-    customerName: order.customerName || order.customer_name || order.companyName || order.customer?.name || sourceQuotation?.customerName || sourceQuotation?.customer_name || '',
+    customerName: resolveOrderCustomerName(order) || order.customerName || order.customer_name || order.companyName || order.customer?.name || sourceQuotation?.customerName || sourceQuotation?.customer_name || '',
     detailedItems,
     products: order.products || order.productItem || order.product_name || productNames,
     productInterested: order.productInterested || order.product_item || order.products || order.product_name || productNames,
@@ -782,7 +824,7 @@ export default function ProductionPortal() {
         const existing = grouped.get(orderId) || {
           id: salesOrder.id || orderId,
           orderNo: salesOrder.orderNumber || salesOrder.orderNo || orderId,
-          customerName: salesOrder.customer?.companyName || 'N/A',
+          customerName: resolveOrderCustomerName(salesOrder) || resolveOrderCustomerName(plan) || resolveOrderCustomerName(workOrder) || 'N/A',
           detailedItems: [],
           products: '',
           estimatedQuantity: 0,
@@ -2198,24 +2240,7 @@ export default function ProductionPortal() {
 
     const filteredPlanned = planned.filter(row => {
       if (!globalSearch) return true;
-      const custName =
-        row.customerName ||
-        row.salesOrder?.customer?.companyName ||
-        row.salesOrder?.customer?.name ||
-        row.salesOrder?.sourceQuotation?.lead?.companyName ||
-        row.salesOrder?.sourceQuotation?.lead?.projectName ||
-        row.salesOrder?.sourceQuotation?.lead?.customerName ||
-        row.salesOrder?.quotation?.lead?.companyName ||
-        row.salesOrder?.customerName ||
-        row.quotation?.lead?.companyName ||
-        row.quotation?.lead?.projectName ||
-        row.sourceQuotation?.lead?.companyName ||
-        row.sourceQuotation?.lead?.projectName ||
-        row.companyName ||
-        row.customer?.companyName ||
-        row.customer?.name ||
-        row.clientName ||
-        '';
+      const custName = resolveOrderCustomerName(row);
       const searchVal = (
         custName ||
         row.productInterested ||
@@ -2347,24 +2372,7 @@ export default function ProductionPortal() {
                   (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
                 const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
 
-                const customerName =
-                  row.customerName ||
-                  row.salesOrder?.customer?.companyName ||
-                  row.salesOrder?.customer?.name ||
-                  row.salesOrder?.sourceQuotation?.lead?.companyName ||
-                  row.salesOrder?.sourceQuotation?.lead?.projectName ||
-                  row.salesOrder?.sourceQuotation?.lead?.customerName ||
-                  row.salesOrder?.quotation?.lead?.companyName ||
-                  row.salesOrder?.customerName ||
-                  row.quotation?.lead?.companyName ||
-                  row.quotation?.lead?.projectName ||
-                  row.sourceQuotation?.lead?.companyName ||
-                  row.sourceQuotation?.lead?.projectName ||
-                  row.companyName ||
-                  row.customer?.companyName ||
-                  row.customer?.name ||
-                  row.clientName ||
-                  'N/A';
+                const customerName = resolveOrderCustomerName(row) || 'N/A';
                 const quantityNeeded = `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units`;
                 const targetDate = row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD');
                 const workflowStatus = row.workflowStatus || row.status || 'QC APPROVED';
@@ -2595,24 +2603,7 @@ export default function ProductionPortal() {
               {
                 header: 'Customer',
                 accessor: 'customerName',
-                render: (row) =>
-                  row.customerName ||
-                  row.salesOrder?.customer?.companyName ||
-                  row.salesOrder?.customer?.name ||
-                  row.salesOrder?.sourceQuotation?.lead?.companyName ||
-                  row.salesOrder?.sourceQuotation?.lead?.projectName ||
-                  row.salesOrder?.sourceQuotation?.lead?.customerName ||
-                  row.salesOrder?.quotation?.lead?.companyName ||
-                  row.salesOrder?.customerName ||
-                  row.quotation?.lead?.companyName ||
-                  row.quotation?.lead?.projectName ||
-                  row.sourceQuotation?.lead?.companyName ||
-                  row.sourceQuotation?.lead?.projectName ||
-                  row.companyName ||
-                  row.customer?.companyName ||
-                  row.customer?.name ||
-                  row.clientName ||
-                  'N/A'
+                render: (row) => resolveOrderCustomerName(row) || 'N/A'
               },
               { header: 'Product Item', accessor: 'productInterested', render: (row) => renderProductSummary(row) },
               { header: 'Quantity Needed', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },

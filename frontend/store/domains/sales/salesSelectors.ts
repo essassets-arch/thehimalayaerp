@@ -511,6 +511,34 @@ function toPlantHeadSafeView(order: SalesOrder) {
   };
 }
 
+function resolveCustomerName(order: any): string {
+  if (!order) return '';
+  const lead = order.sourceQuotation?.lead || order.quotation?.lead || (order as any).lead;
+  const leadName =
+    lead?.companyName ||
+    lead?.customerName ||
+    lead?.name ||
+    lead?.projectName ||
+    lead?.contactPerson;
+  const directCustName =
+    order.customer?.companyName ||
+    order.customer?.name ||
+    order.customer?.contactPerson;
+
+  return (
+    order.customerName ||
+    order.customer_name ||
+    (order.quotationId || order.sourceQuotationId || order.quotation || order.sourceQuotation
+      ? leadName || directCustName
+      : directCustName || leadName) ||
+    order.clientName ||
+    order.companyName ||
+    order.contactPerson ||
+    order.leadName ||
+    ''
+  );
+}
+
 /** Production view: operational info only */
 function toProductionSafeView(order: SalesOrder) {
   const safeItems = Array.isArray(order.items) ? order.items : [];
@@ -520,7 +548,7 @@ function toProductionSafeView(order: SalesOrder) {
     id: order.id,
     orderNo: order.orderNo || order.id,
     order_no: order.orderNo || order.id,
-    customerName: order.customerName,
+    customerName: resolveCustomerName(order) || order.customerName,
     contactPerson: order.contactPerson,
     deliveryAddress: order.deliveryAddress,
     requiredDeliveryDate: order.requiredDeliveryDate,
@@ -543,7 +571,7 @@ function toDispatchSafeView(order: SalesOrder) {
     id: order.id,
     orderNo: order.orderNo || order.id,
     order_no: order.orderNo || order.id,
-    customerName: order.customerName,
+    customerName: resolveCustomerName(order) || order.customerName,
     contactPerson: order.contactPerson,
     deliveryAddress: order.deliveryAddress,
     requiredDeliveryDate: order.requiredDeliveryDate,
