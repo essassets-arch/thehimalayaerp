@@ -1271,23 +1271,45 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
         const orderDbId = matchedOrder ? matchedOrder.id || matchedOrder.dbId : orderId;
         const encodedId = encodeURIComponent(String(orderDbId || ''));
 
-        if (status === 'SEND_TO_PLANT_HEAD_DIRECT' || status === 'SEND_TO_PLANT') {
+        if (status === 'SEND_TO_PLANT_HEAD_DIRECT' || status === 'SEND_TO_PLANT' || status === 'PLANT_PENDING') {
+          showToast('Sending order to Plant Head…');
           try {
+            // Confirm first if required
+            await backendFetch(`/api/backend/sales/orders/${encodedId}/confirm`, {
+              method: 'POST',
+              body: { action: 'CONFIRM', orderId: orderDbId, id: orderDbId, actor: user?.name || 'Sales' },
+            }).catch(() => null);
+
             await backendFetch(`/api/backend/sales/orders/${encodedId}/send-to-plant-head`, {
               method: 'POST',
-              body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId },
+              body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId, actor: user?.name || 'Sales' },
             });
-            showToast('Order sent to Plant Head.');
+
+            dispatch({
+              type: 'UPDATE_ORDER_STATUS',
+              payload: {
+                orderNo: orderId,
+                id: orderDbId,
+                status: 'PLANT_PENDING',
+                workflowStatus: 'PLANT_PENDING',
+                salesStatus: 'Confirmed',
+                currentDepartment: 'Plant Head',
+                overallStage: 'Planning'
+              }
+            });
+            showToast('✅ Order sent to Plant Head!');
             await loadOrders();
+            await syncData();
             return true;
           } catch (directErr) {
             try {
               await backendFetch(`/api/backend/sales/orders/${encodedId}/action`, {
                 method: 'POST',
-                body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId },
+                body: { action: 'SEND_TO_PLANT', orderId: orderDbId, id: orderDbId, actor: user?.name || 'Sales' },
               });
-              showToast('Order sent to Plant Head.');
+              showToast('✅ Order sent to Plant Head!');
               await loadOrders();
+              await syncData();
               return true;
             } catch (err) {
               Swal.fire({
@@ -1300,18 +1322,20 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
           }
         }
 
-        if (['SUBMIT', 'CONFIRM'].includes(status)) {
+        if (['SUBMIT', 'CONFIRM', 'ORDER_CONFIRMED'].includes(status)) {
           try {
-            await backendFetch(`/api/backend/sales/orders/${encodedId}/action`, {
+            await backendFetch(`/api/backend/sales/orders/${encodedId}/confirm`, {
               method: 'POST',
-              body: { action: status, orderId: orderDbId, id: orderDbId },
+              body: { action: 'CONFIRM', orderId: orderDbId, id: orderDbId, actor: user?.name || 'Sales' },
+            }).catch(async () => {
+              await backendFetch(`/api/backend/sales/orders/${encodedId}/action`, {
+                method: 'POST',
+                body: { action: 'CONFIRM', orderId: orderDbId, id: orderDbId, actor: user?.name || 'Sales' },
+              });
             });
-            showToast(
-              status === 'SUBMIT'
-                ? 'Order submitted for approval.'
-                : 'Order confirmed.'
-            );
+            showToast('Order confirmed.');
             await loadOrders();
+            await syncData();
             return true;
           } catch (err) {
             Swal.fire({
@@ -1321,54 +1345,6 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             });
             return false;
           }
-        }
-
-        if (status === 'ORDER_CONFIRMED') {
-          showToast('Confirming order…');
-          try {
-            const res = await apiClient.patch(`/sales/orders/${orderDbId}/confirm`, { actor: user?.name || 'Sales' });
-            if (res.success) {
-              showToast('✅ Order confirmed!');
-              await syncData();
-            } else {
-              Swal.fire({ icon: 'error', title: 'Confirmation Failed', text: res.message || 'Failed to confirm order' });
-            }
-          } catch (err) {
-            Swal.fire({ icon: 'error', title: 'Error', text: err.message });
-          }
-          return;
-        }
-
-        if (status === 'PLANT_PENDING') {
-          showToast('Confirming and sending order to Plant Head…');
-          try {
-            await apiClient.patch(`/sales/orders/${orderDbId}/confirm`, { actor: user?.name || 'Sales' });
-            const res = await apiClient.patch(`/sales/orders/${orderDbId}/send-to-plant`, { actor: user?.name || 'Sales' });
-            if (res.success) {
-              dispatch({
-                type: 'UPDATE_ORDER_STATUS',
-                payload: {
-                  orderNo: orderId,
-                  id: orderDbId,
-                  status: 'PLANT_PENDING',
-                  workflowStatus: 'PLANT_PENDING',
-                  salesStatus: 'Confirmed',
-                  currentDepartment: 'Plant Head',
-                  overallStage: 'Planning'
-                }
-              });
-              // O2P: mark order confirmed in workflow
-              o2p?.setActiveOrder?.(orderDbId, 4);
-              o2p?.confirmSalesOrder?.({ orderId: orderDbId, actor: user?.name || 'Sales' });
-              showToast('✅ Order confirmed and sent to Plant Head!');
-              await syncData();
-            } else {
-              Swal.fire({ icon: 'error', title: 'Failed', text: res.message || 'Failed to send to Plant Head' });
-            }
-          } catch (err) {
-            Swal.fire({ icon: 'error', title: 'Error', text: err?.message || 'Unexpected error' });
-          }
-          return;
         }
 
         dispatch({

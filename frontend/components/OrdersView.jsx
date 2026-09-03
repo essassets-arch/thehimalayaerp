@@ -1533,7 +1533,10 @@ export default function OrdersView({
                 {canSendToPlantHead(currentDetailsOrder) && (
                   <button
                     type="button"
-                    onClick={() => handleUpdateStatusClick(currentDetailsOrder.orderNo || currentDetailsOrder.id, 'PLANT_PENDING', 'Send to Plant Head')}
+                    onClick={() => {
+                      onUpdateOrderStatus?.(currentDetailsOrder.orderNo || currentDetailsOrder.id, 'PLANT_PENDING');
+                      setSelectedOrder(null);
+                    }}
                     style={{
                       padding: '10px 20px', fontSize: '13px', fontWeight: '700', borderRadius: '8px', margin: 0,
                       background: '#c9f03d', border: '1px solid #b5da2a', color: '#1a2600', cursor: 'pointer'

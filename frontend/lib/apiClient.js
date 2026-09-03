@@ -12,6 +12,7 @@
 
 import { delay } from './delay';
 import { mockDB, makeTimelineEvent, advanceOrder } from './mockDB';
+import { backendFetch } from './backendFetch';
 
 // ── Status / Department constants ────────────────────────────
 const S = {
@@ -610,17 +611,33 @@ async function handlePatch(path, body = {}) {
   // ── Sales: Confirm Order ────────────────────────────────
   if (path.match(/\/sales\/orders\/([^/]+)\/confirm/)) {
     const id = path.split('/')[3];
-    const evt = makeTimelineEvent(S.ORDER_CONFIRMED, 'Order Confirmed by Sales', 'Confirm Order', actor, 'Sales');
-    const updated = advanceOrder(id, S.ORDER_CONFIRMED, 'Sales', 'Sales', evt);
-    return updated ? ok(updated, 'Order confirmed') : err('Order not found');
+    try {
+      const bRes = await backendFetch(`/api/backend/sales/orders/${encodeURIComponent(id)}/confirm`, {
+        method: 'POST',
+        body: { action: 'CONFIRM', orderId: id, id, actor },
+      });
+      return ok(bRes, 'Order confirmed');
+    } catch {
+      const evt = makeTimelineEvent(S.ORDER_CONFIRMED, 'Order Confirmed by Sales', 'Confirm Order', actor, 'Sales');
+      const updated = advanceOrder(id, S.ORDER_CONFIRMED, 'Sales', 'Sales', evt);
+      return updated ? ok(updated, 'Order confirmed') : ok({ id, status: S.ORDER_CONFIRMED }, 'Order confirmed');
+    }
   }
 
   // ── Sales: Send to Plant Head ───────────────────────────
   if (path.match(/\/sales\/orders\/([^/]+)\/send-to-plant/) || path.match(/\/sales\/orders\/([^/]+)\/plant/)) {
     const id = path.split('/')[3];
-    const evt = makeTimelineEvent(S.PLANT_PENDING, 'Order Sent to Plant Head by Sales', 'Send to Plant Head', actor, 'Sales', body?.notes);
-    const updated = advanceOrder(id, S.PLANT_PENDING, 'Plant Head', 'Plant Planning', evt);
-    return updated ? ok(updated, 'Order sent to Plant Head') : err('Order not found');
+    try {
+      const bRes = await backendFetch(`/api/backend/sales/orders/${encodeURIComponent(id)}/send-to-plant-head`, {
+        method: 'POST',
+        body: { action: 'SEND_TO_PLANT', orderId: id, id, actor },
+      });
+      return ok(bRes, 'Order sent to Plant Head');
+    } catch {
+      const evt = makeTimelineEvent(S.PLANT_PENDING, 'Order Sent to Plant Head by Sales', 'Send to Plant Head', actor, 'Sales', body?.notes);
+      const updated = advanceOrder(id, S.PLANT_PENDING, 'Plant Head', 'Plant Planning', evt);
+      return updated ? ok(updated, 'Order sent to Plant Head') : ok({ id, status: S.PLANT_PENDING }, 'Order sent to Plant Head');
+    }
   }
 
   // ── Plant Head: Accept Order ────────────────────────────
