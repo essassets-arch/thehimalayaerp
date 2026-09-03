@@ -19,7 +19,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { ConvertQuotationToOrderDto } from './dto/convert-quotation-to-order.dto';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsNumber } from 'class-validator';
 
 export class WorkflowActionDto {
   @IsOptional()
@@ -32,6 +32,10 @@ export class WorkflowActionDto {
 
   @IsOptional()
   @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
   orderId?: string;
 
   @IsOptional()
@@ -39,6 +43,11 @@ export class WorkflowActionDto {
   id?: string;
 
   @IsOptional()
+  @IsString()
+  actor?: string;
+
+  @IsOptional()
+  @IsNumber()
   expectedVersion?: number;
 }
 
@@ -174,6 +183,23 @@ export class SalesController {
     @Req() req: any,
   ) {
     dto.action = 'SUBMIT';
+    return this.salesService.processAction(
+      id,
+      dto,
+      req.user?.sub,
+      req.user?.role,
+    );
+  }
+
+  @Post(':id/confirm')
+  @RequirePermissions('sales.orders.update')
+  @UseInterceptors(IdempotencyInterceptor)
+  async confirmOrder(
+    @Param('id') id: string,
+    @Body() dto: WorkflowActionDto,
+    @Req() req: any,
+  ) {
+    dto.action = 'CONFIRM';
     return this.salesService.processAction(
       id,
       dto,
