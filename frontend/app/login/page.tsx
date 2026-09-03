@@ -73,6 +73,10 @@ function toFriendlyRole(code: string, email?: string): string {
     DISPATCH_EXECUTIVE: 'Dispatch 1',
     DISPATCH_2: 'Dispatch 2',
     BACK_OFFICE: 'Back Office',
+    PRODUCTION_PLANNER: 'Production Planner',
+    PRODUCTION_OPERATOR: 'Production Operator',
+    PLANT_HEAD: 'Plant Head',
+    STORE_MANAGER: 'Store Manager',
   };
 
   return acronymRoles[normalizedCode] || normalizedCode
