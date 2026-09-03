@@ -629,12 +629,53 @@ export default function ProductionPortal() {
   const [backendIncomingList, setBackendIncomingList] = useState([]);
   const [directBackendOrders, setDirectBackendOrders] = useState([]);
   const [loadingIncomingOrders, setLoadingIncomingOrders] = useState(false);
+  const [incomingTab, setIncomingTab] = useState('pending'); // 'pending' | 'history'
+  const [acceptedHistory, setAcceptedHistory] = useState([]);
   const [incomingPage, setIncomingPage] = useState(1);
   const [incomingPageSize, setIncomingPageSize] = useState(25);
 
+  // Load persistent accepted incoming history from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('himalaya_production_accepted_history');
+      if (saved) {
+        setAcceptedHistory(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.warn('[Production] Failed to parse accepted history from storage:', e);
+    }
+  }, []);
+
+  const addAcceptedOrderToHistory = useCallback((order, action = 'ACCEPT', remarks = '') => {
+    const isAccept = action === 'ACCEPT';
+    setAcceptedHistory((prev) => {
+      const targetNo = String(order.orderNo || order.salesOrder?.orderNumber || order.id || '');
+      const filtered = prev.filter(item => String(item.orderNo || item.id) !== targetNo);
+      const newEntry = {
+        ...order,
+        id: order.id || targetNo,
+        orderNo: targetNo,
+        customerName: resolveOrderCustomerName(order) || order.customerName || 'N/A',
+        acceptedAt: new Date().toISOString(),
+        acceptedBy: user?.name || 'Production Head',
+        decisionStatus: isAccept ? 'ACCEPTED' : 'REJECTED',
+        status: isAccept ? 'IN_PRODUCTION' : 'REJECTED',
+        workflowStatus: isAccept ? 'IN_PRODUCTION' : 'REJECTED',
+        remarks: remarks || (isAccept ? 'Accepted by Production' : 'Rejected'),
+      };
+      const updated = [newEntry, ...filtered];
+      try {
+        localStorage.setItem('himalaya_production_accepted_history', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('[Production] Failed to save accepted history to storage:', err);
+      }
+      return updated;
+    });
+  }, [user]);
+
   useEffect(() => {
     setIncomingPage(1);
-  }, [globalSearch, view]);
+  }, [globalSearch, view, incomingTab]);
 
   const fetchDirectSalesOrders = useCallback(async () => {
     try {
@@ -931,8 +972,8 @@ export default function ProductionPortal() {
     const confirmation = await Swal.fire({
       title: isAccept ? 'Accept Incoming Order?' : 'Reject Incoming Order?',
       text: isAccept
-        ? `Accept ${order.orderNo} and move its work orders to the production queue?`
-        : `Reject ${order.orderNo}? It will be removed from Incoming Orders.`,
+        ? `Accept ${order.orderNo} and store in History as active production?`
+        : `Reject ${order.orderNo}? It will be recorded in History as rejected.`,
       input: isAccept ? undefined : 'textarea',
       inputLabel: isAccept ? undefined : 'Rejection reason',
       inputPlaceholder: isAccept ? undefined : 'Enter a reason for rejection...',
@@ -976,16 +1017,19 @@ export default function ProductionPortal() {
         } catch { /* ignore if already active */ }
       }
 
+      // Store in accepted history
+      addAcceptedOrderToHistory(order, action, confirmation.value || '');
+
       await loadIncomingOrders().catch(() => { });
       await loadBackendWorkOrders().catch(() => { });
       await syncData().catch(() => { });
 
       showToast(
         isAccept
-          ? `${order.orderNo} accepted and moved to Work Orders.`
-          : `${order.orderNo} rejected.`
+          ? `Order #${order.orderNo} accepted and stored in History tab!`
+          : `Order #${order.orderNo} rejected and stored in History tab.`
       );
-      if (isAccept) navigate.push('/production/work-orders');
+      setIncomingTab('history');
     } catch (error) {
       Swal.fire({
         icon: 'error',
@@ -1486,29 +1530,23 @@ export default function ProductionPortal() {
   };
 
   const handleCreateWorkOrder = (row) => {
-    const woId = 'WO-' + row.orderNo.split('-')[1];
     Swal.fire({
-      title: 'Activate Work Order?',
-      text: `Are you sure you want to activate the Work Order for Order #${row.orderNo}?`,
+      title: 'Accept & Activate Work Order?',
+      text: `Are you sure you want to accept and activate the Work Order for Order #${row.orderNo}? It will be stored in your History tab.`,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: 'Yes, Activate WO',
+      confirmButtonText: 'Yes, Accept & Activate',
       cancelButtonText: 'Cancel',
-      customClass: {
-        popup: 'swal-premium-popup',
-        title: 'swal-premium-title',
-        confirmButton: 'swal-premium-confirm-btn',
-        cancelButton: 'swal-premium-cancel-btn'
-      },
-      buttonsStyling: false
+      confirmButtonColor: '#16a34a',
     }).then(async (result) => {
       if (result.isConfirmed) {
         showToast("Production: Activating Work Order...");
         try {
           useERPStore.getState().activateWorkOrder(row.id, user?.name || 'Production');
+          addAcceptedOrderToHistory(row, 'ACCEPT', 'Activated and accepted into production');
           await syncData();
-          showToast(`Successfully activated Work Order for Order #${row.orderNo}!`);
-          navigate.push('/production/work-orders');
+          showToast(`Successfully accepted and stored Order #${row.orderNo} in History!`);
+          setIncomingTab('history');
         } catch (err) {
           Swal.fire({ icon: 'error', title: 'Activation Failed', text: err.message });
         }
@@ -2294,10 +2332,19 @@ export default function ProductionPortal() {
   };
 
   const renderIncomingOrders = () => {
-    // Strictly render live database records from backend API
-    const planned = Array.isArray(backendIncomingList) ? backendIncomingList : [];
+    // ── 1. Pending Incoming Orders List ──
+    const acceptedKeys = new Set((acceptedHistory || []).map(h => String(h.orderNo || h.id || '')));
+    const rawPlanned = Array.isArray(backendIncomingList) ? backendIncomingList : [];
 
-    planned = [...planned].sort((a, b) => {
+    const pendingList = rawPlanned.filter(row => {
+      const key = String(row.orderNo || row.id || '');
+      if (acceptedKeys.has(key)) return false;
+      const status = String(row.status || row.workflowStatus || '').toUpperCase();
+      if (['IN_PRODUCTION', 'PRODUCTION_STARTED', 'COMPLETED', 'DISPATCHED'].includes(status) && !row.isReproduction) {
+        return false;
+      }
+      return true;
+    }).sort((a, b) => {
       const tA = new Date(a.createdAt || a.targetDate || 0).getTime();
       const tB = new Date(b.createdAt || b.targetDate || 0).getTime();
       const numA = parseInt(String(a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
@@ -2307,81 +2354,69 @@ export default function ProductionPortal() {
       return String(b.orderNo || b.id || '').localeCompare(String(a.orderNo || a.id || ''));
     });
 
-    const filteredPlanned = planned.filter(row => {
-      if (!globalSearch) return true;
-      const custName = resolveOrderCustomerName(row);
-      const searchVal = (
-        custName ||
-        row.productInterested ||
-        row.products ||
-        row.orderNo ||
-        ''
-      ).toLowerCase();
-      return searchVal.includes(globalSearch.toLowerCase());
+    // ── 2. Accepted / Processed History List ──
+    const historyMap = new Map();
+
+    (acceptedHistory || []).forEach(item => {
+      const key = String(item.orderNo || item.id || '');
+      if (key) {
+        historyMap.set(key, item);
+      }
     });
 
-    const paginatedPlanned = filteredPlanned.slice(
+    (directBackendOrders || []).forEach(so => {
+      const status = String(so.status || so.workflowStatus || '').toUpperCase();
+      const hasWO = workOrders.some(wo => String(wo.orderNo) === String(so.orderNumber || so.id));
+      if (
+        hasWO ||
+        ['IN_PRODUCTION', 'PRODUCTION_STARTED', 'PRODUCTION_ACCEPTED', 'ACCEPTED', 'QC_PENDING', 'QC_PASSED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'COMPLETED', 'PLANT_REJECTED'].includes(status)
+      ) {
+        const key = String(so.orderNumber || so.orderNo || so.id || '');
+        if (key && !historyMap.has(key)) {
+          historyMap.set(key, {
+            id: so.id,
+            orderNo: so.orderNumber || so.orderNo || so.id,
+            customerName: resolveOrderCustomerName(so) || 'N/A',
+            detailedItems: so.items || [],
+            products: Array.isArray(so.items) ? so.items.map(i => i.productName || i.name).filter(Boolean).join(', ') : '',
+            productInterested: Array.isArray(so.items) ? so.items.map(i => i.productName || i.name).filter(Boolean).join(', ') : '',
+            estimatedQuantity: so.totalQuantity || so.quantity || (Array.isArray(so.items) ? so.items.reduce((sum, i) => sum + (Number(i.orderedQuantity || i.quantity || 0)), 0) : 0),
+            acceptedAt: so.updatedAt || so.createdAt || new Date().toISOString(),
+            acceptedBy: 'Production Head',
+            decisionStatus: status.includes('REJECT') ? 'REJECTED' : 'ACCEPTED',
+            status: so.status || 'IN_PRODUCTION',
+            workflowStatus: so.workflowStatus || 'IN_PRODUCTION',
+          });
+        }
+      }
+    });
+
+    const historyList = Array.from(historyMap.values()).sort((a, b) => {
+      const tA = new Date(a.acceptedAt || a.updatedAt || a.createdAt || 0).getTime();
+      const tB = new Date(b.acceptedAt || b.updatedAt || b.createdAt || 0).getTime();
+      return tB - tA;
+    });
+
+    // ── 3. Search Filter & Pagination ──
+    const filterBySearch = (list) => {
+      if (!globalSearch.trim()) return list;
+      const q = globalSearch.toLowerCase().trim();
+      return list.filter(row => {
+        const custName = resolveOrderCustomerName(row) || row.customerName || '';
+        const prod = (row.productInterested || row.products || (Array.isArray(row.detailedItems) ? row.detailedItems.map(i => i.productName || i.name).join(' ') : '')).toLowerCase();
+        const ordNo = String(row.orderNo || row.id || '').toLowerCase();
+        return custName.toLowerCase().includes(q) || prod.includes(q) || ordNo.includes(q);
+      });
+    };
+
+    const filteredPending = filterBySearch(pendingList);
+    const filteredHistory = filterBySearch(historyList);
+
+    const activeList = incomingTab === 'pending' ? filteredPending : filteredHistory;
+    const paginatedData = activeList.slice(
       (incomingPage - 1) * incomingPageSize,
       incomingPage * incomingPageSize
     );
-
-    const getStatusLabel = (status) => {
-      if (!status) return 'QC APPROVED';
-      return String(status).replace(/_/g, ' ').toUpperCase();
-    };
-
-    const getStatusBadgeStyle = (status) => {
-      const s = String(status || '').toLowerCase();
-      if (s.includes('approved') || s.includes('passed') || s.includes('completed') || s.includes('success') || s.includes('confirm')) {
-        return {
-          background: '#ecfdf5',
-          color: '#065f46',
-          border: '1.5px solid #a7f3d0'
-        };
-      }
-      if (s.includes('pending') || s.includes('plan')) {
-        return {
-          background: '#eff6ff',
-          color: '#1e40af',
-          border: '1.5px solid #bfdbfe'
-        };
-      }
-      if (s.includes('reject') || s.includes('fail')) {
-        return {
-          background: '#fef2f2',
-          color: '#991b1b',
-          border: '1.5px solid #fecaca'
-        };
-      }
-      return {
-        background: '#f1f5f9',
-        color: '#475569',
-        border: '1.5px solid #cbd5e1'
-      };
-    };
-
-    const getPriorityBadgeStyle = (priority) => {
-      const p = String(priority || '').toLowerCase();
-      if (p === 'high') {
-        return {
-          background: '#fffbeb',
-          color: '#b45309',
-          border: '1.5px solid #fde68a'
-        };
-      }
-      if (p === 'low') {
-        return {
-          background: '#f8fafc',
-          color: '#64748b',
-          border: '1.5px solid #cbd5e1'
-        };
-      }
-      return {
-        background: '#f8fafc',
-        color: '#475569',
-        border: '1.5px solid #cbd5e1'
-      };
-    };
 
     const renderProductSummary = (row) => {
       let itemsList = [];
@@ -2430,10 +2465,13 @@ export default function ProductionPortal() {
 
     return (
       <div className="app-card" style={{ padding: isMobile ? '12px' : '20px' }}>
-        <div className="card-top-bar" style={{ marginBottom: isMobile ? '12px' : '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        {/* Top Header Card */}
+        <div className="card-top-bar" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h2 className="card-heading" style={{ margin: 0 }}>Incoming Production Orders</h2>
-            <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b' }}>Live production orders assigned by Plant Head awaiting acceptance</p>
+            <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b' }}>
+              Accept incoming production orders assigned by Plant Head and track all accepted orders in History.
+            </p>
           </div>
           <button
             type="button"
@@ -2460,29 +2498,92 @@ export default function ProductionPortal() {
           </button>
         </div>
 
-        {loadingIncomingOrders && planned.length === 0 ? (
+        {/* ─── TABS BAR (Pending vs History) ─── */}
+        <div style={{
+          display: 'flex',
+          gap: '10px',
+          alignItems: 'center',
+          borderBottom: '1px solid #E2E8F0',
+          paddingBottom: '14px',
+          marginBottom: '18px',
+          flexWrap: 'wrap'
+        }}>
+          <button
+            type="button"
+            onClick={() => {
+              setIncomingTab('pending');
+              setIncomingPage(1);
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: incomingTab === 'pending' ? '1.5px solid #2F4375' : '1px solid #CBD5E1',
+              background: incomingTab === 'pending' ? '#2F4375' : '#FFFFFF',
+              color: incomingTab === 'pending' ? '#FFFFFF' : '#334155',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              boxShadow: incomingTab === 'pending' ? '0 2px 4px rgba(47,67,117,0.2)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Activity size={14} color={incomingTab === 'pending' ? '#FFFFFF' : '#0284C7'} />
+            Pending Acceptance ({filteredPending.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIncomingTab('history');
+              setIncomingPage(1);
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: incomingTab === 'history' ? '1.5px solid #2F4375' : '1px solid #CBD5E1',
+              background: incomingTab === 'history' ? '#2F4375' : '#FFFFFF',
+              color: incomingTab === 'history' ? '#FFFFFF' : '#334155',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              boxShadow: incomingTab === 'history' ? '0 2px 4px rgba(47,67,117,0.2)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <History size={14} color={incomingTab === 'history' ? '#FFFFFF' : '#64748B'} />
+            Accepted History ({filteredHistory.length})
+          </button>
+        </div>
+
+        {/* ─── TAB CONTENT ─── */}
+        {loadingIncomingOrders && activeList.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', gap: '12px' }}>
             <RefreshCw size={28} className="animate-spin" style={{ color: '#2F4375' }} />
-            <div style={{ fontSize: '14px', fontWeight: '700', color: '#24345C' }}>Loading fresh incoming orders...</div>
-            <div style={{ fontSize: '12px', color: '#8893A7' }}>Fetching live server state with zero cache</div>
+            <div style={{ fontSize: '14px', fontWeight: '700', color: '#24345C' }}>Loading fresh orders...</div>
+            <div style={{ fontSize: '12px', color: '#8893A7' }}>Fetching live server state</div>
           </div>
         ) : isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {filteredPlanned.length === 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '30px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                No incoming orders from Plant Head yet. Orders planned by Plant Head will appear here.
+            {activeList.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '40px 20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                {incomingTab === 'pending'
+                  ? 'No pending incoming orders awaiting acceptance.'
+                  : 'No accepted orders in history yet. Orders you accept will appear here.'}
               </div>
             ) : (
-              paginatedPlanned.map((row) => {
-                const hasWO = row.hasBackendWorkOrder ||
-                  (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
-                const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
-
-                const customerName = resolveOrderCustomerName(row) || 'N/A';
+              paginatedData.map((row) => {
+                const customerName = resolveOrderCustomerName(row) || row.customerName || 'N/A';
                 const quantityNeeded = `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units`;
-                const targetDate = row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD');
-                const workflowStatus = row.workflowStatus || row.status || 'QC APPROVED';
-                const priority = row.priority || 'Medium';
+                const dateDisplay = incomingTab === 'history'
+                  ? (row.acceptedAt ? new Date(row.acceptedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Accepted')
+                  : (row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD'));
+                const isAccepted = incomingTab === 'history' || row.decisionStatus === 'ACCEPTED';
 
                 return (
                   <div
@@ -2521,6 +2622,11 @@ export default function ProductionPortal() {
                                 Reproduction
                               </span>
                             )}
+                            {incomingTab === 'history' && (
+                              <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '1px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
+                                ✓ Accepted
+                              </span>
+                            )}
                           </div>
                           <div style={{ color: '#64748b', fontSize: '11.5px', fontWeight: '600', marginTop: '2px' }}>
                             {customerName}
@@ -2531,7 +2637,7 @@ export default function ProductionPortal() {
                             {quantityNeeded}
                           </span>
                           <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
-                            {targetDate}
+                            {dateDisplay}
                           </span>
                         </div>
                       </div>
@@ -2553,9 +2659,29 @@ export default function ProductionPortal() {
                         gap: '8px'
                       }}
                     >
-                      {/* Action Buttons */}
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', justifyContent: 'flex-end' }}>
-                        {row.hasBackendWorkOrder ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOrderDetails(row)}
+                          style={{
+                            margin: 0,
+                            background: '#fff',
+                            color: '#475569',
+                            border: '1px solid #cbd5e1',
+                            cursor: 'pointer',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <Eye size={12} /> View
+                        </button>
+
+                        {incomingTab === 'pending' ? (
                           <>
                             <button
                               type="button"
@@ -2572,7 +2698,7 @@ export default function ProductionPortal() {
                                 fontWeight: 'bold'
                               }}
                             >
-                              Accept
+                              <CheckCircle2 size={12} /> Accept
                             </button>
                             <button
                               type="button"
@@ -2591,93 +2717,29 @@ export default function ProductionPortal() {
                             >
                               Reject
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedOrderDetails(row)}
-                              style={{
-                                margin: 0,
-                                background: '#fff',
-                                color: '#475569',
-                                border: '1px solid #cbd5e1',
-                                cursor: 'pointer',
-                                padding: '6px 12px',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                fontWeight: 'bold',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                            >
-                              <Eye size={12} /> View
-                            </button>
                           </>
                         ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedOrderDetails(row)}
-                              style={{
-                                margin: 0,
-                                background: '#fff',
-                                color: '#475569',
-                                border: '1px solid #cbd5e1',
-                                cursor: 'pointer',
-                                padding: '6px 12px',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                fontWeight: 'bold',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                            >
-                              <Eye size={12} /> View
-                            </button>
-                            {!hasWO && !isActiveProduction ? (
-                              <button
-                                type="button"
-                                onClick={() => handleCreateWorkOrder(row)}
-                                style={{
-                                  margin: 0,
-                                  background: '#1e3a8a',
-                                  color: '#fff',
-                                  border: 'none',
-                                  padding: '6px 12px',
-                                  borderRadius: '6px',
-                                  fontWeight: 'bold',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  fontSize: '12px'
-                                }}
-                              >
-                                <Play size={12} fill="#fff" /> Activate Work Order
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => navigate.push('/production/work-orders')}
-                                style={{
-                                  margin: 0,
-                                  background: '#059669',
-                                  color: '#fff',
-                                  border: 'none',
-                                  padding: '6px 12px',
-                                  borderRadius: '6px',
-                                  fontWeight: 'bold',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  fontSize: '12px'
-                                }}
-                              >
-                                <Briefcase size={12} /> Open Work Orders
-                              </button>
-                            )}
-                          </>
+                          <button
+                            type="button"
+                            onClick={() => navigate.push('/production/work-orders')}
+                            style={{
+                              margin: 0,
+                              background: '#059669',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '6px 14px',
+                              borderRadius: '6px',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '12px',
+                              boxShadow: '0 1px 3px rgba(5,150,105,0.3)'
+                            }}
+                          >
+                            <Briefcase size={12} /> Open Work Orders
+                          </button>
                         )}
                       </div>
                     </div>
@@ -2687,8 +2749,8 @@ export default function ProductionPortal() {
             )}
             <PaginationControl
               currentPage={incomingPage}
-              totalPages={Math.ceil(filteredPlanned.length / incomingPageSize) || 1}
-              totalItems={filteredPlanned.length}
+              totalPages={Math.ceil(activeList.length / incomingPageSize) || 1}
+              totalItems={activeList.length}
               pageSize={incomingPageSize}
               onPageChange={setIncomingPage}
               onPageSizeChange={setIncomingPageSize}
@@ -2697,47 +2759,113 @@ export default function ProductionPortal() {
         ) : (
           <div>
             <DataTable
-              columns={[
-                {
-                  header: 'Order No', accessor: 'orderNo', render: (row) => (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span
-                        style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                        onClick={() => setSelectedOrderDetails(row)}
-                      >
-                        {row.orderNo}
-                      </span>
-                      {row.isReproduction && (
-                        <span style={{ fontSize: '10px', background: '#ffe4e6', color: '#e11d48', border: '1px solid #fecdd3', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
-                          Reproduction
-                        </span>
-                      )}
-                    </div>
-                  )
-                },
-                {
-                  header: 'Customer',
-                  accessor: 'customerName',
-                  render: (row) => resolveOrderCustomerName(row) || 'N/A'
-                },
-                { header: 'Product Item', accessor: 'productInterested', render: (row) => renderProductSummary(row) },
-                { header: 'Quantity Needed', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },
-                { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') }
-              ]}
-              data={paginatedPlanned}
+              columns={
+                incomingTab === 'pending'
+                  ? [
+                      {
+                        header: 'Order No',
+                        accessor: 'orderNo',
+                        render: (row) => (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span
+                              style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                              onClick={() => setSelectedOrderDetails(row)}
+                            >
+                              {row.orderNo}
+                            </span>
+                            {row.isReproduction && (
+                              <span style={{ fontSize: '10px', background: '#ffe4e6', color: '#e11d48', border: '1px solid #fecdd3', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                                Reproduction
+                              </span>
+                            )}
+                          </div>
+                        )
+                      },
+                      {
+                        header: 'Customer',
+                        accessor: 'customerName',
+                        render: (row) => resolveOrderCustomerName(row) || row.customerName || 'N/A'
+                      },
+                      { header: 'Product Item', accessor: 'productInterested', render: (row) => renderProductSummary(row) },
+                      { header: 'Quantity Needed', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },
+                      { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') }
+                    ]
+                  : [
+                      {
+                        header: 'Order No',
+                        accessor: 'orderNo',
+                        render: (row) => (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span
+                              style={{ color: '#1e40af', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                              onClick={() => setSelectedOrderDetails(row)}
+                            >
+                              {row.orderNo}
+                            </span>
+                            {row.isReproduction && (
+                              <span style={{ fontSize: '10px', background: '#ffe4e6', color: '#e11d48', border: '1px solid #fecdd3', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                                Reproduction
+                              </span>
+                            )}
+                          </div>
+                        )
+                      },
+                      {
+                        header: 'Customer',
+                        accessor: 'customerName',
+                        render: (row) => resolveOrderCustomerName(row) || row.customerName || 'N/A'
+                      },
+                      { header: 'Product Item', accessor: 'productInterested', render: (row) => renderProductSummary(row) },
+                      { header: 'Quantity', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },
+                      {
+                        header: 'Accepted At',
+                        accessor: 'acceptedAt',
+                        render: (row) => row.acceptedAt ? new Date(row.acceptedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Accepted'
+                      },
+                      {
+                        header: 'Status',
+                        accessor: 'status',
+                        render: (row) => (
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: '#ecfdf5',
+                            color: '#047857',
+                            border: '1px solid #a7f3d0',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            ✓ ACCEPTED
+                          </span>
+                        )
+                      }
+                    ]
+              }
+              data={paginatedData}
               searchQuery={globalSearch}
               searchField="customer.name"
               actions={(row) => {
-                if (row.hasBackendWorkOrder) {
+                if (incomingTab === 'pending') {
                   return (
-                    <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrderDetails(row)}
+                        className="btn-small btn-outline-small"
+                        style={{ margin: 0, cursor: 'pointer' }}
+                      >
+                        View
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleBackendIncomingDecision(row, 'ACCEPT')}
                         className="btn-small"
-                        style={{ margin: 0, background: '#16a34a', color: '#fff', cursor: 'pointer' }}
+                        style={{ margin: 0, background: '#16a34a', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                       >
-                        Accept
+                        <CheckCircle2 size={12} /> Accept
                       </button>
                       <button
                         type="button"
@@ -2747,21 +2875,10 @@ export default function ProductionPortal() {
                       >
                         Reject
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedOrderDetails(row)}
-                        className="btn-small btn-outline-small"
-                        style={{ margin: 0, cursor: 'pointer' }}
-                      >
-                        View
-                      </button>
-                    </>
+                    </div>
                   );
                 }
-                // Check if this order already has work orders
-                const hasWO = row.hasBackendWorkOrder ||
-                  (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
-                const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
+
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <button
@@ -2781,60 +2898,40 @@ export default function ProductionPortal() {
                     >
                       View
                     </button>
-                    {!hasWO && !isActiveProduction ? (
-                      <button
-                        type="button"
-                        style={{
-                          margin: 0,
-                          background: '#2563eb',
-                          color: '#ffffff',
-                          border: 'none',
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          fontWeight: '600',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          boxShadow: '0 1px 3px rgba(37,99,235,0.3)'
-                        }}
-                        onClick={() => handleCreateWorkOrder(row)}
-                      >
-                        <Play size={12} fill="#ffffff" color="#ffffff" /> Activate Work Order
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        style={{
-                          margin: 0,
-                          background: '#059669',
-                          color: '#ffffff',
-                          border: 'none',
-                          padding: '6px 14px',
-                          borderRadius: '6px',
-                          fontWeight: '600',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          boxShadow: '0 1px 3px rgba(5,150,105,0.3)'
-                        }}
-                        onClick={() => navigate.push('/production/work-orders')}
-                      >
-                        <CheckCircle2 size={12} /> Open Work Orders
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      style={{
+                        margin: 0,
+                        background: '#059669',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        fontWeight: '600',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        boxShadow: '0 1px 3px rgba(5,150,105,0.3)'
+                      }}
+                      onClick={() => navigate.push('/production/work-orders')}
+                    >
+                      <CheckCircle2 size={12} /> Open Work Orders
+                    </button>
                   </div>
                 );
               }}
-              emptyMessage="No incoming orders from Plant Head yet. Orders planned by Plant Head will appear here."
+              emptyMessage={
+                incomingTab === 'pending'
+                  ? 'No pending incoming orders awaiting acceptance. Orders planned by Plant Head will appear here.'
+                  : 'No accepted orders in history yet. Orders you accept will be archived and tracked here.'
+              }
             />
             <PaginationControl
               currentPage={incomingPage}
-              totalPages={Math.ceil(filteredPlanned.length / incomingPageSize) || 1}
-              totalItems={filteredPlanned.length}
+              totalPages={Math.ceil(activeList.length / incomingPageSize) || 1}
+              totalItems={activeList.length}
               pageSize={incomingPageSize}
               onPageChange={setIncomingPage}
               onPageSizeChange={setIncomingPageSize}
