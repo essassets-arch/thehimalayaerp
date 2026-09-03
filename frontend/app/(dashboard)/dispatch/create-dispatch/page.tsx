@@ -1081,34 +1081,48 @@ export default function CreateDispatchPage() {
         ).filter((item) => item.quantity > 0);
         const groupAddress = deliveryAddresses[group.salesOrder.id] || formatAddress(group.salesOrder, group.salesOrder.customer) || "";
 
-        const payload = {
-            salesOrderId: group.salesOrder.id,
-            deliveryAddress: groupAddress,
-            dispatchCategory: isDispatch2 ? "D2" : "D1",
-            totalWeight: Number(totalWeight) || 0,
-            vehicleNumber,
-            transporterName,
-            driverName,
-            driverPhone,
-            dispatchRemarks,
-            expectedDeliveryDate:
-              expectedDeliveryDate ||
-              group.salesOrder.requestedDeliveryDate ||
-              undefined,
-            invoiceNumber: invoiceNumber.trim(),
-            challanNumber: challanNumber.trim(),
-            ewayBillNumber,
-            freightAmount: (() => {
-              const individualCost = Number(group.salesOrder.sourceQuotation?.expectedTransportationCost ?? group.salesOrder.freightAmount ?? 0);
-              if (transportationCost > 0 && individualCost > 0) {
-                return (actualFreightPaidAmount * individualCost) / transportationCost;
-              }
-              return actualFreightPaidAmount / orderGroups.size;
-            })(),
-            items: consolidatedItems,
-          };
-          
-          console.log("Sending dispatch data:", payload);
+        const payload: Record<string, any> = {
+          salesOrderId: group.salesOrder.id,
+          deliveryAddress: groupAddress,
+          dispatchCategory: isDispatch2 ? "D2" : "D1",
+          totalWeight: Number(totalWeight) || 0,
+          vehicleNumber: vehicleNumber.trim(),
+          items: consolidatedItems.map((item) => ({
+            salesOrderItemId: String(item.salesOrderItemId),
+            quantity: Number(item.quantity),
+            ...(item.productId ? { productId: String(item.productId) } : {}),
+            ...(Array.isArray(item.workOrderIds) && item.workOrderIds.length > 0
+              ? { workOrderIds: item.workOrderIds }
+              : {}),
+          })),
+        };
+
+        if (transporterName?.trim()) payload.transporterName = transporterName.trim();
+        if (driverName?.trim()) payload.driverName = driverName.trim();
+        if (driverPhone?.trim()) payload.driverPhone = driverPhone.trim();
+        if (dispatchRemarks?.trim()) payload.dispatchRemarks = dispatchRemarks.trim();
+        if (expectedDeliveryDate || group.salesOrder.requestedDeliveryDate) {
+          payload.expectedDeliveryDate = expectedDeliveryDate || group.salesOrder.requestedDeliveryDate;
+        }
+        if (invoiceNumber?.trim()) payload.invoiceNumber = invoiceNumber.trim();
+        if (challanNumber?.trim()) payload.challanNumber = challanNumber.trim();
+        if (ewayBillNumber?.trim()) payload.ewayBillNumber = ewayBillNumber.trim();
+
+        const individualCost = Number(
+          group.salesOrder.sourceQuotation?.expectedTransportationCost ??
+            group.salesOrder.freightAmount ??
+            0,
+        );
+        const computedFreight =
+          transportationCost > 0 && individualCost > 0
+            ? (Number(actualFreightPaidAmount || 0) * individualCost) / transportationCost
+            : Number(actualFreightPaidAmount || 0) / (orderGroups.size || 1);
+
+        if (!isNaN(computedFreight) && computedFreight >= 0) {
+          payload.freightAmount = computedFreight;
+        }
+
+        console.log("Sending dispatch data:", payload);
 
           await backendFetch<unknown>("/api/backend/logistics/dispatches", {
             method: "POST",

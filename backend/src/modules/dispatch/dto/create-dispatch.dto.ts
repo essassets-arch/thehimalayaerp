@@ -15,9 +15,17 @@ export class CreateDispatchItemDto {
   salesOrderItemId: string;
 
   @IsNotEmpty()
+  @Transform(({ value }) => {
+    const num = Number(value);
+    return isNaN(num) ? value : num;
+  })
   @IsNumber()
   @Min(0.001)
   quantity: number;
+
+  @IsOptional()
+  @IsString()
+  productId?: string;
 
   @IsOptional()
   @IsArray()
@@ -85,7 +93,13 @@ export class CreateDispatchDto {
   dispatchCategory?: string;
 
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) return undefined;
+    const num = Number(value);
+    return isNaN(num) ? undefined : num;
+  })
   @IsNumber()
+  @Min(0)
   freightAmount?: number;
 
   @IsNotEmpty()
