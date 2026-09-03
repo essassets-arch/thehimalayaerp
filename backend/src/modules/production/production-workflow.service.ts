@@ -216,11 +216,11 @@ export class ProductionWorkflowService {
       });
 
       for (const plan of activePlans) {
-        const so = plan.salesOrder;
-        if (!so) continue;
-        const orderId = so.id || plan.salesOrderId || plan.id;
-        if (!grouped.has(orderId) && !grouped.has(so.orderNumber)) {
-          const lead = so.sourceQuotation?.lead || so.quotation?.lead;
+        const soAny = (plan as any).salesOrder;
+        if (!soAny) continue;
+        const orderId = soAny.id || plan.salesOrderId || plan.id;
+        if (!grouped.has(orderId) && !grouped.has(soAny.orderNumber)) {
+          const lead = soAny.sourceQuotation?.lead || soAny.quotation?.lead;
           const leadCustomer =
             lead?.companyName ||
             lead?.customerName ||
@@ -228,20 +228,20 @@ export class ProductionWorkflowService {
             lead?.projectName ||
             lead?.contactPerson;
           const directCustomer =
-            so.customer?.companyName ||
-            so.customer?.name ||
-            so.customer?.contactPerson;
+            soAny.customer?.companyName ||
+            soAny.customer?.name ||
+            soAny.customer?.contactPerson;
           const resolvedCustomer =
-            so.customerName ||
-            so.customer_name ||
-            (so.quotationId || so.sourceQuotationId
+            soAny.customerName ||
+            soAny.customer_name ||
+            (soAny.quotationId || soAny.sourceQuotationId
               ? leadCustomer || directCustomer
               : directCustomer || leadCustomer) ||
-            so.companyName ||
-            so.clientName ||
+            soAny.companyName ||
+            soAny.clientName ||
             'N/A';
 
-          const items = Array.isArray(so.items) ? so.items : [];
+          const items = Array.isArray(soAny.items) ? soAny.items : [];
           const detailedItems = items.map((i: any) => ({
             productName: i.productNameSnapshot || i.product?.name || 'Item',
             quantity: Number(i.orderedQuantity ?? i.quantity ?? 1),
@@ -250,21 +250,21 @@ export class ProductionWorkflowService {
           const totalQuantity = detailedItems.reduce((sum: number, it: any) => sum + it.quantity, 0);
 
           grouped.set(orderId, {
-            id: so.id,
-            orderNo: so.orderNumber || so.orderNo || so.id,
+            id: soAny.id,
+            orderNo: soAny.orderNumber || soAny.orderNo || soAny.id,
             customerName: resolvedCustomer,
             detailedItems,
             products: detailedItems.map((it: any) => it.productName).join(', ') || 'Custom Engineered Product',
             estimatedQuantity: totalQuantity,
             totalQuantity: totalQuantity,
-            targetDate: plan.plannedEndDate || so.requestedDeliveryDate || so.requiredDeliveryDate || '',
+            targetDate: plan.plannedEndDate || soAny.requestedDeliveryDate || soAny.requiredDeliveryDate || '',
             priority: plan.priority || 'Medium',
-            status: plan.status || so.workflowState?.code || so.status || 'PRODUCTION_PLANNED',
-            workflowStatus: plan.status || so.workflowState?.code || so.status || 'PRODUCTION_PLANNED',
+            status: plan.status || soAny.workflowState?.code || soAny.status || 'PRODUCTION_PLANNED',
+            workflowStatus: plan.status || soAny.workflowState?.code || soAny.status || 'PRODUCTION_PLANNED',
             productionPlanId: plan.id,
             workOrderIds: plan.workOrders?.map((w: any) => w.id) || [],
             hasBackendWorkOrder: (plan.workOrders?.length || 0) > 0,
-            createdAt: plan.createdAt || so.createdAt,
+            createdAt: plan.createdAt || soAny.createdAt,
           });
         }
       }
@@ -307,8 +307,9 @@ export class ProductionWorkflowService {
       });
 
       for (const so of assignedSalesOrders) {
-        if (!grouped.has(so.id) && !grouped.has(so.orderNumber)) {
-          const lead = so.sourceQuotation?.lead || so.quotation?.lead;
+        const soAny = so as any;
+        if (!grouped.has(soAny.id) && !grouped.has(soAny.orderNumber)) {
+          const lead = soAny.sourceQuotation?.lead || soAny.quotation?.lead;
           const leadCustomer =
             lead?.companyName ||
             lead?.customerName ||
@@ -316,20 +317,20 @@ export class ProductionWorkflowService {
             lead?.projectName ||
             lead?.contactPerson;
           const directCustomer =
-            so.customer?.companyName ||
-            so.customer?.name ||
-            so.customer?.contactPerson;
+            soAny.customer?.companyName ||
+            soAny.customer?.name ||
+            soAny.customer?.contactPerson;
           const resolvedCustomer =
-            so.customerName ||
-            so.customer_name ||
-            (so.quotationId || so.sourceQuotationId
+            soAny.customerName ||
+            soAny.customer_name ||
+            (soAny.quotationId || soAny.sourceQuotationId
               ? leadCustomer || directCustomer
               : directCustomer || leadCustomer) ||
-            so.companyName ||
-            so.clientName ||
+            soAny.companyName ||
+            soAny.clientName ||
             'N/A';
 
-          const items = Array.isArray(so.items) ? so.items : [];
+          const items = Array.isArray(soAny.items) ? soAny.items : [];
           const detailedItems = items.map((i: any) => ({
             productName: i.productNameSnapshot || i.product?.name || 'Item',
             quantity: Number(i.orderedQuantity ?? i.quantity ?? 1),
@@ -337,21 +338,21 @@ export class ProductionWorkflowService {
           }));
           const totalQuantity = detailedItems.reduce((sum: number, it: any) => sum + it.quantity, 0);
 
-          grouped.set(so.id, {
-            id: so.id,
-            orderNo: so.orderNumber || so.orderNo || so.id,
+          grouped.set(soAny.id, {
+            id: soAny.id,
+            orderNo: soAny.orderNumber || soAny.orderNo || soAny.id,
             customerName: resolvedCustomer,
             detailedItems,
             products: detailedItems.map((it: any) => it.productName).join(', ') || 'Custom Engineered Product',
             estimatedQuantity: totalQuantity,
             totalQuantity: totalQuantity,
-            targetDate: so.requestedDeliveryDate || so.requiredDeliveryDate || '',
+            targetDate: soAny.requestedDeliveryDate || soAny.requiredDeliveryDate || '',
             priority: 'Medium',
-            status: so.workflowState?.code || so.status || 'PRODUCTION_PLANNED',
-            workflowStatus: so.workflowState?.code || so.status || 'PRODUCTION_PLANNED',
+            status: soAny.workflowState?.code || soAny.status || 'PRODUCTION_PLANNED',
+            workflowStatus: soAny.workflowState?.code || soAny.status || 'PRODUCTION_PLANNED',
             workOrderIds: [],
             hasBackendWorkOrder: false,
-            createdAt: so.createdAt,
+            createdAt: soAny.createdAt,
           });
         }
       }
