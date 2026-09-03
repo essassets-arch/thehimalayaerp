@@ -59,6 +59,9 @@ interface WorkOrder {
   id: string;
   workOrderNumber: string;
   quantity: number;
+  orderedQuantity?: number;
+  dispatchedQuantity?: number;
+  remainingQuantity?: number;
   status: string;
   salesOrderItemId: string;
   productionPlan?: ProductionPlan;
@@ -223,13 +226,16 @@ function isTradingProduct(item: any, productsMap: Map<string, any>): boolean {
 }
 
 function availableQuantity(workOrder: WorkOrder): number {
+  if (workOrder.remainingQuantity !== undefined) {
+    return Math.max(0, Number(workOrder.remainingQuantity));
+  }
   const item = workOrder.salesOrderItem;
   const alreadyDispatched =
     item?.dispatchItems?.reduce(
       (sum, dispatchItem) => sum + Number(dispatchItem.quantity),
       0,
     ) || 0;
-  const ordered = Number(item?.orderedQuantity || workOrder.quantity || 1);
+  const ordered = Number(item?.orderedQuantity || workOrder.orderedQuantity || workOrder.quantity || 1);
   const remainingOrder = Math.max(0, ordered - alreadyDispatched);
 
   const approved = Number(
@@ -247,6 +253,7 @@ export default function CreateDispatchPage() {
   const workOrderId = searchParams.get("workOrderId");
   const salesOrderId = searchParams.get("salesOrderId");
   const orderNumber = searchParams.get("orderNumber");
+  const salesOrderItemId = searchParams.get("salesOrderItemId");
   const workOrderIdsParam = searchParams.get("workOrderIds");
   const deliveryAddressParam = searchParams.get("deliveryAddress");
 
@@ -316,7 +323,7 @@ export default function CreateDispatchPage() {
     isLoading,
     error,
   } = useQuery<WorkOrder[]>({
-    queryKey: ["pending-dispatch-work-orders-create", workOrderId, salesOrderId, orderNumber, workOrderIdsParam],
+    queryKey: ["pending-dispatch-work-orders-create", workOrderId, salesOrderId, orderNumber, workOrderIdsParam, salesOrderItemId],
     queryFn: async () => {
       const extractArray = (res: any): any[] => {
         if (!res) return [];
@@ -328,10 +335,11 @@ export default function CreateDispatchPage() {
         return [];
       };
 
-      const [workOrdersPayload, readyForDispatchPayload, allSalesOrdersPayload] = await Promise.allSettled([
+      const [workOrdersPayload, readyForDispatchPayload, allSalesOrdersPayload, dispatchesPayload] = await Promise.allSettled([
         backendFetch<any>("/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,DISPATCHED"),
         backendFetch<any>("/api/backend/production/ready-for-dispatch"),
         backendFetch<any>("/api/backend/sales/orders?pageSize=500"),
+        backendFetch<any>("/api/backend/logistics/dispatches"),
       ]);
 
       const rawWorkOrders: any[] =
@@ -340,15 +348,80 @@ export default function CreateDispatchPage() {
         readyForDispatchPayload.status === "fulfilled" ? extractArray(readyForDispatchPayload.value) : [];
       const rawSalesOrders: any[] =
         allSalesOrdersPayload.status === "fulfilled" ? extractArray(allSalesOrdersPayload.value) : [];
+      const rawDispatches: any[] =
+        dispatchesPayload.status === "fulfilled" ? extractArray(dispatchesPayload.value) : [];
 
-      let list: WorkOrder[] = [...rawWorkOrders, ...rawReady];
+      const dispatchedBySalesOrderItem = new Map<string, number>();
+      const dispatchedByWorkOrder = new Map<string, number>();
+      const dispatchedBySalesOrderProduct = new Map<string, number>();
+
+      rawDispatches.forEach((d: any) => {
+        const st = String(d.status || "").toUpperCase();
+        if (["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "PENDING"].includes(st)) {
+          if (Array.isArray(d.items)) {
+            d.items.forEach((it: any) => {
+              const q = Number(it.quantity || 0);
+              if (it.salesOrderItemId) {
+                const k = String(it.salesOrderItemId).toLowerCase();
+                dispatchedBySalesOrderItem.set(k, (dispatchedBySalesOrderItem.get(k) || 0) + q);
+              }
+              if (it.workOrderId) {
+                const k = String(it.workOrderId).toLowerCase();
+                dispatchedByWorkOrder.set(k, (dispatchedByWorkOrder.get(k) || 0) + q);
+              }
+              if (d.salesOrderId && it.productId) {
+                const k = `${String(d.salesOrderId).toLowerCase()}_${String(it.productId).toLowerCase()}`;
+                dispatchedBySalesOrderProduct.set(k, (dispatchedBySalesOrderProduct.get(k) || 0) + q);
+              }
+            });
+          }
+        }
+      });
+
+      let list: WorkOrder[] = [...rawWorkOrders, ...rawReady].map((wo: any) => {
+        const item = wo.salesOrderItem;
+        const totalOrdered = Number(item?.orderedQuantity || wo.quantity || 1);
+        const fromDispatchItems = Array.isArray(item?.dispatchItems)
+          ? item.dispatchItems.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0)
+          : 0;
+        const fromDispatches =
+          (item?.id ? dispatchedBySalesOrderItem.get(String(item.id).toLowerCase()) : 0) ||
+          (wo.id ? dispatchedByWorkOrder.get(String(wo.id).toLowerCase()) : 0) ||
+          0;
+        const alreadyDispatched = Math.max(fromDispatchItems, fromDispatches);
+        const remaining = Math.max(0, totalOrdered - alreadyDispatched);
+        return {
+          ...wo,
+          quantity: remaining,
+          orderedQuantity: totalOrdered,
+          dispatchedQuantity: alreadyDispatched,
+          remainingQuantity: remaining,
+        };
+      });
 
       // 1. Direct Work Order Lookup if workOrderId param is provided
       if (workOrderId && !workOrderId.includes("/") && !workOrderId.includes("#") && !list.some((wo) => wo.id === workOrderId)) {
         const woSinglePayload = await backendFetch<any>(`/api/backend/production/work-orders/${encodeURIComponent(workOrderId)}`).catch(() => null);
         const fetchedWo = woSinglePayload?.data || woSinglePayload;
         if (fetchedWo && fetchedWo.id) {
-          list.unshift(fetchedWo);
+          const item = fetchedWo.salesOrderItem;
+          const totalOrdered = Number(item?.orderedQuantity || fetchedWo.quantity || 1);
+          const fromDispatchItems = Array.isArray(item?.dispatchItems)
+            ? item.dispatchItems.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0)
+            : 0;
+          const fromDispatches =
+            (item?.id ? dispatchedBySalesOrderItem.get(String(item.id).toLowerCase()) : 0) ||
+            (fetchedWo.id ? dispatchedByWorkOrder.get(String(fetchedWo.id).toLowerCase()) : 0) ||
+            0;
+          const alreadyDispatched = Math.max(fromDispatchItems, fromDispatches);
+          const remaining = Math.max(0, totalOrdered - alreadyDispatched);
+          list.unshift({
+            ...fetchedWo,
+            quantity: remaining,
+            orderedQuantity: totalOrdered,
+            dispatchedQuantity: alreadyDispatched,
+            remainingQuantity: remaining,
+          });
         }
       }
 
@@ -401,8 +474,12 @@ export default function CreateDispatchPage() {
           const fromDispatchItems = Array.isArray(item.dispatchItems)
             ? item.dispatchItems.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0)
             : 0;
-          const remaining = Math.max(0, totalOrdered - fromDispatchItems);
-          const initialQty = remaining > 0 ? remaining : totalOrdered;
+          const fromDispatches =
+            (item.id ? dispatchedBySalesOrderItem.get(String(item.id).toLowerCase()) : 0) ||
+            (so.id && item.productId ? dispatchedBySalesOrderProduct.get(`${String(so.id).toLowerCase()}_${String(item.productId).toLowerCase()}`) : 0) ||
+            0;
+          const alreadyDispatched = Math.max(fromDispatchItems, fromDispatches);
+          const remaining = Math.max(0, totalOrdered - alreadyDispatched);
 
           const prodObj = item.product || productsMap.get(item.productId) || productsMap.get(item.product?.id);
           const dCat = isTradingProduct(item, productsMap) ? "D2" : (prodObj?.dispatchCategory || "D1");
@@ -410,7 +487,10 @@ export default function CreateDispatchPage() {
           list.push({
             id: `so-wo-${so.id}-${item.id || idx}`,
             workOrderNumber: so.orderNumber || so.orderNo || so.orderId || "SO-DISPATCH",
-            quantity: initialQty,
+            quantity: remaining,
+            orderedQuantity: totalOrdered,
+            dispatchedQuantity: alreadyDispatched,
+            remainingQuantity: remaining,
             status: "READY_FOR_DISPATCH",
             salesOrderItemId: item.id,
             productionPlan: {
@@ -431,7 +511,7 @@ export default function CreateDispatchPage() {
               unitPrice: Number(item.unitPrice || 0),
               product: { ...prodObj, dispatchCategory: dCat },
             },
-            qcInspections: [{ approvedQuantity: initialQty, approvedAt: new Date().toISOString(), createdAt: new Date().toISOString() }],
+            qcInspections: [{ approvedQuantity: remaining, approvedAt: new Date().toISOString(), createdAt: new Date().toISOString() }],
           });
         });
       });
@@ -460,7 +540,21 @@ export default function CreateDispatchPage() {
       }
     }
 
-    // 2. If a specific salesOrderId or orderNumber was requested, strictly show ONLY items belonging to that sales order
+    // 2. If a specific salesOrderItemId was requested from the remaining tab
+    if (salesOrderItemId) {
+      const targetedList = workOrders.filter((wo) => {
+        return (
+          wo.salesOrderItemId === salesOrderItemId ||
+          wo.salesOrderItem?.id === salesOrderItemId ||
+          String(wo.id).includes(salesOrderItemId)
+        );
+      });
+      if (targetedList.length > 0) {
+        return targetedList;
+      }
+    }
+
+    // 3. If a specific salesOrderId or orderNumber was requested, strictly show ONLY items belonging to that sales order
     if (salesOrderId || orderNumber) {
       const targetedList = workOrders.filter((wo) => {
         const woSoId = wo.productionPlan?.salesOrder?.id || (wo as any).salesOrderId || (wo as any).salesOrder?.id;
@@ -487,11 +581,13 @@ export default function CreateDispatchPage() {
       });
 
       if (targetedList.length > 0) {
-        return targetedList;
+        // Prioritize showing items that still have remaining quantity to dispatch
+        const withRemaining = targetedList.filter((wo) => (wo.remainingQuantity ?? 1) > 0);
+        return withRemaining.length > 0 ? withRemaining : targetedList;
       }
     }
 
-    // 3. If no specific order was selected via URL, filter by current dispatch category (D1 vs D2)
+    // 4. If no specific order was selected via URL, filter by current dispatch category (D1 vs D2)
     return workOrders.filter((wo) => {
       const productObj = productsMap.get(wo.salesOrderItem?.productId) || 
                          productsMap.get(wo.salesOrderItem?.product?.id) ||
@@ -508,15 +604,15 @@ export default function CreateDispatchPage() {
       
       return false;
     });
-  }, [workOrders, userDispatchCat, productsMap, requestedWorkOrderIds, salesOrderId, orderNumber]);
+  }, [workOrders, userDispatchCat, productsMap, requestedWorkOrderIds, salesOrderItemId, salesOrderId, orderNumber]);
 
   // If user navigated directly to create-dispatch without picking an order, redirect to the Pending Queue
   useEffect(() => {
-    if (!salesOrderId && !orderNumber && !workOrderId && requestedWorkOrderIds.length === 0) {
+    if (!salesOrderId && !orderNumber && !workOrderId && requestedWorkOrderIds.length === 0 && !salesOrderItemId) {
       toast.info("Please select an order from the Pending Queue first to create a dispatch.");
       router.replace(`${basePath}/orders`);
     }
-  }, [salesOrderId, orderNumber, workOrderId, requestedWorkOrderIds, router, basePath]);
+  }, [salesOrderId, orderNumber, workOrderId, requestedWorkOrderIds, salesOrderItemId, router, basePath]);
 
   useEffect(() => {
     if (!filteredWorkOrders.length || initialSelectionSet.current) return;
@@ -527,6 +623,12 @@ export default function CreateDispatchPage() {
         requestedWorkOrderIds.includes(row.id) ||
         (row.workOrderNumber && requestedWorkOrderIds.includes(row.workOrderNumber)) ||
         (row.salesOrderItemId && requestedWorkOrderIds.includes(row.salesOrderItemId))
+      );
+    } else if (salesOrderItemId) {
+      matching = filteredWorkOrders.filter((row) =>
+        row.salesOrderItemId === salesOrderItemId ||
+        row.salesOrderItem?.id === salesOrderItemId ||
+        String(row.id).includes(salesOrderItemId)
       );
     } else if (salesOrderId || orderNumber) {
       matching = filteredWorkOrders.filter((row) => {
@@ -540,15 +642,21 @@ export default function CreateDispatchPage() {
     if (matching.length === 0) {
       matching = filteredWorkOrders;
     }
-    const ids = matching.map((m) => m.id);
+
+    // Only auto-select items that have remaining quantities to dispatch
+    const withRemaining = matching.filter((m) => availableQuantity(m) > 0);
+    const toSelect = withRemaining.length > 0 ? withRemaining : matching;
+
+    const ids = toSelect.map((m) => m.id);
     const qtys: Record<string, number> = {};
-    matching.forEach((m) => {
-      qtys[m.id] = availableQuantity(m);
+    toSelect.forEach((m) => {
+      const rem = availableQuantity(m);
+      qtys[m.id] = rem > 0 ? rem : 1;
     });
     setSelectedIds(ids);
     setDispatchQuantities(qtys);
     initialSelectionSet.current = true;
-  }, [filteredWorkOrders, requestedWorkOrderIds, salesOrderId, orderNumber]);
+  }, [filteredWorkOrders, requestedWorkOrderIds, salesOrderItemId, salesOrderId, orderNumber]);
 
   const selectedWorkOrders = React.useMemo(
     () => filteredWorkOrders.filter((row) => selectedIds.includes(row.id)),
@@ -956,20 +1064,21 @@ export default function CreateDispatchPage() {
       for (const group of orderGroups.values()) {
         const consolidatedItems = Array.from(
           group.workOrders.reduce((items, selected) => {
-          const itemId = selected.salesOrderItem?.id;
-          if (!itemId) return items;
-          const current = items.get(itemId) || {
-            salesOrderItemId: itemId,
-            quantity: 0,
-            workOrderIds: [] as string[],
-          };
-          current.quantity += Number(dispatchQuantities[selected.id]);
-          current.workOrderIds.push(selected.id);
-          items.set(itemId, current);
-          return items;
-          }, new Map<string, { salesOrderItemId: string; quantity: number; workOrderIds: string[] }>())
+            const itemId = selected.salesOrderItem?.id || selected.salesOrderItemId;
+            if (!itemId) return items;
+            const current = items.get(itemId) || {
+              salesOrderItemId: itemId,
+              productId: selected.salesOrderItem?.productId,
+              quantity: 0,
+              workOrderIds: [] as string[],
+            };
+            current.quantity += Number(dispatchQuantities[selected.id]);
+            if (selected.id) current.workOrderIds.push(selected.id);
+            items.set(itemId, current);
+            return items;
+          }, new Map<string, { salesOrderItemId: string; productId?: string; quantity: number; workOrderIds: string[] }>())
           .values(),
-        );
+        ).filter((item) => item.quantity > 0);
         const groupAddress = deliveryAddresses[group.salesOrder.id] || formatAddress(group.salesOrder, group.salesOrder.customer) || "";
 
         const payload = {
