@@ -2,12 +2,16 @@ const { PrismaClient, Prisma } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
 
-const targetDbs = [
-  { name: 'Active DB (himalaya_erp_browser_test)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
-  { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' },
-  { name: 'Test DB (himalaya_erp_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_test?schema=public' },
-  { name: 'Docker DB 5435', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public' }
-];
+const isDocker = fs.existsSync('/.dockerenv') || (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('@postgres:'));
+
+const targetDbs = isDocker
+  ? [{ name: 'Docker Database', url: process.env.DATABASE_URL }]
+  : [
+      { name: 'Active DB (himalaya_erp_browser_test)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+      { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' },
+      { name: 'Test DB (himalaya_erp_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_test?schema=public' },
+      { name: 'Docker DB 5435', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public' }
+    ];
 
 function parseCSV(content) {
   const result = [];
@@ -379,11 +383,14 @@ async function importSuperSales1IntoDb(config, consolidatedLeads) {
 
 async function main() {
   const candidatePaths = [
+    path.join(__dirname, 'hussain_sir(super_sales1) (6).csv'),
     path.resolve('d:/prototype-next-main/hussain_sir(super_sales1) (6).csv'),
     path.resolve('hussain_sir(super_sales1) (6).csv'),
     path.join(__dirname, '../hussain_sir(super_sales1) (6).csv'),
-    path.resolve('hussain_sir(super_sales1) (2).csv'),
+    path.resolve('/app/scripts/hussain_sir(super_sales1) (6).csv'),
+    path.resolve('/app/hussain_sir(super_sales1) (6).csv'),
     path.join(__dirname, 'hussain_sir(super_sales1) (2).csv'),
+    path.resolve('hussain_sir(super_sales1) (2).csv'),
   ];
 
   let csvPath = candidatePaths.find(p => fs.existsSync(p));
