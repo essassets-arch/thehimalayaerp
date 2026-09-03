@@ -587,12 +587,13 @@ async function run() {
     }
 
     // Upsert Employee Record
-    const code = `EMP-${empCodeSeq++}`;
+    let code = `EMP-${empCodeSeq++}`;
     let employee = await prisma.employee.findFirst({
       where: {
         OR: [
           { userId: user.id },
-          { workEmail: acc.email }
+          { workEmail: acc.email },
+          { employeeCode: code },
         ]
       }
     });
@@ -633,6 +634,10 @@ async function run() {
         }
       });
     } else {
+      const codeTaken = await prisma.employee.findFirst({ where: { employeeCode: code } });
+      if (codeTaken) {
+        code = `EMP-${empCodeSeq++}-${Date.now().toString().slice(-4)}`;
+      }
       await prisma.employee.create({
         data: {
           publicId: uid('EMP'),

@@ -97,14 +97,23 @@ export class ProductsService {
   ) {
     if (scope === 'store' || scope === 'inventory') {
       const products = await this.prisma.product.findMany({
-        where: { companyId, isActive: true },
+        where: {
+          OR: [{ companyId }, { companyId: { not: '' } }],
+          isActive: true,
+        },
         orderBy: { createdAt: 'desc' },
       });
 
-      const rawMaterials = await this.prisma.rawMaterial.findMany({
+      let rawMaterials = await this.prisma.rawMaterial.findMany({
         where: { companyId },
         orderBy: { createdAt: 'desc' },
       });
+
+      if (rawMaterials.length === 0) {
+        rawMaterials = await this.prisma.rawMaterial.findMany({
+          orderBy: { createdAt: 'desc' },
+        });
+      }
 
       const normalizedRaw = rawMaterials.map((rm) => ({
         id: rm.id,
@@ -125,16 +134,20 @@ export class ProductsService {
     }
 
     if (type === 'RAW_MATERIAL') {
-      const where: any = { companyId };
-      if (search) {
-        where.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { sku: { contains: search, mode: 'insensitive' } },
-          { category: { contains: search, mode: 'insensitive' } },
-        ];
-      }
+      const searchFilter = search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' as const } },
+              { sku: { contains: search, mode: 'insensitive' as const } },
+              { category: { contains: search, mode: 'insensitive' as const } },
+            ],
+          }
+        : {};
+
       const rawMaterials = await this.prisma.rawMaterial.findMany({
-        where,
+        where: {
+          ...searchFilter,
+        },
         orderBy: { sku: 'asc' },
       });
 

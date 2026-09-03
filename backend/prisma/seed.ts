@@ -3732,11 +3732,33 @@ async function main() {
     const uniqueBankLastFour = String(5000 + seedIdx).slice(-4);
     const uniqueBankHash = `hash_bank_${seedIdx}_${Date.now()}`;
 
-    const existingEmp = await prisma.employee.findFirst({
-      where: { OR: [{ userId: user.id }, { workEmail: acc.email }] },
+    let existingEmp = await prisma.employee.findFirst({
+      where: {
+        OR: [
+          { userId: user.id },
+          { workEmail: acc.email },
+        ],
+      },
     });
 
+    if (!existingEmp) {
+      existingEmp = await prisma.employee.findFirst({
+        where: { employeeCode: `EMP-${seedIdx}` },
+      });
+    }
+
     if (existingEmp) {
+      // If another employee currently has userId = user.id, detach it first
+      const otherEmp = await prisma.employee.findUnique({
+        where: { userId: user.id },
+      });
+      if (otherEmp && otherEmp.id !== existingEmp.id) {
+        await prisma.employee.update({
+          where: { id: otherEmp.id },
+          data: { userId: null },
+        });
+      }
+
       await prisma.employee.update({
         where: { id: existingEmp.id },
         data: {
@@ -3753,10 +3775,31 @@ async function main() {
         },
       });
     } else {
+      let targetCode = `EMP-${seedIdx}`;
+      let attempts = 0;
+      while (await prisma.employee.findUnique({ where: { employeeCode: targetCode } })) {
+        attempts++;
+        targetCode = `EMP-${seedIdx}-${attempts}-${Date.now().toString().slice(-4)}`;
+      }
+
+      let targetPan = uniquePan;
+      attempts = 0;
+      while (await prisma.employee.findUnique({ where: { panNumber: targetPan } })) {
+        attempts++;
+        targetPan = `ABC${String(100000 + seedIdx * 100 + attempts).slice(-6)}F`;
+      }
+
+      let targetAadhaarHash = uniqueAadhaarHash;
+      attempts = 0;
+      while (await prisma.employee.findUnique({ where: { aadhaarHash: targetAadhaarHash } })) {
+        attempts++;
+        targetAadhaarHash = `hash_aadhaar_${seedIdx}_${attempts}_${Date.now()}`;
+      }
+
       await prisma.employee.create({
         data: {
-          publicId: `EMP-${seedIdx}`,
-          employeeCode: `EMP-${seedIdx}`,
+          publicId: uid('EMP'),
+          employeeCode: targetCode,
           companyId: company.id,
           userId: user.id,
           firstName: acc.firstName,
