@@ -115,7 +115,7 @@ export default function DeliveryHistoryPage() {
       (d) =>
         d.dispatchNo?.toLowerCase().includes(lower) ||
         d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
-        d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
+        (d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "").toLowerCase().includes(lower) ||
         d.receivedBy?.toLowerCase().includes(lower) ||
         d.receiverPhone?.toLowerCase().includes(lower) ||
         d.driverName?.toLowerCase().includes(lower) ||
@@ -129,7 +129,7 @@ export default function DeliveryHistoryPage() {
     const exportRows = deliveredHistory.map((d) => ({
       "Dispatch Number": formatCleanNo(d.dispatchNo),
       "Sales Order": formatCleanNo(d.salesOrder?.orderNumber),
-      Customer: d.salesOrder?.customer?.companyName || "—",
+      Customer: d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "—",
       "Delivery Address": d.deliveryAddress || "—",
       "Received By": d.receivedBy || "—",
       "Receiver Mobile": d.receiverPhone || "—",
@@ -161,7 +161,7 @@ export default function DeliveryHistoryPage() {
   const podVerifiedPct =
     totalDeliveredCount > 0 ? Math.round((totalWithPodCount / totalDeliveredCount) * 100) : 0;
   const uniqueCustomersCount = new Set(
-    deliveredHistory.map((d) => d.salesOrder?.customer?.companyName).filter(Boolean),
+    deliveredHistory.map((d) => d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name).filter(Boolean),
   ).size;
 
   return (
@@ -404,7 +404,7 @@ export default function DeliveryHistoryPage() {
                         <td>
                           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                             <span style={{ fontWeight: 700, color: "#0f172a" }}>
-                              {d.salesOrder?.customer?.companyName || "Consignee Client"}
+                              {d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "Consignee Client"}
                             </span>
                             {d.deliveryAddress && (
                               <span style={{ fontSize: "11.5px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 280 }}>
