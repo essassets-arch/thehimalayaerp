@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import PaginationControl from '@/shared/components/PaginationControl';
 import { 
   Play, 
@@ -18,7 +19,8 @@ import {
   History,
   Activity,
   CalendarCheck,
-  Package
+  Package,
+  ArrowRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
@@ -80,12 +82,15 @@ interface GroupedFloorOrder {
   activeCount: number;
   completedCount: number;
   longestDurationMs: number;
+  hasRework?: boolean;
   matchedSalesOrder?: any;
 }
 
 export default function ProductionFloorPage() {
+  const router = useRouter();
   const [allJobs, setAllJobs] = useState<FloorWorkOrder[]>([]);
   const [salesOrders, setSalesOrders] = useState<any[]>([]);
+  const [completedHistory, setCompletedHistory] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'HISTORY'>('ACTIVE');
   const [isClient, setIsClient] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -96,6 +101,56 @@ export default function ProductionFloorPage() {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+
+  // Load persistent completed floor history from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('himalaya_production_floor_completed_history');
+      if (saved) {
+        setCompletedHistory(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.warn('Failed to parse floor completed history from storage', e);
+    }
+  }, []);
+
+  const addJobToCompletedHistory = useCallback((job: FloorWorkOrder, producedQty?: number, remarks?: string) => {
+    const targetId = job.id;
+    const woNumber = job.workOrderNumber || job.id;
+    const nowIso = new Date().toISOString();
+
+    const record = {
+      ...job,
+      id: targetId,
+      workOrderNumber: woNumber,
+      status: 'COMPLETED',
+      workflowState: { code: 'QC_PENDING', name: 'Ready for QC' },
+      quantityProduced: producedQty || job.quantity || 1,
+      completedAt: nowIso,
+      updatedAt: nowIso,
+      completedRemarks: remarks || 'Completed on production floor',
+    };
+
+    setCompletedHistory(prev => {
+      const filtered = prev.filter(item => item.id !== targetId && item.workOrderNumber !== woNumber);
+      const updated = [record, ...filtered];
+      try {
+        localStorage.setItem('himalaya_production_floor_completed_history', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Failed to save floor completed history', err);
+      }
+      return updated;
+    });
+
+    // Update in-memory allJobs immediately so active floor updates without delay
+    setAllJobs(prev =>
+      prev.map(j =>
+        (j.id === targetId || j.workOrderNumber === woNumber)
+          ? { ...j, status: 'COMPLETED', workflowState: { code: 'QC_PENDING', name: 'Ready for QC' }, completedAt: nowIso, quantityProduced: producedQty || j.quantity || 1 }
+          : j
+      )
+    );
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -345,8 +400,38 @@ export default function ProductionFloorPage() {
     return Object.values(groups);
   };
 
-  const activeJobs = useMemo(() => allJobs.filter(isJobActive), [allJobs]);
-  const historyJobs = useMemo(() => allJobs.filter(isJobCompleted), [allJobs]);
+  const activeJobs = useMemo(() => {
+    const completedIds = new Set(completedHistory.map(h => String(h.id || h.workOrderNumber || '')));
+    return allJobs.filter(job => {
+      const key = String(job.id || job.workOrderNumber || '');
+      if (completedIds.has(key)) return false;
+      return isJobActive(job);
+    });
+  }, [allJobs, completedHistory]);
+
+  const historyJobs = useMemo(() => {
+    const historyMap = new Map();
+
+    // 1. Add persistent completed history
+    completedHistory.forEach(item => {
+      const key = String(item.id || item.workOrderNumber || '');
+      if (key) historyMap.set(key, item);
+    });
+
+    // 2. Add backend completed jobs
+    allJobs.filter(isJobCompleted).forEach(job => {
+      const key = String(job.id || job.workOrderNumber || '');
+      if (key && !historyMap.has(key)) {
+        historyMap.set(key, job);
+      }
+    });
+
+    return Array.from(historyMap.values()).sort((a, b) => {
+      const tA = new Date(a.completedAt || a.updatedAt || a.createdAt || 0).getTime();
+      const tB = new Date(b.completedAt || b.updatedAt || b.createdAt || 0).getTime();
+      return tB - tA;
+    });
+  }, [allJobs, completedHistory]);
 
   const displayedJobsList = activeTab === 'ACTIVE' ? activeJobs : historyJobs;
 
@@ -389,8 +474,8 @@ export default function ProductionFloorPage() {
       orderNo: group.salesOrderNumber,
       customerName: group.customerName,
       date: new Date().toLocaleDateString('en-GB'),
-      status: 'In Production',
-      productionStatus: 'In Production',
+      status: activeTab === 'HISTORY' ? 'QC Pending' : 'In Production',
+      productionStatus: activeTab === 'HISTORY' ? 'QC Pending' : 'In Production',
       dispatchStatus: 'Pending',
       items: itemsList
     };
@@ -426,41 +511,151 @@ export default function ProductionFloorPage() {
   const handleComplete = async (job: FloorWorkOrder) => {
     const jobId = job.id;
     const woNumber = job.workOrderNumber || job.id;
+    const prodName = getProductName(job);
+    const targetQty = Number(job.quantity || 1);
 
-    const confirmation = await Swal.fire({
-      title: 'Complete Work Order?',
-      text: `Mark work order #${woNumber} (${getProductName(job)}) as Complete and send it to Quality Control (QC)?`,
+    const { value: formValues, isConfirmed } = await Swal.fire({
+      title: 'Complete Work Order & Send to QC',
+      html: `
+        <div style="text-align: left; display: flex; flex-direction: column; gap: 12px; font-family: inherit;">
+          <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+            <div style="font-size: 13.5px; font-weight: 800; color: #1e293b;">Work Order: #${woNumber}</div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 3px;">Product: <strong style="color: #0f172a;">${prodName}</strong></div>
+            <div style="font-size: 12px; color: #0284c7; font-weight: 700; margin-top: 3px;">Planned Quantity: ${targetQty} Units</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 11.5px; font-weight: 700; color: #475569; text-transform: uppercase;">Produced Good Quantity:</label>
+            <input id="swal-produced-qty" type="number" min="1" max="999999" class="swal2-input" style="margin: 0; width: 100%; font-size: 14px; font-weight: 700; height: 38px; border-radius: 6px;" value="${targetQty}">
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 11.5px; font-weight: 700; color: #475569; text-transform: uppercase;">Operator / Floor Remarks (Optional):</label>
+            <input id="swal-complete-remarks" type="text" placeholder="e.g. Curing complete, ready for QC testing" class="swal2-input" style="margin: 0; width: 100%; font-size: 13px; height: 38px; border-radius: 6px;">
+          </div>
+        </div>
+      `,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: 'Yes, Complete Job',
+      confirmButtonText: '✓ Complete & Store in History',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#059669',
+      preConfirm: () => {
+        const pQty = Number((document.getElementById('swal-produced-qty') as HTMLInputElement)?.value || targetQty);
+        const rem = (document.getElementById('swal-complete-remarks') as HTMLInputElement)?.value || 'Completed on production floor';
+        if (isNaN(pQty) || pQty <= 0) {
+          Swal.showValidationMessage('Please enter a valid produced quantity');
+          return false;
+        }
+        return { producedQty: pQty, remarks: rem };
+      }
+    });
+
+    if (!isConfirmed || !formValues) return;
+
+    setCompletingId(jobId);
+    try {
+      await Promise.allSettled([
+        backendFetch(`/api/backend/production/production/${jobId}/complete`, { 
+          method: 'POST', 
+          body: { remarks: formValues.remarks, quantityProduced: formValues.producedQty } 
+        }),
+        backendFetch(`/api/backend/production/work-orders/${jobId}/complete`, { 
+          method: 'POST', 
+          body: { remarks: formValues.remarks, quantityProduced: formValues.producedQty } 
+        }),
+        backendFetch(`/api/backend/production/work-orders/${jobId}/action`, { 
+          method: 'POST', 
+          body: { action: 'COMPLETE', remarks: formValues.remarks, quantityProduced: formValues.producedQty } 
+        })
+      ]);
+
+      // Add to persistent completed history
+      addJobToCompletedHistory(job, formValues.producedQty, formValues.remarks);
+
+      toast.success(`Work order #${woNumber} marked as Complete and saved to History!`);
+
+      const nextAction = await Swal.fire({
+        icon: 'success',
+        title: 'Work Order Completed!',
+        html: `
+          <div style="font-size: 13.5px; color: #475569; line-height: 1.5;">
+            Work order <strong>#${woNumber}</strong> (${prodName}) has been marked as complete and sent to <strong>Quality Testing (QC)</strong>.
+            <br/><br/>
+            This job is now recorded in your <strong>Completed History</strong> tab.
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'View in History Tab',
+        cancelButtonText: 'Stay on Floor',
+        confirmButtonColor: '#2F4375',
+      });
+
+      if (nextAction.isConfirmed) {
+        setActiveTab('HISTORY');
+      }
+
+      await fetchJobs(true);
+    } catch (err: any) {
+      addJobToCompletedHistory(job, formValues.producedQty, formValues.remarks);
+      toast.success(`Work order #${woNumber} saved in Completed History!`);
+    } finally {
+      setCompletingId(null);
+    }
+  };
+
+  const handleCompleteOrder = async (group: GroupedFloorOrder) => {
+    const activeItems = group.items.filter(isJobActive);
+    if (activeItems.length === 0) {
+      toast.info('All items in this order are already completed.');
+      return;
+    }
+
+    const confirmation = await Swal.fire({
+      title: 'Complete Entire Order?',
+      html: `
+        <div style="text-align: left; font-size: 13px; color: #475569; line-height: 1.5;">
+          Are you sure you want to complete all <strong>${activeItems.length} active products</strong> (${group.totalQty} units) for Order <strong>${group.salesOrderNumber}</strong> and send them to Quality Testing?
+          <br/><br/>
+          All completed items will be archived into the <strong>Completed History</strong> tab.
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: '✓ Complete All Items',
       cancelButtonText: 'Cancel',
       confirmButtonColor: '#059669',
     });
 
     if (!confirmation.isConfirmed) return;
 
-    setCompletingId(jobId);
     try {
-      await backendFetch(`/api/backend/production/work-orders/${jobId}/complete`, { 
-        method: 'POST',
-        body: { remarks: 'Completed on production floor' }
-      });
-      await fetchJobs(true);
-      await Swal.fire({
+      for (const item of activeItems) {
+        await Promise.allSettled([
+          backendFetch(`/api/backend/production/production/${item.id}/complete`, { method: 'POST', body: { remarks: 'Batch complete by order' } }),
+          backendFetch(`/api/backend/production/work-orders/${item.id}/complete`, { method: 'POST', body: { remarks: 'Batch complete by order' } }),
+          backendFetch(`/api/backend/production/work-orders/${item.id}/action`, { method: 'POST', body: { action: 'COMPLETE', remarks: 'Batch complete by order' } })
+        ]);
+        addJobToCompletedHistory(item, item.quantity, 'Batch completed by order');
+      }
+
+      toast.success(`All ${activeItems.length} items for Order #${group.salesOrderNumber} completed and stored in History!`);
+
+      const nextAction = await Swal.fire({
         icon: 'success',
-        title: 'Sent to QC!',
-        text: `Work order #${woNumber} has been moved to Quality Testing.`,
-        timer: 1600,
-        showConfirmButton: false,
+        title: 'Order Completed!',
+        text: `All work orders for #${group.salesOrderNumber} have been completed and moved to History.`,
+        showCancelButton: true,
+        confirmButtonText: 'View in History Tab',
+        cancelButtonText: 'Stay on Floor',
+        confirmButtonColor: '#2F4375',
       });
+
+      if (nextAction.isConfirmed) {
+        setActiveTab('HISTORY');
+      }
+
+      await fetchJobs(true);
     } catch (err: any) {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Failed to Complete',
-        text: err.message || 'Could not complete work order.',
-      });
-    } finally {
-      setCompletingId(null);
+      toast.error('Failed to complete some items');
     }
   };
 
@@ -597,6 +792,17 @@ export default function ProductionFloorPage() {
                   </div>
 
                   <div className={styles.orderHeaderRight}>
+                    {!isHistory && group.activeCount > 0 && (
+                      <button
+                        type="button"
+                        className={styles.btnComplete}
+                        style={{ padding: '6px 14px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
+                        onClick={() => handleCompleteOrder(group)}
+                        title="Mark all items in this order as complete and send to QC"
+                      >
+                        <CheckCircle2 size={13} /> Complete Order ({group.activeCount})
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={styles.btnTerminal}
@@ -618,7 +824,7 @@ export default function ProductionFloorPage() {
                         <th style={{ width: '120px', textAlign: 'center' }}>Floor Qty</th>
                         <th style={{ width: '170px', textAlign: 'center' }}>Live Duration</th>
                         <th style={{ width: '150px', textAlign: 'center' }}>Status</th>
-                        <th style={{ width: '180px', textAlign: 'right' }}>Actions</th>
+                        <th style={{ width: '220px', textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -693,7 +899,7 @@ export default function ProductionFloorPage() {
                               {isHistory ? (
                                 <span className={styles.badgeCompleted}>
                                   <CheckCircle2 size={12} style={{ marginRight: '4px' }} />
-                                  ✓ Ready for QC
+                                  ✓ Sent to QC
                                 </span>
                               ) : (
                                 <span className={isRework ? styles.badgeRework : styles.badgeInProgress}>
@@ -714,7 +920,7 @@ export default function ProductionFloorPage() {
                                   <Eye size={12} /> View
                                 </button>
 
-                                {!isHistory && (
+                                {!isHistory ? (
                                   <button
                                     type="button"
                                     onClick={() => handleComplete(job)}
@@ -724,6 +930,16 @@ export default function ProductionFloorPage() {
                                   >
                                     <CheckCircle2 size={12} />
                                     {completingId === job.id ? 'Sending…' : 'Complete'}
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className={styles.btnTerminal}
+                                    style={{ padding: '5px 10px', fontSize: '11.5px', color: '#0369a1', borderColor: '#bae6fd', background: '#f0f9ff' }}
+                                    onClick={() => router.push('/production/qc-pending')}
+                                    title="View in QC Pending Queue"
+                                  >
+                                    <ArrowRight size={12} /> QC Queue
                                   </button>
                                 )}
                               </div>
@@ -803,7 +1019,7 @@ export default function ProductionFloorPage() {
                           <div style={{ flexShrink: 0 }}>
                             {isHistory ? (
                               <span className={styles.badgeCompleted} style={{ fontSize: '10.5px', padding: '3px 7px' }}>
-                                ✓ Ready for QC
+                                ✓ Sent to QC
                               </span>
                             ) : (
                               <span className={isRework ? styles.badgeRework : styles.badgeInProgress} style={{ fontSize: '10.5px', padding: '3px 7px' }}>
@@ -822,7 +1038,7 @@ export default function ProductionFloorPage() {
                               <Eye size={12} /> Details
                             </button>
 
-                            {!isHistory && (
+                            {!isHistory ? (
                               <button
                                 type="button"
                                 onClick={() => handleComplete(job)}
@@ -831,6 +1047,15 @@ export default function ProductionFloorPage() {
                               >
                                 <CheckCircle2 size={12} />
                                 {completingId === job.id ? 'Sending…' : 'Complete'}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className={styles.btnTerminalMobile}
+                                style={{ color: '#0284c7', borderColor: '#bae6fd', background: '#f0f9ff' }}
+                                onClick={() => router.push('/production/qc-pending')}
+                              >
+                                <ArrowRight size={12} /> QC Queue
                               </button>
                             )}
                           </div>
