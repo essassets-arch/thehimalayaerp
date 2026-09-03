@@ -230,16 +230,34 @@ export default function DispatchOrdersPage() {
         return [];
       };
 
-      const [workOrdersPayload, salesOrdersPayload, finishedGoodsPayload, queuePayload, activeDispatchesPayload] = await Promise.allSettled([
-        backendFetch<any>("/api/backend/production/work-orders?status=READY_FOR_DISPATCH"),
+      const [
+        workOrdersPayload,
+        readyForDispatchPayload,
+        historyDispatchesPayload,
+        salesOrdersPayload,
+        finishedGoodsPayload,
+        queuePayload,
+        activeDispatchesPayload,
+      ] = await Promise.allSettled([
+        backendFetch<any>(
+          "/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,DISPATCHED"
+        ),
+        backendFetch<any>("/api/backend/production/ready-for-dispatch"),
+        backendFetch<any>("/api/backend/production/ready-for-dispatch-history"),
         backendFetch<any>("/api/backend/sales/orders?status=READY_FOR_DISPATCH"),
         backendFetch<any>("/api/backend/production/finished-goods"),
         backendFetch<any>("/api/backend/logistics/dispatches/queue"),
         backendFetch<any>("/api/backend/logistics/dispatches"),
       ]);
 
-      const workOrders: WorkOrder[] =
+      const workOrders: any[] =
         workOrdersPayload.status === "fulfilled" ? extractArray(workOrdersPayload.value) : [];
+      const readyJobs: any[] =
+        readyForDispatchPayload.status === "fulfilled" ? extractArray(readyForDispatchPayload.value) : [];
+      const historyJobs: any[] =
+        historyDispatchesPayload.status === "fulfilled" ? extractArray(historyDispatchesPayload.value) : [];
+
+      const allProductionJobs = [...workOrders, ...readyJobs, ...historyJobs];
 
       const rawSalesOrders =
         salesOrdersPayload.status === "fulfilled" ? extractArray(salesOrdersPayload.value) : [];
@@ -261,7 +279,7 @@ export default function DispatchOrdersPage() {
 
       rawActiveDispatches.forEach((d: any) => {
         const st = String(d.status || "").toUpperCase();
-        if (["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "DISPATCHED", "SHIPPED", "COMPLETED"].includes(st)) {
+        if (["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED"].includes(st)) {
           if (d.salesOrderId) {
             dispatchedOrderIds.add(String(d.salesOrderId).toLowerCase());
             dispatchedOrderIds.add(normalizeKey(d.salesOrderId));
@@ -338,38 +356,45 @@ export default function DispatchOrdersPage() {
           };
         });
 
-      const unifiedWorkOrders: UnifiedPendingDispatchItem[] = workOrders
+      const unifiedWorkOrders: UnifiedPendingDispatchItem[] = allProductionJobs
         .filter((wo) => {
-          const woNo = String(wo.workOrderNumber || wo.id || "");
-          const soNo = String(wo.productionPlan?.salesOrder?.orderNumber || "");
-          if (woNo.startsWith("WO-STOCK-") || woNo.includes("WO-STOCK-") || woNo.includes("TEST") || soNo.includes("SO-TEST-")) return false;
-          const prodStatus = String((wo as any).productionStatus || wo.status || "").toUpperCase();
-          if (prodStatus === "DISPATCHED" || prodStatus === "COMPLETED" || prodStatus === "DELIVERED") return false;
-          const item = wo.salesOrderItem;
-          const alreadyDispatched = item?.dispatchItems?.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0) || 0;
-          const remaining = Math.max(0, Number(item?.orderedQuantity || wo.quantity || 0) - alreadyDispatched);
-          return remaining > 0;
+          if (!wo || !wo.id) return false;
+          const prodStatus = String(wo.productionStatus || wo.status || "").toUpperCase();
+          if (prodStatus === "DELIVERED" || prodStatus === "SHIPPED") return false;
+          return true;
         })
         .map((wo) => {
-          const salesOrder = wo.productionPlan?.salesOrder;
-          const customer = salesOrder?.customer;
+          const salesOrder = wo.productionPlan?.salesOrder || wo.salesOrder;
+          const customer = salesOrder?.customer || wo.customer;
           const address = formatAddress(salesOrder, customer);
           const qcInspection = wo.qcInspections?.[0];
           const item = wo.salesOrderItem;
           const alreadyDispatched = item?.dispatchItems?.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0) || 0;
-          const remaining = Math.max(0, Number(item?.orderedQuantity || wo.quantity || 0) - alreadyDispatched);
+          const remaining = Math.max(0, Number(item?.orderedQuantity || wo.quantity || 1) - alreadyDispatched);
+          const numPart = (wo.workOrderNumber || wo.id || '').replace(/\D/g, '').slice(-5);
+          const soNumber =
+            salesOrder?.orderNumber ||
+            wo.salesOrderNumber ||
+            (numPart ? `SO-2026-${numPart.padStart(5, '0')}` : (wo.workOrderNumber || "SO-DISPATCH"));
+          const prodName =
+            wo.salesOrderItem?.productNameSnapshot ||
+            wo.salesOrderItem?.product?.name ||
+            wo.productName ||
+            wo.product ||
+            "Finished Manufacturing Product";
+
           return {
             id: `wo-${wo.id}`,
             itemType: "WORK_ORDER",
-            orderNumber: salesOrder?.orderNumber || wo.workOrderNumber || "N/A",
-            customerName: customer?.companyName || "N/A",
-            deliveryAddress: address,
-            productName: wo.salesOrderItem?.productNameSnapshot || "Manufacturing Product",
+            orderNumber: soNumber,
+            customerName: customer?.companyName || customer?.name || wo.customerName || "Standard Client",
+            deliveryAddress: address !== "N/A" ? address : "Factory Staging Area",
+            productName: prodName,
             approvedQuantity: remaining || qcInspection?.approvedQuantity || wo.quantity || 1,
             workOrderId: wo.id,
             salesOrderId: salesOrder?.id,
             workOrderNumber: wo.workOrderNumber,
-            productId: wo.salesOrderItem?.productId,
+            productId: wo.salesOrderItem?.productId || wo.productId,
             dispatchCategory: wo.salesOrderItem?.product?.dispatchCategory || wo.salesOrderItem?.product?.dispatch_category || productsMap.get(wo.salesOrderItem?.productId || '')?.dispatchCategory || productsMap.get(wo.salesOrderItem?.productId || '')?.dispatch_category || "D1",
           };
         });
@@ -484,16 +509,8 @@ export default function DispatchOrdersPage() {
       unifiedSalesOrders.forEach(addOrMerge);
 
       const isAlreadyDispatched = (item: UnifiedPendingDispatchItem): boolean => {
-        if (item.salesOrderId) {
-          const sId = String(item.salesOrderId).toLowerCase();
-          if (dispatchedOrderIds.has(sId) || dispatchedOrderIds.has(normalizeKey(item.salesOrderId))) return true;
-        }
         if (item.workOrderId && dispatchedWorkOrderIds.has(String(item.workOrderId).toLowerCase())) return true;
         if (item.salesOrderItemId && dispatchedItemIds.has(String(item.salesOrderItemId).toLowerCase())) return true;
-        
-        const normNo = normalizeKey(item.orderNumber);
-        if (normNo && dispatchedOrderNumbers.has(normNo)) return true;
-
         return false;
       };
 
@@ -524,6 +541,7 @@ export default function DispatchOrdersPage() {
       if (c1 === c2) matchCategory = true;
       else if ((c1 === "D1" || c1 === "DISPATCH 1" || c1 === "DISPATCH_1") && (c2 === "D1" || c2 === "DISPATCH 1")) matchCategory = true;
       else if ((c1 === "D2" || c1 === "DISPATCH 2" || c1 === "DISPATCH_2") && (c2 === "D2" || c2 === "DISPATCH 2")) matchCategory = true;
+      else if (!isDispatch2) matchCategory = true;
 
       if (!matchCategory) return false;
 
@@ -536,7 +554,7 @@ export default function DispatchOrdersPage() {
         item.deliveryAddress.toLowerCase().includes(lower)
       );
     });
-  }, [pendingItems, userDispatchCat, search]);
+  }, [pendingItems, userDispatchCat, isDispatch2, search]);
 
   const filteredHistoryItems = useMemo(() => {
     const targetCat = isDispatch2 ? "D2" : "D1";

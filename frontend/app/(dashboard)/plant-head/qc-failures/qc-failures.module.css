@@ -1,4 +1,4 @@
-/* ─── Page shell ─── */
+/* ─── Page Shell ─── */
 .page {
   padding: 24px;
   background: #f8fafc;
@@ -6,14 +6,14 @@
   box-sizing: border-box;
 }
 
-/* ─── Hero banner ─── */
+/* ─── Hero Banner ─── */
 .hero {
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 22px 24px;
   margin-bottom: 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #fff5f5 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
   border: 1px solid #fecaca;
   border-radius: 16px;
   box-shadow: 0 4px 16px rgba(220, 38, 38, 0.05);
@@ -27,7 +27,7 @@
   height: 52px;
   flex-shrink: 0;
   border-radius: 14px;
-  background: linear-gradient(145deg, #dc2626, #b91c1c);
+  background: linear-gradient(145deg, #dc2626, #991b1b);
   color: #ffffff;
   box-shadow: 0 6px 16px rgba(220, 38, 38, 0.25);
 }
@@ -38,13 +38,30 @@
 }
 
 .eyebrow {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-bottom: 3px;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #dc2626;
+}
+
+.readOnlyBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: normal;
 }
 
 .heroText h1 {
@@ -288,7 +305,7 @@
   background: #f8fafc;
 }
 
-/* ─── Resolution Badges ─── */
+/* ─── Badges ─── */
 .badgePassed {
   display: inline-flex;
   align-items: center;
@@ -476,112 +493,6 @@
   cursor: pointer;
   height: 34px;
   box-sizing: border-box;
-}
-
-.btnStartMobile {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 6px 14px;
-  background: #ea580c;
-  color: #ffffff;
-  border: none;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  height: 34px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 3px rgba(234, 88, 12, 0.2);
-  transition: background 0.15s;
-}
-
-.btnStartMobile:hover {
-  background: #c2410c;
-}
-
-.btnSentMobile {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 6px 14px;
-  background: #ecfdf5;
-  color: #047857;
-  border: 1.5px solid #a7f3d0;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  height: 34px;
-  box-sizing: border-box;
-  text-decoration: none;
-  transition: all 0.15s ease;
-}
-
-.btnSentMobile:hover {
-  background: #d1fae5;
-  border-color: #6ee7b7;
-}
-
-/* ─── Desktop Action Buttons ─── */
-.startBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 13px;
-  background: #ea580c;
-  color: #ffffff;
-  border: none;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s;
-  box-shadow: 0 1px 2px rgba(234, 88, 12, 0.2);
-}
-
-.startBtn:hover {
-  background: #c2410c;
-}
-
-.btnSentToFloor {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 13px;
-  background: #ecfdf5;
-  color: #047857;
-  border: 1.5px solid #a7f3d0;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-
-.btnSentToFloor:hover {
-  background: #d1fae5;
-  border-color: #6ee7b7;
-}
-
-.btnSending {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 13px;
-  background: #f8fafc;
-  color: #64748b;
-  border: 1.5px solid #cbd5e1;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: not-allowed;
-  white-space: nowrap;
 }
 
 /* ─── Empty State ─── */

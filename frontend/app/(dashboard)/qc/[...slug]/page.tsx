@@ -6,7 +6,7 @@ export default async function LegacyQCPage({ params }: { params: Promise<{ slug?
 
   const routeMap: Record<string, string> = {
     pending: "/production/qc-pending",
-    history: "/production/qc-history",
+    history: "/production/completed",
   };
 
   redirect(routeMap[slug] || "/production/qc-pending");

@@ -937,52 +937,51 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     const items = selectedOrderForPlanning.detailedItems || selectedOrderForPlanning.items || [];
     const planItems = [];
 
-    // Validate that all production items have targetDate and priority
+    // Validate that all items have targetDate and send 100% to production
     for (const item of items) {
       const f = item.fulfillment || {
         orderedQty: item.quantity || 0,
         availableFG: 0,
         fgAllocatableQty: 0,
         productionRequiredQty: item.quantity || 0,
-        pendingDirectDispatchQty: item.quantity || 0,
-        pendingProductionQty: 0,
+        pendingDirectDispatchQty: 0,
+        pendingProductionQty: item.quantity || 0,
       };
-      const directDispatchQty = Number(f.pendingDirectDispatchQty || 0);
-      const productionQty = Number(f.pendingProductionQty || 0);
+      const productionQty = Number(f.pendingProductionQty || item.quantity || f.orderedQty || 0);
 
-      if (directDispatchQty <= 0 && productionQty <= 0) continue;
+      if (productionQty <= 0) continue;
 
       const planForItem = itemFulfillmentPlans[item.id] || {};
-      if (productionQty > 0) {
-        if (!planForItem.targetDate) {
-          Swal.fire({
-            icon: 'error',
-            title: 'Missing Date',
-            text: `Target Date is required for production item: ${item.productName || item.productCode || 'Item'}.`
-          });
-          return;
-        }
+      const itemTargetDate = targetDate || planForItem.targetDate || selectedOrderForPlanning.targetDate;
+      if (!itemTargetDate) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Missing Date',
+          text: `Target Completion Date is required to schedule production.`
+        });
+        return;
       }
 
       planItems.push({
         salesOrderItemId: item.id,
-        directDispatchQty,
+        directDispatchQty: 0,
         productionQty,
-        targetDate: productionQty > 0 ? planForItem.targetDate : undefined,
+        targetDate: itemTargetDate,
+        priority: planForItem.priority || selectedOrderForPlanning.priority || priority || 'Medium',
       });
     }
 
     if (planItems.length === 0) {
-      showToast('No actions defined for any items in this order.');
+      showToast('No pending items to schedule for production.');
       return;
     }
 
     Swal.fire({
-      title: 'Submit Fulfillment Plan?',
-      text: `Are you sure you want to submit the fulfillment plan for Order #${selectedOrderForPlanning.orderNo || selectedOrderForPlanning.orderNumber}?`,
+      title: 'Schedule Production?',
+      text: `Are you sure you want to schedule production work orders for Order #${selectedOrderForPlanning.orderNo || selectedOrderForPlanning.orderNumber}?`,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonText: 'Yes, Submit Plan',
+      confirmButtonText: 'Yes, Send to Production',
       cancelButtonText: 'Cancel',
       customClass: {
         popup: 'swal-premium-popup',
@@ -1007,17 +1006,10 @@ export default function PlantHeadPortal({ overrideView } = {}) {
           setShowPlanningModal(false);
           setSelectedOrderForPlanning(null);
 
-          let dispatchCount = 0;
-          let productionCount = 0;
-          planItems.forEach(pi => {
-            if (pi.directDispatchQty > 0) dispatchCount++;
-            if (pi.productionQty > 0) productionCount++;
-          });
-
           Swal.fire({
             icon: 'success',
-            title: 'Fulfillment Plan Submitted! 🎯',
-            text: `Fulfillment plan submitted successfully. ${dispatchCount} item(s) reserved for dispatch, ${productionCount} item(s) sent to production.`,
+            title: 'Production Scheduled! ⚙️',
+            text: `Production plan submitted successfully. ${planItems.length} item(s) sent to production.`,
             timer: 3000,
             showConfirmButton: true
           });
@@ -1036,6 +1028,91 @@ export default function PlantHeadPortal({ overrideView } = {}) {
         }
       }
     });
+  };
+
+  const handleUpdateTargetDate = async (order, explicitDate = null) => {
+    if (!order) return;
+    const orderId = order.id || order.orderNo || order.orderNumber;
+    let newDate = explicitDate;
+
+    if (!newDate) {
+      const defaultDate = order.targetDate
+        ? order.targetDate.slice(0, 10)
+        : new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+      const { value: promptDate } = await Swal.fire({
+        title: 'Update Target Date',
+        html: `
+          <div style="text-align: left; font-size: 13px; color: #475569; margin-bottom: 12px;">
+            Set production target completion date for Order <strong style="color: #0f172a;">#${order.orderNo || order.orderNumber}</strong>:
+          </div>
+        `,
+        input: 'date',
+        inputValue: defaultDate,
+        showCancelButton: true,
+        confirmButtonText: 'Save Target Date',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#0284c7',
+        customClass: {
+          popup: 'swal-premium-popup',
+          title: 'swal-premium-title',
+          confirmButton: 'swal-premium-confirm-btn',
+          cancelButton: 'swal-premium-cancel-btn'
+        },
+        buttonsStyling: false
+      });
+
+      if (!promptDate) return;
+      newDate = promptDate;
+    }
+
+    try {
+      showToast?.('Updating production target date...');
+      await backendFetch(`/api/backend/plant-head/orders/${orderId}/target-date`, {
+        method: 'POST',
+        body: { targetDate: newDate },
+      });
+
+      const dateStr = new Date(newDate).toISOString();
+      setAllPlanningOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id || o.orderNo === order.orderNo
+            ? { ...o, targetDate: dateStr, _selectedTargetDate: newDate }
+            : o
+        )
+      );
+      setIncomingOrders((prev) =>
+        prev.map((o) =>
+          o.id === order.id || o.orderNo === order.orderNo
+            ? { ...o, targetDate: dateStr, _selectedTargetDate: newDate }
+            : o
+        )
+      );
+      if (selectedOrderForPlanning && (selectedOrderForPlanning.id === order.id || selectedOrderForPlanning.orderNo === order.orderNo)) {
+        setSelectedOrderForPlanning((prev) => ({
+          ...prev,
+          targetDate: dateStr,
+          _selectedTargetDate: newDate
+        }));
+      }
+      setTargetDate(newDate);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Target Date Updated!',
+        text: `Target date for Order #${order.orderNo || order.orderNumber} set to ${new Date(newDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} and synced with Production.`,
+        timer: 2000,
+        showConfirmButton: false,
+      });
+
+      await syncData();
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Failed to Update Target Date',
+        text: err.message || 'Could not update target date.',
+      });
+    }
   };
 
   const handleOverrideChange = (reqId, val) => {
@@ -3123,6 +3200,49 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       );
     };
 
+    const renderProductSummary = (row) => {
+      let itemsList = [];
+      if (Array.isArray(row.items) && row.items.length > 0) {
+        itemsList = row.items.map(i => i.productName || i.name || i.product?.name || i.productCode).filter(Boolean);
+      } else if (Array.isArray(row.detailedItems) && row.detailedItems.length > 0) {
+        itemsList = row.detailedItems.map(i => i.productName || i.name || i.productCode).filter(Boolean);
+      } else if (typeof row.products === 'string' && row.products.trim()) {
+        itemsList = row.products.split(',').map(s => s.trim()).filter(Boolean);
+      }
+
+      if (itemsList.length === 0) return <span style={{ color: '#64748b' }}>—</span>;
+
+      const displayed = itemsList.slice(0, 2);
+      const remainingCount = itemsList.length - 2;
+
+      return (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }} title={itemsList.join(', ')}>
+          <span style={{ color: '#334155', fontWeight: '600' }}>
+            {displayed.join(', ')}
+          </span>
+          {remainingCount > 0 && (
+            <span
+              style={{
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                border: '1px solid #bfdbfe',
+                padding: '1px 7px',
+                borderRadius: '10px',
+                fontSize: '11px',
+                fontWeight: '800',
+                whiteSpace: 'nowrap',
+                display: 'inline-flex',
+                alignItems: 'center'
+              }}
+              title={itemsList.slice(2).join(', ')}
+            >
+              +{remainingCount} more
+            </span>
+          )}
+        </div>
+      );
+    };
+
     const statusBadge = (row) => getAccurateOrderStatusBadge(row);
 
     const handleAcceptOrder = async (order) => {
@@ -3294,7 +3414,6 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                         {row.orderNo || row.id}
                       </strong>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        {priorityBadge(row.priority)}
                         {statusBadge(row)}
                       </div>
                     </div>
@@ -3310,12 +3429,24 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                         <span style={{ fontWeight: '600' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span>
                       </div>
                       <div style={{ gridColumn: 'span 2' }}>
-                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Product Item</span>
-                        <span style={{ fontWeight: '600', color: '#334155' }}>{row.products || '—'}</span>
-                      </div>
-                      <div>
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Target Date</span>
-                        <span>{row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : <span style={{ color: '#8893A7' }}>Not set</span>}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: '700', color: row.targetDate ? '#0f172a' : '#94a3b8' }}>
+                            📅 {row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set'}
+                          </span>
+                          <button
+                            type="button"
+                            style={{ background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '4px', padding: '1px 6px', fontSize: '10.5px', fontWeight: '800', cursor: 'pointer' }}
+                            onClick={() => handleUpdateTargetDate(row)}
+                            title="Update Production Target Date"
+                          >
+                            ✏️ Edit
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Product Item</span>
+                        <div>{renderProductSummary(row)}</div>
                       </div>
                     </div>
 
@@ -3378,9 +3509,26 @@ export default function PlantHeadPortal({ overrideView } = {}) {
               },
               { header: 'Customer', accessor: 'customerName', render: (row) => <span style={{ fontWeight: 600 }}>{row.customerName || row.quotation?.lead?.companyName || row.quotation?.lead?.projectName || row.customer?.companyName || row.customer?.name || '—'}</span> },
               { header: 'Sales Person', accessor: 'salesPersonName', render: (row) => <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #0f172a)' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span> },
-              { header: 'Product Item', accessor: 'products', render: (row) => row.products || '—' },
-              { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : <span style={{ color: '#8893A7' }}>Not set</span> },
-              { header: 'Priority', accessor: 'priority', render: (row) => priorityBadge(row.priority) },
+              { header: 'Product Item', accessor: 'products', render: (row) => renderProductSummary(row) },
+              {
+                header: 'Target Date',
+                accessor: 'targetDate',
+                render: (row) => (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontWeight: 600, color: row.targetDate ? '#0f172a' : '#94a3b8' }}>
+                      {row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                    </span>
+                    <button
+                      type="button"
+                      style={{ background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '4px', padding: '2px 6px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                      onClick={() => handleUpdateTargetDate(row)}
+                      title="Update Production Target Date"
+                    >
+                      ✏️ Edit
+                    </button>
+                  </div>
+                )
+              },
               { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) }
             ]}
             data={displayedIncomingOrders}
@@ -3632,25 +3780,35 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     const statusBadge = (row) => getAccurateOrderStatusBadge(row);
 
     return (
-      <div className="app-card" style={{ padding: isMobile ? '12px' : '20px' }}>
+      <div className="app-card" style={{ padding: isMobile ? '12px' : '20px', borderRadius: isMobile ? '12px' : '16px' }}>
+        {/* Responsive Header & Search */}
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
-          <h2 className="card-heading" style={{ margin: 0, fontSize: isMobile ? '18px' : '20px' }}>Production Planning Board</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f1f3f5', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '7px 13px', width: isMobile ? '100%' : 'auto', boxSizing: 'border-box' }}>
-            <Search size={14} color="var(--color-text-secondary)" style={{ flexShrink: 0 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h2 className="card-heading" style={{ margin: 0, fontSize: isMobile ? '18px' : '22px', fontWeight: '900', color: '#0f172a' }}>
+              Production Planning Board
+            </h2>
+            <span style={{ fontSize: '11px', fontWeight: '800', background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              {allPlanningOrders.length}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '8px 14px', width: isMobile ? '100%' : '320px', boxSizing: 'border-box' }}>
+            <Search size={15} color="#64748b" style={{ flexShrink: 0 }} />
             <input
               type="text"
               placeholder="Search order, customer, product…"
               value={planningSearch}
               onChange={e => setPlanningSearch(e.target.value)}
-              style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', color: 'var(--color-text-primary)', width: '100%' }}
+              style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', color: '#0f172a', width: '100%' }}
             />
-            {planningSearch && <X size={13} style={{ cursor: 'pointer', color: 'var(--color-text-secondary)', flexShrink: 0 }} onClick={() => setPlanningSearch('')} />}
+            {planningSearch && <X size={14} style={{ cursor: 'pointer', color: '#64748b', flexShrink: 0 }} onClick={() => setPlanningSearch('')} />}
           </div>
         </div>
 
-        <div style={{ marginBottom: '12px', width: '100%', minWidth: 0 }}>
+        {/* Responsive Tabs Scroll */}
+        <div style={{ marginBottom: '14px', width: '100%', minWidth: 0 }}>
           <div className="plant-tabs-scroll w-full overflow-x-auto overflow-y-hidden scrollbar-hide" style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
-            <div className="plant-tabs flex w-max min-w-max flex-nowrap gap-2" style={{ display: 'flex', flexWrap: 'nowrap', width: 'max-content', minWidth: 'max-content', gap: '8px', background: '#f1f3f5', padding: '4px', borderRadius: '8px', boxSizing: 'border-box' }}>
+            <div className="plant-tabs flex w-max min-w-max flex-nowrap gap-2" style={{ display: 'flex', flexWrap: 'nowrap', width: isMobile ? 'max-content' : 'auto', minWidth: isMobile ? 'max-content' : 'auto', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '10px', boxSizing: 'border-box' }}>
               {planningTabs.map(tab => (
                 <button
                   key={tab.key}
@@ -3659,15 +3817,16 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                     flex: '0 0 auto',
                     whiteSpace: 'nowrap',
                     textAlign: 'center',
-                    color: planningViewTab === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                    padding: '8px 16px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
+                    color: planningViewTab === tab.key ? '#0f172a' : '#64748b',
+                    padding: isMobile ? '7px 14px' : '8px 18px',
+                    fontSize: isMobile ? '12px' : '13px',
+                    fontWeight: planningViewTab === tab.key ? '800' : '600',
                     border: 'none',
-                    background: planningViewTab === tab.key ? '#fff' : 'transparent',
-                    borderRadius: '6px',
+                    background: planningViewTab === tab.key ? '#ffffff' : 'transparent',
+                    borderRadius: '8px',
                     boxShadow: planningViewTab === tab.key ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
                   }}
                   onClick={() => setPlanningViewTab(tab.key)}
                 >
@@ -3678,9 +3837,9 @@ export default function PlantHeadPortal({ overrideView } = {}) {
           </div>
         </div>
 
-        <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: '12px', fontWeight: '500' }}>
-          Showing {filtered.length} of {allPlanningOrders.length} orders
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', fontSize: '12px', color: '#64748b', fontWeight: '500' }}>
+          <span>Showing <strong>{filtered.length}</strong> of <strong>{allPlanningOrders.length}</strong> orders</span>
+        </div>
 
         {isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -3694,24 +3853,19 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                 const isPlanned = !hasPendingFulfillment;
 
                 const items = row.detailedItems || row.items || [];
+                const remarksText = row.remarks || row.quotation?.remarks || row.productionPlan?.remarks || '';
 
-                // Fulfillment rendering logic
-                let fgCount = 0;
-                let prodCount = 0;
-                items.forEach(item => {
-                  const fgAlloc = Number(item.fulfillment?.pendingDirectDispatchQty || item.fulfillment?.fgAllocatableQty || 0) || Number(item.fulfillment?.activeReservedQty || 0);
-                  const prodReq = Number(item.fulfillment?.pendingProductionQty || item.fulfillment?.productionRequiredQty || 0) || Number(item.fulfillment?.productionCommittedQty || item.fulfillment?.activeProductionCommittedQty || 0);
-                  if (fgAlloc > 0) fgCount++;
-                  if (prodReq > 0) prodCount++;
-                });
-
-                let fulfillmentBadge = <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>;
-                if (fgCount > 0 && prodCount === 0) {
-                  fulfillmentBadge = <span style={{ background: '#ECFDF5', color: '#059669', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>✓ All Ready from FG</span>;
-                } else if (fgCount === 0 && prodCount > 0) {
-                  fulfillmentBadge = <span style={{ background: '#EFF6FF', color: '#2563EB', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>⚙ Production Required</span>;
-                } else if (fgCount > 0 && prodCount > 0) {
-                  fulfillmentBadge = <span style={{ background: '#FFFBEB', color: '#D97706', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>◐ Mixed Fulfillment</span>;
+                let fulfillmentBadge = (
+                  <span style={{ background: '#EFF6FF', color: '#2563EB', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    ⚙ Production Required
+                  </span>
+                );
+                if (isPlanned) {
+                  fulfillmentBadge = (
+                    <span style={{ background: '#ECFDF5', color: '#059669', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      ✓ Production Scheduled
+                    </span>
+                  );
                 }
 
                 return (
@@ -3720,71 +3874,109 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                     style={{
                       background: '#ffffff',
                       border: '1px solid #e2e8f0',
-                      borderRadius: '12px',
-                      padding: '16px',
+                      borderRadius: '14px',
+                      padding: '14px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '12px',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                      boxShadow: '0 2px 6px -1px rgba(0,0,0,0.04)',
+                      transition: 'all 0.2s ease'
                     }}
                   >
                     {/* Header: Order ID & Badges */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong
-                        style={{ color: '#0284c7', cursor: 'pointer', textDecoration: 'underline', fontSize: '14px', fontFamily: 'monospace' }}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                      <span
+                        style={{
+                          background: '#f0f9ff',
+                          color: '#0284c7',
+                          border: '1px solid #bae6fd',
+                          padding: '3px 9px',
+                          borderRadius: '8px',
+                          fontWeight: '800',
+                          fontSize: '13px',
+                          fontFamily: 'monospace',
+                          cursor: 'pointer'
+                        }}
                         onClick={() => setSelectedOrderDetails({ orderNo: row.orderNo, customerName: row.customerName || row.customer, products: row.products || row.productItem, id: row.id, status: row.planningStatus })}
                       >
                         {row.orderNo}
-                      </strong>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      </span>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                         {priorityBadge(row.priority)}
                         {statusBadge(row)}
                       </div>
                     </div>
 
                     {/* Details Grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12.5px', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                      <div>
-                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Customer</span>
-                        <span style={{ fontWeight: '700', color: '#1e293b' }}>{row.customerName || row.quotation?.lead?.companyName || row.quotation?.lead?.projectName || row.customer?.companyName || row.customer?.name || row.customer || '—'}</span>
-                      </div>
-                      <div>
-                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Sales Person</span>
-                        <span style={{ fontWeight: '600' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span>
-                      </div>
-                      <div>
-                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Fulfillment</span>
-                        <span>{fulfillmentBadge}</span>
-                      </div>
-                      <div>
-                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Target Date</span>
-                        <span>
-                          {row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : <span style={{ color: '#94a3b8' }}>—</span>}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800', letterSpacing: '0.04em' }}>Customer</span>
+                        <span style={{ fontWeight: '700', color: '#0f172a', fontSize: '13px' }}>
+                          {row.customerName || row.quotation?.lead?.companyName || row.quotation?.lead?.projectName || row.customer?.companyName || row.customer?.name || row.customer || '—'}
                         </span>
                       </div>
+
+                      <div>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800', letterSpacing: '0.04em' }}>Sales Person</span>
+                        <span style={{ fontWeight: '600', color: '#334155' }}>👤 {row.salesPersonName || row.salesperson || row.salesExecutive?.name || 'Sales Executive'}</span>
+                      </div>
+
+                      <div>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800', letterSpacing: '0.04em' }}>Target Date</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: '700', color: row.targetDate ? '#0f172a' : '#94a3b8' }}>
+                            📅 {row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set'}
+                          </span>
+                          <button
+                            type="button"
+                            style={{ background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '4px', padding: '1px 6px', fontSize: '10.5px', fontWeight: '800', cursor: 'pointer' }}
+                            onClick={() => handleUpdateTargetDate(row)}
+                            title="Update Production Target Date"
+                          >
+                            ✏️ Edit
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800', letterSpacing: '0.04em', marginBottom: '2px' }}>Fulfillment</span>
+                        {fulfillmentBadge}
+                      </div>
+
+                      {remarksText && (
+                        <div style={{ gridColumn: 'span 2', background: '#f8fafc', borderLeft: '3px solid #0284c7', padding: '6px 10px', borderRadius: '4px', marginTop: '2px' }}>
+                          <span style={{ display: 'block', fontSize: '9.5px', textTransform: 'uppercase', color: '#0284c7', fontWeight: '800' }}>Remarks</span>
+                          <span style={{ color: '#334155', fontSize: '11.5px', wordBreak: 'break-word' }}>{remarksText}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Products box */}
                     {items.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '4px' }}>
-                        <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '800', textTransform: 'uppercase' }}>Products</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '9.5px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Products ({items.length})</span>
                         {items.map((item, idx) => (
-                          <div key={idx} style={{ fontSize: '12px', fontWeight: '600', color: '#334155' }}>
-                            • {item.productName.replace('HIMALAYA FRP MHC ', '').replace('HIMALAYA FRP ', '')} — {item.quantity || item.orderedQuantity} {item.unit || 'UNITS'}
+                          <div key={idx} style={{ fontSize: '12px', fontWeight: '600', color: '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              • {item.productName.replace('HIMALAYA FRP MHC ', '').replace('HIMALAYA FRP ', '')}
+                            </span>
+                            <span style={{ background: '#e2e8f0', color: '#0f172a', padding: '1px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>
+                              {item.quantity || item.orderedQuantity} {item.unit || 'UNITS'}
+                            </span>
                           </div>
                         ))}
                       </div>
                     )}
 
                     {/* Action Row */}
-                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '12px', marginTop: '4px' }}>
+                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
                       {planningViewTab === 'pending' && !isPlanned ? (
                         <button
                           data-testid={`plant-head-send-production-${row.orderNo || row.id}`}
                           style={{
-                            flex: 1, padding: '8px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px',
-                            fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            flex: 1, padding: '10px 14px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '8px',
+                            fontWeight: 'bold', cursor: 'pointer', fontSize: '13px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)', minHeight: '40px'
                           }}
                           onClick={() => {
                             setSelectedOrderForPlanning(row);
@@ -3794,14 +3986,14 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                             setShowPlanningModal(true);
                           }}
                         >
-                          <Plus size={14} /> View & Plan
+                          <Plus size={15} /> View & Plan Production
                         </button>
                       ) : (
                         <button
                           style={{
-                            flex: 1, padding: '8px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '8px',
-                            fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            flex: 1, padding: '10px 14px', background: '#059669', color: '#ffffff', border: 'none', borderRadius: '8px',
+                            fontWeight: 'bold', cursor: 'pointer', fontSize: '13px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)', minHeight: '40px'
                           }}
                           onClick={() => {
                             setSelectedOrderForPlanning(row);
@@ -3811,7 +4003,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                             setShowPlanningModal(true);
                           }}
                         >
-                          <ClipboardCheck size={14} /> View
+                          <ClipboardCheck size={15} /> View Production Plan
                         </button>
                       )}
                     </div>
@@ -3819,8 +4011,8 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                 );
               })
             ) : (
-              <div style={{ textAlign: 'center', padding: '40px 20px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b' }}>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#0f172a' }}>No orders pending planning in Plant Head board.</div>
+              <div style={{ textAlign: 'center', padding: '40px 20px', background: '#fff', borderRadius: '14px', border: '1px solid #e2e8f0', color: '#64748b' }}>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#0f172a' }}>No orders found in this view.</div>
               </div>
             )}
           </div>
@@ -3860,33 +4052,47 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                 accessor: 'fulfillment',
                 render: (row) => {
                   const items = row.detailedItems || row.items || [];
-                  let fgCount = 0;
-                  let prodCount = 0;
-                  items.forEach(item => {
-                    const fgAlloc = Number(item.fulfillment?.pendingDirectDispatchQty || item.fulfillment?.fgAllocatableQty || 0) || Number(item.fulfillment?.activeReservedQty || 0);
-                    const prodReq = Number(item.fulfillment?.pendingProductionQty || item.fulfillment?.productionRequiredQty || 0) || Number(item.fulfillment?.productionCommittedQty || item.fulfillment?.activeProductionCommittedQty || 0);
-                    if (fgAlloc > 0) fgCount++;
-                    if (prodReq > 0) prodCount++;
+                  const hasPendingFulfillment = items.some(item => {
+                    const f = item.fulfillment || {};
+                    return Number(f.pendingProductionQty || f.productionRequiredQty || item.quantity || 0) > 0;
                   });
-
-                  if (fgCount > 0 && prodCount === 0) {
-                    return <span style={{ background: '#ECFDF5', color: '#059669', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>✓ All Ready from FG</span>;
-                  } else if (fgCount === 0 && prodCount > 0) {
-                    return <span style={{ background: '#EFF6FF', color: '#2563EB', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>⚙ Production Required</span>;
-                  } else if (fgCount > 0 && prodCount > 0) {
-                    return <span style={{ background: '#FFFBEB', color: '#D97706', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>◐ Mixed Fulfillment</span>;
+                  if (row.planningStatus === 'PRODUCTION_PLANNED' || !hasPendingFulfillment) {
+                    return <span style={{ background: '#ECFDF5', color: '#059669', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>✓ Production Scheduled</span>;
                   }
-                  return <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>;
+                  return <span style={{ background: '#EFF6FF', color: '#2563EB', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>⚙ Production Required</span>;
                 }
               },
               {
                 header: 'Target Date',
                 accessor: 'targetDate',
+                render: (row) => (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontWeight: 600, color: row.targetDate ? '#0f172a' : '#94a3b8' }}>
+                      {row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                    </span>
+                    <button
+                      type="button"
+                      style={{ background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '4px', padding: '2px 6px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                      onClick={() => handleUpdateTargetDate(row)}
+                      title="Update Production Target Date"
+                    >
+                      ✏️ Edit
+                    </button>
+                  </div>
+                )
+              },
+              {
+                header: 'Remarks',
+                accessor: 'remarks',
                 render: (row) => {
-                  if (row.targetDate) {
-                    return new Date(row.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-                  }
-                  return <span style={{ color: '#94a3b8' }}>—</span>;
+                  const remarksText = row.remarks || row.quotation?.remarks || row.productionPlan?.remarks || '';
+                  return remarksText ? (
+                    <span style={{ fontSize: '12px', color: '#475569', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', maxWidth: '200px' }} title={remarksText}>
+                      {remarksText}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>
+                  );
                 }
               },
               { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) },
@@ -5717,262 +5923,331 @@ export default function PlantHeadPortal({ overrideView } = {}) {
             });
 
         return (
-          <div className="erp-modal-overlay modal-overlay active" onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)' }}>
-            <div className="erp-modal-box erp-modal-large modal-box bg-white shadow-2xl border border-slate-100/80" onClick={(e) => e.stopPropagation()} style={{ width: 'min(920px, calc(100vw - 24px))', padding: 'clamp(16px, 3vw, 24px)', maxHeight: '94vh', overflowY: 'auto', borderRadius: '18px' }}>
-              
+          <div className="erp-modal-overlay modal-overlay active" onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(4px)', padding: isMobile ? '10px' : '20px' }}>
+            <div className="erp-modal-box erp-modal-large modal-box bg-white shadow-2xl border border-slate-100/80" onClick={(e) => e.stopPropagation()} style={{ width: 'min(920px, calc(100vw - 20px))', padding: isMobile ? '16px' : '24px', maxHeight: '92vh', overflowY: 'auto', borderRadius: isMobile ? '14px' : '18px', boxSizing: 'border-box' }}>
               {/* Modal Header */}
-              <div className="modal-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
+              <div className="modal-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', marginBottom: '16px' }}>
                 <div>
-                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>
-                    PLANT HEAD FULFILLMENT PLANNING
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '2px' }}>
+                    PLANT HEAD PRODUCTION PLANNING
                   </span>
-                  <h3 style={{ margin: 0, fontWeight: '900', fontSize: '24px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontWeight: '900', fontSize: isMobile ? '18px' : '22px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     {selectedOrderForPlanning.orderNo || selectedOrderForPlanning.orderNumber}
                     {isReadOnly && (
-                      <span style={{ fontSize: '11px', fontWeight: '850', letterSpacing: '0.05em', background: '#f1f5f9', color: '#64748b', padding: '3px 10px', borderRadius: '20px', border: '1px solid #e2e8f0', marginLeft: '6px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: '800', letterSpacing: '0.05em', background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                         READ-ONLY
                       </span>
                     )}
                   </h3>
                 </div>
-                <div 
-                  role="button"
-                  tabIndex={0}
-                  style={{ padding: '6px 16px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#1e293b', borderRadius: '8px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none' }}
+                <button 
+                  type="button"
+                  style={{ padding: '6px 14px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#1e293b', borderRadius: '8px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   className="hover:bg-slate-50 transition-all"
                   onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); } }}
                 >
                   Close
-                </div>
+                </button>
               </div>
 
               {/* Order Info Details Card (Styled Metadata Bar) */}
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: '16px 24px', fontSize: '13px', color: '#475569', marginBottom: '24px' }}>
-                <div style={{ flex: '1 1 180px', minWidth: '150px' }}>Customer: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.customerName || selectedOrderForPlanning.quotation?.lead?.companyName || selectedOrderForPlanning.customer?.companyName || selectedOrderForPlanning.customer?.name || 'Unknown'}</strong></div>
-                <div style={{ flex: '1 1 180px', minWidth: '150px' }}>Sales Person: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.salesPersonName || selectedOrderForPlanning.salesperson || 'Sales Executive'}</strong></div>
-                <div style={{ flex: '1 1 180px', minWidth: '150px' }}>Created Date: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.createdAt ? new Date(selectedOrderForPlanning.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '17 Aug 2026'}</strong></div>
-                <div style={{ flex: '1 1 120px', minWidth: '100px' }}>Status: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.status}</strong></div>
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: isMobile ? '12px 14px' : '14px 18px', display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px 16px', fontSize: '12.5px', color: '#475569', marginBottom: '20px' }}>
+                <div style={{ gridColumn: isMobile ? 'span 2' : 'auto' }}>
+                  <span style={{ display: 'block', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '800' }}>Customer</span>
+                  <strong style={{ color: '#0f172a', fontSize: '13px' }}>{selectedOrderForPlanning.customerName || selectedOrderForPlanning.quotation?.lead?.companyName || selectedOrderForPlanning.customer?.companyName || selectedOrderForPlanning.customer?.name || 'Unknown'}</strong>
+                </div>
+                <div>
+                  <span style={{ display: 'block', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '800' }}>Sales Person</span>
+                  <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.salesPersonName || selectedOrderForPlanning.salesperson || 'Sales Executive'}</strong>
+                </div>
+                <div>
+                  <span style={{ display: 'block', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '800' }}>Created Date</span>
+                  <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.createdAt ? new Date(selectedOrderForPlanning.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</strong>
+                </div>
+                <div>
+                  <span style={{ display: 'block', fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '800' }}>Status</span>
+                  <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.status}</strong>
+                </div>
               </div>
 
               {/* Product cards form */}
-              <form onSubmit={handleFulfillmentPlanSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <form onSubmit={handleFulfillmentPlanSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div>
-                  <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', margin: '0 0 16px 0' }}>
-                    Authorize Fulfillment Stock Flow (FG Stock vs Production)
+                  <h4 style={{ fontSize: '14.5px', fontWeight: '800', color: '#1e293b', margin: '0 0 12px 0' }}>
+                    Material Items & Quantities
                   </h4>
                   
-                  <div className="erp-table-responsive" style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-                    <table style={{ minWidth: '780px', width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-                      <thead>
-                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Material Item</th>
-                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Ordered</th>
-                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Available FG</th>
-                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>To Dispatch</th>
-                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>To Produce</th>
-                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Target Date</th>
-                          <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Unit</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detailedItems.map((item, idx) => {
-                          const f = item.fulfillment || {
-                            orderedQty: item.quantity || 0,
-                            availableFG: 0,
-                            fgAllocatableQty: 0,
-                            productionRequiredQty: item.quantity || 0,
-                            activeReservedQty: 0,
-                            activeProductionCommittedQty: 0
-                          };
+                  {isMobile ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {detailedItems.map((item, idx) => {
+                        const f = item.fulfillment || {
+                          orderedQty: item.quantity || 0,
+                          availableFG: 0,
+                          fgAllocatableQty: 0,
+                          productionRequiredQty: item.quantity || 0,
+                          activeReservedQty: 0,
+                          activeProductionCommittedQty: 0
+                        };
 
-                          const pendingDirectDispatchQty = Number(f.pendingDirectDispatchQty || 0);
-                          const pendingProductionQty = Number(f.pendingProductionQty || 0);
-                          const activeReservedQty = Number(f.activeReservedQty || 0);
-                          const productionCommittedQty = Number(f.productionCommittedQty || f.activeProductionCommittedQty || 0);
+                        const productionQty = Number(f.pendingProductionQty || item.quantity || f.orderedQty || 0);
+                        const isItemPending = productionQty > 0;
 
-                          const isItemPending = pendingDirectDispatchQty > 0 || pendingProductionQty > 0;
+                        let badgeText = "PRODUCTION REQUIRED";
+                        let badgeBg = "#EFF6FF";
+                        let badgeColor = "#1D4ED8";
+                        let badgeIcon = <Settings size={12} />;
 
-                          const directDispatchQty = isReadOnly
-                            ? activeReservedQty
-                            : (isItemPending ? pendingDirectDispatchQty : 0);
+                        if (!isItemPending) {
+                          badgeText = "SCHEDULED / FULFILLED";
+                          badgeBg = "#ECFDF5";
+                          badgeColor = "#047857";
+                          badgeIcon = <CheckCircle2 size={12} />;
+                        }
 
-                          const productionQty = isReadOnly
-                            ? productionCommittedQty
-                            : (isItemPending ? pendingProductionQty : 0);
+                        return (
+                          <div key={item.id || idx} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+                              <div>
+                                <div style={{ fontWeight: 'bold', color: '#0f172a', fontSize: '13.5px' }}>
+                                  {item.productName || item.productCode || 'Product Item'}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                                  SKU: {item.productCode || '—'}
+                                </div>
+                              </div>
+                              <span style={{ background: badgeBg, color: badgeColor, border: `1px solid ${badgeColor}20`, padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                {badgeIcon}
+                                {badgeText}
+                              </span>
+                            </div>
 
-                          const itemPlan = itemFulfillmentPlans[item.id] || {
-                            targetDate: selectedOrderForPlanning.targetDate || '',
-                            priority: selectedOrderForPlanning.priority || 'Medium'
-                          };
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.04em' }}>Ordered Qty</span>
+                              <span style={{
+                                border: '1.5px solid #0284c7',
+                                borderRadius: '6px',
+                                padding: '3px 10px',
+                                color: '#0284c7',
+                                fontWeight: '900',
+                                background: '#f0f9ff',
+                                fontSize: '13.5px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                {item.quantity || f.orderedQty || 0} <span style={{ fontSize: '11px', color: '#0369a1', fontWeight: '700' }}>{item.unit || 'UNITS'}</span>
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="erp-table-responsive" style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                      <table style={{ minWidth: '500px', width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                        <thead>
+                          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                            <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Material Item</th>
+                            <th style={{ padding: '12px 16px', fontWeight: '800', color: '#0284c7', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Ordered Qty</th>
+                            <th style={{ padding: '12px 16px', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Unit</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detailedItems.map((item, idx) => {
+                            const f = item.fulfillment || {
+                              orderedQty: item.quantity || 0,
+                              availableFG: 0,
+                              fgAllocatableQty: 0,
+                              productionRequiredQty: item.quantity || 0,
+                              activeReservedQty: 0,
+                              activeProductionCommittedQty: 0
+                            };
 
-                          let badgeText = "READY FROM FG";
-                          let badgeBg = "#ECFDF5";
-                          let badgeColor = "#047857";
-                          let badgeIcon = <CheckCircle2 size={12} />;
-                          let descriptionText = "";
+                            const productionQty = Number(f.pendingProductionQty || item.quantity || f.orderedQty || 0);
+                            const isItemPending = productionQty > 0;
 
-                          if (!isItemPending) {
-                            if (activeReservedQty > 0) {
-                              badgeText = "READY FOR DISPATCH";
+                            let badgeText = "PRODUCTION REQUIRED";
+                            let badgeBg = "#EFF6FF";
+                            let badgeColor = "#1D4ED8";
+                            let badgeIcon = <Settings size={12} />;
+
+                            if (!isItemPending) {
+                              badgeText = "SCHEDULED / FULFILLED";
                               badgeBg = "#ECFDF5";
                               badgeColor = "#047857";
-                              badgeIcon = <Truck size={12} />;
-                              descriptionText = `Reserved Qty: ${activeReservedQty} ${item.unit || 'UNITS'}`;
-                            } else {
-                              badgeText = "FULFILLED";
-                              badgeBg = "#F3F4F6";
-                              badgeColor = "#4B5563";
                               badgeIcon = <CheckCircle2 size={12} />;
-                              descriptionText = "No pending actions.";
                             }
-                          } else {
-                            if (pendingDirectDispatchQty > 0 && pendingProductionQty === 0) {
-                              badgeText = "READY FROM FG";
-                              badgeBg = "#ECFDF5";
-                              badgeColor = "#047857";
-                              badgeIcon = <CheckCircle2 size={12} />;
-                              descriptionText = `${pendingDirectDispatchQty} ${item.unit || 'UNITS'} will be reserved from Finished Goods and routed directly to Dispatch.`;
-                            } else if (pendingDirectDispatchQty === 0 && pendingProductionQty > 0) {
-                              badgeText = "PRODUCTION REQUIRED";
-                              badgeBg = "#EFF6FF";
-                              badgeColor = "#1D4ED8";
-                              badgeIcon = <Settings size={12} />;
-                              descriptionText = `No stock is available in Finished Goods. Full quantity of ${pendingProductionQty} ${item.unit || 'UNITS'} must be scheduled for Production.`;
-                            } else {
-                              badgeText = "PARTIAL FG / PRODUCTION";
-                              badgeBg = "#FFFBEB";
-                              badgeColor = "#B45309";
-                              badgeIcon = <AlertCircle size={12} />;
-                              descriptionText = `Allocate available Finished Goods stock of ${pendingDirectDispatchQty} ${item.unit || 'UNITS'} and plan remaining shortage of ${pendingProductionQty} ${item.unit || 'UNITS'} for Production.`;
-                            }
-                          }
 
-                          return (
-                            <tr key={item.id || idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                              <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                    <span style={{ fontWeight: 'bold', color: '#1e293b', fontSize: '13.5px' }}>
-                                      {item.productName || item.productCode || 'Product Item'}
-                                    </span>
-                                    <span style={{ background: badgeBg, color: badgeColor, border: `1px solid ${badgeColor}20`, padding: '2px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                      {badgeIcon}
-                                      {badgeText}
-                                    </span>
-                                  </div>
-                                  <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
-                                    SKU: {item.productCode || '—'}
-                                  </div>
-                                  {descriptionText && (
-                                    <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px', background: `${badgeBg}40`, padding: '4px 8px', borderRadius: '4px', borderLeft: `3px solid ${badgeColor}` }}>
-                                      <AlertCircle size={12} style={{ color: badgeColor }} />
-                                      <span>{descriptionText}</span>
+                            return (
+                              <tr key={item.id || idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                      <span style={{ fontWeight: 'bold', color: '#1e293b', fontSize: '13.5px' }}>
+                                        {item.productName || item.productCode || 'Product Item'}
+                                      </span>
+                                      <span style={{ background: badgeBg, color: badgeColor, border: `1px solid ${badgeColor}20`, padding: '2px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        {badgeIcon}
+                                        {badgeText}
+                                      </span>
                                     </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 'bold', color: '#0f172a', verticalAlign: 'middle' }}>
-                                {item.quantity || f.orderedQty || 0}
-                              </td>
-                              <td style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 'bold', color: '#475569', verticalAlign: 'middle' }}>
-                                {f.availableFG || 0}
-                              </td>
-                              <td style={{ padding: '14px 16px', textAlign: 'center', verticalAlign: 'middle' }}>
-                                <div style={{
-                                  border: '1px solid #10b981',
-                                  borderRadius: '6px',
-                                  padding: '5px 12px',
-                                  color: '#10b981',
-                                  fontWeight: 'bold',
-                                  background: '#ffffff',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  minWidth: '60px',
-                                  fontSize: '13px'
-                                }}>
-                                  {directDispatchQty}
-                                </div>
-                              </td>
-                              <td style={{ padding: '14px 16px', textAlign: 'center', verticalAlign: 'middle' }}>
-                                <div style={{
-                                  border: productionQty > 0 ? '1px solid #f97316' : '1px solid #cbd5e1',
-                                  borderRadius: '6px',
-                                  padding: '5px 12px',
-                                  color: productionQty > 0 ? '#f97316' : '#64748b',
-                                  fontWeight: 'bold',
-                                  background: '#ffffff',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  minWidth: '60px',
-                                  fontSize: '13px'
-                                }}>
-                                  {productionQty}
-                                </div>
-                              </td>
-                              <td style={{ padding: '14px 16px', verticalAlign: 'middle' }}>
-                                {productionQty > 0 ? (
-                                  isReadOnly ? (
-                                    <strong style={{ color: '#0f172a' }}>
-                                      {selectedOrderForPlanning.targetDate ? new Date(selectedOrderForPlanning.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                                    </strong>
-                                  ) : (
-                                    <input
-                                      type="date"
-                                      required
-                                      disabled={isPlanningSubmitting}
-                                      className="form-input shadow-sm focus:ring-2 focus:ring-blue-500/20 focus:border-[#2F4375]"
-                                      style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12.5px', color: '#334155', outline: 'none', transition: 'all 0.15s ease-in-out', maxWidth: '140px' }}
-                                      value={itemPlan.targetDate || ''}
-                                      onChange={(e) => {
-                                        setItemFulfillmentPlans(prev => ({
-                                          ...prev,
-                                          [item.id]: {
-                                            ...prev[item.id],
-                                            targetDate: e.target.value
-                                          }
-                                        }));
-                                      }}
-                                    />
-                                  )
-                                ) : (
-                                  <span style={{ color: '#94a3b8' }}>—</span>
-                                )}
-                              </td>
-                              <td style={{ padding: '14px 16px', textAlign: 'center', color: '#475569', verticalAlign: 'middle' }}>
-                                {item.unit || 'UNITS'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                    <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                                      SKU: {item.productCode || '—'}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '14px 16px', textAlign: 'center', verticalAlign: 'middle' }}>
+                                  <div style={{
+                                    border: '1.5px solid #0284c7',
+                                    borderRadius: '8px',
+                                    padding: '6px 16px',
+                                    color: '#0284c7',
+                                    fontWeight: '900',
+                                    background: '#f0f9ff',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    minWidth: '55px',
+                                    fontSize: '14px',
+                                    boxShadow: '0 1px 3px rgba(2, 132, 199, 0.12)'
+                                  }}>
+                                    {item.quantity || f.orderedQty || 0}
+                                  </div>
+                                </td>
+                                <td style={{ padding: '14px 16px', textAlign: 'center', color: '#475569', verticalAlign: 'middle' }}>
+                                  {item.unit || 'UNITS'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
 
+                {/* Order-Wise Target Completion Date Selector Card */}
+                {isReadOnly ? (
+                  <div style={{ background: '#f8fafc', border: '1.5px solid #bae6fd', borderRadius: '14px', padding: isMobile ? '14px' : '16px 20px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: '14px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '800', color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        📅 Production Target Completion Date
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>
+                        Current Target Date: <strong style={{ color: '#0f172a' }}>{selectedOrderForPlanning.targetDate ? new Date(selectedOrderForPlanning.targetDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not Set'}</strong>
+                      </span>
+                    </div>
 
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <input
+                        type="date"
+                        className="form-input shadow-sm focus:ring-2 focus:ring-blue-500/20"
+                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #7dd3fc', fontSize: '13px', fontWeight: '700', color: '#0f172a', background: '#ffffff', outline: 'none', width: isMobile ? '100%' : 'auto' }}
+                        value={targetDate || (selectedOrderForPlanning.targetDate ? selectedOrderForPlanning.targetDate.slice(0, 10) : '')}
+                        onChange={(e) => setTargetDate(e.target.value)}
+                      />
+
+                      <button
+                        type="button"
+                        disabled={isPlanningSubmitting || !targetDate}
+                        style={{
+                          padding: '8px 16px',
+                          background: '#0284c7',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          boxShadow: '0 1px 3px rgba(2, 132, 199, 0.2)'
+                        }}
+                        onClick={async () => {
+                          await handleUpdateTargetDate(selectedOrderForPlanning, targetDate);
+                        }}
+                      >
+                        Save New Target Date
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '14px', padding: isMobile ? '14px' : '16px 20px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: '14px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '800', color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        📅 Set Order Target Completion Date *
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#0284c7' }}>
+                        This target date will be assigned to all work orders in this order.
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <input
+                        type="date"
+                        required
+                        disabled={isPlanningSubmitting}
+                        className="form-input shadow-sm focus:ring-2 focus:ring-blue-500/20"
+                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #7dd3fc', fontSize: '13px', fontWeight: '700', color: '#0f172a', background: '#ffffff', outline: 'none', width: isMobile ? '100%' : 'auto' }}
+                        value={targetDate || ''}
+                        onChange={(e) => setTargetDate(e.target.value)}
+                      />
+
+                      <div style={{ display: 'flex', gap: '4px', width: isMobile ? '100%' : 'auto' }}>
+                        {[
+                          { label: '+3 Days', days: 3 },
+                          { label: '+7 Days', days: 7 },
+                          { label: '+14 Days', days: 14 }
+                        ].map(preset => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            disabled={isPlanningSubmitting}
+                            style={{
+                              flex: isMobile ? 1 : 'initial',
+                              padding: '6px 10px',
+                              background: '#ffffff',
+                              border: '1px solid #7dd3fc',
+                              borderRadius: '6px',
+                              fontSize: '11.5px',
+                              fontWeight: '700',
+                              color: '#0284c7',
+                              cursor: 'pointer'
+                            }}
+                            className="hover:bg-sky-50 transition-all"
+                            onClick={() => {
+                              const d = new Date(Date.now() + preset.days * 86400000).toISOString().split('T')[0];
+                              setTargetDate(d);
+                            }}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Footer Buttons */}
                 {isReadOnly ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '10px' }}>
                     <button
                       type="button"
                       onClick={() => { setShowPlanningModal(false); if (orderNoParam) navigate.push('/plant-head/' + view); }}
-                      style={{ padding: '10px 32px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#1e293b', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', margin: 0, fontSize: '13.5px', transition: 'all 0.15s ease' }}
+                      style={{ width: isMobile ? '100%' : 'auto', padding: '10px 32px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#1e293b', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', margin: 0, fontSize: '13.5px', transition: 'all 0.15s ease' }}
                       className="hover:bg-slate-50 shadow-sm"
                     >
                       Close
                     </button>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '24px' }}>
+                  <div style={{ display: 'flex', flexDirection: isMobile ? 'column-reverse' : 'row', justifyContent: 'center', gap: isMobile ? '10px' : '16px', marginTop: '10px' }}>
                     <button
                       type="button"
                       disabled={isPlanningSubmitting}
                       onClick={() => { setShowPlanningModal(false); setSelectedOrderForPlanning(null); }}
-                      style={{ padding: '10px 24px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: '8px', fontWeight: 'bold', cursor: isPlanningSubmitting ? 'not-allowed' : 'pointer', margin: 0, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.15s ease' }}
+                      style={{ width: isMobile ? '100%' : 'auto', padding: '11px 24px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: '8px', fontWeight: 'bold', cursor: isPlanningSubmitting ? 'not-allowed' : 'pointer', margin: 0, fontSize: '13px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', transition: 'all 0.15s ease' }}
                       className="hover:bg-red-100/50"
                     >
                       <X size={15} />
@@ -5981,18 +6256,18 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                     <button
                       type="submit"
                       disabled={isPlanningSubmitting}
-                      style={{ padding: '10px 24px', background: '#10b981', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: isPlanningSubmitting ? 'wait' : 'pointer', margin: 0, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.15s ease' }}
-                      className="hover:bg-emerald-600 active:scale-[0.98]"
+                      style={{ width: isMobile ? '100%' : 'auto', padding: '11px 28px', background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: isPlanningSubmitting ? 'wait' : 'pointer', margin: 0, fontSize: '13.5px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)', transition: 'all 0.15s ease' }}
+                      className="hover:bg-sky-600 active:scale-[0.98]"
                     >
                       {isPlanningSubmitting ? (
                         <>
-                          <Loader2 className="animate-spin" size={14} />
-                          Submitting...
+                          <Loader2 className="animate-spin" size={15} />
+                          Scheduling Work Orders...
                         </>
                       ) : (
                         <>
-                          <CheckCircle2 size={15} />
-                          Submit Fulfillment Plan
+                          <CheckCircle2 size={16} />
+                          Set Target Date & Submit
                         </>
                       )}
                     </button>

@@ -257,21 +257,15 @@ export function mapSalesOrder(
       );
       const availableFG = fgMap ? fgMap.get(item.productId) || 0 : 0;
 
-      // Trading products never require factory floor manufacturing
-      const fgAllocatableQty = isTrading
-        ? remainingUnallocatedQty
-        : Math.min(availableFG, remainingUnallocatedQty);
-      const productionRequiredQty = isTrading
-        ? 0
-        : Math.max(0, remainingUnallocatedQty - fgAllocatableQty);
+      // Direct dispatch bypass removed: all remaining unallocated order quantities are routed to production
+      const fgAllocatableQty = 0;
+      const productionRequiredQty = remainingUnallocatedQty;
 
-      const pendingDirectDispatchQty = isTrading
-        ? remainingUnallocatedQty
-        : fgAllocatableQty;
-      const pendingProductionQty = isTrading ? 0 : productionRequiredQty;
+      const pendingDirectDispatchQty = 0;
+      const pendingProductionQty = remainingUnallocatedQty;
 
       let fulfillmentState = 'PENDING_DECISION';
-      if (pendingDirectDispatchQty === 0 && pendingProductionQty === 0) {
+      if (pendingProductionQty === 0) {
         if (alreadyDispatchedQty >= orderedQty) {
           fulfillmentState = 'FULFILLED';
         } else if (activeReservedQty > 0) {
@@ -360,7 +354,9 @@ export function mapSalesOrder(
     productionAssignedToId: productionPlan?.assignedToId ?? null,
     qcStatus: calculatedQcStatus,
     targetDate:
-      productionPlan?.plannedEndDate?.toISOString().split('T')[0] ?? null,
+      productionPlan?.plannedEndDate?.toISOString().split('T')[0] ??
+      order.requestedDeliveryDate?.toISOString().split('T')[0] ??
+      null,
     priority: (productionPlan as any)?.priority ?? null,
 
     workflowStateId: order.workflowStateId,

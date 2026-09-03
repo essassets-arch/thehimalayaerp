@@ -1,23 +1,33 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   ShieldCheck,
   CheckCircle2,
   XCircle,
   Search,
-  RefreshCw,
+  RotateCcw,
   AlertCircle,
   Check,
   X,
   ClipboardCheck,
   CheckSquare,
   AlertTriangle,
-  FileText
+  FileText,
+  Building2,
+  Boxes,
+  Eye,
+  Activity,
+  History,
+  Clock,
+  Layers
 } from 'lucide-react';
 import { toast } from 'sonner';
-import styles from './qc-pending.module.css';
+import Swal from 'sweetalert2';
+
 import { backendFetch } from '@/lib/backendFetch';
+import OrderDetailsModal from '@/shared/components/OrderDetailsModal';
+import styles from './qc-pending.module.css';
 
 const LOAD_CLASSES = ['5T', '12.5T', 'B125', 'C250', 'D400', 'E600', 'F900', 'ELD', 'LD', 'MD', 'HD', 'EHD', 'A15'];
 
@@ -60,19 +70,10 @@ export default function QCPendingPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isRefetching, setIsRefetching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
-
-  // Quick Pass Modal State
-  const [passModalOpen, setPassModalOpen] = useState(false);
-  const [selectedPassJob, setSelectedPassJob] = useState<any>(null);
-  const [passRemarks, setPassRemarks] = useState('QC passed');
-
-  // Quick Fail Modal State
-  const [failModalOpen, setFailModalOpen] = useState(false);
-  const [selectedJobId, setSelectedJobId] = useState('');
-  const [failureReason, setFailureReason] = useState('');
-  const [qcRemarks, setQcRemarks] = useState('');
+  const [selectedOrderForModal, setSelectedOrderForModal] = useState<any>(null);
 
   // ─── FULL INSPECT SHEET MODAL STATE ───
   const [inspectModalOpen, setInspectModalOpen] = useState(false);
@@ -102,9 +103,11 @@ export default function QCPendingPage() {
   const [inspectorRemarks, setInspectorRemarks] = useState('');
   const [finalDecision, setFinalDecision] = useState<'APPROVED' | 'APPROVED_WITH_REMARKS' | 'HOLD_FOR_REWORK'>('APPROVED');
 
-  const fetchJobs = React.useCallback(async () => {
+  const fetchJobs = React.useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
+      else setIsRefetching(true);
+
       const endpoint = activeTab === 'pending' 
         ? '/api/backend/production/qc-pending' 
         : '/api/backend/production/qc-history';
@@ -118,6 +121,7 @@ export default function QCPendingPage() {
       toast.error(err.message || 'Failed to load QC list');
     } finally {
       setLoading(false);
+      setIsRefetching(false);
     }
   }, [activeTab]);
 
@@ -213,7 +217,20 @@ export default function QCPendingPage() {
             remarks: `Defects: ${defectFlags.join(', ')}. ${inspectorRemarks}`,
           },
         });
-        toast.success('Job marked HOLD FOR REWORK and sent to Rework queue.');
+        
+        Swal.fire({
+          icon: 'warning',
+          title: 'Hold for Rework / QC Failed! ⚠️',
+          html: `Work Order <strong>#${inspectJob.workOrderNumber || inspectJob.id}</strong> has been marked as <strong>QC Failed</strong> and routed to the <a href="/production/qc-failed" style="color: #dc2626; font-weight: bold; text-decoration: underline;">QC Failed Queue</a>.`,
+          timer: 3500,
+          showConfirmButton: true,
+          confirmButtonText: 'View QC Failed Queue →',
+          confirmButtonColor: '#dc2626',
+        }).then((res) => {
+          if (res.isConfirmed) {
+            window.location.href = '/production/qc-failed';
+          }
+        });
       } else {
         await backendFetch(`/api/backend/production/${inspectJob.id}/qc-pass`, {
           method: 'POST',
@@ -223,315 +240,696 @@ export default function QCPendingPage() {
             remarks: `${finalDecision === 'APPROVED_WITH_REMARKS' ? '[Approved with Remarks] ' : ''}${inspectorRemarks || 'Full QC Inspection Passed'}`,
           },
         });
-        toast.success('QC Inspection Completed & Approved! Sent to Dispatch.');
+
+        Swal.fire({
+          icon: 'success',
+          title: 'QC Inspection Approved! 🚀',
+          html: `Work Order <strong>#${inspectJob.workOrderNumber || inspectJob.id}</strong> passed QC and is now staged in <a href="/production/ready-for-dispatch" style="color: #059669; font-weight: bold; text-decoration: underline;">Ready for Dispatch</a>.`,
+          showCancelButton: true,
+          confirmButtonText: 'View Ready for Dispatch →',
+          cancelButtonText: 'Stay on QC Pending',
+          confirmButtonColor: '#059669',
+        }).then((res) => {
+          if (res.isConfirmed) {
+            window.location.href = '/production/ready-for-dispatch';
+          }
+        });
       }
 
       setInspectModalOpen(false);
       setInspectJob(null);
-      fetchJobs();
+      fetchJobs(true);
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit QC inspection');
     }
   };
 
-  // Quick Pass Modal
-  const openPassModal = (job: any) => {
-    setSelectedPassJob(job);
-    setPassRemarks('QC passed');
-    setPassModalOpen(true);
-  };
+  const handleQuickReject = async (job: any) => {
+    const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
+    const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
+    const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
+    const woNo = job.workOrderNumber || `WO-${job.id.slice(0, 8)}`;
 
-  const handlePassSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPassJob) return;
+    const { value: formValues } = await Swal.fire({
+      title: 'Reject QC Inspection',
+      html: `
+        <div style="text-align: left; font-size: 13px; color: #475569; margin-bottom: 14px;">
+          Fail QC for Order <strong style="color: #0f172a;">${soNo} (${woNo})</strong> and send to <strong>QC Failed Queue</strong>:
+        </div>
+        <div style="text-align: left; margin-bottom: 10px;">
+          <label style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; display: block; margin-bottom: 4px;">Failure Reason *</label>
+          <select id="swal-fail-reason" class="swal2-input" style="width: 100%; margin: 0; font-size: 13px; padding: 8px 12px; height: 40px; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box;">
+            <option value="Surface Cracks">Surface Cracks</option>
+            <option value="Resin Defect">Resin Defect / Under-curing</option>
+            <option value="Dimensional Deviation">Dimensional Deviation (Out of tolerance)</option>
+            <option value="Colour Discoloration">Colour Discoloration / Texture Issue</option>
+            <option value="Structural Voids">Structural Voids / Air Pockets</option>
+            <option value="Frame Damage">Frame Damage / Warpage</option>
+            <option value="Load Test Failed">Load Test Failed</option>
+            <option value="Improper Finish">Improper Finish / Sharp Edges</option>
+            <option value="Other Defect">Other Defect</option>
+          </select>
+        </div>
+        <div style="text-align: left;">
+          <label style="font-size: 11.5px; font-weight: 800; color: #0f172a; text-transform: uppercase; display: block; margin-bottom: 4px;">Inspector Remarks / Notes</label>
+          <textarea id="swal-fail-remarks" class="swal2-textarea" style="width: 100%; margin: 0; font-size: 13px; padding: 8px 12px; height: 70px; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box;" placeholder="Provide failure details or rework notes..."></textarea>
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Confirm QC Rejection',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+      preConfirm: () => {
+        const reason = (document.getElementById('swal-fail-reason') as HTMLSelectElement)?.value || 'QC Defect';
+        const remarks = (document.getElementById('swal-fail-remarks') as HTMLTextAreaElement)?.value || '';
+        return { reason, remarks };
+      },
+      customClass: {
+        popup: 'swal-premium-popup',
+        title: 'swal-premium-title',
+        confirmButton: 'swal-premium-confirm-btn',
+        cancelButton: 'swal-premium-cancel-btn'
+      },
+      buttonsStyling: false
+    });
+
+    if (!formValues) return;
+
     try {
-      const producedQuantity = Number(
-        selectedPassJob.producedQuantity ??
-        selectedPassJob.completedQuantity ??
-        selectedPassJob.quantity ??
-        0
-      );
-
-      if (!producedQuantity || producedQuantity <= 0) {
-        throw new Error("Approved quantity must be greater than zero.");
-      }
-
-      await backendFetch(`/api/backend/production/${selectedPassJob.id}/qc-pass`, {
+      toast.loading('Submitting QC rejection...');
+      await backendFetch(`/api/backend/production/${job.id}/qc-fail`, {
         method: 'POST',
         body: {
-          approvedQuantity: producedQuantity,
-          rejectedQuantity: 0,
-          remarks: passRemarks || 'QC passed',
+          failureReason: formValues.reason,
+          remarks: formValues.remarks,
+        },
+      });
+
+      toast.dismiss();
+      Swal.fire({
+        icon: 'error',
+        title: 'Job QC Rejected! ❌',
+        html: `Work Order <strong>${woNo}</strong> has been marked as <strong>QC Failed</strong> and moved to <a href="/production/qc-failed" style="color: #dc2626; font-weight: bold; text-decoration: underline;">QC Failed Queue</a>.`,
+        timer: 3500,
+        showConfirmButton: true,
+        confirmButtonText: 'View QC Failed Queue →',
+        confirmButtonColor: '#dc2626',
+      }).then((res) => {
+        if (res.isConfirmed) {
+          window.location.href = '/production/qc-failed';
         }
       });
-      toast.success('QC Passed. Sent to dispatch.');
-      setPassModalOpen(false);
-      setSelectedPassJob(null);
-      fetchJobs();
+
+      fetchJobs(true);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to update job');
-    }
-  };
-
-  // Quick Fail Modal
-  const openFailModal = (id: string) => {
-    setSelectedJobId(id);
-    setFailureReason('');
-    setQcRemarks('');
-    setFailModalOpen(true);
-  };
-
-  const handleFailSubmit = async (e: any) => {
-    e.preventDefault();
-    if (!failureReason.trim()) return toast.error('Failure reason is required');
-    try {
-      await backendFetch(`/api/backend/production/${selectedJobId}/qc-fail`, {
-        method: 'POST',
-        body: { failureReason, remarks: qcRemarks },
+      toast.dismiss();
+      Swal.fire({
+        icon: 'error',
+        title: 'Rejection Failed',
+        text: err.message || 'Could not reject work order.',
       });
-      toast.success('QC Failed. Job sent back for rework.');
-      setFailModalOpen(false);
-      fetchJobs();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update job');
     }
   };
 
-  const filteredJobs = jobs.filter((job: any) => {
-    const q = searchQuery.toLowerCase();
-    const soNo = (job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '').toLowerCase();
-    const woNo = (job.workOrderNumber || job.id || '').toLowerCase();
-    const customer = (job.productionPlan?.salesOrder?.customer?.name || '').toLowerCase();
-    const product = (job.salesOrderItem?.product?.name || '').toLowerCase();
-    return soNo.includes(q) || woNo.includes(q) || customer.includes(q) || product.includes(q);
-  });
+  const handleOpenDetails = (job: any) => {
+    const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
+    const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
+    const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
+
+    const customerObj = job.productionPlan?.salesOrder?.customer || job.salesOrder?.customer || job.customer;
+    const customerName = customerObj?.companyName || customerObj?.name || job.customerName || 'Standard Client';
+    const address = customerObj?.address || customerObj?.city || job.customerAddress || 'Plant Warehouse';
+    const gst = customerObj?.gstin || customerObj?.gst || job.customerGst || '27ABCDE4321G2Z8';
+
+    const rawDate = job.createdAt || (job.productionPlan?.salesOrder as any)?.createdAt;
+    const orderDate = rawDate
+      ? new Date(rawDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    let itemsList: Array<{ name: string; code: string; qty: number; rate?: number; gst?: number; total?: number }> = [];
+
+    const soItems = job.productionPlan?.salesOrder?.items || job.salesOrder?.items;
+    if (Array.isArray(soItems) && soItems.length > 0) {
+      itemsList = soItems.map((item: any) => {
+        const name = item.product?.name || item.productNameSnapshot || item.productName || item.name || 'Ordered Product';
+        const code = item.product?.sku || item.product?.publicId || item.product?.code || item.productCodeSnapshot || item.productCode || '-';
+        const qty = Number(item.quantity ?? job.quantity ?? 1);
+        const rate = Number(item.unitPrice ?? item.price ?? 0);
+        return { name, code, qty, rate };
+      });
+    }
+
+    if (itemsList.length === 0 && job.salesOrderItem) {
+      const soi = job.salesOrderItem;
+      const name = soi.product?.name || soi.productName || 'QC Inspection Item';
+      const code = soi.product?.sku || soi.product?.code || job.workOrderNumber || '-';
+      const qty = Number(job.quantity || 1);
+      itemsList.push({ name, code, qty });
+    }
+
+    if (itemsList.length === 0) {
+      itemsList.push({
+        name: job.productName || `Work Order - ${job.workOrderNumber || '001'}`,
+        code: job.productCode || job.workOrderNumber || '-',
+        qty: Number(job.quantity || 1)
+      });
+    }
+
+    const mapped = {
+      ref: soNo,
+      orderNo: soNo,
+      customerName,
+      address,
+      gst,
+      orderDate,
+      salesStatus: 'Confirmed',
+      productionStatus: job.qcInspectionStatus || 'QC Pending',
+      dispatchStatus: 'Pending',
+      items: itemsList,
+    };
+    setSelectedOrderForModal(mapped);
+  };
+
+  // Helper for products list formatted with +more
+  const renderProductCell = (job: any) => {
+    const soItems = job.productionPlan?.salesOrder?.items || job.salesOrder?.items;
+    let itemsList: string[] = [];
+
+    if (Array.isArray(soItems) && soItems.length > 0) {
+      itemsList = soItems.map((i: any) => i.product?.name || i.productNameSnapshot || i.productName || i.name).filter(Boolean);
+    } else if (job.salesOrderItem?.product?.name) {
+      itemsList = [job.salesOrderItem.product.name];
+    } else if (job.productName) {
+      itemsList = [job.productName];
+    }
+
+    if (itemsList.length === 0) {
+      return <span style={{ color: '#64748b' }}>Finished Good</span>;
+    }
+
+    const displayed = itemsList.slice(0, 2);
+    const remainingCount = itemsList.length - 2;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }} title={itemsList.join(', ')}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: '700', color: '#1e293b', fontSize: '13.5px' }}>
+            {displayed.join(', ')}
+          </span>
+          {Boolean(job.reworkCount && Number(job.reworkCount) > 0) && (
+            <span
+              style={{
+                background: '#fff7ed',
+                color: '#c2410c',
+                border: '1px solid #fdba74',
+                padding: '2px 7px',
+                borderRadius: '6px',
+                fontSize: '10.5px',
+                fontWeight: '800',
+                whiteSpace: 'nowrap'
+              }}
+              title={`Item was reworked #${job.reworkCount}. Past Defect: ${job.failureReason || 'QC Rejection'}`}
+            >
+              🔁 REWORK #{job.reworkCount} (Re-Inspection)
+            </span>
+          )}
+          {remainingCount > 0 && (
+            <span
+              style={{
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                border: '1px solid #bfdbfe',
+                padding: '1px 7px',
+                borderRadius: '10px',
+                fontSize: '11px',
+                fontWeight: '800',
+                whiteSpace: 'nowrap'
+              }}
+              title={itemsList.slice(2).join(', ')}
+            >
+              +{remainingCount} more
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {(job.productCode || job.salesOrderItem?.product?.sku) && (
+            <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+              SKU: {job.productCode || job.salesOrderItem?.product?.sku}
+            </span>
+          )}
+          {job.failureReason && Boolean(job.reworkCount && Number(job.reworkCount) > 0) && (
+            <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: '600' }}>
+              ⚠️ Past Defect: {job.failureReason}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((job: any) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      const soNo = (job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '').toLowerCase();
+      const woNo = (job.workOrderNumber || job.id || '').toLowerCase();
+      const customer = (job.productionPlan?.salesOrder?.customer?.companyName || job.productionPlan?.salesOrder?.customer?.name || job.customerName || '').toLowerCase();
+      const product = (job.salesOrderItem?.product?.name || job.productName || '').toLowerCase();
+      return soNo.includes(q) || woNo.includes(q) || customer.includes(q) || product.includes(q);
+    });
+  }, [jobs, searchQuery]);
 
   if (!isClient) return null;
 
   const isValidQuantity = Number(approvedQty) + Number(rejectedQty) === Number(inspectedQty);
 
   return (
-    <div className={styles.page}>
-      {/* ─── Hero Banner ─── */}
-      <div className={styles.hero}>
-        <div className={styles.heroIcon}>
-          <ShieldCheck size={24} />
+    <main className={styles.qcPage}>
+      {/* ── Header Container ── */}
+      <div className={styles.headerContainer}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '11px', fontWeight: '800', color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Quality Assurance
+            </span>
+            <div className={styles.liveTag}>
+              <span className={styles.pulseGreenDot} />
+              <span>{jobs.length} {activeTab === 'pending' ? 'Pending Inspection' : 'Inspected'}</span>
+            </div>
+          </div>
+          <h1 className={styles.pageTitle}>QC Inspection Station</h1>
+          <p className={styles.pageSubtitle}>
+            Perform full technical QC sheet audits, approve finished batches for dispatch, or flag defect rework.
+          </p>
         </div>
-        <div className={styles.heroText}>
-          <span className={styles.eyebrow}>Quality Assurance</span>
-          <h1>QC Inspections</h1>
-          <p>Perform full technical QC sheet audits, approve items for dispatch, or flag defect rework</p>
-        </div>
-        <div className={styles.summaryBadge}>
-          <span className={styles.liveDot} />
-          <strong>{filteredJobs.length}</strong>
-          <span>{activeTab === 'pending' ? 'Pending' : 'Inspected'}<br />Jobs</span>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button 
+            type="button" 
+            onClick={() => fetchJobs(true)} 
+            className={styles.btnRefresh}
+            title="Refresh QC Station"
+          >
+            <RotateCcw size={14} className={isRefetching ? styles.spinning : ''} />
+            Refresh
+          </button>
         </div>
       </div>
 
-      {/* ─── Main Panel ─── */}
-      <div className={styles.panel}>
-        {/* ─── Tabs Header ─── */}
-        <div className={styles.tabBar}>
-          <button
-            type="button"
-            onClick={() => setActiveTab('pending')}
-            className={`${styles.tabBtn} ${activeTab === 'pending' ? styles.tabBtnActive : ''}`}
-          >
-            Pending QC
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('history')}
-            className={`${styles.tabBtn} ${activeTab === 'history' ? styles.tabBtnActive : ''}`}
-          >
-            QC History
-          </button>
-        </div>
-
-        {/* ─── Toolbar ─── */}
-        <div className={styles.toolbar}>
-          <div>
-            <h2>{activeTab === 'pending' ? 'Items Awaiting Inspection' : 'QC Inspection History'}</h2>
-            <p>{activeTab === 'pending' ? 'Click Inspect to complete full technical audit or use quick pass/fail' : 'Log of passed and failed inspections'}</p>
-          </div>
-          <div className={styles.toolbarRight}>
-            <div className={styles.search}>
-              <Search size={16} style={{ flexShrink: 0 }} />
-              <input
-                type="text"
-                placeholder="Search sales order, WO, product..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <button onClick={fetchJobs} className={styles.refreshBtn}>
-              <RefreshCw size={15} />
-              <span>Refresh</span>
+      {/* ── Control Bar: Tabs & Search ── */}
+      <div className={styles.controlBar}>
+        {/* Scrollable Tabs */}
+        <div className={styles.tabScrollWrapper}>
+          <div className={styles.tabGroup}>
+            <button
+              type="button"
+              className={`${styles.tabBtn} ${activeTab === 'pending' ? styles.tabBtnActive : ''}`}
+              onClick={() => setActiveTab('pending')}
+            >
+              <Activity size={14} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} />
+              Pending QC ({activeTab === 'pending' ? jobs.length : '—'})
+            </button>
+            <button
+              type="button"
+              className={`${styles.tabBtn} ${activeTab === 'history' ? styles.tabBtnActive : ''}`}
+              onClick={() => setActiveTab('history')}
+            >
+              <History size={14} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} />
+              QC History ({activeTab === 'history' ? jobs.length : '—'})
             </button>
           </div>
         </div>
 
-        {/* ─── Table Content ─── */}
+        {/* Search Box */}
+        <div className={styles.searchBox}>
+          <Search size={16} color="#64748b" style={{ flexShrink: 0 }} />
+          <input
+            type="text"
+            placeholder="Search sales order, WO, product, customer..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button 
+              type="button" 
+              onClick={() => setSearchQuery('')}
+              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', padding: '0 4px' }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Main QC Content ── */}
+      <div className={styles.tableCard}>
         {loading ? (
-          <div className={styles.emptyState}>
-            <p>Loading QC inspections...</p>
+          <div className={styles.loadingBox}>
+            <div className={styles.spinner} />
+            <span>Loading QC inspections...</span>
           </div>
         ) : filteredJobs.length === 0 ? (
           <div className={styles.emptyState}>
-            <AlertCircle size={44} style={{ color: '#64748b', margin: '0 auto 12px', display: 'block' }} />
-            <h3>{activeTab === 'pending' ? 'No Jobs Pending QC' : 'No Inspection History'}</h3>
-            <p>{activeTab === 'pending' ? 'Production has not sent any items for review yet.' : 'No completed QC inspections found.'}</p>
+            <Boxes size={38} color="#94a3b8" />
+            <span style={{ fontWeight: '700', fontSize: '15px', color: '#334155' }}>
+              {activeTab === 'pending' ? 'No Jobs Pending QC' : 'No Inspection History'}
+            </span>
+            <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+              {searchQuery 
+                ? 'Try adjusting your search criteria.' 
+                : activeTab === 'pending' 
+                  ? 'All manufacturing jobs have passed QC or none are awaiting inspection.' 
+                  : 'No completed QC inspections found in history.'}
+            </p>
           </div>
         ) : (
-          <div className={styles.tableArea}>
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ minWidth: '170px' }}>Sales Order</th>
-                  <th style={{ minWidth: '160px' }}>Customer</th>
-                  <th style={{ minWidth: '180px' }}>Product</th>
-                  <th style={{ minWidth: '90px', textAlign: 'center' }}>Quantity</th>
-                  <th style={{ minWidth: '140px', textAlign: 'center' }}>Status</th>
-                  {activeTab === 'pending' ? (
-                    <>
-                      <th style={{ minWidth: '160px' }}>Production Ended</th>
-                      <th style={{ minWidth: '280px', textAlign: 'right' }}>Actions</th>
-                    </>
-                  ) : (
-                    <>
-                      <th style={{ minWidth: '160px' }}>Inspected At</th>
-                      <th style={{ minWidth: '200px' }}>Notes</th>
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredJobs.map((job: any) => {
-                  const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
-                  const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
-                  const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
-                  const status = job.qcInspectionStatus || 'QC PENDING';
+          <>
+            {/* 1. Mobile Cards Container (Pure CSS media query for 100% reliable scrolling) */}
+            <div className={styles.mobileCardsContainer}>
+              {filteredJobs.map((job: any) => {
+                const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
+                const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
+                const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
+                const customerName = job.productionPlan?.salesOrder?.customer?.companyName || job.productionPlan?.salesOrder?.customer?.name || job.customerName || 'Internal Client';
+                const status = job.qcInspectionStatus || (activeTab === 'pending' ? 'QC PENDING' : 'PASSED');
 
-                  return (
-                    <tr key={job.id}>
-                      <td style={{ fontWeight: 700, color: '#2563eb' }}>{soNo}</td>
-                      <td>{job.productionPlan?.salesOrder?.customer?.name || 'Internal'}</td>
-                      <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={job.salesOrderItem?.product?.name || 'N/A'}>
-                        {job.salesOrderItem?.product?.name || 'N/A'}
-                      </td>
-                      <td style={{ textAlign: 'center', fontWeight: 700 }}>{job.quantity}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            padding: '4px 12px',
-                            borderRadius: '999px',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            background: status === 'PASSED' ? '#dcfce7' : status === 'FAILED' ? '#fef2f2' : '#fef3c7',
-                            color: status === 'PASSED' ? '#15803d' : status === 'FAILED' ? '#dc2626' : '#d97706',
-                            border: `1px solid ${status === 'PASSED' ? '#bbf7d0' : status === 'FAILED' ? '#fecaca' : '#fde68a'}`,
-                          }}
-                        >
-                          {status}
+                return (
+                  <div key={job.id} className={styles.mobileCard}>
+                    {/* Header: SO, Customer & Status */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span 
+                            onClick={() => handleOpenDetails(job)}
+                            className={styles.soLinkMobile}
+                          >
+                            {soNo}
+                          </span>
+                          <span className={styles.woBadgeMobile}>
+                            {job.workOrderNumber || 'WO'}
+                          </span>
+                          {Boolean(job.reworkCount && Number(job.reworkCount) > 0) && (
+                            <span style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74', padding: '1px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: '800' }}>
+                              🔁 REWORK #{job.reworkCount}
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ color: '#64748b', fontSize: '12px', fontWeight: '600', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Building2 size={13} color="#94a3b8" style={{ flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customerName}</span>
                         </span>
-                      </td>
+                      </div>
 
-                      {activeTab === 'pending' ? (
-                        <>
-                          <td style={{ fontSize: '13px', color: '#64748b' }}>
-                            {job.productionEndTime ? new Date(job.productionEndTime).toLocaleString() : 'N/A'}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div className={styles.actionsCell} style={{ justifyContent: 'flex-end' }}>
-                              <button onClick={() => openInspectModal(job)} className={styles.btnInspect} title="Open Full Technical QC Inspection Sheet">
-                                <ClipboardCheck size={15} /> Inspect
-                              </button>
+                      <span className={status === 'PASSED' ? styles.badgePassed : status === 'FAILED' ? styles.badgeFailed : styles.badgePending}>
+                        {status}
+                      </span>
+                    </div>
+
+                    {/* Product & Qty Row */}
+                    <div className={styles.mobileProductBox}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: '10px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
+                          Product Item
+                        </span>
+                        {renderProductCell(job)}
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', flexShrink: 0 }}>
+                        <span style={{ fontSize: '10px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase' }}>
+                          Ordered Qty
+                        </span>
+                        <div className={styles.qtyBadgeMobile}>
+                          {job.quantity || 1} <span style={{ fontSize: '10px', fontWeight: '700', color: '#0369a1' }}>UNITS</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className={styles.mobileActionFooter}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '11.5px', fontWeight: '600' }}>
+                        <Clock size={13} color="#94a3b8" />
+                        <span>{job.productionEndTime ? new Date(job.productionEndTime).toLocaleDateString('en-GB') : 'Ready for QC'}</span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          className={styles.btnTerminalMobile}
+                          onClick={() => handleOpenDetails(job)}
+                        >
+                          <Eye size={12} /> View
+                        </button>
+                        
+                        {activeTab === 'pending' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleQuickReject(job)}
+                              className={styles.btnRejectMobile}
+                            >
+                              <XCircle size={12} /> Reject
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => openInspectModal(job)}
+                              className={styles.btnInspectMobile}
+                            >
+                              <ClipboardCheck size={13} /> Inspect
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 2. Desktop Table (Pure CSS media query for 100% reliable desktop display) */}
+            <div className={styles.desktopTableWrapper}>
+              <table className={styles.qcTable}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '200px' }}>Sales Order & WO #</th>
+                    <th style={{ width: '170px' }}>Customer</th>
+                    <th>Product Item</th>
+                    <th style={{ textAlign: 'center', width: '110px' }}>Ordered Qty</th>
+                    <th style={{ textAlign: 'center', width: '140px' }}>Status</th>
+                    <th style={{ textAlign: 'center', width: '160px' }}>
+                      {activeTab === 'pending' ? 'Production Ended' : 'Inspected At'}
+                    </th>
+                    <th style={{ textAlign: 'right', width: '210px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredJobs.map((job: any) => {
+                    const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
+                    const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
+                    const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
+                    const customerName = job.productionPlan?.salesOrder?.customer?.companyName || job.productionPlan?.salesOrder?.customer?.name || job.customerName || 'Internal Client';
+                    const status = job.qcInspectionStatus || (activeTab === 'pending' ? 'QC PENDING' : 'PASSED');
+
+                    return (
+                      <tr key={job.id} className={styles.tableRow}>
+                        {/* Order & WO # */}
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span 
+                              onClick={() => handleOpenDetails(job)}
+                              className={styles.soLink}
+                            >
+                              {soNo}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                              <span className={styles.woBadge}>
+                                WO: {job.workOrderNumber || '—'}
+                              </span>
+                              {Boolean(job.reworkCount && Number(job.reworkCount) > 0) && (
+                                <span style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74', padding: '1px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: '800' }}>
+                                  🔁 REWORK #{job.reworkCount}
+                                </span>
+                              )}
                             </div>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td style={{ fontSize: '13px', color: '#64748b' }}>
-                            {job.qcApprovedAt ? new Date(job.qcApprovedAt).toLocaleString() : 'N/A'}
-                          </td>
-                          <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={job.qcInspectionNotes || ''}>
-                            {job.qcInspectionNotes || '-'}
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          </div>
+                        </td>
+
+                        {/* Customer */}
+                        <td>
+                          <span style={{ fontWeight: '700', color: '#334155', fontSize: '13px' }}>
+                            {customerName}
+                          </span>
+                        </td>
+
+                        {/* Product */}
+                        <td>
+                          {renderProductCell(job)}
+                        </td>
+
+                        {/* Quantity */}
+                        <td style={{ textAlign: 'center' }}>
+                          <div className={styles.qtyBadge}>
+                            {job.quantity || 1}
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={status === 'PASSED' ? styles.badgePassed : status === 'FAILED' ? styles.badgeFailed : styles.badgePending}>
+                            {status}
+                          </span>
+                        </td>
+
+                        {/* Timestamp */}
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{ fontSize: '12.5px', color: '#475569', fontWeight: '600' }}>
+                            {activeTab === 'pending' 
+                              ? (job.productionEndTime ? new Date(job.productionEndTime).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Ready')
+                              : (job.qcApprovedAt ? new Date(job.qcApprovedAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Inspected')
+                            }
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              className={styles.btnTerminal}
+                              onClick={() => handleOpenDetails(job)}
+                            >
+                              <Eye size={14} /> View
+                            </button>
+
+                            {activeTab === 'pending' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickReject(job)}
+                                  className={styles.btnReject}
+                                  title="Fail QC & Route to QC Failed Queue"
+                                >
+                                  <XCircle size={14} /> Reject
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => openInspectModal(job)}
+                                  className={styles.btnInspect}
+                                  title="Open Full Technical QC Sheet"
+                                >
+                                  <ClipboardCheck size={14} /> Inspect
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
       {/* ─── FULL TECHNICAL QC INSPECTION SHEET MODAL ─── */}
       {inspectModalOpen && inspectJob && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px', overflowY: 'auto' }}>
-          <div style={{ background: '#fff', borderRadius: '18px', width: '100%', maxWidth: '840px', maxHeight: '92vh', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
             
             {/* Modal Header */}
-            <div style={{ padding: '20px 24px', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <div className={styles.modalHeader}>
               <div>
-                <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#38bdf8' }}>HIMALAYA QUALITY AUDIT</span>
-                <h2 style={{ margin: '2px 0 0', fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ClipboardCheck size={22} style={{ color: '#38bdf8' }} /> Technical QC Inspection Sheet
+                <span className={styles.modalEyebrow}>HIMALAYA QUALITY AUDIT</span>
+                <h2 className={styles.modalTitle}>
+                  <ClipboardCheck size={20} color="#38bdf8" /> Technical QC Inspection Sheet
                 </h2>
               </div>
-              <button onClick={() => setInspectModalOpen(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '8px', width: '32px', height: '32px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+              <button 
+                type="button" 
+                onClick={() => setInspectModalOpen(false)} 
+                className={styles.modalCloseBtn}
+              >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleInspectSubmit} style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+            {/* Modal Form */}
+            <form onSubmit={handleInspectSubmit} className={styles.modalForm}>
               
               {/* SECTION 1: ORDER DETAILS */}
-              <div style={{ marginBottom: '24px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '18px' }}>
-                <h4 style={{ margin: '0 0 14px', fontSize: '14px', fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <FileText size={16} style={{ color: '#2563eb' }} /> Order Details & Product Specifications
+              <div className={styles.sheetSection}>
+                <h4 className={styles.sectionHeader}>
+                  <FileText size={15} color="#0284c7" /> Order Details & Product Specifications
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
+
+                <div className={styles.formGrid}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Order No. (SO / WO)</label>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#2563eb', marginTop: '2px' }}>
-                      {inspectJob.productionPlan?.salesOrder?.orderNumber || `SO-2026-${(inspectJob.workOrderNumber || inspectJob.id || '').replace(/\D/g, '').slice(-5).padStart(5, '0')}`} ({inspectJob.workOrderNumber})
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Customer Name</label>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a', marginTop: '2px' }}>
-                      {inspectJob.productionPlan?.salesOrder?.customer?.name || 'Internal'}
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Product Name</label>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a', marginTop: '2px' }}>
-                      {inspectJob.salesOrderItem?.product?.name || 'FRP Drain Cover / Manhole Cover'}
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Product Size</label>
+                    <label className={styles.fieldLabel}>Work Order / Job ID</label>
                     <input
                       type="text"
-                      value={productSize}
-                      onChange={(e) => setProductSize(e.target.value)}
-                      style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', marginTop: '2px' }}
+                      value={inspectJob.workOrderNumber || inspectJob.id}
+                      disabled
+                      className={styles.inputDisabled}
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Load Class</label>
+                    <label className={styles.fieldLabel}>Sales Order Reference</label>
+                    <input
+                      type="text"
+                      value={inspectJob.productionPlan?.salesOrder?.orderNumber || inspectJob.salesOrder?.orderNumber || 'SO-2026-00001'}
+                      disabled
+                      className={styles.inputDisabled}
+                    />
+                  </div>
+                  <div>
+                    <label className={styles.fieldLabel}>Customer Company</label>
+                    <input
+                      type="text"
+                      value={inspectJob.productionPlan?.salesOrder?.customer?.companyName || inspectJob.productionPlan?.salesOrder?.customer?.name || inspectJob.customerName || 'Internal'}
+                      disabled
+                      className={styles.inputDisabled}
+                    />
+                  </div>
+                  <div>
+                    <label className={styles.fieldLabel}>Product Item</label>
+                    <input
+                      type="text"
+                      value={inspectJob.salesOrderItem?.product?.name || inspectJob.productName || 'FRP Manhole Cover'}
+                      disabled
+                      className={styles.inputDisabled}
+                    />
+                  </div>
+                  <div>
+                    <label className={styles.fieldLabel}>Batch / Heat Number *</label>
+                    <input
+                      type="text"
+                      value={batchNo}
+                      onChange={e => setBatchNo(e.target.value)}
+                      required
+                      className={styles.inputActive}
+                      placeholder="e.g. BATCH-2026-FRP-001"
+                    />
+                  </div>
+                  <div>
+                    <label className={styles.fieldLabel}>Product Size / Dimensions</label>
+                    <input
+                      type="text"
+                      value={productSize}
+                      onChange={e => setProductSize(e.target.value)}
+                      className={styles.inputActive}
+                      placeholder="e.g. 600x600 mm"
+                    />
+                  </div>
+                  <div>
+                    <label className={styles.fieldLabel}>Load Class Standard</label>
                     <select
                       value={loadClass}
-                      onChange={(e) => setLoadClass(e.target.value)}
-                      style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', marginTop: '2px', background: '#fff' }}
+                      onChange={e => setLoadClass(e.target.value)}
+                      className={styles.inputActive}
                     >
                       {LOAD_CLASSES.map(cls => (
                         <option key={cls} value={cls}>{cls}</option>
@@ -539,192 +937,180 @@ export default function QCPendingPage() {
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Batch No.</label>
-                    <input
-                      type="text"
-                      value={batchNo}
-                      onChange={(e) => setBatchNo(e.target.value)}
-                      style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', marginTop: '2px' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Production Date</label>
-                    <input
-                      type="date"
-                      value={productionDate}
-                      onChange={(e) => setProductionDate(e.target.value)}
-                      style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', marginTop: '2px' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Inspection Date</label>
+                    <label className={styles.fieldLabel}>Inspection Date</label>
                     <input
                       type="date"
                       value={inspectionDate}
-                      onChange={(e) => setInspectionDate(e.target.value)}
-                      style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', marginTop: '2px' }}
+                      onChange={e => setInspectionDate(e.target.value)}
+                      className={styles.inputActive}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* SECTION 2: PRODUCTION QUANTITIES & LIVE MATH VALIDATION */}
-              <div style={{ marginBottom: '24px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '14px', padding: '18px' }}>
-                <h4 style={{ margin: '0 0 14px', fontSize: '14px', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Production Quantities & Audit Validation
+              {/* SECTION 2: QUANTITY RECONCILIATION */}
+              <div className={styles.sheetSection}>
+                <h4 className={styles.sectionHeader}>
+                  <Boxes size={15} color="#0284c7" /> Quantity Reconciliation
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+
+                <div className={styles.qtyGrid}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#1e40af' }}>Ordered Qty</label>
+                    <label className={styles.fieldLabel}>Ordered Qty</label>
                     <input
                       type="number"
                       value={orderedQty}
-                      onChange={(e) => setOrderedQty(Number(e.target.value))}
-                      style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #93c5fd', fontSize: '14px', fontWeight: 700, marginTop: '2px', background: '#fff' }}
+                      disabled
+                      className={styles.inputDisabled}
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#1e40af' }}>Produced Qty</label>
+                    <label className={styles.fieldLabel}>Produced Qty</label>
                     <input
                       type="number"
                       value={producedQty}
-                      onChange={(e) => setProducedQty(Number(e.target.value))}
-                      style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #93c5fd', fontSize: '14px', fontWeight: 700, marginTop: '2px', background: '#fff' }}
+                      disabled
+                      className={styles.inputDisabled}
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#1e40af' }}>Inspected Qty</label>
+                    <label className={styles.fieldLabel}>Inspected Qty *</label>
                     <input
                       type="number"
+                      min="1"
                       value={inspectedQty}
-                      onChange={(e) => setInspectedQty(Number(e.target.value))}
-                      style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #93c5fd', fontSize: '14px', fontWeight: 700, marginTop: '2px', background: '#fff' }}
+                      onChange={e => setInspectedQty(Number(e.target.value))}
+                      required
+                      className={styles.inputActive}
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#15803d' }}>Approved Qty</label>
+                    <label className={styles.fieldLabel} style={{ color: '#059669', fontWeight: 800 }}>Approved Qty *</label>
                     <input
                       type="number"
+                      min="0"
                       value={approvedQty}
-                      onChange={(e) => setApprovedQty(Number(e.target.value))}
-                      style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #86efac', fontSize: '14px', fontWeight: 700, marginTop: '2px', background: '#fff', color: '#15803d' }}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        setApprovedQty(val);
+                        setRejectedQty(Math.max(0, inspectedQty - val));
+                      }}
+                      required
+                      className={styles.inputApproved}
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#dc2626' }}>Rejected Qty</label>
+                    <label className={styles.fieldLabel} style={{ color: '#dc2626', fontWeight: 800 }}>Rejected Qty *</label>
                     <input
                       type="number"
+                      min="0"
                       value={rejectedQty}
-                      onChange={(e) => setRejectedQty(Number(e.target.value))}
-                      style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #fca5a5', fontSize: '14px', fontWeight: 700, marginTop: '2px', background: '#fff', color: '#dc2626' }}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        setRejectedQty(val);
+                        setApprovedQty(Math.max(0, inspectedQty - val));
+                      }}
+                      required
+                      className={styles.inputRejected}
                     />
                   </div>
                 </div>
 
-                {/* Validation Formula Check */}
-                <div style={{
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  background: isValidQuantity ? '#dcfce7' : '#fef2f2',
-                  color: isValidQuantity ? '#15803d' : '#b91c1c',
-                  border: `1px solid ${isValidQuantity ? '#86efac' : '#fca5a5'}`,
-                }}>
-                  {isValidQuantity ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                  <span>
-                    <strong>Validation Formula:</strong> Approved Qty ({approvedQty}) + Rejected Qty ({rejectedQty}) = {Number(approvedQty) + Number(rejectedQty)} | Inspected Qty: {inspectedQty} {isValidQuantity ? '✓ Valid' : '⚠️ Invalid Match'}
-                  </span>
-                </div>
+                {!isValidQuantity && (
+                  <div className={styles.errorBanner}>
+                    <AlertTriangle size={15} />
+                    <span>Approved Qty ({approvedQty}) + Rejected Qty ({rejectedQty}) must equal Inspected Qty ({inspectedQty}).</span>
+                  </div>
+                )}
               </div>
 
-              {/* SECTION 3: INSPECTION CHECKLIST */}
-              <div style={{ marginBottom: '24px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '18px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <CheckSquare size={16} style={{ color: '#16a34a' }} /> Technical Inspection Checklist
+              {/* SECTION 3: TECHNICAL CHECKLIST */}
+              <div className={styles.sheetSection}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                  <h4 className={styles.sectionHeader} style={{ margin: 0 }}>
+                    <CheckSquare size={15} color="#0284c7" /> Technical Quality Checklist ({CHECKLIST_ITEMS.length} Points)
                   </h4>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button type="button" onClick={() => toggleAllChecklist(true)} style={{ fontSize: '12px', fontWeight: 600, padding: '4px 10px', borderRadius: '6px', border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#15803d', cursor: 'pointer' }}>
-                      Select All OK
+                    <button
+                      type="button"
+                      onClick={() => toggleAllChecklist(true)}
+                      className={styles.btnMiniOutline}
+                    >
+                      ✓ Select All
                     </button>
-                    <button type="button" onClick={() => toggleAllChecklist(false)} style={{ fontSize: '12px', fontWeight: 600, padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', cursor: 'pointer' }}>
-                      Unselect All
+                    <button
+                      type="button"
+                      onClick={() => toggleAllChecklist(false)}
+                      className={styles.btnMiniOutline}
+                    >
+                      ✕ Clear All
                     </button>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '10px' }}>
+                <div className={styles.checklistGrid}>
                   {CHECKLIST_ITEMS.map((item) => (
-                    <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9', background: checklist[item.id] ? '#f0fdf4' : '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 500, color: checklist[item.id] ? '#166534' : '#475569' }}>
+                    <label
+                      key={item.id}
+                      onClick={() => toggleChecklistItem(item.id)}
+                      className={`${styles.checklistItem} ${checklist[item.id] ? styles.checklistItemActive : ''}`}
+                    >
                       <input
                         type="checkbox"
                         checked={!!checklist[item.id]}
-                        onChange={() => toggleChecklistItem(item.id)}
-                        style={{ width: '16px', height: '16px', accentColor: '#16a34a' }}
+                        onChange={() => {}}
+                        style={{ cursor: 'pointer', accentColor: '#0284c7' }}
                       />
-                      <span>{item.label}</span>
+                      <span style={{ fontSize: '12.5px', fontWeight: checklist[item.id] ? '700' : '500', color: checklist[item.id] ? '#0f172a' : '#64748b' }}>
+                        {item.label}
+                      </span>
                     </label>
                   ))}
                 </div>
               </div>
 
-              {/* SECTION 4: DEFECT FLAGS */}
-              <div style={{ marginBottom: '24px', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: '14px', padding: '18px' }}>
-                <h4 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <AlertTriangle size={16} style={{ color: '#dc2626' }} /> Defect Flags (If Any)
+              {/* SECTION 4: DEFECTS & REMARKS */}
+              <div className={styles.sheetSection}>
+                <h4 className={styles.sectionHeader}>
+                  <AlertTriangle size={15} color="#d97706" /> Defect Flags & Observations
                 </h4>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {DEFECT_OPTIONS.map((defect) => {
-                    const active = defectFlags.includes(defect);
+
+                <div className={styles.defectTagsContainer}>
+                  {DEFECT_OPTIONS.map(defect => {
+                    const isSelected = defectFlags.includes(defect);
                     return (
                       <button
                         key={defect}
                         type="button"
                         onClick={() => toggleDefectFlag(defect)}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: '999px',
-                          fontSize: '12.5px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          border: `1px solid ${active ? '#dc2626' : '#cbd5e1'}`,
-                          background: active ? '#dc2626' : '#fff',
-                          color: active ? '#fff' : '#475569',
-                          transition: 'all 0.15s ease',
-                        }}
+                        className={`${styles.defectTag} ${isSelected ? styles.defectTagActive : ''}`}
                       >
-                        {active ? '✓ ' : '+ '}{defect}
+                        {isSelected ? '✕ ' : '+ '} {defect}
                       </button>
                     );
                   })}
                 </div>
+
+                <div style={{ marginTop: '12px' }}>
+                  <label className={styles.fieldLabel}>Inspector Notes / Technical Observations</label>
+                  <textarea
+                    value={inspectorRemarks}
+                    onChange={e => setInspectorRemarks(e.target.value)}
+                    rows={2}
+                    placeholder="Provide specific notes regarding surface finish, dimension variance, or load test results..."
+                    className={styles.textareaInput}
+                  />
+                </div>
               </div>
 
-              {/* SECTION 5: INSPECTOR REMARKS */}
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
-                  Inspector Remarks & Audit Observations
-                </label>
-                <textarea
-                  value={inspectorRemarks}
-                  onChange={(e) => setInspectorRemarks(e.target.value)}
-                  placeholder="Enter notes on structural voids, frame damage, warpage, lid fitment, or curing observations..."
-                  rows={3}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', resize: 'vertical' }}
-                />
-              </div>
+              {/* SECTION 5: FINAL DECISION */}
+              <div className={styles.sheetSection} style={{ border: '2px solid #0284c7', background: '#f0f9ff' }}>
+                <h4 className={styles.sectionHeader} style={{ color: '#0369a1' }}>
+                  <ShieldCheck size={16} color="#0284c7" /> Final QC Disposition & Decision
+                </h4>
 
-              {/* SECTION 6: FINAL QC DECISION SIGN-OFF */}
-              <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '14px', padding: '18px', marginBottom: '12px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>
-                  Final QC Decision & Sign-off
-                </label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '10px', border: `2px solid ${finalDecision === 'APPROVED' ? '#16a34a' : '#cbd5e1'}`, background: finalDecision === 'APPROVED' ? '#f0fdf4' : '#fff', cursor: 'pointer', fontWeight: 700, color: finalDecision === 'APPROVED' ? '#15803d' : '#334155' }}>
+                <div className={styles.decisionGrid}>
+                  <label className={`${styles.decisionCard} ${finalDecision === 'APPROVED' ? styles.decisionApproved : ''}`}>
                     <input
                       type="radio"
                       name="finalDecision"
@@ -732,10 +1118,13 @@ export default function QCPendingPage() {
                       checked={finalDecision === 'APPROVED'}
                       onChange={() => setFinalDecision('APPROVED')}
                     />
-                    <span>Approved (Pass)</span>
+                    <div>
+                      <strong>APPROVED (Pass)</strong>
+                      <p>Send to Finished Goods & Dispatch queue</p>
+                    </div>
                   </label>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '10px', border: `2px solid ${finalDecision === 'APPROVED_WITH_REMARKS' ? '#0284c7' : '#cbd5e1'}`, background: finalDecision === 'APPROVED_WITH_REMARKS' ? '#f0f9ff' : '#fff', cursor: 'pointer', fontWeight: 700, color: finalDecision === 'APPROVED_WITH_REMARKS' ? '#0369a1' : '#334155' }}>
+                  <label className={`${styles.decisionCard} ${finalDecision === 'APPROVED_WITH_REMARKS' ? styles.decisionWarning : ''}`}>
                     <input
                       type="radio"
                       name="finalDecision"
@@ -743,10 +1132,13 @@ export default function QCPendingPage() {
                       checked={finalDecision === 'APPROVED_WITH_REMARKS'}
                       onChange={() => setFinalDecision('APPROVED_WITH_REMARKS')}
                     />
-                    <span>Approved with Remarks</span>
+                    <div>
+                      <strong>APPROVED WITH REMARKS</strong>
+                      <p>Pass with minor recorded observations</p>
+                    </div>
                   </label>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '10px', border: `2px solid ${finalDecision === 'HOLD_FOR_REWORK' ? '#dc2626' : '#cbd5e1'}`, background: finalDecision === 'HOLD_FOR_REWORK' ? '#fef2f2' : '#fff', cursor: 'pointer', fontWeight: 700, color: finalDecision === 'HOLD_FOR_REWORK' ? '#b91c1c' : '#334155' }}>
+                  <label className={`${styles.decisionCard} ${finalDecision === 'HOLD_FOR_REWORK' ? styles.decisionDanger : ''}`}>
                     <input
                       type="radio"
                       name="finalDecision"
@@ -754,36 +1146,37 @@ export default function QCPendingPage() {
                       checked={finalDecision === 'HOLD_FOR_REWORK'}
                       onChange={() => setFinalDecision('HOLD_FOR_REWORK')}
                     />
-                    <span>Hold for Rework (QC Fail)</span>
+                    <div>
+                      <strong>HOLD FOR REWORK (Fail)</strong>
+                      <p>Send back to production floor for rework</p>
+                    </div>
                   </label>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px', flexShrink: 0 }}>
+              {/* Modal Footer */}
+              <div className={styles.modalFooter}>
                 <button
                   type="button"
                   onClick={() => setInspectModalOpen(false)}
-                  style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
+                  className={styles.btnCancel}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!isValidQuantity}
-                  style={{
-                    padding: '10px 24px',
-                    borderRadius: '10px',
-                    border: 'none',
-                    background: !isValidQuantity ? '#cbd5e1' : finalDecision === 'HOLD_FOR_REWORK' ? '#dc2626' : '#16a34a',
-                    color: '#fff',
-                    fontWeight: 700,
-                    fontSize: '14px',
-                    cursor: !isValidQuantity ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                  }}
+                  className={finalDecision === 'HOLD_FOR_REWORK' ? styles.btnSubmitFail : styles.btnSubmitPass}
                 >
-                  Submit QC Sign-off
+                  {finalDecision === 'HOLD_FOR_REWORK' ? (
+                    <>
+                      <XCircle size={16} /> Submit Hold & Send to Rework
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={16} /> Complete QC & Approve for Dispatch
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -791,105 +1184,14 @@ export default function QCPendingPage() {
         </div>
       )}
 
-      {/* ─── Quick Pass QC Modal ─── */}
-      {passModalOpen && selectedPassJob && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
-          <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '440px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-            <div style={{ padding: '20px 24px', background: '#f0fdf4', borderBottom: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CheckCircle2 size={20} /> Quick Approve QC Pass
-              </h3>
-              <button onClick={() => setPassModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handlePassSubmit} style={{ padding: '24px' }}>
-              <p style={{ margin: '0 0 16px', fontSize: '14px', color: '#334155', lineHeight: 1.5 }}>
-                Confirm quality approval for Work Order <strong>#{selectedPassJob.workOrderNumber || selectedPassJob.id}</strong> (Quantity: {selectedPassJob.quantity}).
-              </p>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Inspection Remarks</label>
-                <textarea
-                  value={passRemarks}
-                  onChange={(e) => setPassRemarks(e.target.value)}
-                  placeholder="Enter optional QC inspection remarks..."
-                  rows={3}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', resize: 'vertical' }}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setPassModalOpen(false)}
-                  style={{ padding: '9px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#fff', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer' }}
-                >
-                  Confirm QC Pass
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* Details Inspection Modal */}
+      {selectedOrderForModal && (
+        <OrderDetailsModal
+          order={selectedOrderForModal}
+          role="production"
+          onClose={() => setSelectedOrderForModal(null)}
+        />
       )}
-
-      {/* ─── Quick Fail QC Modal ─── */}
-      {failModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
-          <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '440px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-            <div style={{ padding: '20px 24px', background: '#fef2f2', borderBottom: '1px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <XCircle size={20} /> Mark QC Failed
-              </h3>
-              <button onClick={() => setFailModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleFailSubmit} style={{ padding: '24px' }}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Failure Reason <span style={{ color: '#dc2626' }}>*</span></label>
-                <input
-                  type="text"
-                  required
-                  value={failureReason}
-                  onChange={(e) => setFailureReason(e.target.value)}
-                  placeholder="e.g., Dimensional tolerance defect, surface scratch..."
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
-                />
-              </div>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>QC Remarks</label>
-                <textarea
-                  value={qcRemarks}
-                  onChange={(e) => setQcRemarks(e.target.value)}
-                  placeholder="Additional observations or rework instructions..."
-                  rows={3}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', resize: 'vertical' }}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setFailModalOpen(false)}
-                  style={{ padding: '9px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer' }}
-                >
-                  Submit QC Fail
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+    </main>
   );
 }

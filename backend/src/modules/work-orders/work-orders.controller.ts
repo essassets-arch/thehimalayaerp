@@ -19,7 +19,11 @@ export class WorkOrdersController {
   constructor(private readonly workOrdersService: WorkOrdersService) {}
 
   @Get()
-  @RequirePermissions('production.workorder.read')
+  @RequirePermissions(
+    'production.workorder.read',
+    'logistics.dispatches.read',
+    'logistics.dispatches.create',
+  )
   async listWorkOrders(@Query('status') status?: string, @Req() req?: any) {
     const statuses = status ? status.split(',') : [];
     return this.workOrdersService.listWorkOrders(

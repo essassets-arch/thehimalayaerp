@@ -73,9 +73,9 @@ export const navigationConfig = {
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/production/reports' },
 
 
-    { type: 'badge', label: 'QUALITY CONTROL' },
+    { type: 'badge', label: 'QUALITY & DISPATCH' },
     { id: 'qc-pending', label: 'Pending Inspections', icon: Clock, path: '/production/qc-pending' },
-    { id: 'qc-history', label: 'Inspected History', icon: ClipboardList, path: '/production/qc-history' },
+    { id: 'ready-for-dispatch', label: 'Ready for Dispatch', icon: Truck, path: '/production/ready-for-dispatch' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/production/profile' }
   ],
 

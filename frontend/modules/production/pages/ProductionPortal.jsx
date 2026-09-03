@@ -2245,6 +2245,51 @@ export default function ProductionPortal() {
       };
     };
 
+    const renderProductSummary = (row) => {
+      let itemsList = [];
+      if (Array.isArray(row.detailedItems) && row.detailedItems.length > 0) {
+        itemsList = row.detailedItems.map(i => i.productName || i.name || i.productCode).filter(Boolean);
+      } else if (Array.isArray(row.items) && row.items.length > 0) {
+        itemsList = row.items.map(i => i.productName || i.name || i.product?.name || i.productCode).filter(Boolean);
+      } else if (typeof row.productInterested === 'string' && row.productInterested.trim()) {
+        itemsList = row.productInterested.split(',').map(s => s.trim()).filter(Boolean);
+      } else if (typeof row.products === 'string' && row.products.trim()) {
+        itemsList = row.products.split(',').map(s => s.trim()).filter(Boolean);
+      }
+
+      if (itemsList.length === 0) return <span style={{ color: '#64748b' }}>Various</span>;
+
+      const displayed = itemsList.slice(0, 2);
+      const remainingCount = itemsList.length - 2;
+
+      return (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }} title={itemsList.join(', ')}>
+          <span style={{ color: '#0f172a', fontWeight: '600', fontSize: '12.5px' }}>
+            {displayed.join(', ')}
+          </span>
+          {remainingCount > 0 && (
+            <span
+              style={{
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                border: '1px solid #bfdbfe',
+                padding: '1px 7px',
+                borderRadius: '10px',
+                fontSize: '11px',
+                fontWeight: '800',
+                whiteSpace: 'nowrap',
+                display: 'inline-flex',
+                alignItems: 'center'
+              }}
+              title={itemsList.slice(2).join(', ')}
+            >
+              +{remainingCount} more
+            </span>
+          )}
+        </div>
+      );
+    };
+
     return (
       <div className="app-card" style={{ padding: isMobile ? '12px' : '20px' }}>
         <div className="card-top-bar" style={{ marginBottom: isMobile ? '12px' : '20px' }}>
@@ -2273,7 +2318,6 @@ export default function ProductionPortal() {
                   row.customer?.companyName ||
                   row.customer?.name ||
                   'N/A';
-                const productItem = row.productInterested || row.products || (row.detailedItems && row.detailedItems.map(i => i.productName).join(', ')) || 'Various';
                 const quantityNeeded = `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units`;
                 const targetDate = row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD');
                 const workflowStatus = row.workflowStatus || row.status || 'QC APPROVED';
@@ -2330,21 +2374,10 @@ export default function ProductionPortal() {
                           </span>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <span style={{ color: '#0f172a', fontSize: '12.5px', fontWeight: '700', wordBreak: 'break-word' }}>
-                          {productItem}
-                        </span>
-                        <span 
-                          style={{ 
-                            fontSize: '9.5px', 
-                            fontWeight: 'bold', 
-                            padding: '2px 6px', 
-                            borderRadius: '4px',
-                            ...getPriorityBadgeStyle(priority)
-                          }}
-                        >
-                          {priority}
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {renderProductSummary(row)}
+                        </div>
                       </div>
                     </div>
 
@@ -2354,30 +2387,13 @@ export default function ProductionPortal() {
                         borderTop: '1px solid #f1f5f9', 
                         paddingTop: '12px', 
                         display: 'flex', 
-                        justifyContent: 'space-between', 
+                        justifyContent: 'flex-end', 
                         alignItems: 'center',
                         gap: '8px' 
                       }}
                     >
-                      {/* Left Side: Stage Badge */}
-                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <span 
-                          style={{ 
-                            fontSize: '9px', 
-                            fontWeight: 'bold', 
-                            padding: '4px 8px', 
-                            borderRadius: '6px',
-                            textAlign: 'center',
-                            letterSpacing: '0.02em',
-                            ...getStatusBadgeStyle(workflowStatus)
-                          }}
-                        >
-                          {getStatusLabel(workflowStatus)}
-                        </span>
-                      </div>
-
-                      {/* Right Side: Action Buttons */}
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {/* Action Buttons */}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', justifyContent: 'flex-end' }}>
                         {row.hasBackendWorkOrder ? (
                           <>
                             <button
@@ -2543,11 +2559,9 @@ export default function ProductionPortal() {
                   row.customer?.name ||
                   'N/A'
               },
-              { header: 'Product Item', accessor: 'productInterested', render: (row) => row.productInterested || row.products || (row.detailedItems && row.detailedItems.map(i => i.productName).join(', ')) || 'Various' },
+              { header: 'Product Item', accessor: 'productInterested', render: (row) => renderProductSummary(row) },
               { header: 'Quantity Needed', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },
-              { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') },
-              { header: 'Stage', accessor: 'status', render: (row) => <StatusBadge status={row.workflowStatus || row.status} /> },
-              { header: 'Priority', accessor: 'priority', render: (row) => <StatusBadge status={row.priority || 'High'} /> }
+              { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') }
             ]}
             data={planned}
             searchQuery={globalSearch}
@@ -3359,94 +3373,260 @@ export default function ProductionPortal() {
       return isInProduction(wo.status) && producedQty > 0 && hasBatch && hasProductionLog && hasStartTime && hasEndTime;
     };
 
+    // Group work orders by Sales Order
+    const groupedOrdersMap = {};
+    workOrders.forEach(wo => {
+      const orderKey = wo.orderNo || wo.orderId || wo.id || 'SO-UNASSIGNED';
+      const matchedOrder = orders.find(o => String(o.orderNo) === String(orderKey) || String(o.id) === String(orderKey) || String(o.order_no) === String(orderKey));
+      const customerName = matchedOrder?.customerName || matchedOrder?.customer?.companyName || matchedOrder?.customer?.name || matchedOrder?.companyName || wo.customerName || 'Standard Production';
+
+      if (!groupedOrdersMap[orderKey]) {
+        groupedOrdersMap[orderKey] = {
+          orderKey,
+          orderNo: orderKey,
+          customerName,
+          targetDate: wo.targetDate || matchedOrder?.targetDate || matchedOrder?.deliveryDate || 'TBD',
+          matchedOrder,
+          items: [],
+          totalQty: 0
+        };
+      }
+      groupedOrdersMap[orderKey].items.push(wo);
+      groupedOrdersMap[orderKey].totalQty += Number(wo.quantity || 1);
+    });
+
+    const groupedOrdersList = Object.values(groupedOrdersMap);
+
     return (
       <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div>
-          <h2 className="card-heading" style={{ margin: 0 }}>Production Work Orders</h2>
-          <p style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
-            All manufacturing work orders (active, planned, and completed).
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h2 className="card-heading" style={{ margin: 0 }}>Production Work Orders</h2>
+            <p style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
+              All manufacturing work orders organized order-wise with multi-product batch tracking.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <span style={{ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: '800' }}>
+              📦 {groupedOrdersList.length} Orders / {workOrders.length} Products
+            </span>
+          </div>
         </div>
 
-        <DataTable
-          columns={[
-            {
-              header: 'Sales Order Number', accessor: 'orderNo', render: (row) => (
-                <span
-                  style={{ color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                  onClick={() => {
-                    const order = orders.find(o => String(o.orderNo) === String(row.orderNo) || String(o.id) === String(row.orderId || row.orderNo));
-                    if (order) setSelectedOrderDetails(order);
+        {groupedOrdersList.length === 0 ? (
+          <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
+            No active work orders found.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {groupedOrdersList.map(group => (
+              <div
+                key={group.orderKey}
+                style={{
+                  background: '#ffffff',
+                  border: '1.5px solid #e2e8f0',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  boxShadow: '0 2px 6px rgba(15, 23, 42, 0.04)'
+                }}
+              >
+                {/* Order Group Header */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 18px',
+                    background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+                    borderBottom: '1.5px solid #e2e8f0',
+                    flexWrap: 'wrap',
+                    gap: '10px'
                   }}
                 >
-                  {row.orderNo || row.orderId || row.id || '—'}
-                </span>
-              )
-            },
-            { header: 'Product Item', accessor: 'productName', render: (row) => row.productName || 'Missing Product' },
-            { header: 'Target Qty', accessor: 'quantity', render: (row) => `${Number(row.quantity || 0).toLocaleString()} ${row.unit || 'Pcs'}` },
-            { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') },
-            { header: 'Priority', accessor: 'priority', render: (row) => <StatusBadge status={row.priority} /> },
-            { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status} /> }
-          ]}
-          data={workOrders}
-          searchQuery={globalSearch}
-          searchField="productName"
-          actions={(row) => (
-            <>
-              {isInProduction(row.status) ? (
-                <>
-                  <button
-                    className="btn-small btn-outline-small"
-                    style={{ margin: 0, padding: '6px 12px', cursor: 'pointer' }}
-                    onClick={() => handlePauseProduction(row)}
-                  >
-                    Pause
-                  </button>
-                  <button
-                    className="btn-small btn-primary-small"
-                    style={{ margin: 0, padding: '6px 12px', background: canCompleteWorkOrder(row) ? '#10b981' : '#8893A7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: canCompleteWorkOrder(row) ? 'pointer' : 'not-allowed', opacity: canCompleteWorkOrder(row) ? 1 : 0.7 }}
-                    onClick={() => canCompleteWorkOrder(row) && handleCompleteProduction(row)}
-                    disabled={!canCompleteWorkOrder(row)}
-                    title={canCompleteWorkOrder(row) ? 'Complete production and send to QC' : 'Production cannot be completed until produced quantity, batch details, and production logs are recorded.'}
-                  >
-                    Complete Work
-                  </button>
-                </>
-              ) : isCompletedOrQC(row.status) ? (
-                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: '600' }}>
-                  {row.status === 'Completed' || row.status === STATUS.PRODUCTION_COMPLETED ? '✓ Finished' : row.status}
-                </span>
-              ) : (
-                <button
-                  className="btn-small btn-primary-small"
-                  style={{ margin: 0, padding: '6px 12px', background: 'var(--color-primary)', color: '#000', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
-                  onClick={() => handleStartProduction(row)}
-                >
-                  {row.status === STATUS.PAUSED || row.status === 'PAUSED' ? 'Resume Work' : 'Start Work'}
-                </button>
-              )}
-            </>
-          )}
-          emptyMessage="No work orders found."
-        />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                    <span
+                      style={{ color: '#0284c7', cursor: 'pointer', textDecoration: 'underline', fontWeight: '800', fontSize: '14px' }}
+                      onClick={() => {
+                        if (group.matchedOrder) setSelectedOrderDetails(group.matchedOrder);
+                      }}
+                    >
+                      {group.orderNo}
+                    </span>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>
+                      👤 {group.customerName}
+                    </span>
+                    <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+                      📦 {group.items.length} {group.items.length === 1 ? 'Product' : 'Products'}
+                    </span>
+                    <span style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
+                      🔢 {group.totalQty} Units Total
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>
+                      📅 Target: {group.targetDate ? (group.targetDate.includes('-') || group.targetDate.includes('/') ? group.targetDate : new Date(group.targetDate).toLocaleDateString('en-GB')) : 'TBD'}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-small"
+                      style={{ padding: '4px 10px', fontSize: '11.5px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}
+                      onClick={() => {
+                        if (group.matchedOrder) setSelectedOrderDetails(group.matchedOrder);
+                      }}
+                    >
+                      View Order
+                    </button>
+                  </div>
+                </div>
+
+                {/* Products Table for this Order */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12.5px' }}>
+                    <thead>
+                      <tr style={{ background: '#ffffff', borderBottom: '1px solid #f1f5f9' }}>
+                        <th style={{ padding: '8px 16px', fontSize: '10.5px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>#</th>
+                        <th style={{ padding: '8px 16px', fontSize: '10.5px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Product Item</th>
+                        <th style={{ padding: '8px 16px', fontSize: '10.5px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Work Order #</th>
+                        <th style={{ padding: '8px 16px', fontSize: '10.5px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', textAlign: 'center' }}>Ordered Qty</th>
+                        <th style={{ padding: '8px 16px', fontSize: '10.5px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', textAlign: 'center' }}>Status</th>
+                        <th style={{ padding: '8px 16px', fontSize: '10.5px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.items.map((row, idx) => (
+                        <tr key={row.id || idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '10px 16px', color: '#94a3b8', fontWeight: '700' }}>{idx + 1}</td>
+                          <td style={{ padding: '10px 16px', fontWeight: '700', color: '#0f172a' }}>{row.productName || 'Product Item'}</td>
+                          <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontSize: '11px', color: '#475569' }}>{row.workOrderNumber || '—'}</td>
+                          <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                            <span style={{ border: '1.5px solid #0284c7', borderRadius: '6px', padding: '3px 8px', color: '#0284c7', fontWeight: '900', background: '#f0f9ff', fontSize: '12px' }}>
+                              {Number(row.quantity || 1).toLocaleString()} {row.unit || 'Units'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                            <StatusBadge status={row.status} />
+                          </td>
+                          <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                            {isInProduction(row.status) ? (
+                              <div style={{ display: 'inline-flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                <button
+                                  className="btn-small btn-outline-small"
+                                  style={{ margin: 0, padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}
+                                  onClick={() => handlePauseProduction(row)}
+                                >
+                                  Pause
+                                </button>
+                                <button
+                                  className="btn-small btn-primary-small"
+                                  style={{ margin: 0, padding: '4px 10px', fontSize: '11px', background: canCompleteWorkOrder(row) ? '#10b981' : '#8893A7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: canCompleteWorkOrder(row) ? 'pointer' : 'not-allowed', opacity: canCompleteWorkOrder(row) ? 1 : 0.7 }}
+                                  onClick={() => canCompleteWorkOrder(row) && handleCompleteProduction(row)}
+                                  disabled={!canCompleteWorkOrder(row)}
+                                  title={canCompleteWorkOrder(row) ? 'Complete production and send to QC' : 'Production cannot be completed until produced quantity, batch details, and production logs are recorded.'}
+                                >
+                                  Complete
+                                </button>
+                              </div>
+                            ) : isCompletedOrQC(row.status) ? (
+                              <span style={{ fontSize: '11.5px', color: '#059669', fontWeight: '800', background: '#ecfdf5', padding: '3px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                                {row.status === 'Completed' || row.status === STATUS.PRODUCTION_COMPLETED ? '✓ Finished' : row.status}
+                              </span>
+                            ) : (
+                              <button
+                                className="btn-small btn-primary-small"
+                                style={{ margin: 0, padding: '4px 10px', fontSize: '11px', background: 'var(--color-primary)', color: '#000', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                                onClick={() => handleStartProduction(row)}
+                              >
+                                {row.status === STATUS.PAUSED || row.status === 'PAUSED' ? 'Resume Work' : 'Start Work'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
 
   const renderCompletedWorkOrders = () => {
     const completedWOs = workOrders.filter(wo =>
-      ['Completed', STATUS.PRODUCTION_COMPLETED, 'PRODUCTION_COMPLETED', STATUS.QC_PENDING, 'QC_PENDING'].includes(wo.status || wo.workflowStatus)
+      ['Completed', STATUS.PRODUCTION_COMPLETED, 'PRODUCTION_COMPLETED', STATUS.QC_PENDING, 'QC_PENDING', STATUS.QC_PASSED, 'QC_PASSED', 'READY_FOR_DISPATCH'].includes(wo.status || wo.workflowStatus)
     );
 
+    const totalUnits = completedWOs.reduce((sum, wo) => sum + Number(wo.producedQty || wo.producedQuantity || wo.quantity || 0), 0);
+    const qcPendingCount = completedWOs.filter(wo => ['Completed', STATUS.PRODUCTION_COMPLETED, 'PRODUCTION_COMPLETED', STATUS.QC_PENDING, 'QC_PENDING'].includes(wo.status || wo.workflowStatus)).length;
+    const qcPassedCount = completedWOs.filter(wo => [STATUS.QC_PASSED, 'QC_PASSED', 'READY_FOR_DISPATCH'].includes(wo.status || wo.workflowStatus)).length;
+
     return (
-      <div className="app-card">
-        <div className="card-top-bar">
-          <h2 className="card-heading">Production Completed</h2>
-          <p style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
-            Finished production batches waiting for internal testing.
-          </p>
+      <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h2 className="card-heading" style={{ margin: 0 }}>Completed Production Batches</h2>
+            <p style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
+              Historical archive of manufactured batches, cycle times, and QC clearance status.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', fontSize: '12.5px' }}
+            onClick={() => navigate.push('/production/qc-pending')}
+          >
+            <Clock size={14} /> Open QC Inspection Queue
+          </button>
         </div>
+
+        {/* Metric KPI Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#ecfdf5', color: '#059669', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <ClipboardCheck size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#64748b' }}>Completed Batches</div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>{completedWOs.length}</div>
+            </div>
+          </div>
+
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#eff6ff', color: '#2563eb', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <Package size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#64748b' }}>Units Produced</div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>{totalUnits.toLocaleString()} SETS</div>
+            </div>
+          </div>
+
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#fffbeb', color: '#d97706', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <Clock size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#64748b' }}>QC Pending</div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: '#d97706' }}>{qcPendingCount} Batches</div>
+            </div>
+          </div>
+
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#ecfdf5', color: '#16a34a', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <CheckCircle2 size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#64748b' }}>QC Approved</div>
+              <div style={{ fontSize: '20px', fontWeight: '800', color: '#16a34a' }}>{qcPassedCount} Batches</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Data Table */}
         <DataTable
           columns={[
             {
@@ -3466,26 +3646,56 @@ export default function ProductionPortal() {
               header: 'Customer', accessor: 'orderNo', render: (row) => {
                 const orderRef = row.orderNo || row.order_no || row.orderId;
                 const order = orders.find(o => String(o.orderNo) === String(orderRef) || String(o.id) === String(orderRef) || String(o.order_no) === String(orderRef));
-                return order?.customerName || order?.customer?.name || order?.companyName || row?.customerName || row?.customer_name || '—';
+                return <span style={{ fontWeight: 600 }}>{order?.customerName || order?.customer?.companyName || order?.customer?.name || order?.companyName || row?.customerName || row?.customer_name || '—'}</span>;
               }
             },
-            { header: 'Product Item', accessor: 'productName' },
-            { header: 'Produced Qty', accessor: 'producedQty', render: (row) => `${(row.producedQty || row.quantity || 0).toLocaleString()} pcs` },
-            { header: 'Status', accessor: 'status', render: () => <span className="badge" style={{ background: '#fef9c3', color: '#854d0e', border: '1px solid #fef08a', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold' }}>Sent to QC</span> }
+            { header: 'Product Item', accessor: 'productName', render: (row) => <span style={{ fontWeight: 600 }}>{row.productName || 'Custom Product'}</span> },
+            { 
+              header: 'Produced Qty', 
+              accessor: 'producedQty', 
+              render: (row) => (
+                <span style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', padding: '3px 8px', borderRadius: '6px', fontWeight: '800', fontSize: '12px' }}>
+                  {(row.producedQty || row.quantity || 0).toLocaleString()} SETS
+                </span>
+              ) 
+            },
+            {
+              header: 'Quality Status',
+              accessor: 'status',
+              render: (row) => {
+                const s = String(row.status || row.workflowStatus || '').toUpperCase();
+                if (s.includes('QC_PASSED') || s.includes('APPROVED') || s.includes('READY')) {
+                  return <span style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold', fontSize: '11.5px' }}>✅ QC Approved</span>;
+                }
+                return <span style={{ background: '#fef9c3', color: '#854d0e', border: '1px solid #fef08a', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold', fontSize: '11.5px' }}>🔍 Sent to QC</span>;
+              }
+            }
           ]}
           data={completedWOs}
           searchQuery={globalSearch}
           searchField="productName"
-          actions={() => (
-            <button
-              className="btn-small btn-primary-small"
-              style={{ margin: 0, padding: '6px 12px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
-              onClick={() => navigate.push('/production/qc-pending')}
-            >
-              Open QC Queue
-            </button>
+          actions={(row) => (
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                className="btn-small"
+                style={{ margin: 0, padding: '5px 10px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
+                onClick={() => {
+                  const order = orders.find(o => String(o.orderNo) === String(row.orderNo) || String(o.id) === String(row.orderId || row.orderNo));
+                  if (order) setSelectedOrderDetails(order);
+                }}
+              >
+                View
+              </button>
+              <button
+                className="btn-small"
+                style={{ margin: 0, padding: '5px 10px', background: '#fdf4ff', color: '#9333ea', border: '1px solid #f0abfc', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' }}
+                onClick={() => navigate.push('/production/qc-pending')}
+              >
+                QC Queue
+              </button>
+            </div>
           )}
-          emptyMessage="No completed work orders waiting for testing."
+          emptyMessage="No completed work orders recorded."
         />
       </div>
     );
@@ -3837,8 +4047,7 @@ export default function ProductionPortal() {
       { id: 'qc-failed', title: 'QC Failed & Reproduction', icon: RefreshCw, desc: 'Analyze quality failure rates and rework cycles.', color: '#ef4444' },
       { id: 'testing', title: 'Testing Reports', icon: Activity, desc: 'Detailed analytics on production testing phases.', color: '#0ea5e9' },
       { id: 'finished-goods', title: 'Finished Goods Report', icon: Package, desc: 'Inventory analytics for finished production goods.', color: '#f97316' },
-      { id: 'qc-pending', title: 'Pending Inspections', icon: Clock, desc: 'Track bottlenecks in the Quality Control queue.', color: '#eab308' },
-      { id: 'qc-history', title: 'Inspected History', icon: ClipboardList, desc: 'Comprehensive history of all QC inspections.', color: '#22c55e' }
+      { id: 'qc-pending', title: 'Pending Inspections', icon: Clock, desc: 'Track bottlenecks in the Quality Control queue.', color: '#eab308' }
     ];
 
     const [showDetailedReports, setShowDetailedReports] = useState(false);
@@ -4431,7 +4640,6 @@ export default function ProductionPortal() {
 
       {/* QC & Operations Routes */}
       {view === 'qc-pending' && <QCPendingView />}
-      {view === 'qc-history' && <QCHistoryView />}
       {view === 'floor' && renderProductionWork()}
       {view === 'qc-failed' && renderRework()}
       {view === 'profile' && <MyProfileView />}

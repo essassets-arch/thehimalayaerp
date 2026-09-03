@@ -1,4 +1,4 @@
-/* ─── Page shell ─── */
+/* ─── Page Shell ─── */
 .page {
   padding: 24px;
   background: #f8fafc;
@@ -6,17 +6,17 @@
   box-sizing: border-box;
 }
 
-/* ─── Hero banner ─── */
+/* ─── Hero Banner ─── */
 .hero {
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 22px 24px;
   margin-bottom: 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #fff5f5 100%);
-  border: 1px solid #fecaca;
+  background: linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%);
+  border: 1px solid #a7f3d0;
   border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.05);
+  box-shadow: 0 4px 16px rgba(5, 150, 105, 0.06);
   flex-wrap: wrap;
 }
 
@@ -27,9 +27,9 @@
   height: 52px;
   flex-shrink: 0;
   border-radius: 14px;
-  background: linear-gradient(145deg, #dc2626, #b91c1c);
+  background: linear-gradient(145deg, #059669, #047857);
   color: #ffffff;
-  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.25);
+  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.25);
 }
 
 .heroText {
@@ -44,7 +44,7 @@
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #dc2626;
+  color: #059669;
 }
 
 .heroText h1 {
@@ -74,16 +74,16 @@
   gap: 10px;
   padding: 10px 18px;
   background: #ffffff;
-  border: 1px solid #fca5a5;
+  border: 1px solid #a7f3d0;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.07);
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.06);
   flex-shrink: 0;
 }
 
 .summaryBadge strong {
   font-size: 24px;
   font-weight: 800;
-  color: #dc2626;
+  color: #059669;
   line-height: 1;
 }
 
@@ -98,14 +98,14 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #dc2626;
+  background: #059669;
   flex-shrink: 0;
   animation: livePulse 1.6s ease-in-out infinite;
 }
 
 @keyframes livePulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
-  50% { opacity: 0.5; box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.4); }
+  50% { opacity: 0.5; box-shadow: 0 0 0 6px rgba(5, 150, 105, 0); }
 }
 
 /* ─── Panel Card ─── */
@@ -115,6 +115,7 @@
   border-radius: 14px;
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
   overflow: hidden;
+  margin-bottom: 24px;
 }
 
 /* ─── Tabs & Controls Header ─── */
@@ -160,14 +161,14 @@
 
 .tabBtnActive {
   background: #ffffff;
-  color: #dc2626;
+  color: #059669;
   font-weight: 800;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 .tabBadge {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: #d1fae5;
+  color: #047857;
   padding: 2px 7px;
   border-radius: 999px;
   font-size: 11px;
@@ -206,9 +207,9 @@
 }
 
 .search:focus-within {
-  border-color: #0284c7;
+  border-color: #059669;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
 }
 
 .search input {
@@ -246,29 +247,131 @@
   border-color: #94a3b8;
 }
 
-/* ─── 1. Desktop Table (Shown on screens > 768px) ─── */
-.desktopTableWrapper {
+/* ─── Grouped Order Card ─── */
+.ordersStack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.orderCard {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.orderCard:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.orderCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 13px 18px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1.5px solid #e2e8f0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.orderHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.orderHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.soTitle {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0284c7;
+  cursor: pointer;
+  text-decoration: underline;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.soTitle:hover {
+  color: #0369a1;
+}
+
+.customerChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.qtyChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #065f46;
+}
+
+.reworkOrderChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #c2410c;
+}
+
+/* ─── 1. Desktop Products Table (Shown on > 768px) ─── */
+.desktopProductsTableWrapper {
   display: block;
+  width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-.desktopTableWrapper table {
+.desktopProductsTable {
   width: 100%;
-  min-width: 980px;
+  min-width: 860px;
   border-collapse: collapse;
   table-layout: auto;
 }
 
-.desktopTableWrapper thead {
-  background: #f8fafc;
-  border-bottom: 1.5px solid #e2e8f0;
+.desktopProductsTable thead {
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.desktopTableWrapper th {
-  padding: 13px 16px;
+.desktopProductsTable th {
+  padding: 11px 18px;
   text-align: left;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -276,20 +379,60 @@
   white-space: nowrap;
 }
 
-.desktopTableWrapper td {
-  padding: 14px 16px;
-  font-size: 13.5px;
-  border-top: 1px solid #f1f5f9;
+.desktopProductsTable td {
+  padding: 13px 18px;
+  font-size: 13px;
+  border-bottom: 1px solid #f1f5f9;
   color: #1e293b;
   vertical-align: middle;
 }
 
-.desktopTableWrapper tbody tr:hover {
+.desktopProductsTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.desktopProductsTable tbody tr:hover {
   background: #f8fafc;
 }
 
-/* ─── Resolution Badges ─── */
-.badgePassed {
+/* ─── Badges ─── */
+.woBadge {
+  display: inline-block;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+.badgeReworkPassed {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.qtyBadge {
+  display: inline-block;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 12.5px;
+}
+
+.badgeApproved {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -298,117 +441,121 @@
   color: #047857;
   border: 1px solid #a7f3d0;
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
 }
 
-.badgeInRework {
+.badgeDispatched,
+.badgeSentDispatch {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 9px;
-  background: #fff7ed;
-  color: #c2410c;
-  border: 1px solid #fdba74;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.badgeQcPending {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
+  padding: 3px 10px;
   background: #eff6ff;
   color: #1d4ed8;
   border: 1px solid #bfdbfe;
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
 }
 
-.badgeFailed {
+/* ─── Action Buttons ─── */
+.btnTerminal {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 9px;
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-  border-radius: 999px;
-  font-size: 11.5px;
+  padding: 7px 12px;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btnTerminal:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.btnSendDispatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 15px;
+  background: #059669;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 12.5px;
   font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+  transition: background 0.15s ease, transform 0.1s;
+}
+
+.btnSendDispatch:hover {
+  background: #047857;
+  transform: translateY(-1px);
+}
+
+.btnSentDispatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1.5px solid #a7f3d0;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: default;
   white-space: nowrap;
 }
 
-/* ─── 2. Mobile Cards Container (Shown on screens <= 768px) ─── */
-.mobileCardsContainer {
+.btnSending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: #f8fafc;
+  color: #64748b;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: not-allowed;
+  white-space: nowrap;
+}
+
+/* ─── 2. Mobile Products List (Shown on <= 768px) ─── */
+.mobileProductsList {
   display: none;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px;
+  gap: 10px;
+  padding: 12px 14px;
 }
 
-.mobileCard {
-  background: #ffffff;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 14px;
+.mobileProductCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  box-sizing: border-box;
-  width: 100%;
+  gap: 8px;
 }
 
-.soLinkMobile {
-  color: #0284c7;
-  font-weight: 800;
-  font-size: 14px;
-  cursor: pointer;
-  text-decoration: underline;
-  word-break: break-all;
-}
-
-.woBadgeMobile {
-  font-size: 11px;
-  background: #f1f5f9;
-  color: #475569;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-family: monospace;
-  font-weight: 700;
-}
-
-.defectBadgeMobile {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 9px;
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.mobileProductBox {
-  background: #f8fafc;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
+.mobileProductTop {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  box-sizing: border-box;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .mobileProductItemName {
@@ -426,12 +573,12 @@
 }
 
 .qtyBadgeMobile {
-  border: 1.5px solid #0284c7;
+  border: 1.5px solid #059669;
   border-radius: 6px;
   padding: 3px 8px;
-  color: #0284c7;
+  color: #059669;
   font-weight: 900;
-  background: #f0f9ff;
+  background: #ecfdf5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -440,159 +587,36 @@
   white-space: nowrap;
 }
 
-.mobileRemarksBox {
-  background: #fff7ed;
-  border: 1px solid #ffedd5;
-  border-left: 3px solid #ea580c;
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-size: 12px;
-  color: #9a3412;
-  line-height: 1.4;
-}
-
-.mobileActionFooter {
+.mobileProductFooter {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid #f1f5f9;
-  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.btnTerminalMobile {
-  display: inline-flex;
+.mobileOrderCardActions {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background: #ffffff;
-  color: #334155;
-  border: 1px solid #cbd5e1;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  height: 34px;
-  box-sizing: border-box;
-}
-
-.btnStartMobile {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 6px 14px;
-  background: #ea580c;
-  color: #ffffff;
-  border: none;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  height: 34px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 3px rgba(234, 88, 12, 0.2);
-  transition: background 0.15s;
-}
-
-.btnStartMobile:hover {
-  background: #c2410c;
-}
-
-.btnSentMobile {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 6px 14px;
-  background: #ecfdf5;
-  color: #047857;
-  border: 1.5px solid #a7f3d0;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  height: 34px;
-  box-sizing: border-box;
-  text-decoration: none;
-  transition: all 0.15s ease;
-}
-
-.btnSentMobile:hover {
-  background: #d1fae5;
-  border-color: #6ee7b7;
-}
-
-/* ─── Desktop Action Buttons ─── */
-.startBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 13px;
-  background: #ea580c;
-  color: #ffffff;
-  border: none;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s;
-  box-shadow: 0 1px 2px rgba(234, 88, 12, 0.2);
-}
-
-.startBtn:hover {
-  background: #c2410c;
-}
-
-.btnSentToFloor {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 13px;
-  background: #ecfdf5;
-  color: #047857;
-  border: 1.5px solid #a7f3d0;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-
-.btnSentToFloor:hover {
-  background: #d1fae5;
-  border-color: #6ee7b7;
-}
-
-.btnSending {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 13px;
-  background: #f8fafc;
-  color: #64748b;
-  border: 1.5px solid #cbd5e1;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: not-allowed;
-  white-space: nowrap;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+  margin-top: 4px;
 }
 
 /* ─── Empty State ─── */
 .emptyState {
   text-align: center;
-  padding: 56px 24px;
+  padding: 64px 24px;
   background: #ffffff;
 }
 
 .emptyState h3 {
-  margin: 12px 0 6px;
+  margin: 14px 0 6px;
   font-size: 18px;
   font-weight: 800;
   color: #0f172a;
@@ -676,11 +700,15 @@
     padding: 8px 12px;
   }
 
-  .desktopTableWrapper {
+  .orderCardHeader {
+    padding: 12px 14px;
+  }
+
+  .desktopProductsTableWrapper {
     display: none !important;
   }
 
-  .mobileCardsContainer {
+  .mobileProductsList {
     display: flex !important;
   }
 }

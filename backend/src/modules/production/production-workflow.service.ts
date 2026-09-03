@@ -95,8 +95,18 @@ export class ProductionWorkflowService {
 
   async getJobsByStatus(statuses: ProductionStatus[]) {
     try {
+      const isQcFailedQuery = statuses.includes('QC_FAILED' as any);
+      const whereClause: any = isQcFailedQuery
+        ? {
+            OR: [
+              { productionStatus: { in: statuses as any } },
+              { qcResult: 'FAIL' },
+            ],
+          }
+        : { productionStatus: { in: statuses as any } };
+
       const records = await this.prisma.workOrder.findMany({
-        where: { productionStatus: { in: statuses as any } },
+        where: whereClause,
         orderBy: { updatedAt: 'desc' },
         include: {
           productionPlan: {
@@ -119,6 +129,167 @@ export class ProductionWorkflowService {
     } catch (err) {
       console.error(
         `[ProductionWorkflow] getJobsByStatus failed for ${statuses}:`,
+        err,
+      );
+      return [];
+    }
+  }
+
+  async getQcFailedHistory() {
+    try {
+      const records = await this.prisma.workOrder.findMany({
+        where: {
+          OR: [
+            { reworkCount: { gt: 0 } },
+            { qcResult: 'FAIL' },
+            { failureReason: { not: null } },
+            { productionStatus: 'QC_FAILED' },
+            { productionStatus: 'REWORK_IN_PROGRESS' },
+          ],
+        },
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          productionPlan: {
+            include: {
+              salesOrder: {
+                include: {
+                  customer: true,
+                },
+              },
+            },
+          },
+          salesOrderItem: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      });
+      return Array.isArray(records) ? records : [];
+    } catch (err) {
+      console.error('[ProductionWorkflow] getQcFailedHistory failed:', err);
+      return [];
+    }
+  }
+
+  async sendToDispatch(workOrderIds: string[], userId: string | null) {
+    return this.prisma.$transaction(async (tx) => {
+      const updatedList: any[] = [];
+      for (const id of workOrderIds) {
+        const wo = await tx.workOrder.findUnique({
+          where: { id },
+          include: {
+            productionPlan: {
+              include: {
+                salesOrder: true,
+              },
+            },
+            salesOrderItem: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        });
+        if (!wo) continue;
+
+        const updated = await tx.workOrder.update({
+          where: { id },
+          data: {
+            productionStatus: 'DISPATCHED',
+            status: 'DISPATCHED',
+            sentToDispatchAt: new Date(),
+            completedAt: wo.completedAt || new Date(),
+          },
+        });
+
+        // Update sales order status if applicable
+        if (wo.productionPlan?.salesOrderId) {
+          await tx.salesOrder
+            .update({
+              where: { id: wo.productionPlan.salesOrderId },
+              data: {
+                status: 'READY_FOR_DISPATCH',
+              },
+            })
+            .catch(() => null);
+        }
+
+        // Upsert Finished Goods stock entry staged for dispatch
+        const existingFg = await tx.finishedGoods.findFirst({
+          where: { workOrderId: id },
+        });
+
+        const prodId =
+          wo.salesOrderItem?.productId || (wo as any).productId;
+
+        if (existingFg) {
+          await tx.finishedGoods.update({
+            where: { id: existingFg.id },
+            data: {
+              status: 'READY_FOR_DISPATCH',
+              availableQuantity: Number(wo.quantity || 1),
+            },
+          });
+        } else if (prodId) {
+          await tx.finishedGoods
+            .create({
+              data: {
+                workOrderId: id,
+                productId: prodId,
+                salesOrderId: wo.productionPlan?.salesOrderId || null,
+                quantity: Number(wo.quantity || 1),
+                availableQuantity: Number(wo.quantity || 1),
+                status: 'READY_FOR_DISPATCH',
+                unit: 'PCS',
+              },
+            })
+            .catch((err) => {
+              console.error(
+                '[ProductionWorkflow] Create FinishedGoods staged failed:',
+                err,
+              );
+            });
+        }
+
+        updatedList.push(updated);
+      }
+      return { success: true, count: updatedList.length, data: updatedList };
+    });
+  }
+
+  async getReadyForDispatchHistory() {
+    try {
+      const records = await this.prisma.workOrder.findMany({
+        where: {
+          OR: [
+            { productionStatus: 'DISPATCHED' },
+            { status: 'DISPATCHED' },
+            { sentToDispatchAt: { not: null } },
+          ],
+        },
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          productionPlan: {
+            include: {
+              salesOrder: {
+                include: {
+                  customer: true,
+                },
+              },
+            },
+          },
+          salesOrderItem: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      });
+      return Array.isArray(records) ? records : [];
+    } catch (err) {
+      console.error(
+        '[ProductionWorkflow] getReadyForDispatchHistory failed:',
         err,
       );
       return [];
@@ -350,16 +521,100 @@ export class ProductionWorkflowService {
   }
 
   async completeWork(id: string, userId: string | null) {
-    return this.transitionState(
+    const result = await this.transitionState(
       id,
       userId,
-      ['IN_PRODUCTION', 'REWORK_IN_PROGRESS'],
+      ['IN_PRODUCTION', 'REWORK_IN_PROGRESS', 'QC_FAILED'],
       'QC_PENDING',
       'Work completed, sent to QC',
       {
         productionEndTime: new Date(),
+        completedAt: new Date(),
+        completedById: userId,
+        status: 'COMPLETED',
+        qcResult: null,
       },
     );
+
+    // Ensure QC Inspection is set to PENDING for re-inspection
+    const existingInspection = await this.prisma.qCInspection.findFirst({
+      where: { workOrderId: id },
+    });
+    if (existingInspection) {
+      await this.prisma.qCInspection.update({
+        where: { id: existingInspection.id },
+        data: {
+          status: 'PENDING',
+          remarks: 'Completed on floor, ready for QC inspection',
+          approvedQuantity: 0,
+          rejectedQuantity: 0,
+        },
+      });
+    } else {
+      await this.prisma.qCInspection.create({
+        data: {
+          workOrderId: id,
+          status: 'PENDING',
+        },
+      });
+    }
+
+    return result;
+  }
+
+  async startRework(id: string, userId: string | null) {
+    return this.prisma.$transaction(async (tx) => {
+      const job = await tx.workOrder.findFirst({
+        where: {
+          OR: [
+            { id },
+            { workOrderNumber: id },
+            { salesOrderItemId: id },
+          ],
+        },
+      });
+      if (!job) throw new NotFoundException('WorkOrder not found');
+
+      // Find WORK_ORDER workflow state for STARTED or READY
+      const startedState = await tx.workflowState.findFirst({
+        where: {
+          workflow: { code: 'WORK_ORDER' },
+          code: { in: ['STARTED', 'IN_PROGRESS', 'READY'] },
+        },
+      });
+
+      const updatedJob = await tx.workOrder.update({
+        where: { id: job.id },
+        data: {
+          productionStatus: 'REWORK_IN_PROGRESS',
+          status: 'STARTED',
+          startedAt: new Date(),
+          startedById: userId,
+          productionStartTime: new Date(),
+          reworkCount: (job.reworkCount || 0) + 1,
+          updatedBy: userId,
+          ...(startedState ? { workflowStateId: startedState.id } : {}),
+          statusHistory: {
+            create: {
+              fromStatus: job.productionStatus,
+              toStatus: 'REWORK_IN_PROGRESS',
+              remarks: 'Started rework on floor',
+              changedBy: userId,
+            },
+          },
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Work order moved to rework on the production floor.',
+        data: updatedJob,
+      };
+    });
+  }
+
+  async completeRework(id: string, userId: string | null) {
+    return this.completeWork(id, userId);
   }
 
   async passQC(workOrderId: string, userId: string, dto: QcPassDto) {
@@ -551,61 +806,94 @@ export class ProductionWorkflowService {
   ) {
     if (!failureReason)
       throw new BadRequestException('Failure reason is required');
-    const result = await this.transitionState(
-      id,
-      userId,
-      ['QC_PENDING', 'IN_PRODUCTION', 'REWORK_IN_PROGRESS'],
-      'QC_FAILED',
-      failureReason,
-      {
-        qcResult: 'FAIL',
-        failureReason,
-        qcRemarks: remarks,
-        qcTimestamp: new Date(),
-        qcCheckedById: userId,
-      },
-    );
 
-    await this.prisma.qCInspection.updateMany({
-      where: { workOrderId: id, status: 'PENDING' },
-      data: { status: 'FAILED', remarks, inspectorId: userId },
-    });
-
-    return result;
-  }
-
-  async startRework(id: string, userId: string | null) {
     return this.prisma.$transaction(async (tx) => {
-      const job = await tx.workOrder.findUnique({ where: { id } });
-      if (!job) throw new NotFoundException('WorkOrder not found');
+      const job = await tx.workOrder.findFirst({
+        where: {
+          OR: [
+            { id },
+            { workOrderNumber: id },
+            { salesOrderItemId: id },
+          ],
+        },
+      });
+      if (!job) throw new NotFoundException(`Work order ${id} not found.`);
 
-      if (job.productionStatus !== 'QC_FAILED') {
-        throw new BadRequestException('Only QC_FAILED jobs can be reworked');
-      }
+      // Find workflow state for QC_FAILED / REWORK_REQUIRED if available
+      const failState = await tx.workflowState.findFirst({
+        where: {
+          code: { in: ['QC_FAILED', 'REWORK_REQUIRED', 'FAILED'] },
+        },
+      });
 
       const updatedJob = await tx.workOrder.update({
-        where: { id },
+        where: { id: job.id },
         data: {
-          productionStatus: 'REWORK_IN_PROGRESS',
-          reworkCount: job.reworkCount + 1,
+          productionStatus: 'QC_FAILED',
+          qcResult: 'FAIL',
+          failureReason,
+          qcRemarks: remarks,
+          qcTimestamp: new Date(),
+          qcCheckedById: userId,
           updatedBy: userId,
+          ...(failState ? { workflowStateId: failState.id } : {}),
           statusHistory: {
             create: {
-              fromStatus: 'QC_FAILED',
-              toStatus: 'REWORK_IN_PROGRESS',
-              remarks: 'Started rework',
+              fromStatus: job.productionStatus,
+              toStatus: 'QC_FAILED',
+              remarks: remarks || failureReason,
               changedBy: userId,
             },
           },
         },
+        include: {
+          productionPlan: {
+            include: {
+              salesOrder: {
+                include: { customer: true },
+              },
+            },
+          },
+          salesOrderItem: {
+            include: { product: true },
+          },
+        },
       });
 
-      return { success: true, data: updatedJob };
-    });
-  }
+      const existingQc = await tx.qCInspection.findFirst({
+        where: { workOrderId: job.id },
+      });
 
-  async completeRework(id: string, userId: string | null) {
-    return this.completeWork(id, userId);
+      if (existingQc) {
+        await tx.qCInspection.update({
+          where: { id: existingQc.id },
+          data: {
+            status: 'FAILED',
+            approvedQuantity: 0,
+            rejectedQuantity: Number(job.quantity || 1),
+            remarks: remarks || failureReason,
+            inspectorId: userId,
+          },
+        });
+      } else {
+        await tx.qCInspection.create({
+          data: {
+            workOrderId: job.id,
+            status: 'FAILED',
+            approvedQuantity: 0,
+            rejectedQuantity: Number(job.quantity || 1),
+            remarks: remarks || failureReason,
+            inspectorId: userId,
+          },
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Work order marked as QC failed and queued for rework.',
+        data: updatedJob,
+      };
+    });
   }
 
   async createShiftEntry(dto: any, userId: string | null) {

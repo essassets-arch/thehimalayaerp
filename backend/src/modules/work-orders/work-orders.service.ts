@@ -20,7 +20,20 @@ export class WorkOrdersService {
     const scope = getSalesScope(userId, role, 'WorkOrder');
     const where: any = { ...scope };
     if (statuses && statuses.length > 0) {
-      where.status = { in: statuses };
+      where.OR = [
+        { status: { in: statuses } },
+        { productionStatus: { in: statuses } },
+      ];
+      if (
+        statuses.includes('READY_FOR_DISPATCH') ||
+        statuses.includes('SENT_TO_DISPATCH')
+      ) {
+        where.OR.push(
+          { status: 'SENT_TO_DISPATCH' },
+          { productionStatus: 'SENT_TO_DISPATCH' },
+          { sentToDispatchAt: { not: null } },
+        );
+      }
     }
 
     if (
@@ -196,9 +209,12 @@ export class WorkOrdersService {
       if (actionName === 'START') {
         updateData.startedAt = new Date();
         updateData.startedById = userId;
+        updateData.productionStatus = 'IN_PRODUCTION';
       } else if (actionName === 'COMPLETE') {
         updateData.completedAt = new Date();
         updateData.completedById = userId;
+        updateData.productionStatus = 'QC_PENDING';
+        updateData.qcResult = null;
         if (wo.startedAt) {
           updateData.duration = Math.floor(
             (new Date().getTime() - new Date(wo.startedAt).getTime()) / 60000,
@@ -219,12 +235,23 @@ export class WorkOrdersService {
         const existingInspection = await tx.qCInspection.findFirst({
           where: { workOrderId: id },
         });
-        if (!existingInspection) {
+        if (existingInspection) {
+          await tx.qCInspection.update({
+            where: { id: existingInspection.id },
+            data: {
+              status: 'PENDING',
+              workflowStateId: initialQCState?.id,
+              remarks: 'Rework / Work completed on floor, sent to QC',
+              approvedQuantity: 0,
+              rejectedQuantity: 0,
+            },
+          });
+        } else {
           await tx.qCInspection.create({
             data: {
               workOrderId: id,
               status: 'PENDING',
-              workflowStateId: initialQCState.id,
+              workflowStateId: initialQCState?.id,
             },
           });
         }

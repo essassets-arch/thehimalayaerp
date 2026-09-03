@@ -226,9 +226,26 @@ export class ProductionWorkflowController {
     'production.floor.read',
     'production.qc.read',
     'production.productionworkflow.read',
+    'plant-head.qc.read',
+    'plant-head.qcfailures.read',
+    'planthead.qcfailures.read',
   )
   async getQCFailed() {
     const data = await this.workflowService.getJobsByStatus(['QC_FAILED']);
+    return { success: true, data };
+  }
+
+  @Get('production/qc-failed-history')
+  @RequirePermissions(
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+    'plant-head.qc.read',
+    'plant-head.qcfailures.read',
+    'planthead.qcfailures.read',
+  )
+  async getQCFailedHistory() {
+    const data = await this.workflowService.getQcFailedHistory();
     return { success: true, data };
   }
 
@@ -252,12 +269,54 @@ export class ProductionWorkflowController {
   // READY FOR DISPATCH
   // ==========================================
   @Get('production/ready-for-dispatch')
-  @RequirePermissions('logistics.dispatches.read')
+  @RequirePermissions(
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+    'logistics.dispatches.read',
+  )
   async getReadyForDispatch() {
     const data = await this.workflowService.getJobsByStatus([
       'READY_FOR_DISPATCH',
     ]);
     return { success: true, data };
+  }
+
+  @Get('production/ready-for-dispatch-history')
+  @RequirePermissions(
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+    'logistics.dispatches.read',
+  )
+  async getReadyForDispatchHistory() {
+    const data = await this.workflowService.getReadyForDispatchHistory();
+    return { success: true, data };
+  }
+
+  @Post('production/send-to-dispatch')
+  @RequirePermissions(
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+  )
+  async sendToDispatch(@Body() body: any, @Req() req: any) {
+    const ids = Array.isArray(body?.workOrderIds)
+      ? body.workOrderIds
+      : body?.id
+      ? [body.id]
+      : [];
+    return this.workflowService.sendToDispatch(ids, req.user?.sub || 'system');
+  }
+
+  @Post('production/:id/send-to-dispatch')
+  @RequirePermissions(
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+  )
+  async sendSingleToDispatch(@Param('id') id: string, @Req() req: any) {
+    return this.workflowService.sendToDispatch([id], req.user?.sub || 'system');
   }
 
   // ==========================================

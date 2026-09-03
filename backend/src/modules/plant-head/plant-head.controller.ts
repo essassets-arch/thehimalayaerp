@@ -5,6 +5,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Query,
   Req,
   Body,
@@ -263,4 +264,57 @@ export class PlantHeadController {
       userId,
     );
   }
+
+  @RequirePermissions(
+    'admin.planthead.update',
+    'planthead.update',
+    'admin.planthead.create',
+    'planthead.create',
+  )
+  @Post('orders/:orderId/target-date')
+  async updateOrderTargetDate(
+    @Param('orderId') orderId: string,
+    @Body('targetDate') targetDate: string,
+    @Req() req: Request,
+  ) {
+    const companyId =
+      (req.headers['x-company-id'] as string) ||
+      (req as any).user?.['companyId'] ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const userId =
+      (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
+    return this.plantHeadService.updateOrderTargetDate(
+      orderId,
+      targetDate,
+      companyId,
+      userId,
+    );
+  }
+
+  @RequirePermissions(
+    'admin.planthead.update',
+    'planthead.update',
+    'admin.planthead.create',
+    'planthead.create',
+  )
+  @Patch('orders/:orderId/target-date')
+  async patchOrderTargetDate(
+    @Param('orderId') orderId: string,
+    @Body('targetDate') targetDate: string,
+    @Req() req: Request,
+  ) {
+    const companyId =
+      (req.headers['x-company-id'] as string) ||
+      (req as any).user?.['companyId'] ||
+      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+    const userId =
+      (req as any).user?.['sub'] || (req as any).user?.['id'] || 'system';
+    return this.plantHeadService.updateOrderTargetDate(
+      orderId,
+      targetDate,
+      companyId,
+      userId,
+    );
+  }
 }
+
