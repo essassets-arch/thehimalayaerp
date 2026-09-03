@@ -87,9 +87,27 @@ export class RecruitmentService {
       requiredByDate: dto.requiredByDate ? new Date(dto.requiredByDate) : null,
     };
   }
+  private async getCompanyId(actor: Actor): Promise<string> {
+    if (actor?.companyId) return actor.companyId;
+    if (actor?.sub) {
+      const dbUser = await this.prisma.user.findUnique({
+        where: { id: actor.sub },
+        select: { companyId: true },
+      });
+      if (dbUser?.companyId) return dbUser.companyId;
+    }
+    const defaultCompany = await this.prisma.company.findFirst({
+      select: { id: true },
+    });
+    return defaultCompany?.id || 'default-company';
+  }
+
   private async find(id: string, companyId: string) {
     const row = await this.prisma.recruitmentRequest.findFirst({
-      where: { companyId, OR: [{ id }, { indentNumber: id }] },
+      where: {
+        ...(companyId ? { companyId } : {}),
+        OR: [{ id }, { indentNumber: id }],
+      },
       include: this.include(),
     });
     if (!row) throw new NotFoundException('Recruitment request not found.');
@@ -131,18 +149,19 @@ export class RecruitmentService {
 
   async create(dto: any, actor: Actor) {
     this.validateRequest(dto);
+    const resolvedCompanyId = await this.getCompanyId(actor);
     const row = await this.prisma.$transaction(async (db) => {
       const year = new Date().getFullYear();
       const seq = await db.documentSequence.upsert({
         where: {
           companyId_documentType_year: {
-            companyId: actor.companyId,
+            companyId: resolvedCompanyId,
             documentType: 'RECRUITMENT',
             year,
           },
         },
         create: {
-          companyId: actor.companyId,
+          companyId: resolvedCompanyId,
           documentType: 'RECRUITMENT',
           prefix: 'RR',
           year,
@@ -153,11 +172,11 @@ export class RecruitmentService {
       return db.recruitmentRequest.create({
         data: {
           ...this.requestData(dto),
-          companyId: actor.companyId,
+          companyId: resolvedCompanyId,
           indentNumber: `RR-${seq.currentNumber}`,
           requestedById: actor.sub,
           requestedByName: this.actorName(actor),
-          requestedByRole: 'PLANT_HEAD',
+          requestedByRole: actor.role || 'PLANT_HEAD',
           status: 'OPEN',
           timeline: {
             create: this.timeline(
@@ -175,8 +194,9 @@ export class RecruitmentService {
   }
 
   async list(actor: Actor, own: boolean, query: any = {}) {
+    const companyId = await this.getCompanyId(actor);
     const where: Prisma.RecruitmentRequestWhereInput = {
-      companyId: actor.companyId,
+      ...(companyId ? { companyId } : {}),
       ...(own ? { requestedById: actor.sub } : {}),
       ...(query.status
         ? {
@@ -206,13 +226,15 @@ export class RecruitmentService {
   }
 
   async get(id: string, actor: Actor) {
-    const row = await this.find(id, actor.companyId);
+    const companyId = await this.getCompanyId(actor);
+    const row = await this.find(id, companyId);
     if (actor.role === 'PLANT_HEAD') this.ensureOwn(row, actor);
     return this.map(row);
   }
 
   async updateOwn(id: string, dto: any, actor: Actor) {
-    const current = await this.find(id, actor.companyId);
+    const companyId = await this.getCompanyId(actor);
+    const current = await this.find(id, companyId);
     this.ensureOwn(current, actor);
     this.ensureVersion(current, dto);
     if (!EDITABLE.has(current.status))
@@ -228,7 +250,8 @@ export class RecruitmentService {
   }
 
   async resubmit(id: string, dto: any, actor: Actor) {
-    const current = await this.find(id, actor.companyId);
+    const companyId = await this.getCompanyId(actor);
+    const current = await this.find(id, companyId);
     this.ensureOwn(current, actor);
     this.ensureVersion(current, dto);
     if (current.status !== 'RETURNED_FOR_CORRECTION')
@@ -257,7 +280,8 @@ export class RecruitmentService {
   }
 
   async withdraw(id: string, body: any, actor: Actor) {
-    const current = await this.find(id, actor.companyId);
+    const companyId = await this.getCompanyId(actor);
+    const current = await this.find(id, companyId);
     this.ensureOwn(current, actor);
     this.ensureVersion(current, body);
     if (!['OPEN', 'RETURNED_FOR_CORRECTION'].includes(current.status))
