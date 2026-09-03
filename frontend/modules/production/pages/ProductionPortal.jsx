@@ -629,7 +629,7 @@ export default function ProductionPortal() {
   const [directBackendOrders, setDirectBackendOrders] = useState([]);
   const [loadingIncomingOrders, setLoadingIncomingOrders] = useState(false);
 
-  const loadSalesOrders = useCallback(async () => {
+  const fetchDirectSalesOrders = useCallback(async () => {
     try {
       const res = await backendFetch(`/api/backend/sales/orders?page=1&pageSize=200&_t=${Date.now()}`, {
         cache: 'no-store',
@@ -683,14 +683,15 @@ export default function ProductionPortal() {
     try {
       await Promise.allSettled([
         loadIncomingOrders(),
-        loadSalesOrders(),
+        fetchDirectSalesOrders(),
+        typeof loadSalesOrders === 'function' ? loadSalesOrders() : Promise.resolve(),
         loadBackendWorkOrders(),
-        syncData(),
+        typeof syncData === 'function' ? syncData() : Promise.resolve(),
       ]);
     } finally {
       setLoadingIncomingOrders(false);
     }
-  }, [loadIncomingOrders, loadSalesOrders, loadBackendWorkOrders, syncData]);
+  }, [loadIncomingOrders, fetchDirectSalesOrders, loadSalesOrders, loadBackendWorkOrders, syncData]);
 
   useEffect(() => {
     if (view === 'incoming-orders') {
@@ -698,7 +699,9 @@ export default function ProductionPortal() {
     }
     if (!['dashboard', 'incoming-orders', 'work-orders', 'production-work'].includes(view)) return;
     void loadBackendWorkOrders();
-    void loadSalesOrders();
+    if (typeof loadSalesOrders === 'function') {
+      void loadSalesOrders();
+    }
   }, [view, refreshAllIncoming, loadBackendWorkOrders, loadSalesOrders]);
   const [mrStatusFilter, setMrStatusFilter] = useState('All');
 
@@ -981,7 +984,7 @@ export default function ProductionPortal() {
     }
   };
   const incomingOrders = useMemo(() => {
-    const combinedOrders = [...(directBackendOrders || []), ...(storeOrders || [])];
+    const combinedOrders = [...(directBackendOrders || []), ...(backendSalesOrders || []), ...(storeOrders || [])];
     const combinedState = {
       ...state,
       sales: {
@@ -994,10 +997,10 @@ export default function ProductionPortal() {
       const sourceQuotation = (state.sales?.quotations || []).find((q) => q.id === quotationRef);
       return normalizeProductionOrder(order, sourceQuotation);
     });
-  }, [state, storeOrders, directBackendOrders]);
+  }, [state, storeOrders, directBackendOrders, backendSalesOrders]);
 
   const orders = useMemo(() => {
-    const combinedOrders = [...(directBackendOrders || []), ...(storeOrders || [])];
+    const combinedOrders = [...(directBackendOrders || []), ...(backendSalesOrders || []), ...(storeOrders || [])];
     const combinedState = {
       ...state,
       sales: {
@@ -1010,7 +1013,7 @@ export default function ProductionPortal() {
       const sourceQuotation = (state.sales?.quotations || []).find((q) => q.id === quotationRef);
       return normalizeProductionOrder(order, sourceQuotation);
     });
-  }, [state, storeOrders, directBackendOrders]);
+  }, [state, storeOrders, directBackendOrders, backendSalesOrders]);
   const filteredStoreWOs = getProductionWorkOrders(state);
   const storeWorkOrders = (filteredStoreWOs && filteredStoreWOs.length > 0) ? filteredStoreWOs : mockWorkOrders;
   const workOrders = useMemo(() => {
