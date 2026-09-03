@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
+import PaginationControl from '@/shared/components/PaginationControl';
 import { 
   Play, 
   CheckCircle2, 
@@ -93,6 +94,12 @@ export default function ProductionFloorPage() {
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<any>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery]);
 
   // Real-time live timer ticking every 1 second
   useEffect(() => {
@@ -363,6 +370,11 @@ export default function ProductionFloorPage() {
     });
   }, [displayedJobsList, salesOrders, searchQuery, currentTime]);
 
+  const paginatedGroupedOrders = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return groupedOrders.slice(start, start + pageSize);
+  }, [groupedOrders, currentPage, pageSize]);
+
   const handleOpenOrderModal = (group: GroupedFloorOrder) => {
     const itemsList = group.items.map((job, index) => ({
       name: getProductName(job),
@@ -543,7 +555,7 @@ export default function ProductionFloorPage() {
         </div>
       ) : (
         <div className={styles.orderWiseContainer}>
-          {groupedOrders.map((group) => {
+          {paginatedGroupedOrders.map((group) => {
             const isHistory = activeTab === 'HISTORY';
             return (
               <section key={group.orderKey} className={styles.orderCard}>
@@ -830,6 +842,14 @@ export default function ProductionFloorPage() {
               </section>
             );
           })}
+          <PaginationControl
+            currentPage={currentPage}
+            totalPages={Math.ceil(groupedOrders.length / pageSize) || 1}
+            totalItems={groupedOrders.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 

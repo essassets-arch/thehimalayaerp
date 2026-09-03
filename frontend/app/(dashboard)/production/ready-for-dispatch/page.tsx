@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import PaginationControl from '@/shared/components/PaginationControl';
 import {
   Truck,
   Search,
@@ -95,6 +96,12 @@ export default function ReadyForDispatchPage() {
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<any>(null);
   const [sendingOrderKey, setSendingOrderKey] = useState<string | null>(null);
   const [sentOrderKeys, setSentOrderKeys] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery]);
 
   const fetchJobs = async () => {
     try {
@@ -318,7 +325,9 @@ export default function ReadyForDispatchPage() {
         const wo = (job.workOrderNumber || '').toLowerCase();
         const sku = (
           job.productCode ||
+          job.salesOrderItem?.productCodeSnapshot ||
           job.salesOrderItem?.product?.sku ||
+          job.salesOrderItem?.product?.code ||
           ''
         ).toLowerCase();
         return prod.includes(q) || wo.includes(q) || sku.includes(q);
@@ -327,6 +336,11 @@ export default function ReadyForDispatchPage() {
       return matchHeader || matchItem;
     });
   }, [currentGroupsList, searchQuery]);
+
+  const paginatedGroupedOrders = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return groupedOrders.slice(start, start + pageSize);
+  }, [groupedOrders, currentPage, pageSize]);
 
   const totalReadyUnits = useMemo(() => {
     return groupedOrders.reduce((sum, g) => sum + g.totalQty, 0);
@@ -473,7 +487,7 @@ export default function ReadyForDispatchPage() {
           </div>
         ) : (
           <div className={styles.ordersStack}>
-            {groupedOrders.map((group) => {
+            {paginatedGroupedOrders.map((group) => {
               const isSending = sendingOrderKey === group.orderKey;
               const isSent = sentOrderKeys.has(group.orderKey) || activeTab === 'HISTORY';
 
@@ -782,6 +796,14 @@ export default function ReadyForDispatchPage() {
                 </div>
               );
             })}
+            <PaginationControl
+              currentPage={currentPage}
+              totalPages={Math.ceil(groupedOrders.length / pageSize) || 1}
+              totalItems={groupedOrders.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
         )}
       </div>

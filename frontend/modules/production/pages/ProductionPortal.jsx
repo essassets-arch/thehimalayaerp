@@ -18,6 +18,7 @@ import { selectProductionIncomingOrders, selectProductionWorkOrders } from '../.
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import OrderDetailsModal from '../../../shared/components/OrderDetailsModal';
+import PaginationControl from '../../../shared/components/PaginationControl';
 import { Play, CheckCircle2, PlusCircle, PackagePlus, X, CheckCircle, Clock, AlertCircle, Trash2, Layers, Grid, Box, Boxes, Wrench, Settings, Hammer, Activity, CircleDot, Search, Plus, ArrowLeft, Cpu, Pause, User, Truck, PackageCheck, RefreshCw, ShieldAlert, Printer, Edit, Eye, Package, ClipboardList, ClipboardCheck, Download, Briefcase } from 'lucide-react';
 // BOM_MASTER removed (using dynamic database lookup)
 import ProductionMaterialCreateView from '../../../components/material-workflow/ProductionMaterialCreateView';
@@ -628,6 +629,12 @@ export default function ProductionPortal() {
   const [backendIncomingList, setBackendIncomingList] = useState([]);
   const [directBackendOrders, setDirectBackendOrders] = useState([]);
   const [loadingIncomingOrders, setLoadingIncomingOrders] = useState(false);
+  const [incomingPage, setIncomingPage] = useState(1);
+  const [incomingPageSize, setIncomingPageSize] = useState(25);
+
+  useEffect(() => {
+    setIncomingPage(1);
+  }, [globalSearch, view]);
 
   const fetchDirectSalesOrders = useCallback(async () => {
     try {
@@ -2313,6 +2320,11 @@ export default function ProductionPortal() {
       return searchVal.includes(globalSearch.toLowerCase());
     });
 
+    const paginatedPlanned = filteredPlanned.slice(
+      (incomingPage - 1) * incomingPageSize,
+      incomingPage * incomingPageSize
+    );
+
     const getStatusLabel = (status) => {
       if (!status) return 'QC APPROVED';
       return String(status).replace(/_/g, ' ').toUpperCase();
@@ -2461,7 +2473,7 @@ export default function ProductionPortal() {
                 No incoming orders from Plant Head yet. Orders planned by Plant Head will appear here.
               </div>
             ) : (
-              filteredPlanned.map((row) => {
+              paginatedPlanned.map((row) => {
                 const hasWO = row.hasBackendWorkOrder ||
                   (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
                 const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
@@ -2673,143 +2685,161 @@ export default function ProductionPortal() {
                 );
               })
             )}
+            <PaginationControl
+              currentPage={incomingPage}
+              totalPages={Math.ceil(filteredPlanned.length / incomingPageSize) || 1}
+              totalItems={filteredPlanned.length}
+              pageSize={incomingPageSize}
+              onPageChange={setIncomingPage}
+              onPageSizeChange={setIncomingPageSize}
+            />
           </div>
         ) : (
-          <DataTable
-            columns={[
-              {
-                header: 'Order No', accessor: 'orderNo', render: (row) => (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span
-                      style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
-                      onClick={() => setSelectedOrderDetails(row)}
-                    >
-                      {row.orderNo}
-                    </span>
-                    {row.isReproduction && (
-                      <span style={{ fontSize: '10px', background: '#ffe4e6', color: '#e11d48', border: '1px solid #fecdd3', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
-                        Reproduction
+          <div>
+            <DataTable
+              columns={[
+                {
+                  header: 'Order No', accessor: 'orderNo', render: (row) => (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span
+                        style={{ color: 'var(--color-text-primary)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 'bold' }}
+                        onClick={() => setSelectedOrderDetails(row)}
+                      >
+                        {row.orderNo}
                       </span>
-                    )}
-                  </div>
-                )
-              },
-              {
-                header: 'Customer',
-                accessor: 'customerName',
-                render: (row) => resolveOrderCustomerName(row) || 'N/A'
-              },
-              { header: 'Product Item', accessor: 'productInterested', render: (row) => renderProductSummary(row) },
-              { header: 'Quantity Needed', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },
-              { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') }
-            ]}
-            data={planned}
-            searchQuery={globalSearch}
-            searchField="customer.name"
-            actions={(row) => {
-              if (row.hasBackendWorkOrder) {
+                      {row.isReproduction && (
+                        <span style={{ fontSize: '10px', background: '#ffe4e6', color: '#e11d48', border: '1px solid #fecdd3', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                          Reproduction
+                        </span>
+                      )}
+                    </div>
+                  )
+                },
+                {
+                  header: 'Customer',
+                  accessor: 'customerName',
+                  render: (row) => resolveOrderCustomerName(row) || 'N/A'
+                },
+                { header: 'Product Item', accessor: 'productInterested', render: (row) => renderProductSummary(row) },
+                { header: 'Quantity Needed', accessor: 'estimatedQuantity', render: (row) => `${row.estimatedQuantity || row.quantity || row.totalQuantity || 0} Units` },
+                { header: 'Target Date', accessor: 'targetDate', render: (row) => row.targetDate ? new Date(row.targetDate).toLocaleDateString('en-GB') : (row.deliveryDate || row.date || 'TBD') }
+              ]}
+              data={paginatedPlanned}
+              searchQuery={globalSearch}
+              searchField="customer.name"
+              actions={(row) => {
+                if (row.hasBackendWorkOrder) {
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleBackendIncomingDecision(row, 'ACCEPT')}
+                        className="btn-small"
+                        style={{ margin: 0, background: '#16a34a', color: '#fff', cursor: 'pointer' }}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBackendIncomingDecision(row, 'REJECT')}
+                        className="btn-small btn-danger-small"
+                        style={{ margin: 0, border: '1px solid #fecaca', cursor: 'pointer' }}
+                      >
+                        Reject
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrderDetails(row)}
+                        className="btn-small btn-outline-small"
+                        style={{ margin: 0, cursor: 'pointer' }}
+                      >
+                        View
+                      </button>
+                    </>
+                  );
+                }
+                // Check if this order already has work orders
+                const hasWO = row.hasBackendWorkOrder ||
+                  (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
+                const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
                 return (
-                  <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <button
                       type="button"
-                      onClick={() => handleBackendIncomingDecision(row, 'ACCEPT')}
-                      className="btn-small"
-                      style={{ margin: 0, background: '#16a34a', color: '#fff', cursor: 'pointer' }}
-                    >
-                      Accept
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleBackendIncomingDecision(row, 'REJECT')}
-                      className="btn-small btn-danger-small"
-                      style={{ margin: 0, border: '1px solid #fecaca', cursor: 'pointer' }}
-                    >
-                      Reject
-                    </button>
-                    <button
-                      type="button"
+                      style={{
+                        margin: 0,
+                        padding: '6px 12px',
+                        background: '#f8fafc',
+                        color: '#475569',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '6px',
+                        fontWeight: '600',
+                        fontSize: '12px',
+                        cursor: 'pointer'
+                      }}
                       onClick={() => setSelectedOrderDetails(row)}
-                      className="btn-small btn-outline-small"
-                      style={{ margin: 0, cursor: 'pointer' }}
                     >
                       View
                     </button>
-                  </>
+                    {!hasWO && !isActiveProduction ? (
+                      <button
+                        type="button"
+                        style={{
+                          margin: 0,
+                          background: '#2563eb',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          fontWeight: '600',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          boxShadow: '0 1px 3px rgba(37,99,235,0.3)'
+                        }}
+                        onClick={() => handleCreateWorkOrder(row)}
+                      >
+                        <Play size={12} fill="#ffffff" color="#ffffff" /> Activate Work Order
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        style={{
+                          margin: 0,
+                          background: '#059669',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          fontWeight: '600',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          boxShadow: '0 1px 3px rgba(5,150,105,0.3)'
+                        }}
+                        onClick={() => navigate.push('/production/work-orders')}
+                      >
+                        <CheckCircle2 size={12} /> Open Work Orders
+                      </button>
+                    )}
+                  </div>
                 );
-              }
-              // Check if this order already has work orders
-              const hasWO = row.hasBackendWorkOrder ||
-                (workOrders.some(wo => wo.orderNo === row.orderNo && wo.status !== STATUS.PLANNED) && !row.isReproduction);
-              const isActiveProduction = [STATUS.IN_PRODUCTION, STATUS.QC_PENDING, STATUS.QC_PASSED].includes(row.status);
-              return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    type="button"
-                    style={{
-                      margin: 0,
-                      padding: '6px 12px',
-                      background: '#f8fafc',
-                      color: '#475569',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '6px',
-                      fontWeight: '600',
-                      fontSize: '12px',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => setSelectedOrderDetails(row)}
-                  >
-                    View
-                  </button>
-                  {!hasWO && !isActiveProduction ? (
-                    <button
-                      type="button"
-                      style={{
-                        margin: 0,
-                        background: '#2563eb',
-                        color: '#ffffff',
-                        border: 'none',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontWeight: '600',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        boxShadow: '0 1px 3px rgba(37,99,235,0.3)'
-                      }}
-                      onClick={() => handleCreateWorkOrder(row)}
-                    >
-                      <Play size={12} fill="#ffffff" color="#ffffff" /> Activate Work Order
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      style={{
-                        margin: 0,
-                        background: '#059669',
-                        color: '#ffffff',
-                        border: 'none',
-                        padding: '6px 14px',
-                        borderRadius: '6px',
-                        fontWeight: '600',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        boxShadow: '0 1px 3px rgba(5,150,105,0.3)'
-                      }}
-                      onClick={() => navigate.push('/production/work-orders')}
-                    >
-                      <CheckCircle2 size={12} /> Open Work Orders
-                    </button>
-                  )}
-                </div>
-              );
-            }}
-            emptyMessage="No incoming orders from Plant Head yet. Orders planned by Plant Head will appear here."
-          />
+              }}
+              emptyMessage="No incoming orders from Plant Head yet. Orders planned by Plant Head will appear here."
+            />
+            <PaginationControl
+              currentPage={incomingPage}
+              totalPages={Math.ceil(filteredPlanned.length / incomingPageSize) || 1}
+              totalItems={filteredPlanned.length}
+              pageSize={incomingPageSize}
+              onPageChange={setIncomingPage}
+              onPageSizeChange={setIncomingPageSize}
+            />
+          </div>
         )}
       </div>
     );

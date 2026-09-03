@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
+import PaginationControl from '@/shared/components/PaginationControl';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -91,6 +92,12 @@ export default function QCPendingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery]);
 
   // ─── FULL INSPECT SHEET MODAL STATE ───
   const [inspectModalOpen, setInspectModalOpen] = useState(false);
@@ -527,6 +534,11 @@ export default function QCPendingPage() {
     });
   }, [jobs, searchQuery]);
 
+  const paginatedJobs = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredJobs.slice(start, start + pageSize);
+  }, [filteredJobs, currentPage, pageSize]);
+
   if (!isClient) return null;
 
   const isValidQuantity = Number(approvedQty) + Number(rejectedQty) === Number(inspectedQty);
@@ -634,7 +646,7 @@ export default function QCPendingPage() {
           <>
             {/* 1. Mobile Cards Container (Pure CSS media query for 100% reliable scrolling) */}
             <div className={styles.mobileCardsContainer}>
-              {filteredJobs.map((job: any) => {
+              {paginatedJobs.map((job: any) => {
                 const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                 const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                 const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
@@ -751,7 +763,7 @@ export default function QCPendingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredJobs.map((job: any) => {
+                  {paginatedJobs.map((job: any) => {
                     const rawSo = job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber;
                     const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
                     const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
@@ -858,6 +870,14 @@ export default function QCPendingPage() {
                 </tbody>
               </table>
             </div>
+            <PaginationControl
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredJobs.length / pageSize) || 1}
+              totalItems={filteredJobs.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
           </>
         )}
       </div>

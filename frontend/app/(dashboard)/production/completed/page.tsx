@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import PaginationControl from '@/shared/components/PaginationControl';
 import {
   ClipboardCheck,
   Search,
@@ -62,6 +63,12 @@ export default function CompletedOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'QC_PENDING' | 'QC_PASSED' | 'DISPATCHED'>('ALL');
   const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'WEEK' | 'MONTH'>('ALL');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, dateFilter]);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['work-orders-completed-rich'],
@@ -167,6 +174,12 @@ export default function CompletedOrdersPage() {
       return matchSearch && matchStatus && matchDate;
     });
   }, [data, search, statusFilter, dateFilter]);
+
+  // Paginated Data
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredData.slice(start, start + pageSize);
+  }, [filteredData, currentPage, pageSize]);
 
   // Summary Metrics
   const metrics = useMemo(() => {
@@ -432,14 +445,9 @@ export default function CompletedOrdersPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredData.map((wo: any) => {
-                  const startedStr = wo.startedAt
-                    ? new Date(wo.startedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                    : '—';
-                  const completedStr = wo.completedAt
-                    ? new Date(wo.completedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                    : '—';
-
+                {paginatedData.map((wo: any) => {
+                  const startedStr = wo.startedAt ? new Date(wo.startedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+                  const completedStr = wo.completedAt ? new Date(wo.completedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
                   const durationMins = Number(wo.duration) || 120;
                   const durH = Math.floor(durationMins / 60);
                   const durM = durationMins % 60;
@@ -525,6 +533,14 @@ export default function CompletedOrdersPage() {
               </tbody>
             </table>
           )}
+          <PaginationControl
+            currentPage={currentPage}
+            totalPages={Math.ceil(filteredData.length / pageSize) || 1}
+            totalItems={filteredData.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       </section>
 

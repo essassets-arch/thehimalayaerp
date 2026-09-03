@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import PaginationControl from '@/shared/components/PaginationControl';
 import { 
   ClipboardList, 
   Eye, 
@@ -84,6 +85,12 @@ export default function WorkOrderListPage() {
   const [viewMode, setViewMode] = useState<'ORDER_WISE' | 'FLAT'>('ORDER_WISE');
   const [startingId, setStartingId] = useState<string | null>(null);
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, search, viewMode]);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['work-orders-list-v2'],
@@ -335,6 +342,18 @@ export default function WorkOrderListPage() {
       );
     });
   }, [workOrdersList, activeTab, search]);
+
+  // Paginated grouped orders
+  const paginatedGroupedOrders = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredGroupedOrders.slice(start, start + pageSize);
+  }, [filteredGroupedOrders, currentPage, pageSize]);
+
+  // Paginated flat data
+  const paginatedFlatData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredFlatData.slice(start, start + pageSize);
+  }, [filteredFlatData, currentPage, pageSize]);
 
   const handleOpenOrderModal = (group: GroupedOrder) => {
     const itemsList = group.items.map((wo, index) => ({
@@ -674,7 +693,7 @@ export default function WorkOrderListPage() {
           </div>
         ) : (
           <div className={styles.orderWiseContainer}>
-            {filteredGroupedOrders.map((group) => (
+            {paginatedGroupedOrders.map((group) => (
               <section key={group.orderKey} className={styles.orderCard}>
                 {/* ── Order Header ── */}
                 <div className={styles.orderCardHeader}>
@@ -964,6 +983,14 @@ export default function WorkOrderListPage() {
                 </div>
               </section>
             ))}
+            <PaginationControl
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredGroupedOrders.length / pageSize) || 1}
+              totalItems={filteredGroupedOrders.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
         )
       ) : (
@@ -983,7 +1010,7 @@ export default function WorkOrderListPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredFlatData.map((row: any) => {
+                {paginatedFlatData.map((row: any) => {
                   const statusCat = getNormalizedStatus(row);
                   const displayDate = getDisplayDate(row);
 
@@ -1106,6 +1133,14 @@ export default function WorkOrderListPage() {
               </tbody>
             </table>
           </div>
+          <PaginationControl
+            currentPage={currentPage}
+            totalPages={Math.ceil(filteredFlatData.length / pageSize) || 1}
+            totalItems={filteredFlatData.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 
