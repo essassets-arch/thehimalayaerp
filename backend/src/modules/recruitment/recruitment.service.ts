@@ -152,6 +152,20 @@ export class RecruitmentService {
     const resolvedCompanyId = await this.getCompanyId(actor);
     const row = await this.prisma.$transaction(async (db) => {
       const year = new Date().getFullYear();
+
+      // Scan existing requests globally to ensure we start above any pre-seeded indents
+      const existingRequests = await db.recruitmentRequest.findMany({
+        select: { indentNumber: true },
+      });
+      let maxNum = 100;
+      for (const r of existingRequests) {
+        const match = r.indentNumber?.match(/RR-(\d+)/i);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (!isNaN(n) && n > maxNum) maxNum = n;
+        }
+      }
+
       const seq = await db.documentSequence.upsert({
         where: {
           companyId_documentType_year: {
@@ -165,15 +179,34 @@ export class RecruitmentService {
           documentType: 'RECRUITMENT',
           prefix: 'RR',
           year,
-          currentNumber: 101,
+          currentNumber: maxNum + 1,
         },
         update: { currentNumber: { increment: 1 } },
       });
+
+      let nextNumber = Math.max(seq.currentNumber, maxNum + 1);
+
+      // Guarantee unique indent number globally
+      let indentNumber = `RR-${nextNumber}`;
+      while (
+        await db.recruitmentRequest.findFirst({
+          where: { indentNumber },
+        })
+      ) {
+        nextNumber++;
+        indentNumber = `RR-${nextNumber}`;
+      }
+
+      await db.documentSequence.update({
+        where: { id: seq.id },
+        data: { currentNumber: nextNumber },
+      });
+
       return db.recruitmentRequest.create({
         data: {
           ...this.requestData(dto),
           companyId: resolvedCompanyId,
-          indentNumber: `RR-${seq.currentNumber}`,
+          indentNumber,
           requestedById: actor.sub,
           requestedByName: this.actorName(actor),
           requestedByRole: actor.role || 'PLANT_HEAD',
