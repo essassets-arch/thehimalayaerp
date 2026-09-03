@@ -340,12 +340,17 @@ export class ProductionWorkflowService {
         }
       }
 
-      return Array.from(grouped.values()).sort((a: any, b: any) => {
-        const numA = parseInt(String(a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
-        const numB = parseInt(String(b.orderNo || b.id || '').replace(/\D/g, '')) || 0;
-        if (numA && numB && numA !== numB) return numB - numA;
-        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      });
+      return Array.from(grouped.values())
+        .map((item) => ({
+          ...item,
+          _source: 'LIVE_DATABASE',
+        }))
+        .sort((a: any, b: any) => {
+          const numA = parseInt(String(a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
+          const numB = parseInt(String(b.orderNo || b.id || '').replace(/\D/g, '')) || 0;
+          if (numA && numB && numA !== numB) return numB - numA;
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        });
     } catch (err) {
       console.error('[ProductionWorkflow] getIncomingOrders failed:', err);
       return [];

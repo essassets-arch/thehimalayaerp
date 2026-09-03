@@ -658,6 +658,10 @@ export default function ProductionPortal() {
         },
       });
       const items = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      console.log('INCOMING ORDERS FROM API:', items);
+      if (typeof console.table === 'function' && items.length > 0) {
+        console.table(items);
+      }
       setBackendIncomingList(items);
     } catch (error) {
       console.error('[Production] Unable to load incoming orders:', error);
@@ -2284,7 +2288,7 @@ export default function ProductionPortal() {
 
   const renderIncomingOrders = () => {
     // Strictly render live database records from backend API
-    const planned = backendIncomingList || [];
+    const planned = Array.isArray(backendIncomingList) ? backendIncomingList : [];
 
     planned = [...planned].sort((a, b) => {
       const tA = new Date(a.createdAt || a.targetDate || 0).getTime();
