@@ -208,6 +208,42 @@ export class FilesService {
       }
     }
 
+    // 5. Fallback scan for partial name/UUID match in roots & subdirs
+    if (nameWithoutExt && nameWithoutExt.length >= 6) {
+      for (const root of roots) {
+        const checkDirs = category ? [category, ...subDirs] : subDirs;
+        for (const sub of checkDirs) {
+          const dirPath = join(root, sub);
+          if (existsSync(dirPath)) {
+            try {
+              const files = readdirSync(dirPath);
+              const matched = files.find(
+                (f) =>
+                  f.includes(nameWithoutExt) ||
+                  f.startsWith(nameWithoutExt),
+              );
+              if (matched) {
+                const fullPath = join(dirPath, matched);
+                const stats = statSync(fullPath);
+                if (stats.isFile()) {
+                  const foundExt = extname(matched).toLowerCase();
+                  return {
+                    fullPath,
+                    fileName: matched,
+                    mimeType:
+                      MIME_TYPES[foundExt] || 'application/octet-stream',
+                    size: stats.size,
+                  };
+                }
+              }
+            } catch {
+              // Continue search
+            }
+          }
+        }
+      }
+    }
+
     return null;
   }
 
