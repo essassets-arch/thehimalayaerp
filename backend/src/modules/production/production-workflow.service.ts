@@ -99,14 +99,9 @@ export class ProductionWorkflowService {
     try {
       const workOrders = await this.prisma.workOrder.findMany({
         where: {
-          OR: [
-            { status: 'CREATED' as any },
-            { status: 'PLANNED' as any },
-            { status: 'MATERIAL_PENDING' as any },
-            { status: 'READY' as any },
-            { workflowState: { code: 'CREATED' } },
-            { workflowState: { code: 'PLANNED' } },
-          ],
+          NOT: {
+            status: { in: ['COMPLETED', 'CANCELLED', 'CLOSED', 'ARCHIVED'] as any },
+          },
         },
         orderBy: { updatedAt: 'desc' },
         include: {
@@ -197,6 +192,83 @@ export class ProductionWorkflowService {
         grouped.set(orderId, existing);
       }
 
+      const activePlans = await this.prisma.productionPlan.findMany({
+        where: {
+          NOT: {
+            status: { in: ['COMPLETED', 'CANCELLED', 'ARCHIVED'] as any },
+          },
+        },
+        include: {
+          salesOrder: {
+            include: {
+              customer: true,
+              quotation: { include: { lead: true } },
+              sourceQuotation: { include: { lead: true } },
+              items: {
+                include: {
+                  product: true,
+                },
+              },
+            },
+          },
+          workOrders: true,
+        },
+      });
+
+      for (const plan of activePlans) {
+        const so = plan.salesOrder;
+        if (!so) continue;
+        const orderId = so.id || plan.salesOrderId || plan.id;
+        if (!grouped.has(orderId) && !grouped.has(so.orderNumber)) {
+          const lead = so.sourceQuotation?.lead || so.quotation?.lead;
+          const leadCustomer =
+            lead?.companyName ||
+            lead?.customerName ||
+            lead?.name ||
+            lead?.projectName ||
+            lead?.contactPerson;
+          const directCustomer =
+            so.customer?.companyName ||
+            so.customer?.name ||
+            so.customer?.contactPerson;
+          const resolvedCustomer =
+            so.customerName ||
+            so.customer_name ||
+            (so.quotationId || so.sourceQuotationId
+              ? leadCustomer || directCustomer
+              : directCustomer || leadCustomer) ||
+            so.companyName ||
+            so.clientName ||
+            'N/A';
+
+          const items = Array.isArray(so.items) ? so.items : [];
+          const detailedItems = items.map((i: any) => ({
+            productName: i.productNameSnapshot || i.product?.name || 'Item',
+            quantity: Number(i.orderedQuantity ?? i.quantity ?? 1),
+            unit: i.unit || 'Units',
+          }));
+          const totalQuantity = detailedItems.reduce((sum: number, it: any) => sum + it.quantity, 0);
+
+          grouped.set(orderId, {
+            id: so.id,
+            orderNo: so.orderNumber || so.orderNo || so.id,
+            customerName: resolvedCustomer,
+            detailedItems,
+            products: detailedItems.map((it: any) => it.productName).join(', ') || 'Custom Engineered Product',
+            estimatedQuantity: totalQuantity,
+            totalQuantity: totalQuantity,
+            targetDate: plan.plannedEndDate || so.requestedDeliveryDate || so.requiredDeliveryDate || '',
+            priority: plan.priority || 'Medium',
+            status: plan.status || so.workflowState?.code || so.status || 'PRODUCTION_PLANNED',
+            workflowStatus: plan.status || so.workflowState?.code || so.status || 'PRODUCTION_PLANNED',
+            productionPlanId: plan.id,
+            workOrderIds: plan.workOrders?.map((w: any) => w.id) || [],
+            hasBackendWorkOrder: (plan.workOrders?.length || 0) > 0,
+            createdAt: plan.createdAt || so.createdAt,
+          });
+        }
+      }
+
       const assignedSalesOrders: any[] = await this.prisma.salesOrder.findMany({
         where: {
           deletedAt: null,
@@ -206,11 +278,19 @@ export class ProductionWorkflowService {
             { status: 'READY_FOR_PRODUCTION' as any },
             { status: 'PLANT_HEAD_ACCEPTED' as any },
             { status: 'PLANNED' as any },
+            { status: 'SENT_TO_PLANT_HEAD' as any },
+            { status: 'SENT_TO_PLANT' as any },
+            { status: 'CONFIRMED' as any },
+            { status: 'APPROVED' as any },
             { workflowState: { code: 'PRODUCTION_PLANNED' } },
             { workflowState: { code: 'PLANT_APPROVED' } },
             { workflowState: { code: 'READY_FOR_PRODUCTION' } },
             { workflowState: { code: 'PLANT_HEAD_ACCEPTED' } },
             { workflowState: { code: 'PLANNED' } },
+            { workflowState: { code: 'SENT_TO_PLANT_HEAD' } },
+            { workflowState: { code: 'CONFIRMED' } },
+            { productionPlans: { some: {} } },
+            { allocations: { some: { allocationType: 'PRODUCTION_REQUIRED' } } },
           ],
         },
         orderBy: { createdAt: 'desc' },

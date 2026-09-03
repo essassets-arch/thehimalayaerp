@@ -2283,8 +2283,15 @@ export default function ProductionPortal() {
   };
 
   const renderIncomingOrders = () => {
-    // Strictly render live database records from backend API
-    let planned = backendIncomingList || [];
+    // Render live database records from backend API with robust state resolution
+    let planned = [];
+    if (backendIncomingList && backendIncomingList.length > 0) {
+      planned = backendIncomingList;
+    } else if (backendIncomingOrders && backendIncomingOrders.length > 0) {
+      planned = backendIncomingOrders;
+    } else if (incomingOrders && incomingOrders.length > 0) {
+      planned = incomingOrders;
+    }
 
     planned = [...planned].sort((a, b) => {
       const tA = new Date(a.createdAt || a.targetDate || 0).getTime();

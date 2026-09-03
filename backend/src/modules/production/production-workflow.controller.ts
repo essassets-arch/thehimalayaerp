@@ -27,6 +27,13 @@ export class ProductionWorkflowController {
     'production.floor.read',
     'production.plan.read',
     'production.productionworkflow.read',
+    'production.view',
+    'production.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'sales.orders.read',
+    'superadmin.read',
   )
   async getIncomingOrders(@Req() req: any, @Res({ passthrough: true }) res: any) {
     res.set({
