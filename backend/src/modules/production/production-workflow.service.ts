@@ -137,9 +137,10 @@ export class ProductionWorkflowService {
       const grouped = new Map<string, any>();
 
       for (const wo of workOrders) {
-        const plan = wo.productionPlan || ({} as any);
-        const salesOrder = plan.salesOrder || ({} as any);
-        const orderId = salesOrder.id || plan.salesOrderId || wo.id;
+        const woAny = wo as any;
+        const plan = woAny.productionPlan || {};
+        const salesOrder = plan.salesOrder || {};
+        const orderId = salesOrder.id || plan.salesOrderId || woAny.id;
         const lead = salesOrder.sourceQuotation?.lead || salesOrder.quotation?.lead;
         const leadCustomer =
           lead?.companyName ||
@@ -169,19 +170,19 @@ export class ProductionWorkflowService {
           products: '',
           estimatedQuantity: 0,
           totalQuantity: 0,
-          targetDate: plan.plannedEndDate || salesOrder.requiredDeliveryDate || '',
+          targetDate: plan.plannedEndDate || salesOrder.requestedDeliveryDate || salesOrder.requiredDeliveryDate || '',
           priority: plan.priority || 'Medium',
-          status: plan.status || wo.productionStatus || 'RELEASED',
-          workflowStatus: wo.workflowState?.code || plan.workflowState?.code || 'RELEASED',
+          status: plan.status || woAny.productionStatus || 'RELEASED',
+          workflowStatus: woAny.workflowState?.code || plan.workflowState?.code || 'RELEASED',
           productionPlanId: plan.id,
           workOrderIds: [],
           hasBackendWorkOrder: true,
-          createdAt: wo.createdAt || plan.createdAt || salesOrder.createdAt,
+          createdAt: woAny.createdAt || plan.createdAt || salesOrder.createdAt,
         };
 
-        const salesItem = salesOrder.items?.find((item: any) => item.id === wo.salesOrderItemId) || wo.salesOrderItem;
-        const productName = salesItem?.productNameSnapshot || salesItem?.product?.name || wo.salesOrderItem?.product?.name || 'Production Item';
-        const itemQuantity = Number(wo.quantity || salesItem?.orderedQuantity || 0);
+        const salesItem = salesOrder.items?.find((item: any) => item.id === woAny.salesOrderItemId) || woAny.salesOrderItem;
+        const productName = salesItem?.productNameSnapshot || salesItem?.product?.name || woAny.salesOrderItem?.product?.name || 'Production Item';
+        const itemQuantity = Number(woAny.quantity || salesItem?.orderedQuantity || 0);
 
         existing.detailedItems.push({
           productName,
@@ -191,24 +192,25 @@ export class ProductionWorkflowService {
         existing.products = [...new Set(existing.detailedItems.map((item: any) => item.productName))].join(', ');
         existing.estimatedQuantity += itemQuantity;
         existing.totalQuantity += itemQuantity;
-        existing.workOrderIds.push(wo.id);
+        existing.workOrderIds.push(woAny.id);
         grouped.set(orderId, existing);
       }
 
-      const assignedSalesOrders = await this.prisma.salesOrder.findMany({
+      const assignedSalesOrders: any[] = await this.prisma.salesOrder.findMany({
         where: {
+          deletedAt: null,
           OR: [
-            { planningStatus: 'PRODUCTION_PLANNED' as any },
-            { planningStatus: 'PLANT_APPROVED' as any },
-            { planningStatus: 'READY_FOR_PRODUCTION' as any },
-            { planningStatus: 'PLANT_HEAD_ACCEPTED' as any },
-            { planningStatus: 'PLANNED' as any },
+            { status: 'PRODUCTION_PLANNED' as any },
+            { status: 'PLANT_APPROVED' as any },
+            { status: 'READY_FOR_PRODUCTION' as any },
+            { status: 'PLANT_HEAD_ACCEPTED' as any },
+            { status: 'PLANNED' as any },
+            { workflowState: { code: 'PRODUCTION_PLANNED' } },
+            { workflowState: { code: 'PLANT_APPROVED' } },
+            { workflowState: { code: 'READY_FOR_PRODUCTION' } },
+            { workflowState: { code: 'PLANT_HEAD_ACCEPTED' } },
+            { workflowState: { code: 'PLANNED' } },
           ],
-          NOT: {
-            productionStatus: {
-              in: ['IN_PRODUCTION', 'PRODUCTION_STARTED', 'QC_PENDING', 'PRODUCTION_COMPLETED', 'COMPLETED'] as any,
-            },
-          },
         },
         orderBy: { createdAt: 'desc' },
         include: {
@@ -262,10 +264,10 @@ export class ProductionWorkflowService {
             products: detailedItems.map((it: any) => it.productName).join(', ') || 'Custom Engineered Product',
             estimatedQuantity: totalQuantity,
             totalQuantity: totalQuantity,
-            targetDate: so.requiredDeliveryDate || '',
+            targetDate: so.requestedDeliveryDate || so.requiredDeliveryDate || '',
             priority: 'Medium',
-            status: so.planningStatus || 'PRODUCTION_PLANNED',
-            workflowStatus: so.planningStatus || 'PRODUCTION_PLANNED',
+            status: so.workflowState?.code || so.status || 'PRODUCTION_PLANNED',
+            workflowStatus: so.workflowState?.code || so.status || 'PRODUCTION_PLANNED',
             workOrderIds: [],
             hasBackendWorkOrder: false,
             createdAt: so.createdAt,
