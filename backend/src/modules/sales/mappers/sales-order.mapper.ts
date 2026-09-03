@@ -379,6 +379,8 @@ export function mapSalesOrder(
     workflowStateCode: order.workflowState?.code,
     workflowStateName: order.workflowState?.name,
 
+    dispatches: order.dispatches || [],
+
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
     version: order.version,

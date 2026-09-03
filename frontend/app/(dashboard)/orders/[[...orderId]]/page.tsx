@@ -26,6 +26,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { backendFetch } from "@/lib/backendFetch";
+import { getBackendAssetUrl } from "@/lib/assetUrl";
 
 const statusColors: Record<string, { bg: string; color: string; border: string }> = {
   ORDER_CONFIRMED:    { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
@@ -332,9 +333,7 @@ export default function OrderDetailPage() {
 
   const resolvePodUrl = (url: string) => {
     if (!url) return "";
-    if (url.startsWith("http://") || url.startsWith("https://")) return url;
-    if (url.startsWith("/")) return url;
-    return `/${url}`;
+    return getBackendAssetUrl(url);
   };
 
   return (
@@ -666,22 +665,55 @@ export default function OrderDetailPage() {
                 <X size={16} />
               </button>
             </div>
-            <div style={{ padding: 16, textAlign: "center", maxHeight: "75vh", overflow: "auto" }}>
-              <img
-                src={selectedPodImage}
-                alt="Proof of Delivery"
-                style={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: 8, border: "1px solid #e2e8f0" }}
-              />
+            <div style={{ padding: 16, textAlign: "center", maxHeight: "75vh", overflow: "auto", background: "#f8fafc", minHeight: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {selectedPodImage.toLowerCase().includes(".pdf") ? (
+                <iframe
+                  src={selectedPodImage}
+                  style={{ width: "100%", height: "65vh", border: "none", borderRadius: 8 }}
+                  title="Proof of Delivery Document"
+                />
+              ) : (
+                <img
+                  src={selectedPodImage}
+                  alt="Proof of Delivery"
+                  style={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff" }}
+                  onError={(e: any) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.style.display = "none";
+                    const fallback = document.getElementById("order-pod-fallback-view");
+                    if (fallback) fallback.style.display = "flex";
+                  }}
+                />
+              )}
+              <div id="order-pod-fallback-view" style={{ display: "none", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 10, color: "#64748b" }}>
+                <FileText size={36} color="#3b82f6" />
+                <div style={{ fontWeight: 700, color: "#0f172a", fontSize: 14 }}>Proof of Delivery Document</div>
+                <div style={{ fontSize: 12, maxWidth: 360, lineHeight: 1.4 }}>
+                  This document cannot be rendered inline directly. Please open in a new tab or download to inspect.
+                </div>
+              </div>
             </div>
-            <div style={{ padding: "12px 20px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <a
-                href={selectedPodImage}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#2563eb", color: "#fff", textDecoration: "none", padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700 }}
-              >
-                <ExternalLink size={13} /> Open in New Tab
-              </a>
+            <div style={{ padding: "12px 20px", background: "#ffffff", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ fontSize: 11.5, color: "#64748b" }}>
+                Verified Handover Document
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <a
+                  href={selectedPodImage}
+                  download="proof-of-delivery"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f1f5f9", color: "#334155", textDecoration: "none", padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, border: "1px solid #cbd5e1" }}
+                >
+                  Download
+                </a>
+                <a
+                  href={selectedPodImage}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#2563eb", color: "#fff", textDecoration: "none", padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700 }}
+                >
+                  <ExternalLink size={13} /> Open in New Tab
+                </a>
+              </div>
             </div>
           </div>
         </div>

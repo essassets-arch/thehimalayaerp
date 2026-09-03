@@ -206,10 +206,14 @@ export default function AttendanceView({ employees: propEmployees }) {
       };
 
       const todayStr = getKolkataDateStr(new Date());
+      const yesterdayDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const yesterdayStr = getKolkataDateStr(yesterdayDate);
 
       let apiPath = `/attendance?mode=logs&from=${todayStr}&to=${todayStr}`;
       if (filterPeriod === 'today') {
         apiPath = `/attendance?mode=logs&from=${todayStr}&to=${todayStr}`;
+      } else if (filterPeriod === 'yesterday') {
+        apiPath = `/attendance?mode=logs&from=${yesterdayStr}&to=${yesterdayStr}`;
       } else if (filterPeriod === 'custom') {
         const cDate = customFilterDate || todayStr;
         apiPath = `/attendance?mode=logs&from=${cDate}&to=${cDate}`;
@@ -736,7 +740,15 @@ export default function AttendanceView({ employees: propEmployees }) {
           {/* METRIC CARDS GRID (4 / 2 / 2 / 1 Grid) */}
           <div className="erp-kpi-grid" style={{ marginBottom: '16px' }}>
             {[
-              { label: "Today's Total Logs", value: formattedLogs.length, sub: "Auto-synced from devices", bg: '#F8FAFC', border: '#E2E8F0', text: '#0F172A', icon: <Clock size={20} color="#475569" /> },
+              { 
+                label: filterPeriod === 'yesterday' ? "Yesterday's Total Logs" : filterPeriod === 'today' ? "Today's Total Logs" : filterPeriod === 'weekly' ? "Weekly Total Logs" : filterPeriod === 'monthly' ? "Monthly Total Logs" : "Total Punch Logs", 
+                value: formattedLogs.length, 
+                sub: filterPeriod === 'yesterday' ? "Yesterday's device punches" : "Auto-synced from devices", 
+                bg: '#F8FAFC', 
+                border: '#E2E8F0', 
+                text: '#0F172A', 
+                icon: <Clock size={20} color="#475569" /> 
+              },
               { label: "GPS Verified", value: formattedLogs.filter(l => l.coords).length, sub: "Auto-captured coordinate", bg: '#F0F9FF', border: '#BAE6FD', text: '#0369A1', icon: <MapPin size={20} color="#0284c7" /> },
               { label: "Biometric Selfies", value: formattedLogs.filter(l => l.selfieUrl || l.punchInSelfieUrl || l.punchOutSelfieUrl).length, sub: "Verified camera captures", bg: '#F5F3FF', border: '#DDD6FE', text: '#6D28D9', icon: <Camera size={20} color="#7c3aed" /> },
               { label: "Late Punches", value: formattedLogs.filter(l => l.status?.includes('Late')).length, sub: "Outside grace window", bg: '#FFFBEB', border: '#FDE68A', text: '#B45309', icon: <Shield size={20} color="#d97706" /> }
@@ -770,6 +782,7 @@ export default function AttendanceView({ employees: propEmployees }) {
                     <div className="hr-attendance-period-pills" style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', border: '1px solid #E2E8F0', flexWrap: 'wrap', gap: '2px' }}>
                       {[
                         { id: 'today', label: 'Today' },
+                        { id: 'yesterday', label: 'Yesterday' },
                         { id: 'weekly', label: 'Weekly' },
                         { id: 'monthly', label: 'Monthly' },
                         { id: 'custom', label: 'Custom' },
@@ -1120,7 +1133,49 @@ export default function AttendanceView({ employees: propEmployees }) {
                     </select>
                   </div>
                   <div>
-                    <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>Audit Target Date</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '11.5px', fontWeight: '700', color: '#334155' }}>Audit Target Date</label>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const today = new Date().toISOString().split('T')[0];
+                            setRosterInspectDate(today);
+                          }}
+                          style={{
+                            padding: '2px 8px',
+                            fontSize: '10.5px',
+                            fontWeight: '700',
+                            borderRadius: '4px',
+                            border: '1px solid #CBD5E1',
+                            background: '#F8FAFC',
+                            color: '#334155',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Today
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const y = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                            setRosterInspectDate(y);
+                          }}
+                          style={{
+                            padding: '2px 8px',
+                            fontSize: '10.5px',
+                            fontWeight: '700',
+                            borderRadius: '4px',
+                            border: '1px solid #CBD5E1',
+                            background: '#F8FAFC',
+                            color: '#334155',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Yesterday
+                        </button>
+                      </div>
+                    </div>
                     <input 
                       type="date" 
                       value={rosterInspectDate} 

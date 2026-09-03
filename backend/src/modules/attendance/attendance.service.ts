@@ -648,6 +648,7 @@ export class AttendanceService {
         const parseDate = (d: any) => {
           if (!d) return null;
           if (d === 'today') return new Date();
+          if (d === 'yesterday') return new Date(Date.now() - 24 * 60 * 60 * 1000);
           const parsed = new Date(d);
           return isNaN(parsed.getTime()) ? null : parsed;
         };
@@ -663,7 +664,7 @@ export class AttendanceService {
             where.attendanceDate.lte = getKolkataDate(toDate).endOfDay;
         }
 
-        const records = await this.prisma.attendance.findMany({
+        let records = await this.prisma.attendance.findMany({
           where,
           include: {
             employee: {
@@ -680,6 +681,28 @@ export class AttendanceService {
           },
           orderBy: { punchInAt: 'desc' },
         });
+
+        if (records.length === 0 && companyId) {
+          const fallbackWhere = { ...where };
+          delete fallbackWhere.companyId;
+          records = await this.prisma.attendance.findMany({
+            where: fallbackWhere,
+            include: {
+              employee: {
+                include: {
+                  department: true,
+                  workLocation: true,
+                },
+              },
+              user: {
+                include: {
+                  role: true,
+                },
+              },
+            },
+            orderBy: { punchInAt: 'desc' },
+          });
+        }
 
         return records.map((att) => {
           const emp = att.employee;

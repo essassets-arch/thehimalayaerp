@@ -69,6 +69,7 @@ export interface SalesOrderResponseDto {
   paymentSummary?: string;
   invoiceSummary?: string;
   remarks?: string;
+  dispatches?: any[];
 
   createdAt: string;
   updatedAt: string;
