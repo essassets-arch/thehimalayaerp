@@ -13,8 +13,12 @@ RUN apk add --no-cache libc6-compat
 # Copy package manifests
 COPY package.json package-lock.json* ./
 
-# Install dependencies reproducibly
-RUN npm install
+# Install dependencies reproducibly with network retry tolerances
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-factor 2 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm install --no-audit
 
 # Copy frontend source code
 COPY . .
