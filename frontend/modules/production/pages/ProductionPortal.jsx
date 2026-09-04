@@ -19,7 +19,7 @@ import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
 import OrderDetailsModal from '../../../shared/components/OrderDetailsModal';
 import PaginationControl from '../../../shared/components/PaginationControl';
-import { Play, CheckCircle2, PlusCircle, PackagePlus, X, CheckCircle, Clock, AlertCircle, Trash2, Layers, Grid, Box, Boxes, Wrench, Settings, Hammer, Activity, CircleDot, Search, Plus, ArrowLeft, Cpu, Pause, User, Truck, PackageCheck, RefreshCw, ShieldAlert, Printer, Edit, Eye, Package, ClipboardList, ClipboardCheck, Download, Briefcase } from 'lucide-react';
+import { Play, CheckCircle2, PlusCircle, PackagePlus, X, CheckCircle, Clock, AlertCircle, Trash2, Layers, Grid, Box, Boxes, Wrench, Settings, Hammer, Activity, CircleDot, Search, Plus, ArrowLeft, Cpu, Pause, User, Truck, PackageCheck, RefreshCw, ShieldAlert, Printer, Edit, Eye, Package, ClipboardList, ClipboardCheck, Download, Briefcase, History } from 'lucide-react';
 // BOM_MASTER removed (using dynamic database lookup)
 import ProductionMaterialCreateView from '../../../components/material-workflow/ProductionMaterialCreateView';
 import ProductionStoreReleasesView from '../../../components/material-workflow/ProductionStoreReleasesView';
@@ -460,8 +460,8 @@ export default function ProductionPortal() {
   if (view === 'production') view = 'dashboard';
 
   const navigate = useRouter();
-  const searchParams = useSearchParams(); const setSearchParams = (params) => { const url = new URL(window.location.href); Object.keys(params).forEach(k => { if (params[k]) url.searchParams.set(k, params[k]); else url.searchParams.delete(k); }); window.history.replaceState({}, '', url); };
-  const woIdParam = searchParams.get('woId');
+  const searchParams = useSearchParams(); const setSearchParams = (params) => { try { const url = new URL(window.location.href); Object.keys(params).forEach(k => { if (params[k]) url.searchParams.set(k, params[k]); else url.searchParams.delete(k); }); window.history.replaceState({}, '', url); } catch {} };
+  const woIdParam = searchParams?.get?.('woId') || null;
 
   const { state, dispatch, syncData } = useERP();
   const { salesOrders: backendSalesOrders, loadSalesOrders } = useSalesBackend();
@@ -490,7 +490,7 @@ export default function ProductionPortal() {
   const [woFilter, setWoFilter] = useState('Current');
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
   const [backendWorkOrders, setBackendWorkOrders] = useState([]);
-  const [mrTab, setMrTab] = useState(searchParams.get('tab') === 'history' ? 'Past' : 'Raise');
+  const [mrTab, setMrTab] = useState(searchParams?.get?.('tab') === 'history' ? 'Past' : 'Raise');
 
   // ── Machine Performance Module State ──
   const [machines, setMachines] = useState([]);
@@ -558,7 +558,7 @@ export default function ProductionPortal() {
   }, [view, machineStatusesDate, fetchMachineStatuses]);
 
   useEffect(() => {
-    setMrTab(searchParams.get('tab') === 'history' ? 'Past' : 'Raise');
+    setMrTab(searchParams?.get?.('tab') === 'history' ? 'Past' : 'Raise');
   }, [searchParams]);
 
   const handleAddMachineSubmit = async () => {
@@ -639,7 +639,10 @@ export default function ProductionPortal() {
     try {
       const saved = localStorage.getItem('himalaya_production_accepted_history');
       if (saved) {
-        setAcceptedHistory(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setAcceptedHistory(parsed);
+        }
       }
     } catch (e) {
       console.warn('[Production] Failed to parse accepted history from storage:', e);
@@ -2333,10 +2336,11 @@ export default function ProductionPortal() {
 
   const renderIncomingOrders = () => {
     // ── 1. Pending Incoming Orders List ──
-    const acceptedKeys = new Set((acceptedHistory || []).map(h => String(h.orderNo || h.id || '')));
-    const rawPlanned = Array.isArray(backendIncomingList) ? backendIncomingList : [];
+    const acceptedKeys = new Set((Array.isArray(acceptedHistory) ? acceptedHistory : []).filter(Boolean).map(h => String(h?.orderNo || h?.id || '')));
+    const rawPlanned = (Array.isArray(backendIncomingList) ? backendIncomingList : []).filter(Boolean);
 
     const pendingList = rawPlanned.filter(row => {
+      if (!row) return false;
       const key = String(row.orderNo || row.id || '');
       if (acceptedKeys.has(key)) return false;
       const status = String(row.status || row.workflowStatus || '').toUpperCase();
@@ -2345,65 +2349,68 @@ export default function ProductionPortal() {
       }
       return true;
     }).sort((a, b) => {
-      const tA = new Date(a.createdAt || a.targetDate || 0).getTime();
-      const tB = new Date(b.createdAt || b.targetDate || 0).getTime();
-      const numA = parseInt(String(a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
-      const numB = parseInt(String(b.orderNo || b.id || '').replace(/\D/g, '')) || 0;
+      const tA = new Date(a?.createdAt || a?.targetDate || 0).getTime();
+      const tB = new Date(b?.createdAt || b?.targetDate || 0).getTime();
+      const numA = parseInt(String(a?.orderNo || a?.id || '').replace(/\D/g, '')) || 0;
+      const numB = parseInt(String(b?.orderNo || b?.id || '').replace(/\D/g, '')) || 0;
       if (numA && numB && numA !== numB) return numB - numA;
       if (tA && tB && tA !== tB) return tB - tA;
-      return String(b.orderNo || b.id || '').localeCompare(String(a.orderNo || a.id || ''));
+      return String(b?.orderNo || b?.id || '').localeCompare(String(a?.orderNo || a?.id || ''));
     });
 
     // ── 2. Accepted / Processed History List ──
     const historyMap = new Map();
 
-    (acceptedHistory || []).forEach(item => {
-      const key = String(item.orderNo || item.id || '');
+    (Array.isArray(acceptedHistory) ? acceptedHistory : []).filter(Boolean).forEach(item => {
+      const key = String(item?.orderNo || item?.id || '');
       if (key) {
         historyMap.set(key, item);
       }
     });
 
-    (directBackendOrders || []).forEach(so => {
-      const status = String(so.status || so.workflowStatus || '').toUpperCase();
-      const hasWO = workOrders.some(wo => String(wo.orderNo) === String(so.orderNumber || so.id));
+    (Array.isArray(directBackendOrders) ? directBackendOrders : []).filter(Boolean).forEach(so => {
+      const status = String(so?.status || so?.workflowStatus || '').toUpperCase();
+      const hasWO = (workOrders || []).some(wo => wo && String(wo.orderNo) === String(so.orderNumber || so.id));
       if (
         hasWO ||
         ['IN_PRODUCTION', 'PRODUCTION_STARTED', 'PRODUCTION_ACCEPTED', 'ACCEPTED', 'QC_PENDING', 'QC_PASSED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'COMPLETED', 'PLANT_REJECTED'].includes(status)
       ) {
-        const key = String(so.orderNumber || so.orderNo || so.id || '');
+        const key = String(so?.orderNumber || so?.orderNo || so?.id || '');
         if (key && !historyMap.has(key)) {
+          const soItems = Array.isArray(so?.items) ? so.items.filter(Boolean) : [];
           historyMap.set(key, {
-            id: so.id,
-            orderNo: so.orderNumber || so.orderNo || so.id,
+            id: so?.id,
+            orderNo: so?.orderNumber || so?.orderNo || so?.id,
             customerName: resolveOrderCustomerName(so) || 'N/A',
-            detailedItems: so.items || [],
-            products: Array.isArray(so.items) ? so.items.map(i => i.productName || i.name).filter(Boolean).join(', ') : '',
-            productInterested: Array.isArray(so.items) ? so.items.map(i => i.productName || i.name).filter(Boolean).join(', ') : '',
-            estimatedQuantity: so.totalQuantity || so.quantity || (Array.isArray(so.items) ? so.items.reduce((sum, i) => sum + (Number(i.orderedQuantity || i.quantity || 0)), 0) : 0),
-            acceptedAt: so.updatedAt || so.createdAt || new Date().toISOString(),
+            detailedItems: soItems,
+            products: soItems.map(i => i.productName || i.name).filter(Boolean).join(', '),
+            productInterested: soItems.map(i => i.productName || i.name).filter(Boolean).join(', '),
+            estimatedQuantity: so?.totalQuantity || so?.quantity || soItems.reduce((sum, i) => sum + (Number(i.orderedQuantity || i.quantity || 0)), 0),
+            acceptedAt: so?.updatedAt || so?.createdAt || new Date().toISOString(),
             acceptedBy: 'Production Head',
             decisionStatus: status.includes('REJECT') ? 'REJECTED' : 'ACCEPTED',
-            status: so.status || 'IN_PRODUCTION',
-            workflowStatus: so.workflowStatus || 'IN_PRODUCTION',
+            status: so?.status || 'IN_PRODUCTION',
+            workflowStatus: so?.workflowStatus || 'IN_PRODUCTION',
           });
         }
       }
     });
 
-    const historyList = Array.from(historyMap.values()).sort((a, b) => {
-      const tA = new Date(a.acceptedAt || a.updatedAt || a.createdAt || 0).getTime();
-      const tB = new Date(b.acceptedAt || b.updatedAt || b.createdAt || 0).getTime();
+    const historyList = Array.from(historyMap.values()).filter(Boolean).sort((a, b) => {
+      const tA = new Date(a?.acceptedAt || a?.updatedAt || a?.createdAt || 0).getTime();
+      const tB = new Date(b?.acceptedAt || b?.updatedAt || b?.createdAt || 0).getTime();
       return tB - tA;
     });
 
     // ── 3. Search Filter & Pagination ──
     const filterBySearch = (list) => {
-      if (!globalSearch.trim()) return list;
+      if (!globalSearch || typeof globalSearch !== 'string' || !globalSearch.trim()) return list || [];
       const q = globalSearch.toLowerCase().trim();
-      return list.filter(row => {
+      return (list || []).filter(row => {
+        if (!row) return false;
         const custName = resolveOrderCustomerName(row) || row.customerName || '';
-        const prod = (row.productInterested || row.products || (Array.isArray(row.detailedItems) ? row.detailedItems.map(i => i.productName || i.name).join(' ') : '')).toLowerCase();
+        const prodRaw = row.productInterested || row.products || (Array.isArray(row.detailedItems) ? row.detailedItems.map(i => i?.productName || i?.name || '').join(' ') : '');
+        const prod = (Array.isArray(prodRaw) ? prodRaw.join(' ') : String(prodRaw || '')).toLowerCase();
         const ordNo = String(row.orderNo || row.id || '').toLowerCase();
         return custName.toLowerCase().includes(q) || prod.includes(q) || ordNo.includes(q);
       });
