@@ -792,7 +792,7 @@ export default function OrdersView({
                 if (filter === 'Delivered') {
                   return (
                     <tr key={o.id || o.orderNo}>
-                      <td data-label="Order No" className={styles.orderIdCol} style={{ fontWeight: 800, fontFamily: 'monospace' }}>{o.orderNo}</td>
+                      <td data-label="Order No" className={styles.orderIdCol} style={{ fontWeight: 800, fontFamily: 'monospace' }}>{o.orderNo || o.orderNumber}</td>
                       <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{resolveOrderCustomerName(o)}</td>
                       <td data-label="Delivery Date">{deliveryDate}</td>
                       <td data-label="Order Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
@@ -894,9 +894,9 @@ export default function OrdersView({
                     <td data-label="Order ID" className={styles.orderIdCol} style={{ fontWeight: '700' }}>
                       <span
                         style={{ color: '#1e40af', cursor: 'pointer', textDecoration: 'underline' }}
-                        onClick={() => navigate.push(`/orders/${o.orderNo}`)}
+                        onClick={() => navigate.push(`/orders/${o.orderNo || o.orderNumber}`)}
                       >
-                        {o.orderNo}
+                        {o.orderNo || o.orderNumber}
                       </span>
                     </td>
                     <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: '600' }}>

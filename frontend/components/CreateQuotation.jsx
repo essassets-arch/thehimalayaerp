@@ -849,7 +849,7 @@ export default function CreateQuotation({
             marginBottom: '20px'
           }}>
             <span style={{ fontSize: '16px' }}>📝</span>
-            <span>Editing Quotation <strong>#{editingQuotation.quotationNumber || editingQuotation.quotationNo || editingQuotation.id}</strong>{editingQuotation.leadId ? ` (Origin: Lead #${(() => {
+            <span>Editing Quotation <strong>{editingQuotation.quotationNumber || editingQuotation.quotationNo || (editingQuotation.id ? `#${editingQuotation.id}` : '')}</strong>{editingQuotation.leadId ? ` (Origin: Lead ${(() => {
               const leadObj = leads.find(l => l.id === editingQuotation.leadId);
               return leadObj?.leadNumber || displayEntityId(editingQuotation.leadId);
             })()})` : ''} — loading complete saved quotation details.</span>

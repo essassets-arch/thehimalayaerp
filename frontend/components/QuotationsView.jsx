@@ -435,7 +435,7 @@ export default function QuotationsView({
   const handleUpdateStatusClick = (qId, newStatus, textAction) => {
     Swal.fire({
       title: `${textAction} Quotation?`,
-      text: `Are you sure you want to set the status of quotation #${resolveQuotationNumber({ id: qId }).replace(/^#/, '')} to "${newStatus}"?`,
+      text: `Are you sure you want to set the status of quotation ${resolveQuotationNumber({ id: qId }).replace(/^#/, '')} to "${newStatus}"?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: `Yes, ${textAction}`,
@@ -459,7 +459,7 @@ export default function QuotationsView({
     const qNum = resolveQuotationNumber(qtn).replace(/^#/, '');
     Swal.fire({
       title: 'Book Purchase Order?',
-      text: `Are you sure you want to convert quotation #${qNum} into a Purchase Order for "${qtn.customerName}"?`,
+      text: `Are you sure you want to convert quotation ${qNum} into a Purchase Order for "${qtn.customerName}"?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Yes, Book Order',
@@ -486,7 +486,7 @@ export default function QuotationsView({
     const qNum = resolveQuotationNumber(qtn).replace(/^#/, '');
     Swal.fire({
       title: 'Send Quotation?',
-      text: `Send quotation #${qNum} to "${qtn.customerName}"?`,
+      text: `Send quotation ${qNum} to "${qtn.customerName}"?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Yes, Send',
@@ -818,7 +818,7 @@ export default function QuotationsView({
               ) : (
                 displayedQuotations.map((q) => (
                   <tr key={q.id}>
-                    <td style={{ fontWeight: '700', fontFamily: 'monospace' }}>#{resolveQuotationNumber(q).replace(/^#/, '')}</td>
+                    <td style={{ fontWeight: '700', fontFamily: 'monospace' }}>{resolveQuotationNumber(q).replace(/^#/, '')}</td>
                     <td style={{ fontWeight: '600' }}>{resolveQuotationCustomerName(q)}</td>
                     <td>{renderQuotationProducts(q)}</td>
                     <td style={{ textAlign: 'right', fontWeight: '700', color: '#dc2626' }}>{formatINR(quotationTotal(q))}</td>
@@ -874,7 +874,7 @@ export default function QuotationsView({
               ) : (
                 displayedQuotations.map((q) => (
                   <tr key={q.id}>
-                    <td data-label="Quotation ID" style={{ fontWeight: '700' }}>#{resolveQuotationNumber(q).replace(/^#/, '')}</td>
+                    <td data-label="Quotation ID" style={{ fontWeight: '700' }}>{resolveQuotationNumber(q).replace(/^#/, '')}</td>
                     <td data-label="Customer Name" style={{ fontWeight: '600' }}>{resolveQuotationCustomerName(q)}</td>
                     <td data-label="Product / Items">{renderQuotationProducts(q)}</td>
                     <td data-label="Total Value" style={{ fontWeight: '700' }}>{formatINR(quotationTotal(q))}</td>
@@ -998,7 +998,7 @@ export default function QuotationsView({
                   {/* Header Row: Quotation ID + Status Badge + 3-dot More */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                     <span onClick={() => setSelectedQuotation(q)} style={{ fontSize: '13px', fontWeight: '800', color: '#1e3a8a', cursor: 'pointer' }}>
-                      #{resolveQuotationNumber(q).replace(/^#/, '')}
+                      {resolveQuotationNumber(q).replace(/^#/, '')}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{ 
