@@ -26,6 +26,7 @@ COPY src ./src
 COPY scripts ./scripts
 
 # Build NestJS production bundle to dist/
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN npm run build
 
 # Prune devDependencies for lean runtime

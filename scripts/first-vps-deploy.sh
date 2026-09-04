@@ -39,8 +39,11 @@ fi
 
 # 2. Build Docker images
 echo ""
-echo "📦 Step 1: Building Docker images..."
-docker compose build
+echo "📦 Step 1: Building Docker images sequentially..."
+echo "  ↳ Building backend image..."
+docker compose build backend
+echo "  ↳ Building frontend image..."
+docker compose build frontend
 
 # 3. Start PostgreSQL and wait for health
 echo ""

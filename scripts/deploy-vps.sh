@@ -9,8 +9,13 @@ catch_error() {
     local line_number=$2
     echo ""
     echo "❌ DEPLOYMENT FAILED at line ${line_number} with exit code ${exit_code}!"
-    echo "🔍 Recent service logs:"
-    docker compose logs --tail=100 backend migrate || true
+    if [ "${line_number}" -le 50 ]; then
+        echo "💡 If build failed with exit code 255/137, your VPS likely ran out of RAM."
+        echo "   Ensure at least 2GB of Swap is enabled: sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile"
+    else
+        echo "🔍 Recent service logs:"
+        docker compose logs --tail=100 backend migrate || true
+    fi
     exit "${exit_code}"
 }
 trap 'catch_error $? $LINENO' ERR
@@ -28,13 +33,24 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
+# Check available memory and swap on Linux
+if [ -f /proc/meminfo ]; then
+    swap_total=$(grep -i SwapTotal /proc/meminfo | awk '{print $2}')
+    if [ -n "$swap_total" ] && [ "$swap_total" -lt 1000000 ]; then
+        echo "⚠️ Warning: VPS Swap is low (< 1GB). If Next.js build is killed, please add 2GB swap."
+    fi
+fi
+
 echo "📥 Step 1: Pulling latest changes from Git..."
 git checkout scripts/deploy-vps.sh 2>/dev/null || true
 git pull --ff-only || (git stash && git pull --ff-only)
 
 echo ""
-echo "📦 Step 2: Building updated Docker images..."
-docker compose build
+echo "📦 Step 2: Building updated Docker images sequentially..."
+echo "  ↳ Building backend image..."
+docker compose build backend
+echo "  ↳ Building frontend image..."
+docker compose build frontend
 
 echo ""
 echo "🗄️ Step 3: Ensuring PostgreSQL is healthy..."

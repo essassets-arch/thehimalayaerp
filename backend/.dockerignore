@@ -12,6 +12,8 @@ pnpm-debug.log*
 uploads/*
 !uploads/.gitkeep
 README.md
+scratch*
+scratch/*
 *.log
 *.tmp
 tmp
