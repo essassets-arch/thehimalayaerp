@@ -10,7 +10,7 @@ frontend/out/
 
 # NestJS
 backend/dist/
-backend/dist-seed/
+backend/dist-seed/  
 backend/coverage/
 
 # Environment files
@@ -61,4 +61,4 @@ playwright-report/
 *firebase-service-account*.json
 firebase-service-account.json
 backend/firebase-service-account.json
-frontend/public/firebase-messaging-sw.js
+frontend/public/firebase-messaging-sw.js
