@@ -16,10 +16,11 @@ async function run() {
   const s1 = await prisma.user.findFirst({ where: { email: { equals: 'sales1@himalayaerp.com', mode: 'insensitive' } } });
   const s6 = await prisma.user.findFirst({ where: { email: { equals: 'sales6@himalayaerp.com', mode: 'insensitive' } } });
   const s11 = await prisma.user.findFirst({ where: { email: { equals: 'sales11@himalayaerp.com', mode: 'insensitive' } } });
+  const s12 = await prisma.user.findFirst({ where: { email: { equals: 'sales12@himalayaerp.com', mode: 'insensitive' } } });
   const s13 = await prisma.user.findFirst({ where: { email: { equals: 'sales13@himalayaerp.com', mode: 'insensitive' } } });
 
-  // Delete imported leads for SS2, S2, S4, S1, S6, S11, S13 to reset sequence cleanly
-  const userIdsToDelete = [ss2?.id, s2?.id, s4?.id, s1?.id, s6?.id, s11?.id, s13?.id].filter(Boolean);
+  // Delete imported leads for SS2, S2, S4, S1, S6, S11, S12, S13 to reset sequence cleanly
+  const userIdsToDelete = [ss2?.id, s2?.id, s4?.id, s1?.id, s6?.id, s11?.id, s12?.id, s13?.id].filter(Boolean);
   await prisma.lead.deleteMany({
     where: {
       OR: [
@@ -43,7 +44,7 @@ async function run() {
 
   console.log('Reset sequence to 159.');
 
-  // Now run SS2, S2, S4, S1, S6, S11, S13 in strict sequence
+  // Now run SS2, S2, S4, S1, S6, S11, S12, S13 in strict sequence
   const scripts = [
     'import_supersales2_runner.js',
     'import_sales2_runner.js',
@@ -51,6 +52,7 @@ async function run() {
     'import_sales1_runner.js',
     'import_sales6_runner.js',
     'import_sales11_runner.js',
+    'import_sales12_runner.js',
     'import_sales13_runner.js'
   ];
 
