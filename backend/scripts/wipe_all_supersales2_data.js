@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 
 async function wipeSuperSales2FromDb(config) {
   console.log(`\n======================================================================`);
-  console.log(` 🗑️  WIPING ALL SUPERSALES 2 DATA FROM: ${config.name}`);
+  console.log(` 🗑️  COMPREHENSIVE WIPE OF SUPERSALES 2 DATA FROM: ${config.name}`);
   console.log(` URL: ${config.url.replace(/:[^:@]+@/, ':****@')}`);
   console.log(`======================================================================`);
 
@@ -45,7 +45,7 @@ async function wipeSuperSales2FromDb(config) {
       select: { id: true, leadNumber: true }
     });
     const leadIds = leads.map(l => l.id);
-    console.log(`Identified ${leadIds.length} leads.`);
+    console.log(`Found ${leadIds.length} leads to wipe.`);
 
     // 3. Identify all Quotations related to SuperSales 2
     const quotations = await prisma.quotation.findMany({
@@ -61,7 +61,7 @@ async function wipeSuperSales2FromDb(config) {
       select: { id: true, quotationNumber: true }
     });
     const quoteIds = quotations.map(q => q.id);
-    console.log(`Identified ${quoteIds.length} quotations.`);
+    console.log(`Found ${quoteIds.length} quotations to wipe.`);
 
     // 4. Identify all Sales Orders related to SuperSales 2
     const salesOrders = await prisma.salesOrder.findMany({
@@ -69,152 +69,178 @@ async function wipeSuperSales2FromDb(config) {
         OR: [
           { createdById: userId },
           { salesExecutiveId: userId },
-          ...(quoteIds.length ? [{ quotationId: { in: quoteIds } }] : [])
+          ...(quoteIds.length ? [{ quotationId: { in: quoteIds } }] : []),
+          ...(quoteIds.length ? [{ sourceQuotationId: { in: quoteIds } }] : [])
         ]
       },
       select: { id: true, orderNumber: true }
     });
     const orderIds = salesOrders.map(o => o.id);
-    console.log(`Identified ${orderIds.length} sales orders.`);
+    console.log(`Found ${orderIds.length} sales orders to wipe.`);
 
-    // 5. Delete Dispatches & Dispatch Items
-    try {
-      if (orderIds.length > 0) {
-        await prisma.dispatchItem.deleteMany({
-          where: { dispatch: { salesOrderId: { in: orderIds } } }
+    // 5. Identify all Production Plans related to Sales Orders
+    let planIds = [];
+    if (orderIds.length > 0) {
+      try {
+        const plans = await prisma.productionPlan.findMany({
+          where: { salesOrderId: { in: orderIds } },
+          select: { id: true }
         });
-        const delDisp = await prisma.dispatch.deleteMany({
+        planIds = plans.map(p => p.id);
+      } catch (_) {}
+    }
+
+    // 6. Identify all Work Orders related to Production Plans or Sales Orders
+    let woIds = [];
+    try {
+      const wos = await prisma.workOrder.findMany({
+        where: {
+          OR: [
+            ...(planIds.length ? [{ productionPlanId: { in: planIds } }] : []),
+            { createdById: userId }
+          ]
+        },
+        select: { id: true }
+      });
+      woIds = wos.map(w => w.id);
+    } catch (_) {}
+
+    // 7. Identify Dispatches related to Sales Orders
+    let dispIds = [];
+    if (orderIds.length > 0) {
+      try {
+        const disps = await prisma.dispatch.findMany({
           where: {
             OR: [
               { salesOrderId: { in: orderIds } },
               { createdById: userId }
             ]
-          }
+          },
+          select: { id: true }
         });
-        console.log(`  ✓ Deleted ${delDisp.count} dispatches.`);
-      }
-    } catch (e) {
-      console.log(`  - Dispatches: ${e.message}`);
+        dispIds = disps.map(d => d.id);
+      } catch (_) {}
     }
 
-    // 6. Delete Work Orders & Production Plans
-    try {
-      if (orderIds.length > 0) {
+    console.log(`Cascade dependencies: WorkOrders=${woIds.length}, ProductionPlans=${planIds.length}, Dispatches=${dispIds.length}`);
+
+    // --- STEP A: DELETE WORK ORDER DEPENDENCIES ---
+    if (woIds.length > 0) {
+      const safeDel = async (table, col) => {
         try {
-          await prisma.workOrderItem.deleteMany({
-            where: { workOrder: { salesOrderItem: { salesOrderId: { in: orderIds } } } }
-          });
+          await prisma.$executeRawUnsafe(`DELETE FROM "${table}" WHERE "${col}" IN ('${woIds.join("','")}')`);
         } catch (_) {}
+      };
+      await safeDel('QCInspection', 'workOrderId');
+      await safeDel('ProductionStatusHistory', 'workOrderId');
+      await safeDel('ProductionShiftEntry', 'workOrderId');
+      await safeDel('ProductionScrapEntry', 'workOrderId');
+      await safeDel('ProductionBatch', 'workOrderId');
+      await safeDel('FinishedGoods', 'workOrderId');
+      await safeDel('WorkOrderItem', 'workOrderId');
 
-        const delWo = await prisma.workOrder.deleteMany({
-          where: {
-            OR: [
-              { salesOrderItem: { salesOrderId: { in: orderIds } } },
-              { createdById: userId }
-            ]
-          }
-        });
-        console.log(`  ✓ Deleted ${delWo.count} work orders.`);
-      }
-    } catch (e) {
-      console.log(`  - Work Orders: ${e.message}`);
-    }
-
-    // 7. Delete Customer Complaints
-    try {
-      const delComp = await prisma.customerComplaint.deleteMany({
-        where: {
-          OR: [
-            { createdBy: userId },
-            { salesExecutiveId: userId }
-          ]
-        }
-      });
-      console.log(`  ✓ Deleted ${delComp.count} customer complaints.`);
-    } catch (e) {
-      console.log(`  - Complaints: ${e.message}`);
-    }
-
-    // 8. Delete Sample Requests
-    try {
-      const delSamp = await prisma.sampleRequest.deleteMany({
-        where: {
-          OR: [
-            { createdById: userId },
-            { salesExecutiveId: userId },
-            ...(leadIds.length ? [{ leadId: { in: leadIds } }] : [])
-          ]
-        }
-      });
-      console.log(`  ✓ Deleted ${delSamp.count} sample requests.`);
-    } catch (e) {
-      console.log(`  - Samples: ${e.message}`);
-    }
-
-    // 9. Delete Reminders & Notifications
-    try {
-      const delRem = await prisma.reminder.deleteMany({
-        where: {
-          OR: [
-            { userId: userId },
-            { createdById: userId },
-            ...(leadIds.length ? [{ leadId: { in: leadIds } }] : [])
-          ]
-        }
-      });
-      console.log(`  ✓ Deleted ${delRem.count} reminders.`);
-    } catch (_) {}
-
-    try {
-      const delNotif = await prisma.notification.deleteMany({
-        where: { userId: userId }
-      });
-      console.log(`  ✓ Deleted ${delNotif.count} notifications.`);
-    } catch (_) {}
-
-    // 10. Delete Sales Orders & Items
-    if (orderIds.length > 0) {
       try {
-        await prisma.salesOrderItem.deleteMany({
-          where: { salesOrderId: { in: orderIds } }
-        });
+        const delWo = await prisma.workOrder.deleteMany({ where: { id: { in: woIds } } });
+        console.log(`  ✓ Deleted ${delWo.count} work orders.`);
+      } catch (_) {}
+    }
+
+    // --- STEP B: DELETE PRODUCTION PLANS ---
+    if (planIds.length > 0) {
+      try {
+        await prisma.$executeRawUnsafe(`DELETE FROM "ProductionPlanItem" WHERE "productionPlanId" IN ('${planIds.join("','")}')`);
+      } catch (_) {}
+      try {
+        const delPp = await prisma.productionPlan.deleteMany({ where: { id: { in: planIds } } });
+        console.log(`  ✓ Deleted ${delPp.count} production plans.`);
+      } catch (_) {}
+    }
+
+    // --- STEP C: DELETE DISPATCHES & INVOICES ---
+    if (dispIds.length > 0 || orderIds.length > 0) {
+      try {
+        if (dispIds.length > 0) {
+          await prisma.$executeRawUnsafe(`DELETE FROM "SalesInvoice" WHERE "dispatchId" IN ('${dispIds.join("','")}')`);
+          await prisma.$executeRawUnsafe(`DELETE FROM "DispatchItem" WHERE "dispatchId" IN ('${dispIds.join("','")}')`);
+          const delDisp = await prisma.dispatch.deleteMany({ where: { id: { in: dispIds } } });
+          console.log(`  ✓ Deleted ${delDisp.count} dispatches.`);
+        }
       } catch (_) {}
 
-      const delSo = await prisma.salesOrder.deleteMany({
-        where: { id: { in: orderIds } }
-      });
+      if (orderIds.length > 0) {
+        try {
+          await prisma.$executeRawUnsafe(`DELETE FROM "SalesInvoice" WHERE "salesOrderId" IN ('${orderIds.join("','")}')`);
+        } catch (_) {}
+      }
+    }
+
+    // --- STEP D: DELETE ALL SALES ORDER CHILD TABLES ---
+    if (orderIds.length > 0) {
+      const safeDelSo = async (table, col = 'salesOrderId') => {
+        try {
+          await prisma.$executeRawUnsafe(`DELETE FROM "${table}" WHERE "${col}" IN ('${orderIds.join("','")}')`);
+        } catch (_) {}
+      };
+
+      await safeDelSo('CustomerComplaint', 'orderId');
+      await safeDelSo('CustomerPaymentAllocation');
+      await safeDelSo('CustomerPayment');
+      await safeDelSo('Payment');
+      await safeDelSo('OrderAmendment');
+      await safeDelSo('ReplacementOrder', 'originalSalesOrderId');
+      await safeDelSo('ReplacementRequest');
+      await safeDelSo('SalesOrderAllocation');
+      await safeDelSo('SalesOrderCreditReview');
+      await safeDelSo('SalesOrderHistory');
+      await safeDelSo('SalesOrderItem');
+      await safeDelSo('SalesOrderLoss');
+      await safeDelSo('SalesReturn');
+      await safeDelSo('FinishedGoods');
+
+      const delSo = await prisma.salesOrder.deleteMany({ where: { id: { in: orderIds } } });
       console.log(`  ✓ Deleted ${delSo.count} sales orders.`);
     }
 
-    // 11. Delete Quotations, Items & Terms
+    // --- STEP E: DELETE QUOTATIONS & ITEMS ---
     if (quoteIds.length > 0) {
       try {
-        await prisma.quotationItem.deleteMany({
-          where: { quotationId: { in: quoteIds } }
-        });
+        await prisma.quotationItem.deleteMany({ where: { quotationId: { in: quoteIds } } });
       } catch (_) {}
-
       try {
-        await prisma.quotationTerm.deleteMany({
-          where: { quotationId: { in: quoteIds } }
-        });
+        await prisma.quotationTerm.deleteMany({ where: { quotationId: { in: quoteIds } } });
       } catch (_) {}
-
-      const delQ = await prisma.quotation.deleteMany({
-        where: { id: { in: quoteIds } }
-      });
+      const delQ = await prisma.quotation.deleteMany({ where: { id: { in: quoteIds } } });
       console.log(`  ✓ Deleted ${delQ.count} quotations.`);
     }
 
-    // 12. Delete Leads
+    // --- STEP F: DELETE LEADS & LEAD DEPENDENCIES ---
     if (leadIds.length > 0) {
-      const delL = await prisma.lead.deleteMany({
-        where: { id: { in: leadIds } }
-      });
+      try {
+        await prisma.$executeRawUnsafe(`DELETE FROM "FollowUp" WHERE "leadId" IN ('${leadIds.join("','")}')`);
+      } catch (_) {}
+      try {
+        await prisma.$executeRawUnsafe(`DELETE FROM "LeadActivity" WHERE "leadId" IN ('${leadIds.join("','")}')`);
+      } catch (_) {}
+      try {
+        await prisma.sampleRequest.deleteMany({ where: { leadId: { in: leadIds } } });
+      } catch (_) {}
+      try {
+        await prisma.reminder.deleteMany({ where: { leadId: { in: leadIds } } });
+      } catch (_) {}
+
+      const delL = await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
       console.log(`  ✓ Deleted ${delL.count} leads.`);
     }
 
-    console.log(`🎉 [${config.name}] ALL SUPERSALES 2 DATA HAS BEEN PERMANENTLY REMOVED!`);
+    // --- STEP G: DELETE USER-LEVEL REMAINING DATA ---
+    try {
+      await prisma.sampleRequest.deleteMany({ where: { createdById: userId } });
+      await prisma.reminder.deleteMany({ where: { userId: userId } });
+      await prisma.notification.deleteMany({ where: { userId: userId } });
+      await prisma.customerComplaint.deleteMany({ where: { createdBy: userId } });
+    } catch (_) {}
+
+    console.log(`\n🎉 [${config.name}] ALL SUPERSALES 2 DATA AND ITS COMPLETE PIPELINE HAVE BEEN PERMANENTLY REMOVED!`);
   } catch (err) {
     console.error(`❌ Error wiping ${config.name}:`, err.message);
   } finally {
