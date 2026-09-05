@@ -8,7 +8,9 @@ const dbs = isProd
       { name: 'Production DB', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public' }
     ]
   : [
-      { name: 'Active DB (DATABASE_URL)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' }
+      { name: 'Active DB (DATABASE_URL)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+      { name: 'Docker DB (5435)', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public' },
+      { name: 'Local Main DB (5432)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
     ];
 
 function parseCSV(content: string): string[][] {
@@ -200,7 +202,14 @@ async function processDb(db: typeof dbs[0], consolidatedLeads: any[]) {
   console.log(` RUNNING SUPERSALES 2 IMPORT ON: ${db.name}`);
   console.log(`======================================================`);
 
-  const prisma = new PrismaClient({ datasources: { db: { url: db.url } } });
+  let prisma: PrismaClient;
+  try {
+    prisma = new PrismaClient({ datasources: { db: { url: db.url } } });
+    await prisma.$connect();
+  } catch (err: any) {
+    console.warn(`⚠️ Could not connect to ${db.name}: ${err.message}. Skipping.`);
+    return;
+  }
 
   try {
     // 1. Resolve SuperSales 2 User
@@ -215,14 +224,29 @@ async function processDb(db: typeof dbs[0], consolidatedLeads: any[]) {
     const userId = user.id;
     console.log(`Resolved SuperSales 2 user: ${user.name} (${user.id})`);
 
-    // 2. Clear only previously imported CSV leads for supersales2 (preserving manual/live leads)
-    const cleared = await prisma.lead.deleteMany({
+    // 2. Clear previous SuperSales 2 CSV leads and CSV quotations
+    const clearedQuotes = await prisma.quotation.deleteMany({
       where: {
-        createdById: userId,
-        remarks: 'Imported from Taher Sir Super Sales 2 CSV'
+        OR: [
+          { createdById: userId, remarks: { contains: 'SuperSales 2', mode: 'insensitive' } },
+          { salesExecutiveId: userId, remarks: { contains: 'SuperSales 2', mode: 'insensitive' } },
+          { remarks: 'Imported from Taher Sir Super Sales 2 CSV' },
+          { remarks: 'Imported from SuperSales 2 CSV' }
+        ]
       }
     });
-    console.log(`Refreshed ${cleared.count} previously imported CSV leads for SuperSales 2. All other live data preserved.`);
+    console.log(`Cleared ${clearedQuotes.count} previously imported CSV quotations for SuperSales 2.`);
+
+    const clearedLeads = await prisma.lead.deleteMany({
+      where: {
+        OR: [
+          { createdById: userId, remarks: 'Imported from Taher Sir Super Sales 2 CSV' },
+          { salesExecutiveId: userId, remarks: 'Imported from Taher Sir Super Sales 2 CSV' },
+          { remarks: 'Imported from Taher Sir Super Sales 2 CSV' }
+        ]
+      }
+    });
+    console.log(`Cleared ${clearedLeads.count} previously imported CSV leads for SuperSales 2.`);
 
     // 3. Resolve default company and initial workflow state
     const companyId = user.companyId || (await prisma.company.findFirst())?.id;
@@ -231,33 +255,28 @@ async function processDb(db: typeof dbs[0], consolidatedLeads: any[]) {
       return;
     }
 
-    const workflowState = await prisma.workflowState.findFirst({
+    const leadWorkflowState = await prisma.workflowState.findFirst({
       where: { workflow: { code: 'LEAD' }, isInitial: true }
     }) || await prisma.workflowState.findFirst({
       where: { workflow: { code: 'LEAD' } }
     });
-    const workflowStateId = workflowState ? workflowState.id : null;
+    const leadWorkflowStateId = leadWorkflowState ? leadWorkflowState.id : null;
+
+    const quoteWorkflowState = await prisma.workflowState.findFirst({
+      where: { workflow: { code: 'QUOTATION' }, isInitial: true }
+    }) || await prisma.workflowState.findFirst({
+      where: { workflow: { code: 'QUOTATION' } }
+    });
+    const quoteWorkflowStateId = quoteWorkflowState ? quoteWorkflowState.id : null;
 
     // 4. Resolve all products for matching
     const products = await prisma.product.findMany();
     console.log(`Loaded ${products.length} products from catalog.`);
 
-    // 5. Determine highest existing lead sequence number
-    const existingLeads = await prisma.lead.findMany({ select: { leadNumber: true } });
-    let maxLeadNum = 0;
-    for (const l of existingLeads) {
-      if (l.leadNumber) {
-        const match = l.leadNumber.match(/(?:LEAD(?:\/\d{4}\/|-)|HCCL\/\d{4}\/)(\d{1,6})$/i);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num < 1000000 && num > maxLeadNum) maxLeadNum = num;
-        }
-      }
-    }
-    console.log(`Highest existing lead number sequence: ${maxLeadNum}`);
-    let sequenceCounter = maxLeadNum + 1;
+    // 5. Sequence starts at 145 for SuperSales 2
+    let sequenceCounter = 145;
 
-    console.log(`Seeding ${consolidatedLeads.length} consolidated leads for SuperSales 2...`);
+    console.log(`Seeding ${consolidatedLeads.length} strictly deduplicated accounts for SuperSales 2...`);
     let successCount = 0;
 
     for (const gl of consolidatedLeads) {
@@ -293,10 +312,10 @@ async function processDb(db: typeof dbs[0], consolidatedLeads: any[]) {
       const leadDateObj = parseCsvDate(gl.lead_date);
       const parsedAddress = parseAddressObj(gl.address, gl.state, gl.city, gl.pincode);
 
-      const leadYear = leadDateObj.getFullYear();
-      const yy = String(leadYear).substring(2);
-      const ny = String(leadYear + 1).substring(2);
-      const leadNumber = `LEAD/${yy}${ny}/${String(sequenceCounter++).padStart(4, '0')}`;
+      const seqStr = String(sequenceCounter).padStart(4, '0');
+      const leadNumber = `LEAD/2627/${seqStr}`;
+      const quoteNumber = `QU/2627/${seqStr}`;
+      sequenceCounter++;
 
       const primaryProduct = detailedItems[0] || {};
       const productInterestStr = detailedItems.length === 1
@@ -323,18 +342,64 @@ async function processDb(db: typeof dbs[0], consolidatedLeads: any[]) {
         estimatedQuantity: new Prisma.Decimal(totalQty || 1),
         unit: 'SET',
         remarks: 'Imported from Taher Sir Super Sales 2 CSV',
-        workflowStateId: workflowStateId,
+        workflowStateId: leadWorkflowStateId,
         assignedToId: userId,
         salesExecutiveId: userId,
         createdById: userId,
         companyId: companyId
       };
 
-      await prisma.lead.create({ data: leadData });
+      const createdLead = await prisma.lead.create({ data: leadData });
+
+      // Create matching Quotation
+      const subtotal = detailedItems.reduce((acc: number, item: any) => acc + (Number(item.subTotal) || 0), 0);
+      const tax = detailedItems.reduce((acc: number, item: any) => acc + (Number(item.gstAmount) || 0), 0);
+      const discount = detailedItems.reduce((acc: number, item: any) => acc + (Number(item.discount) || 0), 0);
+      const grandTotal = detailedItems.reduce((acc: number, item: any) => acc + (Number(item.grandTotal) || 0), 0);
+      const defaultProdId = products[0]?.id;
+
+      await prisma.quotation.create({
+        data: {
+          quotationNumber: quoteNumber,
+          companyId: companyId,
+          workflowStateId: quoteWorkflowStateId,
+          leadId: createdLead.id,
+          salesExecutiveId: userId,
+          createdById: userId,
+          subtotal: subtotal,
+          discount: discount,
+          tax: tax,
+          total: grandTotal,
+          remarks: 'Imported from Taher Sir Super Sales 2 CSV',
+          version: 1,
+          createdAt: leadDateObj,
+          items: {
+            create: detailedItems.map((item: any) => ({
+              productId: item.productId || defaultProdId,
+              description: item.productName || item.specification || 'FRP Product',
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discount: item.discount,
+              tax: item.gstAmount,
+              lineTotal: item.grandTotal
+            }))
+          },
+          selectedTerms: {
+            create: [
+              { termId: 'payment-terms', text: 'Payment Terms', sortOrder: 1 },
+              { termId: 'unloading-breakage', text: 'Unloading at Client scope & breakage risk & responsibility', sortOrder: 2 },
+              { termId: 'delivery-timeline', text: 'Delivery timeline', sortOrder: 3 },
+              { termId: 'jurisdiction', text: 'Any Dispute Shall Be Subject To Ahmedabad Jurisdiction', sortOrder: 4 },
+              { termId: 'manufacturer-test-report', text: 'Manufacturer Test Report shall be provided', sortOrder: 5 }
+            ]
+          }
+        }
+      });
+
       successCount++;
     }
 
-    // Update idSequence for next leads (both FY key and generic key)
+    // Update idSequence
     const currentFY = '2627';
     await prisma.idSequence.upsert({
       where: { key: `lead_number_${currentFY}` },
@@ -342,14 +407,17 @@ async function processDb(db: typeof dbs[0], consolidatedLeads: any[]) {
       create: { key: `lead_number_${currentFY}`, nextValue: sequenceCounter }
     });
     await prisma.idSequence.upsert({
+      where: { key: `quotation_number_${currentFY}` },
+      update: { nextValue: sequenceCounter },
+      create: { key: `quotation_number_${currentFY}`, nextValue: sequenceCounter }
+    });
+    await prisma.idSequence.upsert({
       where: { key: 'lead_number' },
       update: { nextValue: sequenceCounter },
       create: { key: 'lead_number', nextValue: sequenceCounter }
     });
 
-    console.log(`✅ [SUCCESS] Imported ${successCount} leads with ${consolidatedLeads.reduce((a, b) => a + b.items.length, 0)} total line items into ${db.name}.`);
-    console.log(`✅ Updated lead_number sequence nextValue to ${sequenceCounter}.`);
-
+    console.log(`✅ [SUCCESS] Imported ${successCount} deduplicated leads & quotations into ${db.name}.`);
   } catch (err: any) {
     console.error(`❌ Error seeding ${db.name}:`, err.message);
   } finally {
@@ -392,8 +460,7 @@ async function main() {
   const rawHeaders = rows[0].map(h => h.trim().replace(/^\uFEFF/, ''));
   const dataRows = rows.slice(1);
 
-  let lastLeadForCarry: any = null;
-  const consolidatedLeads: any[] = [];
+  const companyMap = new Map<string, any>();
 
   for (let i = 0; i < dataRows.length; i++) {
     const r = dataRows[i];
@@ -449,19 +516,10 @@ async function main() {
       row_index: i + 2
     };
 
-    const isSameAsLast = lastLeadForCarry &&
-      (leadDate === lastLeadForCarry.lead_date || !leadDate) &&
-      (projectName === lastLeadForCarry.project_name || (!projectName && gstName === lastLeadForCarry.gst_name)) &&
-      (gstNo === lastLeadForCarry.gst_no || !gstNo) &&
-      (siteInchargeMobile === lastLeadForCarry.site_incharge_mobile || !siteInchargeMobile);
+    const companyKey = (projectName || groupName || gstName || 'Unnamed Project').trim().toUpperCase();
 
-    if (isSameAsLast && hasProductInfo) {
-      lastLeadForCarry.items.push(itemObj);
-      continue;
-    }
-
-    if (hasLeadInfo) {
-      lastLeadForCarry = {
+    if (!companyMap.has(companyKey)) {
+      companyMap.set(companyKey, {
         lead_date: leadDate,
         project_name: projectName || 'Unnamed Project',
         group_name: groupName,
@@ -476,15 +534,18 @@ async function main() {
         state: state,
         city: city,
         pincode: pincode,
-        items: hasProductInfo ? [itemObj] : []
-      };
-      consolidatedLeads.push(lastLeadForCarry);
-    } else if (hasProductInfo && lastLeadForCarry) {
-      lastLeadForCarry.items.push(itemObj);
+        items: []
+      });
+    }
+
+    const currentLead = companyMap.get(companyKey);
+    if (hasProductInfo) {
+      currentLead.items.push(itemObj);
     }
   }
 
-  console.log(`Parsed ${consolidatedLeads.length} consolidated leads containing ${consolidatedLeads.reduce((a, b) => a + b.items.length, 0)} product items.`);
+  const consolidatedLeads = Array.from(companyMap.values()).filter(l => l.items && l.items.length > 0);
+  console.log(`Parsed ${consolidatedLeads.length} strictly deduplicated company leads containing ${consolidatedLeads.reduce((a, b) => a + b.items.length, 0)} product items.`);
 
   for (const db of dbs) {
     await processDb(db, consolidatedLeads);

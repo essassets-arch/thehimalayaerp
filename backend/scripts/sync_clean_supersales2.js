@@ -2,205 +2,7 @@ const { PrismaClient, Prisma } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
 
-const primaryUrl = process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public';
-const isDocker = fs.existsSync('/.dockerenv') || (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('@postgres:'));
-
-const targetDbs = isDocker
-  ? [{ name: 'Docker Database', url: process.env.DATABASE_URL }]
-  : [
-      { name: 'Active DB (himalaya_erp_browser_test)', url: primaryUrl },
-      { name: 'Local Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' },
-      { name: 'Docker Postgres 5435', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public' }
-    ];
-
-function parseCSV(content) {
-  const result = [];
-  let row = [];
-  let cell = '';
-  let inQuotes = false;
-  
-  for (let i = 0; i < content.length; i++) {
-    const char = content[i];
-    const nextChar = content[i + 1];
-    
-    if (inQuotes) {
-      if (char === '"') {
-        if (nextChar === '"') {
-          cell += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        cell += char;
-      }
-    } else {
-      if (char === '"') {
-        inQuotes = true;
-      } else if (char === ',') {
-        row.push(cell);
-        cell = '';
-      } else if (char === '\r' || char === '\n') {
-        row.push(cell);
-        if (row.length > 1 || row[0] !== '') {
-          result.push(row);
-        }
-        row = [];
-        cell = '';
-        if (char === '\r' && nextChar === '\n') {
-          i++;
-        }
-      } else {
-        cell += char;
-      }
-    }
-  }
-  
-  if (cell !== '' || row.length > 0) {
-    row.push(cell);
-    result.push(row);
-  }
-  return result;
-}
-
-function parseCsvDate(str) {
-  if (!str) return new Date();
-  str = str.trim();
-  if (str === '-' || str === '') return new Date();
-
-  let m = str.match(/^(\d{1,2})-(\d{1,2})0(\d{4})$/);
-  if (m) {
-    return new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
-  }
-  
-  m = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-  if (m) {
-    let year = parseInt(m[3], 10);
-    if (year === 2006) year = 2026;
-    return new Date(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
-  }
-  m = str.match(/^(\d{1,2})-(\d{1,2})-(\d{2})$/);
-  if (m) {
-    const year = 2000 + parseInt(m[3], 10);
-    return new Date(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
-  }
-  m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (m) {
-    let year = parseInt(m[3], 10);
-    if (year === 2006) year = 2026;
-    return new Date(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
-  }
-  m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/);
-  if (m) {
-    const year = 2000 + parseInt(m[3], 10);
-    return new Date(year, parseInt(m[2], 10) - 1, parseInt(m[1], 10));
-  }
-  const d = new Date(str);
-  return isNaN(d.getTime()) ? new Date() : d;
-}
-
-function findProduct(type, size, capacity, products) {
-  let t = (type || '').trim().toUpperCase();
-  if (t === 'D MHC') t = 'MHC';
-  
-  let s = (size || '').trim().toUpperCase().replace(/\s+/g, '');
-  if (s.includes('DAI')) s = s.replace('DAI', 'DIA');
-  if (s.includes('DIA') && !s.includes('MM')) s = s.replace('DIA', 'MMDIA');
-  if (s === '900MM') s = '900MMDIA';
-  if (s.match(/^\d+X\d+X\d+$/)) {
-    s = s.substring(0, s.lastIndexOf('X'));
-  }
-  if (s === '30X0') s = '30X30';
-  if (s === '900X600') s = '600X900';
-  
-  let c = (capacity || '').trim().toUpperCase();
-  if (c === '3T') c = 'LD';
-  
-  if (s === '1200X900') s = '1200X1200';
-  if (s === '600X260') s = '600X600';
-  if (s === '450X1000') s = '600X900';
-  if (s === '1800X1200') s = '1800X1800';
-  if (s === '900X990') s = '900X900';
-  if (s === '1200X600') s = '1200X1200';
-  if (s === '750X750' && t === 'WGC') t = 'MHC';
-  if (s === '1000X1000' && t === 'WGC') t = 'MHC';
-  
-  let match = products.find(p => {
-    const sku = (p.sku || '').toUpperCase();
-    const name = (p.name || '').toUpperCase();
-    return (sku.includes(t) || name.includes(t)) &&
-           (sku.includes(s) || name.includes(s)) &&
-           (sku.includes(c) || name.includes(c));
-  });
-  if (match) return match;
-  
-  match = products.find(p => {
-    const sku = (p.sku || '').toUpperCase();
-    const name = (p.name || '').toUpperCase();
-    return (sku.includes(t) || name.includes(t)) &&
-           (sku.includes(s) || name.includes(s));
-  });
-  if (match) return match;
-
-  match = products.find(p => {
-    const sku = (p.sku || '').toUpperCase();
-    const name = (p.name || '').toUpperCase();
-    return (sku.includes(s) || name.includes(s)) &&
-           (sku.includes(c) || name.includes(c));
-  });
-  if (match) return match;
-
-  match = products.find(p => {
-    const sku = (p.sku || '').toUpperCase();
-    const name = (p.name || '').toUpperCase();
-    return sku.includes(s) || name.includes(s);
-  });
-  return match || null;
-}
-
-function parseAddressObj(addrStr, stateStr, cityStr, pincodeStr) {
-  let line1 = (addrStr || '').trim().replace(/\r\n|\n|\r/g, ', ');
-  let city = (cityStr || '').trim();
-  let state = (stateStr || '').trim();
-  let pincode = (pincodeStr || '').trim();
-
-  if (!pincode) {
-    const pinMatch = line1.match(/\b(\d{6})\b/);
-    if (pinMatch) pincode = pinMatch[1];
-  }
-
-  if (!city) {
-    if (/AHMEDABAD/i.test(line1)) city = 'Ahmedabad';
-    else if (/JAMNAGAR/i.test(line1)) city = 'Jamnagar';
-    else if (/SURAT/i.test(line1)) city = 'Surat';
-    else if (/VADODARA/i.test(line1)) city = 'Vadodara';
-    else if (/GANDHINAGAR/i.test(line1)) city = 'Gandhinagar';
-    else if (/CHENNAI/i.test(line1)) city = 'Chennai';
-    else if (/MUMBAI/i.test(line1)) city = 'Mumbai';
-    else if (/BENGALURU|BANGALORE/i.test(line1)) city = 'Bengaluru';
-    else if (/RAJKOT/i.test(line1)) city = 'Rajkot';
-    else if (/MORBI/i.test(line1)) city = 'Morbi';
-    else city = 'Ahmedabad';
-  }
-
-  if (!state) {
-    if (/GUJARAT/i.test(line1)) state = 'Gujarat';
-    else if (/TAMILNADU|TANIL NADU|TAMIL NADU/i.test(line1)) state = 'Tamil Nadu';
-    else if (/MAHARASHTRA/i.test(line1)) state = 'Maharashtra';
-    else if (/KARNATAKA|BENGALURU/i.test(line1)) state = 'Karnataka';
-    else state = 'Gujarat';
-  }
-
-  return {
-    line1: line1 || 'Address on file',
-    city: city || 'Ahmedabad',
-    state: state || 'Gujarat',
-    country: 'India',
-    pincode: pincode || '380001'
-  };
-}
-
-async function importSuperSales2IntoDb(config, consolidatedLeads) {
+async function cleanAndImportDb(config, consolidatedLeads) {
   console.log(`\n======================================================================`);
   console.log(` IMPORTING SUPERSALES 2 INTO: ${config.name}`);
   console.log(` URL: ${config.url.replace(/:[^:@]+@/, ':****@')}`);
@@ -216,8 +18,11 @@ async function importSuperSales2IntoDb(config, consolidatedLeads) {
   }
 
   try {
+    // 1. Resolve SuperSales 2 User
     const user = await prisma.user.findFirst({
-      where: { email: { equals: 'supersales2@himalayaerp.com', mode: 'insensitive' } }
+      where: {
+        email: { equals: 'supersales2@himalayaerp.com', mode: 'insensitive' }
+      }
     });
 
     if (!user) {
@@ -227,6 +32,7 @@ async function importSuperSales2IntoDb(config, consolidatedLeads) {
     const userId = user.id;
     console.log(`Resolved SuperSales 2 user: ${user.name} (${user.id}) in company: ${user.companyId}`);
 
+    // Clean any existing quotes for supersales2 or matching our range 0145-0170
     const quoteNumsToClean = [];
     for (let i = 145; i <= 170; i++) {
       quoteNumsToClean.push(`QU/2627/${String(i).padStart(4, '0')}`);
@@ -318,7 +124,40 @@ async function importSuperSales2IntoDb(config, consolidatedLeads) {
 
     for (const gl of consolidatedLeads) {
       const detailedItems = gl.items.map((it) => {
-        const matchedProd = findProduct(it.product, it.size, it.capacity, products);
+        let t = (it.product || '').trim().toUpperCase();
+        if (t === 'D MHC') t = 'MHC';
+        let s = (it.size || '').trim().toUpperCase().replace(/\s+/g, '');
+        if (s.includes('DAI')) s = s.replace('DAI', 'DIA');
+        if (s.includes('DIA') && !s.includes('MM')) s = s.replace('DIA', 'MMDIA');
+        if (s === '900MM') s = '900MMDIA';
+        if (s.match(/^\d+X\d+X\d+$/)) s = s.substring(0, s.lastIndexOf('X'));
+        if (s === '30X0') s = '30X30';
+        if (s === '900X600') s = '600X900';
+        let c = (it.capacity || '').trim().toUpperCase();
+        if (c === '3T') c = 'LD';
+        if (s === '1200X900') s = '1200X1200';
+        if (s === '600X260') s = '600X600';
+        if (s === '450X1000') s = '600X900';
+        if (s === '1800X1200') s = '1800X1800';
+        if (s === '900X990') s = '900X900';
+        if (s === '1200X600') s = '1200X1200';
+        if (s === '750X750' && t === 'WGC') t = 'MHC';
+        if (s === '1000X1000' && t === 'WGC') t = 'MHC';
+
+        let matchedProd = products.find(p => {
+          const sku = (p.sku || '').toUpperCase();
+          const name = (p.name || '').toUpperCase();
+          return (sku.includes(t) || name.includes(t)) && (sku.includes(s) || name.includes(s)) && (sku.includes(c) || name.includes(c));
+        }) || products.find(p => {
+          const sku = (p.sku || '').toUpperCase();
+          const name = (p.name || '').toUpperCase();
+          return (sku.includes(t) || name.includes(t)) && (sku.includes(s) || name.includes(s));
+        }) || products.find(p => {
+          const sku = (p.sku || '').toUpperCase();
+          const name = (p.name || '').toUpperCase();
+          return sku.includes(s) || name.includes(s);
+        });
+
         const productId = matchedProd ? matchedProd.id : null;
         const productCode = matchedProd ? (matchedProd.code || matchedProd.sku) : null;
         const productName = matchedProd ? matchedProd.name : `HIMALAYA FRP ${it.product} ${it.size} ${it.capacity}`;
@@ -346,9 +185,7 @@ async function importSuperSales2IntoDb(config, consolidatedLeads) {
       });
 
       const totalQty = detailedItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
-      const leadDateObj = parseCsvDate(gl.lead_date);
-      const parsedAddress = parseAddressObj(gl.address, gl.state, gl.city, gl.pincode);
-
+      const leadDateObj = new Date(gl.lead_date ? gl.lead_date.split('-').reverse().join('-') : Date.now());
       const seqStr = String(sequenceCounter).padStart(4, '0');
       const leadNumber = `LEAD/2627/${seqStr}`;
       const quoteNumber = `QU/2627/${seqStr}`;
@@ -373,7 +210,13 @@ async function importSuperSales2IntoDb(config, consolidatedLeads) {
           phone: gl.site_incharge_mobile || gl.office_contact || 'N/A',
           gstName: gl.gst_name || companyName,
           gstNumber: gl.gst_no || null,
-          address: parsedAddress,
+          address: {
+            line1: gl.address || 'Address on file',
+            city: gl.city || 'Ahmedabad',
+            state: gl.state || 'Gujarat',
+            country: 'India',
+            pincode: gl.pincode || '380001'
+          },
           source: 'OTHER',
           productInterest: productInterestStr,
           detailedItems: detailedItems,
@@ -436,7 +279,8 @@ async function importSuperSales2IntoDb(config, consolidatedLeads) {
             }
           }
         });
-      } catch (_) {
+      } catch (termErr) {
+        // Fallback without selectedTerms table
         await prisma.quotation.create({
           data: quotationBaseData
         });
@@ -462,7 +306,7 @@ async function importSuperSales2IntoDb(config, consolidatedLeads) {
       create: { key: 'lead_number', nextValue: sequenceCounter }
     });
 
-    console.log(`✅ [${config.name}] Successfully imported ${successCount} deduplicated leads & quotations with ${consolidatedLeads.reduce((a, b) => a + b.items.length, 0)} total line items.`);
+    console.log(`✅ [${config.name}] Successfully imported ${successCount} deduplicated leads & quotations.`);
   } catch (e) {
     console.error(`❌ Error importing into ${config.name}:`, e);
   } finally {
@@ -471,25 +315,36 @@ async function importSuperSales2IntoDb(config, consolidatedLeads) {
 }
 
 async function main() {
-  const candidatePaths = [
-    path.resolve('taher_sir(super_sales2) (3).csv'),
-    path.join(__dirname, 'taher_sir(super_sales2) (3).csv'),
-    path.join(__dirname, '../taher_sir(super_sales2) (3).csv'),
-    path.resolve('d:/prototype-next-main/taher_sir(super_sales2) (3).csv'),
-    path.resolve('/app/taher_sir(super_sales2) (3).csv'),
-    path.resolve('/app/scripts/taher_sir(super_sales2) (3).csv'),
-  ];
-
-  let csvPath = candidatePaths.find(p => fs.existsSync(p));
-  if (!csvPath) {
-    console.error('CSV file not found.');
-    process.exit(1);
-  }
-
-  console.log(`Reading CSV from: ${csvPath}`);
+  const csvPath = path.resolve('taher_sir(super_sales2) (3).csv');
   const content = fs.readFileSync(csvPath, 'utf8');
-  const rows = parseCSV(content);
-  const rawHeaders = rows[0].map(h => h.trim().replace(/^\uFEFF/, ''));
+
+  const rows = [];
+  let currentRow = [];
+  let inQuotes = false;
+  let cell = '';
+  
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    const nextChar = content[i + 1];
+    if (inQuotes) {
+      if (char === '"') {
+        if (nextChar === '"') { cell += '"'; i++; }
+        else { inQuotes = false; }
+      } else { cell += char; }
+    } else {
+      if (char === '"') { inQuotes = true; }
+      else if (char === ',') { currentRow.push(cell); cell = ''; }
+      else if (char === '\r' || char === '\n') {
+        currentRow.push(cell);
+        if (currentRow.length > 1 || currentRow[0] !== '') rows.push(currentRow);
+        currentRow = []; cell = '';
+        if (char === '\r' && nextChar === '\n') i++;
+      } else { cell += char; }
+    }
+  }
+  if (cell !== '' || currentRow.length > 0) { currentRow.push(cell); rows.push(currentRow); }
+
+  const headers = rows[0].map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/g, '_'));
   const dataRows = rows.slice(1);
 
   const companyMap = new Map();
@@ -497,9 +352,8 @@ async function main() {
   for (let i = 0; i < dataRows.length; i++) {
     const r = dataRows[i];
     const obj = {};
-    rawHeaders.forEach((h, idx) => {
-      const cleanKey = h.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-      obj[cleanKey] = r[idx] ? r[idx].trim() : '';
+    headers.forEach((h, idx) => {
+      obj[h] = r[idx] ? r[idx].trim() : '';
     });
 
     const leadDate = obj.lead_date || '';
@@ -576,10 +430,16 @@ async function main() {
   }
 
   const consolidatedLeads = Array.from(companyMap.values()).filter(l => l.items && l.items.length > 0);
-  console.log(`Parsed ${consolidatedLeads.length} strictly deduplicated company leads with ${consolidatedLeads.reduce((a, b) => a + b.items.length, 0)} items.`);
+  console.log(`Parsed ${consolidatedLeads.length} strictly deduplicated company accounts.`);
+
+  const targetDbs = [
+    { name: 'Active DB (himalaya_erp_browser_test)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+    { name: 'Local Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' },
+    { name: 'Docker Postgres 5435', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public' }
+  ];
 
   for (const db of targetDbs) {
-    await importSuperSales2IntoDb(db, consolidatedLeads);
+    await cleanAndImportDb(db, consolidatedLeads);
   }
 }
 

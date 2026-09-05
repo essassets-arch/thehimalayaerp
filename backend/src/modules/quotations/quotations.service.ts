@@ -254,6 +254,28 @@ export class QuotationsService {
       }
       leadSalesExecutiveId =
         leadObj.salesExecutiveId || leadObj.assignedToId || leadObj.createdById;
+
+      // Duplicate prevention: if an active quotation already exists for this lead, return it
+      if (!dto.allowMultiple && !dto.forceNew) {
+        const existingQuotation = await this.prisma.quotation.findFirst({
+          where: {
+            leadId: dto.leadId,
+            ...(resolvedCompanyId ? { companyId: resolvedCompanyId } : {}),
+            deletedAt: null,
+          },
+          include: {
+            workflowState: true,
+            salesExecutive: { select: { id: true, name: true, email: true } },
+            items: { include: { product: true } },
+            selectedTerms: { orderBy: { sortOrder: 'asc' } },
+            lead: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (existingQuotation) {
+          return existingQuotation;
+        }
+      }
     }
 
     const paymentTermInfo = this.validateAndExtractPaymentTerms(dto, role);
