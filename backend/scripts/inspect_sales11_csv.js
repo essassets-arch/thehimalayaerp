@@ -1,54 +1,33 @@
 const fs = require('fs');
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ datasources: { db: { url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' } } });
 
 function parseCSV(content) {
   const result = [];
   let row = [];
   let cell = '';
   let inQuotes = false;
-  
   for (let i = 0; i < content.length; i++) {
     const char = content[i];
     const nextChar = content[i + 1];
-    
     if (inQuotes) {
       if (char === '"') {
-        if (nextChar === '"') {
-          cell += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        cell += char;
-      }
+        if (nextChar === '"') { cell += '"'; i++; }
+        else { inQuotes = false; }
+      } else { cell += char; }
     } else {
-      if (char === '"') {
-        inQuotes = true;
-      } else if (char === ',') {
-        row.push(cell);
-        cell = '';
-      } else if (char === '\r' || char === '\n') {
-        row.push(cell);
-        if (row.length > 1 || row[0] !== '') {
-          result.push(row);
-        }
-        row = [];
-        cell = '';
-        if (char === '\r' && nextChar === '\n') {
-          i++;
-        }
-      } else {
-        cell += char;
-      }
+      if (char === '"') { inQuotes = true; }
+      else if (char === ',') { row.push(cell.trim()); cell = ''; }
+      else if (char === '\r' || char === '\n') {
+        row.push(cell.trim());
+        if (row.length > 1 || row[0] !== '') result.push(row);
+        row = []; cell = '';
+        if (char === '\r' && nextChar === '\n') i++;
+      } else { cell += char; }
     }
   }
-  if (cell !== '' || row.length > 0) {
-    row.push(cell);
-    result.push(row);
-  }
+  if (cell !== '' || row.length > 0) { row.push(cell.trim()); result.push(row); }
   return result;
 }
 
@@ -75,12 +54,8 @@ function findProduct(type, size, capacity, products) {
   if (s === '1800X1200') s = '1800X1800';
   if (s === '900X990') s = '900X900';
   if (s === '1200X600') s = '1200X1200';
-  if (s === '750X750' && t === 'WGC') {
-    t = 'MHC'; 
-  }
-  if (s === '1000X1000' && t === 'WGC') {
-    t = 'MHC';
-  }
+  if (s === '750X750' && t === 'WGC') t = 'MHC';
+  if (s === '1000X1000' && t === 'WGC') t = 'MHC';
   
   let match = products.find(p => {
     const sku = (p.sku || '').toUpperCase();
@@ -115,46 +90,89 @@ function findProduct(type, size, capacity, products) {
   return match || null;
 }
 
-async function run() {
-  const csvPath = path.resolve(__dirname, 'HL_data(sales3) (1).csv');
-  const content = fs.readFileSync(csvPath, 'utf8');
-  const rows = parseCSV(content);
-
-  console.log('Total parsed CSV rows (including header):', rows.length);
-  const rawHeaders = rows[0].map(h => h.trim().replace(/^\uFEFF/, ''));
-  const dataRows = rows.slice(1);
-
+async function analyze() {
   const products = await prisma.product.findMany();
-  console.log(`Loaded ${products.length} products from catalog.`);
+  console.log('Total catalog products:', products.length);
 
-  let matchSuccess = 0;
-  let matchMissing = 0;
+  const candidatePaths = [
+    path.join(__dirname, 'HL_data(sales3) (1).csv'),
+    path.resolve('HL_data(sales3) (1).csv'),
+    path.resolve('../HL_data(sales3) (1).csv'),
+    path.join(__dirname, '../HL_data(sales3) (1).csv')
+  ];
+  const csvPath = candidatePaths.find(p => fs.existsSync(p));
+  console.log('Using CSV:', csvPath);
 
-  for (let i = 0; i < dataRows.length; i++) {
-    const r = dataRows[i];
-    const obj = {};
-    rawHeaders.forEach((h, idx) => {
-      const cleanKey = h.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-      obj[cleanKey] = r[idx] ? r[idx].trim() : '';
-    });
-    
-    if (!obj.product && !obj.size && !obj.project_name) continue;
+  const content = fs.readFileSync(csvPath, 'utf8');
+  const rows = parseCSV(content).slice(1).filter(r => r.length > 5 && (r[0] || r[1]) && r[1]);
 
-    const product = obj.product || '';
-    const size = obj.size || '';
-    const capacity = obj.capcity || obj.capacity || '';
+  console.log('Total valid item rows:', rows.length);
 
-    const matched = findProduct(product, size, capacity, products);
+  // Check product matching
+  let matchedCount = 0;
+  let unmatchedCount = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const prod = r[15];
+    const size = r[16];
+    const cap = r[17];
+    const matched = findProduct(prod, size, cap, products);
     if (matched) {
-      matchSuccess++;
-      console.log(`Row ${i+2}: [Product: ${product}, Size: ${size}, Capacity: ${capacity}] -> MATCH: ${matched.sku || matched.name}`);
+      matchedCount++;
     } else {
-      matchMissing++;
-      console.log(`Row ${i+2}: [Product: ${product}, Size: ${size}, Capacity: ${capacity}] -> NO DIRECT PRODUCT MATCH`);
+      unmatchedCount++;
+      console.log(`[UNMATCHED Row ${i + 2}] Prod: "${prod}", Size: "${size}", Cap: "${cap}"`);
+    }
+  }
+  console.log(`Product Matching: ${matchedCount} matched, ${unmatchedCount} unmatched.`);
+
+  // Grouping
+  const groups = [];
+  let currentGroup = null;
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    let date = (r[0] || '').trim();
+    if (!date && r[10]) date = r[10].trim();
+    if (!date) date = '01-07-2026';
+
+    const proj = (r[1] || '').trim();
+    const grp = (r[2] || '').trim();
+    const gstName = (r[3] || '').trim();
+    const key = date + '|' + proj + '|' + grp + '|' + gstName;
+
+    if (!currentGroup || currentGroup.key !== key) {
+      currentGroup = {
+        index: groups.length + 1,
+        key,
+        date,
+        proj,
+        grp,
+        gstName,
+        gstNo: (r[4] || '').trim(),
+        contactPerson: (r[5] || '').trim(),
+        phone: (r[6] || '').trim(),
+        email: (r[8] || '').trim() || 'info@thehimalaya.co.in',
+        addressStr: r[11],
+        stateStr: r[12],
+        cityStr: r[13],
+        pincodeStr: r[14],
+        items: [r]
+      };
+      groups.push(currentGroup);
+    } else {
+      currentGroup.items.push(r);
     }
   }
 
-  console.log(`Matching results: ${matchSuccess} matched, ${matchMissing} unmatched.`);
+  console.log(`Total Grouped Orders: ${groups.length}`);
+  console.log(`Total items across groups: ${groups.reduce((acc, g) => acc + g.items.length, 0)}`);
+
+  console.log('\n--- ALL GROUPS ---');
+  groups.forEach((g, idx) => {
+    const seqStr = String(260 + idx + 1).padStart(4, '0');
+    console.log(`[#${idx + 1}] Order: HCPPL/2627/${seqStr} | Date: ${g.date} | Customer: ${g.gstName || g.proj} | Items: ${g.items.length}`);
+  });
 }
 
-run().catch(console.error).finally(() => prisma.$disconnect());
+analyze().catch(console.error).finally(() => prisma.$disconnect());
