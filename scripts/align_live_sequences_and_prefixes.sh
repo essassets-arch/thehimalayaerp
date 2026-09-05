@@ -12,34 +12,14 @@ echo "======================================================================"
 echo "🚀 HIMALAYA ERP — ALIGNING LIVE DATABASE SEQUENCES & PREFIXES"
 echo "======================================================================"
 
-echo ""
-echo "1. Converting any existing HCCL/ or legacy prefixes to LEAD / QU / HCPPL..."
 if docker compose ps --services --filter "status=running" 2>/dev/null | grep -q "backend"; then
-  docker compose exec -T backend node scripts/convert_hccl_to_lead_sequences.js
+  echo "Running sequence conversion and synchronization inside Docker backend container..."
+  docker compose exec -T backend node - < backend/scripts/convert_hccl_to_lead_sequences.js
 elif [ -d "backend" ]; then
+  echo "Running sequence conversion on host..."
   (cd backend && node scripts/convert_hccl_to_lead_sequences.js)
 else
   node scripts/convert_hccl_to_lead_sequences.js
-fi
-
-echo ""
-echo "2. Synchronizing atomic sequence generator table (idSequence)..."
-if docker compose ps --services --filter "status=running" 2>/dev/null | grep -q "backend"; then
-  docker compose exec -T backend node scripts/sync_all_id_sequences.js
-elif [ -d "backend" ]; then
-  (cd backend && node scripts/sync_all_id_sequences.js)
-else
-  node scripts/sync_all_id_sequences.js
-fi
-
-echo ""
-echo "3. Running verification report..."
-if docker compose ps --services --filter "status=running" 2>/dev/null | grep -q "backend"; then
-  docker compose exec -T backend node scripts/inspect_all_db_prefixes.js
-elif [ -d "backend" ]; then
-  (cd backend && node scripts/inspect_all_db_prefixes.js)
-else
-  node scripts/inspect_all_db_prefixes.js
 fi
 
 echo ""

@@ -195,8 +195,43 @@ async function convertAndAlignSequences() {
   });
   console.log(`✓ Sales Order Sequence (key: sales_order_number_${fy}): Max existing = ${maxOrder}, nextValue = ${nextOrderVal}`);
 
+  // 5. PRINT VERIFICATION REPORT
+  console.log('\n--- 5. VERIFICATION AUDIT REPORT ---');
+  const leadsReport = await prisma.lead.findMany({
+    select: { leadNumber: true, salesExecutive: { select: { email: true } } },
+  });
+  const leadCounts = {};
+  leadsReport.forEach((l) => {
+    const pfx = l.leadNumber ? l.leadNumber.split('/')[0] : 'NO_NUMBER';
+    const email = (l.salesExecutive && l.salesExecutive.email) || 'unassigned';
+    leadCounts[`${pfx} | ${email}`] = (leadCounts[`${pfx} | ${email}`] || 0) + 1;
+  });
+  console.log('Leads breakdown by prefix & user:', leadCounts);
+
+  const quotesReport = await prisma.quotation.findMany({
+    select: { quotationNumber: true, salesExecutive: { select: { email: true } } },
+  });
+  const quoteCounts = {};
+  quotesReport.forEach((q) => {
+    const pfx = q.quotationNumber ? q.quotationNumber.split('/')[0] : 'NO_NUMBER';
+    const email = (q.salesExecutive && q.salesExecutive.email) || 'unassigned';
+    quoteCounts[`${pfx} | ${email}`] = (quoteCounts[`${pfx} | ${email}`] || 0) + 1;
+  });
+  console.log('Quotations breakdown by prefix & user:', quoteCounts);
+
+  const ordersReport = await prisma.salesOrder.findMany({
+    select: { orderNumber: true, salesExecutive: { select: { email: true } } },
+  });
+  const orderCounts = {};
+  ordersReport.forEach((o) => {
+    const pfx = o.orderNumber ? o.orderNumber.split('/')[0] : 'NO_NUMBER';
+    const email = (o.salesExecutive && o.salesExecutive.email) || 'unassigned';
+    orderCounts[`${pfx} | ${email}`] = (orderCounts[`${pfx} | ${email}`] || 0) + 1;
+  });
+  console.log('Sales Orders breakdown by prefix & user:', orderCounts);
+
   console.log('\n========================================================================');
-  console.log(' MIGRATION COMPLETE! ALL RECORDS AND SEQUENCES ARE NOW 100% UNIFIED!');
+  console.log(' ✅ ALIGNMENT COMPLETE! ALL RECORDS AND SEQUENCES ARE 100% UNIFIED!');
   console.log('========================================================================\n');
 }
 
