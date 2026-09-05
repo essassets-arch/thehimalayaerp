@@ -290,7 +290,7 @@ async function processDb(db: typeof dbs[0], consolidatedLeads: any[]) {
       const leadYear = leadDateObj.getFullYear();
       const yy = String(leadYear).substring(2);
       const ny = String(leadYear + 1).substring(2);
-      const leadNumber = `HCCL/${yy}${ny}/${String(sequenceCounter++).padStart(4, '0')}`;
+      const leadNumber = `LEAD/${yy}${ny}/${String(sequenceCounter++).padStart(4, '0')}`;
 
       const primaryProduct = detailedItems[0] || {};
       const productInterestStr = detailedItems.length === 1

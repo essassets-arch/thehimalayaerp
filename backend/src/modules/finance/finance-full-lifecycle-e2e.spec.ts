@@ -329,7 +329,7 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
     it('executes partial verification and updates shared order balance', async () => {
       mockPrisma._state.registerOrder({
         id: 'ord-100',
-        orderNumber: 'HCCL/2627/0100',
+        orderNumber: 'HCPPL/2627/0100',
         totalAmount: 100000,
         paidAmount: 0,
         outstandingAmount: 100000,
@@ -355,7 +355,7 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
     it('executes final verification, transitions order to PAID/COMPLETED and completes follow-up tasks', async () => {
       mockPrisma._state.registerOrder({
         id: 'ord-100',
-        orderNumber: 'HCCL/2627/0100',
+        orderNumber: 'HCPPL/2627/0100',
         totalAmount: 100000,
         paidAmount: 40000,
         outstandingAmount: 60000,
@@ -430,7 +430,7 @@ describe('Finance Payment Verification & Dynamic Follow-Up — Full Lifecycle Ac
     it('stores rejectionReason and keeps order balances unchanged', async () => {
       mockPrisma._state.registerOrder({
         id: 'ord-200',
-        orderNumber: 'HCCL/2627/0200',
+        orderNumber: 'HCPPL/2627/0200',
         totalAmount: 50000,
         paidAmount: 0,
         outstandingAmount: 50000,

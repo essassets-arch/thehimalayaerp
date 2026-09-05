@@ -255,7 +255,7 @@ async function processDb(db: typeof dbs[0], groupedLeads: any[]) {
           const leadYear = gl.leadDate.getFullYear();
           const yy = String(leadYear).substring(2);
           const ny = String(leadYear + 1).substring(2);
-          leadNumber = `HCCL/${yy}${ny}/${String(seqVal).padStart(4, '0')}`;
+          leadNumber = `LEAD/${yy}${ny}/${String(seqVal).padStart(4, '0')}`;
 
           const existingLead = await tx.lead.findUnique({
             where: { leadNumber }

@@ -34,7 +34,7 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
       customer: { companyId: 'comp-001' },
       salesOrder: {
         id: 'order-001',
-        orderNumber: 'HCCL/2627/0001',
+        orderNumber: 'HCPPL/2627/0001',
         totalAmount: 100000,
         paidAmount: 0,
         outstandingAmount: 100000,
@@ -45,7 +45,7 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
 
     let mockOrder: any = {
       id: 'order-001',
-      orderNumber: 'HCCL/2627/0001',
+      orderNumber: 'HCPPL/2627/0001',
       totalAmount: 100000,
       paidAmount: 0,
       outstandingAmount: 100000,
@@ -251,7 +251,7 @@ describe('PaymentsService & FollowUpEngine — Integration & Edge Cases', () => 
     it('generates unique event keys so recurring scans on same day do not create duplicate notifications', async () => {
       const order = {
         id: 'ord-123',
-        orderNumber: 'HCCL/2627/9999',
+        orderNumber: 'HCPPL/2627/9999',
         customer: { companyId: 'comp-1' },
         salesExecutiveId: 'user-sales-1',
         paymentTerms: '7 Days',
