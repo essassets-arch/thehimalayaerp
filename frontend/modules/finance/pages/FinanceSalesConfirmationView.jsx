@@ -1040,12 +1040,15 @@ export default function FinanceSalesConfirmationView() {
           padding: '16px',
           background: 'rgba(15, 23, 42, 0.6)',
           backdropFilter: 'blur(4px)',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
         }}>
           <div style={{
             background: '#FFFFFF',
             borderRadius: '16px',
             width: '100%',
             maxWidth: '512px',
+            maxHeight: 'min(90vh, 760px)',
             overflow: 'hidden',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
             border: '1px solid #E2E8F0',
@@ -1059,6 +1062,7 @@ export default function FinanceSalesConfirmationView() {
               justifyContent: 'space-between',
               alignItems: 'center',
               background: '#F0FDF4',
+              flexShrink: 0,
             }}>
               <h2 style={{
                 fontSize: '18px',
@@ -1091,7 +1095,16 @@ export default function FinanceSalesConfirmationView() {
               </button>
             </div>
             
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{
+              padding: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              flex: 1,
+              minHeight: 0,
+            }}>
               <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '10px 16px', fontSize: '13.5px', color: '#475569' }}>
                   <span style={{ fontWeight: 600, color: '#64748B' }}>Order Number:</span>
@@ -1209,6 +1222,7 @@ export default function FinanceSalesConfirmationView() {
               padding: '16px 24px',
               borderTop: '1px solid #F1F5F9',
               background: '#F8FAFC',
+              flexShrink: 0,
             }}>
               <button
                 type="button"
@@ -1272,12 +1286,15 @@ export default function FinanceSalesConfirmationView() {
           padding: '16px',
           background: 'rgba(15, 23, 42, 0.6)',
           backdropFilter: 'blur(4px)',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
         }}>
           <div style={{
             background: '#FFFFFF',
             borderRadius: '16px',
             width: '100%',
             maxWidth: '448px',
+            maxHeight: 'min(90vh, 650px)',
             overflow: 'hidden',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
             border: '1px solid #E2E8F0',
@@ -1291,6 +1308,7 @@ export default function FinanceSalesConfirmationView() {
               justifyContent: 'space-between',
               alignItems: 'center',
               background: '#FEF2F2',
+              flexShrink: 0,
             }}>
               <h2 style={{
                 fontSize: '18px',
@@ -1320,7 +1338,17 @@ export default function FinanceSalesConfirmationView() {
               </button>
             </div>
             
-            <form onSubmit={handleReject} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', margin: 0 }}>
+            <form onSubmit={handleReject} style={{
+              padding: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px',
+              margin: 0,
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              flex: 1,
+              minHeight: 0,
+            }}>
               <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0', fontSize: '13.5px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div><strong>Order:</strong> <span style={{ fontFamily: 'monospace', color: '#1E3A8A', fontWeight: 800, marginLeft: '4px' }}>{rejectModal.order?.orderNumber}</span></div>
                 <div><strong>Payment Ref:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700, marginLeft: '4px' }}>{rejectModal.payment?.paymentNo}</span></div>
@@ -1356,6 +1384,7 @@ export default function FinanceSalesConfirmationView() {
                 gap: '12px',
                 paddingTop: '16px',
                 borderTop: '1px solid #F1F5F9',
+                flexShrink: 0,
               }}>
                 <button
                   type="button"
@@ -1416,6 +1445,8 @@ export default function FinanceSalesConfirmationView() {
           padding: '16px',
           background: 'rgba(15, 23, 42, 0.6)',
           backdropFilter: 'blur(4px)',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
         }}>
           <div style={{
             background: '#FFFFFF',
@@ -1436,6 +1467,7 @@ export default function FinanceSalesConfirmationView() {
               justifyContent: 'space-between',
               alignItems: 'center',
               background: '#F8FAFC',
+              flexShrink: 0,
             }}>
               <div>
                 <h2 style={{
@@ -1468,7 +1500,16 @@ export default function FinanceSalesConfirmationView() {
               </button>
             </div>
 
-            <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{
+              padding: '24px',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '24px'
+            }}>
               {isLoadingHistory ? (
                 <div style={{ padding: '48px 0', textAlign: 'center', color: '#64748B', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                   <RefreshCw style={{ width: '32px', height: '32px', color: '#2563EB', animation: 'spin 1s linear infinite' }} />
@@ -1612,6 +1653,7 @@ export default function FinanceSalesConfirmationView() {
               background: '#F8FAFC',
               display: 'flex',
               justifyContent: 'flex-end',
+              flexShrink: 0,
             }}>
               <button
                 type="button"
