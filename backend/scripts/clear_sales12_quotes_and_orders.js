@@ -52,7 +52,49 @@ async function clearSales12ProductionDispatchAndOrders(config) {
       });
       const soItemIds = soItems.map(i => i.id);
 
-      // A. DISPATCH MODULE CLEANUP
+      // A. PRODUCTION HIERARCHY CLEANUP
+      console.log('Cleaning up Production Plans, Work Orders, Batches & QC...');
+      const prodPlans = await prisma.productionPlan.findMany({
+        where: {
+          OR: [
+            { salesOrderId: { in: orderIds } },
+            { assignedToId: userId }
+          ]
+        },
+        select: { id: true }
+      });
+      const planIds = prodPlans.map(p => p.id);
+
+      const workOrders = await prisma.workOrder.findMany({
+        where: {
+          OR: [
+            { productionPlanId: { in: planIds } },
+            { salesOrderItemId: { in: soItemIds } },
+            { createdById: userId }
+          ]
+        },
+        select: { id: true }
+      });
+      const workOrderIds = workOrders.map(w => w.id);
+
+      if (workOrderIds.length > 0) {
+        try { await prisma.qCInspection.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
+        try { await prisma.productionBatch.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
+        try { await prisma.productionShiftEntry.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
+        try { await prisma.productionScrapEntry.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
+        try { await prisma.productionStatusHistory.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
+        try { await prisma.finishedGoods.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
+        try { await prisma.productionDailyReportItem.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
+        try { await prisma.workOrder.deleteMany({ where: { id: { in: workOrderIds } } }); } catch (e) {}
+        console.log(`✓ Deleted ${workOrderIds.length} Work Orders and child inspection/batch records.`);
+      }
+
+      if (planIds.length > 0) {
+        try { await prisma.productionPlan.deleteMany({ where: { id: { in: planIds } } }); } catch (e) {}
+        console.log(`✓ Deleted ${planIds.length} Production Plans.`);
+      }
+
+      // B. DISPATCH MODULE CLEANUP
       console.log('Cleaning up Dispatch records linked to Sales 12 orders...');
       const dispatches = await prisma.dispatch.findMany({
         where: {
@@ -76,39 +118,6 @@ async function clearSales12ProductionDispatchAndOrders(config) {
       if (soItemIds.length > 0) {
         try { await prisma.dispatchItem.deleteMany({ where: { salesOrderItemId: { in: soItemIds } } }); } catch (e) {}
       }
-
-      // B. PRODUCTION & WORK ORDERS CLEANUP
-      console.log('Cleaning up Work Orders & Production Plans linked to Sales 12 orders...');
-      if (soItemIds.length > 0) {
-        const workOrders = await prisma.workOrder.findMany({
-          where: {
-            OR: [
-              { salesOrderItemId: { in: soItemIds } },
-              { createdById: userId }
-            ]
-          },
-          select: { id: true }
-        });
-        const workOrderIds = workOrders.map(w => w.id);
-
-        if (workOrderIds.length > 0) {
-          try { await prisma.finishedGoods.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
-          try { await prisma.productionDailyReportItem.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
-          try { await prisma.workOrder.deleteMany({ where: { id: { in: workOrderIds } } }); } catch (e) {}
-          console.log(`✓ Deleted ${workOrderIds.length} Work Orders.`);
-        }
-      }
-
-      try {
-        await prisma.productionPlan.deleteMany({
-          where: {
-            OR: [
-              { salesOrderId: { in: orderIds } },
-              { createdById: userId }
-            ]
-          }
-        });
-      } catch (e) {}
 
       // C. INVOICING & PAYMENTS CLEANUP
       console.log('Cleaning up Invoices & Payment Allocations linked to Sales 12 orders...');
@@ -140,6 +149,7 @@ async function clearSales12ProductionDispatchAndOrders(config) {
       try { await prisma.salesOrderAllocation.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
       try { await prisma.salesOrderHistory.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
       try { await prisma.salesOrderCreditReview.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
+      try { await prisma.orderAmendment.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
       try { await prisma.salesOrderItem.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
 
       // D. DELETE SALES ORDERS
@@ -193,12 +203,13 @@ async function clearSales12ProductionDispatchAndOrders(config) {
 
     console.log(`\n======================================================================`);
     console.log(`✅ FINAL STATUS FOR JYOTI (${user.email}):`);
-    console.log(`   - Dispatches & Shipments : 0 (Cleaned)`);
-    console.log(`   - Work Orders / Production: 0 (Cleaned)`);
-    console.log(`   - Invoices & Payments    : 0 (Cleaned)`);
-    console.log(`   - Sales Orders           : 0 (Removed)`);
-    console.log(`   - Quotations             : 0 (Removed)`);
-    console.log(`   - Leads Preserved        : ${remainingLeads.length} (Ready for complete end-to-end lifecycle!)`);
+    console.log(`   - Dispatches & Shipments  : 0 (Cleaned)`);
+    console.log(`   - Production Plans        : 0 (Cleaned)`);
+    console.log(`   - Work Orders / QC / Batches: 0 (Cleaned)`);
+    console.log(`   - Invoices & Payments     : 0 (Cleaned)`);
+    console.log(`   - Sales Orders            : 0 (Removed)`);
+    console.log(`   - Quotations              : 0 (Removed)`);
+    console.log(`   - Leads Preserved         : ${remainingLeads.length} (Ready for new Plant Head / Production test!)`);
     remainingLeads.forEach(l => console.log(`     • ${l.leadNumber} - ${l.companyName}`));
     console.log(`======================================================================\n`);
 
