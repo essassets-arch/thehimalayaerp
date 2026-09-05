@@ -1,9 +1,11 @@
 const { PrismaClient } = require('@prisma/client');
 
-const dbConfigs = [
-  { name: 'Active DB (himalaya_erp_browser_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
-  { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
-];
+const targetDbs = process.env.DATABASE_URL
+  ? [{ name: 'Production Database', url: process.env.DATABASE_URL }]
+  : [
+      { name: 'Active DB (himalaya_erp_browser_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+      { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
+    ];
 
 async function verify(config) {
   console.log(`\n================================================================================`);
@@ -120,7 +122,7 @@ async function verify(config) {
 }
 
 async function main() {
-  for (const cfg of dbConfigs) {
+  for (const cfg of targetDbs) {
     await verify(cfg);
   }
 }
