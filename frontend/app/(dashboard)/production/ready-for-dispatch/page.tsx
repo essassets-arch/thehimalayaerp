@@ -801,8 +801,12 @@ export default function ReadyForDispatchPage() {
               totalPages={Math.ceil(groupedOrders.length / pageSize) || 1}
               totalItems={groupedOrders.length}
               pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
               onPageChange={setCurrentPage}
-              onPageSizeChange={setPageSize}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setCurrentPage(1);
+              }}
             />
           </div>
         )}

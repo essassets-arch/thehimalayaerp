@@ -353,22 +353,50 @@
   display: block;
   width: 100%;
   overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.desktopProductsTableWrapper::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.desktopProductsTableWrapper::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+.desktopProductsTableWrapper::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.desktopProductsTableWrapper::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .desktopProductsTable {
   width: 100%;
   min-width: 860px;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: auto;
 }
 
 .desktopProductsTable thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   background: #ffffff;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1.5px solid #f1f5f9;
 }
 
 .desktopProductsTable th {
+  background: #ffffff;
   padding: 11px 18px;
   text-align: left;
   font-size: 11px;
@@ -377,6 +405,7 @@
   letter-spacing: 0.05em;
   color: #64748b;
   white-space: nowrap;
+  border-bottom: 1.5px solid #f1f5f9;
 }
 
 .desktopProductsTable td {
