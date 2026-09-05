@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ datasources: { db: { url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' } } });
 
 function parseCSV(content) {
   const result = [];
@@ -94,26 +94,45 @@ async function testMatch() {
   const products = await prisma.product.findMany();
   console.log('Total catalog products:', products.length);
 
-  const csvPath = path.resolve('JP_data(sales6) (1).csv');
+  const candidatePaths = [
+    path.join(__dirname, 'JP_data(sales6) (1).csv'),
+    path.resolve('JP_data(sales6) (1).csv'),
+    path.resolve('../JP_data(sales6) (1).csv'),
+    path.join(__dirname, '../JP_data(sales6) (1).csv')
+  ];
+  const csvPath = candidatePaths.find(p => fs.existsSync(p));
+  console.log('Using CSV:', csvPath);
+
   const content = fs.readFileSync(csvPath, 'utf8');
   const rows = parseCSV(content);
   const headers = rows[0].map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/g, '_'));
   const dataRows = rows.slice(1);
 
-  let missing = 0;
-  dataRows.forEach((r, idx) => {
+  let matchedCount = 0;
+  let unmatchedCount = 0;
+
+  for (let i = 0; i < dataRows.length; i++) {
+    const r = dataRows[i];
     const obj = {};
-    headers.forEach((h, i) => obj[h] = r[i] ? r[i].trim() : '');
-    const product = obj.product || '';
-    const size = obj.size || '';
-    const capacity = obj.capcity || obj.capacity || '';
-    const matched = findProduct(product, size, capacity, products);
-    if (!matched) {
-      console.log(`Unmatched Row ${idx+2}: [Type: ${product}, Size: ${size}, Cap: ${capacity}]`);
-      missing++;
+    headers.forEach((h, idx) => { obj[h] = r[idx] ? r[idx].trim() : ''; });
+
+    const prod = obj.product;
+    const size = obj.size;
+    const cap = obj.capcity || obj.capacity;
+
+    if (!prod && !size && !cap) continue;
+
+    const matched = findProduct(prod, size, cap, products);
+    if (matched) {
+      matchedCount++;
+    } else {
+      unmatchedCount++;
+      console.log(`[UNMATCHED Row ${i + 2}] Product: "${prod}", Size: "${size}", Cap: "${cap}"`);
     }
-  });
-  console.log(`Matching complete. Missing: ${missing}/${dataRows.length}`);
+  }
+
+  console.log(`Matched: ${matchedCount}, Unmatched: ${unmatchedCount}`);
+  await prisma.$disconnect();
 }
 
-testMatch().finally(() => prisma.$disconnect());
+testMatch().catch(console.error);
