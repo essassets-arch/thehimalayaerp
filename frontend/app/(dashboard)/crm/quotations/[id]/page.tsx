@@ -102,15 +102,15 @@ export default function QuotationDetailsPage() {
             </Button>
           )}
 
-          {quotation.workflowState?.code === 'APPROVED' && (
+          {quotation.workflowState?.code === 'APPROVED' && !quotation.salesOrder && !quotation.salesOrderId && (!Array.isArray(quotation.sourceSalesOrders) || quotation.sourceSalesOrders.length === 0) && (
             <Button onClick={handleConvert} disabled={converting} className="bg-green-600 hover:bg-green-700">
               <ArrowRightCircle className="mr-2 h-4 w-4" /> Convert to Sales Order
             </Button>
           )}
 
-          {quotation.workflowState?.code === 'CONVERTED_TO_SO' && (
+          {(quotation.workflowState?.code === 'CONVERTED_TO_SO' || quotation.salesOrder || quotation.salesOrderId || (Array.isArray(quotation.sourceSalesOrders) && quotation.sourceSalesOrders.length > 0)) && (
             <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 px-4 py-2 flex items-center gap-2 shadow-none">
-              <CheckCircle2 className="h-4 w-4" /> Converted
+              <CheckCircle2 className="h-4 w-4" /> Order Booked {quotation.salesOrder?.orderNumber ? `(${quotation.salesOrder.orderNumber})` : ''}
             </Badge>
           )}
         </div>

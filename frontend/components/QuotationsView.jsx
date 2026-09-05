@@ -509,13 +509,40 @@ export default function QuotationsView({
   const normalizedQuotationStatus = (status) =>
     String(status || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
 
-  const canSendQuotation = (status) =>
-    ['DRAFT', 'NEW', 'INTERNAL_REVIEW', 'QUOTATION_DRAFT', 'PENDING', 'CREATED']
-      .includes(normalizedQuotationStatus(status));
+  const isQuotationConverted = (q) => {
+    if (!q) return false;
+    const status = normalizedQuotationStatus(q.status || q.quotationStatus || q.workflowState?.code || q.workflowStateCode || '');
+    if (['CONVERTED', 'CONVERTED_TO_SO', 'ORDERED', 'WON', 'ORDER_CONFIRMED', 'CLOSED'].includes(status)) {
+      return true;
+    }
+    if (q.salesOrder || q.salesOrderId || q.orderNumber || q.orderNo || q.convertedToOrder || q.isConverted || q.convertedAt) {
+      return true;
+    }
+    if (Array.isArray(q.sourceSalesOrders) && q.sourceSalesOrders.length > 0) {
+      return true;
+    }
+    if (Array.isArray(q.orders) && q.orders.length > 0) {
+      return true;
+    }
+    if (['APPROVED', 'QUOTATION_APPROVED', 'CONFIRMED'].includes(status) && (q.salesOrder || q.salesOrderId || q.orderNumber)) {
+      return true;
+    }
+    return false;
+  };
 
-  const canConvertQuotation = (status) =>
-    ['SENT', 'QUOTATION_SENT', 'APPROVED', 'QUOTATION_APPROVED', 'ACCEPTED', 'CONFIRMED', 'NEGOTIATION', 'UNDER_NEGOTIATION']
+  const canSendQuotation = (q) => {
+    if (!q || isQuotationConverted(q)) return false;
+    const status = typeof q === 'string' ? q : (q.status || q.quotationStatus || q.workflowState?.code || q.workflowStateCode || '');
+    return ['DRAFT', 'NEW', 'INTERNAL_REVIEW', 'QUOTATION_DRAFT', 'PENDING', 'CREATED']
       .includes(normalizedQuotationStatus(status));
+  };
+
+  const canConvertQuotation = (q) => {
+    if (!q || isQuotationConverted(q)) return false;
+    const status = typeof q === 'string' ? q : (q.status || q.quotationStatus || q.workflowState?.code || q.workflowStateCode || '');
+    return ['SENT', 'QUOTATION_SENT', 'APPROVED', 'QUOTATION_APPROVED', 'ACCEPTED', 'CONFIRMED', 'NEGOTIATION', 'UNDER_NEGOTIATION']
+      .includes(normalizedQuotationStatus(status));
+  };
 
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -881,8 +908,31 @@ export default function QuotationsView({
                     <td data-label="Reminder">{renderQuotationReminder(q)}</td>
                     <td data-label="Actions" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <div className="action-btn-group" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
-                        {/* Sequential 2-Step Workflow with matching lime green pill buttons */}
-                        {canConvertQuotation(q.status) ? (
+                        {isQuotationConverted(q) ? (
+                          <button
+                            type="button"
+                            disabled
+                            title={q.salesOrder?.orderNumber ? `Sales Order ${q.salesOrder.orderNumber} already booked` : 'Order already booked for this quotation'}
+                            style={{
+                              background: '#f1f5f9',
+                              color: '#64748b',
+                              border: '1px solid #cbd5e1',
+                              padding: '6px 14px',
+                              borderRadius: '10px',
+                              fontWeight: '700',
+                              fontSize: '11.5px',
+                              cursor: 'not-allowed',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                              opacity: 0.75
+                            }}
+                          >
+                            ✓ Order Booked
+                          </button>
+                        ) : canConvertQuotation(q) ? (
                           <button
                             data-testid={`quotation-convert-order-${q.quotationNo || q.id}`}
                             type="button"
@@ -906,7 +956,7 @@ export default function QuotationsView({
                           >
                             Convert to Order →
                           </button>
-                        ) : !['CONVERTED', 'CONVERTED_TO_SO', 'CANCELLED', 'REJECTED', 'SUPERSEDED'].includes(normalizedQuotationStatus(q.status)) ? (
+                        ) : canSendQuotation(q) ? (
                           <button
                             data-testid={`quotation-send-${q.quotationNo || q.id}`}
                             type="button"
@@ -945,13 +995,19 @@ export default function QuotationsView({
                           <Eye size={14} />
                         </button>
                         <button
-                          title="Edit Quotation"
-                          onClick={() => startEditingQuotation(q)}
+                          title={isQuotationConverted(q) ? 'Quotation is converted into an order (Locked)' : 'Edit Quotation'}
+                          disabled={isQuotationConverted(q)}
+                          onClick={() => !isQuotationConverted(q) && startEditingQuotation(q)}
                           style={{
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                             width: '32px', height: '32px',
-                            background: '#ffffff', border: '1px solid #D6E2F0',
-                            borderRadius: '8px', cursor: 'pointer', color: '#475569', flexShrink: 0
+                            background: isQuotationConverted(q) ? '#f8fafc' : '#ffffff',
+                            border: '1px solid #D6E2F0',
+                            borderRadius: '8px',
+                            cursor: isQuotationConverted(q) ? 'not-allowed' : 'pointer',
+                            color: isQuotationConverted(q) ? '#cbd5e1' : '#475569',
+                            flexShrink: 0,
+                            opacity: isQuotationConverted(q) ? 0.5 : 1
                           }}
                         >
                           <Edit size={14} />
@@ -1003,10 +1059,10 @@ export default function QuotationsView({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{ 
                         padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '700',
-                        backgroundColor: (q.status === 'Converted' || q.status === 'Approved') ? '#dcfce7' : (q.status === 'New' || q.status === 'Draft' ? '#dbeafe' : '#f1f5f9'),
-                        color: (q.status === 'Converted' || q.status === 'Approved') ? '#15803d' : (q.status === 'New' || q.status === 'Draft' ? '#1d4ed8' : '#475569')
+                        backgroundColor: isQuotationConverted(q) ? '#f1f5f9' : ((q.status === 'Converted' || q.status === 'Approved') ? '#dcfce7' : (q.status === 'New' || q.status === 'Draft' ? '#dbeafe' : '#f1f5f9')),
+                        color: isQuotationConverted(q) ? '#64748b' : ((q.status === 'Converted' || q.status === 'Approved') ? '#15803d' : (q.status === 'New' || q.status === 'Draft' ? '#1d4ed8' : '#475569'))
                       }}>
-                        {q.status || 'Draft'}
+                        {isQuotationConverted(q) ? 'Converted' : (q.status || 'Draft')}
                       </div>
                       <button onClick={() => setSelectedQuotation(q)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                         <MoreVertical size={16} />
@@ -1034,7 +1090,18 @@ export default function QuotationsView({
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
-                      {canConvertQuotation(q.status) ? (
+                      {isQuotationConverted(q) ? (
+                        <button
+                          disabled
+                          style={{
+                            background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1',
+                            padding: '6px 12px', borderRadius: '8px', fontWeight: '700', fontSize: '11.5px',
+                            cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', flexShrink: 0, opacity: 0.75
+                          }}
+                        >
+                          ✓ Order Booked
+                        </button>
+                      ) : canConvertQuotation(q) ? (
                         <button
                           onClick={() => handleConvertToOrderClick(q)}
                           style={{
@@ -1045,7 +1112,7 @@ export default function QuotationsView({
                         >
                           Convert to Order →
                         </button>
-                      ) : !['CONVERTED', 'CONVERTED_TO_SO', 'CANCELLED', 'REJECTED', 'SUPERSEDED'].includes(normalizedQuotationStatus(q.status)) ? (
+                      ) : canSendQuotation(q) ? (
                         <button
                           onClick={() => handleSendQuotationClick(q)}
                           style={{
@@ -1066,9 +1133,20 @@ export default function QuotationsView({
                         <Eye size={15} />
                       </button>
                       <button
-                        title="Edit Quotation"
-                        onClick={() => startEditingQuotation(q)}
-                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#475569', cursor: 'pointer', flexShrink: 0 }}
+                        title={isQuotationConverted(q) ? 'Quotation is converted into an order (Locked)' : 'Edit Quotation'}
+                        disabled={isQuotationConverted(q)}
+                        onClick={() => !isQuotationConverted(q) && startEditingQuotation(q)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: '32px', height: '32px',
+                          background: isQuotationConverted(q) ? '#f8fafc' : '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          color: isQuotationConverted(q) ? '#cbd5e1' : '#475569',
+                          cursor: isQuotationConverted(q) ? 'not-allowed' : 'pointer',
+                          flexShrink: 0,
+                          opacity: isQuotationConverted(q) ? 0.5 : 1
+                        }}
                       >
                         <Edit size={15} />
                       </button>
@@ -1855,7 +1933,32 @@ export default function QuotationsView({
                 </button>
               </div>
 
-              {canSendQuotation(selectedQuotation.status) ? (
+              {isQuotationConverted(selectedQuotation) ? (
+                <div>
+                  <button
+                    type="button"
+                    disabled
+                    className="btn-small sheet-actions-primary-btn"
+                    style={{
+                      background: '#f1f5f9',
+                      color: '#64748b',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      padding: '10px 20px',
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: 'not-allowed',
+                      margin: 0,
+                      opacity: 0.75
+                    }}
+                  >
+                    ✓ Order Already Booked
+                  </button>
+                </div>
+              ) : canSendQuotation(selectedQuotation) ? (
                 <div>
                   <button
                     type="button"
@@ -1866,7 +1969,7 @@ export default function QuotationsView({
                     Send Quotation →
                   </button>
                 </div>
-              ) : canConvertQuotation(selectedQuotation.status) ? (
+              ) : canConvertQuotation(selectedQuotation) ? (
                 <div>
                   <button
                     type="button"

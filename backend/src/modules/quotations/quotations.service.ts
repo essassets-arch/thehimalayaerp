@@ -48,6 +48,8 @@ export class QuotationsService {
         },
         items: { include: { product: true } },
         selectedTerms: { orderBy: { sortOrder: 'asc' } },
+        salesOrder: { select: { id: true, orderNumber: true, status: true } },
+        sourceSalesOrders: { select: { id: true, orderNumber: true, status: true } },
       },
       orderBy: { createdAt: 'desc' },
     });

@@ -110,10 +110,10 @@ export function QuotationKanbanBoard() {
               .map((quotation) => (
                 <div
                   key={quotation.id}
-                  draggable={col.id !== 'CONVERTED_TO_SO'} // Don't drag if already converted
+                  draggable={col.id !== 'CONVERTED_TO_SO' && !quotation.salesOrder && !quotation.salesOrderId && (!Array.isArray(quotation.sourceSalesOrders) || quotation.sourceSalesOrders.length === 0)}
                   onDragStart={(e) => handleDragStart(e, quotation.id)}
                   onClick={() => router.push(`/crm/quotations/${quotation.id}`)}
-                  className={`cursor-grab active:cursor-grabbing ${col.id === 'CONVERTED_TO_SO' ? 'cursor-pointer' : ''}`}
+                  className={`cursor-grab active:cursor-grabbing ${(col.id === 'CONVERTED_TO_SO' || quotation.salesOrder || quotation.salesOrderId) ? 'cursor-pointer' : ''}`}
                 >
                   <Card className="hover:shadow-md transition-all hover:border-slate-300">
                     <CardContent className="p-4">
