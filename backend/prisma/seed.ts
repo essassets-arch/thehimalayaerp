@@ -3741,23 +3741,12 @@ async function main() {
       },
     });
 
-    if (!existingEmp) {
-      existingEmp = await prisma.employee.findFirst({
-        where: { employeeCode: `EMP-${seedIdx}` },
-      });
-    }
-
     if (existingEmp) {
-      // If another employee currently has userId = user.id, detach it first
-      const otherEmp = await prisma.employee.findUnique({
-        where: { userId: user.id },
+      // Detach any other employee currently holding this userId
+      await prisma.employee.updateMany({
+        where: { userId: user.id, id: { not: existingEmp.id } },
+        data: { userId: null },
       });
-      if (otherEmp && otherEmp.id !== existingEmp.id) {
-        await prisma.employee.update({
-          where: { id: otherEmp.id },
-          data: { userId: null },
-        });
-      }
 
       await prisma.employee.update({
         where: { id: existingEmp.id },
@@ -3775,6 +3764,12 @@ async function main() {
         },
       });
     } else {
+      // Ensure userId is not already bound
+      await prisma.employee.updateMany({
+        where: { userId: user.id },
+        data: { userId: null },
+      });
+
       let targetCode = `EMP-${seedIdx}`;
       let attempts = 0;
       while (await prisma.employee.findUnique({ where: { employeeCode: targetCode } })) {
@@ -3796,44 +3791,66 @@ async function main() {
         targetAadhaarHash = `hash_aadhaar_${seedIdx}_${attempts}_${Date.now()}`;
       }
 
-      await prisma.employee.create({
-        data: {
-          publicId: uid('EMP'),
-          employeeCode: targetCode,
-          companyId: company.id,
-          userId: user.id,
-          firstName: acc.firstName,
-          lastName: acc.lastName,
-          fullName: acc.name,
-          workEmail: acc.email,
-          jobTitle: acc.jobTitle,
-          departmentId: deptObj.id,
-          workLocationId: workLocObj.id,
-          employmentType: 'PERMANENT',
-          status: 'ACTIVE',
-          joiningDate: new Date('2024-01-01'),
-          dateOfBirth: new Date('1995-01-01'),
-          gender: 'MALE',
-          phoneNumber: `98765${String(10000 + seedIdx).slice(-5)}`,
-          residentialAddress: 'Ahmedabad, Gujarat',
-          permanentAddress: 'Ahmedabad, Gujarat',
-          emergencyContactName: 'Emergency Contact',
-          emergencyContactPhone: '9876543219',
-          emergencyRelationship: 'Family',
-          panNumber: uniquePan,
-          aadhaarNumberEncrypted: `enc_aadhaar_${seedIdx}`,
-          aadhaarLastFour: uniqueAadhaarLastFour,
-          aadhaarHash: uniqueAadhaarHash,
-          bankName: 'HDFC Bank',
-          accountHolderName: acc.name,
-          bankAccountType: 'SAVINGS',
-          bankAccountEncrypted: `enc_bank_${seedIdx}`,
-          bankAccountLastFour: uniqueBankLastFour,
-          bankAccountHash: uniqueBankHash,
-          ifscCode: 'HDFC0001234',
-          baseSalary: 45000,
-        },
-      });
+      try {
+        await prisma.employee.create({
+          data: {
+            publicId: uid('EMP'),
+            employeeCode: targetCode,
+            companyId: company.id,
+            userId: user.id,
+            firstName: acc.firstName,
+            lastName: acc.lastName,
+            fullName: acc.name,
+            workEmail: acc.email,
+            jobTitle: acc.jobTitle,
+            departmentId: deptObj.id,
+            workLocationId: workLocObj.id,
+            employmentType: 'PERMANENT',
+            status: 'ACTIVE',
+            joiningDate: new Date('2024-01-01'),
+            dateOfBirth: new Date('1995-01-01'),
+            gender: 'MALE',
+            phoneNumber: `98765${String(10000 + seedIdx).slice(-5)}`,
+            residentialAddress: 'Ahmedabad, Gujarat',
+            permanentAddress: 'Ahmedabad, Gujarat',
+            emergencyContactName: 'Emergency Contact',
+            emergencyContactPhone: '9876543219',
+            emergencyRelationship: 'Family',
+            panNumber: targetPan,
+            aadhaarNumberEncrypted: `enc_aadhaar_${seedIdx}`,
+            aadhaarLastFour: uniqueAadhaarLastFour,
+            aadhaarHash: targetAadhaarHash,
+            bankName: 'HDFC Bank',
+            accountHolderName: acc.name,
+            bankAccountType: 'SAVINGS',
+            bankAccountEncrypted: `enc_bank_${seedIdx}`,
+            bankAccountLastFour: uniqueBankLastFour,
+            bankAccountHash: uniqueBankHash,
+            ifscCode: 'HDFC0001234',
+            baseSalary: 45000,
+          },
+        });
+      } catch (err: any) {
+        if (err.code === 'P2002') {
+          const conflictEmp = await prisma.employee.findFirst({
+            where: {
+              OR: [
+                { workEmail: acc.email },
+                { employeeCode: targetCode },
+                { userId: user.id },
+              ],
+            },
+          });
+          if (conflictEmp) {
+            await prisma.employee.update({
+              where: { id: conflictEmp.id },
+              data: { userId: user.id, workEmail: acc.email, fullName: acc.name },
+            });
+          }
+        } else {
+          throw err;
+        }
+      }
     }
   }
 
