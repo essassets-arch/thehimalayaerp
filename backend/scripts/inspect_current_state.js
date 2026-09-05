@@ -24,6 +24,8 @@ async function check() {
   const lead263 = await prisma.lead.findFirst({ where: { leadNumber: 'LD/2627/0263' } });
   const lead264 = await prisma.lead.findFirst({ where: { leadNumber: 'LD/2627/0264' } });
   const lead266 = await prisma.lead.findFirst({ where: { leadNumber: 'LD/2627/0266' } });
+  const lead267 = await prisma.lead.findFirst({ where: { leadNumber: 'LD/2627/0267' } });
+  const lead276 = await prisma.lead.findFirst({ where: { leadNumber: 'LD/2627/0276' } });
 
   console.log('--- LEAD OWNERSHIP SAMPLING ---');
   console.log('Lead 0001 (SuperSales 1):', await getUser(lead1?.createdById), '|', await getUser(lead1?.salesExecutiveId));
@@ -42,6 +44,8 @@ async function check() {
   console.log('Lead 0263 (Sales 11 / HL):', await getUser(lead263?.createdById), '|', await getUser(lead263?.salesExecutiveId));
   console.log('Lead 0264 (Sales 13 / MK):', await getUser(lead264?.createdById), '|', await getUser(lead264?.salesExecutiveId));
   console.log('Lead 0266 (Sales 13 / MK):', await getUser(lead266?.createdById), '|', await getUser(lead266?.salesExecutiveId));
+  console.log('Lead 0267 (Sales 3 / RT):', await getUser(lead267?.createdById), '|', await getUser(lead267?.salesExecutiveId));
+  console.log('Lead 0276 (Sales 3 / RT):', await getUser(lead276?.createdById), '|', await getUser(lead276?.salesExecutiveId));
 
   const countSS1 = await prisma.salesOrder.count({ where: { orderNumber: { gte: 'HCPPL/2627/0001', lte: 'HCPPL/2627/0144' } } });
   const countSS2 = await prisma.salesOrder.count({ where: { orderNumber: { gte: 'HCPPL/2627/0145', lte: 'HCPPL/2627/0167' } } });
@@ -51,6 +55,7 @@ async function check() {
   const countS12 = await prisma.salesOrder.count({ where: { orderNumber: { gte: 'HCPPL/2627/0255', lte: 'HCPPL/2627/0260' } } });
   const countS11 = await prisma.salesOrder.count({ where: { orderNumber: { gte: 'HCPPL/2627/0261', lte: 'HCPPL/2627/0263' } } });
   const countS13 = await prisma.salesOrder.count({ where: { orderNumber: { gte: 'HCPPL/2627/0264', lte: 'HCPPL/2627/0266' } } });
+  const countS3 = await prisma.salesOrder.count({ where: { orderNumber: { gte: 'HCPPL/2627/0267', lte: 'HCPPL/2627/0276' } } });
 
   console.log('\n--- ORDER COUNTS BY RANGE ---');
   console.log('HCPPL 0001 - 0144 (SuperSales 1 / Hussain Sir):', countSS1);
@@ -61,6 +66,7 @@ async function check() {
   console.log('HCPPL 0255 - 0260 (Sales 12 / Jyoti):', countS12);
   console.log('HCPPL 0261 - 0263 (Sales 11 / HL):', countS11);
   console.log('HCPPL 0264 - 0266 (Sales 13 / MK):', countS13);
+  console.log('HCPPL 0267 - 0276 (Sales 3 / RT):', countS3);
 
   const woSS1 = await prisma.workOrder.count({ where: { workOrderNumber: { gte: 'WO/2627/0001', lte: 'WO/2627/0315' } } });
   const woSS2 = await prisma.workOrder.count({ where: { workOrderNumber: { gte: 'WO/2627/0316', lte: 'WO/2627/0367' } } });
@@ -70,6 +76,7 @@ async function check() {
   const woS12 = await prisma.workOrder.count({ where: { workOrderNumber: { gte: 'WO/2627/0532', lte: 'WO/2627/0541' } } });
   const woS11 = await prisma.workOrder.count({ where: { workOrderNumber: { gte: 'WO/2627/0542', lte: 'WO/2627/0548' } } });
   const woS13 = await prisma.workOrder.count({ where: { workOrderNumber: { gte: 'WO/2627/0549', lte: 'WO/2627/0552' } } });
+  const woS3 = await prisma.workOrder.count({ where: { workOrderNumber: { gte: 'WO/2627/0553', lte: 'WO/2627/0568' } } });
 
   console.log('\n--- WORK ORDER COUNTS BY RANGE ---');
   console.log('WO 0001 - 0315 (SuperSales 1):', woSS1);
@@ -80,6 +87,7 @@ async function check() {
   console.log('WO 0532 - 0541 (Sales 12 / Jyoti):', woS12);
   console.log('WO 0542 - 0548 (Sales 11 / HL):', woS11);
   console.log('WO 0549 - 0552 (Sales 13 / MK):', woS13);
+  console.log('WO 0553 - 0568 (Sales 3 / RT):', woS3);
 }
 
 check().catch(console.error).finally(() => prisma.$disconnect());
