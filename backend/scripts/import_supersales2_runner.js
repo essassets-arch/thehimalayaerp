@@ -217,17 +217,14 @@ async function importSuperSales2IntoDb(config, consolidatedLeads) {
     const userId = user.id;
     console.log(`Resolved SuperSales 2 user: ${user.name} (${user.id}) in company: ${user.companyId}`);
 
-    // 2. Clear previous leads created by supersales2
+    // 2. Clear only previously imported CSV leads for supersales2 (preserving manual/live leads)
     const cleared = await prisma.lead.deleteMany({
       where: {
-        OR: [
-          { createdById: userId },
-          { salesExecutiveId: userId },
-          { remarks: 'Imported from Taher Sir Super Sales 2 CSV' }
-        ]
+        createdById: userId,
+        remarks: 'Imported from Taher Sir Super Sales 2 CSV'
       }
     });
-    console.log(`Cleared ${cleared.count} existing leads for SuperSales 2.`);
+    console.log(`Refreshed ${cleared.count} previously imported CSV leads for SuperSales 2. All other live data preserved.`);
 
     // 3. Resolve default company and initial workflow state
     const companyId = user.companyId || (await prisma.company.findFirst())?.id;
