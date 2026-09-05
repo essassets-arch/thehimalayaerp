@@ -103,10 +103,11 @@ export default function DashboardView({
   orders = [],
   payments = [],
   samples = [],
-  customers = []
+  customers = [],
+  basePath = '/sales'
 }) {
   const [isMounted, setIsMounted] = React.useState(false);
-  const [timeFilter, setTimeFilter] = React.useState('This Month');
+  const [timeFilter, setTimeFilter] = React.useState('All');
   const [customStartDate, setCustomStartDate] = React.useState('');
   const [customEndDate, setCustomEndDate] = React.useState('');
   const [activeTab, setActiveTab] = React.useState('overview');
@@ -127,12 +128,19 @@ export default function DashboardView({
     staleTime: 60000,
   });
 
-  const handleNav = (path) => {
+  const handleNav = (targetPath) => {
+    if (!targetPath) return;
+    let finalPath = targetPath;
+    if (basePath && basePath !== '/sales' && targetPath.startsWith('/sales/')) {
+      finalPath = targetPath.replace('/sales/', `${basePath}/`);
+    } else if (basePath && basePath !== '/sales' && targetPath === '/sales') {
+      finalPath = basePath;
+    }
     if (navigate) {
       if (typeof navigate === 'function') {
-        navigate(path);
+        navigate(finalPath);
       } else if (typeof navigate.push === 'function') {
-        navigate.push(path);
+        navigate.push(finalPath);
       }
     }
   };
@@ -216,6 +224,8 @@ export default function DashboardView({
     const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
 
     switch (timeFilter) {
+      case 'All':
+        return true;
       case 'Today':
         return itemTime >= todayStart && itemTime <= todayStart + 86400000;
       case 'This Week':
@@ -382,7 +392,9 @@ export default function DashboardView({
   const ordersInProductionCount = filteredOrders.filter(o => {
     const s = String(o.workflowStatus || o.orderStatus || o.status || o.workflowState?.code || o.planningStatus || '').toUpperCase();
     const dept = String(o.currentDepartment || '').toUpperCase();
-    return (s.includes('PRODUCTION') || s.includes('PLANT') || s.includes('PLAN') || dept.includes('PRODUCTION')) && !s.includes('DISPATCH') && !s.includes('DELIVER') && !['CANCELLED', 'VOID', 'REJECTED', 'DRAFT'].includes(s);
+    const isSentToPlant = Boolean(o.sentToPlantHead || o.sentToPlantHeadAt || o.sentToPlantAt || o.isSentToPlant) ||
+                          s.includes('PRODUCTION') || s.includes('PLANT') || s.includes('PLAN') || dept.includes('PRODUCTION');
+    return isSentToPlant && !s.includes('DISPATCH') && !s.includes('DELIVER') && !['CANCELLED', 'VOID', 'REJECTED', 'DRAFT'].includes(s);
   }).length;
 
   const readyForDispatchCount = filteredOrders.filter(o => {
@@ -421,7 +433,7 @@ export default function DashboardView({
 
     const planningStatus = String(order.planningStatus || '').toUpperCase();
     const isSentToPlant = 
-      Boolean(order.sentToPlantAt || order.sentToPlantHeadAt || order.isSentToPlant) ||
+      Boolean(order.sentToPlantAt || order.sentToPlantHeadAt || order.isSentToPlant || order.sentToPlantHead) ||
       (Array.isArray(order.productionPlans) && order.productionPlans.length > 0) ||
       ['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD', 'PLANT_PENDING', 'PLANT_APPROVED', 'READY_FOR_PRODUCTION', 'PRODUCTION_PLANNED', 'IN_PRODUCTION', 'QC_PENDING', 'QC_PASSED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'CLOSED', 'PAYMENT_PENDING'].some(st => status.includes(st) || planningStatus.includes(st));
     
@@ -659,7 +671,7 @@ export default function DashboardView({
           width: '100%',
           minWidth: 0
         }}>
-          {['Today', 'This Week', 'This Month', 'This Year', 'Custom'].map(f => (
+          {['All', 'Today', 'This Week', 'This Month', 'This Year', 'Custom'].map(f => (
             <button
               key={f}
               onClick={() => setTimeFilter(f)}
