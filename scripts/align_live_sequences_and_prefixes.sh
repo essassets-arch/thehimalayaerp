@@ -14,15 +14,33 @@ echo "======================================================================"
 
 echo ""
 echo "1. Converting any existing HCCL/ or legacy prefixes to LEAD / QU / HCPPL..."
-docker compose exec backend npx ts-node scripts/convert_hccl_to_lead_sequences.ts || node backend/scripts/convert_hccl_to_lead_sequences.ts
+if docker compose ps --services --filter "status=running" 2>/dev/null | grep -q "backend"; then
+  docker compose exec -T backend node scripts/convert_hccl_to_lead_sequences.js
+elif [ -d "backend" ]; then
+  (cd backend && node scripts/convert_hccl_to_lead_sequences.js)
+else
+  node scripts/convert_hccl_to_lead_sequences.js
+fi
 
 echo ""
 echo "2. Synchronizing atomic sequence generator table (idSequence)..."
-docker compose exec backend node scripts/sync_all_id_sequences.js || node backend/scripts/sync_all_id_sequences.js
+if docker compose ps --services --filter "status=running" 2>/dev/null | grep -q "backend"; then
+  docker compose exec -T backend node scripts/sync_all_id_sequences.js
+elif [ -d "backend" ]; then
+  (cd backend && node scripts/sync_all_id_sequences.js)
+else
+  node scripts/sync_all_id_sequences.js
+fi
 
 echo ""
 echo "3. Running verification report..."
-docker compose exec backend npx ts-node scripts/inspect_all_db_prefixes.ts || node backend/scripts/inspect_all_db_prefixes.ts
+if docker compose ps --services --filter "status=running" 2>/dev/null | grep -q "backend"; then
+  docker compose exec -T backend node scripts/inspect_all_db_prefixes.js
+elif [ -d "backend" ]; then
+  (cd backend && node scripts/inspect_all_db_prefixes.js)
+else
+  node scripts/inspect_all_db_prefixes.js
+fi
 
 echo ""
 echo "======================================================================"
