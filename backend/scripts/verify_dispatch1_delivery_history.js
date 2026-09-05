@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const fs = require('fs');
+const path = require('path');
 
 const prisma = new PrismaClient();
 
@@ -57,7 +58,23 @@ function parseCSV(content) {
 async function verify() {
   console.log('🧪 VERIFYING DISPATCH 1 DELIVERY HISTORY AUDIT DATA...\n');
 
-  const csvContent = fs.readFileSync('D:/prototype-next-main/delivery_history_audit_2026-09-05 (2).csv', 'utf8');
+  const candidatePaths = [
+    path.join(__dirname, 'delivery_history_audit_2026-09-05 (2).csv'),
+    path.resolve('delivery_history_audit_2026-09-05 (2).csv'),
+    path.resolve('backend/scripts/delivery_history_audit_2026-09-05 (2).csv'),
+    path.resolve('/app/delivery_history_audit_2026-09-05 (2).csv'),
+    path.resolve('/app/scripts/delivery_history_audit_2026-09-05 (2).csv'),
+    path.join(__dirname, '../delivery_history_audit_2026-09-05 (2).csv'),
+    'D:/prototype-next-main/delivery_history_audit_2026-09-05 (2).csv',
+  ];
+
+  let csvPath = candidatePaths.find(p => fs.existsSync(p));
+  if (!csvPath) {
+    console.error('❌ Error: delivery_history_audit_2026-09-05 (2).csv not found in any candidate paths');
+    process.exit(1);
+  }
+
+  const csvContent = fs.readFileSync(csvPath, 'utf8');
   const csvRows = parseCSV(csvContent).slice(1).filter(r => r.length > 1 && r[0]);
 
   console.log(`Auditing ${csvRows.length} CSV records against Active DB...`);

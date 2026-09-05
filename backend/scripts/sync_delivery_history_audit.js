@@ -2,11 +2,15 @@ const { PrismaClient, Prisma } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
 
-const targetDbs = [
-  { name: 'Active DB (himalaya_erp_browser_test)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
-  { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' },
-  { name: 'Docker DB 5435', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public' }
-];
+const isDocker = fs.existsSync('/.dockerenv') || (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('@postgres:'));
+
+const targetDbs = isDocker
+  ? [{ name: 'Docker Database', url: process.env.DATABASE_URL }]
+  : [
+      { name: 'Active DB (himalaya_erp_browser_test)', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+      { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' },
+      { name: 'Docker DB 5435', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public' }
+    ];
 
 function parseDateIndian(dateStr) {
   if (!dateStr || dateStr === '—') return new Date();
@@ -302,7 +306,22 @@ async function syncDb(config, csvRows) {
 }
 
 async function main() {
-  const csvPath = 'D:/prototype-next-main/delivery_history_audit_2026-09-05 (2).csv';
+  const candidatePaths = [
+    path.join(__dirname, 'delivery_history_audit_2026-09-05 (2).csv'),
+    path.resolve('delivery_history_audit_2026-09-05 (2).csv'),
+    path.resolve('backend/scripts/delivery_history_audit_2026-09-05 (2).csv'),
+    path.resolve('/app/delivery_history_audit_2026-09-05 (2).csv'),
+    path.resolve('/app/scripts/delivery_history_audit_2026-09-05 (2).csv'),
+    path.join(__dirname, '../delivery_history_audit_2026-09-05 (2).csv'),
+    'D:/prototype-next-main/delivery_history_audit_2026-09-05 (2).csv',
+  ];
+
+  let csvPath = candidatePaths.find(p => fs.existsSync(p));
+  if (!csvPath) {
+    console.error('❌ Error: delivery_history_audit_2026-09-05 (2).csv not found in any candidate paths:', candidatePaths);
+    process.exit(1);
+  }
+
   console.log(`Reading CSV from: ${csvPath}`);
   const content = fs.readFileSync(csvPath, 'utf8');
   const rows = parseCSV(content);
