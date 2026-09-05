@@ -448,11 +448,21 @@ export default function DeliveryRunPage() {
             <div className={styles.heroTitleSection}>
               <div className={styles.heroBadge}>
                 <ShieldCheck size={13} />
-                <span>Final Mile Handover · Delivery Confirmation</span>
+                <span>
+                  {isDispatch2
+                    ? "Dispatch 2 (Sahad Dispatch) · Final Mile Handover"
+                    : "Dispatch 1 (Factory Dispatch) · Final Mile Handover"}
+                </span>
               </div>
-              <h1 className={styles.heroTitle}>Out for Delivery &amp; Handover Registry</h1>
+              <h1 className={styles.heroTitle}>
+                {isDispatch2
+                  ? "Dispatch 2 — Out for Delivery & Handover Registry"
+                  : "Dispatch 1 — Out for Delivery & Handover Registry"}
+              </h1>
               <p className={styles.heroSubtitle}>
-                Execute client delivery handovers, capture recipient signatures &amp; phone contacts, and upload verified Proof of Delivery (POD) image records.
+                {isDispatch2
+                  ? "Execute client delivery handovers for Trading Products (Category 2), capture recipient signatures & phone contacts, and upload verified Proof of Delivery (POD) image records."
+                  : "Execute client delivery handovers for Manufacturing Products (Category 1), capture recipient signatures & phone contacts, and upload verified Proof of Delivery (POD) image records."}
               </p>
             </div>
 
@@ -483,8 +493,64 @@ export default function DeliveryRunPage() {
           </div>
         </section>
 
+        {/* Dedicated Dispatch Category & Incharge Banner */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '16px',
+          background: '#FFFFFF',
+          padding: '14px 20px',
+          borderRadius: '12px',
+          border: '1px solid #E2E8F0',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              background: isDispatch2 ? '#ECFDF5' : '#EEF2FF',
+              color: isDispatch2 ? '#059669' : '#4F46E5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: '15px'
+            }}>
+              {isDispatch2 ? 'SD' : 'RA'}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>
+                  {isDispatch2
+                    ? 'Dispatch 2 Delivery & Handover Registry — Trading Products (Cat 2)'
+                    : 'Dispatch 1 Delivery & Handover Registry — Manufacturing (Cat 1)'}
+                </span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  background: isDispatch2 ? '#D1FAE5' : '#E0E7FF',
+                  color: isDispatch2 ? '#065F46' : '#3730A3'
+                }}>
+                  {isDispatch2 ? '🛍️ Dispatch 2 · Sahad Dispatch' : '🏭 Dispatch 1 · Ravikant Tiwari'}
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                {isDispatch2 ? (
+                  <span>Incharge: <strong>Sahad Dispatch</strong> (sahad.dispatch@himalayaerp.com) · Trading Orders ➔ Final Mile Delivery &amp; POD</span>
+                ) : (
+                  <span>Incharge: <strong>Ravikant Tiwari</strong> (ravikant.t@himalayaerp.com) · Manufacturing Orders ➔ Final Mile Delivery &amp; POD</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* ─── MAIN WORKSPACE CARD ─── */}
-        <div className={styles.mainCard}>
+        <div className={styles.mainCard} style={{ marginTop: 0 }}>
           {/* Controls Bar: Tabs & Search Filter */}
           <div className={styles.controlBar}>
             {/* Horizontally Scrollable Tab Switcher */}

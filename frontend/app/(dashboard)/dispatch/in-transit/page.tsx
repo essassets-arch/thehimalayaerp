@@ -287,13 +287,19 @@ export default function InTransitPage() {
         {/* ---------- HERO ---------- */}
         <section className={styles.inTransitHero}>
           <div className={styles.inTransitHeroContent}>
-            <div className={styles.inTransitHeroLabel}>Logistics Operations</div>
+            <div className={styles.inTransitHeroLabel}>
+              {isDispatch2 ? "Dispatch 2 (Sahad Dispatch) · Logistics Operations" : "Dispatch 1 (Factory Dispatch) · Logistics Operations"}
+            </div>
             <h1 className={styles.inTransitHeroTitle}>
-              {activeTab === "transit" ? "Active Transit Shipments" : "Dispatch History & POD"}
+              {isDispatch2
+                ? (activeTab === "transit" ? "Dispatch 2 — Active Transit Shipments" : "Dispatch 2 — History & POD")
+                : (activeTab === "transit" ? "Dispatch 1 — Active Transit Shipments" : "Dispatch 1 — History & POD")}
             </h1>
             <p className={styles.inTransitHeroDescription}>
               {activeTab === "transit"
-                ? "Monitor active shipments currently on the road. Click Start Delivery when vehicle arrives at destination area to hand off to final-mile delivery team."
+                ? (isDispatch2
+                    ? "Monitor active Trading Product shipments currently on the road. Click Start Delivery when vehicle arrives at destination area."
+                    : "Monitor active Manufacturing shipments currently on the road. Click Start Delivery when vehicle arrives at destination area.")
                 : "Review all completed and delivered shipments with verified receiver details and POD image proofs."}
             </p>
           </div>
