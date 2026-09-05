@@ -337,6 +337,7 @@ export const navigationConfig = {
     { id: 'attendance', label: 'Attendance & Clock', icon: Clock, path: '/hr/attendance' },
     { id: 'leaves', label: 'Leave Workflows', icon: FileText, path: '/hr/leaves' },
     { id: 'exit-clearance', label: 'Exit Clearance', icon: PackageCheck, path: '/hr/exit-clearance' },
+    { id: 'sops', label: "SOP's & HR Forms", icon: BookOpen, path: '/hr/sops' },
     {
       id: 'salary',
       label: 'Salary Management',
@@ -392,6 +393,7 @@ export const navigationConfig = {
     { id: 'purchase-indents', label: 'Purchase Order Approvals', icon: ClipboardCheck, path: '/super-admin/purchase-indents' },
     { id: 'salary-approval', label: 'Salary Approvals', icon: CreditCard, path: '/super-admin/salary-approval' },
     { id: 'exit-clearance', label: 'Exit Clearance (Read-Only)', icon: PackageCheck, path: '/super-admin/exit-clearance' },
+    { id: 'hr-sops', label: "HR SOP's & Formats", icon: BookOpen, path: '/hr/sops' },
     { id: 'attendance', label: 'Attendance Data', icon: Clock, path: '/super-admin/attendance' },
     { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/super-admin/customer-complaints' },
 
