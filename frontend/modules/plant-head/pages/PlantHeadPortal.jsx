@@ -689,6 +689,12 @@ export default function PlantHeadPortal({ overrideView } = {}) {
   const [planningStatusFilter, setPlanningStatusFilter] = useState('All');
   const [planningPriorityFilter, setPlanningPriorityFilter] = useState('All');
   const [planningViewTab, setPlanningViewTab] = useState('pending');
+  const [planningPage, setPlanningPage] = useState(1);
+  const [planningPageSize, setPlanningPageSize] = useState(25);
+
+  useEffect(() => {
+    setPlanningPage(1);
+  }, [planningSearch, planningPriorityFilter, planningStatusFilter, planningViewTab, planningPageSize]);
   const [replacementRequests, setReplacementRequests] = useState([]);
   const [replacementLoading, setReplacementLoading] = useState(false);
 
@@ -3806,6 +3812,28 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       return matchSearch && matchPriority;
     });
 
+    const totalPlanningPages = Math.ceil(filtered.length / planningPageSize) || 1;
+    const startIndex = filtered.length === 0 ? 0 : (planningPage - 1) * planningPageSize + 1;
+    const endIndex = Math.min(planningPage * planningPageSize, filtered.length);
+    const displayedPlanningOrders = filtered.slice(
+      (planningPage - 1) * planningPageSize,
+      planningPage * planningPageSize
+    );
+
+    const getPlanningPageNumbers = () => {
+      const pages = [];
+      const maxVisible = 5;
+      let start = Math.max(1, planningPage - Math.floor(maxVisible / 2));
+      let end = Math.min(totalPlanningPages, start + maxVisible - 1);
+      if (end - start + 1 < maxVisible) {
+        start = Math.max(1, end - maxVisible + 1);
+      }
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      return pages;
+    };
+
     const priorityBadge = (priority) => {
       const colors = { High: { bg: '#fef2f2', color: '#dc2626', border: '#fca5a5' }, Medium: { bg: '#fffbeb', color: '#d97706', border: '#fcd34d' }, Low: { bg: '#f0fdf4', color: '#16a34a', border: '#86efac' } };
       const c = colors[priority] || colors.Medium;
@@ -3873,13 +3901,13 @@ export default function PlantHeadPortal({ overrideView } = {}) {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', fontSize: '12px', color: '#64748b', fontWeight: '500' }}>
-          <span>Showing <strong>{filtered.length}</strong> of <strong>{allPlanningOrders.length}</strong> orders</span>
+          <span>Showing <strong>{startIndex}</strong> to <strong>{endIndex}</strong> of <strong>{filtered.length}</strong> orders (Total: {allPlanningOrders.length})</span>
         </div>
 
         {isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {filtered.length > 0 ? (
-              filtered.map((row) => {
+            {displayedPlanningOrders.length > 0 ? (
+              displayedPlanningOrders.map((row) => {
                 const hasPendingFulfillment = Array.isArray(row.items) && row.items.some(item => {
                   const f = item.fulfillment || {};
                   return Number(f.pendingDirectDispatchQty || f.fgAllocatableQty || 0) > 0 ||
@@ -4132,7 +4160,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
               },
               { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) },
             ]}
-            data={filtered}
+            data={displayedPlanningOrders}
             searchQuery={''}
             searchField="customerName"
             actions={(row) => {
@@ -4186,6 +4214,118 @@ export default function PlantHeadPortal({ overrideView } = {}) {
             }}
             emptyMessage="No orders pending planning in Plant Head board."
           />
+        )}
+
+        {/* Pagination controls */}
+        {filtered.length > 0 && (
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            marginTop: '20px',
+            borderTop: '1px solid var(--color-border, #e2e8f0)',
+            paddingTop: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', color: 'var(--color-text-secondary, #64748b)' }}>
+                Showing <strong>{startIndex}</strong> to <strong>{endIndex}</strong> of <strong>{filtered.length}</strong> orders (Total: {allPlanningOrders.length})
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--color-text-secondary, #64748b)' }}>
+                <span>Show:</span>
+                <select
+                  aria-label="Items per page"
+                  value={planningPageSize}
+                  onChange={(e) => {
+                    setPlanningPageSize(Number(e.target.value));
+                    setPlanningPage(1);
+                  }}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    fontSize: '13px',
+                    color: '#1e293b',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span>per page</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                disabled={planningPage === 1 || filtered.length === 0}
+                onClick={() => setPlanningPage(p => Math.max(1, p - 1))}
+                className="btn-small btn-outline-small"
+                style={{
+                  margin: 0,
+                  padding: '6px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  opacity: (planningPage === 1 || filtered.length === 0) ? 0.5 : 1,
+                  cursor: (planningPage === 1 || filtered.length === 0) ? 'not-allowed' : 'pointer',
+                  borderRadius: '6px',
+                  fontWeight: '600'
+                }}
+              >
+                <ChevronLeft size={14} /> Previous
+              </button>
+
+              {filtered.length > 0 && getPlanningPageNumbers().map(pageNum => (
+                <button
+                  key={pageNum}
+                  onClick={() => setPlanningPage(pageNum)}
+                  style={{
+                    minWidth: '32px',
+                    height: '32px',
+                    padding: '0 6px',
+                    borderRadius: '6px',
+                    border: planningPage === pageNum ? 'none' : '1px solid #cbd5e1',
+                    background: planningPage === pageNum ? '#2F4375' : '#ffffff',
+                    color: planningPage === pageNum ? '#ffffff' : '#334155',
+                    fontWeight: planningPage === pageNum ? '700' : '600',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {pageNum}
+                </button>
+              ))}
+
+              <button
+                disabled={planningPage === totalPlanningPages || filtered.length === 0}
+                onClick={() => setPlanningPage(p => Math.min(totalPlanningPages, p + 1))}
+                className="btn-small btn-outline-small"
+                style={{
+                  margin: 0,
+                  padding: '6px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  opacity: (planningPage === totalPlanningPages || filtered.length === 0) ? 0.5 : 1,
+                  cursor: (planningPage === totalPlanningPages || filtered.length === 0) ? 'not-allowed' : 'pointer',
+                  borderRadius: '6px',
+                  fontWeight: '600'
+                }}
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
     );
