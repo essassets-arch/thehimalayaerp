@@ -236,22 +236,40 @@ export function mapSalesOrder(
       const isTrading =
         prodType === 'TRADING' ||
         prodDCat === 'D2' ||
+        prodDCat.includes('2') ||
         prodCat.includes('TRADING') ||
         prodCat.includes('RCC PIPE') ||
         prodCat.includes('FRC COVER') ||
         prodCat.includes('COVERBLOCK') ||
+        prodCat.includes('OTHERS') ||
         prodSku.startsWith('FRCCP') ||
         prodSku.startsWith('FRCT') ||
+        prodSku.startsWith('FRCSQRC') ||
+        prodSku.startsWith('FRC') ||
+        prodSku.startsWith('RCC') ||
         prodSku.startsWith('BTCB') ||
         prodSku.startsWith('WCB') ||
+        prodSku.startsWith('PCB') ||
+        prodSku.startsWith('HTCB') ||
         prodSku.startsWith('DTCB') ||
+        prodSku.startsWith('MCB') ||
+        prodSku.includes('COVERBLOCK') ||
+        prodSku.includes('COVER BLOCK') ||
         prodName.startsWith('FRCCP') ||
         prodName.startsWith('FRCT') ||
+        prodName.startsWith('FRCSQRC') ||
+        prodName.startsWith('FRC') ||
+        prodName.startsWith('RCC') ||
         prodName.startsWith('BTCB') ||
         prodName.startsWith('WCB') ||
+        prodName.startsWith('PCB') ||
+        prodName.startsWith('HTCB') ||
         prodName.startsWith('DTCB') ||
+        prodName.startsWith('MCB') ||
         prodName.includes('FRC COVER') ||
-        prodName.includes('RCC PIPE');
+        prodName.includes('RCC PIPE') ||
+        prodName.includes('COVERBLOCK') ||
+        prodName.includes('COVER BLOCK');
 
       const orderedQty = Number(item.orderedQuantity);
       const alreadyDispatchedQty = dispatchMap
@@ -273,15 +291,17 @@ export function mapSalesOrder(
       );
       const availableFG = fgMap ? fgMap.get(item.productId) || 0 : 0;
 
-      // Direct dispatch bypass removed: all remaining unallocated order quantities are routed to production
       const fgAllocatableQty = 0;
-      const productionRequiredQty = remainingUnallocatedQty;
+      const productionRequiredQty = isTrading ? 0 : remainingUnallocatedQty;
 
-      const pendingDirectDispatchQty = 0;
-      const pendingProductionQty = remainingUnallocatedQty;
+      const pendingDirectDispatchQty = isTrading ? remainingUnallocatedQty : 0;
+      const pendingProductionQty = isTrading ? 0 : remainingUnallocatedQty;
 
-      let fulfillmentState = 'PENDING_DECISION';
-      if (pendingProductionQty === 0) {
+      let fulfillmentState = isTrading
+        ? (alreadyDispatchedQty >= orderedQty ? 'FULFILLED' : 'READY_FOR_DISPATCH')
+        : 'PENDING_DECISION';
+
+      if (!isTrading && pendingProductionQty === 0) {
         if (alreadyDispatchedQty >= orderedQty) {
           fulfillmentState = 'FULFILLED';
         } else if (activeReservedQty > 0) {

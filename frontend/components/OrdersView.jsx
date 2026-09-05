@@ -217,22 +217,51 @@ export default function OrdersView({
     return isDeliveredOrder(order) && getAvailableAfterSalesQuantity(order) > 0 && !hasActiveReturn(order) && !hasFullReturnCompleted(order);
   };
 
-  const isTradingOrder = (order) => {
-    const items = Array.isArray(order?.items) ? order.items : Array.isArray(order?.orderItems) ? order.orderItems : [];
-    if (items.length === 0) {
-      const singleName = order?.productName || order?.name || '';
-      const singleCat = order?.category || order?.brand || '';
-      if (['RCC PIPE', 'FRC COVER'].includes(singleCat.toUpperCase())) return true;
-      return false;
+  const isTradingItem = (item) => {
+    if (!item) return false;
+    const type = String(item.productType || item.product?.productType || item.product_type || '').toUpperCase();
+    if (type === 'TRADING') return true;
+    if (type === 'MANUFACTURING') return false;
+    const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || '').toUpperCase();
+    if (dCat === 'D2' || dCat.includes('2')) return true;
+    const cat = String(item.category || item.product?.category || item.product_family || item.brand || '').toUpperCase();
+    if (['RCC PIPE', 'FRC COVER', 'COVERBLOCK', 'OTHERS', 'TRADING'].includes(cat)) return true;
+    if (['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING'].includes(cat)) return false;
+    const nameOrSku = String(item.productName || item.productNameSnapshot || item.name || item.product?.name || item.sku || item.productCode || item.productCodeSnapshot || '').toUpperCase();
+    if (
+      nameOrSku.startsWith('FRCCP') ||
+      nameOrSku.startsWith('FRCT') ||
+      nameOrSku.startsWith('FRCSQRC') ||
+      nameOrSku.startsWith('FRC') ||
+      nameOrSku.startsWith('RCC') ||
+      nameOrSku.startsWith('WCB') ||
+      nameOrSku.startsWith('PCB') ||
+      nameOrSku.startsWith('HTCB') ||
+      nameOrSku.startsWith('DTCB') ||
+      nameOrSku.startsWith('MCB') ||
+      nameOrSku.startsWith('BTCB') ||
+      nameOrSku.includes('COVERBLOCK') ||
+      nameOrSku.includes('COVER BLOCK') ||
+      nameOrSku.includes('FRC COVER') ||
+      nameOrSku.includes('RCC PIPE')
+    ) {
+      return true;
     }
-    return items.every((item) => {
-      const type = (item.productType || item.product?.productType || '').toUpperCase();
-      const cat = (item.category || item.product?.category || item.brand || '').toUpperCase();
-      if (type === 'TRADING') return true;
-      if (type === 'MANUFACTURING') return false;
-      if (['RCC PIPE', 'FRC COVER'].includes(cat)) return true;
-      return false;
-    });
+    return false;
+  };
+
+  const isTradingOrder = (order) => {
+    const items = Array.isArray(order?.items) && order.items.length > 0
+      ? order.items
+      : (Array.isArray(order?.orderItems) && order.orderItems.length > 0
+        ? order.orderItems
+        : (Array.isArray(order?.detailedItems) && order.detailedItems.length > 0
+          ? order.detailedItems
+          : []));
+    if (items.length === 0) {
+      return isTradingItem(order);
+    }
+    return items.every(isTradingItem);
   };
 
   const renderOrderProducts = (order) => {

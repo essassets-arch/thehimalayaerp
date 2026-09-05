@@ -717,20 +717,46 @@ export class SalesService {
         const productIds = order.items.map((i) => i.productId).filter(Boolean);
         const orderProducts = await tx.product.findMany({
           where: { id: { in: productIds } },
-          select: { id: true, category: true, productType: true },
+          select: { id: true, category: true, productType: true, dispatchCategory: true, sku: true, name: true },
         });
 
-        const hasManufacturingProduct = orderProducts.some(
-          (p) =>
-            p.productType === 'MANUFACTURING' ||
-            (p.productType !== 'TRADING' &&
-              [
-                'FRP COVERS',
-                'FRP GRATINGS',
-                'MANUFACTURING',
-                'COVERBLOCK',
-              ].includes((p.category || '').toUpperCase())),
-        );
+        const isItemTrading = (item: any) => {
+          const p = orderProducts.find((prod) => prod.id === item.productId);
+          const pType = String(p?.productType || item?.productType || '').toUpperCase();
+          if (pType === 'TRADING') return true;
+          if (pType === 'MANUFACTURING') return false;
+
+          const dCat = String(p?.dispatchCategory || item?.dispatchCategory || '').toUpperCase();
+          if (dCat === 'D2' || dCat.includes('2')) return true;
+
+          const cat = String(p?.category || item?.category || '').toUpperCase();
+          if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
+          if (['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING'].includes(cat)) return false;
+
+          const skuOrName = String(p?.sku || p?.name || item?.productCodeSnapshot || item?.productNameSnapshot || '').toUpperCase();
+          if (
+            skuOrName.startsWith('WCB') ||
+            skuOrName.startsWith('PCB') ||
+            skuOrName.startsWith('HTCB') ||
+            skuOrName.startsWith('DTCB') ||
+            skuOrName.startsWith('MCB') ||
+            skuOrName.startsWith('BTCB') ||
+            skuOrName.startsWith('FRCCP') ||
+            skuOrName.startsWith('FRCT') ||
+            skuOrName.startsWith('FRCSQRC') ||
+            skuOrName.startsWith('FRC') ||
+            skuOrName.startsWith('RCC') ||
+            skuOrName.includes('COVERBLOCK') ||
+            skuOrName.includes('COVER BLOCK') ||
+            skuOrName.includes('FRC COVER') ||
+            skuOrName.includes('RCC PIPE')
+          ) {
+            return true;
+          }
+          return false;
+        };
+
+        const hasManufacturingProduct = order.items.some((item) => !isItemTrading(item));
 
         if (hasManufacturingProduct) {
           // Manufacturing order -> Route to Plant Head & Factory Production Planning
@@ -765,7 +791,7 @@ export class SalesService {
             });
           }
         } else {
-          // 100% Trading order -> Bypass Plant Head factory production & route directly to Dispatch User
+          // 100% Trading order -> Bypass Plant Head factory production & route directly to Dispatch 2 (Sahad Dispatch)
           const readyDispatchState = await tx.workflowState.findFirst({
             where: {
               workflow: { code: 'SALES_ORDER' },
@@ -817,24 +843,83 @@ export class SalesService {
       const companyId = order.customer.companyId;
 
       if (dto.action === 'SEND_TO_PLANT') {
-        notificationsService
-          .notifyRole({
-            companyId,
-            role: 'PLANT_HEAD',
-            type: 'SALES_ORDER_PENDING_PLANT_HEAD',
-            title: 'New Order Awaiting Review',
-            message: `${order.orderNumber} — ${order.customer.companyName} is awaiting Plant Head acceptance.`,
-            route: '/plant-head/incoming-orders',
-            entityType: 'SalesOrder',
-            entityId: order.id,
-            eventKeyPrefix: `SALES_ORDER:${order.id}:PENDING_PLANT_HEAD`,
-          })
-          .catch((err) =>
-            console.warn(
-              '[SalesService Notification] Failed to notify PLANT_HEAD:',
-              err.message,
-            ),
+        const productIds = order.items.map((i: any) => i.productId).filter(Boolean);
+        const orderProducts = await this.prisma.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, category: true, productType: true, dispatchCategory: true, sku: true, name: true },
+        });
+
+        const isItemTrading = (item: any) => {
+          const p = orderProducts.find((prod) => prod.id === item.productId);
+          const pType = String(p?.productType || item?.productType || '').toUpperCase();
+          if (pType === 'TRADING') return true;
+          if (pType === 'MANUFACTURING') return false;
+          const dCat = String(p?.dispatchCategory || item?.dispatchCategory || '').toUpperCase();
+          if (dCat === 'D2' || dCat.includes('2')) return true;
+          const cat = String(p?.category || item?.category || '').toUpperCase();
+          if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
+          if (['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING'].includes(cat)) return false;
+          const skuOrName = String(p?.sku || p?.name || item?.productCodeSnapshot || item?.productNameSnapshot || '').toUpperCase();
+          return (
+            skuOrName.startsWith('WCB') ||
+            skuOrName.startsWith('PCB') ||
+            skuOrName.startsWith('HTCB') ||
+            skuOrName.startsWith('DTCB') ||
+            skuOrName.startsWith('MCB') ||
+            skuOrName.startsWith('BTCB') ||
+            skuOrName.startsWith('FRCCP') ||
+            skuOrName.startsWith('FRCT') ||
+            skuOrName.startsWith('FRCSQRC') ||
+            skuOrName.startsWith('FRC') ||
+            skuOrName.startsWith('RCC') ||
+            skuOrName.includes('COVERBLOCK') ||
+            skuOrName.includes('COVER BLOCK') ||
+            skuOrName.includes('FRC COVER') ||
+            skuOrName.includes('RCC PIPE')
           );
+        };
+
+        const hasManufacturing = order.items.some((item: any) => !isItemTrading(item));
+
+        if (!hasManufacturing) {
+          notificationsService
+            .notifyRole({
+              companyId,
+              role: 'DISPATCH_2',
+              type: 'SALES_ORDER_READY_FOR_DISPATCH_2',
+              title: 'New Trading Order Ready for Dispatch',
+              message: `${order.orderNumber} — ${order.customer.companyName} is ready for Sahad Dispatch (Dispatch 2).`,
+              route: '/dispatch-2/orders',
+              entityType: 'SalesOrder',
+              entityId: order.id,
+              eventKeyPrefix: `SALES_ORDER:${order.id}:READY_FOR_DISPATCH_2`,
+            })
+            .catch((err) =>
+              console.warn(
+                '[SalesService Notification] Failed to notify DISPATCH_2:',
+                err.message,
+              ),
+            );
+        } else {
+          notificationsService
+            .notifyRole({
+              companyId,
+              role: 'PLANT_HEAD',
+              type: 'SALES_ORDER_PENDING_PLANT_HEAD',
+              title: 'New Order Awaiting Review',
+              message: `${order.orderNumber} — ${order.customer.companyName} is awaiting Plant Head acceptance.`,
+              route: '/plant-head/incoming-orders',
+              entityType: 'SalesOrder',
+              entityId: order.id,
+              eventKeyPrefix: `SALES_ORDER:${order.id}:PENDING_PLANT_HEAD`,
+            })
+            .catch((err) =>
+              console.warn(
+                '[SalesService Notification] Failed to notify PLANT_HEAD:',
+                err.message,
+              ),
+            );
+        }
       } else if (dto.action === 'PLANT_APPROVE' || dto.action === 'PLAN_PRODUCTION') {
         // 1. Notify Production Team of new incoming approved order
         notificationsService

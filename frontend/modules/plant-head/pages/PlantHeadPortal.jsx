@@ -229,16 +229,48 @@ export const isTradingItem = (item) => {
   if (!item) return false;
   const pType = String(item.productType || item.product_type || item.product?.productType || item.product?.product_type || '').toUpperCase();
   if (pType === 'TRADING') return true;
+  if (pType === 'MANUFACTURING') return false;
   if (item.isTrading === true || item.product?.isTrading === true) return true;
 
   const cat = String(item.category || item.product_family || item.product?.category || item.product?.product_family || '').toLowerCase();
   if (cat.includes('trading') || cat.includes('rcc pipe') || cat.includes('frc cover') || cat.includes('coverblock') || cat.includes('others')) return true;
+  if (cat.includes('frp covers') || cat.includes('frp gratings') || cat.includes('manufacturing')) return false;
 
   const name = String(item.productName || item.product_name || item.name || item.product?.name || item.productNameSnapshot || '').toUpperCase();
-  if (name.startsWith('FRCCP') || name.startsWith('FRCT') || name.startsWith('BTCB') || name.startsWith('WCB') || name.startsWith('DTCB') || name.includes('FRC COVER') || name.includes('RCC PIPE')) return true;
+  if (
+    name.startsWith('FRCCP') ||
+    name.startsWith('FRCT') ||
+    name.startsWith('FRCSQRC') ||
+    name.startsWith('FRC') ||
+    name.startsWith('RCC') ||
+    name.startsWith('BTCB') ||
+    name.startsWith('WCB') ||
+    name.startsWith('PCB') ||
+    name.startsWith('HTCB') ||
+    name.startsWith('DTCB') ||
+    name.startsWith('MCB') ||
+    name.includes('FRC COVER') ||
+    name.includes('RCC PIPE') ||
+    name.includes('COVERBLOCK') ||
+    name.includes('COVER BLOCK')
+  ) return true;
 
-  const sku = String(item.sku || item.productSku || item.product_sku || item.productCode || item.product?.sku || '').toUpperCase();
-  if (sku.startsWith('FRCCP') || sku.startsWith('FRCT') || sku.startsWith('BTCB') || sku.startsWith('WCB') || sku.startsWith('DTCB')) return true;
+  const sku = String(item.sku || item.productSku || item.product_sku || item.productCode || item.productCodeSnapshot || item.product?.sku || '').toUpperCase();
+  if (
+    sku.startsWith('FRCCP') ||
+    sku.startsWith('FRCT') ||
+    sku.startsWith('FRCSQRC') ||
+    sku.startsWith('FRC') ||
+    sku.startsWith('RCC') ||
+    sku.startsWith('BTCB') ||
+    sku.startsWith('WCB') ||
+    sku.startsWith('PCB') ||
+    sku.startsWith('HTCB') ||
+    sku.startsWith('DTCB') ||
+    sku.startsWith('MCB') ||
+    sku.includes('COVERBLOCK') ||
+    sku.includes('COVER BLOCK')
+  ) return true;
 
   const dCat = String(item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.product?.dispatch_category || '').toUpperCase();
   if (dCat === 'D2' || dCat === 'DISPATCH 2' || dCat === 'DISPATCH_2' || dCat.includes('CAT 2') || dCat.includes('CATEGORY 2')) return true;
