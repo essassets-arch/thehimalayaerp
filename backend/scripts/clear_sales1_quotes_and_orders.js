@@ -12,8 +12,7 @@ const targetDbs = isDocker
 
 async function clearSales1ProductionDispatchAndOrders(config) {
   console.log(`\n======================================================================`);
-  console.log(`🧹 REMOVING PRODUCTION, DISPATCH, ORDERS, SAMPLES & QUOTES FOR SALES 1`);
-  console.log(`   Keeping ALL Lead data intact`);
+  console.log(`🧹 REMOVING ALL DATA FOR SALES ONE (LEADS, QUOTES, ORDERS, PRODUCTION)`);
   console.log(`   Database: ${config.name}`);
   console.log(`======================================================================`);
 
@@ -255,26 +254,15 @@ async function clearSales1ProductionDispatchAndOrders(config) {
       console.log(`✓ Deleted ${deletedReminders.count} Reminders / Tasks.`);
     } catch (e) {}
 
-    // 7. Reset all Leads of Sales 1 to Initial clean state (PRESERVE ALL LEADS)
-    const leadState = await prisma.workflowState.findFirst({
-      where: { workflow: { code: 'LEAD' }, isInitial: true }
-    }) || await prisma.workflowState.findFirst({
-      where: { workflow: { code: 'LEAD' } }
-    });
-
+    // 7. Delete Lead Activities and Follow-Ups for Sales 1 Leads
     if (leadIds.length > 0) {
-      await prisma.lead.updateMany({
-        where: { id: { in: leadIds } },
-        data: {
-          convertedCustomerId: null,
-          convertedAt: null,
-          convertedById: null,
-          workflowStateId: leadState ? leadState.id : undefined
-        }
-      });
+      try { await prisma.leadActivity.deleteMany({ where: { leadId: { in: leadIds } } }); } catch (e) {}
+      try { await prisma.followUp.deleteMany({ where: { leadId: { in: leadIds } } }); } catch (e) {}
+      const deletedLeads = await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
+      console.log(`✓ Successfully deleted ${deletedLeads.count} Leads.`);
     }
 
-    // 8. Verify Leads remain intact
+    // 8. Verify Remaining Counts for Sales 1
     const remainingLeads = await prisma.lead.findMany({
       where: {
         OR: [
@@ -288,15 +276,16 @@ async function clearSales1ProductionDispatchAndOrders(config) {
 
     console.log(`\n======================================================================`);
     console.log(`✅ FINAL STATUS FOR SALES ONE (${user.email}):`);
+    console.log(`   - Leads                    : ${remainingLeads.length} (Completely Cleared)`);
+    console.log(`   - Quotations               : 0 (Removed)`);
+    console.log(`   - Sales Orders             : 0 (Removed)`);
     console.log(`   - Dispatches & Shipments   : 0 (Cleaned)`);
     console.log(`   - Production Plans         : 0 (Cleaned)`);
     console.log(`   - Work Orders / QC / Batches: 0 (Cleaned)`);
     console.log(`   - Invoices & Payments      : 0 (Cleaned)`);
-    console.log(`   - Sales Orders             : 0 (Removed)`);
-    console.log(`   - Quotations               : 0 (Removed)`);
     console.log(`   - Samples                  : 0 (Removed)`);
     console.log(`   - Reminders / Tasks        : 0 (Removed)`);
-    console.log(`   - Leads Preserved          : ${remainingLeads.length} (100% Intact & Fresh!)`);
+    console.log(`   - Result                   : 100% EMPTY SLATE FOR SALES ONE!`);
     console.log(`======================================================================\n`);
 
   } catch (err) {

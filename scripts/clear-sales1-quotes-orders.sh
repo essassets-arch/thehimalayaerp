@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# HIMALAYA ERP — CLEAR ALL SALES 1 DATA EXCEPT LEADS (QUOTES, ORDERS, PRODUCTION, DISPATCH, SAMPLES)
+# HIMALAYA ERP — CLEAR ALL SALES 1 DATA (LEADS, QUOTES, ORDERS, PRODUCTION, DISPATCH, SAMPLES)
 # ==============================================================================
 set -Eeuo pipefail
 
@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
 echo "======================================================================"
-echo "🧹 CLEARING ALL SALES 1 TRANSACTION DATA (KEEPING LEADS INTACT)"
+echo "🧹 CLEARING ALL SALES 1 DATA (LEADS, QUOTES, ORDERS, PRODUCTION, DISPATCH)"
 echo "======================================================================"
 
 if docker ps --format '{{.Names}}' | grep -q "^himalaya-backend$"; then
@@ -35,5 +35,6 @@ fi
 
 echo ""
 echo "======================================================================"
-echo "✅ SALES 1 CLEANUP COMPLETE: ALL LEADS PRESERVED, ALL OTHER DATA CLEARED!"
+echo "✅ SALES 1 CLEANUP COMPLETE: 100% EMPTY SLATE FOR SALES ONE!"
 echo "======================================================================"
+
