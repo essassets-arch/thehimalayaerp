@@ -393,7 +393,7 @@ async function syncSuperSales2Database(config) {
 
     for (let idx = 0; idx < groups.length; idx++) {
       const g = groups[idx];
-      const seqStr = String(idx + 1).padStart(4, '0');
+      const seqStr = String(144 + idx + 1).padStart(4, '0');
       const leadDateObj = parseCsvDate(g.date);
       const parsedAddr = parseAddressObj(g.addressStr, g.stateStr, g.cityStr, g.pincodeStr);
 
@@ -471,8 +471,8 @@ async function syncSuperSales2Database(config) {
       const primaryProduct = groupItemsData[0]?.product;
       const productInterestStr = `${primaryProduct?.name || 'FRP Products'} (${totalQty} Qty)`;
 
-      // B. Create Lead (1:1)
-      const leadNumber = `LEAD-SS2-${seqStr}`;
+      // B. Create Lead (1:1) in exact sequence LD/2627/0145...
+      const leadNumber = `LD/2627/${seqStr}`;
       const createdLead = await prisma.lead.create({
         data: {
           leadNumber,
@@ -510,8 +510,8 @@ async function syncSuperSales2Database(config) {
         }
       });
 
-      // C. Create Quotation (1:1)
-      const quotationNumber = `QT-SS2-${seqStr}`;
+      // C. Create Quotation (1:1) in exact sequence QT/2627/0145...
+      const quotationNumber = `QT/2627/${seqStr}`;
       const createdQuote = await prisma.quotation.create({
         data: {
           quotationNumber,
@@ -544,8 +544,8 @@ async function syncSuperSales2Database(config) {
         }
       });
 
-      // D. Create Sales Order (1:1)
-      const orderNumber = `SO-SS2-${seqStr}`;
+      // D. Create Sales Order (1:1) in exact sequence HCPPL/2627/0145...
+      const orderNumber = `HCPPL/2627/${seqStr}`;
       const createdOrder = await prisma.salesOrder.create({
         data: {
           orderNumber,
@@ -569,7 +569,7 @@ async function syncSuperSales2Database(config) {
           paymentStatus: 'PENDING',
           billingAddress: parsedAddr,
           shippingAddress: parsedAddr,
-          remarks: 'Imported from Taher Sir SuperSales 2 CSV',
+          remarks: 'Imported from Taher Sir SuperSales 2 CSV - Sent to Plant Head',
           version: 1,
           createdAt: leadDateObj,
           items: {
@@ -591,7 +591,8 @@ async function syncSuperSales2Database(config) {
         include: { items: true }
       });
 
-      const planNumber = `PP-SS2-${seqStr}`;
+      // E. Send Order to Plant Head -> Create Production Plan in exact sequence PLAN/2627/0145...
+      const planNumber = `PLAN/2627/${seqStr}`;
       const createdPlan = await prisma.productionPlan.create({
         data: {
           planNumber,
@@ -607,11 +608,11 @@ async function syncSuperSales2Database(config) {
         }
       });
 
-      // F. Create Work Orders for each line item (Sent to Plant Head for Production)
+      // F. Create Work Orders in exact sequence WO/2627/0316...
       for (let itemIdx = 0; itemIdx < createdOrder.items.length; itemIdx++) {
         const orderItem = createdOrder.items[itemIdx];
-        const woSeqStr = String(++totalWorkOrdersCount).padStart(4, '0');
-        const workOrderNumber = `WO-SS2-${woSeqStr}`;
+        const woSeqStr = String(315 + (++totalWorkOrdersCount)).padStart(4, '0');
+        const workOrderNumber = `WO/2627/${woSeqStr}`;
 
         const createdWO = await prisma.workOrder.create({
           data: {
@@ -630,7 +631,7 @@ async function syncSuperSales2Database(config) {
         });
 
         // Create Production Batch
-        const batchNumber = `BATCH-SS2-${String(batchCounter++).padStart(4, '0')}`;
+        const batchNumber = `BATCH/2627/${woSeqStr}`;
         await prisma.productionBatch.create({
           data: {
             batchNumber,
