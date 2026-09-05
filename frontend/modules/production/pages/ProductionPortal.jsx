@@ -2338,43 +2338,55 @@ export default function ProductionPortal() {
   };
 
   const renderIncomingOrders = () => {
-    // ── 1. Build Accepted / Processed History Map from all server and local sources ──
+    // ── 1. Build Accepted / Processed History Map ONLY from explicit acceptance or actual production activity ──
     const historyMap = new Map();
 
-    const isAcceptedStatus = (st) => {
+    const isActuallyInProductionOrDone = (st, obj = {}) => {
       const s = String(st || '').toUpperCase().trim();
-      return [
-        'IN_PRODUCTION',
-        'PRODUCTION_STARTED',
-        'PRODUCTION_ACCEPTED',
-        'ACCEPTED',
-        'READY',
-        'STARTED',
-        'QC_PENDING',
-        'QC_PASSED',
-        'QC_APPROVED',
-        'READY_FOR_DISPATCH',
-        'DISPATCHED',
-        'COMPLETED',
-        'CLOSED',
-        'PLANT_REJECTED',
-        'REJECTED',
-      ].includes(s);
+      const producedQty = Number(obj.producedQty || obj.quantityProduced || 0);
+      const hasStarted = Boolean(obj.lastStartedAt || obj.startedAt || obj.notes?.productionLogSaved || producedQty > 0);
+      return (
+        hasStarted ||
+        [
+          'IN_PROGRESS',
+          'PRODUCTION_STARTED',
+          'RUNNING',
+          'QC_PENDING',
+          'QC_PASSED',
+          'QC_APPROVED',
+          'READY_FOR_DISPATCH',
+          'DISPATCHED',
+          'COMPLETED',
+          'CLOSED',
+          'PLANT_REJECTED',
+          'REJECTED',
+        ].includes(s)
+      );
     };
 
-    // A. Add from backend work orders (live database work orders)
+    // A. Add from persistent / user-accepted history (explicitly clicked Accept/Reject in UI)
+    (Array.isArray(acceptedHistory) ? acceptedHistory : []).filter(Boolean).forEach((item) => {
+      const key = String(item?.orderNo || item?.id || '');
+      if (key && !historyMap.has(key)) {
+        historyMap.set(key, item);
+      }
+    });
+
+    // B. Add from backend work orders ONLY IF they have actually started or completed production
     (Array.isArray(backendWorkOrders) ? backendWorkOrders : []).filter(Boolean).forEach((bwo) => {
       const salesOrder = bwo.productionPlan?.salesOrder || bwo.salesOrder || {};
       const key = String(salesOrder.orderNumber || salesOrder.orderNo || bwo.orderNo || bwo.orderNumber || bwo.id || '');
       if (!key) return;
 
-      const items = Array.isArray(salesOrder.items) ? salesOrder.items : [];
-      const prodName = bwo.salesOrderItem?.product?.name || bwo.salesOrderItem?.productNameSnapshot || bwo.productName || (items.length ? items.map(i => i.productName || i.name).filter(Boolean).join(', ') : 'Production Item');
-      const targetQty = Number(bwo.quantity || bwo.targetQuantity || bwo.salesOrderItem?.orderedQuantity || salesOrder.totalQuantity || 0);
-      const bwoStatus = String(bwo.workflowState?.code || bwo.status || bwo.productionStatus || 'ACCEPTED').toUpperCase();
+      const bwoStatus = String(bwo.workflowState?.code || bwo.status || bwo.productionStatus || '').toUpperCase();
       const isReject = bwoStatus.includes('REJECT') || bwoStatus.includes('CANCEL');
+      const isStartedOrDone = isActuallyInProductionOrDone(bwoStatus, bwo);
 
-      if (!historyMap.has(key)) {
+      if (isStartedOrDone && !historyMap.has(key)) {
+        const items = Array.isArray(salesOrder.items) ? salesOrder.items : [];
+        const prodName = bwo.salesOrderItem?.product?.name || bwo.salesOrderItem?.productNameSnapshot || bwo.productName || (items.length ? items.map(i => i.productName || i.name).filter(Boolean).join(', ') : 'Production Item');
+        const targetQty = Number(bwo.quantity || bwo.targetQuantity || bwo.salesOrderItem?.orderedQuantity || salesOrder.totalQuantity || 0);
+
         historyMap.set(key, {
           id: bwo.id || salesOrder.id || key,
           orderNo: key,
@@ -2387,75 +2399,41 @@ export default function ProductionPortal() {
           acceptedAt: bwo.updatedAt || bwo.createdAt || salesOrder.updatedAt || new Date().toISOString(),
           acceptedBy: 'Production Head',
           decisionStatus: isReject ? 'REJECTED' : 'ACCEPTED',
-          status: bwoStatus,
-          workflowStatus: bwoStatus,
+          status: bwoStatus || 'IN_PRODUCTION',
+          workflowStatus: bwoStatus || 'IN_PRODUCTION',
           workOrderId: bwo.id,
         });
       }
     });
 
-    // B. Add from direct backend sales orders (live server sales orders)
+    // C. Add from direct backend sales orders ONLY IF explicitly completed/in progress
     (Array.isArray(directBackendOrders) ? directBackendOrders : []).filter(Boolean).forEach((so) => {
       const key = String(so?.orderNumber || so?.orderNo || so?.id || '');
       if (!key) return;
       const status = String(so?.status || so?.workflowStatus || '').toUpperCase();
-      const hasMatchingWO = (backendWorkOrders || []).some(wo => wo && (String(wo.orderNo) === key || String(wo.orderNumber) === key));
+      const isReject = status.includes('REJECT') || status.includes('CANCEL');
+      const isStartedOrDone = isActuallyInProductionOrDone(status, so);
 
-      if (hasMatchingWO || isAcceptedStatus(status)) {
-        if (!historyMap.has(key)) {
-          const soItems = Array.isArray(so?.items) ? so.items.filter(Boolean) : [];
-          const prodName = soItems.map(i => i.productName || i.name).filter(Boolean).join(', ') || 'Production Item';
-          const qty = so?.totalQuantity || so?.quantity || soItems.reduce((sum, i) => sum + (Number(i.orderedQuantity || i.quantity || 0)), 0);
-          const isReject = status.includes('REJECT') || status.includes('CANCEL');
+      if (isStartedOrDone && !historyMap.has(key)) {
+        const soItems = Array.isArray(so?.items) ? so.items.filter(Boolean) : [];
+        const prodName = soItems.map(i => i.productName || i.name).filter(Boolean).join(', ') || 'Production Item';
+        const qty = so?.totalQuantity || so?.quantity || soItems.reduce((sum, i) => sum + (Number(i.orderedQuantity || i.quantity || 0)), 0);
 
-          historyMap.set(key, {
-            id: so?.id || key,
-            orderNo: key,
-            customerName: resolveOrderCustomerName(so) || 'N/A',
-            detailedItems: soItems,
-            products: prodName,
-            productInterested: prodName,
-            estimatedQuantity: qty,
-            totalQuantity: qty,
-            acceptedAt: so?.updatedAt || so?.createdAt || new Date().toISOString(),
-            acceptedBy: 'Production Head',
-            decisionStatus: isReject ? 'REJECTED' : 'ACCEPTED',
-            status: status || 'IN_PRODUCTION',
-            workflowStatus: so?.workflowStatus || status || 'IN_PRODUCTION',
-          });
-        }
-      }
-    });
-
-    // C. Add from backend incoming orders if they already have work orders or accepted statuses
-    (Array.isArray(backendIncomingList) ? backendIncomingList : []).filter(Boolean).forEach((row) => {
-      const key = String(row?.orderNo || row?.id || '');
-      if (!key) return;
-      const status = String(row?.status || row?.workflowStatus || '').toUpperCase();
-      const hasWO = row.hasBackendWorkOrder || (Array.isArray(row.workOrderIds) && row.workOrderIds.length > 0);
-
-      if (hasWO || isAcceptedStatus(status)) {
-        if (!historyMap.has(key)) {
-          historyMap.set(key, {
-            ...row,
-            id: row.id || key,
-            orderNo: key,
-            customerName: resolveOrderCustomerName(row) || row.customerName || 'N/A',
-            acceptedAt: row.updatedAt || row.createdAt || new Date().toISOString(),
-            acceptedBy: 'Production Head',
-            decisionStatus: status.includes('REJECT') ? 'REJECTED' : 'ACCEPTED',
-            status: status || 'IN_PRODUCTION',
-            workflowStatus: row.workflowStatus || status || 'IN_PRODUCTION',
-          });
-        }
-      }
-    });
-
-    // D. Add from persistent / session accepted history
-    (Array.isArray(acceptedHistory) ? acceptedHistory : []).filter(Boolean).forEach((item) => {
-      const key = String(item?.orderNo || item?.id || '');
-      if (key && !historyMap.has(key)) {
-        historyMap.set(key, item);
+        historyMap.set(key, {
+          id: so?.id || key,
+          orderNo: key,
+          customerName: resolveOrderCustomerName(so) || 'N/A',
+          detailedItems: soItems,
+          products: prodName,
+          productInterested: prodName,
+          estimatedQuantity: qty,
+          totalQuantity: qty,
+          acceptedAt: so?.updatedAt || so?.createdAt || new Date().toISOString(),
+          acceptedBy: 'Production Head',
+          decisionStatus: isReject ? 'REJECTED' : 'ACCEPTED',
+          status: status || 'IN_PRODUCTION',
+          workflowStatus: so?.workflowStatus || status || 'IN_PRODUCTION',
+        });
       }
     });
 
@@ -2467,21 +2445,69 @@ export default function ProductionPortal() {
 
     // ── 2. Pending Incoming Orders List (strictly unaccepted orders) ──
     const acceptedKeys = new Set(Array.from(historyMap.keys()));
-    const rawPlanned = (Array.isArray(backendIncomingList) ? backendIncomingList : []).filter(Boolean);
+    const pendingCandidatesMap = new Map();
 
-    const pendingList = rawPlanned.filter(row => {
-      if (!row) return false;
+    // Source 1: backendIncomingList
+    (Array.isArray(backendIncomingList) ? backendIncomingList : []).filter(Boolean).forEach((row) => {
       const key = String(row.orderNo || row.id || '');
-      if (acceptedKeys.has(key)) return false;
-      const status = String(row.status || row.workflowStatus || '').toUpperCase();
-      if (isAcceptedStatus(status) && !row.isReproduction) {
-        return false;
+      if (key && !acceptedKeys.has(key) && !pendingCandidatesMap.has(key)) {
+        pendingCandidatesMap.set(key, row);
       }
-      if (row.hasBackendWorkOrder && status !== 'CREATED') {
-        return false;
+    });
+
+    // Source 2: directBackendOrders not yet in history
+    (Array.isArray(directBackendOrders) ? directBackendOrders : []).filter(Boolean).forEach((so) => {
+      const key = String(so.orderNumber || so.orderNo || so.id || '');
+      if (key && !acceptedKeys.has(key) && !pendingCandidatesMap.has(key)) {
+        const soItems = Array.isArray(so.items) ? so.items.filter(Boolean) : [];
+        const prodName = soItems.map(i => i.productName || i.name).filter(Boolean).join(', ') || 'Production Item';
+        const qty = so.totalQuantity || so.quantity || soItems.reduce((sum, i) => sum + Number(i.orderedQuantity || i.quantity || 0), 0) || 1;
+        pendingCandidatesMap.set(key, {
+          id: so.id || key,
+          orderNo: key,
+          customerName: resolveOrderCustomerName(so) || 'N/A',
+          detailedItems: soItems,
+          products: prodName,
+          productInterested: prodName,
+          estimatedQuantity: qty,
+          totalQuantity: qty,
+          targetDate: so.targetDate || so.requiredDeliveryDate || so.requestedDeliveryDate || '',
+          status: so.status || 'PENDING',
+          workflowStatus: so.workflowStatus || so.status || 'PENDING',
+          createdAt: so.createdAt || new Date().toISOString(),
+        });
       }
-      return true;
-    }).sort((a, b) => {
+    });
+
+    // Source 3: backendWorkOrders not yet in history
+    (Array.isArray(backendWorkOrders) ? backendWorkOrders : []).filter(Boolean).forEach((bwo) => {
+      const salesOrder = bwo.productionPlan?.salesOrder || bwo.salesOrder || {};
+      const key = String(salesOrder.orderNumber || salesOrder.orderNo || bwo.orderNo || bwo.orderNumber || bwo.id || '');
+      if (key && !acceptedKeys.has(key) && !pendingCandidatesMap.has(key)) {
+        const items = Array.isArray(salesOrder.items) ? salesOrder.items : [];
+        const prodName = bwo.salesOrderItem?.product?.name || bwo.salesOrderItem?.productNameSnapshot || bwo.productName || (items.length ? items.map(i => i.productName || i.name).filter(Boolean).join(', ') : 'Production Item');
+        const targetQty = Number(bwo.quantity || bwo.targetQuantity || bwo.salesOrderItem?.orderedQuantity || salesOrder.totalQuantity || 0) || 1;
+        pendingCandidatesMap.set(key, {
+          id: bwo.id || salesOrder.id || key,
+          orderNo: key,
+          customerName: resolveOrderCustomerName(salesOrder) || resolveOrderCustomerName(bwo) || 'N/A',
+          detailedItems: items.length ? items : [{ productName: prodName, quantity: targetQty, unit: bwo.unit || 'Units' }],
+          products: prodName,
+          productInterested: prodName,
+          estimatedQuantity: targetQty,
+          totalQuantity: targetQty,
+          targetDate: bwo.targetDate || salesOrder.requestedDeliveryDate || salesOrder.requiredDeliveryDate || '',
+          status: bwo.status || 'PENDING',
+          workflowStatus: bwo.workflowStatus || bwo.status || 'PENDING',
+          workOrderId: bwo.id,
+          workOrderIds: [bwo.id],
+          hasBackendWorkOrder: true,
+          createdAt: bwo.createdAt || salesOrder.createdAt || new Date().toISOString(),
+        });
+      }
+    });
+
+    const pendingList = Array.from(pendingCandidatesMap.values()).filter(Boolean).sort((a, b) => {
       const tA = new Date(a?.createdAt || a?.targetDate || 0).getTime();
       const tB = new Date(b?.createdAt || b?.targetDate || 0).getTime();
       const numA = parseInt(String(a?.orderNo || a?.id || '').replace(/\D/g, '')) || 0;

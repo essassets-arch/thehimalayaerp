@@ -3198,7 +3198,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
 
       let matchStatus = true;
       if (incomingStatusFilter === 'PENDING') {
-        matchStatus = !isAccepted && !['CANCELLED', 'REJECTED', 'DRAFT'].includes(statusUpper);
+        matchStatus = !isAccepted && !['CANCELLED', 'REJECTED'].includes(statusUpper);
       } else if (incomingStatusFilter === 'ACCEPTED') {
         matchStatus = isAccepted;
       }
