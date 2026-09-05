@@ -875,8 +875,12 @@ export default function QCPendingPage() {
               totalPages={Math.ceil(filteredJobs.length / pageSize) || 1}
               totalItems={filteredJobs.length}
               pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
               onPageChange={setCurrentPage}
-              onPageSizeChange={setPageSize}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setCurrentPage(1);
+              }}
             />
           </>
         )}

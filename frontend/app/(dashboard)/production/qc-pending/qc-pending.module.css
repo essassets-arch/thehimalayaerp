@@ -207,7 +207,31 @@
 .desktopTableWrapper {
   display: block;
   overflow-x: auto;
+  overflow-y: visible;
   width: 100%;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.desktopTableWrapper::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.desktopTableWrapper::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+.desktopTableWrapper::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.desktopTableWrapper::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .mobileCardsContainer {
@@ -217,17 +241,21 @@
 /* ─── Desktop Table ─── */
 .qcTable {
   width: 100%;
-  min-width: 860px;
-  border-collapse: collapse;
+  min-width: 980px;
+  border-collapse: separate;
+  border-spacing: 0;
   text-align: left;
 }
 
 .qcTable thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   background: #f8fafc;
-  border-bottom: 1.5px solid #e2e8f0;
 }
 
 .qcTable th {
+  background: #f8fafc;
   padding: 13px 16px;
   font-size: 11px;
   font-weight: 800;
@@ -235,6 +263,7 @@
   letter-spacing: 0.05em;
   color: #475569;
   white-space: nowrap;
+  border-bottom: 1.5px solid #e2e8f0;
 }
 
 .qcTable td {
@@ -245,7 +274,7 @@
   vertical-align: middle;
 }
 
-.tableRow:hover {
+.tableRow:hover td {
   background: #f8fafc;
 }
 

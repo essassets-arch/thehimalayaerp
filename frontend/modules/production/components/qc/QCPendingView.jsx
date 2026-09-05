@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useSearchStore } from '@/store/searchStore';
 import { useERP } from '../../../../shared/context/ERPContext';
 import DataTable from '../../../../shared/components/DataTable';
+import PaginationControl from '../../../../shared/components/PaginationControl';
 import { ClipboardCheck } from 'lucide-react';
 import QCInspectionModal from './QCInspectionModal';
 import {
@@ -16,6 +17,12 @@ export default function QCPendingView() {
   const { state } = useERP();
   const globalSearch = useSearchStore((store) => store.globalSearch);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [globalSearch]);
 
   const pendingOrders = useMemo(() => {
     const workOrders = state.production?.workOrders || state.workOrders || [];
@@ -54,6 +61,23 @@ export default function QCPendingView() {
       });
   }, [state]);
 
+  const filteredOrders = useMemo(() => {
+    if (!globalSearch.trim()) return pendingOrders;
+    const q = globalSearch.toLowerCase();
+    return pendingOrders.filter((row) =>
+      String(row.orderNo || '').toLowerCase().includes(q) ||
+      String(row.workOrderNo || '').toLowerCase().includes(q) ||
+      String(row.customerName || '').toLowerCase().includes(q) ||
+      String(row.products || '').toLowerCase().includes(q) ||
+      String(row.batchNumberFinal || '').toLowerCase().includes(q)
+    );
+  }, [pendingOrders, globalSearch]);
+
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, currentPage, pageSize]);
+
   const columns = [
     { header: 'Order No', accessor: 'orderNo', render: (row) => <strong>{row.orderNo}</strong> },
     { header: 'Work Order', accessor: 'workOrderNo' },
@@ -72,12 +96,36 @@ export default function QCPendingView() {
   ];
 
   return (
-    <div className="app-card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2 className="card-heading" style={{ margin: 0 }}>QC Inspection Queue</h2>
-        <span style={{ padding: '5px 11px', borderRadius: 20, background: '#fffbeb', color: '#b45309', fontWeight: 800 }}>{pendingOrders.length} Pending</span>
+    <div className="app-card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h2 className="card-heading" style={{ margin: 0 }}>QC Inspection Queue</h2>
+          <p style={{ margin: '3px 0 0', fontSize: '13px', color: '#64748b' }}>
+            Inspect finished goods batches and certify quality assurance for dispatch.
+          </p>
+        </div>
+        <span style={{ padding: '5px 12px', borderRadius: 20, background: '#fffbeb', color: '#b45309', fontWeight: 800, fontSize: '12.5px', border: '1px solid #fef3c7' }}>
+          {filteredOrders.length} Pending
+        </span>
       </div>
-      <DataTable columns={columns} data={pendingOrders} searchQuery={globalSearch} emptyMessage="No production batches pending QC inspection." />
+
+      <div style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch', borderRadius: '8px' }}>
+        <DataTable columns={columns} data={paginatedOrders} searchQuery="" emptyMessage="No production batches pending QC inspection." />
+      </div>
+
+      <PaginationControl
+        currentPage={currentPage}
+        totalPages={Math.ceil(filteredOrders.length / pageSize) || 1}
+        totalItems={filteredOrders.length}
+        pageSize={pageSize}
+        pageSizeOptions={[10, 25, 50, 100]}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize);
+          setCurrentPage(1);
+        }}
+      />
+
       {selectedOrder && <QCInspectionModal selectedOrder={selectedOrder} onClose={() => setSelectedOrder(null)} />}
     </div>
   );
