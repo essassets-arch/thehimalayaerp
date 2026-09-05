@@ -329,17 +329,14 @@ async function main() {
   const userId = user.id;
   console.log(`Resolved Sales 1 user: ${user.name} (${user.id})`);
 
-  // 2. Clear previous leads created by sales1
+  // 2. Clear only previously imported CSV leads for sales1 (preserving manual/live leads)
   const cleared = await prisma.lead.deleteMany({
     where: {
-      OR: [
-        { createdById: userId },
-        { salesExecutiveId: userId },
-        { remarks: 'Imported from JP Sales 1 CSV' }
-      ]
+      createdById: userId,
+      remarks: 'Imported from JP Sales 1 CSV'
     }
   });
-  console.log(`Cleared ${cleared.count} existing leads for Sales 1 to ensure a clean, precise import.`);
+  console.log(`Refreshed ${cleared.count} previously imported CSV leads for Sales 1. All other live data preserved.`);
 
   // 3. Resolve default company and initial workflow state
   const companyId = user.companyId || (await prisma.company.findFirst())?.id;
