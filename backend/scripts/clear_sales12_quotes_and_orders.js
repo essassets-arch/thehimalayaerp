@@ -1,9 +1,14 @@
 const { PrismaClient } = require('@prisma/client');
+const fs = require('fs');
 
-const targetDbs = [
-  { name: 'Active Browser Test DB', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
-  { name: 'Main Himalaya ERP DB', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
-];
+const isDocker = fs.existsSync('/.dockerenv') || (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('@postgres:'));
+
+const targetDbs = isDocker
+  ? [{ name: 'Docker Production Database', url: process.env.DATABASE_URL }]
+  : [
+      { name: 'Active Browser Test DB', url: process.env.DATABASE_URL || 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+      { name: 'Main Himalaya ERP DB', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
+    ];
 
 async function clearSales12ProductionDispatchAndOrders(config) {
   console.log(`\n======================================================================`);
@@ -74,23 +79,24 @@ async function clearSales12ProductionDispatchAndOrders(config) {
 
       // B. PRODUCTION & WORK ORDERS CLEANUP
       console.log('Cleaning up Work Orders & Production Plans linked to Sales 12 orders...');
-      const workOrders = await prisma.workOrder.findMany({
-        where: {
-          OR: [
-            { salesOrderId: { in: orderIds } },
-            { salesOrderItemId: { in: soItemIds } },
-            { createdById: userId }
-          ]
-        },
-        select: { id: true }
-      });
-      const workOrderIds = workOrders.map(w => w.id);
+      if (soItemIds.length > 0) {
+        const workOrders = await prisma.workOrder.findMany({
+          where: {
+            OR: [
+              { salesOrderItemId: { in: soItemIds } },
+              { createdById: userId }
+            ]
+          },
+          select: { id: true }
+        });
+        const workOrderIds = workOrders.map(w => w.id);
 
-      if (workOrderIds.length > 0) {
-        try { await prisma.finishedGoods.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
-        try { await prisma.productionDailyReportItem.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
-        try { await prisma.workOrder.deleteMany({ where: { id: { in: workOrderIds } } }); } catch (e) {}
-        console.log(`✓ Deleted ${workOrderIds.length} Work Orders.`);
+        if (workOrderIds.length > 0) {
+          try { await prisma.finishedGoods.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
+          try { await prisma.productionDailyReportItem.deleteMany({ where: { workOrderId: { in: workOrderIds } } }); } catch (e) {}
+          try { await prisma.workOrder.deleteMany({ where: { id: { in: workOrderIds } } }); } catch (e) {}
+          console.log(`✓ Deleted ${workOrderIds.length} Work Orders.`);
+        }
       }
 
       try {
@@ -106,7 +112,7 @@ async function clearSales12ProductionDispatchAndOrders(config) {
 
       // C. INVOICING & PAYMENTS CLEANUP
       console.log('Cleaning up Invoices & Payment Allocations linked to Sales 12 orders...');
-      const invoices = await prisma.invoice.findMany({
+      const invoices = await prisma.salesInvoice.findMany({
         where: {
           OR: [
             { salesOrderId: { in: orderIds } },
@@ -120,8 +126,8 @@ async function clearSales12ProductionDispatchAndOrders(config) {
       if (invoiceIds.length > 0) {
         try { await prisma.invoiceItem.deleteMany({ where: { invoiceId: { in: invoiceIds } } }); } catch (e) {}
         try { await prisma.customerPaymentAllocation.deleteMany({ where: { invoiceId: { in: invoiceIds } } }); } catch (e) {}
-        try { await prisma.invoice.deleteMany({ where: { id: { in: invoiceIds } } }); } catch (e) {}
-        console.log(`✓ Deleted ${invoiceIds.length} Invoices.`);
+        try { await prisma.salesInvoice.deleteMany({ where: { id: { in: invoiceIds } } }); } catch (e) {}
+        console.log(`✓ Deleted ${invoiceIds.length} Sales Invoices.`);
       }
 
       if (soItemIds.length > 0) {
@@ -134,7 +140,6 @@ async function clearSales12ProductionDispatchAndOrders(config) {
       try { await prisma.salesOrderAllocation.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
       try { await prisma.salesOrderHistory.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
       try { await prisma.salesOrderCreditReview.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
-      try { await prisma.orderAmendment.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
       try { await prisma.salesOrderItem.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
 
       // D. DELETE SALES ORDERS
