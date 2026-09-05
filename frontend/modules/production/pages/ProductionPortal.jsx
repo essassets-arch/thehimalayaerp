@@ -744,20 +744,23 @@ export default function ProductionPortal() {
       await Promise.allSettled([
         loadIncomingOrders(),
         loadBackendWorkOrders(),
+        fetchDirectSalesOrders(),
         typeof syncData === 'function' ? syncData() : Promise.resolve(),
       ]);
     } finally {
       setLoadingIncomingOrders(false);
     }
-  }, [loadIncomingOrders, loadBackendWorkOrders, syncData]);
+  }, [loadIncomingOrders, loadBackendWorkOrders, fetchDirectSalesOrders, syncData]);
 
   useEffect(() => {
     if (view === 'incoming-orders' || pathname?.includes('/incoming-orders')) {
       void loadIncomingOrders();
+      void loadBackendWorkOrders();
+      void fetchDirectSalesOrders();
     }
     if (!['dashboard', 'incoming-orders', 'work-orders', 'production-work'].includes(view)) return;
     void loadBackendWorkOrders();
-  }, [view, pathname, loadIncomingOrders, loadBackendWorkOrders]);
+  }, [view, pathname, loadIncomingOrders, loadBackendWorkOrders, fetchDirectSalesOrders]);
   const [mrStatusFilter, setMrStatusFilter] = useState('All');
 
   const [reworkTab, setReworkTab] = useState('failed-list');
@@ -2335,8 +2338,135 @@ export default function ProductionPortal() {
   };
 
   const renderIncomingOrders = () => {
-    // ── 1. Pending Incoming Orders List ──
-    const acceptedKeys = new Set((Array.isArray(acceptedHistory) ? acceptedHistory : []).filter(Boolean).map(h => String(h?.orderNo || h?.id || '')));
+    // ── 1. Build Accepted / Processed History Map from all server and local sources ──
+    const historyMap = new Map();
+
+    const isAcceptedStatus = (st) => {
+      const s = String(st || '').toUpperCase().trim();
+      return [
+        'IN_PRODUCTION',
+        'PRODUCTION_STARTED',
+        'PRODUCTION_ACCEPTED',
+        'ACCEPTED',
+        'READY',
+        'STARTED',
+        'QC_PENDING',
+        'QC_PASSED',
+        'QC_APPROVED',
+        'READY_FOR_DISPATCH',
+        'DISPATCHED',
+        'COMPLETED',
+        'CLOSED',
+        'PLANT_REJECTED',
+        'REJECTED',
+      ].includes(s);
+    };
+
+    // A. Add from backend work orders (live database work orders)
+    (Array.isArray(backendWorkOrders) ? backendWorkOrders : []).filter(Boolean).forEach((bwo) => {
+      const salesOrder = bwo.productionPlan?.salesOrder || bwo.salesOrder || {};
+      const key = String(salesOrder.orderNumber || salesOrder.orderNo || bwo.orderNo || bwo.orderNumber || bwo.id || '');
+      if (!key) return;
+
+      const items = Array.isArray(salesOrder.items) ? salesOrder.items : [];
+      const prodName = bwo.salesOrderItem?.product?.name || bwo.salesOrderItem?.productNameSnapshot || bwo.productName || (items.length ? items.map(i => i.productName || i.name).filter(Boolean).join(', ') : 'Production Item');
+      const targetQty = Number(bwo.quantity || bwo.targetQuantity || bwo.salesOrderItem?.orderedQuantity || salesOrder.totalQuantity || 0);
+      const bwoStatus = String(bwo.workflowState?.code || bwo.status || bwo.productionStatus || 'ACCEPTED').toUpperCase();
+      const isReject = bwoStatus.includes('REJECT') || bwoStatus.includes('CANCEL');
+
+      if (!historyMap.has(key)) {
+        historyMap.set(key, {
+          id: bwo.id || salesOrder.id || key,
+          orderNo: key,
+          customerName: resolveOrderCustomerName(salesOrder) || resolveOrderCustomerName(bwo) || 'N/A',
+          detailedItems: items.length ? items : [{ productName: prodName, quantity: targetQty, unit: bwo.unit || 'Units' }],
+          products: prodName,
+          productInterested: prodName,
+          estimatedQuantity: targetQty,
+          totalQuantity: targetQty,
+          acceptedAt: bwo.updatedAt || bwo.createdAt || salesOrder.updatedAt || new Date().toISOString(),
+          acceptedBy: 'Production Head',
+          decisionStatus: isReject ? 'REJECTED' : 'ACCEPTED',
+          status: bwoStatus,
+          workflowStatus: bwoStatus,
+          workOrderId: bwo.id,
+        });
+      }
+    });
+
+    // B. Add from direct backend sales orders (live server sales orders)
+    (Array.isArray(directBackendOrders) ? directBackendOrders : []).filter(Boolean).forEach((so) => {
+      const key = String(so?.orderNumber || so?.orderNo || so?.id || '');
+      if (!key) return;
+      const status = String(so?.status || so?.workflowStatus || '').toUpperCase();
+      const hasMatchingWO = (backendWorkOrders || []).some(wo => wo && (String(wo.orderNo) === key || String(wo.orderNumber) === key));
+
+      if (hasMatchingWO || isAcceptedStatus(status)) {
+        if (!historyMap.has(key)) {
+          const soItems = Array.isArray(so?.items) ? so.items.filter(Boolean) : [];
+          const prodName = soItems.map(i => i.productName || i.name).filter(Boolean).join(', ') || 'Production Item';
+          const qty = so?.totalQuantity || so?.quantity || soItems.reduce((sum, i) => sum + (Number(i.orderedQuantity || i.quantity || 0)), 0);
+          const isReject = status.includes('REJECT') || status.includes('CANCEL');
+
+          historyMap.set(key, {
+            id: so?.id || key,
+            orderNo: key,
+            customerName: resolveOrderCustomerName(so) || 'N/A',
+            detailedItems: soItems,
+            products: prodName,
+            productInterested: prodName,
+            estimatedQuantity: qty,
+            totalQuantity: qty,
+            acceptedAt: so?.updatedAt || so?.createdAt || new Date().toISOString(),
+            acceptedBy: 'Production Head',
+            decisionStatus: isReject ? 'REJECTED' : 'ACCEPTED',
+            status: status || 'IN_PRODUCTION',
+            workflowStatus: so?.workflowStatus || status || 'IN_PRODUCTION',
+          });
+        }
+      }
+    });
+
+    // C. Add from backend incoming orders if they already have work orders or accepted statuses
+    (Array.isArray(backendIncomingList) ? backendIncomingList : []).filter(Boolean).forEach((row) => {
+      const key = String(row?.orderNo || row?.id || '');
+      if (!key) return;
+      const status = String(row?.status || row?.workflowStatus || '').toUpperCase();
+      const hasWO = row.hasBackendWorkOrder || (Array.isArray(row.workOrderIds) && row.workOrderIds.length > 0);
+
+      if (hasWO || isAcceptedStatus(status)) {
+        if (!historyMap.has(key)) {
+          historyMap.set(key, {
+            ...row,
+            id: row.id || key,
+            orderNo: key,
+            customerName: resolveOrderCustomerName(row) || row.customerName || 'N/A',
+            acceptedAt: row.updatedAt || row.createdAt || new Date().toISOString(),
+            acceptedBy: 'Production Head',
+            decisionStatus: status.includes('REJECT') ? 'REJECTED' : 'ACCEPTED',
+            status: status || 'IN_PRODUCTION',
+            workflowStatus: row.workflowStatus || status || 'IN_PRODUCTION',
+          });
+        }
+      }
+    });
+
+    // D. Add from persistent / session accepted history
+    (Array.isArray(acceptedHistory) ? acceptedHistory : []).filter(Boolean).forEach((item) => {
+      const key = String(item?.orderNo || item?.id || '');
+      if (key && !historyMap.has(key)) {
+        historyMap.set(key, item);
+      }
+    });
+
+    const historyList = Array.from(historyMap.values()).filter(Boolean).sort((a, b) => {
+      const tA = new Date(a?.acceptedAt || a?.updatedAt || a?.createdAt || 0).getTime();
+      const tB = new Date(b?.acceptedAt || b?.updatedAt || b?.createdAt || 0).getTime();
+      return tB - tA;
+    });
+
+    // ── 2. Pending Incoming Orders List (strictly unaccepted orders) ──
+    const acceptedKeys = new Set(Array.from(historyMap.keys()));
     const rawPlanned = (Array.isArray(backendIncomingList) ? backendIncomingList : []).filter(Boolean);
 
     const pendingList = rawPlanned.filter(row => {
@@ -2344,7 +2474,10 @@ export default function ProductionPortal() {
       const key = String(row.orderNo || row.id || '');
       if (acceptedKeys.has(key)) return false;
       const status = String(row.status || row.workflowStatus || '').toUpperCase();
-      if (['IN_PRODUCTION', 'PRODUCTION_STARTED', 'COMPLETED', 'DISPATCHED'].includes(status) && !row.isReproduction) {
+      if (isAcceptedStatus(status) && !row.isReproduction) {
+        return false;
+      }
+      if (row.hasBackendWorkOrder && status !== 'CREATED') {
         return false;
       }
       return true;
@@ -2356,50 +2489,6 @@ export default function ProductionPortal() {
       if (numA && numB && numA !== numB) return numB - numA;
       if (tA && tB && tA !== tB) return tB - tA;
       return String(b?.orderNo || b?.id || '').localeCompare(String(a?.orderNo || a?.id || ''));
-    });
-
-    // ── 2. Accepted / Processed History List ──
-    const historyMap = new Map();
-
-    (Array.isArray(acceptedHistory) ? acceptedHistory : []).filter(Boolean).forEach(item => {
-      const key = String(item?.orderNo || item?.id || '');
-      if (key) {
-        historyMap.set(key, item);
-      }
-    });
-
-    (Array.isArray(directBackendOrders) ? directBackendOrders : []).filter(Boolean).forEach(so => {
-      const status = String(so?.status || so?.workflowStatus || '').toUpperCase();
-      const hasWO = (workOrders || []).some(wo => wo && String(wo.orderNo) === String(so.orderNumber || so.id));
-      if (
-        hasWO ||
-        ['IN_PRODUCTION', 'PRODUCTION_STARTED', 'PRODUCTION_ACCEPTED', 'ACCEPTED', 'QC_PENDING', 'QC_PASSED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'COMPLETED', 'PLANT_REJECTED'].includes(status)
-      ) {
-        const key = String(so?.orderNumber || so?.orderNo || so?.id || '');
-        if (key && !historyMap.has(key)) {
-          const soItems = Array.isArray(so?.items) ? so.items.filter(Boolean) : [];
-          historyMap.set(key, {
-            id: so?.id,
-            orderNo: so?.orderNumber || so?.orderNo || so?.id,
-            customerName: resolveOrderCustomerName(so) || 'N/A',
-            detailedItems: soItems,
-            products: soItems.map(i => i.productName || i.name).filter(Boolean).join(', '),
-            productInterested: soItems.map(i => i.productName || i.name).filter(Boolean).join(', '),
-            estimatedQuantity: so?.totalQuantity || so?.quantity || soItems.reduce((sum, i) => sum + (Number(i.orderedQuantity || i.quantity || 0)), 0),
-            acceptedAt: so?.updatedAt || so?.createdAt || new Date().toISOString(),
-            acceptedBy: 'Production Head',
-            decisionStatus: status.includes('REJECT') ? 'REJECTED' : 'ACCEPTED',
-            status: so?.status || 'IN_PRODUCTION',
-            workflowStatus: so?.workflowStatus || 'IN_PRODUCTION',
-          });
-        }
-      }
-    });
-
-    const historyList = Array.from(historyMap.values()).filter(Boolean).sort((a, b) => {
-      const tA = new Date(a?.acceptedAt || a?.updatedAt || a?.createdAt || 0).getTime();
-      const tB = new Date(b?.acceptedAt || b?.updatedAt || b?.createdAt || 0).getTime();
-      return tB - tA;
     });
 
     // ── 3. Search Filter & Pagination ──
@@ -2630,8 +2719,22 @@ export default function ProductionPortal() {
                               </span>
                             )}
                             {incomingTab === 'history' && (
-                              <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '1px 6px', borderRadius: '10px', fontWeight: 'bold' }}>
-                                ✓ Accepted
+                              <span style={{
+                                fontSize: '10px',
+                                background: String(row.status || '').toUpperCase().includes('COMPLETED') ? '#f0fdf4' : String(row.status || '').toUpperCase().includes('REJECT') ? '#fef2f2' : String(row.status || '').toUpperCase().includes('IN_PRODUCTION') ? '#eff6ff' : '#ecfdf5',
+                                color: String(row.status || '').toUpperCase().includes('COMPLETED') ? '#15803d' : String(row.status || '').toUpperCase().includes('REJECT') ? '#b91c1c' : String(row.status || '').toUpperCase().includes('IN_PRODUCTION') ? '#1d4ed8' : '#047857',
+                                border: `1px solid ${String(row.status || '').toUpperCase().includes('COMPLETED') ? '#bbf7d0' : String(row.status || '').toUpperCase().includes('REJECT') ? '#fecaca' : String(row.status || '').toUpperCase().includes('IN_PRODUCTION') ? '#bfdbfe' : '#a7f3d0'}`,
+                                padding: '1px 6px',
+                                borderRadius: '10px',
+                                fontWeight: 'bold'
+                              }}>
+                                {String(row.status || '').toUpperCase().includes('COMPLETED')
+                                  ? '✅ Completed'
+                                  : String(row.status || '').toUpperCase().includes('REJECT')
+                                    ? '❌ Rejected'
+                                    : String(row.status || '').toUpperCase().includes('IN_PRODUCTION')
+                                      ? '⚙️ In Production'
+                                      : '✓ Accepted'}
                               </span>
                             )}
                           </div>
@@ -2832,22 +2935,83 @@ export default function ProductionPortal() {
                       {
                         header: 'Status',
                         accessor: 'status',
-                        render: (row) => (
-                          <span style={{
-                            fontSize: '11px',
-                            fontWeight: '800',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            background: '#ecfdf5',
-                            color: '#047857',
-                            border: '1px solid #a7f3d0',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}>
-                            ✓ ACCEPTED
-                          </span>
-                        )
+                        render: (row) => {
+                          const s = String(row.status || row.workflowStatus || '').toUpperCase();
+                          const isCompleted = s.includes('COMPLETED') || s.includes('DISPATCH');
+                          const isRejected = s.includes('REJECT') || s.includes('CANCEL') || row.decisionStatus === 'REJECTED';
+                          const isInProd = s.includes('IN_PRODUCTION') || s.includes('STARTED') || s.includes('QC');
+
+                          if (isCompleted) {
+                            return (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                background: '#f0fdf4',
+                                color: '#15803d',
+                                border: '1px solid #bbf7d0',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                ✅ COMPLETED
+                              </span>
+                            );
+                          }
+                          if (isRejected) {
+                            return (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                background: '#fef2f2',
+                                color: '#b91c1c',
+                                border: '1px solid #fecaca',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                ❌ REJECTED
+                              </span>
+                            );
+                          }
+                          if (isInProd) {
+                            return (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                background: '#eff6ff',
+                                color: '#1d4ed8',
+                                border: '1px solid #bfdbfe',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                ⚙️ IN PRODUCTION
+                              </span>
+                            );
+                          }
+                          return (
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: '800',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              background: '#ecfdf5',
+                              color: '#047857',
+                              border: '1px solid #a7f3d0',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              ✓ ACCEPTED
+                            </span>
+                          );
+                        }
                       }
                     ]
               }
