@@ -69,7 +69,76 @@ async function main() {
 
   console.log(`Updated ${res2.count} products to MANUFACTURING / D1.`);
 
-  // 3. Print summary of product counts
+  // 3. Find existing Sales Orders with only trading items that were sent to plant head and transition them to READY_FOR_DISPATCH
+  const readyDispatchState = await prisma.workflowState.findFirst({
+    where: { workflow: { code: 'SALES_ORDER' }, code: 'READY_FOR_DISPATCH' },
+  });
+
+  const orders = await prisma.salesOrder.findMany({
+    where: {
+      status: { in: ['SENT_TO_PLANT', 'SENT_TO_PLANT_HEAD', 'PLANT_APPROVED', 'CONFIRMED'] },
+    },
+    include: {
+      items: { include: { product: true } },
+      productionPlans: { include: { workOrders: true } },
+    },
+  });
+
+  let transitionedOrders = 0;
+  for (const order of orders) {
+    const isTrading = order.items.length > 0 && order.items.every((it) => {
+      const p = it.product;
+      const pType = String(p?.productType || '').toUpperCase();
+      if (pType === 'TRADING') return true;
+      if (pType === 'MANUFACTURING') return false;
+      const dCat = String(p?.dispatchCategory || '').toUpperCase();
+      if (dCat === 'D2' || dCat.includes('2')) return true;
+      const cat = String(p?.category || '').toUpperCase();
+      if (['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(cat)) return true;
+      if (['FRP COVERS', 'FRP GRATINGS', 'MANUFACTURING'].includes(cat)) return false;
+      const skuOrName = String(p?.sku || p?.name || it.productCodeSnapshot || it.productNameSnapshot || '').toUpperCase();
+      return (
+        skuOrName.startsWith('WCB') ||
+        skuOrName.startsWith('PCB') ||
+        skuOrName.startsWith('HTCB') ||
+        skuOrName.startsWith('DTCB') ||
+        skuOrName.startsWith('MCB') ||
+        skuOrName.startsWith('BTCB') ||
+        skuOrName.startsWith('FRCCP') ||
+        skuOrName.startsWith('FRCT') ||
+        skuOrName.startsWith('FRCSQRC') ||
+        skuOrName.startsWith('FRC') ||
+        skuOrName.startsWith('RCC') ||
+        skuOrName.includes('COVERBLOCK') ||
+        skuOrName.includes('COVER BLOCK') ||
+        skuOrName.includes('FRC COVER') ||
+        skuOrName.includes('RCC PIPE')
+      );
+    });
+
+    if (isTrading) {
+      await prisma.salesOrder.update({
+        where: { id: order.id },
+        data: {
+          status: 'READY_FOR_DISPATCH',
+          ...(readyDispatchState ? { workflowStateId: readyDispatchState.id } : {}),
+        },
+      });
+
+      // Remove any empty production plans (0 work orders) created before the fix
+      for (const pp of order.productionPlans) {
+        if (pp.workOrders.length === 0) {
+          await prisma.productionPlan.delete({ where: { id: pp.id } });
+        }
+      }
+
+      transitionedOrders++;
+    }
+  }
+
+  console.log(`Transitioned ${transitionedOrders} existing trading sales orders directly to READY_FOR_DISPATCH.`);
+
+  // 4. Print summary of product counts
   const breakdown = await prisma.product.groupBy({
     by: ['category', 'productType', 'dispatchCategory'],
     _count: true,
