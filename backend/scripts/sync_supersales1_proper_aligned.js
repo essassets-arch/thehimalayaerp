@@ -365,8 +365,8 @@ async function syncDatabase(config) {
     const existingOrders = await prisma.salesOrder.findMany({
       where: {
         OR: [
-          { orderNumber: { startsWith: 'HCPPL/2627/' } },
-          { orderNumber: { startsWith: 'SO/2627/' } },
+          { orderNumber: { gte: 'HCPPL/2627/0001', lte: 'HCPPL/2627/0144' } },
+          { orderNumber: { gte: 'SO/2627/0001', lte: 'SO/2627/0144' } },
           { salesExecutiveId: { in: allSs1UserIds } },
           { createdById: { in: allSs1UserIds } },
           { remarks: { contains: 'SuperSales 1', mode: 'insensitive' } },
@@ -423,7 +423,7 @@ async function syncDatabase(config) {
     const quotes = await prisma.quotation.findMany({
       where: {
         OR: [
-          { quotationNumber: { startsWith: 'QT/2627/' } },
+          { quotationNumber: { gte: 'QT/2627/0001', lte: 'QT/2627/0144' } },
           { createdById: { in: allSs1UserIds } },
           { salesExecutiveId: { in: allSs1UserIds } },
           { remarks: { contains: 'Super Sales 1', mode: 'insensitive' } },
@@ -442,7 +442,8 @@ async function syncDatabase(config) {
     await prisma.lead.deleteMany({
       where: {
         OR: [
-          { leadNumber: { startsWith: 'LEAD/2627/' } },
+          { leadNumber: { gte: 'LD/2627/0001', lte: 'LD/2627/0144' } },
+          { leadNumber: { gte: 'LEAD/2627/0001', lte: 'LEAD/2627/0144' } },
           { createdById: { in: allSs1UserIds } },
           { salesExecutiveId: { in: allSs1UserIds } },
           { assignedToId: { in: allSs1UserIds } },
