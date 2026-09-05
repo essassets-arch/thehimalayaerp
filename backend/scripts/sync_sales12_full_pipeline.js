@@ -184,6 +184,10 @@ function loadAll7Leads() {
     path.resolve('trushna_data(sales1) (1).csv'),
     path.join(__dirname, '../trushna_data(sales1) (1).csv'),
     path.join(__dirname, '../../trushna_data(sales1) (1).csv'),
+    path.resolve('scripts/trushna_data(sales1) (1).csv'),
+    path.resolve('backend/scripts/trushna_data(sales1) (1).csv'),
+    path.resolve('/app/scripts/trushna_data(sales1) (1).csv'),
+    path.resolve('/app/trushna_data(sales1) (1).csv'),
   ];
 
   let csvPath = candidatePaths.find(p => fs.existsSync(p));
