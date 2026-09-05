@@ -2,14 +2,12 @@ const { PrismaClient, Prisma } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
 
-const targetDbs = [
-  { name: 'Active DB (himalaya_erp_browser_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
-  { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
-];
-
-if (process.env.DATABASE_URL && !targetDbs.some(d => d.url === process.env.DATABASE_URL)) {
-  targetDbs.unshift({ name: `Current Env DB (${process.env.DATABASE_URL.split('@')[1] || 'DATABASE_URL'})`, url: process.env.DATABASE_URL });
-}
+const targetDbs = process.env.DATABASE_URL
+  ? [{ name: 'Production Database', url: process.env.DATABASE_URL }]
+  : [
+      { name: 'Active DB (himalaya_erp_browser_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+      { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
+    ];
 
 function parseCSV(content) {
   const result = [];
