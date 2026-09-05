@@ -1,11 +1,35 @@
 const { PrismaClient } = require('@prisma/client');
+const fs = require('fs');
+const path = require('path');
 
-async function verifyAll() {
-  const dbs = [
+// Auto-load .env if available
+try {
+  const envPath = path.resolve('.env');
+  const backendEnvPath = path.resolve('backend/.env');
+  if (fs.existsSync(backendEnvPath)) {
+    require('dotenv').config({ path: backendEnvPath });
+  } else if (fs.existsSync(envPath)) {
+    require('dotenv').config({ path: envPath });
+  }
+} catch (e) {}
+
+const isDocker = fs.existsSync('/.dockerenv') || (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('@postgres:'));
+
+function getTargetDbs() {
+  if (process.env.DATABASE_URL) {
+    return [{ name: 'Environment Database (DATABASE_URL)', url: process.env.DATABASE_URL }];
+  }
+
+  return [
     { name: 'Active DB (himalaya_erp_browser_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
     { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' },
+    { name: 'Docker Internal DB', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public' },
     { name: 'Docker DB 5435', url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public' }
   ];
+}
+
+async function verifyAll() {
+  const dbs = getTargetDbs();
 
   for (const db of dbs) {
     console.log(`\n===============================================================`);
@@ -91,7 +115,7 @@ async function verifyAll() {
       });
 
     } catch (e) {
-      console.error(e.message);
+      console.error('Database connection error:', e.message);
     } finally {
       await prisma.$disconnect();
     }
