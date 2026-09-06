@@ -8,7 +8,6 @@ import { apiClient } from '../lib/apiClient';
 import { useERPStore } from '../store/erpStore';
 import { backendFetch } from '../lib/backendFetch';
 import { remindersService } from '../modules/sales/services/reminders.service.js';
-import { Pencil } from 'lucide-react';
 
 const PAYMENT_LABELS = {
   PAYMENT_PENDING: 'Awaiting Payment',
@@ -45,7 +44,7 @@ const computeReminderStatus = (nextDate, currentStatus) => {
 const isFallbackInvoice = (inv) => {
   if (!inv || inv === '-') return true;
   const s = String(inv).trim();
-  return /^INV[/-]/i.test(s);
+  return /^INV[/-]\d{4}[/-]\d{3,}/i.test(s) || /^INV[/-]2627[/-]\d+/i.test(s);
 };
 
 const HISTORICAL_DISPATCH_INVOICES = {
@@ -385,106 +384,6 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       });
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load payment history.' });
-    }
-  };
-
-  const handleEditInvoiceNumber = async (order) => {
-    const isOldFallback = isFallbackInvoice(order.invoice_number);
-    const defaultVal = isOldFallback ? '' : (order.invoice_number || '');
-    const orderNo = order.order_number || order.orderNo || order.id;
-
-    const { value: newInvoice } = await Swal.fire({
-      title: 'Update Invoice Number',
-      html: `
-        <div style="text-align: left; font-size: 13px; display: flex; flex-direction: column; gap: 10px;">
-          <div><strong>Order:</strong> <span style="font-family: monospace; font-weight: 800;">${orderNo}</span></div>
-          <div><strong>Customer:</strong> ${order.customer_name || 'Customer'}</div>
-          ${isOldFallback ? `<div style="font-size: 11.5px; color: #d97706; background: #fffbeb; padding: 6px 10px; border-radius: 6px; border: 1px solid #fde68a;">⚠️ Order currently has placeholder (${order.invoice_number}). Enter the real bill / invoice number below.</div>` : ''}
-          <div>
-            <label style="display: block; font-weight: 700; font-size: 12px; margin-bottom: 6px; color: #475569;">
-              Dispatch Bill / Invoice No:
-            </label>
-            <input id="swal-edit-invoice-input" class="swal2-input" placeholder="e.g. 876 or INV-2026-088" value="${defaultVal}" style="width: 100%; margin: 0; font-size: 14px; box-sizing: border-box;" />
-          </div>
-        </div>
-      `,
-      showCancelButton: true,
-      confirmButtonText: 'Save Invoice',
-      cancelButtonText: 'Cancel',
-      didOpen: () => {
-        const input = document.getElementById('swal-edit-invoice-input');
-        if (input) input.focus();
-      },
-      preConfirm: () => {
-        const val = document.getElementById('swal-edit-invoice-input')?.value?.trim();
-        if (!val) {
-          Swal.showValidationMessage('Invoice number cannot be empty.');
-          return false;
-        }
-        return val;
-      }
-    });
-
-    if (!newInvoice) return;
-
-    try {
-      const orderRef = order.id || orderNo;
-      
-      // 1. Persist to backend PostgreSQL database
-      try {
-        await backendFetch(`/api/backend/sales/orders/${encodeURIComponent(orderRef)}/invoice-number`, {
-          method: 'PATCH',
-          body: { invoiceNumber: newInvoice }
-        });
-      } catch (err1) {
-        try {
-          await apiClient.patch(`/sales/orders/${orderRef}/invoice-number`, { invoiceNumber: newInvoice });
-        } catch (err2) {
-          console.warn('Backend patch failed, trying POST fallback', err2);
-          await apiClient.post(`/sales/orders/${orderRef}/invoice-number`, { invoiceNumber: newInvoice });
-        }
-      }
-
-      // 2. Sync to local storage for immediate persistence
-      try {
-        const stored = JSON.parse(localStorage.getItem('himalaya_dispatch_invoices') || '{}');
-        [order.id, orderNo, order.order_number, order.orderNo].filter(Boolean).forEach(k => {
-          stored[String(k).trim()] = newInvoice;
-          stored[String(k).replace(/^#/, '').trim()] = newInvoice;
-        });
-        localStorage.setItem('himalaya_dispatch_invoices', JSON.stringify(stored));
-        setLocalDispatchInvoices(stored);
-      } catch (e) {
-        console.warn('LocalStorage sync error', e);
-      }
-
-      // 3. Update pendingCollection in state
-      setPendingCollection(prev => (prev || []).map(p => {
-        const pNo = p.order_number || p.orderNo || p.id;
-        if (String(p.id) === String(order.id) || String(pNo) === String(orderNo)) {
-          return {
-            ...p,
-            invoice_number: newInvoice,
-            invoiceNumber: newInvoice,
-            invoiceNo: newInvoice,
-          };
-        }
-        return p;
-      }));
-
-      Swal.fire({
-        icon: 'success',
-        title: 'Invoice Updated!',
-        text: `Order ${orderNo} invoice set to ${newInvoice}`,
-        timer: 1500,
-        showConfirmButton: false,
-      });
-    } catch (err) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Update Failed',
-        text: err?.message || 'Could not save invoice number to server.',
-      });
     }
   };
 
@@ -881,23 +780,6 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         resolvedInvoiceNumber = existing.invoice_number;
       }
 
-      // Fallback only if no dispatch/actual invoice number exists
-      if (!resolvedInvoiceNumber) {
-        const direct = o.invoiceNumber || o.invoice_number || o.invoiceNo;
-        if (direct && typeof direct === 'string' && direct.trim() && direct.trim() !== '-') {
-          resolvedInvoiceNumber = direct.trim();
-        } else {
-          const orderStr = String(orderNo).trim();
-          if (/^HCPPL[/-]/i.test(orderStr)) {
-            resolvedInvoiceNumber = orderStr.replace(/^HCPPL[/-]/i, 'INV/');
-          } else if (/^ORD[/-]/i.test(orderStr)) {
-            resolvedInvoiceNumber = orderStr.replace(/^ORD[/-]/i, 'INV-');
-          } else {
-            resolvedInvoiceNumber = `INV/${orderStr.replace(/^[^a-zA-Z0-9]+/, '')}`;
-          }
-        }
-      }
-
       const normalized = {
         id: o.id || orderNo,
         customerId: o.customerId || o.customer_id || o.customer?.id || 'unknown',
@@ -1145,15 +1027,9 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                       <div className="pmc-header">
                         <div className="pmc-order-tag">
                           <strong>{o.order_number}</strong>
-                          {o.invoice_number && o.invoice_number !== '-' && (
-                            <span
-                              className="pmc-invoice-badge"
-                              onClick={() => handleEditInvoiceNumber(o)}
-                              style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                              title="Click to edit invoice number"
-                            >
+                          {o.invoice_number && o.invoice_number !== '-' && !isFallbackInvoice(o.invoice_number) && (
+                            <span className="pmc-invoice-badge">
                               <span>Inv: {o.invoice_number}</span>
-                              <Pencil size={10} />
                             </span>
                           )}
                         </div>
@@ -1300,45 +1176,24 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                         <tr key={o.id}>
                           <td data-label="Order ID" style={{ fontFamily: 'monospace', fontWeight: 800 }}>{o.order_number}</td>
                           <td data-label="Invoice No">
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            {o.invoice_number && o.invoice_number !== '-' && !isFallbackInvoice(o.invoice_number) ? (
                               <span
                                 style={{
+                                  background: '#ecfdf5',
+                                  border: '1px solid #a7f3d0',
+                                  color: '#065f46',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontWeight: 800,
                                   fontFamily: 'monospace',
                                   fontSize: '12.5px',
                                 }}
-                                title={isFallbackInvoice(o.invoice_number) ? 'Automated placeholder invoice. Click edit to enter real dispatch bill number.' : `Invoice: ${o.invoice_number}`}
                               >
-                                {isFallbackInvoice(o.invoice_number) ? (
-                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#f8fafc', border: '1px dashed #cbd5e1', padding: '2px 6px', borderRadius: '4px' }}>
-                                    <span style={{ color: '#64748b' }}>{o.invoice_number}</span>
-                                    <span style={{ fontSize: '9.5px', fontWeight: 800, background: '#fef3c7', color: '#b45309', padding: '0 4px', borderRadius: '3px' }}>Auto</span>
-                                  </span>
-                                ) : (
-                                  <span style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>
-                                    {o.invoice_number}
-                                  </span>
-                                )}
+                                {o.invoice_number}
                               </span>
-                              <button
-                                type="button"
-                                title="Click to edit or enter real invoice number"
-                                onClick={() => handleEditInvoiceNumber(o)}
-                                style={{
-                                  background: '#f8fafc',
-                                  border: '1px solid #cbd5e1',
-                                  borderRadius: '4px',
-                                  padding: '3px 6px',
-                                  cursor: 'pointer',
-                                  color: '#2563eb',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  lineHeight: 1,
-                                }}
-                              >
-                                <Pencil size={12} />
-                              </button>
-                            </div>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontWeight: 500 }}>—</span>
+                            )}
                           </td>
                           <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
@@ -1468,15 +1323,9 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                       <div className="pmc-header">
                         <div className="pmc-order-tag">
                           <strong>{o.order_number}</strong>
-                          {o.invoice_number && o.invoice_number !== '-' && (
-                            <span
-                              className="pmc-invoice-badge"
-                              onClick={() => handleEditInvoiceNumber(o)}
-                              style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                              title="Click to edit invoice number"
-                            >
+                          {o.invoice_number && o.invoice_number !== '-' && !isFallbackInvoice(o.invoice_number) && (
+                            <span className="pmc-invoice-badge">
                               <span>Inv: {o.invoice_number}</span>
-                              <Pencil size={10} />
                             </span>
                           )}
                         </div>
@@ -1580,45 +1429,24 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                         <tr key={o.id}>
                           <td data-label="Order ID" style={{ fontFamily: 'monospace', fontWeight: 800 }}>{o.order_number}</td>
                           <td data-label="Invoice No">
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            {o.invoice_number && o.invoice_number !== '-' && !isFallbackInvoice(o.invoice_number) ? (
                               <span
                                 style={{
+                                  background: '#ecfdf5',
+                                  border: '1px solid #a7f3d0',
+                                  color: '#065f46',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontWeight: 800,
                                   fontFamily: 'monospace',
                                   fontSize: '12.5px',
                                 }}
-                                title={isFallbackInvoice(o.invoice_number) ? 'Automated placeholder invoice. Click edit to enter real dispatch bill number.' : `Invoice: ${o.invoice_number}`}
                               >
-                                {isFallbackInvoice(o.invoice_number) ? (
-                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#f8fafc', border: '1px dashed #cbd5e1', padding: '2px 6px', borderRadius: '4px' }}>
-                                    <span style={{ color: '#64748b' }}>{o.invoice_number}</span>
-                                    <span style={{ fontSize: '9.5px', fontWeight: 800, background: '#fef3c7', color: '#b45309', padding: '0 4px', borderRadius: '3px' }}>Auto</span>
-                                  </span>
-                                ) : (
-                                  <span style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>
-                                    {o.invoice_number}
-                                  </span>
-                                )}
+                                {o.invoice_number}
                               </span>
-                              <button
-                                type="button"
-                                title="Click to edit or enter real invoice number"
-                                onClick={() => handleEditInvoiceNumber(o)}
-                                style={{
-                                  background: '#f8fafc',
-                                  border: '1px solid #cbd5e1',
-                                  borderRadius: '4px',
-                                  padding: '3px 6px',
-                                  cursor: 'pointer',
-                                  color: '#2563eb',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  lineHeight: 1,
-                                }}
-                              >
-                                <Pencil size={12} />
-                              </button>
-                            </div>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontWeight: 500 }}>—</span>
+                            )}
                           </td>
                           <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>

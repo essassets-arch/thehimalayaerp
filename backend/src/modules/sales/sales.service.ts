@@ -360,6 +360,48 @@ export class SalesService {
       ? {}
       : (isSalespersonScopedRole(role) && userId ? getOrderSalesScope(userId, role) : {});
 
+    // Fetch real dispatch invoices from Postgres to link any dispatches created by dispatch user
+    const dispatchesWithInvoice = await this.prisma.dispatch.findMany({
+      where: {
+        invoiceNumber: { not: null },
+      },
+      select: {
+        salesOrderId: true,
+        invoiceNumber: true,
+        salesOrder: {
+          select: {
+            id: true,
+            orderNumber: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const dispatchInvByOrderId = new Map<string, string>();
+    for (const d of dispatchesWithInvoice) {
+      const inv = d.invoiceNumber?.trim();
+      if (!inv || inv === '-') continue;
+      if (d.salesOrderId) {
+        const k1 = d.salesOrderId.trim().toLowerCase();
+        if (!dispatchInvByOrderId.has(k1)) dispatchInvByOrderId.set(k1, inv);
+        const norm1 = k1.replace(/[^a-z0-9]/g, '');
+        if (!dispatchInvByOrderId.has(norm1)) dispatchInvByOrderId.set(norm1, inv);
+      }
+      if (d.salesOrder?.id) {
+        const k2 = d.salesOrder.id.trim().toLowerCase();
+        if (!dispatchInvByOrderId.has(k2)) dispatchInvByOrderId.set(k2, inv);
+        const norm2 = k2.replace(/[^a-z0-9]/g, '');
+        if (!dispatchInvByOrderId.has(norm2)) dispatchInvByOrderId.set(norm2, inv);
+      }
+      if (d.salesOrder?.orderNumber) {
+        const k3 = d.salesOrder.orderNumber.trim().toLowerCase();
+        if (!dispatchInvByOrderId.has(k3)) dispatchInvByOrderId.set(k3, inv);
+        const norm3 = k3.replace(/[^a-z0-9]/g, '');
+        if (!dispatchInvByOrderId.has(norm3)) dispatchInvByOrderId.set(norm3, inv);
+      }
+    }
+
     const orders = await this.prisma.salesOrder.findMany({
       where: {
         deletedAt: null,
@@ -441,25 +483,36 @@ export class SalesService {
 
       const deliveredAt = deliveredAtDate ? new Date(deliveredAtDate) : null;
 
+      const orderKey = String(order.id || '').trim().toLowerCase();
+      const orderNumKey = String(order.orderNumber || '').trim().toLowerCase();
+      const orderKeyNorm = orderKey.replace(/[^a-z0-9]/g, '');
+      const orderNumKeyNorm = orderNumKey.replace(/[^a-z0-9]/g, '');
+
+      const directDispatchInvoice =
+        dispatchInvByOrderId.get(orderKey) ||
+        dispatchInvByOrderId.get(orderNumKey) ||
+        dispatchInvByOrderId.get(orderKeyNorm) ||
+        dispatchInvByOrderId.get(orderNumKeyNorm);
+
       const latestDispatchInvoice = (order.dispatches || []).find(
-        (d) => Boolean(d.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim())
+        (d) => Boolean(d.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim() && d.invoiceNumber.trim() !== '-')
       )?.invoiceNumber?.trim();
       const latestOrderInvoice = (order.invoices || []).find(
-        (inv) => Boolean(inv.invoiceNumber && typeof inv.invoiceNumber === 'string' && inv.invoiceNumber.trim())
+        (inv) => Boolean(inv.invoiceNumber && typeof inv.invoiceNumber === 'string' && inv.invoiceNumber.trim() && inv.invoiceNumber.trim() !== '-')
       )?.invoiceNumber?.trim();
       const historicalDispatchInv =
         HISTORICAL_DISPATCH_INVOICES[order.id] ||
         (order.orderNumber ? HISTORICAL_DISPATCH_INVOICES[order.orderNumber] : undefined) ||
         (order.orderNumber ? HISTORICAL_DISPATCH_INVOICES[order.orderNumber.trim()] : undefined);
-      const orderStr = String(order.orderNumber || '').trim();
-      const fallbackInv = /^HCPPL[/-]/i.test(orderStr)
-        ? orderStr.replace(/^HCPPL[/-]/i, 'INV/')
-        : /^ORD[/-]/i.test(orderStr)
-          ? orderStr.replace(/^ORD[/-]/i, 'INV-')
-          : `INV/${orderStr.replace(/^[^a-zA-Z0-9]+/, '')}`;
-      const resolvedInvoiceNo = latestDispatchInvoice || latestOrderInvoice || historicalDispatchInv || fallbackInv;
 
-      const isActualInvoice = Boolean(latestDispatchInvoice || latestOrderInvoice || historicalDispatchInv);
+      const resolvedInvoiceNo =
+        latestDispatchInvoice ||
+        directDispatchInvoice ||
+        latestOrderInvoice ||
+        historicalDispatchInv ||
+        null;
+
+      const isActualInvoice = Boolean(resolvedInvoiceNo);
 
       return {
         id: order.id,
