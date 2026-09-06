@@ -459,6 +459,8 @@ export class SalesService {
           : `INV/${orderStr.replace(/^[^a-zA-Z0-9]+/, '')}`;
       const resolvedInvoiceNo = latestDispatchInvoice || latestOrderInvoice || historicalDispatchInv || fallbackInv;
 
+      const isActualInvoice = Boolean(latestDispatchInvoice || latestOrderInvoice || historicalDispatchInv);
+
       return {
         id: order.id,
         order_number: order.orderNumber,
@@ -477,6 +479,8 @@ export class SalesService {
         invoice_number: resolvedInvoiceNo,
         invoiceNumber: resolvedInvoiceNo,
         invoiceNo: resolvedInvoiceNo,
+        isActualInvoice,
+        hasRealInvoice: isActualInvoice,
         dispatches: order.dispatches || [],
         invoices: order.invoices || [],
         delivered_at: deliveredAt ? deliveredAt.toISOString() : undefined,
@@ -494,6 +498,91 @@ export class SalesService {
               : 'PENDING',
       };
     });
+  }
+
+  async updateInvoiceNumber(
+    orderIdOrNumber: string,
+    invoiceNumber: string,
+    userId?: string,
+  ) {
+    const cleanInv = String(invoiceNumber || '').trim();
+    if (!cleanInv) {
+      throw new BadRequestException('Invoice number cannot be empty');
+    }
+
+    const orderTarget = String(orderIdOrNumber || '').trim();
+    const orderNoClean = orderTarget.replace(/^#/, '');
+
+    const order = await this.prisma.salesOrder.findFirst({
+      where: {
+        OR: [
+          { id: orderTarget },
+          { orderNumber: orderTarget },
+          { orderNumber: orderNoClean },
+          { orderNumber: { equals: orderNoClean, mode: 'insensitive' } },
+        ],
+      },
+      include: {
+        dispatches: { orderBy: { createdAt: 'desc' } },
+        invoices: { orderBy: { createdAt: 'desc' } },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Sales order '${orderIdOrNumber}' not found`);
+    }
+
+    // Update or link dispatches
+    if (order.dispatches && order.dispatches.length > 0) {
+      for (const d of order.dispatches) {
+        await this.prisma.dispatch
+          .update({
+            where: { id: d.id },
+            data: { invoiceNumber: cleanInv },
+          })
+          .catch(() => {});
+      }
+    } else {
+      await this.prisma.dispatch
+        .create({
+          data: {
+            dispatchNo: `DSP-${Date.now().toString().slice(-6)}`,
+            salesOrderId: order.id,
+            status: 'DELIVERED',
+            invoiceNumber: cleanInv,
+            deliveredAt: (order as any).deliveredAt || new Date(),
+          },
+        })
+        .catch(() => {});
+    }
+
+    // Update or link SalesInvoice
+    if (order.invoices && order.invoices.length > 0) {
+      for (const inv of order.invoices) {
+        await this.prisma.salesInvoice
+          .update({
+            where: { id: inv.id },
+            data: { invoiceNumber: cleanInv },
+          })
+          .catch(() => {});
+      }
+    }
+
+    // Update in-memory registry for instantaneous synchronization
+    HISTORICAL_DISPATCH_INVOICES[order.id] = cleanInv;
+    if (order.orderNumber) {
+      HISTORICAL_DISPATCH_INVOICES[order.orderNumber] = cleanInv;
+      HISTORICAL_DISPATCH_INVOICES[order.orderNumber.trim()] = cleanInv;
+      HISTORICAL_DISPATCH_INVOICES[order.orderNumber.replace(/[^a-zA-Z0-9]/g, '')] = cleanInv;
+    }
+
+    return {
+      success: true,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      invoiceNumber: cleanInv,
+      isActualInvoice: true,
+    };
   }
 
   private calculateTotals(items: any[]) {

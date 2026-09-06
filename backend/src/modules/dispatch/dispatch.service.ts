@@ -876,6 +876,7 @@ export class DispatchService {
       const deliveredAtDate = dto.deliveredAt
         ? new Date(dto.deliveredAt)
         : new Date();
+      const cleanInvoice = dto.invoiceNumber?.trim();
       const updatedDispatch = await tx.dispatch.update({
         where: { id },
         data: {
@@ -895,8 +896,23 @@ export class DispatchService {
           deliveredById: userId,
           podReceivedAt: new Date(),
           podStatus: 'APPROVED',
+          ...(cleanInvoice ? { invoiceNumber: cleanInvoice } : {}),
         },
       });
+
+      if (cleanInvoice) {
+        await tx.salesInvoice
+          .updateMany({
+            where: {
+              OR: [
+                { dispatchId: id },
+                { salesOrderId: dispatch.salesOrderId },
+              ],
+            },
+            data: { invoiceNumber: cleanInvoice },
+          })
+          .catch(() => {});
+      }
 
       // 3. Update related WorkOrders to DISPATCHED
       const relatedWorkOrders = await tx.workOrder.findMany({

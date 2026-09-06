@@ -183,7 +183,12 @@ export default function DispatchBillModal({ dispatchRecord, orders, onClose }) {
           </div>
           <div style={{ textAlign: 'right', paddingRight: '40px' }}>
             <h1 style={{ fontSize: '20px', fontWeight: '900', color: '#1e293b', letterSpacing: '-0.5px', margin: 0 }}>DELIVERY CHALLAN</h1>
-            <p style={{ fontSize: '13px', color: '#5E6B82', fontWeight: '700', margin: '4px 0 0 0' }}>Ref: {dispatchRecord.id}</p>
+            <p style={{ fontSize: '13px', color: '#5E6B82', fontWeight: '700', margin: '4px 0 0 0' }}>Ref: {dispatchRecord.dispatchNo || dispatchRecord.id}</p>
+            {(dispatchRecord.invoiceNumber || dispatchRecord.invoice_number) && (
+              <p style={{ fontSize: '13px', color: '#15803d', fontWeight: '800', margin: '2px 0 0 0' }}>
+                Invoice No: {dispatchRecord.invoiceNumber || dispatchRecord.invoice_number}
+              </p>
+            )}
           </div>
         </div>
 
@@ -204,6 +209,9 @@ export default function DispatchBillModal({ dispatchRecord, orders, onClose }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
               <div><strong>Date:</strong> {date}</div>
               <div><strong>Status:</strong> <span style={{ fontWeight: '700', color: dispatchStatus === 'Delivered' ? '#15803d' : '#b45309' }}>{dispatchStatus}</span></div>
+              {(dispatchRecord.invoiceNumber || dispatchRecord.invoice_number) && (
+                <div><strong>Invoice No:</strong> <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#0f172a' }}>{dispatchRecord.invoiceNumber || dispatchRecord.invoice_number}</span></div>
+              )}
               <div><strong>Vehicle No:</strong> {dispatchRecord.vehicleNumber || dispatchRecord.vehicleNo}</div>
               <div><strong>Driver:</strong> {dispatchRecord.driverName}</div>
               <div><strong>Driver Mob:</strong> {dispatchRecord.driverPhone || dispatchRecord.driverMobile}</div>

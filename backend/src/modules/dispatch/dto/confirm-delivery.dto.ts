@@ -23,6 +23,10 @@ export class ConfirmDeliveryDto {
   podImageUrl: string;
 
   @IsOptional()
+  @IsString()
+  invoiceNumber?: string;
+
+  @IsOptional()
   @Transform(({ value }) => {
     if (value === '' || value === null || value === undefined) return undefined;
     const num = Number(value);

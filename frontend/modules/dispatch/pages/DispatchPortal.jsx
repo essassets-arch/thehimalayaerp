@@ -969,6 +969,18 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             }
           }
 
+          // Persist invoice number to backend PostgreSQL database
+          if (enteredDeliveryInv && targetOrderId) {
+            try {
+              await backendFetch(`/api/backend/sales/orders/${encodeURIComponent(targetOrderId)}/invoice-number`, {
+                method: 'PATCH',
+                body: { invoiceNumber: enteredDeliveryInv }
+              }).catch(() => {});
+            } catch (e) {
+              console.warn('Failed to persist delivery invoice to backend', e);
+            }
+          }
+
           const updatedDispatches = (state.dispatches || []).map(d => {
             if (d.id === dispatchId || d.dispatchId === dispatchId) {
               return {
