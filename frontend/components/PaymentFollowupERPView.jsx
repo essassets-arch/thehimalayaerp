@@ -41,6 +41,89 @@ const computeReminderStatus = (nextDate, currentStatus) => {
   return 'Upcoming';
 };
 
+const isFallbackInvoice = (inv) => {
+  if (!inv || inv === '-') return true;
+  const s = String(inv).trim();
+  return /^INV[/-]/i.test(s);
+};
+
+const HISTORICAL_DISPATCH_INVOICES = {
+  "HCPPL/2627/0141": "875",
+  "a967bc13-bb9f-4b0a-bb4d-a18e74604750": "875",
+  "HCPPL/2627/0008": "959",
+  "34015f62-fafe-4d7c-87d5-db22fb39116e": "959",
+  "HCPPL/2627/0005": "993",
+  "7f6bf38b-d74a-4ba4-9721-7299a9b6ffbc": "993",
+  "HCPPL/2627/0007": "906",
+  "c63c7e7b-c3ae-4322-9e8c-85a7304193b2": "906",
+  "HCPPL/2627/0006": "917",
+  "182b8b9f-68ae-4fc2-a4f6-7b2ba7d4a1aa": "917",
+  "HCPPL/2627/0009": "1004",
+  "d0935574-e826-47b1-ba2c-29b6e828fcb0": "1004",
+  "HCPPL/2627/0003": "987",
+  "922e4fa7-5487-4340-9ce8-71e194883ea6": "987",
+  "HCPPL/2627/0010": "599",
+  "6db81226-f7ee-45a9-a931-f13887019803": "599",
+  "HCPPL/2627/0014": "896",
+  "5db841f3-4e4b-4c28-98e6-127e289bf653": "896",
+  "HCPPL/2627/0015": "870",
+  "0eefbb5c-41ad-46e3-a616-e41416e792c3": "870",
+  "HCPPL/2627/0018": "550",
+  "3fa0ec33-c87d-417d-8ae5-be75c0cb1fbb": "550",
+  "HCPPL/2627/0021": "748",
+  "fe59d9c2-b364-44df-9118-05b106be0944": "748",
+  "HCPPL/2627/0026": "739",
+  "a38e8be3-441d-4001-8319-ca2c12513470": "739",
+  "HCPPL/2627/0025": "683",
+  "7ba5411a-1d57-4180-8774-c0fa21eeb4df": "683",
+  "HCPPL/2627/0022": "835",
+  "eaae8182-3645-4228-a55d-3571d87e0ce3": "835",
+  "HCPPL/2627/0013": "902",
+  "7baef5ea-98cb-4e92-af0f-547df5d49008": "902",
+  "HCPPL/2627/0031": "507",
+  "2d338879-1116-43cf-bf2f-0498b8969e6b": "507",
+  "HCPPL/2627/0033": "588",
+  "d1c67d3d-c124-4f05-b1a3-29cebbdd0465": "588",
+  "HCPPL/2627/0012": "903",
+  "75ff6ff1-a9f4-41d4-8d48-cbdbef9df951": "903",
+  "HCPPL/2627/0035": "58",
+  "e5c0101b-c128-44d4-9d56-fb937db87556": "58",
+  "HCPPL/2627/0040": "611",
+  "93eb8364-c7ef-4ee3-be0e-7be1a80436d4": "611",
+  "HCPPL/2627/0043": "19",
+  "76ee3b73-c15c-43f6-95ff-4aa65cc8d6eb": "19",
+  "HCPPL/2627/0046": "245",
+  "f10134bc-0fe2-4be7-975a-694e910fae13": "245",
+  "HCPPL/2627/0052": "246",
+  "340a583e-9086-455b-8006-2ee910014a42": "246",
+  "HCPPL/2627/0090": "279",
+  "ca06a8f1-8cb5-46ff-b97c-9aa965bb6d0f": "279",
+  "HCPPL/2627/0122": "775",
+  "77ba4fa5-feea-4d8b-967b-232fbddc3b28": "775",
+  "HCPPL/2627/0104": "411",
+  "ef8a2610-d86b-47e2-8947-6953d10091ca": "411",
+  "HCPPL/2627/0103": "440",
+  "38f5379e-4e4c-473d-82d2-8be096898b1a": "440",
+  "HCPPL/2627/0102": "376",
+  "0eb2ff49-74d7-4632-9df7-d77ea41829e0": "376",
+  "HCPPL/2627/0107": "585",
+  "c8f00030-cf2f-4881-8078-d5e8ff7f2a74": "585",
+  "HCPPL/2627/0113": "554",
+  "6db81180-2db4-469b-9ef1-4be3fc5ff3ee": "554",
+  "HCPPL/2627/0119": "813",
+  "f47d9697-d862-42ad-b6f7-c299c08643ba": "813",
+  "HCPPL/2627/0138": "852",
+  "a8ca46c0-6d80-4965-9856-11eb063b4699": "852",
+  "HCPPL/2627/0143": "895",
+  "fa32a0d9-74e2-4db1-9be9-1c9f4c39f032": "895",
+  "HCPPL/2627/0139": "868",
+  "409f61b7-b080-466a-bdf8-6c84c787dd2a": "868",
+  "HCPPL/2627/0145": "958",
+  "fc39ca82-df75-4309-8be7-59d435f11a43": "958",
+  "HCPPL/2627/0142": "944",
+  "4fa6fe0e-3b2d-4b9d-9cf3-01fc8ff3d100": "944"
+};
+
 export default function PaymentFollowupERPView({ orders = [] }) {
   const navigate = useRouter();
   const searchParams = useSearchParams();
@@ -105,17 +188,31 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     setLoadingPending(true);
     try {
       const [resPending, resDispatches] = await Promise.allSettled([
-        apiClient.get('/sales/orders/delivered/pending-payment'),
+        backendFetch('/api/backend/sales/orders/delivered/pending-payment').catch(() =>
+          apiClient.get('/sales/orders/delivered/pending-payment')
+        ),
         backendFetch('/api/backend/logistics/dispatches').catch(() =>
           backendFetch('/api/backend/logistics/dispatches?status=DELIVERED')
         ),
       ]);
-      const pendingData = resPending.status === 'fulfilled' && resPending.value?.success
-        ? resPending.value.data
-        : Array.isArray(resPending.value) ? resPending.value : [];
-      const dispData = resDispatches.status === 'fulfilled'
-        ? (Array.isArray(resDispatches.value) ? resDispatches.value : Array.isArray(resDispatches.value?.data) ? resDispatches.value.data : [])
-        : [];
+      const rawPending = resPending.status === 'fulfilled' ? resPending.value : null;
+      let pendingData = [];
+      if (Array.isArray(rawPending)) {
+        pendingData = rawPending;
+      } else if (rawPending && Array.isArray(rawPending.data)) {
+        pendingData = rawPending.data;
+      } else if (rawPending && rawPending.success && Array.isArray(rawPending.data)) {
+        pendingData = rawPending.data;
+      }
+      const rawDisp = resDispatches.status === 'fulfilled' ? resDispatches.value : null;
+      let dispData = [];
+      if (Array.isArray(rawDisp)) {
+        dispData = rawDisp;
+      } else if (rawDisp && Array.isArray(rawDisp.data)) {
+        dispData = rawDisp.data;
+      } else if (rawDisp && rawDisp.success && Array.isArray(rawDisp.data)) {
+        dispData = rawDisp.data;
+      }
       setPendingCollection(pendingData);
       setDeliveredDispatches(dispData);
     } catch (err) {
@@ -402,55 +499,67 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     const deliveryMap = new Map();
     const invoiceMap = new Map();
 
+    const registerKey = (rawKey, cleanInv, dDate) => {
+      if (!rawKey) return;
+      const str = String(rawKey).trim().toLowerCase();
+      if (dDate) {
+        deliveryMap.set(str, dDate);
+        deliveryMap.set(str.replace(/[^a-z0-9]/g, ''), dDate);
+        deliveryMap.set(str.replace(/^ord-/, ''), dDate);
+        deliveryMap.set(str.replace(/^#/, ''), dDate);
+      }
+      if (cleanInv) {
+        invoiceMap.set(str, cleanInv);
+        invoiceMap.set(str.replace(/[^a-z0-9]/g, ''), cleanInv);
+        invoiceMap.set(str.replace(/^ord-/, ''), cleanInv);
+        invoiceMap.set(str.replace(/^#/, ''), cleanInv);
+      }
+    };
+
+    // 1. Pre-seed verified historical dispatch invoices from backup audit
+    if (typeof HISTORICAL_DISPATCH_INVOICES === 'object') {
+      Object.entries(HISTORICAL_DISPATCH_INVOICES).forEach(([rawKey, invVal]) => {
+        if (invVal && !isFallbackInvoice(invVal)) {
+          registerKey(rawKey, String(invVal).trim(), null);
+        }
+      });
+    }
+
+    // 2. Dispatches from backend and store
     const allDispatches = [
       ...(Array.isArray(deliveredDispatches) ? deliveredDispatches : []),
       ...(Array.isArray(consignments) ? consignments : []),
+      ...(Array.isArray(canonicalState?.dispatches) ? canonicalState.dispatches : []),
+      ...(Array.isArray(canonicalState?.dispatch?.dispatches) ? canonicalState.dispatch.dispatches : []),
     ];
 
     allDispatches.forEach((d) => {
       const dDate = d.deliveredAt || d.dispatchedAt || d.createdAt;
       const inv = d.invoiceNumber || d.invoice_number || d.invoiceNo;
-      const hasInv = inv && typeof inv === 'string' && inv.trim() && inv.trim() !== '-';
-      const cleanInv = hasInv ? inv.trim() : null;
+      const cleanInv = inv && typeof inv === 'string' && inv.trim() && inv.trim() !== '-' && !isFallbackInvoice(inv)
+        ? inv.trim()
+        : null;
 
-      const registerKey = (rawKey) => {
-        if (!rawKey) return;
-        const str = String(rawKey).trim().toLowerCase();
-        if (dDate) {
-          deliveryMap.set(str, dDate);
-          deliveryMap.set(str.replace(/[^a-z0-9]/g, ''), dDate);
-          deliveryMap.set(str.replace(/^ord-/, ''), dDate);
-        }
-        if (cleanInv) {
-          invoiceMap.set(str, cleanInv);
-          invoiceMap.set(str.replace(/[^a-z0-9]/g, ''), cleanInv);
-          invoiceMap.set(str.replace(/^ord-/, ''), cleanInv);
-        }
-      };
-
-      registerKey(d.salesOrderId);
-      registerKey(d.salesOrder?.id);
-      registerKey(d.salesOrder?.orderNumber);
-      registerKey(d.orderId);
-      registerKey(d.orderNo);
-      registerKey(d.orderNumber);
-      registerKey(d.dispatchNo);
+      registerKey(d.salesOrderId, cleanInv, dDate);
+      registerKey(d.salesOrder?.id, cleanInv, dDate);
+      registerKey(d.salesOrder?.orderNumber, cleanInv, dDate);
+      registerKey(d.orderId, cleanInv, dDate);
+      registerKey(d.orderNo, cleanInv, dDate);
+      registerKey(d.orderNumber, cleanInv, dDate);
+      registerKey(d.dispatchNo, cleanInv, dDate);
     });
 
+    // 3. Local dispatch invoices (from Dispatch portal user inputs)
     if (localDispatchInvoices && typeof localDispatchInvoices === 'object') {
       Object.entries(localDispatchInvoices).forEach(([rawKey, invVal]) => {
-        if (rawKey && invVal && typeof invVal === 'string' && invVal.trim() && invVal.trim() !== '-') {
-          const str = String(rawKey).trim().toLowerCase();
-          const cleanInv = invVal.trim();
-          invoiceMap.set(str, cleanInv);
-          invoiceMap.set(str.replace(/[^a-z0-9]/g, ''), cleanInv);
-          invoiceMap.set(str.replace(/^ord-/, ''), cleanInv);
+        if (rawKey && invVal && typeof invVal === 'string' && invVal.trim() && invVal.trim() !== '-' && !isFallbackInvoice(invVal)) {
+          registerKey(rawKey, invVal.trim(), null);
         }
       });
     }
 
     return { dispatchDeliveryMap: deliveryMap, dispatchInvoiceMap: invoiceMap };
-  }, [deliveredDispatches, consignments, localDispatchInvoices]);
+  }, [deliveredDispatches, consignments, canonicalState?.dispatches, canonicalState?.dispatch?.dispatches, localDispatchInvoices]);
 
   const pendingRows = useMemo(() => {
     const apiRows = pendingCollection || [];
@@ -618,19 +727,28 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       let resolvedInvoiceNumber = null;
       for (const k of candidateKeys) {
         if (dispatchInvoiceMap.has(k)) {
-          resolvedInvoiceNumber = dispatchInvoiceMap.get(k);
-          break;
+          const val = dispatchInvoiceMap.get(k);
+          if (!isFallbackInvoice(val)) {
+            resolvedInvoiceNumber = val;
+            break;
+          }
         }
         const norm = k.replace(/[^a-z0-9]/g, '');
         if (dispatchInvoiceMap.has(norm)) {
-          resolvedInvoiceNumber = dispatchInvoiceMap.get(norm);
-          break;
+          const val = dispatchInvoiceMap.get(norm);
+          if (!isFallbackInvoice(val)) {
+            resolvedInvoiceNumber = val;
+            break;
+          }
         }
       }
 
       // Check order's embedded dispatches array
       if (!resolvedInvoiceNumber && Array.isArray(o.dispatches) && o.dispatches.length > 0) {
-        const dWithInv = o.dispatches.find(d => Boolean((d?.invoiceNumber || d?.invoice_number || d?.invoiceNo)?.trim?.()));
+        const dWithInv = o.dispatches.find(d => {
+          const val = (d?.invoiceNumber || d?.invoice_number || d?.invoiceNo);
+          return val && typeof val === 'string' && val.trim() && val.trim() !== '-' && !isFallbackInvoice(val);
+        });
         if (dWithInv) {
           resolvedInvoiceNumber = (dWithInv.invoiceNumber || dWithInv.invoice_number || dWithInv.invoiceNo)?.trim();
         }
@@ -638,29 +756,44 @@ export default function PaymentFollowupERPView({ orders = [] }) {
 
       // Check order's embedded invoices array
       if (!resolvedInvoiceNumber && Array.isArray(o.invoices) && o.invoices.length > 0) {
-        const invWithNo = o.invoices.find(inv => Boolean(inv?.invoiceNumber?.trim?.()));
+        const invWithNo = o.invoices.find(inv => {
+          const val = inv?.invoiceNumber;
+          return val && typeof val === 'string' && val.trim() && val.trim() !== '-' && !isFallbackInvoice(val);
+        });
         if (invWithNo) {
           resolvedInvoiceNumber = invWithNo.invoiceNumber.trim();
         }
       }
 
-      // Check direct order invoice properties
+      // Check direct order invoice properties (if not fallback)
       if (!resolvedInvoiceNumber) {
         const direct = o.invoiceNumber || o.invoice_number || o.invoiceNo;
-        if (direct && typeof direct === 'string' && direct.trim() && direct.trim() !== '-') {
+        if (direct && typeof direct === 'string' && direct.trim() && direct.trim() !== '-' && !isFallbackInvoice(direct)) {
           resolvedInvoiceNumber = direct.trim();
         }
       }
 
+      // If existing candidate already has a real invoice, adopt it
+      const key = String(orderNo).toLowerCase();
+      const existing = map.get(key);
+      if (!resolvedInvoiceNumber && existing?.invoice_number && !isFallbackInvoice(existing.invoice_number)) {
+        resolvedInvoiceNumber = existing.invoice_number;
+      }
+
       // Fallback only if no dispatch/actual invoice number exists
       if (!resolvedInvoiceNumber) {
-        const orderStr = String(orderNo).trim();
-        if (/^HCPPL[/-]/i.test(orderStr)) {
-          resolvedInvoiceNumber = orderStr.replace(/^HCPPL[/-]/i, 'INV/');
-        } else if (/^ORD[/-]/i.test(orderStr)) {
-          resolvedInvoiceNumber = orderStr.replace(/^ORD[/-]/i, 'INV-');
+        const direct = o.invoiceNumber || o.invoice_number || o.invoiceNo;
+        if (direct && typeof direct === 'string' && direct.trim() && direct.trim() !== '-') {
+          resolvedInvoiceNumber = direct.trim();
         } else {
-          resolvedInvoiceNumber = `INV/${orderStr.replace(/^[^a-zA-Z0-9]+/, '')}`;
+          const orderStr = String(orderNo).trim();
+          if (/^HCPPL[/-]/i.test(orderStr)) {
+            resolvedInvoiceNumber = orderStr.replace(/^HCPPL[/-]/i, 'INV/');
+          } else if (/^ORD[/-]/i.test(orderStr)) {
+            resolvedInvoiceNumber = orderStr.replace(/^ORD[/-]/i, 'INV-');
+          } else {
+            resolvedInvoiceNumber = `INV/${orderStr.replace(/^[^a-zA-Z0-9]+/, '')}`;
+          }
         }
       }
 
@@ -694,15 +827,13 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         is_partial: isPartialDelivery || isPartialPayment,
       };
 
-      const key = String(orderNo).toLowerCase();
-      const existing = map.get(key);
       if (existing && existing.payment_status === 'AWAITING_FINANCE_VERIFICATION' && resolvedPaymentStatus !== 'AWAITING_FINANCE_VERIFICATION') {
         return;
       }
       if (!normalized.delivered_at && existing?.delivered_at) {
         normalized.delivered_at = existing.delivered_at;
       }
-      if ((!normalized.invoice_number || normalized.invoice_number.startsWith('INV-')) && existing?.invoice_number && !existing.invoice_number.startsWith('INV-')) {
+      if (isFallbackInvoice(normalized.invoice_number) && existing?.invoice_number && !isFallbackInvoice(existing.invoice_number)) {
         normalized.invoice_number = existing.invoice_number;
         normalized.invoiceNumber = existing.invoice_number;
         normalized.invoiceNo = existing.invoice_number;

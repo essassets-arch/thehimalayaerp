@@ -19,12 +19,16 @@ export const dispatchService = {
       const order = state.orders.find(o => o.orderNo === orderNo);
       const orderId = order?.id || parseInt(orderNo.replace('ORD-', '')) || 1;
 
+      const invoiceNum = dispatchData.invoiceNumber || dispatchData.invoice_number || dispatchData.invoiceNo;
+
       const payload = {
         order_id: orderId,
         vehicle_number: dispatchData.vehicleNo,
         driver_name: dispatchData.driverName,
         driver_mobile: dispatchData.driverMobile || '9988776655',
         transporter: dispatchData.transporter || 'Himalaya Own Fleet',
+        invoice_number: invoiceNum || undefined,
+        invoiceNumber: invoiceNum || undefined,
         lr_number: dispatchData.lrNumber || `LR-${Math.floor(100000 + Math.random() * 900000)}`,
         eway_bill_number: dispatchData.ewayBill || `EWB-${Math.floor(100000000000 + Math.random() * 900000000000)}`,
         dispatch_date: dispatchData.dispatchDate || new Date().toISOString().split('T')[0],
@@ -74,6 +78,21 @@ export const dispatchService = {
       // 1. Create dispatch entity
       lastResult = await apiClient.post('/dispatch', payload);
 
+      // Sync invoice number to localStorage for persistent immediate access
+      if (invoiceNum && typeof window !== 'undefined') {
+        try {
+          const stored = JSON.parse(window.localStorage.getItem('himalaya_dispatch_invoices') || '{}');
+          [orderId, orderNo, order?.orderNumber, order?.orderNo].filter(Boolean).forEach(k => {
+            const val = String(invoiceNum).trim();
+            stored[String(k).trim()] = val;
+            stored[String(k).replace(/^#/, '').trim()] = val;
+          });
+          window.localStorage.setItem('himalaya_dispatch_invoices', JSON.stringify(stored));
+        } catch (e) {
+          console.warn('Failed to sync himalaya_dispatch_invoices', e);
+        }
+      }
+
       // 2. Trigger state-machine transition
       await apiClient.post('/workflow/transition', {
         entity: 'sales_order',
@@ -82,6 +101,8 @@ export const dispatchService = {
         payload: {
           dispatchId: lastResult?.id || lastResult?.dispatchId,
           vehicle_number: dispatchData.vehicleNo,
+          invoice_number: invoiceNum || undefined,
+          invoiceNumber: invoiceNum || undefined,
           eway_bill_number: payload.eway_bill_number
         },
         notes: `Dispatch created for Order ${orderNo}. Vehicle No: ${dispatchData.vehicleNo}`
