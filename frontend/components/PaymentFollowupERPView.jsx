@@ -473,9 +473,34 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     
     const map = new Map();
     allCandidates.forEach(o => {
+      const orderNo = o.order_number || o.orderNo || o.orderId || o.id;
+      if (!orderNo) return;
+      const cleanOrderKey = String(orderNo).trim().toLowerCase();
+      const cleanOrderNoNorm = cleanOrderKey.replace(/[^a-z0-9]/g, '');
+      const oIdKey = o.id ? String(o.id).trim().toLowerCase() : '';
+
       const st = String(o.orderStatus || o.status || o.workflowStatus || o.overallStage || '').trim().toUpperCase();
       const dispatchSt = String(o.dispatchStatus || '').toUpperCase();
-      const isDelivered = ['DELIVERED', 'INVOICED', 'PAYMENT_PENDING', 'PAYMENT COMPLETED', 'PARTIALLY PAID', 'COMPLETED', 'CLOSED'].includes(st) || dispatchSt === 'DELIVERED' || Boolean(o?.deliveredDate || o?.deliveredAt || o?.delivered_at);
+
+      const hasDispatched =
+        ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'DISPATCH_APPROVED', 'COMPLETED', 'DISPATCH_CREATED', 'READY_FOR_PICKUP'].includes(dispatchSt) ||
+        ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'DISPATCH_APPROVED', 'COMPLETED', 'DISPATCH_CREATED'].includes(st) ||
+        (Array.isArray(o.dispatches) && o.dispatches.length > 0) ||
+        Boolean(o.dispatchId) ||
+        Boolean(o.dispatchNo) ||
+        dispatchInvoiceMap.has(cleanOrderKey) ||
+        dispatchInvoiceMap.has(cleanOrderNoNorm) ||
+        (oIdKey && dispatchInvoiceMap.has(oIdKey)) ||
+        dispatchDeliveryMap.has(cleanOrderKey) ||
+        dispatchDeliveryMap.has(cleanOrderNoNorm) ||
+        (oIdKey && dispatchDeliveryMap.has(oIdKey));
+
+      const isDelivered =
+        ['DELIVERED', 'INVOICED', 'PAYMENT_PENDING', 'PAYMENT COMPLETED', 'PARTIALLY PAID', 'COMPLETED', 'CLOSED'].includes(st) ||
+        dispatchSt === 'DELIVERED' ||
+        Boolean(o?.deliveredDate || o?.deliveredAt || o?.delivered_at) ||
+        hasDispatched;
+
       if (!isDelivered) return;
 
       const paySt = String(o.paymentStatus || o.payment_status || '').trim().toUpperCase();
@@ -492,8 +517,6 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         return c1 === c2 || c1.includes(c2) || c2.includes(c1);
       };
 
-      const orderNo = o.order_number || o.orderNo || o.id;
-      if (!orderNo) return;
       const quotation = canonicalQuotations.find(q =>
         String(q.id) === String(o.quotationId || o.quotation_id)
       );
@@ -520,8 +543,6 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       const resolvedPaid = Math.max(paid, verifiedFromConfirmations);
       const resolvedBalance = Math.max(0, resolvedTotal - resolvedPaid);
 
-      const cleanOrderKey = String(orderNo).trim().toLowerCase();
-      const cleanOrderNoNorm = cleanOrderKey.replace(/[^a-z0-9]/g, '');
       const dispDeliveredDate =
         dispatchDeliveryMap.get(cleanOrderKey) ||
         dispatchDeliveryMap.get(cleanOrderNoNorm) ||
@@ -531,13 +552,17 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         consignment?.deliveredAt ||
         o.delivered_at ||
         o.deliveredAt ||
+        dispDeliveredDate ||
         o.actualDeliveryDate ||
         o.deliveredDate ||
         o.deliveryDate ||
         o.paymentTermStartDate ||
-        dispDeliveredDate ||
         o.dispatches?.find((d) => d.deliveredAt)?.deliveredAt ||
-        o.dispatches?.[0]?.deliveredAt;
+        o.dispatches?.find((d) => d.dispatchedAt)?.dispatchedAt ||
+        o.dispatches?.[0]?.deliveredAt ||
+        o.dispatches?.[0]?.dispatchedAt ||
+        o.dispatches?.[0]?.createdAt ||
+        o.createdAt;
 
       const invoiceDate = o.invoiceDate || o.invoice_date || deliveredAt || o.createdAt || o.created_at;
       const rawPaymentTerms = o.paymentTerms || o.payment_terms || quotation?.paymentTerms || quotation?.payment_terms || '';
@@ -629,7 +654,14 @@ export default function PaymentFollowupERPView({ orders = [] }) {
 
       // Fallback only if no dispatch/actual invoice number exists
       if (!resolvedInvoiceNumber) {
-        resolvedInvoiceNumber = `INV-${String(orderNo).replace(/^ORD-/, '').slice(-6)}`;
+        const orderStr = String(orderNo).trim();
+        if (/^HCPPL[/-]/i.test(orderStr)) {
+          resolvedInvoiceNumber = orderStr.replace(/^HCPPL[/-]/i, 'INV/');
+        } else if (/^ORD[/-]/i.test(orderStr)) {
+          resolvedInvoiceNumber = orderStr.replace(/^ORD[/-]/i, 'INV-');
+        } else {
+          resolvedInvoiceNumber = `INV/${orderStr.replace(/^[^a-zA-Z0-9]+/, '')}`;
+        }
       }
 
       const normalized = {

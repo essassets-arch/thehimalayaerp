@@ -270,8 +270,18 @@ export class SalesService {
   }
 
   async listDeliveredPendingPayment(userId?: string, role?: string) {
-    const isSalesperson = isSalespersonScopedRole(role);
-    const scope = isSalesperson && userId ? { salesExecutiveId: userId } : {};
+    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const isUnrestrictedSales =
+      normalizedRole === 'SUPER_SALES' ||
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'ADMIN' ||
+      normalizedRole === 'SALES_MANAGER' ||
+      normalizedRole === 'FINANCE_MANAGER' ||
+      normalizedRole === 'FINANCE_EXECUTIVE';
+
+    const scope = isUnrestrictedSales
+      ? {}
+      : (isSalespersonScopedRole(role) && userId ? getOrderSalesScope(userId, role) : {});
 
     const orders = await this.prisma.salesOrder.findMany({
       where: {
@@ -336,20 +346,21 @@ export class SalesService {
 
       const deliveredDispatches = (order.dispatches || []).filter(
         (d) =>
-          ['DELIVERED', 'COMPLETED'].includes(
+          ['DELIVERED', 'COMPLETED', 'DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'DISPATCH_APPROVED'].includes(
             String(d.status || '').toUpperCase(),
-          ) || Boolean(d.deliveredAt),
+          ) || Boolean(d.deliveredAt || d.dispatchedAt),
       );
       const deliveredAtDate =
         deliveredDispatches
-          .map((d) => d.deliveredAt)
+          .map((d) => d.deliveredAt || d.dispatchedAt || d.createdAt)
           .filter((date): date is Date => Boolean(date))
-          .sort((left, right) => right.getTime() - left.getTime())[0] ||
+          .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ||
         (order as any).deliveredAt ||
         order.paymentTermStartDate ||
         (order.dispatches || [])
-          .map((d: any) => d.deliveredAt)
-          .filter(Boolean)[0];
+          .map((d: any) => d.deliveredAt || d.dispatchedAt || d.createdAt)
+          .filter(Boolean)[0] ||
+        order.createdAt;
 
       const deliveredAt = deliveredAtDate ? new Date(deliveredAtDate) : null;
 
@@ -359,7 +370,13 @@ export class SalesService {
       const latestOrderInvoice = (order.invoices || []).find(
         (inv) => Boolean(inv.invoiceNumber && typeof inv.invoiceNumber === 'string' && inv.invoiceNumber.trim())
       )?.invoiceNumber?.trim();
-      const resolvedInvoiceNo = latestDispatchInvoice || latestOrderInvoice || null;
+      const orderStr = String(order.orderNumber || '').trim();
+      const fallbackInv = /^HCPPL[/-]/i.test(orderStr)
+        ? orderStr.replace(/^HCPPL[/-]/i, 'INV/')
+        : /^ORD[/-]/i.test(orderStr)
+          ? orderStr.replace(/^ORD[/-]/i, 'INV-')
+          : `INV/${orderStr.replace(/^[^a-zA-Z0-9]+/, '')}`;
+      const resolvedInvoiceNo = latestDispatchInvoice || latestOrderInvoice || fallbackInv;
 
       return {
         id: order.id,
