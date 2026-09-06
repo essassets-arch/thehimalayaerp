@@ -722,11 +722,23 @@ export function acceptOrderByPlantHead(
   actor: ActionActor = { id: 'Plant Head', name: 'Plant Head' }
 ): ERPState {
   const sales = normalizeSales(state.sales);
-  const order = sales.orders.find((o) => o.id === orderId || o.orderNo === orderId || (o as any).order_number === orderId);
-  if (!order) throw new Error(`Order ${orderId} not found`);
+  const order = sales.orders.find(
+    (o) =>
+      o.id === orderId ||
+      o.orderNo === orderId ||
+      (o as any).order_number === orderId ||
+      (o as any).orderNumber === orderId
+  );
+  if (!order) return state;
 
-  // Idempotency
-  if (order.planningStatus === 'PLANT_HEAD_ACCEPTED' && (order as any).status === 'PLANT_APPROVED') return state;
+  // Idempotency: only return unchanged if status matches and remarks did not change
+  if (
+    order.planningStatus === 'PLANT_HEAD_ACCEPTED' &&
+    (order as any).status === 'PLANT_APPROVED' &&
+    (!payload?.remarks || payload.remarks === (order as any).remarks)
+  ) {
+    return state;
+  }
 
   const updated: SalesOrder = {
     ...order,
@@ -735,7 +747,9 @@ export function acceptOrderByPlantHead(
     status: 'PLANT_APPROVED',
     plantHeadStatus: 'ACCEPTED',
     acceptedByPlantHeadAt: new Date().toISOString(),
-    remarks: payload?.remarks || (order as any).remarks,
+    remarks: payload?.remarks !== undefined ? payload.remarks : (order as any).remarks,
+    acceptanceRemarks: payload?.remarks !== undefined ? payload.remarks : (order as any).acceptanceRemarks,
+    plantHeadRemarks: payload?.remarks !== undefined ? payload.remarks : (order as any).plantHeadRemarks,
   } as any;
 
   return withSales(

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   FileText, CheckCircle2, Clock, ShieldCheck, Plus, Edit3, Trash2, 
   Printer, Download, Search, Filter, RefreshCw, ChevronRight, AlertCircle,
@@ -39,7 +39,7 @@ const STORAGE_KEY_REVISIONS = 'himalaya_hr_revision_history_v1';
 const STORAGE_KEY_SUBMISSIONS = 'himalaya_hr_form_submissions_v1';
 const STORAGE_KEY_DOC_CONTROL = 'himalaya_hr_doc_control_v1';
 
-export default function HRSOPsView() {
+export default function HRSOPsView({ roleMode = 'HR' } = {}) {
   const showToast = useNotificationStore(s => s.showToast);
 
   // ── States ──
@@ -63,8 +63,8 @@ export default function HRSOPsView() {
   // Printable ref
   const printContainerRef = useRef(null);
 
-  // ── Load / Save to LocalStorage ──
-  useEffect(() => {
+  // ── Load / Save to LocalStorage with Cross-Portal Real-Time Sync ──
+  const loadDataFromStorage = useCallback(() => {
     try {
       const savedDocs = localStorage.getItem(STORAGE_KEY_DOC_CONTROL);
       if (savedDocs) setDocControl(JSON.parse(savedDocs));
@@ -81,6 +81,36 @@ export default function HRSOPsView() {
       console.error('Error loading SOPs data from localStorage:', e);
     }
   }, []);
+
+  useEffect(() => {
+    loadDataFromStorage();
+
+    // Listen for storage events across browser tabs/windows
+    const handleStorageChange = (e) => {
+      if (
+        !e.key ||
+        e.key === STORAGE_KEY_SOPS ||
+        e.key === STORAGE_KEY_REVISIONS ||
+        e.key === STORAGE_KEY_SUBMISSIONS ||
+        e.key === STORAGE_KEY_DOC_CONTROL
+      ) {
+        loadDataFromStorage();
+      }
+    };
+
+    // Listen for in-app custom sync event within the same SPA session
+    const handleCustomSync = () => {
+      loadDataFromStorage();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('himalaya_sops_data_sync', handleCustomSync);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('himalaya_sops_data_sync', handleCustomSync);
+    };
+  }, [loadDataFromStorage]);
 
   const persistData = (newForms, newRevs, newSubs, newDocControl) => {
     try {
@@ -100,6 +130,10 @@ export default function HRSOPsView() {
         setDocControl(newDocControl);
         localStorage.setItem(STORAGE_KEY_DOC_CONTROL, JSON.stringify(newDocControl));
       }
+      // Broadcast live sync event across portals
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('himalaya_sops_data_sync'));
+      }
     } catch (e) {
       console.error('Error saving SOPs data to localStorage:', e);
     }
@@ -113,6 +147,9 @@ export default function HRSOPsView() {
       localStorage.removeItem(STORAGE_KEY_DOC_CONTROL);
       localStorage.removeItem(STORAGE_KEY_REVISIONS);
       localStorage.removeItem(STORAGE_KEY_SOPS);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('himalaya_sops_data_sync'));
+      }
       showToast('HR Forms & SOPs reset to ISO Master factory defaults.');
     }
   };
@@ -301,6 +338,11 @@ export default function HRSOPsView() {
               <span className={styles.heroTag}>ISO 9001:2015</span>
               <span className={styles.heroTag}>Doc: {docControl.documentNo}</span>
               <span className={styles.heroTag}>Rev: {docControl.revisionNo}</span>
+              {roleMode === 'PLANT_HEAD' && (
+                <span className={styles.heroTag} style={{ background: '#059669', color: '#ffffff', border: '1px solid #10b981', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  ⚡ Plant Head & HR Synced
+                </span>
+              )}
             </div>
             <p className={styles.heroSubtitle}>
               <span>{docControl.company}</span>
@@ -308,6 +350,12 @@ export default function HRSOPsView() {
               <span>{docControl.department}</span>
               <span>•</span>
               <span style={{ color: '#38bdf8' }}>{forms.length} Standard Operating Formats</span>
+              {roleMode === 'PLANT_HEAD' && (
+                <>
+                  <span>•</span>
+                  <span style={{ color: '#34d399' }}>Live Unified Storage</span>
+                </>
+              )}
             </p>
           </div>
         </div>

@@ -10,6 +10,7 @@ import {
   FileCheck, RotateCcw, Wrench, Activity, DollarSign
 } from 'lucide-react';
 import { backendFetch } from '../../../lib/backendFetch';
+import { useERPStore } from '@/store/erpStore';
 import { hasManufacturingItems } from './PlantHeadPortal';
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend
@@ -216,6 +217,9 @@ export const PlantHeadDashboard = () => {
         method: 'POST',
         body: { action: 'PLANT_APPROVE', remarks },
       });
+      try {
+        useERPStore.getState().acceptOrderByPlantHead?.(order.id || order.orderNo, { remarks }, 'Plant Head');
+      } catch (e) {}
       Swal.fire({ icon: 'success', title: 'Order Accepted', text: `Order ${order.orderNo || order.id} has been accepted.`, customClass: { popup: 'swal-premium-popup', confirmButton: 'swal-premium-confirm-btn' }, buttonsStyling: false });
       fetchPlantData();
     } catch (err) {

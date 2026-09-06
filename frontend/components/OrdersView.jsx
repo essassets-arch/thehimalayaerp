@@ -408,6 +408,92 @@ export default function OrdersView({
     return order.status || order.workflowStatus || 'Confirmed';
   };
 
+  const renderRemarksCell = (o) => {
+    const rawRemarks = o.remarks || o.acceptanceRemarks || o.plantHeadRemarks || o.plantRemarks || o.notes;
+    const remarksText = typeof rawRemarks === 'string' ? rawRemarks.trim() : (rawRemarks ? String(rawRemarks) : '');
+
+    if (!remarksText) {
+      return <span style={{ color: '#94a3b8', fontSize: '13px' }}>—</span>;
+    }
+
+    const isPlantAccepted = Boolean(
+      o.plantHeadStatus === 'ACCEPTED' ||
+      o.planningStatus === 'PLANT_HEAD_ACCEPTED' ||
+      o.status === 'PLANT_APPROVED' ||
+      o.workflowStatus === 'PLANT_HEAD_ACCEPTED' ||
+      o.workflowStatus === 'PLANT_APPROVED' ||
+      o.acceptedByPlantHeadAt ||
+      o.plantHeadRemarks ||
+      o.acceptanceRemarks
+    );
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxWidth: '240px' }}>
+        {isPlantAccepted && (
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '10px',
+            fontWeight: '800',
+            color: '#1e40af',
+            background: '#dbeafe',
+            padding: '1px 6px',
+            borderRadius: '4px',
+            width: 'fit-content'
+          }}>
+            Plant Head
+          </span>
+        )}
+        <div
+          title={remarksText}
+          style={{
+            fontSize: '12.5px',
+            color: '#334155',
+            fontStyle: 'italic',
+            lineHeight: '1.35',
+            wordBreak: 'break-word',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden'
+          }}
+        >
+          &ldquo;{remarksText}&rdquo;
+        </div>
+        {remarksText.length > 50 && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              Swal.fire({
+                title: 'Order Remarks',
+                html: `<div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: #1e293b; background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                  <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Order #${o.orderNo || o.orderNumber}</div>
+                  <div>${remarksText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                </div>`,
+                confirmButtonText: 'Close',
+                confirmButtonColor: '#2F4375'
+              });
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              fontSize: '11px',
+              color: '#2563eb',
+              cursor: 'pointer',
+              textAlign: 'left',
+              textDecoration: 'underline'
+            }}
+          >
+            Read more
+          </button>
+        )}
+      </div>
+    );
+  };
+
   const getOverallOrderStage = (order) => {
     return getOrderStatusLabel(order);
   };
@@ -734,6 +820,7 @@ export default function OrdersView({
                   <th className={styles.valueCol} style={{ textAlign: 'right' }}>Paid Amount</th>
                   <th className={styles.valueCol} style={{ textAlign: 'right' }}>Balance Amount</th>
                   <th className={styles.statusCol}>Payment Status</th>
+                  <th className={styles.remarksCol}>Remarks</th>
                   <th className={styles.actionsCell}>Action</th>
                 </>
               ) : filter === 'Lost' ? (
@@ -755,6 +842,7 @@ export default function OrdersView({
                   <th className={styles.productsCol}>Products / Items</th>
                   {!isProductionUser && <th className={styles.valueCol}>Total Value</th>}
                   <th className={styles.statusCol}>Order Status</th>
+                  <th className={styles.remarksCol}>Remarks</th>
                   <th className={styles.actionsCell}>Actions</th>
                 </>
               )}
@@ -763,7 +851,7 @@ export default function OrdersView({
           <tbody>
             {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan={isProductionUser ? "5" : "6"} style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
+                <td colSpan={isProductionUser ? "6" : "7"} style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)' }}>
                   No orders generated.
                 </td>
               </tr>
@@ -829,6 +917,9 @@ export default function OrdersView({
                       <td data-label="Balance Amount" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800, color: '#ef4444' }}>{formatINR(balance)}</td>
                       <td data-label="Payment Status" className={styles.statusCol}>
                         <StatusBadge status={paymentLabel} />
+                      </td>
+                      <td data-label="Remarks" className={styles.remarksCol}>
+                        {renderRemarksCell(o)}
                       </td>
                       <td data-label="Action" className={styles.actionsCell}>
                         <div className={styles.actionsGrid}>
@@ -944,6 +1035,9 @@ export default function OrdersView({
                         {o.paymentStatus === 'FULLY_PAID' && <StatusBadge status="Fully Paid" />}
                         <StatusBadge status={getOrderStatusLabel(o)} />
                       </div>
+                    </td>
+                    <td data-label="Remarks" className={styles.remarksCol}>
+                      {renderRemarksCell(o)}
                     </td>
                     <td data-label="Actions" className={styles.actionsCell}>
                       {(() => {
@@ -1231,6 +1325,14 @@ export default function OrdersView({
                     <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px' }}>Status</div>
                     <StatusBadge status={statusLabel} />
                   </div>
+                  {(o.remarks || o.acceptanceRemarks || o.plantHeadRemarks || o.notes) && (
+                    <div style={{ gridColumn: '1 / -1', background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', marginBottom: '4px' }}>
+                        Remarks
+                      </div>
+                      {renderRemarksCell(o)}
+                    </div>
+                  )}
                 </div>
                 <div style={{ borderTop: '1px solid #f1f3f5', paddingTop: '12px' }}>
                   <div style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b', marginBottom: '10px' }}>Actions</div>
@@ -1442,6 +1544,16 @@ export default function OrdersView({
                 </div>
                 <div className="sheet-meta-right">
                   <p style={{ margin: 0 }}><strong>Order Date:</strong> {currentDetailsOrder.date || '2026-06-05'}</p>
+                  {(currentDetailsOrder.remarks || currentDetailsOrder.acceptanceRemarks || currentDetailsOrder.plantHeadRemarks) && (
+                    <div style={{ margin: '8px 0 0 0', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '3px' }}>
+                        Remarks
+                      </div>
+                      <div style={{ fontSize: '12.5px', color: '#1e293b', fontStyle: 'italic' }}>
+                        &ldquo;{currentDetailsOrder.remarks || currentDetailsOrder.acceptanceRemarks || currentDetailsOrder.plantHeadRemarks}&rdquo;
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

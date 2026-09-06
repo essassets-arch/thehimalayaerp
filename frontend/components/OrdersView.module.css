@@ -49,6 +49,13 @@
   white-space: nowrap;
 }
 
+.remarksCol {
+  min-width: 180px;
+  max-width: 280px;
+  line-height: 1.35;
+  font-size: 12.5px;
+}
+
 .actionsCell {
   min-width: 200px;
 }

@@ -42,10 +42,27 @@ export function useOrders(showToast, currentView) {
         const key = String(o.id || o.orderNo || o.orderNumber || '');
         if (key) {
           const existing = map.get(key);
+          const mergedRemarks = o.remarks || existing?.remarks;
+          const mergedAcceptanceRemarks = o.acceptanceRemarks || existing?.acceptanceRemarks;
+          const mergedPlantHeadRemarks = o.plantHeadRemarks || existing?.plantHeadRemarks;
           if (existing && (existing.status === 'LOST' || existing.orderStatus === 'LOST' || Boolean(existing.lostReason) || Boolean(existing.lossRecord))) {
-            map.set(key, { ...o, ...existing, status: 'LOST', orderStatus: 'LOST' });
+            map.set(key, {
+              ...o,
+              ...existing,
+              status: 'LOST',
+              orderStatus: 'LOST',
+              ...(mergedRemarks ? { remarks: mergedRemarks } : {}),
+              ...(mergedAcceptanceRemarks ? { acceptanceRemarks: mergedAcceptanceRemarks } : {}),
+              ...(mergedPlantHeadRemarks ? { plantHeadRemarks: mergedPlantHeadRemarks } : {})
+            });
           } else {
-            map.set(key, { ...(existing || {}), ...o });
+            map.set(key, {
+              ...(existing || {}),
+              ...o,
+              ...(mergedRemarks ? { remarks: mergedRemarks } : {}),
+              ...(mergedAcceptanceRemarks ? { acceptanceRemarks: mergedAcceptanceRemarks } : {}),
+              ...(mergedPlantHeadRemarks ? { plantHeadRemarks: mergedPlantHeadRemarks } : {})
+            });
           }
         }
       }

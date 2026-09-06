@@ -14,7 +14,7 @@ import { productionService } from '../../../services/production.service';
 import { apiClient } from '../../../lib/apiClient';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
-import { ArrowDownToLine, Plus, Trash2, Camera, FileCheck, ClipboardCheck, FileText, CheckCircle, AlertTriangle, AlertCircle, Eye, Edit2, Search, Sliders, X, Download, PackageCheck, Upload, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { ArrowDownToLine, Plus, Trash2, Camera, FileCheck, ClipboardCheck, FileText, CheckCircle, AlertTriangle, AlertCircle, Eye, Edit2, Search, Sliders, X, Download, PackageCheck, Upload, ChevronLeft, ChevronRight, Filter, Package, Layers, RotateCw } from 'lucide-react';
 import StoreMaterialIssueView from '../../../components/material-workflow/StoreMaterialIssueView';
 import StoreReleasesView from '../../../components/material-workflow/StoreReleasesView';
 import StoreMaterialReturnVerificationView from '../../../components/material-workflow/StoreMaterialReturnVerificationView';
@@ -382,7 +382,10 @@ function PaginationControl({
       justifyContent: 'space-between',
       alignItems: 'center',
       flexWrap: 'wrap',
-      gap: '12px'
+      gap: '12px',
+      position: 'static',
+      width: '100%',
+      boxSizing: 'border-box'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
         <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
@@ -708,6 +711,7 @@ export default function StorePortal() {
   const [rawInvSortDirection, setRawInvSortDirection] = useState('asc');
   // Raw inventory status filter: 'All' | 'In Stock' | 'Low Stock' | 'Out of Stock'
   const [rawInvStatusFilter, setRawInvStatusFilter] = useState('All');
+  const [rawCategoryFilter, setRawCategoryFilter] = useState('All');
   // Low stock alerts search filter
   const [lowStockSearch, setLowStockSearch] = useState('');
 
@@ -1457,6 +1461,7 @@ export default function StorePortal() {
         (item.category || '').toLowerCase().includes(query)
       );
       if (!matchesSearch) return false;
+      if (rawCategoryFilter !== 'All' && (item.category || 'Raw Material') !== rawCategoryFilter) return false;
       if (rawInvStatusFilter === 'In Stock') return item.status === 'In Stock';
       if (rawInvStatusFilter === 'Low Stock') return item.status === 'Low Stock';
       if (rawInvStatusFilter === 'Out of Stock') return item.status === 'Out of Stock';
@@ -1598,140 +1603,283 @@ export default function StorePortal() {
     };
 
     return (
-      <div className="m-theme-container">
+      <div className="m-theme-container raw-inventory-page-container" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflow: 'visible', position: 'static' }}>
         {/* Module Header Area */}
-        <div className="m-theme-header">
+        <div className="m-theme-header raw-inventory-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px', width: '100%', boxSizing: 'border-box', position: 'static' }}>
           <div>
-            <h2 className="m-theme-title">Raw Inventory Management</h2>
-            <p className="m-theme-subtitle">
-              Roster, register and restock raw materials storage categories
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '3px 10px', background: '#eff6ff', borderRadius: '20px', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '6px' }}>
+              <Package size={13} /> Store Logistics & Inventory Control
+            </div>
+            <h2 className="m-theme-title" style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.5px', margin: 0 }}>
+              Raw Inventory Management
+            </h2>
+            <p className="m-theme-subtitle" style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b', fontWeight: '500' }}>
+              Roster, register and restock raw materials storage categories • Live Ledger
             </p>
           </div>
-          <div className="m-theme-actions">
+          <div className="m-theme-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <button
+              type="button"
+              className="m-theme-btn-secondary"
+              onClick={() => fetchRawInventory()}
+              title="Refresh inventory from server"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', height: '38px', padding: '0 12px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '700' }}
+            >
+              <RotateCw size={14} className={loadingRawInventory ? 'animate-spin' : ''} /> Refresh
+            </button>
+            <button
+              type="button"
+              className="m-theme-btn-secondary"
+              onClick={() => setShowAddStockModal(true)}
+              title="Quick Receive Stock"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', height: '38px', padding: '0 12px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '700' }}
+            >
+              <Plus size={15} /> Receive Stock
+            </button>
+            <button
+              type="button"
               className="m-theme-btn-primary"
               onClick={() => {
                 resetAddMaterialForm();
                 navigate.push('/store/add-material');
               }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', height: '38px', padding: '0 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '800' }}
             >
               <Plus size={16} /> Add Material
             </button>
-            <button className="m-theme-btn-secondary" onClick={handleExport}>
-              <Download size={16} /> Export
+            <button
+              type="button"
+              className="m-theme-btn-secondary"
+              onClick={handleExport}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', height: '38px', padding: '0 12px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '700' }}
+            >
+              <Download size={15} /> Export
             </button>
           </div>
         </div>
 
         {/* Dashboard Summary Cards */}
-        <div className="m-theme-kpi-grid">
-          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#0f766e' }}>
-            <span className="m-theme-kpi-label">Total Materials</span>
-            <span className="m-theme-kpi-value">{totalMaterials}</span>
+        <div className="m-theme-kpi-grid" style={{ width: '100%', boxSizing: 'border-box' }}>
+          {/* Card 1: Total Materials */}
+          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#0f766e', background: 'linear-gradient(135deg, #ffffff 0%, #f0fdfa 100%)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="m-theme-kpi-label" style={{ fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.4px', color: '#0f766e' }}>
+                Total Materials
+              </span>
+              <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#ccfbf1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0f766e' }}>
+                <Package size={16} />
+              </div>
+            </div>
+            <span className="m-theme-kpi-value" style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>
+              {totalMaterials}
+            </span>
+            <span className="m-theme-kpi-subtitle" style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>
+              Active SKU catalog
+            </span>
           </div>
-          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#10b981' }}>
-            <span className="m-theme-kpi-label">Total Stock Quantity</span>
-            <span className="m-theme-kpi-value">{(totalStockQty ?? 0).toLocaleString()} Units</span>
+
+          {/* Card 2: Total Stock Quantity */}
+          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#10b981', background: 'linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="m-theme-kpi-label" style={{ fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.4px', color: '#047857' }}>
+                Total Stock Quantity
+              </span>
+              <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#047857' }}>
+                <Layers size={16} />
+              </div>
+            </div>
+            <span className="m-theme-kpi-value" style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>
+              {(totalStockQty ?? 0).toLocaleString()} Units
+            </span>
+            <span className="m-theme-kpi-subtitle" style={{ fontSize: '11px', color: '#059669', fontWeight: '600', marginTop: '4px' }}>
+              Aggregated balance
+            </span>
           </div>
-          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#f59e0b' }}>
-            <span className="m-theme-kpi-label">Low Stock Items</span>
-            <span className="m-theme-kpi-value">{lowStockItems} Items</span>
-            <span className="m-theme-kpi-subtitle" style={{ color: '#f59e0b' }}>Threshold breached</span>
+
+          {/* Card 3: Low Stock Items */}
+          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#f59e0b', background: 'linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="m-theme-kpi-label" style={{ fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.4px', color: '#b45309' }}>
+                Low Stock Items
+              </span>
+              <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b45309' }}>
+                <AlertTriangle size={16} />
+              </div>
+            </div>
+            <span className="m-theme-kpi-value" style={{ fontSize: '22px', fontWeight: '900', color: lowStockItems > 0 ? '#b45309' : '#0f172a' }}>
+              {lowStockItems} Items
+            </span>
+            <span className="m-theme-kpi-subtitle" style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '700', marginTop: '4px' }}>
+              Threshold breached
+            </span>
           </div>
-          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#ef4444' }}>
-            <span className="m-theme-kpi-label">Out of Stock Items</span>
-            <span className="m-theme-kpi-value">{outOfStockItems} Items</span>
-            <span className="m-theme-kpi-subtitle" style={{ color: '#ef4444' }}>Zero stock levels</span>
+
+          {/* Card 4: Out of Stock Items */}
+          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#ef4444', background: 'linear-gradient(135deg, #ffffff 0%, #fef2f2 100%)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="m-theme-kpi-label" style={{ fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.4px', color: '#b91c1c' }}>
+                Out of Stock Items
+              </span>
+              <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b91c1c' }}>
+                <AlertCircle size={16} />
+              </div>
+            </div>
+            <span className="m-theme-kpi-value" style={{ fontSize: '22px', fontWeight: '900', color: outOfStockItems > 0 ? '#dc2626' : '#0f172a' }}>
+              {outOfStockItems} Items
+            </span>
+            <span className="m-theme-kpi-subtitle" style={{ fontSize: '11px', color: '#ef4444', fontWeight: '700', marginTop: '4px' }}>
+              Zero stock levels
+            </span>
           </div>
-          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#8b5cf6' }}>
-            <span className="m-theme-kpi-label">Total Inventory Value</span>
-            <span className="m-theme-kpi-value">₹{(totalInventoryValue ?? 0).toLocaleString()}</span>
+
+          {/* Card 5: Total Inventory Value */}
+          <div className="m-theme-kpi-card" style={{ '--card-border-color': '#8b5cf6', background: 'linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span className="m-theme-kpi-label" style={{ fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.4px', color: '#6d28d9' }}>
+                Total Inventory Value
+              </span>
+              <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6d28d9', fontWeight: '900', fontSize: '14px' }}>
+                ₹
+              </div>
+            </div>
+            <span className="m-theme-kpi-value" style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>
+              ₹{(totalInventoryValue ?? 0).toLocaleString()}
+            </span>
+            <span className="m-theme-kpi-subtitle" style={{ fontSize: '11px', color: '#7c3aed', fontWeight: '600', marginTop: '4px' }}>
+              Book valuation
+            </span>
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="m-theme-search-container">
-          <Search size={18} style={{ color: '#8893A7', marginRight: '8px' }} />
-          <input
-            type="text"
-            className="m-theme-search-input"
-            placeholder="Search raw materials by code, name, or category..."
-            value={rawSearchQuery}
-            onChange={(e) => { setRawSearchQuery(e.target.value); setRawInvPage(1); }}
-          />
-          {rawSearchQuery && (
-            <button onClick={() => setRawSearchQuery('')} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#8893A7', marginLeft: '8px' }}>
-              <X size={16} />
-            </button>
-          )}
-        </div>
+        {/* Search, Category & Filter Bar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
+            {/* Search Input */}
+            <div className="m-theme-search-container" style={{ flex: '1 1 280px', minWidth: '240px', boxSizing: 'border-box', margin: 0 }}>
+              <Search size={18} style={{ color: '#8893A7', marginRight: '8px', flexShrink: 0 }} />
+              <input
+                type="text"
+                className="m-theme-search-input"
+                placeholder="Search raw materials by code, name, or category..."
+                value={rawSearchQuery}
+                onChange={(e) => { setRawSearchQuery(e.target.value); setRawInvPage(1); }}
+                style={{ width: '100%', boxSizing: 'border-box' }}
+              />
+              {rawSearchQuery && (
+                <button onClick={() => setRawSearchQuery('')} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#8893A7', marginLeft: '8px', flexShrink: 0 }}>
+                  <X size={16} />
+                </button>
+              )}
+            </div>
 
-        {/* Status & FSN Filter Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '12px 0 16px 0', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '12px', fontWeight: '800', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Filter size={14} color="#2F4375" /> Filter:
-          </span>
-          {[
-            { id: 'All', label: `All (${(dbRawInventory || []).length})`, color: '#2F4375' },
-            { id: 'In Stock', label: `In Stock (${inStockItems})`, color: '#16a34a' },
-            { id: 'Low Stock', label: `Low Stock (${lowStockItems})`, color: '#d97706' },
-            { id: 'Out of Stock', label: `Out of Stock (${outOfStockItems})`, color: '#dc2626' },
-            { id: 'Fast Moving', label: `⚡ Fast (${fastMovingCount})`, color: '#10b981' },
-            { id: 'Slow Moving', label: `🐢 Slow (${slowMovingCount})`, color: '#f59e0b' },
-            { id: 'Non-Moving', label: `🧊 Non-Moving (${nonMovingCount})`, color: '#64748b' },
-          ].map(f => {
-            const isActive = rawInvStatusFilter === f.id;
-            return (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => { setRawInvStatusFilter(f.id); setRawInvPage(1); }}
-                style={{
-                  padding: '6px 14px', borderRadius: '8px',
-                  border: isActive ? `2px solid ${f.color}` : '1.5px solid #DCE5F0',
-                  background: isActive ? f.color : '#FFFFFF',
-                  color: isActive ? '#FFFFFF' : '#475569',
-                  fontSize: '12px', fontWeight: '800', cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.12)' : 'none'
-                }}
+            {/* Category Dropdown */}
+            <div style={{ flex: '0 0 auto' }}>
+              <select
+                className="form-select"
+                value={rawCategoryFilter}
+                onChange={(e) => { setRawCategoryFilter(e.target.value); setRawInvPage(1); }}
+                style={{ height: '42px', padding: '0 12px', borderRadius: '8px', border: '1px solid #DCE5F0', background: '#ffffff', fontSize: '12.5px', fontWeight: '700', color: '#334155', cursor: 'pointer' }}
               >
-                {f.label}
-              </button>
-            );
-          })}
+                <option value="All">All Categories</option>
+                <option value="Raw Material">Raw Material</option>
+                <option value="Packaging">Packaging</option>
+                <option value="Consumable">Consumable</option>
+                <option value="Chemical">Chemical</option>
+                <option value="Hardware">Hardware</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Status & Velocity Filter Chips - Fully Horizontally Scrollable & Never Sticky */}
+          <div
+            className="raw-inv-status-strip"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flexWrap: 'nowrap',
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '2px 0 6px 0',
+              position: 'static'
+            }}
+          >
+            <span style={{ fontSize: '12px', fontWeight: '800', color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '4px', marginRight: '4px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+              <Filter size={13} color="#2F4375" /> Status:
+            </span>
+            {[
+              { id: 'All', label: `All (${(dbRawInventory || []).length})`, color: '#2F4375' },
+              { id: 'In Stock', label: `In Stock (${inStockItems})`, color: '#16a34a' },
+              { id: 'Low Stock', label: `Low Stock (${lowStockItems})`, color: '#d97706' },
+              { id: 'Out of Stock', label: `Out of Stock (${outOfStockItems})`, color: '#dc2626' },
+              { id: 'Fast Moving', label: `⚡ Fast (${fastMovingCount})`, color: '#10b981' },
+              { id: 'Slow Moving', label: `🐢 Slow (${slowMovingCount})`, color: '#f59e0b' },
+              { id: 'Non-Moving', label: `🧊 Non-Moving (${nonMovingCount})`, color: '#64748b' },
+            ].map(f => {
+              const isActive = rawInvStatusFilter === f.id;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => { setRawInvStatusFilter(f.id); setRawInvPage(1); }}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: isActive ? `2px solid ${f.color}` : '1.5px solid #DCE5F0',
+                    background: isActive ? f.color : '#FFFFFF',
+                    color: isActive ? '#FFFFFF' : '#475569',
+                    fontSize: '12px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.12)' : 'none',
+                    lineHeight: 1.2,
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
+
         {/* Mobile results & sorting header */}
-        <div className="raw-inventory-mobile-results-header">
+        <div className="raw-inventory-mobile-results-header" style={{ width: '100%', boxSizing: 'border-box', position: 'static' }}>
           <span>{filteredItems.length} {filteredItems.length === 1 ? 'Material' : 'Materials'} Found</span>
           <button
             type="button"
             onClick={() => setRawInvSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
           >
-            Sort ⇅
+            Sort {rawInvSortDirection === 'asc' ? '↑' : '↓'}
           </button>
         </div>
 
         {/* Raw Inventory Table - Desktop View */}
-        <div className="desktop-only m-theme-table-container inventory-table-wrapper">
+        <div className="desktop-only m-theme-table-container inventory-table-wrapper raw-inventory-table-container" style={{ width: '100%', boxSizing: 'border-box', overflowX: 'auto', overflowY: 'visible', background: '#ffffff', borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 2px 10px -2px rgba(15, 23, 42, 0.05)', position: 'static' }}>
           <table className="m-theme-table raw-inventory-table">
             <thead>
               <tr>
-                <th>Material Code</th>
-                <th>Material Name</th>
-                <th>Category</th>
-                <th>Unit</th>
-                <th>Current Stock</th>
-                <th>Minimum Stock</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+                <th style={{ width: '130px', minWidth: '130px', whiteSpace: 'nowrap' }}>Material Code</th>
+                <th style={{ minWidth: '240px', whiteSpace: 'nowrap' }}>Material Name</th>
+                <th style={{ width: '150px', minWidth: '150px', whiteSpace: 'nowrap' }}>Category</th>
+                <th style={{ width: '90px', minWidth: '90px', textAlign: 'center', whiteSpace: 'nowrap' }}>Unit</th>
+                <th style={{ width: '130px', minWidth: '130px', textAlign: 'right', whiteSpace: 'nowrap' }}>Current Stock</th>
+                <th style={{ width: '130px', minWidth: '130px', textAlign: 'right', whiteSpace: 'nowrap' }}>Minimum Stock</th>
+                <th style={{ width: '140px', minWidth: '140px', textAlign: 'center', whiteSpace: 'nowrap' }}>Status</th>
+                <th style={{ width: '250px', minWidth: '250px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loadingRawInventory ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#8893A7' }}>Loading inventory...</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#8893A7', fontWeight: '600' }}>Loading live inventory records...</td></tr>
               ) : filteredItems.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#8893A7', fontWeight: '600' }}>No materials found matching criteria.</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#8893A7', fontWeight: '600' }}>No materials found matching criteria.</td></tr>
               ) : (
                 paginatedRawInvItems.map(item => {
                   const isOutOfStock = (item.stock ?? 0) <= 0;
@@ -1742,20 +1890,43 @@ export default function StorePortal() {
                   else if (isLowStock) { statusText = 'LOW STOCK'; badgeColor = 'yellow'; }
 
                   return (
-                    <tr key={item.id} style={{ cursor: 'pointer' }} onClick={(e) => { if (e.target.closest('button')) return; setSelectedInventoryItem(item); setShowDetailDrawer(true); }}>
-                      <td style={{ fontWeight: '800' }}>{item.code}</td>
-                      <td style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
-                      <td style={{ color: '#5E6B82', fontSize: '12px' }}>{safeText(item.category, 'Raw Material')}</td>
-                      <td>{safeText(item.unit, 'Kg')}</td>
-                      <td style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
-                      <td>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
-                      <td><span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span></td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                          <button className="m-theme-btn-action-green" onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }} title="Stock In">+ In</button>
-                          <button className="m-theme-btn-action-gray" onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }} title="Stock Out">- Out</button>
-                          <button className="m-theme-btn-action-gray" onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }} title="Adjust Stock">Adj</button>
-                          <button className="m-theme-btn-action-gray" onClick={(e) => { e.stopPropagation(); navigate.push(`/store/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`); }} title="Edit Material">Edit</button>
+                    <tr key={item.id} style={{ cursor: 'pointer', transition: 'background 0.15s ease' }} onClick={(e) => { if (e.target.closest('button')) return; setSelectedInventoryItem(item); setShowDetailDrawer(true); }}>
+                      <td style={{ fontWeight: '800', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontFamily: 'monospace', background: '#eff6ff', color: '#1d4ed8', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', border: '1px solid #dbeafe', display: 'inline-block' }}>
+                          {item.code || '—'}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: '700', color: '#0f766e', minWidth: '240px' }}>
+                        {item.material}
+                        {item.storageLocation && (
+                          <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '500', marginTop: '2px' }}>
+                            📍 {item.storageLocation}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ color: '#5E6B82', fontSize: '12.5px', whiteSpace: 'nowrap' }}>
+                        {safeText(item.category, 'Raw Material')}
+                      </td>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-block', padding: '2px 8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '5px', fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
+                          {safeText(item.unit, 'Kg')}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: '800', textAlign: 'right', whiteSpace: 'nowrap', color: isOutOfStock ? '#dc2626' : isLowStock ? '#d97706' : '#16a34a', fontSize: '13.5px' }}>
+                        {(item.stock ?? 0).toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: '#64748b', fontWeight: '600' }}>
+                        {(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span>
+                      </td>
+                      <td className="raw-table-actions-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '250px', width: '250px' }}>
+                        <div className="raw-table-actions-group" style={{ display: 'inline-flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+                          <button type="button" className="raw-btn-in" onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }} title="Quick Stock In">+ In</button>
+                          <button type="button" className="raw-btn-out" onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }} title="Quick Stock Out">- Out</button>
+                          <button type="button" className="raw-btn-adj" onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }} title="Adjust Stock">Adj</button>
+                          <button type="button" className="raw-btn-edit" onClick={(e) => { e.stopPropagation(); navigate.push(`/store/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`); }} title="Edit Material">Edit</button>
                         </div>
                       </td>
                     </tr>
@@ -1767,7 +1938,7 @@ export default function StorePortal() {
         </div>
 
         {/* Raw Inventory List - Mobile Horizontal List UI */}
-        <div className="mobile-only raw-inventory-mobile-list">
+        <div className="mobile-only raw-inventory-mobile-list" style={{ width: '100%', boxSizing: 'border-box' }}>
           {loadingRawInventory ? (
             <div className="raw-inv-mobile-empty">Loading inventory...</div>
           ) : filteredItems.length === 0 ? (
@@ -1790,12 +1961,13 @@ export default function StorePortal() {
                     setSelectedInventoryItem(item);
                     setShowDetailDrawer(true);
                   }}
+                  style={{ width: '100%', boxSizing: 'border-box' }}
                 >
                   {/* Top Row: Code Badge + Material Name & Status Badge */}
-                  <div className="raw-inv-card-header">
-                    <div className="raw-inv-card-title-box">
+                  <div className="raw-inv-card-header" style={{ width: '100%', boxSizing: 'border-box' }}>
+                    <div className="raw-inv-card-title-box" style={{ minWidth: 0, flex: 1 }}>
                       <span className="raw-inv-code-pill">{item.code || 'N/A'}</span>
-                      <span className="raw-inv-material-title">{item.material}</span>
+                      <span className="raw-inv-material-title" title={item.material}>{item.material}</span>
                     </div>
                     <span className={`m-theme-badge m-theme-badge-${badgeColor} raw-inv-status-pill`}>
                       {statusText}
@@ -1803,12 +1975,15 @@ export default function StorePortal() {
                   </div>
 
                   {/* Horizontal Meta & Stock Metrics Row */}
-                  <div className="raw-inv-card-metrics-row">
-                    <div className="raw-inv-meta-col">
+                  <div className="raw-inv-card-metrics-row" style={{ width: '100%', boxSizing: 'border-box' }}>
+                    <div className="raw-inv-meta-col" style={{ minWidth: 0 }}>
                       <span className="raw-inv-category-text">{safeText(item.category, 'Raw Material')}</span>
-                      <span className="raw-inv-reorder-text">Min: {(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()} {safeText(item.unit, 'Kg')}</span>
+                      <span className="raw-inv-reorder-text">Min Safety: {(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()} {safeText(item.unit, 'Kg')}</span>
+                      {item.storageLocation && (
+                        <span style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '500' }}>📍 {item.storageLocation}</span>
+                      )}
                     </div>
-                    <div className="raw-inv-stock-col">
+                    <div className="raw-inv-stock-col" style={{ flexShrink: 0 }}>
                       <span className="raw-inv-stock-tag">CURRENT STOCK</span>
                       <span className={`raw-inv-stock-number raw-inv-stock-${badgeColor}`}>
                         {(item.stock ?? 0).toLocaleString()} <span className="raw-inv-stock-unit">{safeText(item.unit, 'Kg')}</span>
@@ -1817,10 +1992,10 @@ export default function StorePortal() {
                   </div>
 
                   {/* Bottom Row: 4 Action Buttons */}
-                  <div className="raw-inv-card-actions-row">
+                  <div className="raw-inv-card-actions-row" style={{ width: '100%', boxSizing: 'border-box' }}>
                     <button
                       type="button"
-                      className="m-theme-btn-action-green raw-inv-action-btn raw-inv-btn-in"
+                      className="raw-btn-in"
                       onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }}
                       title="Stock In"
                     >
@@ -1828,7 +2003,7 @@ export default function StorePortal() {
                     </button>
                     <button
                       type="button"
-                      className="m-theme-btn-action-gray raw-inv-action-btn"
+                      className="raw-btn-out"
                       onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }}
                       title="Stock Out"
                     >
@@ -1836,7 +2011,7 @@ export default function StorePortal() {
                     </button>
                     <button
                       type="button"
-                      className="m-theme-btn-action-gray raw-inv-action-btn"
+                      className="raw-btn-adj"
                       onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }}
                       title="Adjust Stock"
                     >
@@ -1844,7 +2019,7 @@ export default function StorePortal() {
                     </button>
                     <button
                       type="button"
-                      className="m-theme-btn-action-gray raw-inv-action-btn"
+                      className="raw-btn-edit"
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate.push(`/store/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`);
@@ -1904,54 +2079,61 @@ export default function StorePortal() {
         {/* SIDE DRAWER: Material Details & Transaction Log */}
         {showDetailDrawer && selectedInventoryItem && (() => {
           const item = mappedInventory.find(mi => mi.id === selectedInventoryItem.id) || selectedInventoryItem;
-          const totalVal = item.stock * item.rate;
+          const totalVal = (Number(item.stock) || 0) * (Number(item.rate) || 0);
           return (
             <>
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.2)', zIndex: 1040, backdropFilter: 'blur(2px)' }} onClick={() => setShowDetailDrawer(false)}></div>
-              <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '520px', maxWidth: '90%', background: '#ffffff', boxShadow: '-10px 0 35px rgba(0,0,0,0.1)', zIndex: 1050, padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '14px' }}>
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', zIndex: 1040, backdropFilter: 'blur(3px)' }} onClick={() => setShowDetailDrawer(false)}></div>
+              <div className="raw-detail-drawer" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '520px', maxWidth: '100%', background: '#ffffff', boxShadow: '-10px 0 35px rgba(0,0,0,0.15)', zIndex: 1050, padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', boxSizing: 'border-box' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px' }}>
                   <div>
-                    <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Registry Details</span>
-                    <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-accent-teal)', marginTop: '4px' }}>{item.material}</h3>
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Material Registry Spec</span>
+                    <h3 style={{ fontSize: '20px', fontWeight: '900', color: '#0f766e', marginTop: '4px', margin: 0 }}>{item.material}</h3>
                   </div>
-                  <button onClick={() => setShowDetailDrawer(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)', padding: '6px', borderRadius: '50%' }}><X size={20} /></button>
+                  <button onClick={() => setShowDetailDrawer(false)} style={{ border: 'none', background: '#f1f5f9', cursor: 'pointer', color: '#64748b', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
                 </div>
 
-                <div style={{ background: '#F5FAFE', padding: '16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div>
-                    <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: 'bold', textTransform: 'uppercase' }}>Material Code</span>
-                    <div style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--color-text-primary)', marginTop: '3px' }}>{item.code}</div>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Material Code</span>
+                    <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#1e293b', marginTop: '3px', fontFamily: 'monospace' }}>{item.code}</div>
                   </div>
                   <div>
-                    <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: 'bold', textTransform: 'uppercase' }}>Category</span>
-                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)', marginTop: '3px' }}>{safeText(item.category, 'Raw Material')}</div>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Category</span>
+                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1e293b', marginTop: '3px' }}>{safeText(item.category, 'Raw Material')}</div>
                   </div>
                   <div>
-                    <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: 'bold', textTransform: 'uppercase' }}>Stock Unit</span>
-                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)', marginTop: '3px' }}>{safeText(item.unit, 'Kg')}</div>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Stock Unit</span>
+                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1e293b', marginTop: '3px' }}>{safeText(item.unit, 'Kg')}</div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Storage Location</span>
+                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1e293b', marginTop: '3px' }}>{item.storageLocation || 'Main Store Depot'}</div>
                   </div>
                   <div style={{ gridColumn: 'span 2' }}>
-                    <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: 'bold', textTransform: 'uppercase' }}>Description</span>
-                    <div style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', marginTop: '3px', lineHeight: '1.4' }}>{item.description || 'No description provided.'}</div>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Description</span>
+                    <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '3px', lineHeight: '1.4' }}>{item.description || 'No description provided.'}</div>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
-                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px', borderRadius: '10px', textAlign: 'center' }}>
-                    <span style={{ fontSize: '9px', color: '#166534', fontWeight: 'bold', textTransform: 'uppercase' }}>Stock Available</span>
-                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#14532d', marginTop: '4px' }}>{(item.stock ?? 0).toLocaleString()}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+                  <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', padding: '14px', borderRadius: '12px', textAlign: 'center' }}>
+                    <span style={{ fontSize: '10px', color: '#166534', fontWeight: 'bold', textTransform: 'uppercase' }}>Current Balance</span>
+                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#14532d', marginTop: '4px' }}>{(item.stock ?? 0).toLocaleString()} {safeText(item.unit, 'Kg')}</div>
                   </div>
-                  <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', padding: '12px', borderRadius: '10px', textAlign: 'center' }}>
-                    <span style={{ fontSize: '9px', color: '#78350f', fontWeight: 'bold', textTransform: 'uppercase' }}>Min Stock Alert</span>
-                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#451a03', marginTop: '4px' }}>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</div>
+                  <div style={{ background: '#fffbeb', border: '1.5px solid #fef3c7', padding: '14px', borderRadius: '12px', textAlign: 'center' }}>
+                    <span style={{ fontSize: '10px', color: '#78350f', fontWeight: 'bold', textTransform: 'uppercase' }}>Min Stock Alert</span>
+                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#451a03', marginTop: '4px' }}>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()} {safeText(item.unit, 'Kg')}</div>
                   </div>
                 </div>
 
-
-
-                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <button className="action-btn" style={{ flex: 1, padding: '10px', background: 'var(--color-primary)', border: 'none', borderRadius: '8px', fontWeight: 'bold', color: '#000', cursor: 'pointer' }} onClick={() => handleQuickStockIn(item)}>+ Stock In</button>
-                  <button className="action-btn btn-outline" style={{ flex: 1, padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => handleQuickAdjust(item)}>Adj Stock</button>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Quick Actions</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '8px' }}>
+                    <button type="button" className="raw-btn-in" style={{ height: '40px', fontSize: '13px' }} onClick={() => handleQuickStockIn(item)}>+ In</button>
+                    <button type="button" className="raw-btn-out" style={{ height: '40px', fontSize: '13px' }} onClick={() => handleQuickStockOut(item)}>- Out</button>
+                    <button type="button" className="raw-btn-adj" style={{ height: '40px', fontSize: '13px' }} onClick={() => handleQuickAdjust(item)}>Adj</button>
+                    <button type="button" className="raw-btn-edit" style={{ height: '40px', fontSize: '13px' }} onClick={() => navigate.push(`/store/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`)}>Edit</button>
+                  </div>
                 </div>
               </div>
             </>
@@ -2544,9 +2726,9 @@ export default function StorePortal() {
     };
 
     return (
-      <div className="m-theme-container">
+      <div className="m-theme-container low-stock-page-container" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflow: 'visible', position: 'static' }}>
         {/* Header */}
-        <div className="m-theme-header">
+        <div className="m-theme-header low-stock-header" style={{ position: 'static' }}>
           <div>
             <h2 className="m-theme-title">Low Stock Alerts</h2>
             <p className="m-theme-subtitle">
@@ -2555,10 +2737,10 @@ export default function StorePortal() {
           </div>
         </div>
 
-        <div className="low-stock-tab-bar" style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--color-border)', paddingBottom: 10 }}>
+        <div className="low-stock-tab-bar" style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--color-border)', paddingBottom: 10, position: 'static', overflowX: 'auto', flexWrap: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
           {['Alerts', 'History'].map(tab => (
             <button key={tab} type="button" onClick={() => setLowStockTab(tab)}
-              style={{ border: 'none', borderRadius: 8, padding: '9px 16px', cursor: 'pointer', fontWeight: 800, background: lowStockTab === tab ? '#2F4375' : '#eef2f7', color: lowStockTab === tab ? '#fff' : '#475569' }}>
+              style={{ border: 'none', borderRadius: 8, padding: '9px 16px', cursor: 'pointer', fontWeight: 800, background: lowStockTab === tab ? '#2F4375' : '#eef2f7', color: lowStockTab === tab ? '#fff' : '#475569', flexShrink: 0, whiteSpace: 'nowrap' }}>
               {tab === 'Alerts' ? 'Low Stock Alerts' : 'Indent History'}
             </button>
           ))}
@@ -2567,7 +2749,7 @@ export default function StorePortal() {
         {lowStockTab === 'Alerts' && (
           <>
             {/* Summary Cards */}
-            <div className="m-theme-kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+            <div className="m-theme-kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', position: 'static' }}>
               <div 
                 className="m-theme-kpi-card" 
                 onClick={() => { setLowStockFilter('Out of Stock'); setLowStockPage(1); }}
@@ -2620,9 +2802,9 @@ export default function StorePortal() {
               </div>
             </div>
 
-            {/* Filter Buttons Toolbar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '20px 0 16px 0', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '13px', fontWeight: '800', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {/* Filter Buttons Toolbar - Horizontally Scrollable & Never Sticky */}
+            <div className="low-stock-filter-strip" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '16px 0 16px 0', flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none', width: '100%', boxSizing: 'border-box', position: 'static', paddingBottom: '4px' }}>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
                 <Filter size={15} color="#2F4375" /> Filter Alert Status:
               </span>
               {[
@@ -2652,7 +2834,9 @@ export default function StorePortal() {
                       alignItems: 'center',
                       gap: '6px',
                       transition: 'all 0.15s ease',
-                      boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.12)' : 'none'
+                      boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.12)' : 'none',
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     {f.label}
@@ -2662,7 +2846,7 @@ export default function StorePortal() {
             </div>
 
             {/* Search Bar */}
-            <div className="m-theme-search-container" style={{ marginBottom: '16px' }}>
+            <div className="m-theme-search-container" style={{ marginBottom: '16px', position: 'static' }}>
               <Search size={18} style={{ color: '#8893A7', marginRight: '8px' }} />
               <input
                 type="text"
@@ -2679,12 +2863,12 @@ export default function StorePortal() {
             </div>
 
             {/* Mobile results header */}
-            <div className="raw-inventory-mobile-results-header mobile-only">
+            <div className="raw-inventory-mobile-results-header mobile-only" style={{ position: 'static' }}>
               <span>{sortedLowStockItems.length} {sortedLowStockItems.length === 1 ? 'Alert' : 'Alerts'} Found</span>
             </div>
 
             {/* Table - Desktop View */}
-            <div className="desktop-only m-theme-table-container low-stock-table-wrapper">
+            <div className="desktop-only m-theme-table-container low-stock-table-wrapper" style={{ width: '100%', boxSizing: 'border-box', overflowX: 'auto', overflowY: 'visible', position: 'static' }}>
               <table className="m-theme-table low-stock-table">
                 <thead>
                   <tr>
@@ -2805,7 +2989,7 @@ export default function StorePortal() {
             </div>
 
             {/* Low Stock Alerts - Mobile Horizontal List UI */}
-            <div className="mobile-only low-stock-mobile-list raw-inventory-mobile-list">
+            <div className="mobile-only low-stock-mobile-list raw-inventory-mobile-list" style={{ width: '100%', boxSizing: 'border-box', overflow: 'visible', position: 'static' }}>
               {sortedLowStockItems.length === 0 ? (
                 <div className="raw-inv-mobile-empty">✅ All materials are sufficiently stocked.</div>
               ) : (
