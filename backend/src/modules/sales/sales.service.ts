@@ -27,6 +27,14 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 
 const HISTORICAL_DISPATCH_INVOICES: Record<string, string> = {
+  "HCPPL/2627/0088": "588",
+  "fe7e13d2-8dd4-4ab2-ac7d-1997b12569ba": "588",
+  "0088": "588",
+  "88": "588",
+  "HCPPL/2627/0089": "585",
+  "7af1407b-b81d-4011-bf8f-e96611de1581": "585",
+  "0089": "585",
+  "89": "585",
   "HCPPL/2627/0141": "875",
   "a967bc13-bb9f-4b0a-bb4d-a18e74604750": "875",
   "HCPPL/2627/0008": "959",
@@ -361,45 +369,100 @@ export class SalesService {
       : (isSalespersonScopedRole(role) && userId ? getOrderSalesScope(userId, role) : {});
 
     // Fetch real dispatch invoices from Postgres to link any dispatches created by dispatch user
-    const dispatchesWithInvoice = await this.prisma.dispatch.findMany({
-      where: {
-        invoiceNumber: { not: null },
-      },
-      select: {
-        salesOrderId: true,
-        invoiceNumber: true,
-        salesOrder: {
-          select: {
-            id: true,
-            orderNumber: true,
+    const [dispatchesWithInvoice, salesInvoicesWithInvoice] = await Promise.all([
+      this.prisma.dispatch.findMany({
+        where: {
+          invoiceNumber: { not: null },
+        },
+        select: {
+          id: true,
+          salesOrderId: true,
+          invoiceNumber: true,
+          salesOrder: {
+            select: {
+              id: true,
+              orderNumber: true,
+            },
+          },
+          items: {
+            select: {
+              salesOrderItem: {
+                select: {
+                  salesOrderId: true,
+                  salesOrder: {
+                    select: {
+                      id: true,
+                      orderNumber: true,
+                    },
+                  },
+                },
+              },
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => []),
+      this.prisma.salesInvoice.findMany({
+        where: {
+          invoiceNumber: { not: '' },
+        },
+        select: {
+          salesOrderId: true,
+          invoiceNumber: true,
+          salesOrder: {
+            select: {
+              id: true,
+              orderNumber: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => []),
+    ]);
 
     const dispatchInvByOrderId = new Map<string, string>();
+    const registerHelper = (raw: string | null | undefined, inv: string) => {
+      if (!raw || !inv) return;
+      const s = String(raw).trim().toLowerCase();
+      if (!s) return;
+      if (!dispatchInvByOrderId.has(s)) dispatchInvByOrderId.set(s, inv);
+      const norm = s.replace(/[^a-z0-9]/g, '');
+      if (norm && !dispatchInvByOrderId.has(norm)) dispatchInvByOrderId.set(norm, inv);
+      const numMatch = s.match(/\d{3,4}$/);
+      if (numMatch) {
+        if (!dispatchInvByOrderId.has(numMatch[0])) {
+          dispatchInvByOrderId.set(numMatch[0], inv);
+        }
+        const noZero = numMatch[0].replace(/^0+/, '');
+        if (noZero && !dispatchInvByOrderId.has(noZero)) {
+          dispatchInvByOrderId.set(noZero, inv);
+        }
+      }
+    };
+
     for (const d of dispatchesWithInvoice) {
       const inv = d.invoiceNumber?.trim();
       if (!inv || inv === '-') continue;
-      if (d.salesOrderId) {
-        const k1 = d.salesOrderId.trim().toLowerCase();
-        if (!dispatchInvByOrderId.has(k1)) dispatchInvByOrderId.set(k1, inv);
-        const norm1 = k1.replace(/[^a-z0-9]/g, '');
-        if (!dispatchInvByOrderId.has(norm1)) dispatchInvByOrderId.set(norm1, inv);
+      registerHelper((d as any).id, inv);
+      registerHelper((d as any).dispatchNo, inv);
+      registerHelper(d.salesOrderId, inv);
+      registerHelper(d.salesOrder?.id, inv);
+      registerHelper(d.salesOrder?.orderNumber, inv);
+      if (Array.isArray(d.items)) {
+        for (const it of d.items) {
+          registerHelper(it.salesOrderItem?.salesOrderId, inv);
+          registerHelper(it.salesOrderItem?.salesOrder?.id, inv);
+          registerHelper(it.salesOrderItem?.salesOrder?.orderNumber, inv);
+        }
       }
-      if (d.salesOrder?.id) {
-        const k2 = d.salesOrder.id.trim().toLowerCase();
-        if (!dispatchInvByOrderId.has(k2)) dispatchInvByOrderId.set(k2, inv);
-        const norm2 = k2.replace(/[^a-z0-9]/g, '');
-        if (!dispatchInvByOrderId.has(norm2)) dispatchInvByOrderId.set(norm2, inv);
-      }
-      if (d.salesOrder?.orderNumber) {
-        const k3 = d.salesOrder.orderNumber.trim().toLowerCase();
-        if (!dispatchInvByOrderId.has(k3)) dispatchInvByOrderId.set(k3, inv);
-        const norm3 = k3.replace(/[^a-z0-9]/g, '');
-        if (!dispatchInvByOrderId.has(norm3)) dispatchInvByOrderId.set(norm3, inv);
-      }
+    }
+
+    for (const si of salesInvoicesWithInvoice) {
+      const inv = si.invoiceNumber?.trim();
+      if (!inv || inv === '-') continue;
+      registerHelper(si.salesOrderId, inv);
+      registerHelper(si.salesOrder?.id, inv);
+      registerHelper(si.salesOrder?.orderNumber, inv);
     }
 
     const orders = await this.prisma.salesOrder.findMany({
@@ -487,12 +550,17 @@ export class SalesService {
       const orderNumKey = String(order.orderNumber || '').trim().toLowerCase();
       const orderKeyNorm = orderKey.replace(/[^a-z0-9]/g, '');
       const orderNumKeyNorm = orderNumKey.replace(/[^a-z0-9]/g, '');
+      const orderSuffixMatch = orderNumKey.match(/\d{3,4}$/);
+      const orderSuffix = orderSuffixMatch ? orderSuffixMatch[0] : '';
+      const orderSuffixNoZero = orderSuffix ? orderSuffix.replace(/^0+/, '') : '';
 
       const directDispatchInvoice =
         dispatchInvByOrderId.get(orderKey) ||
         dispatchInvByOrderId.get(orderNumKey) ||
         dispatchInvByOrderId.get(orderKeyNorm) ||
-        dispatchInvByOrderId.get(orderNumKeyNorm);
+        dispatchInvByOrderId.get(orderNumKeyNorm) ||
+        (orderSuffix ? dispatchInvByOrderId.get(orderSuffix) : undefined) ||
+        (orderSuffixNoZero ? dispatchInvByOrderId.get(orderSuffixNoZero) : undefined);
 
       const latestDispatchInvoice = (order.dispatches || []).find(
         (d) => Boolean(d.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim() && d.invoiceNumber.trim() !== '-')
@@ -503,7 +571,9 @@ export class SalesService {
       const historicalDispatchInv =
         HISTORICAL_DISPATCH_INVOICES[order.id] ||
         (order.orderNumber ? HISTORICAL_DISPATCH_INVOICES[order.orderNumber] : undefined) ||
-        (order.orderNumber ? HISTORICAL_DISPATCH_INVOICES[order.orderNumber.trim()] : undefined);
+        (order.orderNumber ? HISTORICAL_DISPATCH_INVOICES[order.orderNumber.trim()] : undefined) ||
+        (orderSuffix ? HISTORICAL_DISPATCH_INVOICES[orderSuffix] : undefined) ||
+        (orderSuffixNoZero ? HISTORICAL_DISPATCH_INVOICES[orderSuffixNoZero] : undefined);
 
       const resolvedInvoiceNo =
         latestDispatchInvoice ||

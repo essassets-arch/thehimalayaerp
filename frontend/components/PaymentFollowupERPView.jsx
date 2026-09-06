@@ -42,12 +42,20 @@ const computeReminderStatus = (nextDate, currentStatus) => {
 };
 
 const isFallbackInvoice = (inv) => {
-  if (!inv || inv === '-') return true;
+  if (!inv) return true;
   const s = String(inv).trim();
-  return /^INV[/-]\d{4}[/-]\d{3,}/i.test(s) || /^INV[/-]2627[/-]\d+/i.test(s);
+  return !s || s === '-' || s === '—' || s.toLowerCase() === 'n/a' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined';
 };
 
 const HISTORICAL_DISPATCH_INVOICES = {
+  "HCPPL/2627/0088": "588",
+  "fe7e13d2-8dd4-4ab2-ac7d-1997b12569ba": "588",
+  "0088": "588",
+  "88": "588",
+  "HCPPL/2627/0089": "585",
+  "7af1407b-b81d-4011-bf8f-e96611de1581": "585",
+  "0089": "585",
+  "89": "585",
   "HCPPL/2627/0141": "875",
   "a967bc13-bb9f-4b0a-bb4d-a18e74604750": "875",
   "HCPPL/2627/0008": "959",
@@ -502,6 +510,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     const registerKey = (rawKey, cleanInv, dDate) => {
       if (!rawKey) return;
       const str = String(rawKey).trim().toLowerCase();
+      if (!str) return;
       if (dDate) {
         deliveryMap.set(str, dDate);
         deliveryMap.set(str.replace(/[^a-z0-9]/g, ''), dDate);
@@ -513,6 +522,12 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         invoiceMap.set(str.replace(/[^a-z0-9]/g, ''), cleanInv);
         invoiceMap.set(str.replace(/^ord-/, ''), cleanInv);
         invoiceMap.set(str.replace(/^#/, ''), cleanInv);
+        const numMatch = str.match(/\d{3,4}$/);
+        if (numMatch) {
+          if (!invoiceMap.has(numMatch[0])) invoiceMap.set(numMatch[0], cleanInv);
+          const noZero = numMatch[0].replace(/^0+/, '');
+          if (noZero && !invoiceMap.has(noZero)) invoiceMap.set(noZero, cleanInv);
+        }
       }
     };
 
@@ -536,10 +551,11 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     allDispatches.forEach((d) => {
       const dDate = d.deliveredAt || d.dispatchedAt || d.createdAt;
       const inv = d.invoiceNumber || d.invoice_number || d.invoiceNo;
-      const cleanInv = inv && typeof inv === 'string' && inv.trim() && inv.trim() !== '-' && !isFallbackInvoice(inv)
+      const cleanInv = inv && typeof inv === 'string' && inv.trim() && !isFallbackInvoice(inv)
         ? inv.trim()
         : null;
 
+      registerKey(d.id, cleanInv, dDate);
       registerKey(d.salesOrderId, cleanInv, dDate);
       registerKey(d.salesOrder?.id, cleanInv, dDate);
       registerKey(d.salesOrder?.orderNumber, cleanInv, dDate);
@@ -547,12 +563,24 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       registerKey(d.orderNo, cleanInv, dDate);
       registerKey(d.orderNumber, cleanInv, dDate);
       registerKey(d.dispatchNo, cleanInv, dDate);
+
+      // Also register item-level sales order links!
+      const items = Array.isArray(d.items) ? d.items : (Array.isArray(d.dispatchItems) ? d.dispatchItems : []);
+      items.forEach((item) => {
+        registerKey(item.salesOrderId, cleanInv, dDate);
+        registerKey(item.salesOrderItem?.salesOrderId, cleanInv, dDate);
+        registerKey(item.salesOrderItem?.salesOrder?.id, cleanInv, dDate);
+        registerKey(item.salesOrderItem?.salesOrder?.orderNumber, cleanInv, dDate);
+        registerKey(item.orderId, cleanInv, dDate);
+        registerKey(item.orderNo, cleanInv, dDate);
+        registerKey(item.orderNumber, cleanInv, dDate);
+      });
     });
 
     // 3. Local dispatch invoices (from Dispatch portal user inputs)
     if (localDispatchInvoices && typeof localDispatchInvoices === 'object') {
       Object.entries(localDispatchInvoices).forEach(([rawKey, invVal]) => {
-        if (rawKey && invVal && typeof invVal === 'string' && invVal.trim() && invVal.trim() !== '-' && !isFallbackInvoice(invVal)) {
+        if (rawKey && invVal && typeof invVal === 'string' && !isFallbackInvoice(invVal)) {
           registerKey(rawKey, invVal.trim(), null);
         }
       });
@@ -715,6 +743,11 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       const isPartialPayment = (resolvedPaid > 0 && resolvedBalance > 0) || resolvedPaymentStatus === 'PARTIALLY_PAID';
 
       // Resolve invoice number from dispatch entered value
+      const orderNumStr = String(orderNo || '').trim();
+      const numMatch = orderNumStr.match(/\d{3,4}$/);
+      const suffix = numMatch ? numMatch[0] : '';
+      const noZeroSuffix = suffix ? suffix.replace(/^0+/, '') : '';
+
       const candidateKeys = [
         o.id,
         orderNo,
@@ -722,6 +755,8 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         o.orderNumber,
         o.orderNo,
         o.salesOrderId,
+        suffix,
+        noZeroSuffix,
       ].filter(Boolean).map(k => String(k).trim().toLowerCase());
 
       let resolvedInvoiceNumber = null;
@@ -747,7 +782,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       if (!resolvedInvoiceNumber && Array.isArray(o.dispatches) && o.dispatches.length > 0) {
         const dWithInv = o.dispatches.find(d => {
           const val = (d?.invoiceNumber || d?.invoice_number || d?.invoiceNo);
-          return val && typeof val === 'string' && val.trim() && val.trim() !== '-' && !isFallbackInvoice(val);
+          return val && typeof val === 'string' && !isFallbackInvoice(val);
         });
         if (dWithInv) {
           resolvedInvoiceNumber = (dWithInv.invoiceNumber || dWithInv.invoice_number || dWithInv.invoiceNo)?.trim();
@@ -758,7 +793,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       if (!resolvedInvoiceNumber && Array.isArray(o.invoices) && o.invoices.length > 0) {
         const invWithNo = o.invoices.find(inv => {
           const val = inv?.invoiceNumber;
-          return val && typeof val === 'string' && val.trim() && val.trim() !== '-' && !isFallbackInvoice(val);
+          return val && typeof val === 'string' && !isFallbackInvoice(val);
         });
         if (invWithNo) {
           resolvedInvoiceNumber = invWithNo.invoiceNumber.trim();
@@ -767,8 +802,8 @@ export default function PaymentFollowupERPView({ orders = [] }) {
 
       // Check direct order invoice properties (if not fallback)
       if (!resolvedInvoiceNumber) {
-        const direct = o.invoiceNumber || o.invoice_number || o.invoiceNo;
-        if (direct && typeof direct === 'string' && direct.trim() && direct.trim() !== '-' && !isFallbackInvoice(direct)) {
+        const direct = o.invoice_number || o.invoiceNumber || o.invoiceNo;
+        if (direct && typeof direct === 'string' && !isFallbackInvoice(direct)) {
           resolvedInvoiceNumber = direct.trim();
         }
       }
