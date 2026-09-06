@@ -399,6 +399,10 @@ export function mapSalesOrder(
     workflowStateCode: order.workflowState?.code,
     workflowStateName: order.workflowState?.name,
 
+    invoiceNumber: (order.dispatches || []).find((d: any) => Boolean(d?.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim()))?.invoiceNumber?.trim() || (order as any).invoices?.[0]?.invoiceNumber || null,
+    invoiceNo: (order.dispatches || []).find((d: any) => Boolean(d?.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim()))?.invoiceNumber?.trim() || (order as any).invoices?.[0]?.invoiceNumber || null,
+    invoice_number: (order.dispatches || []).find((d: any) => Boolean(d?.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim()))?.invoiceNumber?.trim() || (order as any).invoices?.[0]?.invoiceNumber || null,
+
     dispatches: order.dispatches || [],
 
     createdAt: order.createdAt.toISOString(),

@@ -647,11 +647,20 @@ export class DispatchService {
           'INVOICE',
           tx,
         );
-        const invoiceNumber = await this.sequenceService.generateNextWithTx(
+        let invoiceNumber = await this.sequenceService.generateNextWithTx(
           tx,
           'invoice_number',
           `INV - ${new Date().getFullYear()} -`,
         );
+        if (dto.invoiceNumber?.trim()) {
+          const trimmedInv = dto.invoiceNumber.trim();
+          const existingInv = await tx.salesInvoice.findUnique({
+            where: { invoiceNumber: trimmedInv },
+          });
+          if (!existingInv) {
+            invoiceNumber = trimmedInv;
+          }
+        }
         await tx.salesInvoice.create({
           data: {
             invoiceNumber,

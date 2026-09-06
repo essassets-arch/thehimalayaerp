@@ -63,6 +63,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   const [reminderFilter, setReminderFilter] = useState('All');
 
   const [localConfirmations, setLocalConfirmations] = useState([]);
+  const [localDispatchInvoices, setLocalDispatchInvoices] = useState({});
 
   // Close aging dropdown on click outside
   useEffect(() => {
@@ -88,6 +89,12 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         setLocalConfirmations(JSON.parse(raw));
       }
     } catch {}
+    try {
+      const rawInvoices = localStorage.getItem('himalaya_dispatch_invoices');
+      if (rawInvoices) {
+        setLocalDispatchInvoices(JSON.parse(rawInvoices));
+      }
+    } catch {}
   }, []);
 
   const paymentConfirmations = useMemo(() => {
@@ -99,7 +106,9 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     try {
       const [resPending, resDispatches] = await Promise.allSettled([
         apiClient.get('/sales/orders/delivered/pending-payment'),
-        backendFetch('/api/backend/logistics/dispatches?status=DELIVERED'),
+        backendFetch('/api/backend/logistics/dispatches').catch(() =>
+          backendFetch('/api/backend/logistics/dispatches?status=DELIVERED')
+        ),
       ]);
       const pendingData = resPending.status === 'fulfilled' && resPending.value?.success
         ? resPending.value.data
@@ -389,27 +398,59 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     }
   };
 
-  const dispatchDeliveryMap = useMemo(() => {
-    const map = new Map();
-    (deliveredDispatches || []).forEach((d) => {
+  const { dispatchDeliveryMap, dispatchInvoiceMap } = useMemo(() => {
+    const deliveryMap = new Map();
+    const invoiceMap = new Map();
+
+    const allDispatches = [
+      ...(Array.isArray(deliveredDispatches) ? deliveredDispatches : []),
+      ...(Array.isArray(consignments) ? consignments : []),
+    ];
+
+    allDispatches.forEach((d) => {
       const dDate = d.deliveredAt || d.dispatchedAt || d.createdAt;
-      if (dDate) {
-        if (d.salesOrderId) map.set(String(d.salesOrderId).toLowerCase(), dDate);
-        if (d.salesOrder?.id) map.set(String(d.salesOrder.id).toLowerCase(), dDate);
-        if (d.salesOrder?.orderNumber) {
-          const rawNo = String(d.salesOrder.orderNumber).trim().toLowerCase();
-          map.set(rawNo, dDate);
-          map.set(rawNo.replace(/[^a-z0-9]/g, ''), dDate);
+      const inv = d.invoiceNumber || d.invoice_number || d.invoiceNo;
+      const hasInv = inv && typeof inv === 'string' && inv.trim() && inv.trim() !== '-';
+      const cleanInv = hasInv ? inv.trim() : null;
+
+      const registerKey = (rawKey) => {
+        if (!rawKey) return;
+        const str = String(rawKey).trim().toLowerCase();
+        if (dDate) {
+          deliveryMap.set(str, dDate);
+          deliveryMap.set(str.replace(/[^a-z0-9]/g, ''), dDate);
+          deliveryMap.set(str.replace(/^ord-/, ''), dDate);
         }
-        if (d.dispatchNo) {
-          const rawNo = String(d.dispatchNo).trim().toLowerCase();
-          map.set(rawNo, dDate);
-          map.set(rawNo.replace(/[^a-z0-9]/g, ''), dDate);
+        if (cleanInv) {
+          invoiceMap.set(str, cleanInv);
+          invoiceMap.set(str.replace(/[^a-z0-9]/g, ''), cleanInv);
+          invoiceMap.set(str.replace(/^ord-/, ''), cleanInv);
         }
-      }
+      };
+
+      registerKey(d.salesOrderId);
+      registerKey(d.salesOrder?.id);
+      registerKey(d.salesOrder?.orderNumber);
+      registerKey(d.orderId);
+      registerKey(d.orderNo);
+      registerKey(d.orderNumber);
+      registerKey(d.dispatchNo);
     });
-    return map;
-  }, [deliveredDispatches]);
+
+    if (localDispatchInvoices && typeof localDispatchInvoices === 'object') {
+      Object.entries(localDispatchInvoices).forEach(([rawKey, invVal]) => {
+        if (rawKey && invVal && typeof invVal === 'string' && invVal.trim() && invVal.trim() !== '-') {
+          const str = String(rawKey).trim().toLowerCase();
+          const cleanInv = invVal.trim();
+          invoiceMap.set(str, cleanInv);
+          invoiceMap.set(str.replace(/[^a-z0-9]/g, ''), cleanInv);
+          invoiceMap.set(str.replace(/^ord-/, ''), cleanInv);
+        }
+      });
+    }
+
+    return { dispatchDeliveryMap: deliveryMap, dispatchInvoiceMap: invoiceMap };
+  }, [deliveredDispatches, consignments, localDispatchInvoices]);
 
   const pendingRows = useMemo(() => {
     const apiRows = pendingCollection || [];
@@ -539,13 +580,67 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       );
       const isPartialPayment = (resolvedPaid > 0 && resolvedBalance > 0) || resolvedPaymentStatus === 'PARTIALLY_PAID';
 
+      // Resolve invoice number from dispatch entered value
+      const candidateKeys = [
+        o.id,
+        orderNo,
+        o.order_number,
+        o.orderNumber,
+        o.orderNo,
+        o.salesOrderId,
+      ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+
+      let resolvedInvoiceNumber = null;
+      for (const k of candidateKeys) {
+        if (dispatchInvoiceMap.has(k)) {
+          resolvedInvoiceNumber = dispatchInvoiceMap.get(k);
+          break;
+        }
+        const norm = k.replace(/[^a-z0-9]/g, '');
+        if (dispatchInvoiceMap.has(norm)) {
+          resolvedInvoiceNumber = dispatchInvoiceMap.get(norm);
+          break;
+        }
+      }
+
+      // Check order's embedded dispatches array
+      if (!resolvedInvoiceNumber && Array.isArray(o.dispatches) && o.dispatches.length > 0) {
+        const dWithInv = o.dispatches.find(d => Boolean((d?.invoiceNumber || d?.invoice_number || d?.invoiceNo)?.trim?.()));
+        if (dWithInv) {
+          resolvedInvoiceNumber = (dWithInv.invoiceNumber || dWithInv.invoice_number || dWithInv.invoiceNo)?.trim();
+        }
+      }
+
+      // Check order's embedded invoices array
+      if (!resolvedInvoiceNumber && Array.isArray(o.invoices) && o.invoices.length > 0) {
+        const invWithNo = o.invoices.find(inv => Boolean(inv?.invoiceNumber?.trim?.()));
+        if (invWithNo) {
+          resolvedInvoiceNumber = invWithNo.invoiceNumber.trim();
+        }
+      }
+
+      // Check direct order invoice properties
+      if (!resolvedInvoiceNumber) {
+        const direct = o.invoiceNumber || o.invoice_number || o.invoiceNo;
+        if (direct && typeof direct === 'string' && direct.trim() && direct.trim() !== '-') {
+          resolvedInvoiceNumber = direct.trim();
+        }
+      }
+
+      // Fallback only if no dispatch/actual invoice number exists
+      if (!resolvedInvoiceNumber) {
+        resolvedInvoiceNumber = `INV-${String(orderNo).replace(/^ORD-/, '').slice(-6)}`;
+      }
+
       const normalized = {
         id: o.id || orderNo,
         customerId: o.customerId || o.customer_id || o.customer?.id || 'unknown',
         order_number: orderNo,
         customer_name: o.customer_name || o.customerName || o.customer?.name || 'ABC Infrastructure Pvt Ltd',
         grand_total: resolvedTotal,
-        invoice_number: o.invoiceNo || o.invoice_number || `INV-${String(orderNo).replace(/^ORD-/, '').slice(-6)}`,
+        invoice_number: resolvedInvoiceNumber,
+        invoiceNumber: resolvedInvoiceNumber,
+        invoiceNo: resolvedInvoiceNumber,
         salesperson: o.salesperson || o.salesPerson || quotation?.salesperson || 'Sales',
         verified_paid_amount: resolvedPaid,
         balance_amount: resolvedBalance,
@@ -574,6 +669,11 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       }
       if (!normalized.delivered_at && existing?.delivered_at) {
         normalized.delivered_at = existing.delivered_at;
+      }
+      if ((!normalized.invoice_number || normalized.invoice_number.startsWith('INV-')) && existing?.invoice_number && !existing.invoice_number.startsWith('INV-')) {
+        normalized.invoice_number = existing.invoice_number;
+        normalized.invoiceNumber = existing.invoice_number;
+        normalized.invoiceNo = existing.invoice_number;
       }
       map.set(key, normalized);
     });

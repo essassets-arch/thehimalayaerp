@@ -303,7 +303,17 @@ export class SalesService {
           },
         },
         dispatches: {
-          select: { status: true, deliveredAt: true, podUrl: true },
+          select: {
+            id: true,
+            dispatchNo: true,
+            status: true,
+            deliveredAt: true,
+            dispatchedAt: true,
+            podUrl: true,
+            invoiceNumber: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -343,6 +353,14 @@ export class SalesService {
 
       const deliveredAt = deliveredAtDate ? new Date(deliveredAtDate) : null;
 
+      const latestDispatchInvoice = (order.dispatches || []).find(
+        (d) => Boolean(d.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim())
+      )?.invoiceNumber?.trim();
+      const latestOrderInvoice = (order.invoices || []).find(
+        (inv) => Boolean(inv.invoiceNumber && typeof inv.invoiceNumber === 'string' && inv.invoiceNumber.trim())
+      )?.invoiceNumber?.trim();
+      const resolvedInvoiceNo = latestDispatchInvoice || latestOrderInvoice || null;
+
       return {
         id: order.id,
         order_number: order.orderNumber,
@@ -358,6 +376,11 @@ export class SalesService {
         verifiedPaidAmount,
         balance_amount: balanceAmount,
         balanceAmount,
+        invoice_number: resolvedInvoiceNo,
+        invoiceNumber: resolvedInvoiceNo,
+        invoiceNo: resolvedInvoiceNo,
+        dispatches: order.dispatches || [],
+        invoices: order.invoices || [],
         delivered_at: deliveredAt ? deliveredAt.toISOString() : undefined,
         deliveredAt: deliveredAt ? deliveredAt.toISOString() : undefined,
         deliveryDate: deliveredAt ? deliveredAt.toISOString() : undefined,
