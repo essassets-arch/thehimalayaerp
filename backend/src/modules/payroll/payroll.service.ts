@@ -1711,7 +1711,7 @@ export class PayrollService {
   }
 
   async getSalaryStructure(id: string, user: any) {
-    const structure = await this.prisma.employeeSalaryStructure.findUnique({
+    let structure = await this.prisma.employeeSalaryStructure.findUnique({
       where: { id },
       include: {
         employee: {
@@ -1724,10 +1724,276 @@ export class PayrollService {
             department: true,
             jobTitle: true,
             status: true,
+            baseSalary: true,
           },
         },
       },
     });
+
+    if (!structure) {
+      // 1. Try finding by employeeId (active first, then latest)
+      structure =
+        (await this.prisma.employeeSalaryStructure.findFirst({
+          where: { employeeId: id, isActive: true },
+          orderBy: { effectiveFrom: 'desc' },
+          include: {
+            employee: {
+              select: {
+                id: true,
+                employeeCode: true,
+                firstName: true,
+                lastName: true,
+                fullName: true,
+                department: true,
+                jobTitle: true,
+                status: true,
+                baseSalary: true,
+              },
+            },
+          },
+        })) ||
+        (await this.prisma.employeeSalaryStructure.findFirst({
+          where: { employeeId: id },
+          orderBy: { effectiveFrom: 'desc' },
+          include: {
+            employee: {
+              select: {
+                id: true,
+                employeeCode: true,
+                firstName: true,
+                lastName: true,
+                fullName: true,
+                department: true,
+                jobTitle: true,
+                status: true,
+                baseSalary: true,
+              },
+            },
+          },
+        }));
+    }
+
+    if (!structure) {
+      // 2. Try checking if ID is a PayrollRecord ID
+      const payrollRecord = await this.prisma.payrollRecord.findUnique({
+        where: { id },
+        include: {
+          employee: {
+            select: {
+              id: true,
+              employeeCode: true,
+              firstName: true,
+              lastName: true,
+              fullName: true,
+              department: true,
+              jobTitle: true,
+              status: true,
+              baseSalary: true,
+            },
+          },
+        },
+      });
+
+      if (payrollRecord) {
+        structure =
+          (await this.prisma.employeeSalaryStructure.findFirst({
+            where: { employeeId: payrollRecord.employeeId, isActive: true },
+            orderBy: { effectiveFrom: 'desc' },
+            include: {
+              employee: {
+                select: {
+                  id: true,
+                  employeeCode: true,
+                  firstName: true,
+                  lastName: true,
+                  fullName: true,
+                  department: true,
+                  jobTitle: true,
+                  status: true,
+                  baseSalary: true,
+                },
+              },
+            },
+          })) ||
+          (await this.prisma.employeeSalaryStructure.findFirst({
+            where: { employeeId: payrollRecord.employeeId },
+            orderBy: { effectiveFrom: 'desc' },
+            include: {
+              employee: {
+                select: {
+                  id: true,
+                  employeeCode: true,
+                  firstName: true,
+                  lastName: true,
+                  fullName: true,
+                  department: true,
+                  jobTitle: true,
+                  status: true,
+                  baseSalary: true,
+                },
+              },
+            },
+          }));
+
+        // If no structure exists, synthesize one from the payroll record
+        if (!structure && payrollRecord.employee) {
+          const basic = Number(
+            payrollRecord.basicSalary ||
+              payrollRecord.employee.baseSalary ||
+              30000,
+          );
+          const calc = calculateSalaryStructure({
+            basicSalary: basic,
+            hraPercentage: 10,
+            ltaPercentage: 5,
+            educationAllowancePercentage: 5,
+            conveyancePercentage: 5,
+          });
+          return {
+            id: payrollRecord.id,
+            employeeId: payrollRecord.employeeId,
+            effectiveFrom: payrollRecord.createdAt,
+            wef: new Date().toISOString().split('T')[0],
+            employeeNameSnapshot:
+              payrollRecord.employeeNameSnapshot ||
+              payrollRecord.employee.fullName,
+            designationSnapshot:
+              payrollRecord.jobTitleSnapshot ||
+              payrollRecord.employee.jobTitle,
+            departmentSnapshot:
+              payrollRecord.departmentSnapshot ||
+              (typeof payrollRecord.employee.department === 'object'
+                ? payrollRecord.employee.department?.name
+                : payrollRecord.employee.department),
+            basicSalary: basic,
+            hra: Number(payrollRecord.hra || calc.hraAmount),
+            hraPercentage: 10,
+            ltaAmount: Number(
+              payrollRecord.specialAllowance || calc.ltaAmount,
+            ),
+            ltaPercentage: 5,
+            educationAllowanceAmount: Number(
+              payrollRecord.otherAllowance || calc.educationAllowanceAmount,
+            ),
+            educationAllowancePercentage: 5,
+            conveyanceAllowance: Number(
+              payrollRecord.conveyanceAllowance || calc.conveyanceAmount,
+            ),
+            conveyancePercentage: 5,
+            grossSalary: Number(
+              payrollRecord.grossEarnings || calc.grossTotalA,
+            ),
+            employeeEpfAmount: Number(
+              payrollRecord.pfDeduction || calc.employeeEpfAmount,
+            ),
+            employeeEpfPercentage: 12,
+            employeeEsicAmount: Number(
+              payrollRecord.esicDeduction || calc.employeeEsicAmount,
+            ),
+            employeeEsicPercentage: 0.75,
+            professionalTaxAmount: Number(
+              payrollRecord.professionalTax || calc.professionalTaxAmount,
+            ),
+            professionalTaxPercentage: 0,
+            totalDeduction: Number(
+              payrollRecord.totalDeductions || calc.totalDeductionB,
+            ),
+            netTakeHome: Number(
+              payrollRecord.netPayable || calc.netTakeHomeC,
+            ),
+            companyEpfAmount: Number(
+              payrollRecord.employerPf || calc.companyEpfAmount,
+            ),
+            companyEpfPercentage: 12,
+            companyEsicAmount: Number(
+              payrollRecord.employerEsic || calc.companyEsicAmount,
+            ),
+            companyEsicPercentage: 3.25,
+            gratuityAmount: calc.gratuityAmount,
+            gratuityPercentage: 4.81,
+            totalCompanyContribution: Number(
+              payrollRecord.employerTotalCost ||
+                calc.totalCompanyContributionD,
+            ),
+            ctcPerMonth:
+              Number(payrollRecord.grossEarnings || calc.grossTotalA) +
+              Number(
+                payrollRecord.employerTotalCost ||
+                  calc.totalCompanyContributionD,
+              ),
+            status: 'ACTIVE',
+            isActive: true,
+            employee: payrollRecord.employee,
+          };
+        }
+      }
+    }
+
+    if (!structure) {
+      // 3. Try checking if ID is an Employee ID
+      const emp = await this.prisma.employee.findUnique({
+        where: { id },
+        include: { department: true },
+      });
+      if (emp) {
+        const basic = Number(emp.baseSalary) || 30000;
+        const calc = calculateSalaryStructure({ basicSalary: basic });
+        return {
+          id: emp.id,
+          employeeId: emp.id,
+          effectiveFrom: new Date(),
+          wef: new Date().toISOString().split('T')[0],
+          employeeNameSnapshot:
+            emp.fullName ||
+            `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+          designationSnapshot: emp.jobTitle || 'Executive',
+          departmentSnapshot:
+            (typeof emp.department === 'object'
+              ? emp.department?.name
+              : emp.department) || 'Operations',
+          basicSalary: calc.basicSalary,
+          hra: calc.hraAmount,
+          hraPercentage: calc.hraPercentage,
+          ltaAmount: calc.ltaAmount,
+          ltaPercentage: calc.ltaPercentage,
+          educationAllowanceAmount: calc.educationAllowanceAmount,
+          educationAllowancePercentage: calc.educationAllowancePercentage,
+          conveyanceAllowance: calc.conveyanceAmount,
+          conveyancePercentage: calc.conveyancePercentage,
+          grossSalary: calc.grossTotalA,
+          employeeEpfAmount: calc.employeeEpfAmount,
+          employeeEpfPercentage: calc.employeeEpfPercentage,
+          employeeEsicAmount: calc.employeeEsicAmount,
+          employeeEsicPercentage: calc.employeeEsicPercentage,
+          professionalTaxAmount: calc.professionalTaxAmount,
+          professionalTaxPercentage: calc.professionalTaxPercentage,
+          totalDeduction: calc.totalDeductionB,
+          netTakeHome: calc.netTakeHomeC,
+          companyEpfAmount: calc.companyEpfAmount,
+          companyEpfPercentage: calc.companyEpfPercentage,
+          companyEsicAmount: calc.companyEsicAmount,
+          companyEsicPercentage: calc.companyEsicPercentage,
+          gratuityAmount: calc.gratuityAmount,
+          gratuityPercentage: calc.gratuityPercentage,
+          totalCompanyContribution: calc.totalCompanyContributionD,
+          ctcPerMonth: calc.ctcPerMonthE,
+          status: 'ACTIVE',
+          isActive: true,
+          employee: {
+            id: emp.id,
+            employeeCode: emp.employeeCode,
+            firstName: emp.firstName,
+            lastName: emp.lastName,
+            fullName: emp.fullName,
+            department: emp.department,
+            jobTitle: emp.jobTitle,
+            status: emp.status,
+            baseSalary: emp.baseSalary,
+          },
+        };
+      }
+    }
+
     if (!structure) throw new NotFoundException('Salary structure not found.');
     return structure;
   }
@@ -1894,11 +2160,51 @@ export class PayrollService {
   }
 
   async updateSalaryStructure(id: string, body: any, user: any) {
-    const existing = await this.prisma.employeeSalaryStructure.findUnique({
+    let existing = await this.prisma.employeeSalaryStructure.findUnique({
       where: { id },
       include: { employee: { include: { department: true } } },
     });
-    if (!existing) throw new NotFoundException('Salary structure not found.');
+
+    if (!existing) {
+      const targetEmpId = body?.employeeId || id;
+      existing =
+        (await this.prisma.employeeSalaryStructure.findFirst({
+          where: { employeeId: targetEmpId, isActive: true },
+          orderBy: { effectiveFrom: 'desc' },
+          include: { employee: { include: { department: true } } },
+        })) ||
+        (await this.prisma.employeeSalaryStructure.findFirst({
+          where: { employeeId: targetEmpId },
+          orderBy: { effectiveFrom: 'desc' },
+          include: { employee: { include: { department: true } } },
+        }));
+
+      if (!existing) {
+        const payrollRec = await this.prisma.payrollRecord.findUnique({
+          where: { id },
+        });
+        if (payrollRec) {
+          existing =
+            (await this.prisma.employeeSalaryStructure.findFirst({
+              where: { employeeId: payrollRec.employeeId, isActive: true },
+              orderBy: { effectiveFrom: 'desc' },
+              include: { employee: { include: { department: true } } },
+            })) ||
+            (await this.prisma.employeeSalaryStructure.findFirst({
+              where: { employeeId: payrollRec.employeeId },
+              orderBy: { effectiveFrom: 'desc' },
+              include: { employee: { include: { department: true } } },
+            }));
+        }
+      }
+    }
+
+    if (!existing) {
+      return this.createSalaryStructure(
+        { ...body, employeeId: body?.employeeId || id, allowOverride: true },
+        user,
+      );
+    }
 
     // Authoritative backend recalculation
     const calc = calculateSalaryStructure(body);
@@ -1909,7 +2215,7 @@ export class PayrollService {
         : existing.effectiveFrom;
 
     const updated = await this.prisma.employeeSalaryStructure.update({
-      where: { id },
+      where: { id: existing.id },
       data: {
         effectiveFrom: effectiveDate,
         wef:
@@ -1970,6 +2276,94 @@ export class PayrollService {
         data: { baseSalary: calc.basicSalary },
       })
       .catch(() => {});
+
+    // Synchronize any active/draft/pending/returned PayrollRecord for this employee
+    try {
+      const activeRecords = await this.prisma.payrollRecord.findMany({
+        where: {
+          employeeId: existing.employeeId,
+          status: {
+            in: ['DRAFT', 'RETURNED_TO_HR', 'PENDING_SUPER_ADMIN_APPROVAL'],
+          },
+        },
+      });
+
+      for (const rec of activeRecords) {
+        const calendarDays = Number(rec.calendarDays) || 30;
+        const unpaidDays = Number(rec.unpaidDays) || 0;
+        const perDayRate =
+          calendarDays > 0 ? calc.grossTotalA / calendarDays : 0;
+        const leaveDeduction =
+          unpaidDays > 0 ? Math.round(perDayRate * unpaidDays) : 0;
+
+        const pfDeduction = calc.employeeEpfAmount;
+        const esicDeduction = calc.employeeEsicAmount;
+        const professionalTax = calc.professionalTaxAmount;
+        const tdsDeduction = Number(rec.tdsDeduction || 0);
+        const otherDeductions = Number(rec.otherDeductions || 0);
+
+        const totalDeductions =
+          leaveDeduction +
+          pfDeduction +
+          esicDeduction +
+          professionalTax +
+          tdsDeduction +
+          otherDeductions;
+        const netPayable = Math.max(0, calc.grossTotalA - totalDeductions);
+        const employerPf = calc.companyEpfAmount;
+        const employerEsic = calc.companyEsicAmount;
+        const employerTotalCost = calc.grossTotalA + employerPf + employerEsic;
+
+        await this.prisma.payrollRecord.update({
+          where: { id: rec.id },
+          data: {
+            basicSalary: calc.basicSalary,
+            hra: calc.hraAmount,
+            conveyanceAllowance: calc.conveyanceAmount,
+            specialAllowance: calc.ltaAmount,
+            otherAllowance: calc.educationAllowanceAmount,
+            grossEarnings: calc.grossTotalA,
+            leaveDeduction,
+            pfDeduction,
+            esicDeduction,
+            professionalTax,
+            totalDeductions,
+            netPayable,
+            employerPf,
+            employerEsic,
+            employerTotalCost,
+            employeeNameSnapshot:
+              updated.employeeNameSnapshot || rec.employeeNameSnapshot,
+            departmentSnapshot:
+              updated.departmentSnapshot || rec.departmentSnapshot,
+            jobTitleSnapshot:
+              updated.designationSnapshot || rec.jobTitleSnapshot,
+          },
+        });
+
+        // Also update any SalarySlip attached to this record
+        await this.prisma.salarySlip
+          .updateMany({
+            where: { payrollRecordId: rec.id },
+            data: {
+              grossPay: calc.grossTotalA,
+              netPay: netPayable,
+              totalDeductions,
+              basicSalary: calc.basicSalary,
+              hra: calc.hraAmount,
+              conveyanceAllowance: calc.conveyanceAmount,
+              specialAllowance: calc.ltaAmount,
+              otherAllowance: calc.educationAllowanceAmount,
+              pfDeduction,
+              esicDeduction,
+              professionalTax,
+            },
+          })
+          .catch(() => {});
+      }
+    } catch (syncErr) {
+      console.warn('Could not auto-sync active payroll records:', syncErr);
+    }
 
     return updated;
   }

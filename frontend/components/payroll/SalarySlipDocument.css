@@ -415,7 +415,7 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm;
+    margin: 8mm 10mm;
   }
 
   html, body {
@@ -430,21 +430,46 @@
     print-color-adjust: exact !important;
   }
 
-  /* Hide entire page structure except printable element */
+  /* Reset any dashboard or layout wrappers that restrict overflow or height */
+  main,
+  [class*="layout"],
+  [class*="dashboard"],
+  [class*="container"],
+  [class*="content"] {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Hide entire page structure except printable salary slip */
   .salary-slip-toolbar,
+  .no-print,
   nav,
   header,
   aside,
   button,
-  .no-print {
+  .sidebar,
+  .app-sidebar,
+  .navbar {
     display: none !important;
+    visibility: hidden !important;
   }
 
+  /* Ensure modal backdrop and dialog expand completely to page size */
   .salary-slip-modal-backdrop {
     position: static !important;
     background: none !important;
     padding: 0 !important;
+    margin: 0 !important;
     display: block !important;
+    overflow: visible !important;
+    visibility: visible !important;
+    width: 100% !important;
+    height: auto !important;
+    z-index: auto !important;
   }
 
   .salary-slip-modal-dialog {
@@ -454,13 +479,47 @@
     overflow: visible !important;
     width: 100% !important;
     max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    position: static !important;
+    visibility: visible !important;
+    display: block !important;
+  }
+
+  .salary-slip-page-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    visibility: visible !important;
   }
 
   .salary-slip-paper {
-    border: none !important;
+    border: 1px solid #cbd5e1 !important;
     box-shadow: none !important;
-    padding: 0 !important;
+    padding: 20px 24px !important;
     width: 100% !important;
     max-width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    visibility: visible !important;
+    display: block !important;
+    page-break-inside: avoid;
+  }
+
+  .salary-slip-paper,
+  .salary-slip-paper * {
+    visibility: visible !important;
+  }
+
+  .salary-slip-breakdown-table th,
+  .salary-slip-ctc-table th {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .salary-slip-net-banner {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }

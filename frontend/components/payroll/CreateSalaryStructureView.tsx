@@ -122,24 +122,62 @@ export function CreateSalaryStructureView({
 
         // If in edit or view mode with structureId, load that structure
         if (structureId && (mode === 'edit' || mode === 'view')) {
-          const struct = await payrollService.getSalaryStructure(structureId).catch(() => null);
+          let rawStruct: any = await payrollService.getSalaryStructure(structureId).catch(() => null);
+          if (!rawStruct) {
+            const foundInExisting = structList.find((s: any) => s.id === structureId || s.employeeId === structureId);
+            if (foundInExisting) {
+              rawStruct = foundInExisting;
+            } else {
+              rawStruct = await payrollService.getEmployeeSalaryStructure(structureId).catch(() => null);
+            }
+          }
+
+          const struct = rawStruct?.data || rawStruct;
           if (struct) {
             setLoadedStructure(struct);
-            setSelectedEmployeeId(struct.employeeId);
-            setBasicSalary(Number(struct.basicSalary) || 0);
-            setHraPct(Number(struct.hraPercentage) || 0);
-            setLtaPct(Number(struct.ltaPercentage) || 0);
-            setEduPct(Number(struct.educationAllowancePercentage) || 0);
-            setConvPct(Number(struct.conveyancePercentage) || 0);
-            setEmpEpfPct(Number(struct.employeeEpfPercentage) || 0);
-            setEmpEsicPct(Number(struct.employeeEsicPercentage) || 0);
+            const empId = struct.employeeId || struct.employee?.id || struct.id;
+            setSelectedEmployeeId(empId);
+
+            if (struct.employee) {
+              setEmployees((prev) => {
+                if (prev.some((e) => e.id === struct.employee.id)) return prev;
+                return [struct.employee, ...prev];
+              });
+            }
+
+            const basic = Number(struct.basicSalary) || 0;
+            setBasicSalary(basic);
+
+            // If allowances exist in currency amounts but percentages are 0, compute percentages dynamically
+            const hra = Number(struct.hraAmount ?? struct.hra ?? 0);
+            const lta = Number(struct.ltaAmount ?? struct.lta ?? struct.specialAllowance ?? 0);
+            const edu = Number(struct.educationAllowanceAmount ?? struct.educationAllowance ?? struct.otherAllowance ?? 0);
+            const conv = Number(struct.conveyanceAllowance ?? struct.conveyanceAmount ?? 0);
+
+            const hraPercentage = Number(struct.hraPercentage) > 0 ? Number(struct.hraPercentage) : (basic > 0 && hra > 0 ? Math.round((hra / basic) * 100) : 10);
+            const ltaPercentage = Number(struct.ltaPercentage) > 0 ? Number(struct.ltaPercentage) : (basic > 0 && lta > 0 ? Math.round((lta / basic) * 100) : 5);
+            const eduPercentage = Number(struct.educationAllowancePercentage) > 0 ? Number(struct.educationAllowancePercentage) : (basic > 0 && edu > 0 ? Math.round((edu / basic) * 100) : 5);
+            const convPercentage = Number(struct.conveyancePercentage) > 0 ? Number(struct.conveyancePercentage) : (basic > 0 && conv > 0 ? Math.round((conv / basic) * 100) : 5);
+
+            setHraPct(hraPercentage);
+            setLtaPct(ltaPercentage);
+            setEduPct(eduPercentage);
+            setConvPct(convPercentage);
+
+            const epfPct = Number(struct.employeeEpfPercentage) > 0 ? Number(struct.employeeEpfPercentage) : (struct.employeeEpfAmount > 0 ? 12 : 12);
+            setEmpEpfPct(epfPct);
+            setEmpEsicPct(Number(struct.employeeEsicPercentage) || 0.75);
             setPtPct(Number(struct.professionalTaxPercentage) || 0);
-            setCompEpfPct(Number(struct.companyEpfPercentage) || 0);
-            setCompEsicPct(Number(struct.companyEsicPercentage) || 0);
+            setCompEpfPct(Number(struct.companyEpfPercentage) || 12);
+            setCompEsicPct(Number(struct.companyEsicPercentage) || 3.25);
             setGratuityPct(Number(struct.gratuityPercentage) || 4.81);
             if (struct.wef) setWef(struct.wef);
             if (struct.effectiveFrom) {
-              setEffectiveFrom(new Date(struct.effectiveFrom).toISOString().split('T')[0]);
+              try {
+                setEffectiveFrom(new Date(struct.effectiveFrom).toISOString().split('T')[0]);
+              } catch {
+                // keep current date
+              }
             }
           }
         }
@@ -156,10 +194,23 @@ export function CreateSalaryStructureView({
     };
   }, [structureId, mode]);
 
-  // Selected employee master object
+  // Selected employee master object with robust fallbacks from loadedStructure
   const selectedEmployee = useMemo(() => {
-    return employees.find((e) => e.id === selectedEmployeeId) || null;
-  }, [employees, selectedEmployeeId]);
+    const found = employees.find((e) => e.id === selectedEmployeeId);
+    if (found) return found;
+    if (loadedStructure?.employee) return loadedStructure.employee;
+    if (loadedStructure && (loadedStructure.employeeId === selectedEmployeeId || !selectedEmployeeId)) {
+      return {
+        id: loadedStructure.employeeId || selectedEmployeeId,
+        employeeCode: loadedStructure.employee?.employeeCode || loadedStructure.employeeCode || 'EMP',
+        fullName: loadedStructure.employeeNameSnapshot || loadedStructure.employee?.fullName || 'Staff Member',
+        jobTitle: loadedStructure.designationSnapshot || loadedStructure.employee?.jobTitle || 'Executive',
+        department: loadedStructure.departmentSnapshot || loadedStructure.employee?.department || 'Operations',
+        status: 'ACTIVE',
+      };
+    }
+    return null;
+  }, [employees, selectedEmployeeId, loadedStructure]);
 
   // Check if an active salary structure already exists for the selected employee
   const existingActiveStructure = useMemo(() => {
@@ -417,7 +468,15 @@ export function CreateSalaryStructureView({
     setSubmitting(true);
     try {
       if (mode === 'edit' && structureId) {
-        await payrollService.updateSalaryStructure(structureId, payload);
+        try {
+          await payrollService.updateSalaryStructure(structureId, payload);
+        } catch (updateErr: any) {
+          if (updateErr?.status === 404 || updateErr?.response?.status === 404 || updateErr?.message?.includes('not found')) {
+            await payrollService.createSalaryStructure({ ...payload, allowOverride: true });
+          } else {
+            throw updateErr;
+          }
+        }
         await Swal.fire({
           icon: 'success',
           title: 'Salary Structure Updated',

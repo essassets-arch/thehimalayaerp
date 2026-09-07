@@ -4976,7 +4976,7 @@ textarea {
   font-weight: 600;
 }
 
-/* ── INVOICE PRINT MEDIA QUERY ── */
+/* ── INVOICE & SALARY SLIP PRINT MEDIA QUERY ── */
 @media print {
   body * {
     visibility: hidden !important;
@@ -4985,7 +4985,15 @@ textarea {
   .modal-overlay.active,
   .modal-overlay.active .modal-box,
   .modal-overlay.active .invoice-sheet-modal,
-  .modal-overlay.active .invoice-sheet-modal * {
+  .modal-overlay.active .invoice-sheet-modal *,
+  .salary-slip-modal-backdrop,
+  .salary-slip-modal-backdrop *,
+  .salary-slip-modal-dialog,
+  .salary-slip-modal-dialog *,
+  .salary-slip-page-container,
+  .salary-slip-page-container *,
+  .salary-slip-paper,
+  .salary-slip-paper * {
     visibility: visible !important;
   }
 
