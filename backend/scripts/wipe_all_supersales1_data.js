@@ -16,19 +16,27 @@ async function wipeSuperSales1FromDb(config) {
   }
 
   try {
-    // 1. Find supersales1 user
-    const user = await prisma.user.findFirst({
+    // 1. Find all supersales1 users
+    const users = await prisma.user.findMany({
       where: {
-        email: { equals: 'supersales1@himalayaerp.com', mode: 'insensitive' }
+        OR: [
+          { email: { equals: 'supersales1@himalayaerp.com', mode: 'insensitive' } },
+          { email: { contains: 'supersales1', mode: 'insensitive' } },
+          { name: { contains: 'SuperSales 1', mode: 'insensitive' } },
+          { name: { contains: 'Super Sales 1', mode: 'insensitive' } },
+          { name: { contains: 'SuperSales Lead', mode: 'insensitive' } },
+          { name: { contains: 'Super Sales Lead', mode: 'insensitive' } }
+        ]
       }
     });
 
-    if (!user) {
+    if (users.length === 0) {
       console.log(`❌ User supersales1@himalayaerp.com not found in ${config.name}.`);
       return;
     }
-    const userId = user.id;
-    console.log(`Resolved User: ${user.name} (${user.email}, ID: ${userId})`);
+    const allUserIds = users.map(u => u.id);
+    const userIdListStr = allUserIds.map(id => `'${id}'`).join(',');
+    console.log(`Resolved User(s): ${users.map(u => `${u.name} (${u.email}, ID: ${u.id})`).join(' | ')}`);
 
     // Helper to get columns for a table
     async function getColumns(tableName) {
@@ -49,13 +57,15 @@ async function wipeSuperSales1FromDb(config) {
 
     // 2. Identify all Leads related to SuperSales 1
     let leadWhereClauses = [];
-    if (leadCols.has('createdById')) leadWhereClauses.push(`"createdById" = '${userId}'`);
-    if (leadCols.has('salesExecutiveId')) leadWhereClauses.push(`"salesExecutiveId" = '${userId}'`);
-    if (leadCols.has('assignedToId')) leadWhereClauses.push(`"assignedToId" = '${userId}'`);
-    if (leadCols.has('salespersonId')) leadWhereClauses.push(`"salespersonId" = '${userId}'`);
+    if (leadCols.has('createdById')) leadWhereClauses.push(`"createdById" IN (${userIdListStr})`);
+    if (leadCols.has('salesExecutiveId')) leadWhereClauses.push(`"salesExecutiveId" IN (${userIdListStr})`);
+    if (leadCols.has('assignedToId')) leadWhereClauses.push(`"assignedToId" IN (${userIdListStr})`);
+    if (leadCols.has('salespersonId')) leadWhereClauses.push(`"salespersonId" IN (${userIdListStr})`);
     if (leadCols.has('remarks')) {
       leadWhereClauses.push(`"remarks" ILIKE '%Super Sales 1%'`);
       leadWhereClauses.push(`"remarks" ILIKE '%SuperSales 1%'`);
+      leadWhereClauses.push(`"remarks" ILIKE '%Super Sales Lead%'`);
+      leadWhereClauses.push(`"remarks" ILIKE '%SuperSales Lead%'`);
       leadWhereClauses.push(`"remarks" ILIKE '%Hussain%'`);
     }
 
@@ -69,12 +79,14 @@ async function wipeSuperSales1FromDb(config) {
 
     // 3. Identify all Quotations related to SuperSales 1
     let quoteWhereClauses = [];
-    if (quoteCols.has('createdById')) quoteWhereClauses.push(`"createdById" = '${userId}'`);
-    if (quoteCols.has('salesExecutiveId')) quoteWhereClauses.push(`"salesExecutiveId" = '${userId}'`);
+    if (quoteCols.has('createdById')) quoteWhereClauses.push(`"createdById" IN (${userIdListStr})`);
+    if (quoteCols.has('salesExecutiveId')) quoteWhereClauses.push(`"salesExecutiveId" IN (${userIdListStr})`);
     if (quoteCols.has('leadId') && leadIds.length > 0) quoteWhereClauses.push(`("leadId" IS NOT NULL AND "leadId" IN (${leadIdListStr}))`);
     if (quoteCols.has('remarks')) {
       quoteWhereClauses.push(`"remarks" ILIKE '%Super Sales 1%'`);
       quoteWhereClauses.push(`"remarks" ILIKE '%SuperSales 1%'`);
+      quoteWhereClauses.push(`"remarks" ILIKE '%Super Sales Lead%'`);
+      quoteWhereClauses.push(`"remarks" ILIKE '%SuperSales Lead%'`);
     }
 
     let quoteIds = [];
@@ -87,10 +99,16 @@ async function wipeSuperSales1FromDb(config) {
 
     // 4. Identify all Sales Orders related to SuperSales 1
     let orderWhereClauses = [];
-    if (orderCols.has('createdById')) orderWhereClauses.push(`"createdById" = '${userId}'`);
-    if (orderCols.has('salesExecutiveId')) orderWhereClauses.push(`"salesExecutiveId" = '${userId}'`);
+    if (orderCols.has('createdById')) orderWhereClauses.push(`"createdById" IN (${userIdListStr})`);
+    if (orderCols.has('salesExecutiveId')) orderWhereClauses.push(`"salesExecutiveId" IN (${userIdListStr})`);
     if (orderCols.has('quotationId') && quoteIds.length > 0) orderWhereClauses.push(`("quotationId" IS NOT NULL AND "quotationId" IN (${quoteIdListStr}))`);
     if (orderCols.has('sourceQuotationId') && quoteIds.length > 0) orderWhereClauses.push(`("sourceQuotationId" IS NOT NULL AND "sourceQuotationId" IN (${quoteIdListStr}))`);
+    if (orderCols.has('remarks')) {
+      orderWhereClauses.push(`"remarks" ILIKE '%Super Sales 1%'`);
+      orderWhereClauses.push(`"remarks" ILIKE '%SuperSales 1%'`);
+      orderWhereClauses.push(`"remarks" ILIKE '%Super Sales Lead%'`);
+      orderWhereClauses.push(`"remarks" ILIKE '%SuperSales Lead%'`);
+    }
 
     let orderIds = [];
     if (orderWhereClauses.length > 0) {
@@ -100,26 +118,44 @@ async function wipeSuperSales1FromDb(config) {
     const orderIdListStr = orderIds.length > 0 ? orderIds.map(id => `'${id}'`).join(',') : `''`;
     console.log(`Found ${orderIds.length} sales orders to wipe.`);
 
-    // 5. Identify all Production Plans related to Sales Orders
-    let planIds = [];
+    // 4b. Find SalesOrderItems
+    let soItemIds = [];
     if (orderIds.length > 0) {
       try {
-        const plans = await prisma.productionPlan.findMany({
+        const soItems = await prisma.salesOrderItem.findMany({
           where: { salesOrderId: { in: orderIds } },
+          select: { id: true }
+        });
+        soItemIds = soItems.map(i => i.id);
+      } catch (_) {}
+    }
+
+    // 5. Identify all Production Plans related to Sales Orders
+    let planIds = [];
+    if (orderIds.length > 0 || allUserIds.length > 0) {
+      try {
+        const plans = await prisma.productionPlan.findMany({
+          where: {
+            OR: [
+              ...(orderIds.length ? [{ salesOrderId: { in: orderIds } }] : []),
+              { assignedToId: { in: allUserIds } }
+            ]
+          },
           select: { id: true }
         });
         planIds = plans.map(p => p.id);
       } catch (_) {}
     }
 
-    // 6. Identify all Work Orders related to Production Plans or Sales Orders
+    // 6. Identify all Work Orders related to Production Plans, Sales Order Items, or Sales Orders
     let woIds = [];
     try {
       const wos = await prisma.workOrder.findMany({
         where: {
           OR: [
             ...(planIds.length ? [{ productionPlanId: { in: planIds } }] : []),
-            { createdById: userId }
+            ...(soItemIds.length ? [{ salesOrderItemId: { in: soItemIds } }] : []),
+            { createdById: { in: allUserIds } }
           ]
         },
         select: { id: true }
@@ -129,13 +165,13 @@ async function wipeSuperSales1FromDb(config) {
 
     // 7. Identify Dispatches related to Sales Orders
     let dispIds = [];
-    if (orderIds.length > 0) {
+    if (orderIds.length > 0 || allUserIds.length > 0) {
       try {
         const disps = await prisma.dispatch.findMany({
           where: {
             OR: [
-              { salesOrderId: { in: orderIds } },
-              { createdById: userId }
+              ...(orderIds.length ? [{ salesOrderId: { in: orderIds } }] : []),
+              { createdById: { in: allUserIds } }
             ]
           },
           select: { id: true }
@@ -144,36 +180,68 @@ async function wipeSuperSales1FromDb(config) {
       } catch (_) {}
     }
 
+    // 7b. Identify Invoices related to Sales Orders or Dispatches
+    let invIds = [];
+    if (orderIds.length > 0 || dispIds.length > 0 || allUserIds.length > 0) {
+      try {
+        const invoices = await prisma.salesInvoice.findMany({
+          where: {
+            OR: [
+              ...(orderIds.length ? [{ salesOrderId: { in: orderIds } }] : []),
+              ...(dispIds.length ? [{ dispatchId: { in: dispIds } }] : []),
+              { createdById: { in: allUserIds } }
+            ]
+          },
+          select: { id: true }
+        });
+        invIds = invoices.map(i => i.id);
+      } catch (_) {}
+    }
+
     // 8. Identify Customers created by SuperSales 1
     let custIds = [];
     try {
       const customers = await prisma.customer.findMany({
-        where: { createdById: userId },
+        where: { createdById: { in: allUserIds } },
         select: { id: true }
       });
       custIds = customers.map(c => c.id);
     } catch (_) {}
 
-    console.log(`Cascade dependencies: WorkOrders=${woIds.length}, ProductionPlans=${planIds.length}, Dispatches=${dispIds.length}, CustomersCreated=${custIds.length}`);
+    console.log(`Cascade dependencies: WorkOrders=${woIds.length}, ProductionPlans=${planIds.length}, Dispatches=${dispIds.length}, Invoices=${invIds.length}, CustomersCreated=${custIds.length}`);
+
+    // Helper for safe batch delete
+    const safeDel = async (table, col, ids) => {
+      if (!ids || ids.length === 0) return;
+      try {
+        await prisma.$executeRawUnsafe(`DELETE FROM "${table}" WHERE "${col}" IN ('${ids.join("','")}')`);
+      } catch (_) {}
+    };
+
+    // --- STEP 0: APPROVALS & ATTACHMENTS ---
+    const allEntityIds = [...leadIds, ...quoteIds, ...orderIds, ...planIds, ...woIds, ...dispIds, ...invIds];
+    if (allEntityIds.length > 0) {
+      try {
+        await prisma.$executeRawUnsafe(`DELETE FROM "Approval" WHERE "entityId" IN ('${allEntityIds.join("','")}')`);
+      } catch (_) {}
+      try {
+        await prisma.$executeRawUnsafe(`DELETE FROM "Attachment" WHERE "entityId" IN ('${allEntityIds.join("','")}')`);
+      } catch (_) {}
+    }
 
     // --- STEP A: DELETE WORK ORDER DEPENDENCIES ---
     if (woIds.length > 0) {
-      const safeDel = async (table, col) => {
-        try {
-          await prisma.$executeRawUnsafe(`DELETE FROM "${table}" WHERE "${col}" IN ('${woIds.join("','")}')`);
-        } catch (_) {}
-      };
-      await safeDel('QCInspection', 'workOrderId');
-      await safeDel('ProductionStatusHistory', 'workOrderId');
-      await safeDel('ProductionShiftEntry', 'workOrderId');
-      await safeDel('ProductionScrapEntry', 'workOrderId');
-      await safeDel('ProductionBatch', 'workOrderId');
-      await safeDel('FinishedGoods', 'workOrderId');
-      await safeDel('WorkOrderItem', 'workOrderId');
+      await safeDel('QCInspection', 'workOrderId', woIds);
+      await safeDel('ProductionStatusHistory', 'workOrderId', woIds);
+      await safeDel('ProductionShiftEntry', 'workOrderId', woIds);
+      await safeDel('ProductionScrapEntry', 'workOrderId', woIds);
+      await safeDel('ProductionBatch', 'workOrderId', woIds);
+      await safeDel('FinishedGoods', 'workOrderId', woIds);
+      await safeDel('WorkOrderItem', 'workOrderId', woIds);
 
       try {
         const delWo = await prisma.workOrder.deleteMany({ where: { id: { in: woIds } } });
-        console.log(`  ✓ Deleted ${delWo.count} work orders.`);
+        console.log(`  ✓ Deleted ${delWo.count} work orders & QC records.`);
       } catch (e) {
         console.warn('  ⚠️ WorkOrder delete:', e.message);
       }
@@ -181,9 +249,7 @@ async function wipeSuperSales1FromDb(config) {
 
     // --- STEP B: DELETE PRODUCTION PLANS ---
     if (planIds.length > 0) {
-      try {
-        await prisma.$executeRawUnsafe(`DELETE FROM "ProductionPlanItem" WHERE "productionPlanId" IN ('${planIds.join("','")}')`);
-      } catch (_) {}
+      await safeDel('ProductionPlanItem', 'productionPlanId', planIds);
       try {
         const delPp = await prisma.productionPlan.deleteMany({ where: { id: { in: planIds } } });
         console.log(`  ✓ Deleted ${delPp.count} production plans.`);
@@ -192,86 +258,102 @@ async function wipeSuperSales1FromDb(config) {
       }
     }
 
-    // --- STEP C: DELETE DISPATCHES & INVOICES ---
-    if (dispIds.length > 0 || orderIds.length > 0) {
-      const dispIdList = dispIds.length > 0 ? dispIds.map(id => `'${id}'`).join(',') : `''`;
-      
-      // 1. Delete InvoiceItems first
+    // --- STEP C: DELETE INVOICES & DISPATCHES ---
+    if (invIds.length > 0) {
+      await safeDel('PaymentAllocation', 'invoiceId', invIds);
+      await safeDel('InvoiceItem', 'invoiceId', invIds);
       try {
-        if (dispIds.length > 0) {
-          await prisma.$executeRawUnsafe(`DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "SalesInvoice" WHERE "dispatchId" IN (${dispIdList}))`);
-        }
-        if (orderIds.length > 0) {
-          await prisma.$executeRawUnsafe(`DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "SalesInvoice" WHERE "salesOrderId" IN (${orderIdListStr}))`);
-        }
-      } catch (e) {
-        console.warn('  ⚠️ InvoiceItem delete:', e.message);
-      }
-
-      // 2. Delete SalesInvoices
-      try {
-        if (dispIds.length > 0) {
-          await prisma.$executeRawUnsafe(`DELETE FROM "SalesInvoice" WHERE "dispatchId" IN (${dispIdList})`);
-        }
-        if (orderIds.length > 0) {
-          await prisma.$executeRawUnsafe(`DELETE FROM "SalesInvoice" WHERE "salesOrderId" IN (${orderIdListStr})`);
-        }
-        console.log(`  ✓ Deleted sales invoices.`);
+        const delInv = await prisma.salesInvoice.deleteMany({ where: { id: { in: invIds } } });
+        console.log(`  ✓ Deleted ${delInv.count} sales invoices.`);
       } catch (e) {
         console.warn('  ⚠️ SalesInvoice delete:', e.message);
       }
+    }
 
-      // 3. Delete DispatchItems
+    if (dispIds.length > 0) {
+      await safeDel('DispatchItem', 'dispatchId', dispIds);
       try {
-        if (dispIds.length > 0) {
-          await prisma.$executeRawUnsafe(`DELETE FROM "DispatchItem" WHERE "dispatchId" IN (${dispIdList})`);
-        }
-        if (orderIds.length > 0) {
-          await prisma.$executeRawUnsafe(`DELETE FROM "DispatchItem" WHERE "salesOrderItemId" IN (SELECT id FROM "SalesOrderItem" WHERE "salesOrderId" IN (${orderIdListStr}))`);
-        }
-      } catch (e) {
-        console.warn('  ⚠️ DispatchItem delete:', e.message);
-      }
-
-      // 4. Delete Dispatches
-      try {
-        if (dispIds.length > 0) {
-          const delDisp = await prisma.dispatch.deleteMany({ where: { id: { in: dispIds } } });
-          console.log(`  ✓ Deleted ${delDisp.count} dispatches.`);
-        }
-        if (orderIds.length > 0) {
-          await prisma.$executeRawUnsafe(`DELETE FROM "Dispatch" WHERE "salesOrderId" IN (${orderIdListStr})`);
-        }
+        const delDisp = await prisma.dispatch.deleteMany({ where: { id: { in: dispIds } } });
+        console.log(`  ✓ Deleted ${delDisp.count} dispatches.`);
       } catch (e) {
         console.warn('  ⚠️ Dispatch delete:', e.message);
       }
     }
 
+    if (orderIds.length > 0) {
+      await safeDel('DispatchItem', 'salesOrderItemId', soItemIds);
+      await safeDel('Dispatch', 'salesOrderId', orderIds);
+      await safeDel('SalesInvoice', 'salesOrderId', orderIds);
+    }
+
     // --- STEP D: DELETE ALL SALES ORDER CHILD TABLES ---
     if (orderIds.length > 0) {
-      const safeDelSo = async (table, col = 'salesOrderId') => {
-        try {
-          await prisma.$executeRawUnsafe(`DELETE FROM "${table}" WHERE "${col}" IN ('${orderIds.join("','")}')`);
-        } catch (_) {}
-      };
+      // 1. Returns & Replacements & Complaints
+      let salesReturnIds = [];
+      try {
+        const sr = await prisma.salesReturn.findMany({ where: { salesOrderId: { in: orderIds } }, select: { id: true } });
+        salesReturnIds = sr.map(r => r.id);
+      } catch (_) {}
 
-      await safeDelSo('CustomerComplaintItem', 'orderId');
-      await safeDelSo('CustomerComplaint', 'orderId');
-      await safeDelSo('CustomerPaymentAllocation');
-      await safeDelSo('CustomerPayment');
-      await safeDelSo('Payment');
-      await safeDelSo('OrderAmendment');
-      await safeDelSo('ReplacementRequestItem', 'orderId');
-      await safeDelSo('ReplacementOrder', 'originalSalesOrderId');
-      await safeDelSo('ReplacementRequest');
-      await safeDelSo('SalesOrderAllocation');
-      await safeDelSo('SalesOrderCreditReview');
-      await safeDelSo('SalesOrderHistory');
-      await safeDelSo('SalesReturnItem', 'salesOrderId');
-      await safeDelSo('SalesReturn');
-      await safeDelSo('FinishedGoods');
-      await safeDelSo('SalesOrderItem');
-      await safeDelSo('SalesOrderLoss');
+      if (salesReturnIds.length > 0) {
+        await safeDel('ReturnGateEntry', 'salesReturnId', salesReturnIds);
+        await safeDel('CreditNote', 'salesReturnId', salesReturnIds);
+        try {
+          const retQcs = await prisma.returnQcInspection.findMany({ where: { salesReturnId: { in: salesReturnIds } }, select: { id: true } });
+          const retQcIds = retQcs.map(q => q.id);
+          if (retQcIds.length > 0) {
+            await safeDel('ReturnQcInspectionItem', 'returnQcInspectionId', retQcIds);
+            await safeDel('ReturnQcInspection', 'id', retQcIds);
+          }
+        } catch (_) {}
+        await safeDel('SalesReturnItem', 'salesReturnId', salesReturnIds);
+        await safeDel('SalesReturn', 'id', salesReturnIds);
+      }
+
+      let repReqIds = [];
+      try {
+        const rr = await prisma.replacementRequest.findMany({ where: { salesOrderId: { in: orderIds } }, select: { id: true } });
+        repReqIds = rr.map(r => r.id);
+      } catch (_) {}
+
+      if (repReqIds.length > 0) {
+        let repOrderIds = [];
+        try {
+          const ro = await prisma.replacementOrder.findMany({ where: { replacementRequestId: { in: repReqIds } }, select: { id: true } });
+          repOrderIds = ro.map(o => o.id);
+        } catch (_) {}
+        if (repOrderIds.length > 0) {
+          await safeDel('ReplacementOrderHistory', 'replacementOrderId', repOrderIds);
+          await safeDel('ReplacementOrderItem', 'replacementOrderId', repOrderIds);
+          await safeDel('ReplacementOrder', 'id', repOrderIds);
+        }
+        await safeDel('ReplacementRequestItem', 'replacementRequestId', repReqIds);
+        await safeDel('ReplacementRequest', 'id', repReqIds);
+      }
+
+      let complaintIds = [];
+      try {
+        const cc = await prisma.customerComplaint.findMany({ where: { orderId: { in: orderIds } }, select: { id: true } });
+        complaintIds = cc.map(c => c.id);
+      } catch (_) {}
+
+      if (complaintIds.length > 0) {
+        await safeDel('CustomerComplaintItem', 'complaintId', complaintIds);
+        await safeDel('CustomerComplaint', 'id', complaintIds);
+      }
+
+      await safeDel('CustomerComplaintItem', 'orderId', orderIds);
+      await safeDel('CustomerComplaint', 'orderId', orderIds);
+      await safeDel('CustomerPaymentAllocation', 'salesOrderId', orderIds);
+      await safeDel('CustomerPayment', 'salesOrderId', orderIds);
+      await safeDel('Payment', 'salesOrderId', orderIds);
+      await safeDel('OrderAmendment', 'salesOrderId', orderIds);
+      await safeDel('SalesOrderAllocation', 'salesOrderId', orderIds);
+      await safeDel('SalesOrderCreditReview', 'salesOrderId', orderIds);
+      await safeDel('SalesOrderHistory', 'salesOrderId', orderIds);
+      await safeDel('FinishedGoods', 'salesOrderId', orderIds);
+      await safeDel('SalesOrderItem', 'salesOrderId', orderIds);
+      await safeDel('SalesOrderLoss', 'salesOrderId', orderIds);
 
       try {
         const delSo = await prisma.salesOrder.deleteMany({ where: { id: { in: orderIds } } });
@@ -289,9 +371,7 @@ async function wipeSuperSales1FromDb(config) {
       try {
         await prisma.quotationTerm.deleteMany({ where: { quotationId: { in: quoteIds } } });
       } catch (_) {}
-      try {
-        await prisma.$executeRawUnsafe(`DELETE FROM "QuotationRevision" WHERE "quotationId" IN ('${quoteIds.join("','")}')`);
-      } catch (_) {}
+      await safeDel('QuotationRevision', 'quotationId', quoteIds);
       try {
         const delQ = await prisma.quotation.deleteMany({ where: { id: { in: quoteIds } } });
         console.log(`  ✓ Deleted ${delQ.count} quotations.`);
@@ -302,12 +382,8 @@ async function wipeSuperSales1FromDb(config) {
 
     // --- STEP F: DELETE LEADS & LEAD DEPENDENCIES ---
     if (leadIds.length > 0) {
-      try {
-        await prisma.$executeRawUnsafe(`DELETE FROM "FollowUp" WHERE "leadId" IN ('${leadIds.join("','")}')`);
-      } catch (_) {}
-      try {
-        await prisma.$executeRawUnsafe(`DELETE FROM "LeadActivity" WHERE "leadId" IN ('${leadIds.join("','")}')`);
-      } catch (_) {}
+      await safeDel('FollowUp', 'leadId', leadIds);
+      await safeDel('LeadActivity', 'leadId', leadIds);
       try {
         await prisma.$executeRawUnsafe(`DELETE FROM "SampleHistory" WHERE "sampleRequestId" IN (SELECT id FROM "SampleRequest" WHERE "leadId" IN ('${leadIds.join("','")}'))`);
         await prisma.$executeRawUnsafe(`DELETE FROM "SampleItem" WHERE "sampleRequestId" IN (SELECT id FROM "SampleRequest" WHERE "leadId" IN ('${leadIds.join("','")}'))`);
@@ -329,7 +405,6 @@ async function wipeSuperSales1FromDb(config) {
     if (custIds.length > 0) {
       try {
         for (const cid of custIds) {
-          // Check if any other order/quote/lead is still using this customer
           const otherOrders = await prisma.salesOrder.count({ where: { customerId: cid } });
           const otherQuotes = await prisma.quotation.count({ where: { customerId: cid } });
           const otherLeads = await prisma.lead.count({ where: { customerId: cid } });
@@ -337,24 +412,24 @@ async function wipeSuperSales1FromDb(config) {
             await prisma.customer.delete({ where: { id: cid } });
           }
         }
-        console.log(`  ✓ Cleaned up customers created by SuperSales 1.`);
+        console.log(`  ✓ Cleaned up customer records created by SuperSales 1.`);
       } catch (e) {
         console.warn('  ⚠️ Customer cleanup:', e.message);
       }
     }
 
-    // --- STEP H: DELETE USER-LEVEL REMAINING DATA ---
+    // --- STEP H: DELETE USER-LEVEL RESIDUAL DATA ---
     try {
-      await prisma.sampleRequest.deleteMany({ where: { createdById: userId } });
-      await prisma.reminder.deleteMany({ where: { userId: userId } });
-      await prisma.notification.deleteMany({ where: { userId: userId } });
-      await prisma.customerComplaint.deleteMany({ where: { createdBy: userId } });
-      await prisma.salesTarget.deleteMany({ where: { salespersonId: userId } });
-      await prisma.deviceSession.deleteMany({ where: { userId: userId } });
-      await prisma.refreshSession.deleteMany({ where: { userId: userId } });
+      await prisma.sampleRequest.deleteMany({ where: { createdById: { in: allUserIds } } });
+      await prisma.reminder.deleteMany({ where: { userId: { in: allUserIds } } });
+      await prisma.notification.deleteMany({ where: { userId: { in: allUserIds } } });
+      await prisma.customerComplaint.deleteMany({ where: { createdBy: { in: allUserIds } } });
+      await prisma.salesTarget.deleteMany({ where: { salespersonId: { in: allUserIds } } });
+      await prisma.deviceSession.deleteMany({ where: { userId: { in: allUserIds } } });
+      await prisma.refreshSession.deleteMany({ where: { userId: { in: allUserIds } } });
     } catch (_) {}
 
-    console.log(`\n🎉 [${config.name}] ALL SUPERSALES 1 DATA AND ITS COMPLETE PIPELINE HAVE BEEN PERMANENTLY REMOVED!`);
+    console.log(`\n🎉 [${config.name}] ALL SUPERSALES 1 DATA (LEAD -> QUOTE -> ORDER -> PLANT HEAD -> QC -> DISPATCH) REMOVED!`);
   } catch (err) {
     console.error(`❌ Error wiping ${config.name}:`, err.message);
   } finally {
@@ -368,6 +443,16 @@ async function main() {
 
   if (process.env.DATABASE_URL) {
     targetDbs.push({ name: 'Configured DATABASE_URL', url: process.env.DATABASE_URL });
+    if (process.env.DATABASE_URL.includes('@postgres:')) {
+      targetDbs.push({
+        name: 'Host Localhost Fallback (from @postgres:)',
+        url: process.env.DATABASE_URL.replace('@postgres:', '@localhost:')
+      });
+      targetDbs.push({
+        name: 'Host 127.0.0.1 Fallback (from @postgres:)',
+        url: process.env.DATABASE_URL.replace('@postgres:', '@127.0.0.1:')
+      });
+    }
   }
   if (process.env.LIVE_DATABASE_URL) {
     targetDbs.push({ name: 'Live Database', url: process.env.LIVE_DATABASE_URL });
@@ -400,3 +485,4 @@ async function main() {
 }
 
 main().catch(console.error);
+
