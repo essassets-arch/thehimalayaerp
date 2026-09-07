@@ -40,7 +40,7 @@ if [ -n "$CONTAINER_NAME" ]; then
     docker cp backend/scripts/sync_supersales1_accurate_live.js "$CONTAINER_NAME":/app/ || true
     
     echo "Executing sync script in container..."
-    docker exec -i "$CONTAINER_NAME" node scripts/sync_supersales1_accurate_live.js || docker exec -i "$CONTAINER_NAME" node sync_supersales1_accurate_live.js
+    docker exec -i "$CONTAINER_NAME" node scripts/sync_supersales1_accurate_live.js
 
 elif docker compose ps --services --filter "status=running" 2>/dev/null | grep -q "backend"; then
     echo "Copying files via docker compose..."
