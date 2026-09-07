@@ -405,6 +405,11 @@ export function mapSalesOrder(
 
     dispatches: order.dispatches || [],
 
+    lostReason: (order as any).lostReason ?? undefined,
+    lostAt: (order as any).lostAt ? ((order as any).lostAt instanceof Date ? (order as any).lostAt.toISOString() : (order as any).lostAt) : undefined,
+    lostComplaintId: (order as any).lostComplaintId ?? undefined,
+    lossRecord: (order as any).lossRecord ?? undefined,
+
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
     version: order.version,

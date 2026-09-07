@@ -223,6 +223,7 @@ export class SalesService {
             orderBy: { requestedAt: 'desc' },
           },
           customerPayments: true,
+          lossRecord: true,
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -468,7 +469,7 @@ export class SalesService {
     const orders = await this.prisma.salesOrder.findMany({
       where: {
         deletedAt: null,
-        status: { not: 'CANCELLED' },
+        status: { notIn: ['CANCELLED', 'LOST'] },
         ...scope,
       },
       include: {

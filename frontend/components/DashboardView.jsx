@@ -257,7 +257,19 @@ export default function DashboardView({
     return isTimeWithinFilter(itemDate.getTime());
   };
 
-  const effectivePayments = orders.map(o => {
+  // Order helpers
+  const orderValue = (order) => Number(order?.grandTotal ?? order?.grand_total ?? order?.totalValue ?? order?.totalAmount ?? order?.total_amount ?? order?.total ?? order?.invoiceAmount ?? order?.payment?.totalAmount ?? 0);
+  const orderQuantity = (order) => Number(order?.quantity || order?.totalQuantity || order?.qty || (Array.isArray(order?.items) ? order.items.reduce((sum, item) => sum + Number(item.quantity || item.qty || 0), 0) : 0));
+
+  const isLostOrder = (order) => {
+    if (!order) return false;
+    const status = String(order.workflowStatus || order.orderStatus || order.status || order.workflowState?.code || order.workflowState?.name || '').toUpperCase().replace(/\s+/g, '_');
+    return status === 'LOST' || status.includes('LOST') || status === 'CANCELLED-LOSS' || Boolean(order.lostReason) || Boolean(order.lossRecord) || Boolean(order.lostComplaintId);
+  };
+
+  const effectivePayments = orders
+    .filter(o => !isLostOrder(o) && !['cancelled', 'void', 'draft'].includes(String(o.status || o.workflowStatus || o.orderStatus || '').toLowerCase()))
+    .map(o => {
     const total = Number(o.payment?.totalAmount || o.grandTotal || o.totalAmount || o.totalValue || o.total || 0);
     const payStatus = String(o.paymentStatus || '').trim().toLowerCase();
     
@@ -408,22 +420,15 @@ export default function DashboardView({
   }).length;
 
   const paymentPendingOrdersCount = filteredOrders.filter(o => {
+    if (isLostOrder(o)) return false;
     const s = String(o.workflowStatus || o.orderStatus || o.status || o.paymentStatus || '').toUpperCase();
+    if (['CANCELLED', 'VOID', 'DRAFT', 'LOST'].includes(s)) return false;
     const outstanding = Number(o.outstandingAmount ?? (Number(o.grandTotal || o.totalAmount || 0) - Number(o.verifiedPaidAmount || o.paidAmount || 0)));
     return s.includes('PAYMENT') || s.includes('PENDING') || s.includes('PARTIAL') || outstanding > 0;
   }).length;
 
   // ──🔹 FOURTH ROW: Performance metrics ──
   const paymentVerificationCount = filteredPayments.filter(p => p.verified === 'Pending' || p.status === 'Pending').length;
-  
-  const orderValue = (order) => Number(order.grandTotal ?? order.grand_total ?? order.totalValue ?? order.totalAmount ?? order.total_amount ?? order.total ?? order.invoiceAmount ?? order.payment?.totalAmount ?? 0);
-  const orderQuantity = (order) => Number(order.quantity || order.totalQuantity || order.qty || (Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + Number(item.quantity || item.qty || 0), 0) : 0));
-
-  const isLostOrder = (order) => {
-    if (!order) return false;
-    const status = String(order.workflowStatus || order.orderStatus || order.status || order.workflowState?.code || order.workflowState?.name || '').toUpperCase().replace(/\s+/g, '_');
-    return status === 'LOST' || status.includes('LOST') || status === 'CANCELLED-LOSS' || Boolean(order.lostReason) || Boolean(order.lossRecord);
-  };
 
   // An order is counted in "My Sales" when sent to Plant Head or beyond
   const isWonOrderSentToPlant = (order) => {
@@ -450,8 +455,9 @@ export default function DashboardView({
   const targetAchievement = targetData?.achievement ?? (salesTarget > 0 ? (mySalesTotal / salesTarget) * 100 : 0);
 
   const isConfirmedSalesOrder = (order) => {
+    if (!order || isLostOrder(order)) return false;
     const status = String(order.workflowStatus || order.orderStatus || order.status || '').toUpperCase().replace(/\s+/g, '_');
-    return !['', 'DRAFT', 'CANCELLED', 'VOID', 'REJECTED', 'PENDING'].includes(status) &&
+    return !['', 'DRAFT', 'CANCELLED', 'VOID', 'REJECTED', 'PENDING', 'LOST'].includes(status) &&
       (status.includes('CONFIRM') || status.includes('APPROV') || isWonOrderSentToPlant(order));
   };
   const nowForSales = new Date();
@@ -486,11 +492,23 @@ export default function DashboardView({
     .reduce((sum, p) => sum + Number(p.paymentAmount || p.totalAmount || p.amount || 0), 0);
 
   // ──🔹 Dynamic & Accurate Payment Summary Metrics ──
-  const totalPaymentAmount = filteredOrders.reduce((sum, o) => {
+  // Non-cancelled/void orders in the period
+  const eligiblePaymentOrders = filteredOrders.filter(o => 
+    !['cancelled', 'void', 'draft'].includes(String(o.status || o.workflowStatus || o.orderStatus || '').toLowerCase())
+  );
+
+  // Active non-lost orders
+  const activePayableOrders = eligiblePaymentOrders.filter(o => !isLostOrder(o));
+
+  // Gross orders value before lost sales deduction
+  const grossPaymentAmount = eligiblePaymentOrders.reduce((sum, o) => {
     return sum + Number(o.grandTotal ?? o.totalAmount ?? o.payment?.totalAmount ?? o.totalValue ?? 0);
   }, 0) || filteredPayments.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0);
 
-  const totalPaymentReceivedAmount = filteredOrders.reduce((sum, o) => {
+  // Total Payment amount with Lost Sales (Complaint loss) deducted
+  const totalPaymentAmount = Math.max(0, grossPaymentAmount - lostSalesTotal);
+
+  const totalPaymentReceivedAmount = activePayableOrders.reduce((sum, o) => {
     const paid = Number(o.verifiedPaidAmount ?? o.payment?.paidAmount ?? o.payment?.paid ?? 0);
     if (paid > 0) return sum + paid;
     const payStatus = String(o.paymentStatus || '').toLowerCase();
@@ -500,10 +518,11 @@ export default function DashboardView({
     return sum;
   }, 0) || filteredPayments.reduce((sum, p) => sum + Number(p.paidAmount || p.paymentAmount || 0), 0);
 
+  // Due amount automatically accounts for lost orders deduction
   const totalPaymentDueAmount = Math.max(0, totalPaymentAmount - totalPaymentReceivedAmount);
 
   const totalCustomersCount = new Set([
-    ...filteredOrders.map(o => (o.customerName || o.customer?.companyName || o.customer?.name || o.clientName || '').trim()),
+    ...activePayableOrders.map(o => (o.customerName || o.customer?.companyName || o.customer?.name || o.clientName || '').trim()),
     ...filteredPayments.map(p => (p.customerName || '').trim()),
     ...filteredLeads.map(l => (l.companyName || l.customerName || '').trim())
   ].filter(Boolean)).size || (customers?.length || 0);
@@ -830,10 +849,22 @@ export default function DashboardView({
                   display: 'flex', flexDirection: 'column', gap: '6px',
                   boxShadow: '0 2px 6px rgba(99,102,241,0.08)'
                 }}>
-                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#4f46e5' }}>Total Payment</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#4f46e5' }}>Total Payment</span>
+                    {lostSalesTotal > 0 && (
+                      <span style={{ fontSize: '10px', color: '#dc2626', background: '#fee2e2', padding: '1px 6px', borderRadius: '8px', fontWeight: '700' }} title="Complaint loss deducted">
+                        - {formatINR(lostSalesTotal)} Loss Deducted
+                      </span>
+                    )}
+                  </div>
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#3730a3' }}>
                     {formatINR(totalPaymentAmount)}
                   </span>
+                  {lostSalesTotal > 0 && (
+                    <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                      Net collection target ({lostOrdersCount} lost {lostOrdersCount === 1 ? 'order' : 'orders'} deducted)
+                    </span>
+                  )}
                 </div>
 
                 {/* 2. Total Payment Due */}
@@ -844,10 +875,22 @@ export default function DashboardView({
                   display: 'flex', flexDirection: 'column', gap: '6px',
                   boxShadow: '0 2px 6px rgba(239,68,68,0.08)'
                 }}>
-                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#ef4444' }}>Total Payment Due</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#ef4444' }}>Total Payment Due</span>
+                    {lostSalesTotal > 0 && (
+                      <span style={{ fontSize: '10px', color: '#15803d', background: '#dcfce7', padding: '1px 6px', borderRadius: '8px', fontWeight: '700' }}>
+                        Loss Excluded
+                      </span>
+                    )}
+                  </div>
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#dc2626' }}>
                     {formatINR(totalPaymentDueAmount)}
                   </span>
+                  {lostSalesTotal > 0 && (
+                    <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
+                      Excludes {formatINR(lostSalesTotal)} complaint loss
+                    </span>
+                  )}
                 </div>
 
                 {/* 3. Total Customers */}
@@ -1128,6 +1171,11 @@ export default function DashboardView({
                   <span style={{ fontSize: '15px', fontWeight: '900', color: '#3730a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {formatINR(totalPaymentAmount)}
                   </span>
+                  {lostSalesTotal > 0 && (
+                    <span style={{ fontSize: '9px', color: '#dc2626', fontWeight: '700' }}>
+                      -{formatINR(lostSalesTotal)} loss deducted
+                    </span>
+                  )}
                 </div>
 
                 {/* Total Payment Due */}
@@ -1140,6 +1188,11 @@ export default function DashboardView({
                   <span style={{ fontSize: '15px', fontWeight: '900', color: '#dc2626', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {formatINR(totalPaymentDueAmount)}
                   </span>
+                  {lostSalesTotal > 0 && (
+                    <span style={{ fontSize: '9px', color: '#15803d', fontWeight: '700' }}>
+                      Loss excluded
+                    </span>
+                  )}
                 </div>
 
                 {/* Total Customers */}
@@ -1187,6 +1240,21 @@ export default function DashboardView({
                     {formatINR(mySalesTotal)}
                   </span>
                   <span style={{ fontSize: '9.5px', color: '#10b981', fontWeight: '700' }}>{wonOrdersCount} Won Orders</span>
+                </div>
+
+                {/* Lost Sales */}
+                <div className="mobile-2col-card" onClick={() => handleNav('/sales/customer-complaints')} style={{
+                  cursor: 'pointer', background: '#ffffff', border: '1px solid #fee2e2', borderLeft: '4px solid #ef4444',
+                  padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
+                  boxShadow: 'var(--shadow-card)'
+                }}>
+                  <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#dc2626' }}>Lost Sales</span>
+                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#b91c1c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {formatINR(lostSalesTotal)}
+                  </span>
+                  <span style={{ fontSize: '9.5px', color: '#991b1b', fontWeight: '700' }}>
+                    {lostOrdersCount} {lostOrdersCount === 1 ? 'Lost Order' : 'Lost Orders'}
+                  </span>
                 </div>
 
                 {/* Target Achieved */}
