@@ -343,7 +343,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
     const script = document.createElement('script');
     script.id = 'google-maps-api-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry,places`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry,places&loading=async`;
     script.async = true;
     script.defer = true;
     script.addEventListener('load', () => {

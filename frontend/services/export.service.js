@@ -93,9 +93,13 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
       }
 
       if (base64Payload) {
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('auth_token') || sessionStorage.getItem('token')) : null;
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
         const response = await fetch('/api/backend/files/export-download', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             filename,
             mimeType,
@@ -2145,31 +2149,32 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
     let dataUrl;
 
     try {
-      const canvas = await html2canvas(clone, {
-        scale: 2,
+      // Primary: htmlToImage supports modern CSS functions (oklch, color-mix, lab, etc.)
+      dataUrl = await htmlToImage.toPng(clone, {
+        pixelRatio: 2,
         width: 794,
         height: clone.scrollHeight || 1123,
-        windowWidth: 794,
-        windowHeight: clone.scrollHeight || 1123,
         backgroundColor: '#ffffff',
-        useCORS: true,
-        allowTaint: true,
-        logging: false
+        cacheBust: true,
       });
-      dataUrl = canvas.toDataURL('image/png');
-      blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const response = await fetch(dataUrl);
+      blob = await response.blob();
     } catch (primaryErr) {
-      console.warn('html2canvas capture failed, trying htmlToImage:', primaryErr);
+      console.warn('htmlToImage primary capture failed, trying html2canvas fallback:', primaryErr);
       try {
-        dataUrl = await htmlToImage.toPng(clone, {
-          pixelRatio: 2,
+        const canvas = await html2canvas(clone, {
+          scale: 2,
           width: 794,
           height: clone.scrollHeight || 1123,
+          windowWidth: 794,
+          windowHeight: clone.scrollHeight || 1123,
           backgroundColor: '#ffffff',
-          cacheBust: true,
+          useCORS: true,
+          allowTaint: true,
+          logging: false
         });
-        const response = await fetch(dataUrl);
-        blob = await response.blob();
+        dataUrl = canvas.toDataURL('image/png');
+        blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
       } catch (fallbackErr) {
         console.error('All image export engines failed:', fallbackErr);
         throw fallbackErr;

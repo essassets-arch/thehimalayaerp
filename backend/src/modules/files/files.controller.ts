@@ -199,6 +199,7 @@ export class FilesController {
    * Universal export endpoint for mobile APK / Web download:
    * POST /api/v1/files/export-download
    */
+  @Public()
   @Post('export-download')
   async createExportDownload(@Body() body: any) {
     return this.filesService.saveExportPayload(body);
