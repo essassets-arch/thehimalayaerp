@@ -4,16 +4,26 @@ export interface SalesOrderItemResponseDto {
   id: string;
   productId: string;
   productName: string;
+  productNameSnapshot?: string | null;
   productCode: string | null;
+  productCodeSnapshot?: string | null;
+  productType?: string;
+  isTrading?: boolean;
   orderedQuantity: number;
   unit: string;
   unitPrice: number;
+  taxableAmount?: number;
+  taxRate?: number;
+  taxAmount?: number;
+  discountAmount?: number;
   lineTotal: number;
-  // Quantities are now computed from child documents (DispatchItem, SalesReturnItem, etc.)
-  // These are returned as computed summaries from the service, not stored DB fields.
+  // Quantities computed from child documents
   deliveredQuantity?: number;
   returnedQuantity?: number;
   replacedQuantity?: number;
+  availableForReturn?: number;
+  availableForReplacement?: number;
+  fulfillment?: any;
 }
 
 export interface SalesOrderResponseDto {
@@ -73,6 +83,14 @@ export interface SalesOrderResponseDto {
   invoice_number?: string | null;
   remarks?: string;
   dispatches?: any[];
+  productionPlans?: any[];
+  workOrders?: any[];
+  invoices?: any[];
+  histories?: any[];
+  quotation?: any;
+  quotationNumber?: string | null;
+  lead?: any;
+  leadNumber?: string | null;
 
   lostReason?: string | null;
   lostAt?: string | null;
