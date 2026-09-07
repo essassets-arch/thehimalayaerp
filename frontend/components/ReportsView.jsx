@@ -20,7 +20,116 @@ import { useERP } from '../shared/context/ERPContext';
 import { apiClient } from '../lib/apiClient';
 import { exportSalesReportPDF, exportToCSV } from '../services/export.service';
 
-export default function ReportsView({ leads = [], orders = [], payments = [], customers = [], user }) {
+/**
+ * Universal ID Resolvers for Sales Reports
+ * Formats:
+ *  - Lead ID: LEAD/2627/0291, LD/2627/0291, etc.
+ *  - Quotation ID: QT/2627/0194, QTN/2627/0194, QU/2627/0194, etc.
+ *  - Order ID: HCPPL/2627/0195, HCCL/2627/0195, SO/2627/0195, etc.
+ */
+export const resolveLeadNumber = (lead) => {
+  if (!lead) return '—';
+  if (typeof lead === 'string') {
+    const trimmed = lead.trim();
+    if (!trimmed) return '—';
+    if (trimmed.startsWith('LEAD/') || trimmed.startsWith('LD/') || trimmed.startsWith('LEAD-') || trimmed.startsWith('LD-')) return trimmed;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+      return `LEAD-${trimmed.slice(0, 8).toUpperCase()}`;
+    }
+    if (/^\d+$/.test(trimmed)) {
+      return `LEAD/2627/${trimmed.padStart(4, '0')}`;
+    }
+    return trimmed;
+  }
+  const num = lead.leadNumber || lead.lead_number || lead.leadNo || lead.lead_no || lead.reference;
+  if (num && typeof num === 'string' && num.trim()) {
+    return num.trim();
+  }
+  if (lead.id !== undefined && lead.id !== null) {
+    const idStr = String(lead.id).trim();
+    if (idStr.startsWith('LEAD/') || idStr.startsWith('LD/') || idStr.startsWith('LEAD-') || idStr.startsWith('LD-')) {
+      return idStr;
+    }
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr)) {
+      return `LEAD-${idStr.slice(0, 8).toUpperCase()}`;
+    }
+    if (/^\d+$/.test(idStr)) {
+      return `LEAD/2627/${idStr.padStart(4, '0')}`;
+    }
+    return `LEAD-${idStr}`;
+  }
+  return '—';
+};
+
+export const resolveQuotationNumber = (q) => {
+  if (!q) return '—';
+  if (typeof q === 'string') {
+    const trimmed = q.trim();
+    if (!trimmed) return '—';
+    if (trimmed.startsWith('QT/') || trimmed.startsWith('QU/') || trimmed.startsWith('QTN/') || trimmed.startsWith('QT-') || trimmed.startsWith('QTN-')) return trimmed;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+      return `QTN-${trimmed.slice(0, 8).toUpperCase()}`;
+    }
+    if (/^\d+$/.test(trimmed)) {
+      return `QT/2627/${trimmed.padStart(4, '0')}`;
+    }
+    return trimmed;
+  }
+  const num = q.quotationNumber || q.quotation_number || q.quotationNo || q.quotation_no || q.quoteNo;
+  if (num && typeof num === 'string' && num.trim()) {
+    return num.trim();
+  }
+  if (q.id !== undefined && q.id !== null) {
+    const idStr = String(q.id).trim();
+    if (idStr.startsWith('QT/') || idStr.startsWith('QU/') || idStr.startsWith('QTN/') || idStr.startsWith('QT-') || idStr.startsWith('QTN-') || idStr.startsWith('HCCL/')) {
+      return idStr;
+    }
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr)) {
+      return `QTN-${idStr.slice(0, 8).toUpperCase()}`;
+    }
+    if (/^\d+$/.test(idStr)) {
+      return `QT/2627/${idStr.padStart(4, '0')}`;
+    }
+    return `QT-${idStr}`;
+  }
+  return '—';
+};
+
+export const resolveOrderNumber = (order) => {
+  if (!order) return '—';
+  if (typeof order === 'string') {
+    const trimmed = order.trim();
+    if (!trimmed) return '—';
+    if (trimmed.startsWith('HCPPL/') || trimmed.startsWith('HCCL/') || trimmed.startsWith('SO/') || trimmed.startsWith('ORD/') || trimmed.startsWith('ORD-') || trimmed.startsWith('SO-')) return trimmed;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+      return `HCPPL-${trimmed.slice(0, 8).toUpperCase()}`;
+    }
+    if (/^\d+$/.test(trimmed)) {
+      return `HCPPL/2627/${trimmed.padStart(4, '0')}`;
+    }
+    return trimmed;
+  }
+  const num = order.orderNumber || order.order_number || order.orderNo || order.order_no || order.salesOrderNumber;
+  if (num && typeof num === 'string' && num.trim()) {
+    return num.trim();
+  }
+  if (order.id !== undefined && order.id !== null) {
+    const idStr = String(order.id).trim();
+    if (idStr.startsWith('HCPPL/') || idStr.startsWith('HCCL/') || idStr.startsWith('SO/') || idStr.startsWith('ORD/') || idStr.startsWith('ORD-') || idStr.startsWith('SO-')) {
+      return idStr;
+    }
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr)) {
+      return `HCPPL-${idStr.slice(0, 8).toUpperCase()}`;
+    }
+    if (/^\d+$/.test(idStr)) {
+      return `HCPPL/2627/${idStr.padStart(4, '0')}`;
+    }
+    return `HCPPL-${idStr}`;
+  }
+  return '—';
+};
+
+export default function ReportsView({ leads = [], orders = [], payments = [], customers = [], quotations = [], user }) {
   const { state } = useERP();
   const settings = state?.settings || {};
 
@@ -67,7 +176,6 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   }, [dateFrom, dateTo]);
 
   // Role detection
-  // Role detection
   const isSalesAdmin = 
     user?.role === 'Sales Admin' || 
     user?.role === 'Super Admin' || 
@@ -78,7 +186,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     String(user?.role || '').toLowerCase().includes('admin');
   const myName = user?.name || '';
 
-  // Extract salesperson name from order or lead
+  // Extract salesperson name from order or lead or quotation
   const getSalespersonName = (item) => {
     if (!item) return '';
     if (user?.id && (item.createdById === user.id || item.salesExecutiveId === user.id)) {
@@ -98,7 +206,13 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     ).trim();
   };
 
-  // Discover all distinct salespeople across orders, leads, settings, and team
+  const allQuotations = useMemo(() => {
+    if (Array.isArray(quotations) && quotations.length > 0) return quotations;
+    if (Array.isArray(state?.sales?.quotations) && state.sales.quotations.length > 0) return state.sales.quotations;
+    return [];
+  }, [quotations, state?.sales?.quotations]);
+
+  // Discover all distinct salespeople across orders, leads, quotations, settings, and team
   const discoveredSalespeople = useMemo(() => {
     const namesSet = new Set();
     if (myName) namesSet.add(myName);
@@ -113,6 +227,11 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       if (n && n !== 'Sales' && n !== 'Salesperson') namesSet.add(n);
     });
 
+    allQuotations.forEach(q => {
+      const n = getSalespersonName(q);
+      if (n && n !== 'Sales' && n !== 'Salesperson') namesSet.add(n);
+    });
+
     if (settings.salesTargets && typeof settings.salesTargets === 'object') {
       Object.keys(settings.salesTargets).forEach(k => {
         if (k && isNaN(Number(k))) namesSet.add(k);
@@ -120,7 +239,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     }
 
     return Array.from(namesSet);
-  }, [orders, leads, settings, myName]);
+  }, [orders, leads, allQuotations, settings, myName]);
 
   const [selectedSalesperson, setSelectedSalesperson] = useState(() => {
     if (myName) return myName;
@@ -163,6 +282,13 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     );
   }, [leads, selectedSalesperson, dateFrom, dateTo]);
 
+  const myQuotations = useMemo(() => {
+    return allQuotations.filter(q => 
+      matchesSalesperson(q, selectedSalesperson) && 
+      isDateInRange(q.createdAt || q.quotationDate || q.date)
+    );
+  }, [allQuotations, selectedSalesperson, dateFrom, dateTo]);
+
   const myOrders = useMemo(() => {
     return activeOrdersList.filter(o => 
       matchesSalesperson(o, selectedSalesperson) && 
@@ -195,7 +321,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     return `₹${Math.round(num).toLocaleString('en-IN')}`;
   };
 
-  const TODAY_STR = '2026-06-19';
+  const TODAY_STR = new Date().toISOString().split('T')[0];
 
   // Overall Statistics
   const totalLeads = myLeads.length;
@@ -386,6 +512,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <BarChart3 size={15} /> },
     { id: 'leads', label: 'Leads', icon: <Users size={15} /> },
+    { id: 'quotations', label: 'Quotations', icon: <ClipboardList size={15} /> },
     { id: 'sales', label: 'Sales & Revenue', icon: <DollarSign size={15} /> },
     { id: 'followups', label: 'Follow-ups', icon: <Calendar size={15} /> },
     { id: 'target', label: 'Target Tracker', icon: <Target size={15} /> },
@@ -465,6 +592,116 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   );
   const overdueFollowUps = followUpLeads.filter(l => l.followUpDate < TODAY_STR);
   const upcomingFollowUps = followUpLeads.filter(l => l.followUpDate >= TODAY_STR);
+
+  // Contextual CSV Exporter
+  const handleExportCSV = () => {
+    if (activeTab === 'leads') {
+      if (myLeads.length === 0) {
+        alert('No leads data to export.');
+        return;
+      }
+      const data = myLeads.map(l => ({
+        'Lead ID': resolveLeadNumber(l),
+        'Company Name': l.companyName || l.projectName || '',
+        'Contact Person': l.contactPerson || '',
+        'Phone': l.phone || '',
+        'Email': l.email || '',
+        'Status': l.status || '',
+        'Follow Up Date': l.followUpDate || '',
+        'Salesperson': getSalespersonName(l),
+        'Created Date': l.createdAt || l.date || ''
+      }));
+      exportToCSV(data, `leads-report-${dateFrom}-to-${dateTo}.csv`);
+    } else if (activeTab === 'quotations') {
+      if (myQuotations.length === 0) {
+        alert('No quotations data to export.');
+        return;
+      }
+      const data = myQuotations.map(q => ({
+        'Quotation ID': resolveQuotationNumber(q),
+        'Lead ID': resolveLeadNumber(q.lead || q.leadNumber || q.leadId),
+        'Customer Name': q.customerName || q.customer?.name || q.lead?.companyName || '',
+        'Date': q.date || q.quotationDate || (q.createdAt ? new Date(q.createdAt).toISOString().split('T')[0] : ''),
+        'Total Amount (INR)': Number(q.totalAmount || q.grandTotal || q.netAmount || 0),
+        'Status': q.status || 'Draft',
+        'Salesperson': getSalespersonName(q)
+      }));
+      exportToCSV(data, `quotations-report-${dateFrom}-to-${dateTo}.csv`);
+    } else if (activeTab === 'sales' || activeTab === 'target') {
+      if (myOrders.length === 0) {
+        alert('No orders data to export.');
+        return;
+      }
+      const data = myOrders.map(o => ({
+        'Order ID': resolveOrderNumber(o),
+        'Quotation Ref': resolveQuotationNumber(o.quotationNumber || o.quotationNo || o.quotation),
+        'Lead Ref': resolveLeadNumber(o.leadNumber || o.leadNo || o.lead),
+        'Date': o.date || o.orderDate || (o.createdAt ? new Date(o.createdAt).toISOString().split('T')[0] : ''),
+        'Customer Name': o.customer?.name || o.customerName || '',
+        'Products': o.products || '',
+        'Total Value (INR)': Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0),
+        'Order Status': o.status || 'CONFIRMED',
+        'Payment Status': o.payment?.status || (o.payment?.paidAmount >= (o.payment?.totalAmount || 0) ? 'Paid' : 'Pending'),
+        'Salesperson': getSalespersonName(o)
+      }));
+      exportToCSV(data, `orders-report-${dateFrom}-to-${dateTo}.csv`);
+    } else if (activeTab === 'followups') {
+      if (followUpLeads.length === 0) {
+        alert('No follow-up leads data to export.');
+        return;
+      }
+      const data = followUpLeads.map(l => ({
+        'Lead ID': resolveLeadNumber(l),
+        'Company Name': l.companyName || '',
+        'Contact Person': l.contactPerson || '',
+        'Follow Up Date': l.followUpDate || '',
+        'Status': l.status || '',
+        'Salesperson': getSalespersonName(l)
+      }));
+      exportToCSV(data, `followups-report-${dateFrom}-to-${dateTo}.csv`);
+    } else if (activeTab === 'customers') {
+      if (myCustomers.length === 0) {
+        alert('No customer data to export.');
+        return;
+      }
+      const data = myCustomers.map(c => ({
+        'Customer ID': c.customer_code || c.code || `CUST-${c.id}`,
+        'Customer Name': c.name || c.customer_name || '',
+        'Email': c.email || '',
+        'Phone': c.phone || '',
+        'Total Orders': c.totalOrders || c.order_count || 0,
+        'Total Revenue (INR)': Number(c.totalRevenue || c.total_spent || 0),
+        'Outstanding Balance (INR)': Number(c.outstanding || 0)
+      }));
+      exportToCSV(data, `customers-report-${dateFrom}-to-${dateTo}.csv`);
+    } else {
+      if (salesSummaryData.length > 0) {
+        exportToCSV(salesSummaryData.map(item => ({
+          Month: item.month,
+          Orders: item.order_count,
+          Customers: item.unique_customers,
+          Revenue: item.total_revenue,
+          AverageOrder: item.avg_order_value,
+          ClosedRevenue: item.closed_revenue,
+          PendingRevenue: item.pending_revenue,
+          CancelledRevenue: item.cancelled_revenue
+        })), `sales-summary-${dateFrom}-to-${dateTo}.csv`);
+      } else if (myOrders.length > 0) {
+        const data = myOrders.map(o => ({
+          'Order ID': resolveOrderNumber(o),
+          'Quotation Ref': resolveQuotationNumber(o.quotationNumber || o.quotationNo || o.quotation),
+          'Lead Ref': resolveLeadNumber(o.leadNumber || o.leadNo || o.lead),
+          'Date': o.date || o.orderDate || '',
+          'Customer': o.customer?.name || o.customerName || '',
+          'Total Value': Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0),
+          'Status': o.status || ''
+        }));
+        exportToCSV(data, `sales-orders-summary-${dateFrom}-to-${dateTo}.csv`);
+      } else {
+        alert("No sales summary data to export");
+      }
+    }
+  };
 
   return (
     <div className="reports-wrapper">
@@ -903,22 +1140,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
             Export PDF
           </button>
           <button
-            onClick={() => {
-              if (salesSummaryData.length > 0) {
-                exportToCSV(salesSummaryData.map(item => ({
-                  Month: item.month,
-                  Orders: item.order_count,
-                  Customers: item.unique_customers,
-                  Revenue: item.total_revenue,
-                  AverageOrder: item.avg_order_value,
-                  ClosedRevenue: item.closed_revenue,
-                  PendingRevenue: item.pending_revenue,
-                  CancelledRevenue: item.cancelled_revenue
-                })), `sales-summary-${dateFrom}-to-${dateTo}.csv`);
-              } else {
-                alert("No sales summary data to export");
-              }
-            }}
+            onClick={handleExportCSV}
             className="reports-export-btn"
           >
             <Download size={13} color="#0284c7" />
@@ -1078,6 +1300,10 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                 <span className="reports-kpi-label">Lost Leads</span>
                 <span className="reports-kpi-val">{myLeads.filter(l => l.status === 'Lost').length}</span>
               </div>
+              <div className="reports-kpi-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                <span className="reports-kpi-label">Total Leads</span>
+                <span className="reports-kpi-val">{myLeads.length}</span>
+              </div>
             </div>
 
             <div className="reports-panel">
@@ -1132,7 +1358,9 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     ) : (
                       myLeads.map(lead => (
                         <tr key={lead.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ fontWeight: '800', padding: '10px 14px' }}>#{lead.id}</td>
+                          <td style={{ fontWeight: '800', padding: '10px 14px', fontFamily: 'monospace', color: '#002e5d' }}>
+                            {resolveLeadNumber(lead)}
+                          </td>
                           <td style={{ padding: '10px 14px' }}>
                             <div style={{ fontWeight: '700', color: '#002e5d' }}>{lead.companyName}</div>
                             <div style={{ fontSize: '11px', color: '#64748b' }}>{lead.requirements}</div>
@@ -1150,9 +1378,115 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                           <td style={{ fontWeight: '700', padding: '10px 14px', color: lead.followUpDate && lead.followUpDate < TODAY_STR ? '#ef4444' : 'inherit' }}>
                             {lead.followUpDate || 'No follow-up set'}
                           </td>
-                          {isSalesAdmin && <td style={{ fontWeight: '700', padding: '10px 14px' }}>{lead.salesperson}</td>}
+                          {isSalesAdmin && <td style={{ fontWeight: '700', padding: '10px 14px' }}>{getSalespersonName(lead) || '—'}</td>}
                         </tr>
                       ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* QUOTATIONS TAB */}
+        {activeTab === 'quotations' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="reports-kpi-grid">
+              <div className="reports-kpi-card" style={{ borderLeft: '4px solid #0284c7' }}>
+                <span className="reports-kpi-label">Total Quotations</span>
+                <span className="reports-kpi-val">{myQuotations.length}</span>
+                <span className="reports-kpi-sub">Issued proposals</span>
+              </div>
+              <div className="reports-kpi-card" style={{ borderLeft: '4px solid #10b981' }}>
+                <span className="reports-kpi-label">Quoted Pipeline Value</span>
+                <span className="reports-kpi-val">
+                  {formatINR(myQuotations.reduce((sum, q) => sum + Number(q.totalAmount || q.grandTotal || q.netAmount || 0), 0))}
+                </span>
+                <span className="reports-kpi-sub">Total proposal volume</span>
+              </div>
+              <div className="reports-kpi-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                <span className="reports-kpi-label">Accepted / Confirmed</span>
+                <span className="reports-kpi-val">
+                  {myQuotations.filter(q => ['Accepted', 'Converted', 'Approved', 'Confirmed'].includes(q.status)).length}
+                </span>
+                <span className="reports-kpi-sub">Converted into sales</span>
+              </div>
+              <div className="reports-kpi-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                <span className="reports-kpi-label">Pending / In Review</span>
+                <span className="reports-kpi-val">
+                  {myQuotations.filter(q => !['Accepted', 'Converted', 'Approved', 'Confirmed', 'Rejected', 'Cancelled', 'Lost'].includes(q.status)).length}
+                </span>
+                <span className="reports-kpi-sub">Active negotiations</span>
+              </div>
+            </div>
+
+            {/* Quotations list table */}
+            <div className="reports-table-panel">
+              <div className="reports-panel-title">
+                <ClipboardList size={16} color="#0284c7" /> Quotations Register
+              </div>
+              <div className="reports-table-scroll">
+                <table className="crm-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#002e5d', color: '#ffffff' }}>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Quotation ID</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Lead ID</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Customer / Company</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Date</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Total Value</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Status</th>
+                      {isSalesAdmin && <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Salesperson</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myQuotations.length === 0 ? (
+                      <tr>
+                        <td colSpan={isSalesAdmin ? 7 : 6} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                          No quotations found in selected period.
+                        </td>
+                      </tr>
+                    ) : (
+                      myQuotations.map(q => {
+                        const qVal = Number(q.totalAmount || q.grandTotal || q.netAmount || 0);
+                        const qDate = q.date || q.quotationDate || (q.createdAt ? new Date(q.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+                        const leadRef = resolveLeadNumber(q.lead || q.leadNumber || q.leadId);
+                        const isAccepted = ['Accepted', 'Converted', 'Approved', 'Confirmed'].includes(q.status);
+                        const isRejected = ['Rejected', 'Cancelled', 'Lost'].includes(q.status);
+
+                        return (
+                          <tr key={q.id || q.quotationNumber || q.quotationNo} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ fontWeight: '800', padding: '10px 14px', fontFamily: 'monospace', color: '#002e5d' }}>
+                              {resolveQuotationNumber(q)}
+                            </td>
+                            <td style={{ fontWeight: '700', padding: '10px 14px', fontFamily: 'monospace', color: '#0284c7' }}>
+                              {leadRef}
+                            </td>
+                            <td style={{ padding: '10px 14px' }}>
+                              <div style={{ fontWeight: '700', color: '#002e5d' }}>
+                                {q.customerName || q.customer?.name || q.lead?.companyName || 'Valued Customer'}
+                              </div>
+                              {q.contactPerson && <div style={{ fontSize: '11px', color: '#64748b' }}>{q.contactPerson}</div>}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontSize: '12px', color: '#64748b' }}>
+                              {qDate}
+                            </td>
+                            <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: '#0284c7' }}>
+                              {formatINR(qVal)}
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                              <span className={`badge badge-${isAccepted ? 'success' : isRejected ? 'danger' : 'info'}`}>
+                                {q.status || 'Draft'}
+                              </span>
+                            </td>
+                            {isSalesAdmin && (
+                              <td style={{ fontWeight: '700', padding: '10px 14px' }}>
+                                {getSalespersonName(q) || '—'}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -1366,7 +1700,8 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                 <table className="crm-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: '#002e5d', color: '#ffffff' }}>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Order No</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Order ID</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Quotation / Lead</th>
                       <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Date</th>
                       <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Customer</th>
                       <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Product Details</th>
@@ -1378,7 +1713,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                   <tbody>
                     {myOrders.length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
                           No orders registered.
                         </td>
                       </tr>
@@ -1392,9 +1727,25 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                             : 'Unpaid';
                         
                         return (
-                          <tr key={order.orderNo} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ fontWeight: '800', padding: '10px 14px' }}>{order.orderNo}</td>
-                            <td style={{ padding: '10px 14px' }}>{order.date}</td>
+                          <tr key={order.orderNo || order.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ fontWeight: '800', padding: '10px 14px', fontFamily: 'monospace', color: '#002e5d' }}>
+                              {resolveOrderNumber(order)}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontSize: '11.5px' }}>
+                              {order.quotationNumber || order.quotationNo || order.quotation ? (
+                                <div style={{ fontWeight: '700', color: '#0284c7', fontFamily: 'monospace' }}>
+                                  QT: {resolveQuotationNumber(order.quotationNumber || order.quotationNo || order.quotation)}
+                                </div>
+                              ) : null}
+                              {order.leadNumber || order.leadNo || order.lead ? (
+                                <div style={{ fontSize: '10.5px', color: '#64748b', fontFamily: 'monospace' }}>
+                                  Lead: {resolveLeadNumber(order.leadNumber || order.leadNo || order.lead)}
+                                </div>
+                              ) : (
+                                !order.quotationNumber && !order.quotationNo && !order.quotation ? <span style={{ color: '#94a3b8' }}>—</span> : null
+                              )}
+                            </td>
+                            <td style={{ padding: '10px 14px' }}>{order.date || order.orderDate}</td>
                             <td style={{ fontWeight: '700', padding: '10px 14px', color: '#002e5d' }}>{order.customer?.name || order.customerName}</td>
                             <td style={{ padding: '10px 14px' }}>{order.products}</td>
                             <td style={{ fontWeight: '800', padding: '10px 14px', color: '#0284c7' }}>{formatINR(orderVal)}</td>
@@ -1479,7 +1830,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                           <tr key={lead.id} style={{ background: isOverdue ? 'rgba(239, 68, 68, 0.03)' : 'inherit', borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ fontWeight: '700', padding: '10px 14px' }}>
                               <div style={{ color: '#002e5d' }}>{lead.companyName}</div>
-                              <span style={{ fontSize: '11px', color: '#64748b' }}>ID: #{lead.id}</span>
+                              <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>Lead ID: {resolveLeadNumber(lead)}</span>
                             </td>
                             <td style={{ padding: '10px 14px' }}>{lead.contactPerson}</td>
                             <td style={{ fontWeight: '800', padding: '10px 14px', color: isOverdue ? '#ef4444' : '#0284c7' }}>
@@ -1496,7 +1847,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                                 </div>
                               ) : 'No remarks logged.'}
                             </td>
-                            {isSalesAdmin && <td style={{ fontWeight: '700', padding: '10px 14px' }}>{lead.salesperson}</td>}
+                            {isSalesAdmin && <td style={{ fontWeight: '700', padding: '10px 14px' }}>{getSalespersonName(lead) || '—'}</td>}
                           </tr>
                         );
                       })
@@ -1782,7 +2133,8 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                   <table className="crm-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#002e5d', color: '#ffffff' }}>
-                        <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Order #</th>
+                        <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Order ID</th>
+                        <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Quotation Ref</th>
                         <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Customer</th>
                         <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Order Date</th>
                         <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Order Status</th>
@@ -1801,8 +2153,13 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
 
                         return (
                           <tr key={order.id || order.orderNo} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ fontWeight: '800', padding: '10px 14px', color: '#002e5d' }}>
-                              #{order.orderNo || order.orderNumber || order.id?.slice(-6) || 'SO-000'}
+                            <td style={{ fontWeight: '800', padding: '10px 14px', color: '#002e5d', fontFamily: 'monospace' }}>
+                              {resolveOrderNumber(order)}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontSize: '11.5px', color: '#0284c7', fontWeight: '700', fontFamily: 'monospace' }}>
+                              {order.quotationNumber || order.quotationNo || order.quotation ? (
+                                resolveQuotationNumber(order.quotationNumber || order.quotationNo || order.quotation)
+                              ) : '—'}
                             </td>
                             <td style={{ fontWeight: '700', padding: '10px 14px', color: '#334155' }}>
                               {order.customer?.name || order.customerName || order.companyName || 'Valued Customer'}
@@ -1897,7 +2254,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                           <tr key={customer.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ fontWeight: '700', padding: '10px 14px' }}>
                               <div style={{ color: '#002e5d' }}>{customer.customer_name}</div>
-                              <span style={{ fontSize: '10px', color: '#64748b' }}>Code: {customer.customer_code}</span>
+                              <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>Code: {customer.customer_code}</span>
                             </td>
                             <td style={{ padding: '10px 14px' }}>
                               <div>{customer.city || 'N/A'}, {customer.state || 'N/A'}</div>
@@ -1935,7 +2292,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                           <tr key={customer.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ fontWeight: '700', padding: '10px 14px' }}>
                               <div style={{ color: '#002e5d' }}>{customer.name}</div>
-                              <span style={{ fontSize: '10px', color: '#64748b' }}>ID: {customer.id}</span>
+                              <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>Code: {customer.customer_code || customer.code || `CUST-${customer.id}`}</span>
                             </td>
                             <td style={{ padding: '10px 14px' }}>
                               <div>{customer.email}</div>

@@ -1447,7 +1447,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
       if (mode === 'SUPER_SALES' || overrideBasePath === '/supersales') {
         return <DashboardView state={{ ...state, reminders }} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} reminders={reminders} basePath={basePath} />;
       }
-      return <ReportsView leads={leads} orders={orders} payments={payments} customers={customers} user={user} />;
+      return <ReportsView leads={leads} orders={orders} payments={payments} customers={customers} quotations={quotations} user={user} />;
 
     default:
       return <DashboardView state={{ ...state, reminders }} dispatch={dispatch} navigate={navigate} onQuickAction={handleActionClick} leads={leads} samples={samples} quotations={quotations} orders={orders} payments={payments} customers={customers} reminders={reminders} basePath={basePath} />;
