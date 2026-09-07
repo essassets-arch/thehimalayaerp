@@ -312,6 +312,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   const itemIdCounter = useRef(2);
 
   const [mapsLoaded, setMapsLoaded] = useState(false);
+  const [activePickerId, setActivePickerId] = useState(null);
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
   const inputRef = useRef(null);
   const autocompleteRef = useRef(null);
@@ -1090,12 +1091,15 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {items.map((item, index) => (
-              <div key={item.id} className="lead-product-row" style={{ position: 'relative', zIndex: items.length - index + 10, overflow: 'visible' }}>
-                <div className="lead-product-grid" style={{ position: 'relative', overflow: 'visible' }}>
-                  <div className="lead-product-grid-spec" style={{ display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative', overflow: 'visible', zIndex: 20 }}>
+            {items.map((item, index) => {
+              const isPickerActive = activePickerId === item.id;
+              return (
+              <div key={item.id} className={`lead-product-row ${isPickerActive ? 'has-active-picker' : ''}`} style={{ position: 'relative', zIndex: isPickerActive ? 2147483647 : (items.length - index + 10), overflow: 'visible' }}>
+                <div className={`lead-product-grid ${isPickerActive ? 'has-active-picker' : ''}`} style={{ position: 'relative', zIndex: isPickerActive ? 2147483647 : 'auto', overflow: 'visible' }}>
+                  <div className={`lead-product-grid-spec ${isPickerActive ? 'has-active-picker' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: '8px', position: 'relative', overflow: 'visible', zIndex: isPickerActive ? 2147483647 : 20 }}>
                     <ProductPicker
                       testId="lead-product-picker"
+                      onOpenChange={(isOpen) => setActivePickerId(isOpen ? item.id : null)}
                       value={(item.productId || item.productName) ? {
                         id: item.productId || item.productCode || 'custom',
                         product_name: item.productName || item.productCode || 'Selected Product',
@@ -1129,7 +1133,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                       value={item.specification}
                       onChange={e => handleRowChange(item.id, 'specification', e.target.value)}
                       required
-                      style={{ fontSize: '12.5px', padding: '9px 12px' }}
+                      style={{ fontSize: '12.5px', padding: '9px 12px', position: 'relative', zIndex: 1 }}
                     />
                   </div>
 
@@ -1198,7 +1202,8 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                   </div>
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
 
           <button

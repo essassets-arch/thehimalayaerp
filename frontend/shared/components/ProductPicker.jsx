@@ -7,6 +7,7 @@ import { backendFetch } from '../../lib/backendFetch';
  * Props:
  *  value         — { id, product_code, display_name, brand, gst_rate, hsn_sac_code, unit_of_measure, dispatch_category }
  *  onChange      — called with selected product object (or null on clear)
+ *  onOpenChange  — optional callback when dropdown opens/closes
  *  categoryId    — optional: pre-filter by category
  *  dispatchCat   — optional: pre-filter by dispatch category ('DISPATCH 1' | 'DISPATCH 2')
  *  placeholder   — input placeholder text
@@ -20,6 +21,7 @@ import { backendFetch } from '../../lib/backendFetch';
 export default function ProductPicker({
   value = null,
   onChange,
+  onOpenChange,
   categoryId = null,
   dispatchCat = null,
   placeholder = 'Search products by name, code, or SKU…',
@@ -37,6 +39,11 @@ export default function ProductPicker({
   const [open, setOpen] = useState(false);
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
+
+  const handleSetOpen = (isOpen) => {
+    setOpen(isOpen);
+    if (onOpenChange) onOpenChange(isOpen);
+  };
 
   // Dispatch badge styling
   const DISPATCH_BADGE = {
@@ -111,7 +118,7 @@ export default function ProductPicker({
   useEffect(() => {
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setOpen(false);
+        handleSetOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -127,7 +134,7 @@ export default function ProductPicker({
   const handleSelect = (product) => {
     onChange && onChange(product);
     setQuery('');
-    setOpen(false);
+    handleSetOpen(false);
   };
 
   const handleClear = (e) => {
@@ -137,7 +144,7 @@ export default function ProductPicker({
   };
 
   const handleInputFocus = () => {
-    setOpen(true);
+    handleSetOpen(true);
     if (results.length === 0) search(query);
   };
 
@@ -162,7 +169,17 @@ export default function ProductPicker({
   };
 
   return (
-    <div ref={containerRef} className={`product-picker ${className}`} style={{ position: 'relative', width: '100%', zIndex: open ? 2147483647 : 'auto', overflow: 'visible' }}>
+    <div
+      ref={containerRef}
+      data-open={open ? 'true' : 'false'}
+      className={`product-picker ${open ? 'is-open' : ''} ${className}`}
+      style={{
+        position: 'relative',
+        width: '100%',
+        zIndex: open ? 2147483647 : 1,
+        overflow: 'visible'
+      }}
+    >
       {label && (
         <label style={{
           display: 'block', marginBottom: '6px',
@@ -178,7 +195,7 @@ export default function ProductPicker({
         <div
           data-testid="selected-product"
           data-product-code={value.product_code}
-          onClick={() => !disabled && setOpen(true)}
+          onClick={() => !disabled && handleSetOpen(true)}
           style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '9px 12px', borderRadius: '8px', cursor: disabled ? 'not-allowed' : 'pointer',
@@ -238,7 +255,7 @@ export default function ProductPicker({
           {open ? (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setOpen(false); }}
+              onClick={(e) => { e.stopPropagation(); handleSetOpen(false); }}
               style={{
                 position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
                 background: '#f1f5f9', border: 'none', borderRadius: '4px', cursor: 'pointer',
@@ -265,13 +282,24 @@ export default function ProductPicker({
 
       {/* Dropdown */}
       {open && !disabled && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-          background: '#ffffff',
-          border: '1.5px solid #cbd5e1',
-          borderRadius: '10px', zIndex: 2147483647, maxHeight: '280px', overflowY: 'auto',
-          boxShadow: '0 16px 40px rgba(15,23,42,0.22), 0 4px 12px rgba(0,0,0,0.08)',
-        }}>
+        <div
+          className="product-picker-dropdown"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            minWidth: '100%',
+            width: 'max(100%, 340px)',
+            maxWidth: 'min(95vw, 600px)',
+            background: '#ffffff',
+            border: '1.5px solid #cbd5e1',
+            borderRadius: '10px',
+            zIndex: 2147483647,
+            maxHeight: '300px',
+            overflowY: 'auto',
+            boxShadow: '0 20px 50px rgba(15,23,42,0.28), 0 8px 20px rgba(0,0,0,0.12)',
+          }}
+        >
           {/* Header with quick hide action */}
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -283,7 +311,7 @@ export default function ProductPicker({
             </span>
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setOpen(false); }}
+              onClick={(e) => { e.stopPropagation(); handleSetOpen(false); }}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 fontSize: '11px', fontWeight: 700, color: '#2563eb', padding: '2px 6px'
