@@ -352,8 +352,10 @@ export function mapSalesOrder(
       return {
         id: item.id,
         productId: item.productId,
-        productName: item.productNameSnapshot,
-        productCode: item.productCodeSnapshot,
+        productName: item.productNameSnapshot || (item as any).product?.name || (item as any).name || 'Standard Product',
+        productNameSnapshot: item.productNameSnapshot,
+        productCode: item.productCodeSnapshot || (item as any).product?.sku || '',
+        productCodeSnapshot: item.productCodeSnapshot,
         productType:
           (item as any).product?.productType ||
           (isTrading ? 'TRADING' : 'MANUFACTURING'),
@@ -364,9 +366,15 @@ export function mapSalesOrder(
         replacedQuantity,
         availableForReturn,
         availableForReplacement,
-        unit: item.unit,
+        unit: item.unit || 'SET',
         unitPrice: Number(item.unitPrice),
-        lineTotal: Number(item.lineTotal),
+        taxableAmount: (item as any).taxableAmount !== undefined && (item as any).taxableAmount !== null
+          ? Number((item as any).taxableAmount)
+          : Number(item.orderedQuantity) * Number(item.unitPrice),
+        taxRate: Number((item as any).taxRate || 0),
+        taxAmount: Number((item as any).taxAmount || 0),
+        discountAmount: Number((item as any).discountAmount || 0),
+        lineTotal: Number(item.lineTotal || (item as any).totalAmount || (Number(item.orderedQuantity) * Number(item.unitPrice))),
         fulfillment,
       };
     }),
@@ -426,6 +434,14 @@ export function mapSalesOrder(
     invoice_number: (order.dispatches || []).find((d: any) => Boolean(d?.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim()))?.invoiceNumber?.trim() || (order as any).invoices?.[0]?.invoiceNumber || null,
 
     dispatches: order.dispatches || [],
+    productionPlans: order.productionPlans || [],
+    workOrders: workOrders || [],
+    invoices: (order as any).invoices || [],
+    histories: (order as any).histories || [],
+    quotation: (order as any).quotation || (order as any).sourceQuotation || null,
+    quotationNumber: (order as any).quotation?.quotationNumber || (order as any).sourceQuotation?.quotationNumber || null,
+    lead: (order as any).quotation?.lead || (order as any).sourceQuotation?.lead || null,
+    leadNumber: (order as any).quotation?.lead?.leadNumber || (order as any).sourceQuotation?.lead?.leadNumber || null,
 
     lostReason: (order as any).lostReason ?? undefined,
     lostAt: (order as any).lostAt ? ((order as any).lostAt instanceof Date ? (order as any).lostAt.toISOString() : (order as any).lostAt) : undefined,

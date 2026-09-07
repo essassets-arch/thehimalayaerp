@@ -315,16 +315,23 @@ export class SalesService {
           },
         },
         salesExecutive: { select: { id: true, name: true, email: true } },
-        items: true,
+        items: {
+          include: {
+            product: true,
+          },
+        },
         workflowState: true,
         productionPlans: {
           orderBy: { createdAt: 'desc' },
-          take: 1,
           include: { workOrders: true },
         },
         dispatches: {
           include: { items: true },
           orderBy: { updatedAt: 'desc' },
+        },
+        invoices: true,
+        histories: {
+          orderBy: { createdAt: 'desc' },
         },
         returns: { include: { items: true }, orderBy: { requestedAt: 'desc' } },
         replacementRequests: {
