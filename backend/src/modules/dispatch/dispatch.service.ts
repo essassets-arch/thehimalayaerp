@@ -1314,7 +1314,7 @@ export class DispatchService {
         const existingItem = orderRow.items.find(
           (i: any) =>
             i.workOrderId === wo.id ||
-            (product?.id && i.productId === product.id),
+            (wo.salesOrderItemId && i.salesOrderItemId === wo.salesOrderItemId),
         );
         if (!existingItem) {
           orderRow.items.push({
@@ -1417,7 +1417,8 @@ export class DispatchService {
         const orderRow = ordersMap.get(key);
         const existingItem = orderRow.items.find(
           (i: any) =>
-            i.fgId === fg.id || (product?.id && i.productId === product.id),
+            i.fgId === fg.id ||
+            (fg.workOrderId && i.workOrderId === fg.workOrderId),
         );
         if (!existingItem) {
           orderRow.items.push({
