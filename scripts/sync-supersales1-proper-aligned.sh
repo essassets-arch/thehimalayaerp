@@ -13,7 +13,15 @@ echo "⚡ SYNCING SUPER SALES 1 (HUSSAIN SIR) PROPER LIFECYCLE ON VPS/DOCKER"
 echo "========================================================================"
 
 CSV_SS1=""
-if [ -f "backend/scripts/hussain_sir(super_sales1) (6).csv" ]; then
+if [ -f "hussain-fresh.csv" ]; then
+    CSV_SS1="hussain-fresh.csv"
+elif [ -f "backend/scripts/hussain-fresh.csv" ]; then
+    CSV_SS1="backend/scripts/hussain-fresh.csv"
+elif [ -f "hussain.csv" ]; then
+    CSV_SS1="hussain.csv"
+elif [ -f "backend/scripts/hussain.csv" ]; then
+    CSV_SS1="backend/scripts/hussain.csv"
+elif [ -f "backend/scripts/hussain_sir(super_sales1) (6).csv" ]; then
     CSV_SS1="backend/scripts/hussain_sir(super_sales1) (6).csv"
 elif [ -f "hussain_sir(super_sales1) (6).csv" ]; then
     CSV_SS1="hussain_sir(super_sales1) (6).csv"

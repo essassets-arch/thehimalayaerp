@@ -2,12 +2,32 @@ const { PrismaClient, Prisma } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
 
-const targetDbs = process.env.DATABASE_URL
-  ? [{ name: 'Production Database', url: process.env.DATABASE_URL }]
-  : [
-      { name: 'Active DB (himalaya_erp_browser_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
-      { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
-    ];
+const isDocker = require('fs').existsSync('/.dockerenv') || (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('@postgres:'));
+const targetDbs = [];
+
+if (process.env.DATABASE_URL) {
+  targetDbs.push({ name: 'Configured DATABASE_URL', url: process.env.DATABASE_URL });
+}
+if (process.env.LIVE_DATABASE_URL) {
+  targetDbs.push({ name: 'Live Database', url: process.env.LIVE_DATABASE_URL });
+}
+if (process.env.PROD_DATABASE_URL) {
+  targetDbs.push({ name: 'Production Database', url: process.env.PROD_DATABASE_URL });
+}
+
+if (!isDocker) {
+  targetDbs.push(
+    { name: 'Active DB (himalaya_erp_browser_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+    { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
+  );
+}
+
+const seen = new Set();
+const uniqueTargetDbs = targetDbs.filter(db => {
+  if (seen.has(db.url)) return false;
+  seen.add(db.url);
+  return true;
+});
 
 function parseCSV(content) {
   const result = [];
@@ -246,6 +266,12 @@ async function syncDatabase(config) {
     await alignDatabaseColumns(prisma);
 
     const ss1CsvPath = [
+      path.resolve('hussain-fresh.csv'),
+      path.resolve('backend/scripts/hussain-fresh.csv'),
+      path.resolve('../hussain-fresh.csv'),
+      path.resolve('hussain.csv'),
+      path.resolve('backend/scripts/hussain.csv'),
+      path.resolve('../hussain.csv'),
       path.resolve('backend/scripts/hussain_sir(super_sales1) (6).csv'),
       path.resolve('scripts/hussain_sir(super_sales1) (6).csv'),
       path.resolve('hussain_sir(super_sales1) (6).csv'),
@@ -256,20 +282,24 @@ async function syncDatabase(config) {
       path.resolve('backend/scripts/delivery_history_audit_2026-09-05 (2).csv'),
       path.resolve('scripts/delivery_history_audit_2026-09-05 (2).csv'),
       path.resolve('delivery_history_audit_2026-09-05 (2).csv'),
+      path.resolve('../delivery_history_audit_2026-09-05 (2).csv'),
       path.join(__dirname, 'delivery_history_audit_2026-09-05 (2).csv')
     ].find(p => fs.existsSync(p));
 
-    if (!ss1CsvPath || !auditCsvPath) {
-      throw new Error(`CSV files not found! ss1CsvPath: ${ss1CsvPath}, auditCsvPath: ${auditCsvPath}`);
+    if (!ss1CsvPath) {
+      throw new Error(`SS1 CSV file not found! Looked for hussain-fresh.csv, hussain.csv, etc.`);
     }
 
     const ss1Content = fs.readFileSync(ss1CsvPath, 'utf8');
     const ss1Rows = parseCSV(ss1Content).slice(1).filter(r => r.length > 5 && r[0]);
 
-    const auditContent = fs.readFileSync(auditCsvPath, 'utf8');
-    const auditRows = parseCSV(auditContent).slice(1).filter(r => r.length > 1 && r[0]);
+    let auditRows = [];
+    if (auditCsvPath && fs.existsSync(auditCsvPath)) {
+      const auditContent = fs.readFileSync(auditCsvPath, 'utf8');
+      auditRows = parseCSV(auditContent).slice(1).filter(r => r.length > 1 && r[0]);
+    }
 
-    console.log(`Loaded ${ss1Rows.length} item rows from SS1 CSV, ${auditRows.length} audit rows.`);
+    console.log(`Loaded ${ss1Rows.length} item rows from SS1 CSV (${ss1CsvPath}), ${auditRows.length} audit rows.`);
 
     const auditDispNos = auditRows.map(r => r[0].trim());
 
@@ -288,38 +318,47 @@ async function syncDatabase(config) {
       status: r[11].trim()
     }));
 
-    // 2. Identify SuperSales 1 User and Company
-    const user = await prisma.user.findFirst({
+    // 2. Identify or Create SuperSales 1 User and Company
+    let user = await prisma.user.findFirst({
       where: {
-        OR: [
-          { email: { equals: 'supersales1@himalayaerp.com', mode: 'insensitive' } },
-          { email: { equals: 'hussain.t@himalayaerp.com', mode: 'insensitive' } },
-          { name: { contains: 'Hussain', mode: 'insensitive' } },
-          { name: { contains: 'SuperSales One', mode: 'insensitive' } },
-          { name: { contains: 'Super Sales 1', mode: 'insensitive' } }
-        ]
+        email: { equals: 'supersales1@himalayaerp.com', mode: 'insensitive' }
       },
       include: { role: true, company: true }
     });
 
     if (!user) {
-      console.error('SuperSales 1 user not found in DB!');
-      return;
-    }
-    const userId = user.id;
-    const companyId = user.companyId;
-
-    const allSs1Users = await prisma.user.findMany({
-      where: {
-        OR: [
-          { email: { in: ['supersales1@himalayaerp.com', 'hussain.t@himalayaerp.com'] } },
-          { name: { contains: 'Hussain', mode: 'insensitive' } },
-          { name: { contains: 'SuperSales One', mode: 'insensitive' } },
-          { name: { contains: 'Super Sales 1', mode: 'insensitive' } }
-        ]
+      let role = await prisma.role.findFirst({ where: { name: { in: ['SuperSales', 'SuperSales Lead', 'Sales Executive'] } } });
+      if (!role) {
+        role = await prisma.role.findFirst();
       }
-    });
-    const allSs1UserIds = allSs1Users.map(u => u.id);
+      let company = await prisma.company.findFirst();
+      const bcrypt = require('bcryptjs');
+      const passwordHash = await bcrypt.hash('supersales123', 10);
+      user = await prisma.user.create({
+        data: {
+          email: 'supersales1@himalayaerp.com',
+          name: 'SuperSales 1',
+          password: passwordHash,
+          roleId: role ? role.id : undefined,
+          companyId: company ? company.id : undefined,
+          status: 'ACTIVE'
+        },
+        include: { role: true, company: true }
+      });
+      console.log(`Created SuperSales 1 user: ${user.name} (${user.email})`);
+    }
+
+    const userId = user.id;
+    let companyId = user.companyId;
+    if (!companyId) {
+      const c = await prisma.company.findFirst();
+      if (c) {
+        companyId = c.id;
+        await prisma.user.update({ where: { id: userId }, data: { companyId } });
+      }
+    }
+
+    const allSs1UserIds = [userId];
 
     // 3. Clean existing SS1 data cleanly + clean any conflicting dispatches & invoices
     console.log('Cleaning existing SuperSales 1 records...');
@@ -357,16 +396,24 @@ async function syncDatabase(config) {
     });
     const confDispIds = conflictingDispatches.map(d => d.id);
     if (confDispIds.length > 0) {
+      try {
+        const invs = await prisma.salesInvoice.findMany({ where: { dispatchId: { in: confDispIds } }, select: { id: true } });
+        const invIds = invs.map(i => i.id);
+        if (invIds.length > 0) {
+          await prisma.paymentAllocation.deleteMany({ where: { invoiceId: { in: invIds } } }).catch(() => {});
+          await prisma.invoiceItem.deleteMany({ where: { invoiceId: { in: invIds } } }).catch(() => {});
+          await prisma.salesInvoice.deleteMany({ where: { id: { in: invIds } } }).catch(() => {});
+        }
+      } catch (e) {}
       try { await prisma.dispatchItem.deleteMany({ where: { dispatchId: { in: confDispIds } } }); } catch (e) {}
-      try { await prisma.salesInvoice.deleteMany({ where: { dispatchId: { in: confDispIds } } }); } catch (e) {}
       try { await prisma.dispatch.deleteMany({ where: { id: { in: confDispIds } } }); } catch (e) {}
     }
 
     const existingOrders = await prisma.salesOrder.findMany({
       where: {
         OR: [
-          { orderNumber: { gte: 'HCPPL/2627/0001', lte: 'HCPPL/2627/0144' } },
-          { orderNumber: { gte: 'SO/2627/0001', lte: 'SO/2627/0144' } },
+          { orderNumber: { gte: 'HCPPL/2627/0001', lte: 'HCPPL/2627/0150' } },
+          { orderNumber: { gte: 'SO/2627/0001', lte: 'SO/2627/0150' } },
           { salesExecutiveId: { in: allSs1UserIds } },
           { createdById: { in: allSs1UserIds } },
           { remarks: { contains: 'SuperSales 1', mode: 'insensitive' } },
@@ -396,14 +443,18 @@ async function syncDatabase(config) {
       });
       const woIds = workOrders.map(w => w.id);
 
+      if (invoiceIds.length > 0) {
+        try { await prisma.paymentAllocation.deleteMany({ where: { invoiceId: { in: invoiceIds } } }); } catch (e) {}
+        try { await prisma.invoiceItem.deleteMany({ where: { invoiceId: { in: invoiceIds } } }); } catch (e) {}
+        try { await prisma.salesInvoice.deleteMany({ where: { id: { in: invoiceIds } } }); } catch (e) {}
+      }
+
+      if (dispatchIds.length > 0) {
+        try { await prisma.dispatchItem.deleteMany({ where: { dispatchId: { in: dispatchIds } } }); } catch (e) {}
+        try { await prisma.dispatch.deleteMany({ where: { id: { in: dispatchIds } } }); } catch (e) {}
+      }
+
       try { await prisma.customerPaymentAllocation.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
-      try { await prisma.paymentAllocation.deleteMany({ where: { invoiceId: { in: invoiceIds } } }); } catch (e) {}
-      try { await prisma.invoiceItem.deleteMany({ where: { invoiceId: { in: invoiceIds } } }); } catch (e) {}
-      try { await prisma.salesInvoice.deleteMany({ where: { id: { in: invoiceIds } } }); } catch (e) {}
-
-      try { await prisma.dispatchItem.deleteMany({ where: { dispatchId: { in: dispatchIds } } }); } catch (e) {}
-      try { await prisma.dispatch.deleteMany({ where: { id: { in: dispatchIds } } }); } catch (e) {}
-
       try { await prisma.finishedGoods.deleteMany({ where: { OR: [{ workOrderId: { in: woIds } }, { salesOrderId: { in: orderIds } }] } }); } catch (e) {}
       try { await prisma.qCInspection.deleteMany({ where: { workOrderId: { in: woIds } } }); } catch (e) {}
       try { await prisma.productionBatch.deleteMany({ where: { workOrderId: { in: woIds } } }); } catch (e) {}
@@ -423,7 +474,7 @@ async function syncDatabase(config) {
     const quotes = await prisma.quotation.findMany({
       where: {
         OR: [
-          { quotationNumber: { gte: 'QT/2627/0001', lte: 'QT/2627/0144' } },
+          { quotationNumber: { gte: 'QT/2627/0001', lte: 'QT/2627/0150' } },
           { createdById: { in: allSs1UserIds } },
           { salesExecutiveId: { in: allSs1UserIds } },
           { remarks: { contains: 'Super Sales 1', mode: 'insensitive' } },
@@ -442,8 +493,7 @@ async function syncDatabase(config) {
     await prisma.lead.deleteMany({
       where: {
         OR: [
-          { leadNumber: { gte: 'LD/2627/0001', lte: 'LD/2627/0144' } },
-          { leadNumber: { gte: 'LEAD/2627/0001', lte: 'LEAD/2627/0144' } },
+          { leadNumber: { gte: 'LD/2627/0001', lte: 'LD/2627/0145' }, createdById: { in: allSs1UserIds } },
           { createdById: { in: allSs1UserIds } },
           { salesExecutiveId: { in: allSs1UserIds } },
           { assignedToId: { in: allSs1UserIds } },
@@ -452,6 +502,28 @@ async function syncDatabase(config) {
         ]
       }
     });
+
+    // Shift leads >= 145 by +1 to free LD/2627/0145 for SuperSales 1 (which has 145 leads)
+    try {
+      const lead145 = await prisma.lead.findFirst({
+        where: { leadNumber: 'LD/2627/0145', createdById: { notIn: allSs1UserIds } }
+      });
+      if (lead145) {
+        console.log('Shifting existing leads >= 145 by +1 to make room for 145 SuperSales 1 leads...');
+        await prisma.$executeRawUnsafe(`
+          UPDATE "Lead" 
+          SET "leadNumber" = 'TEMP-LD/' || LPAD((SUBSTRING("leadNumber" FROM '\\d+$')::int + 1)::text, 4, '0')
+          WHERE "leadNumber" ~ '^LD/2627/\\d+$' AND (SUBSTRING("leadNumber" FROM '\\d+$')::int) >= 145
+        `);
+        await prisma.$executeRawUnsafe(`
+          UPDATE "Lead" 
+          SET "leadNumber" = 'LD/2627/' || SUBSTRING("leadNumber" FROM '\\d+$')
+          WHERE "leadNumber" ~ '^TEMP-LD/\\d+$'
+        `);
+      }
+    } catch (e) {
+      console.warn('  ⚠️ Lead shift warning:', e.message);
+    }
 
     console.log('Existing SS1 records wiped cleanly.');
 
@@ -817,7 +889,7 @@ async function syncDatabase(config) {
         });
 
         // Production Batch
-        const batchNumber = `BATCH/2627/${String(batchCounter++).padStart(4, '0')}`;
+        const batchNumber = `SS1-BATCH/2627/${String(batchCounter++).padStart(4, '0')}`;
         await prisma.productionBatch.create({
           data: {
             batchNumber,
@@ -1024,7 +1096,7 @@ async function syncDatabase(config) {
 }
 
 async function main() {
-  for (const db of targetDbs) {
+  for (const db of uniqueTargetDbs) {
     await syncDatabase(db);
   }
 }
