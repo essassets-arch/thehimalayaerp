@@ -626,6 +626,8 @@ export default function ProductionPortal() {
   };
 
 
+  const [backendIncomingPending, setBackendIncomingPending] = useState([]);
+  const [backendIncomingHistory, setBackendIncomingHistory] = useState([]);
   const [backendIncomingList, setBackendIncomingList] = useState([]);
   const [directBackendOrders, setDirectBackendOrders] = useState([]);
   const [loadingIncomingOrders, setLoadingIncomingOrders] = useState(false);
@@ -698,7 +700,6 @@ export default function ProductionPortal() {
 
   const loadIncomingOrders = useCallback(async () => {
     setLoadingIncomingOrders(true);
-    setBackendIncomingList([]);
     try {
       const res = await backendFetch(`/api/backend/production/incoming-orders?_t=${Date.now()}`, {
         cache: 'no-store',
@@ -708,14 +709,17 @@ export default function ProductionPortal() {
           'Expires': '0',
         },
       });
-      const items = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
-      console.log('INCOMING ORDERS FROM API:', items);
-      if (typeof console.table === 'function' && items.length > 0) {
-        console.table(items);
-      }
-      setBackendIncomingList(items);
+      const pendingItems = Array.isArray(res?.pending)
+        ? res.pending
+        : (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []));
+      const historyItems = Array.isArray(res?.history) ? res.history : [];
+      setBackendIncomingPending(pendingItems);
+      setBackendIncomingHistory(historyItems);
+      setBackendIncomingList(pendingItems);
     } catch (error) {
       console.error('[Production] Unable to load incoming orders:', error);
+      setBackendIncomingPending([]);
+      setBackendIncomingHistory([]);
       setBackendIncomingList([]);
     } finally {
       setLoadingIncomingOrders(false);
@@ -2364,7 +2368,15 @@ export default function ProductionPortal() {
       );
     };
 
-    // A. Add from persistent / user-accepted history (explicitly clicked Accept/Reject in UI)
+    // A. Add from backend database-verified history (authoritative DB records)
+    (Array.isArray(backendIncomingHistory) ? backendIncomingHistory : []).filter(Boolean).forEach((item) => {
+      const key = String(item?.orderNo || item?.id || '');
+      if (key && !historyMap.has(key)) {
+        historyMap.set(key, item);
+      }
+    });
+
+    // B. Add from persistent / user-accepted history (explicitly clicked Accept/Reject in UI)
     (Array.isArray(acceptedHistory) ? acceptedHistory : []).filter(Boolean).forEach((item) => {
       const key = String(item?.orderNo || item?.id || '');
       if (key && !historyMap.has(key)) {
@@ -2372,7 +2384,7 @@ export default function ProductionPortal() {
       }
     });
 
-    // B. Add from backend work orders ONLY IF they have actually started or completed production
+    // C. Add from backend work orders ONLY IF they have actually started or completed production
     (Array.isArray(backendWorkOrders) ? backendWorkOrders : []).filter(Boolean).forEach((bwo) => {
       const salesOrder = bwo.productionPlan?.salesOrder || bwo.salesOrder || {};
       const key = String(salesOrder.orderNumber || salesOrder.orderNo || bwo.orderNo || bwo.orderNumber || bwo.id || '');
@@ -2406,7 +2418,7 @@ export default function ProductionPortal() {
       }
     });
 
-    // C. Add from direct backend sales orders ONLY IF explicitly completed/in progress
+    // D. Add from direct backend sales orders ONLY IF explicitly completed/in progress
     (Array.isArray(directBackendOrders) ? directBackendOrders : []).filter(Boolean).forEach((so) => {
       const key = String(so?.orderNumber || so?.orderNo || so?.id || '');
       if (!key) return;
@@ -2447,8 +2459,12 @@ export default function ProductionPortal() {
     const acceptedKeys = new Set(Array.from(historyMap.keys()));
     const pendingCandidatesMap = new Map();
 
-    // Source 1: backendIncomingList
-    (Array.isArray(backendIncomingList) ? backendIncomingList : []).filter(Boolean).forEach((row) => {
+    const pendingSource = Array.isArray(backendIncomingPending) && backendIncomingPending.length > 0
+      ? backendIncomingPending
+      : backendIncomingList;
+
+    // Source 1: backendIncomingPending (direct from DB)
+    (Array.isArray(pendingSource) ? pendingSource : []).filter(Boolean).forEach((row) => {
       const key = String(row.orderNo || row.id || '');
       if (key && !acceptedKeys.has(key) && !pendingCandidatesMap.has(key)) {
         pendingCandidatesMap.set(key, row);

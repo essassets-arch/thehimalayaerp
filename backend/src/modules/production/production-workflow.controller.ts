@@ -7,6 +7,7 @@ import {
   Post,
   Body,
   Param,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
@@ -35,15 +36,19 @@ export class ProductionWorkflowController {
     'sales.orders.read',
     'superadmin.read',
   )
-  async getIncomingOrders(@Req() req: any, @Res({ passthrough: true }) res: any) {
+  async getIncomingOrders(
+    @Query('tab') tab: string,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
+  ) {
     res.set({
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
       'Pragma': 'no-cache',
       'Expires': '0',
       'Vary': 'Cookie, Authorization',
     });
-    const data = await this.workflowService.getIncomingOrders();
-    return { success: true, data };
+    const result = await this.workflowService.getIncomingOrders(tab);
+    return { success: true, ...result };
   }
 
   // ==========================================

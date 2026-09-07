@@ -95,12 +95,37 @@ export class ProductionWorkflowService {
     }));
   }
 
-  async getIncomingOrders() {
+  async getIncomingOrders(tab?: string) {
     try {
+      const isActuallyInProductionOrDone = (st?: string, obj: any = {}) => {
+        const s = String(st || '').toUpperCase().trim();
+        const producedQty = Number(obj.producedQty || obj.quantityProduced || 0);
+        const hasStarted = Boolean(obj.lastStartedAt || obj.startedAt || obj.productionStartTime || producedQty > 0);
+        return (
+          hasStarted ||
+          [
+            'IN_PROGRESS',
+            'PRODUCTION_STARTED',
+            'RUNNING',
+            'QC_PENDING',
+            'QC_PASSED',
+            'QC_APPROVED',
+            'QC_FAILED',
+            'REWORK_IN_PROGRESS',
+            'READY_FOR_DISPATCH',
+            'DISPATCHED',
+            'COMPLETED',
+            'CLOSED',
+            'PLANT_REJECTED',
+            'REJECTED',
+          ].includes(s)
+        );
+      };
+
       const workOrders = await this.prisma.workOrder.findMany({
         where: {
           NOT: {
-            status: { in: ['COMPLETED', 'CANCELLED', 'CLOSED'] as any },
+            status: { in: ['CANCELLED'] as any },
           },
         },
         orderBy: { updatedAt: 'desc' },
@@ -130,7 +155,8 @@ export class ProductionWorkflowService {
         },
       });
 
-      const grouped = new Map<string, any>();
+      const historyMap = new Map<string, any>();
+      const pendingMap = new Map<string, any>();
 
       for (const wo of workOrders) {
         const woAny = wo as any;
@@ -158,7 +184,16 @@ export class ProductionWorkflowService {
           salesOrder.clientName ||
           'N/A';
 
-        const existing = grouped.get(orderId) || {
+        const bwoStatus = String(woAny.workflowState?.code || woAny.status || woAny.productionStatus || '').toUpperCase();
+        const isReject = bwoStatus.includes('REJECT') || bwoStatus.includes('CANCEL');
+        const isStartedOrDone = isActuallyInProductionOrDone(bwoStatus, woAny);
+
+        const salesItem = salesOrder.items?.find((item: any) => item.id === woAny.salesOrderItemId) || woAny.salesOrderItem;
+        const productName = salesItem?.productNameSnapshot || salesItem?.product?.name || woAny.salesOrderItem?.product?.name || 'Production Item';
+        const itemQuantity = Number(woAny.quantity || salesItem?.orderedQuantity || 0);
+
+        const targetMap = isStartedOrDone ? historyMap : pendingMap;
+        const existing = targetMap.get(orderId) || {
           id: salesOrder.id || orderId,
           orderNo: salesOrder.orderNumber || salesOrder.orderNo || orderId,
           customerName: resolvedCustomer,
@@ -168,17 +203,16 @@ export class ProductionWorkflowService {
           totalQuantity: 0,
           targetDate: plan.plannedEndDate || salesOrder.requestedDeliveryDate || salesOrder.requiredDeliveryDate || '',
           priority: plan.priority || 'Medium',
-          status: plan.status || woAny.productionStatus || 'RELEASED',
-          workflowStatus: woAny.workflowState?.code || plan.workflowState?.code || 'RELEASED',
+          status: isStartedOrDone ? (bwoStatus || 'IN_PRODUCTION') : (plan.status || 'RELEASED'),
+          workflowStatus: isStartedOrDone ? (bwoStatus || 'IN_PRODUCTION') : (woAny.workflowState?.code || plan.workflowState?.code || 'RELEASED'),
           productionPlanId: plan.id,
           workOrderIds: [],
           hasBackendWorkOrder: true,
+          acceptedAt: isStartedOrDone ? (woAny.updatedAt || woAny.createdAt || salesOrder.updatedAt || new Date().toISOString()) : undefined,
+          acceptedBy: isStartedOrDone ? 'Production Head' : undefined,
+          decisionStatus: isStartedOrDone ? (isReject ? 'REJECTED' : 'ACCEPTED') : undefined,
           createdAt: woAny.createdAt || plan.createdAt || salesOrder.createdAt,
         };
-
-        const salesItem = salesOrder.items?.find((item: any) => item.id === woAny.salesOrderItemId) || woAny.salesOrderItem;
-        const productName = salesItem?.productNameSnapshot || salesItem?.product?.name || woAny.salesOrderItem?.product?.name || 'Production Item';
-        const itemQuantity = Number(woAny.quantity || salesItem?.orderedQuantity || 0);
 
         existing.detailedItems.push({
           productName,
@@ -189,13 +223,18 @@ export class ProductionWorkflowService {
         existing.estimatedQuantity += itemQuantity;
         existing.totalQuantity += itemQuantity;
         existing.workOrderIds.push(woAny.id);
-        grouped.set(orderId, existing);
+        targetMap.set(orderId, existing);
+      }
+
+      // If an order is already in historyMap, ensure it is not in pendingMap
+      for (const historyKey of historyMap.keys()) {
+        pendingMap.delete(historyKey);
       }
 
       const activePlans = await this.prisma.productionPlan.findMany({
         where: {
           NOT: {
-            status: { in: ['COMPLETED', 'CANCELLED'] as any },
+            status: { in: ['CANCELLED'] as any },
           },
         },
         include: {
@@ -219,7 +258,8 @@ export class ProductionWorkflowService {
         const soAny = (plan as any).salesOrder;
         if (!soAny) continue;
         const orderId = soAny.id || plan.salesOrderId || plan.id;
-        if (!grouped.has(orderId) && !grouped.has(soAny.orderNumber)) {
+        const key = String(soAny.orderNumber || soAny.orderNo || orderId);
+        if (!historyMap.has(orderId) && !historyMap.has(key) && !pendingMap.has(orderId) && !pendingMap.has(key)) {
           const lead = soAny.sourceQuotation?.lead || soAny.quotation?.lead;
           const leadCustomer =
             lead?.companyName ||
@@ -248,8 +288,11 @@ export class ProductionWorkflowService {
             unit: i.unit || 'Units',
           }));
           const totalQuantity = detailedItems.reduce((sum: number, it: any) => sum + it.quantity, 0);
+          const planStatus = String(plan.status || soAny.workflowState?.code || soAny.status || '').toUpperCase();
+          const isStartedOrDone = isActuallyInProductionOrDone(planStatus, plan);
 
-          grouped.set(orderId, {
+          const targetMap = isStartedOrDone ? historyMap : pendingMap;
+          targetMap.set(orderId, {
             id: soAny.id,
             orderNo: soAny.orderNumber || soAny.orderNo || soAny.id,
             customerName: resolvedCustomer,
@@ -259,21 +302,29 @@ export class ProductionWorkflowService {
             totalQuantity: totalQuantity,
             targetDate: plan.plannedEndDate || soAny.requestedDeliveryDate || soAny.requiredDeliveryDate || '',
             priority: plan.priority || 'Medium',
-            status: plan.status || soAny.workflowState?.code || soAny.status || 'PRODUCTION_PLANNED',
-            workflowStatus: plan.status || soAny.workflowState?.code || soAny.status || 'PRODUCTION_PLANNED',
+            status: isStartedOrDone ? (planStatus || 'IN_PRODUCTION') : 'PRODUCTION_PLANNED',
+            workflowStatus: isStartedOrDone ? (planStatus || 'IN_PRODUCTION') : 'PRODUCTION_PLANNED',
             productionPlanId: plan.id,
             workOrderIds: plan.workOrders?.map((w: any) => w.id) || [],
             hasBackendWorkOrder: (plan.workOrders?.length || 0) > 0,
+            acceptedAt: isStartedOrDone ? (plan.updatedAt || plan.createdAt || new Date().toISOString()) : undefined,
+            acceptedBy: isStartedOrDone ? 'Production Head' : undefined,
+            decisionStatus: isStartedOrDone ? 'ACCEPTED' : undefined,
             createdAt: plan.createdAt || soAny.createdAt,
           });
         }
+      }
+
+      // Re-verify exclusion
+      for (const historyKey of historyMap.keys()) {
+        pendingMap.delete(historyKey);
       }
 
       const assignedSalesOrders: any[] = await this.prisma.salesOrder.findMany({
         where: {
           deletedAt: null,
           NOT: {
-            status: { in: ['COMPLETED', 'CANCELLED', 'LOST'] as any },
+            status: { in: ['CANCELLED', 'LOST'] as any },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -291,7 +342,8 @@ export class ProductionWorkflowService {
 
       for (const so of assignedSalesOrders) {
         const soAny = so as any;
-        if (!grouped.has(soAny.id) && !grouped.has(soAny.orderNumber)) {
+        const key = String(soAny.orderNumber || soAny.orderNo || soAny.id);
+        if (!historyMap.has(soAny.id) && !historyMap.has(key) && !pendingMap.has(soAny.id) && !pendingMap.has(key)) {
           const lead = soAny.sourceQuotation?.lead || soAny.quotation?.lead;
           const leadCustomer =
             lead?.companyName ||
@@ -320,8 +372,11 @@ export class ProductionWorkflowService {
             unit: i.unit || 'Units',
           }));
           const totalQuantity = detailedItems.reduce((sum: number, it: any) => sum + it.quantity, 0);
+          const soStatus = String(soAny.workflowState?.code || soAny.status || '').toUpperCase();
+          const isStartedOrDone = isActuallyInProductionOrDone(soStatus, soAny);
 
-          grouped.set(soAny.id, {
+          const targetMap = isStartedOrDone ? historyMap : pendingMap;
+          targetMap.set(soAny.id, {
             id: soAny.id,
             orderNo: soAny.orderNumber || soAny.orderNo || soAny.id,
             customerName: resolvedCustomer,
@@ -331,29 +386,47 @@ export class ProductionWorkflowService {
             totalQuantity: totalQuantity,
             targetDate: soAny.requestedDeliveryDate || soAny.requiredDeliveryDate || '',
             priority: 'Medium',
-            status: soAny.workflowState?.code || soAny.status || 'PRODUCTION_PLANNED',
-            workflowStatus: soAny.workflowState?.code || soAny.status || 'PRODUCTION_PLANNED',
+            status: isStartedOrDone ? (soStatus || 'IN_PRODUCTION') : 'PRODUCTION_PLANNED',
+            workflowStatus: isStartedOrDone ? (soStatus || 'IN_PRODUCTION') : 'PRODUCTION_PLANNED',
             workOrderIds: [],
             hasBackendWorkOrder: false,
+            acceptedAt: isStartedOrDone ? (soAny.updatedAt || soAny.createdAt || new Date().toISOString()) : undefined,
+            acceptedBy: isStartedOrDone ? 'Production Head' : undefined,
+            decisionStatus: isStartedOrDone ? 'ACCEPTED' : undefined,
             createdAt: soAny.createdAt,
           });
         }
       }
 
-      return Array.from(grouped.values())
-        .map((item) => ({
-          ...item,
-          _source: 'LIVE_DATABASE',
-        }))
-        .sort((a: any, b: any) => {
-          const numA = parseInt(String(a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
-          const numB = parseInt(String(b.orderNo || b.id || '').replace(/\D/g, '')) || 0;
-          if (numA && numB && numA !== numB) return numB - numA;
-          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-        });
+      // Final pass: ensure no history items exist in pendingMap
+      for (const historyKey of historyMap.keys()) {
+        pendingMap.delete(historyKey);
+      }
+
+      const sortList = (list: any[]) => {
+        return list
+          .map((item) => ({ ...item, _source: 'LIVE_DATABASE' }))
+          .sort((a: any, b: any) => {
+            const numA = parseInt(String(a.orderNo || a.id || '').replace(/\D/g, '')) || 0;
+            const numB = parseInt(String(b.orderNo || b.id || '').replace(/\D/g, '')) || 0;
+            if (numA && numB && numA !== numB) return numB - numA;
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+          });
+      };
+
+      const pendingList = sortList(Array.from(pendingMap.values()));
+      const historyList = sortList(Array.from(historyMap.values()));
+
+      return {
+        pending: pendingList,
+        history: historyList,
+        totalPending: pendingList.length,
+        totalHistory: historyList.length,
+        data: tab === 'history' ? historyList : (tab === 'all' ? [...pendingList, ...historyList] : pendingList),
+      };
     } catch (err) {
       console.error('[ProductionWorkflow] getIncomingOrders failed:', err);
-      return [];
+      return { pending: [], history: [], totalPending: 0, totalHistory: 0, data: [] };
     }
   }
 
