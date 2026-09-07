@@ -2346,17 +2346,9 @@ export class PayrollService {
           .updateMany({
             where: { payrollRecordId: rec.id },
             data: {
-              grossPay: calc.grossTotalA,
-              netPay: netPayable,
+              grossEarnings: calc.grossTotalA,
+              netPaid: netPayable,
               totalDeductions,
-              basicSalary: calc.basicSalary,
-              hra: calc.hraAmount,
-              conveyanceAllowance: calc.conveyanceAmount,
-              specialAllowance: calc.ltaAmount,
-              otherAllowance: calc.educationAllowanceAmount,
-              pfDeduction,
-              esicDeduction,
-              professionalTax,
             },
           })
           .catch(() => {});
