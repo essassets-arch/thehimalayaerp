@@ -265,9 +265,10 @@ export default function CreateQuotation({
     return 0;
   };
 
-  const getInitialSelectedTermIds = () => {
+  const getInitialTermsData = () => {
     const source = quotationDraft || editingQuotation;
     if (source) {
+      const explicitCustom = Array.isArray(source.customTerms) ? source.customTerms : [];
       const existing = (Array.isArray(source.selectedTerms) && source.selectedTerms.length > 0)
         ? source.selectedTerms
         : (Array.isArray(source.quotationTerms) && source.quotationTerms.length > 0)
@@ -277,20 +278,55 @@ export default function CreateQuotation({
             : null;
 
       if (existing && existing.length > 0) {
-        return existing
-          .map((t) => {
-            const rawId = t.termId || t.id;
-            if (rawId && DEFAULT_QUOTATION_TERMS.some(m => m.id === rawId)) {
-              return rawId;
+        const customTerms = [...explicitCustom];
+        const selectedIds = [];
+
+        existing.forEach((t, idx) => {
+          const rawId = t.termId || t.id;
+          const text = String(t.text || t.label || t.title || '').trim();
+          const matchedMaster = DEFAULT_QUOTATION_TERMS.find(m =>
+            (rawId && m.id === rawId) ||
+            (text && m.label?.toLowerCase() === text.toLowerCase())
+          );
+
+          if (matchedMaster) {
+            selectedIds.push(matchedMaster.id);
+          } else if (text) {
+            const termId = rawId || `custom-term-${Date.now()}-${idx}`;
+            if (!customTerms.some(ct => ct.id === termId || ct.label?.toLowerCase() === text.toLowerCase())) {
+              customTerms.push({
+                id: termId,
+                label: text,
+                active: true,
+                sortOrder: DEFAULT_QUOTATION_TERMS.length + customTerms.length + 1,
+                isCustom: true
+              });
             }
-            const matchedMaster = DEFAULT_QUOTATION_TERMS.find(m => m.label?.toLowerCase() === (t.text || t.label || '').toLowerCase());
-            return matchedMaster ? matchedMaster.id : rawId;
-          })
-          .filter(Boolean);
+            selectedIds.push(termId);
+          }
+        });
+
+        return {
+          customTerms,
+          selectedTermIds: Array.from(new Set(selectedIds))
+        };
+      }
+
+      if (explicitCustom.length > 0) {
+        return {
+          customTerms: explicitCustom,
+          selectedTermIds: [...DEFAULT_QUOTATION_TERMS.filter(t => t.active).map(t => t.id), ...explicitCustom.map(t => t.id)]
+        };
       }
     }
-    return DEFAULT_QUOTATION_TERMS.filter(t => t.active).map(t => t.id);
+
+    return {
+      customTerms: [],
+      selectedTermIds: DEFAULT_QUOTATION_TERMS.filter(t => t.active).map(t => t.id)
+    };
   };
+
+  const initialTermsSetup = getInitialTermsData();
 
   const emptyQuotationForm = {
     // A quotation opened with leadId must always show that lead's customer;
@@ -305,7 +341,8 @@ export default function CreateQuotation({
     items: getInitialItems(),
     transportCharge: resolveTransportCost(quotationDraft),
     notes: quotationDraft?.notes || quotationDraft?.remarks || matchedLeadFromProps?.remarks || matchedLeadFromProps?.notes || '',
-    selectedTermIds: getInitialSelectedTermIds()
+    customTerms: initialTermsSetup.customTerms,
+    selectedTermIds: initialTermsSetup.selectedTermIds
   };
 
   const draftKey = `erp_draft_create_quotation_${editingQuotation ? `edit-${editingQuotation.id}` : (targetQuotationId || targetLeadId || 'new')}`;
@@ -319,6 +356,7 @@ export default function CreateQuotation({
 
   useEffect(() => {
     if (editingQuotation && quotationDraft) {
+      const termsSetup = getInitialTermsData();
       setFormData({
         customerName: quotationDraft.customerName || '',
         groupName: quotationDraft.groupName || '',
@@ -330,7 +368,8 @@ export default function CreateQuotation({
         items: getInitialItems(),
         transportCharge: Number(quotationDraft.transportCharge ?? quotationDraft.expectedTransportationCost ?? 0),
         notes: quotationDraft.notes || quotationDraft.remarks || '',
-        selectedTermIds: getInitialSelectedTermIds()
+        customTerms: termsSetup.customTerms,
+        selectedTermIds: termsSetup.selectedTermIds
       });
     }
   }, [editingQuotation?.id]);
@@ -437,7 +476,7 @@ export default function CreateQuotation({
 
   const {
     customerName, groupName, isGstRegistered, gstNumber, gstName, validTill, paymentTerms,
-    items: storedItems, transportCharge, notes, selectedTermIds: storedTermIds
+    items: storedItems, transportCharge, notes, selectedTermIds: storedTermIds, customTerms: storedCustomTerms
   } = formData;
 
   const items = useMemo(
@@ -445,10 +484,21 @@ export default function CreateQuotation({
     [storedItems]
   );
 
+  const customTerms = useMemo(() => {
+    return Array.isArray(storedCustomTerms) ? storedCustomTerms : [];
+  }, [storedCustomTerms]);
+
+  const allAvailableTerms = useMemo(() => {
+    return [...DEFAULT_QUOTATION_TERMS, ...customTerms];
+  }, [customTerms]);
+
   const selectedTermIds = useMemo(() => {
     if (Array.isArray(storedTermIds)) return storedTermIds;
-    return getInitialSelectedTermIds();
-  }, [storedTermIds, editingQuotation, quotationDraft]);
+    return allAvailableTerms.filter(t => t.active).map(t => t.id);
+  }, [storedTermIds, allAvailableTerms]);
+
+  const [newTermInput, setNewTermInput] = useState('');
+  const [isAddingCustomTerm, setIsAddingCustomTerm] = useState(false);
 
   const updateField = (field, value) => {
     setFormData(prev => ({
@@ -465,6 +515,7 @@ export default function CreateQuotation({
   const setValidTill = (val) => updateField('validTill', val);
   const setPaymentTerms = (val) => updateField('paymentTerms', val);
   const setSelectedTermIds = (val) => updateField('selectedTermIds', val);
+
   const handleToggleTerm = (termId) => {
     setSelectedTermIds(prev => {
       const current = Array.isArray(prev) ? prev : [];
@@ -475,11 +526,41 @@ export default function CreateQuotation({
       }
     });
   };
+
   const handleSelectAllTerms = () => {
-    setSelectedTermIds(DEFAULT_QUOTATION_TERMS.map(t => t.id));
+    setSelectedTermIds(allAvailableTerms.map(t => t.id));
   };
+
   const handleDeselectAllTerms = () => {
     setSelectedTermIds([]);
+  };
+
+  const handleAddCustomTerm = () => {
+    const trimmed = (newTermInput || '').trim();
+    if (!trimmed) return;
+    const newId = `custom-term-${Date.now()}`;
+    const newTermObj = {
+      id: newId,
+      label: trimmed,
+      active: true,
+      sortOrder: allAvailableTerms.length + 1,
+      isCustom: true
+    };
+    setFormData(prev => ({
+      ...prev,
+      customTerms: [...(prev.customTerms || []), newTermObj],
+      selectedTermIds: [...(prev.selectedTermIds || []), newId]
+    }));
+    setNewTermInput('');
+    setIsAddingCustomTerm(false);
+  };
+
+  const handleDeleteCustomTerm = (termId) => {
+    setFormData(prev => ({
+      ...prev,
+      customTerms: (prev.customTerms || []).filter(t => t.id !== termId),
+      selectedTermIds: (prev.selectedTermIds || []).filter(id => id !== termId)
+    }));
   };
   const setItems = (val) => updateField('items', currentItems => {
     const normalizedCurrentItems = normalizeQuotationItemIds(currentItems);
@@ -704,11 +785,11 @@ export default function CreateQuotation({
       return;
     }
 
-    const activeSelectedTerms = DEFAULT_QUOTATION_TERMS
+    const activeSelectedTerms = allAvailableTerms
       .filter(term => selectedTermIds.includes(term.id))
       .map((term, index) => ({
         termId: term.id,
-        text: term.label,
+        text: term.label || term.text,
         sortOrder: index + 1
       }));
 
@@ -758,8 +839,10 @@ export default function CreateQuotation({
       remarks: notes.trim(),
       termsAndNotes: notes.trim(),
       selectedTerms: activeSelectedTerms,
+      quotationTerms: activeSelectedTerms,
       terms: activeSelectedTerms,
       selectedTermIds: selectedTermIds,
+      customTerms: customTerms,
       source: isSampleSource ? 'SAMPLE' : (isLeadSource || selectedCustomerRecord?.type === 'Lead' ? 'LEAD' : (editingQuotation?.leadId ? 'LEAD' : undefined)),
       sourceId: isSampleSource ? sourceId : (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : (editingQuotation?.leadId || undefined))),
       leadId: targetLeadId || (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : (editingQuotation?.leadId || undefined))),
@@ -775,7 +858,9 @@ export default function CreateQuotation({
             ...payload,
             detailedItems: payload.items,
             selectedTerms: activeSelectedTerms,
-            terms: activeSelectedTerms
+            quotationTerms: activeSelectedTerms,
+            terms: activeSelectedTerms,
+            customTerms: customTerms
           });
           success = true;
           if (typeof onCancel === 'function') onCancel();
@@ -1439,11 +1524,31 @@ export default function CreateQuotation({
                     TERMS AND CONDITIONS :-
                   </label>
                   <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', background: selectedTermIds.length > 0 ? '#e0f2fe' : '#f1f5f9', color: selectedTermIds.length > 0 ? '#0284c7' : '#64748b' }}>
-                    {selectedTermIds.length} / {DEFAULT_QUOTATION_TERMS.length} Selected
+                    {selectedTermIds.length} / {allAvailableTerms.length} Selected
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingCustomTerm(v => !v)}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '11.5px',
+                      fontWeight: '700',
+                      borderRadius: '6px',
+                      background: isAddingCustomTerm ? '#e0f2fe' : '#f0f9ff',
+                      color: '#0284c7',
+                      border: '1px solid #bae6fd',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Plus size={13} /> {isAddingCustomTerm ? 'Cancel' : '+ Add Term'}
+                  </button>
                   <button
                     type="button"
                     onClick={handleSelectAllTerms}
@@ -1481,21 +1586,77 @@ export default function CreateQuotation({
                 </div>
               </div>
 
+              {/* Inline Add Custom Term Input Bar */}
+              {isAddingCustomTerm && (
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  padding: '10px 12px',
+                  background: '#f0f9ff',
+                  borderRadius: '8px',
+                  border: '1.5px dashed #0284c7',
+                  alignItems: 'center',
+                  marginTop: '2px'
+                }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    style={{
+                      fontSize: '12.5px',
+                      padding: '6px 12px',
+                      flex: 1,
+                      borderRadius: '6px',
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1'
+                    }}
+                    placeholder="Enter custom term & condition text (e.g. 50% advance along with purchase order)..."
+                    value={newTermInput}
+                    autoFocus
+                    onChange={(e) => setNewTermInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomTerm();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomTerm}
+                    disabled={!newTermInput.trim()}
+                    style={{
+                      padding: '6px 14px',
+                      fontSize: '12px',
+                      fontWeight: '750',
+                      borderRadius: '6px',
+                      background: newTermInput.trim() ? '#0284c7' : '#94a3b8',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: newTermInput.trim() ? 'pointer' : 'not-allowed',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Plus size={13} /> Add
+                  </button>
+                </div>
+              )}
+
               {/* Dynamic Term List with sequential badges for selected terms */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px' }}>
-                {DEFAULT_QUOTATION_TERMS.map((term) => {
+                {allAvailableTerms.map((term) => {
                   const isChecked = selectedTermIds.includes(term.id);
-                  // Sequential number among checked items
+                  const activeSelectedList = allAvailableTerms.filter(t => selectedTermIds.includes(t.id));
                   const selectedIndex = isChecked
-                    ? selectedTermIds.filter(id => {
-                        const m = DEFAULT_QUOTATION_TERMS.find(t => t.id === id);
-                        return m && m.sortOrder <= term.sortOrder;
-                      }).length
+                    ? (activeSelectedList.findIndex(t => t.id === term.id) + 1)
                     : null;
 
                   return (
-                    <label
+                    <div
                       key={term.id}
+                      onClick={() => handleToggleTerm(term.id)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1512,8 +1673,8 @@ export default function CreateQuotation({
                       <input
                         type="checkbox"
                         checked={isChecked}
-                        onChange={() => handleToggleTerm(term.id)}
-                        style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#0284c7' }}
+                        onChange={() => {}} // Handled by outer click
+                        style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#0284c7', flexShrink: 0 }}
                       />
                       {isChecked && (
                         <div style={{
@@ -1536,14 +1697,66 @@ export default function CreateQuotation({
                         fontSize: '12.5px',
                         fontWeight: isChecked ? '600' : '500',
                         color: isChecked ? '#0f172a' : '#64748b',
-                        lineHeight: '1.4'
+                        lineHeight: '1.4',
+                        flex: 1
                       }}>
                         {term.label}
                       </span>
-                    </label>
+                      {term.isCustom && (
+                        <button
+                          type="button"
+                          title="Remove this custom term"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCustomTerm(term.id);
+                          }}
+                          style={{
+                            background: '#fee2e2',
+                            border: '1px solid #fecaca',
+                            color: '#dc2626',
+                            borderRadius: '4px',
+                            padding: '3px 8px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            marginLeft: 'auto',
+                            flexShrink: 0
+                          }}
+                        >
+                          <Trash2 size={12} /> Remove
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
+
+              {/* Quick Add link at bottom if not open */}
+              {!isAddingCustomTerm && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCustomTerm(true)}
+                  style={{
+                    alignSelf: 'flex-start',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#0284c7',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 0',
+                    marginTop: '2px'
+                  }}
+                >
+                  <Plus size={13} /> + Add another custom term &amp; condition
+                </button>
+              )}
 
               {/* Optional Custom Instructions / Notes */}
               <div style={{ marginTop: '6px', borderTop: '1px dashed #e2e8f0', paddingTop: '10px' }}>

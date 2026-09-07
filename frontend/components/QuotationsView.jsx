@@ -666,28 +666,91 @@ export default function QuotationsView({
     return `₹${Math.round(value).toLocaleString('en-IN')}`;
   };
 
-  const renderAddress = (addr) => {
+  const formatAddressString = (addr) => {
     if (!addr) return '';
-    if (typeof addr === 'string') return addr;
-    const parts = [addr.line1, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean);
-    return parts.join(', ') || '';
+    if (typeof addr === 'string') {
+      try {
+        const parsed = JSON.parse(addr);
+        if (typeof parsed === 'object' && parsed !== null) {
+          return formatAddressString(parsed);
+        }
+      } catch (e) {
+        // plain string
+      }
+      const trimmed = addr.trim();
+      return (trimmed === '—' || trimmed === '-' || trimmed.toLowerCase() === 'undefined' || trimmed.toLowerCase() === 'null') ? '' : trimmed;
+    }
+    if (typeof addr === 'object' && addr !== null) {
+      const parts = [
+        addr.line1 || addr.addressLine1 || addr.street || addr.address,
+        addr.line2 || addr.addressLine2,
+        addr.city,
+        addr.state,
+        addr.country,
+        addr.pincode || addr.postalCode || addr.pinCode || addr.zipCode
+      ].filter(Boolean);
+      return parts.join(', ');
+    }
+    return '';
   };
 
   // Resolve client information
+  const clientCustomerName = selectedQuotation
+    ? (selectedQuotation.customerName || selectedQuotation.customer_name || selectedQuotation.customer?.companyName || selectedQuotation.customer?.name || selectedQuotation.lead?.companyName || selectedQuotation.lead?.customerName || selectedQuotation.gstName || 'Valued Customer')
+    : '';
+
   const clientLead = (selectedQuotation && selectedQuotation.customerName && leads)
-    ? leads.find(l => l.companyName && l.companyName.toLowerCase() === selectedQuotation.customerName.toLowerCase())
+    ? leads.find(l => (l.companyName && l.companyName.toLowerCase() === selectedQuotation.customerName.toLowerCase()) || (l.customerName && l.customerName.toLowerCase() === selectedQuotation.customerName.toLowerCase()))
     : null;
   const clientCustomer = (selectedQuotation && selectedQuotation.customerName && customers)
-    ? customers.find(c => c.name && c.name.toLowerCase() === selectedQuotation.customerName.toLowerCase())
+    ? customers.find(c => (c.name && c.name.toLowerCase() === selectedQuotation.customerName.toLowerCase()) || (c.customerName && c.customerName.toLowerCase() === selectedQuotation.customerName.toLowerCase()))
     : null;
 
-  const clientAddress =
+  const rawAddress =
+    selectedQuotation?.clientAddress ||
+    selectedQuotation?.customerAddress ||
+    selectedQuotation?.shippingAddress ||
     selectedQuotation?.billingAddress ||
     selectedQuotation?.deliveryAddress ||
-    (clientLead ? renderAddress(clientLead.address) : '') ||
-    (clientCustomer ? renderAddress(clientCustomer.address) : '') ||
-    '—';
-  const clientGST = selectedQuotation?.gstNumber || clientLead?.gstNumber || '27ABCDE4321G2Z8';
+    selectedQuotation?.siteAddress ||
+    selectedQuotation?.address ||
+    selectedQuotation?.customer?.shippingAddress ||
+    selectedQuotation?.customer?.billingAddress ||
+    selectedQuotation?.customer?.address ||
+    selectedQuotation?.lead?.siteAddress ||
+    selectedQuotation?.lead?.address ||
+    selectedQuotation?.lead?.location ||
+    clientCustomer?.address ||
+    clientCustomer?.shippingAddress ||
+    clientCustomer?.billingAddress ||
+    clientLead?.address ||
+    clientLead?.siteAddress ||
+    clientLead?.location ||
+    '';
+
+  const clientAddress = formatAddressString(rawAddress);
+
+  const rawGst =
+    selectedQuotation?.gstNumber ||
+    selectedQuotation?.gstin ||
+    selectedQuotation?.gst ||
+    selectedQuotation?.customer?.gstNumber ||
+    selectedQuotation?.customer?.gstin ||
+    selectedQuotation?.customer?.gst ||
+    selectedQuotation?.lead?.gstNumber ||
+    selectedQuotation?.lead?.gstin ||
+    selectedQuotation?.lead?.gst ||
+    clientCustomer?.gstNumber ||
+    clientCustomer?.gstin ||
+    clientCustomer?.gst ||
+    clientLead?.gstNumber ||
+    clientLead?.gstin ||
+    clientLead?.gst ||
+    '';
+
+  const clientGST = (typeof rawGst === 'string' && rawGst.trim() && !['—', '-', 'N/A', 'NA', 'NONE', 'NULL', 'UNDEFINED'].includes(rawGst.trim().toUpperCase()))
+    ? rawGst.trim().toUpperCase()
+    : null;
 
   // Resolve detailed item rows
   const itemsList = selectedQuotation ? quotationDetailItems(selectedQuotation) : [];
@@ -1604,7 +1667,7 @@ export default function QuotationsView({
                 </div>
                 <div style={{ padding: '10px 16px', flex: 1, position: 'relative', zIndex: 2 }}>
                   <p style={{ margin: 0, fontSize: '9px', fontWeight: '700', color: '#64748b', letterSpacing: '0.5px' }}>QUOTED TO:</p>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '15px', fontWeight: '800', color: '#0f2c59' }}>{selectedQuotation.customerName}</p>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '15px', fontWeight: '800', color: '#0f2c59' }}>{clientCustomerName || selectedQuotation.customerName}</p>
                   {clientAddress && <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', color: '#475569', fontWeight: '500' }}>{clientAddress}</p>}
                   {clientGST && <p style={{ margin: '4px 0 0 0', fontSize: '11.5px', color: '#475569', fontWeight: '600' }}>GST: <span style={{ textTransform: 'uppercase', fontFamily: 'monospace' }}>{clientGST}</span></p>}
                 </div>
