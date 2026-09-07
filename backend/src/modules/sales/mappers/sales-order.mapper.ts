@@ -420,7 +420,16 @@ export function mapSalesOrder(
     workflowStateCode: order.workflowState?.code,
     workflowStateName: order.workflowState?.name,
 
+    invoiceNumber: (order.dispatches || []).find((d: any) => Boolean(d?.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim()))?.invoiceNumber?.trim() || (order as any).invoices?.[0]?.invoiceNumber || null,
+    invoiceNo: (order.dispatches || []).find((d: any) => Boolean(d?.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim()))?.invoiceNumber?.trim() || (order as any).invoices?.[0]?.invoiceNumber || null,
+    invoice_number: (order.dispatches || []).find((d: any) => Boolean(d?.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim()))?.invoiceNumber?.trim() || (order as any).invoices?.[0]?.invoiceNumber || null,
+
     dispatches: order.dispatches || [],
+
+    lostReason: (order as any).lostReason ?? undefined,
+    lostAt: (order as any).lostAt ? ((order as any).lostAt instanceof Date ? (order as any).lostAt.toISOString() : (order as any).lostAt) : undefined,
+    lostComplaintId: (order as any).lostComplaintId ?? undefined,
+    lossRecord: (order as any).lossRecord ?? undefined,
 
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),

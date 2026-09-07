@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -81,6 +81,9 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   // Extract salesperson name from order or lead
   const getSalespersonName = (item) => {
     if (!item) return '';
+    if (user?.id && (item.createdById === user.id || item.salesExecutiveId === user.id)) {
+      return myName || 'Salesperson';
+    }
     return (
       item.salesperson ||
       item.salesPerson ||
@@ -116,15 +119,11 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       });
     }
 
-    ['Rajesh Kumar', 'Aman Sharma', 'Priya Patel', 'SuperSales'].forEach(n => {
-      if (n) namesSet.add(n);
-    });
-
     return Array.from(namesSet);
   }, [orders, leads, settings, myName]);
 
   const [selectedSalesperson, setSelectedSalesperson] = useState(() => {
-    if (!isSalesAdmin && myName) return myName;
+    if (myName) return myName;
     return 'ALL';
   });
 
@@ -219,17 +218,15 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   const salespersonStats = useMemo(() => {
     return discoveredSalespeople.map(name => {
       // Find assigned target
-      let target = 2500000; // Default ₹25.00 L per salesperson
+      let target = 10000000; // Default ₹1.00 Cr
       if (settings.salesTargets && settings.salesTargets[name]) {
         target = Number(settings.salesTargets[name]);
-      } else if (targetData?.monthlyTarget && selectedSalesperson === name) {
+      } else if (targetData?.monthlyTarget && (name === myName || selectedSalesperson === name)) {
         target = Number(targetData.monthlyTarget);
-      } else if (name === 'SuperSales' || name === 'Rajesh Kumar') {
-        target = 5000000; // ₹50.00 L
-      } else if (name === 'Aman Sharma') {
-        target = 3500000; // ₹35.00 L
-      } else if (name === 'Priya Patel') {
-        target = 3000000; // ₹30.00 L
+      } else if (name === myName && targetData?.target?.revenueTarget) {
+        target = Number(targetData.target.revenueTarget);
+      } else {
+        target = 2500000;
       }
 
       // Orders and Revenue for this salesperson
@@ -252,7 +249,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       let status = 'In Progress';
       let statusColor = '#3b82f6';
       let statusBg = '#eff6ff';
-      if (achieved >= target) {
+      if (achieved >= target && target > 0) {
         status = '🎯 Target Met';
         statusColor = '#16a34a';
         statusBg = '#dcfce7';
@@ -285,11 +282,12 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
         revenue: achieved
       };
     }).sort((a, b) => b.achieved - a.achieved);
-  }, [discoveredSalespeople, activeOrdersList, leads, payments, settings, targetData, selectedSalesperson, dateFrom, dateTo]);
+  }, [discoveredSalespeople, activeOrdersList, leads, payments, settings, targetData, selectedSalesperson, dateFrom, dateTo, myName]);
 
-  // Current scope isolated target metrics
+  // Target metrics scoped to the active logged-in user (Target Tracker focus)
   const currentTargetMetrics = useMemo(() => {
-    if (selectedSalesperson !== 'ALL') {
+    // If a specific other salesperson is explicitly isolated, show their metrics
+    if (selectedSalesperson && selectedSalesperson !== 'ALL' && selectedSalesperson !== myName) {
       const personStat = salespersonStats.find(s => s.name.toLowerCase() === selectedSalesperson.toLowerCase());
       if (personStat) {
         return {
@@ -297,24 +295,75 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
           achieved: personStat.achieved,
           remaining: personStat.remaining,
           progress: personStat.progress,
-          label: personStat.name
+          exactProgressPct: personStat.target > 0 ? ((personStat.achieved / personStat.target) * 100).toFixed(2) : '0',
+          label: personStat.name,
+          daysRemaining: targetData?.daysRemaining ?? null,
+          requiredDailySales: personStat.remaining > 0 ? Math.round(personStat.remaining / 30) : 0,
+          period: 'Monthly Target',
+          startDate: null,
+          endDate: null,
+          status: personStat.status
         };
       }
     }
 
-    const totalTarget = salespersonStats.reduce((sum, s) => sum + s.target, 0) || 5000000;
-    const totalAchieved = displaySalesVal;
-    const totalRemaining = Math.max(0, totalTarget - totalAchieved);
-    const totalProgress = totalTarget > 0 ? Math.min(100, Math.round((totalAchieved / totalTarget) * 100)) : 0;
+    // Default to the Logged-In User Target (from targetData or settings)
+    let target = 10000000; // Default ₹1.00 Cr
+    if (targetData?.monthlyTarget) {
+      target = Number(targetData.monthlyTarget);
+    } else if (targetData?.target?.revenueTarget) {
+      target = Number(targetData.target.revenueTarget);
+    } else if (settings.salesTargets && settings.salesTargets[myName]) {
+      target = Number(settings.salesTargets[myName]);
+    }
+
+    // User's own orders
+    const myOwnOrders = activeOrdersList.filter(o => 
+      matchesSalesperson(o, myName) && 
+      isDateInRange(o.createdAt || o.orderDate || o.date)
+    );
+    const calculatedAchieved = myOwnOrders.reduce((sum, o) => 
+      sum + Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0), 0
+    );
+
+    // Prefer achievedSales from backend dashboard if available
+    const achieved = (targetData && typeof targetData.achievedSales === 'number')
+      ? Number(targetData.achievedSales)
+      : calculatedAchieved;
+
+    const remaining = (targetData && typeof targetData.remainingTarget === 'number')
+      ? Number(targetData.remainingTarget)
+      : Math.max(0, target - achieved);
+
+    const progress = target > 0 ? (achieved >= target ? 100 : Math.round((achieved / target) * 100)) : 0;
+    const exactProgressPct = target > 0 ? ((achieved / target) * 100).toFixed(2) : '0';
+
+    let status = '⚠️ Needs Attention';
+    if (achieved >= target && target > 0) {
+      status = '🎯 Target Met';
+    } else if (progress >= 60) {
+      status = '🔥 On Track';
+    } else if (progress >= 25) {
+      status = 'In Progress';
+    }
 
     return {
-      target: totalTarget,
-      achieved: totalAchieved,
-      remaining: totalRemaining,
-      progress: totalProgress,
-      label: 'Entire Sales Team'
+      target,
+      achieved,
+      remaining,
+      progress,
+      exactProgressPct,
+      daysRemaining: targetData?.daysRemaining ?? null,
+      requiredDailySales: targetData?.requiredDailySales ?? (remaining > 0 ? Math.round(remaining / 30) : 0),
+      period: targetData?.target?.period || 'Monthly Target',
+      startDate: targetData?.target?.startDate || null,
+      endDate: targetData?.target?.endDate || null,
+      label: myName || 'My Target',
+      status,
+      ordersCount: myOwnOrders.length,
+      ordersList: myOwnOrders
     };
-  }, [selectedSalesperson, salespersonStats, displaySalesVal]);
+  }, [selectedSalesperson, myName, salespersonStats, targetData, settings, activeOrdersList, dateFrom, dateTo]);
 
   const assignedTarget = currentTargetMetrics.target;
   const achievedVal = currentTargetMetrics.achieved;
@@ -323,6 +372,15 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
 
   const teamStats = salespersonStats;
   const totalTeamRevenue = teamStats.reduce((sum, t) => sum + t.achieved, 0) || 1;
+
+  // Contributing sales orders for Target Tracker
+  const targetScopeSalesperson = (selectedSalesperson && selectedSalesperson !== 'ALL') ? selectedSalesperson : myName;
+  const contributingOrders = useMemo(() => {
+    return activeOrdersList.filter(o => 
+      matchesSalesperson(o, targetScopeSalesperson) && 
+      isDateInRange(o.createdAt || o.orderDate || o.date)
+    );
+  }, [activeOrdersList, targetScopeSalesperson, dateFrom, dateTo]);
 
   // Tab configurations
   const tabs = [
@@ -949,11 +1007,11 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     fontWeight: '800',
                     padding: '2px 8px',
                     borderRadius: '12px',
-                    background: selectedSalesperson === 'ALL' ? '#f1f5f9' : '#e0f2fe',
-                    color: selectedSalesperson === 'ALL' ? '#475569' : '#0369a1',
+                    background: '#e0f2fe',
+                    color: '#0369a1',
                     border: '1px solid #cbd5e1'
                   }}>
-                    {selectedSalesperson === 'ALL' ? '👥 All Team' : `👤 ${selectedSalesperson}`}
+                    👤 {currentTargetMetrics.label || myName || 'My Target'}
                   </span>
                 </div>
                 <div className="report-bar-row">
@@ -999,107 +1057,6 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     <span>Outstanding: <strong style={{ color: totalOutstandingVal > 0 ? '#ef4444' : '#64748b' }}>{formatINR(totalOutstandingVal)}</strong></span>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Individual Salesperson Target Breakdown Panel */}
-            <div className="reports-panel" style={{ marginTop: '4px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                <div className="reports-panel-title" style={{ margin: 0 }}>
-                  <Users size={16} color="#0284c7" /> Salesperson Target vs Achievement Breakdown
-                </div>
-                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
-                  Showing isolated targets &amp; performance for {salespersonStats.length} sales executives
-                </span>
-              </div>
-
-              <div className="reports-table-scroll">
-                <table className="crm-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: '#002e5d', color: '#ffffff' }}>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Salesperson</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Assigned Target</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Achieved Revenue</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left', minWidth: '150px' }}>Progress (% Achieved)</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Remaining Deficit</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Status</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {salespersonStats.map(rep => (
-                      <tr key={rep.name} style={{ borderBottom: '1px solid #f1f5f9', background: selectedSalesperson === rep.name ? '#f0f9ff' : 'inherit' }}>
-                        <td style={{ fontWeight: '800', padding: '10px 14px', color: '#002e5d' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>👤</span>
-                            <span>{rep.name}</span>
-                            {selectedSalesperson === rep.name && (
-                              <span style={{ fontSize: '10px', background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>Active Filter</span>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: '#475569' }}>
-                          {formatINR(rep.target)}
-                        </td>
-                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: '#059669' }}>
-                          {formatINR(rep.achieved)}
-                        </td>
-                        <td style={{ padding: '10px 14px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div className="report-bar-track" style={{ flex: 1, height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                              <div
-                                className="report-bar-fill"
-                                style={{
-                                  width: `${rep.progress}%`,
-                                  height: '100%',
-                                  background: rep.progress >= 100 ? '#10b981' : '#0284c7',
-                                  borderRadius: '4px'
-                                }}
-                              ></div>
-                            </div>
-                            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#002e5d', minWidth: '34px', textAlign: 'right' }}>
-                              {rep.progress}%
-                            </span>
-                          </div>
-                        </td>
-                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: rep.remaining > 0 ? '#dc2626' : '#10b981' }}>
-                          {rep.remaining > 0 ? formatINR(rep.remaining) : 'Target Met 🎉'}
-                        </td>
-                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                          <span style={{
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            fontWeight: '800',
-                            background: rep.statusBg,
-                            color: rep.statusColor,
-                            display: 'inline-block'
-                          }}>
-                            {rep.status}
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedSalesperson(selectedSalesperson === rep.name ? 'ALL' : rep.name)}
-                            style={{
-                              padding: '3px 9px',
-                              borderRadius: '6px',
-                              fontSize: '11.5px',
-                              fontWeight: '700',
-                              border: selectedSalesperson === rep.name ? '1px solid #0284c7' : '1px solid #cbd5e1',
-                              background: selectedSalesperson === rep.name ? '#0284c7' : '#ffffff',
-                              color: selectedSalesperson === rep.name ? '#ffffff' : '#334155',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {selectedSalesperson === rep.name ? 'Clear' : 'Isolate'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             </div>
           </div>
@@ -1554,42 +1511,125 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
         {/* TARGET TRACKER TAB */}
         {activeTab === 'target' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Sales Representative Target Header Banner */}
+            <div style={{
+              background: 'linear-gradient(135deg, #002e5d 0%, #004b93 100%)',
+              color: '#ffffff',
+              borderRadius: '12px',
+              padding: '18px 22px',
+              boxShadow: '0 4px 14px rgba(0, 46, 93, 0.15)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '14px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '50%',
+                  background: 'rgba(255, 255, 255, 0.18)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '22px',
+                  border: '1px solid rgba(255, 255, 255, 0.3)'
+                }}>
+                  👤
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '900', letterSpacing: '-0.2px' }}>
+                      {targetScopeSalesperson || myName || 'Sales Representative'}
+                    </h3>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      background: '#10b981',
+                      color: '#ffffff',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.4px'
+                    }}>
+                      Active Sales Target
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.82)', marginTop: '4px' }}>
+                    Monitoring isolated individual target &amp; closed revenue performance
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.12)',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  fontSize: '12px',
+                  fontWeight: '700'
+                }}>
+                  🎯 {currentTargetMetrics.period || 'Monthly Target'}
+                  {currentTargetMetrics.startDate && currentTargetMetrics.endDate && (
+                    <span style={{ marginLeft: '6px', opacity: 0.85, fontSize: '11px', fontWeight: '500' }}>
+                      ({new Date(currentTargetMetrics.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} – {new Date(currentTargetMetrics.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
+                    </span>
+                  )}
+                </div>
+
+                <div style={{
+                  background: '#ffffff',
+                  color: targetPct >= 100 ? '#15803d' : targetPct >= 60 ? '#0284c7' : '#b91c1c',
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '800',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+                }}>
+                  {currentTargetMetrics.status}
+                </div>
+              </div>
+            </div>
+
+            {/* Target Progress & Main KPIs Panel */}
             <div className="reports-panel" style={{ 
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
               gap: 'clamp(16px, 4vw, 30px)',
               alignItems: 'center'
             }}>
-              {/* Target Graphic / Status */}
+              {/* Circular Target Graphic */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
                 <div style={{ 
-                  width: '150px', 
-                  height: '150px', 
+                  width: '154px', 
+                  height: '154px', 
                   borderRadius: '50%', 
-                  background: `conic-gradient(#0284c7 ${targetPct}%, #f1f5f9 0)`,
+                  background: `conic-gradient(#0284c7 ${Math.max(targetPct, 1)}%, #f1f5f9 0)`,
                   display: 'flex', 
                   justifyContent: 'center', 
                   alignItems: 'center',
                   marginBottom: '14px',
                   position: 'relative',
-                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.12)'
+                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.15)'
                 }}>
                   <div style={{
-                    width: '124px',
-                    height: '124px',
+                    width: '126px',
+                    height: '126px',
                     borderRadius: '50%',
                     background: '#ffffff',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
                     alignItems: 'center',
-                    boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.05)'
+                    boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.06)'
                   }}>
                     <span style={{ fontSize: '26px', fontWeight: '900', color: '#002e5d', lineHeight: 1 }}>
                       {targetPct}%
                     </span>
-                    <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', color: '#64748b', marginTop: '4px' }}>
-                      Completed
+                    <span style={{ fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase', color: '#64748b', marginTop: '4px' }}>
+                      {currentTargetMetrics.exactProgressPct}% Actual
                     </span>
                   </div>
                 </div>
@@ -1606,135 +1646,208 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                 </p>
               </div>
 
-              {/* Targets detail */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#64748b' }}>
-                    Target Assigned
+              {/* Targets 3-Card Stack */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ background: '#f8fafc', padding: '14px 18px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.4px' }}>
+                    Assigned Sales Target
                   </span>
-                  <div style={{ fontSize: '22px', fontWeight: '900', color: '#002e5d', marginTop: '4px' }}>
+                  <div style={{ fontSize: '24px', fontWeight: '900', color: '#002e5d', marginTop: '4px' }}>
                     {formatINR(assignedTarget)}
                   </div>
-                </div>
-
-                <div style={{ background: '#f0fdf4', padding: '12px 16px', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#16a34a' }}>
-                    Revenue Achieved
-                  </span>
-                  <div style={{ fontSize: '22px', fontWeight: '900', color: '#15803d', marginTop: '4px' }}>
-                    {formatINR(achievedVal)}
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                    Quota allocated for {targetScopeSalesperson || myName || 'current user'}
                   </div>
                 </div>
 
-                <div style={{ background: targetRemaining > 0 ? '#fef2f2' : '#f0fdf4', padding: '12px 16px', borderRadius: '10px', border: `1px solid ${targetRemaining > 0 ? '#fecaca' : '#bbf7d0'}` }}>
-                  <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: targetRemaining > 0 ? '#dc2626' : '#16a34a' }}>
+                <div style={{ background: '#f0fdf4', padding: '14px 18px', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#16a34a', letterSpacing: '0.4px' }}>
+                    Achieved Revenue
+                  </span>
+                  <div style={{ fontSize: '24px', fontWeight: '900', color: '#15803d', marginTop: '4px' }}>
+                    {formatINR(achievedVal)}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '2px', fontWeight: '600' }}>
+                    {currentTargetMetrics.exactProgressPct}% of target completed ({contributingOrders.length} confirmed orders)
+                  </div>
+                </div>
+
+                <div style={{ background: targetRemaining > 0 ? '#fef2f2' : '#f0fdf4', padding: '14px 18px', borderRadius: '10px', border: `1px solid ${targetRemaining > 0 ? '#fecaca' : '#bbf7d0'}` }}>
+                  <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: targetRemaining > 0 ? '#dc2626' : '#16a34a', letterSpacing: '0.4px' }}>
                     Remaining Deficit
                   </span>
-                  <div style={{ fontSize: '22px', fontWeight: '900', color: targetRemaining > 0 ? '#b91c1c' : '#15803d', marginTop: '4px' }}>
-                    {targetRemaining > 0 ? formatINR(targetRemaining) : 'Target Reached! 🎉'}
+                  <div style={{ fontSize: '24px', fontWeight: '900', color: targetRemaining > 0 ? '#b91c1c' : '#15803d', marginTop: '4px' }}>
+                    {targetRemaining > 0 ? formatINR(targetRemaining) : 'Target Met 🎉'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: targetRemaining > 0 ? '#b91c1c' : '#16a34a', marginTop: '2px' }}>
+                    {targetRemaining > 0 ? 'Balance needed to hit 100% quota' : 'Congratulations! Goal achieved.'}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Individual Salesperson Target & Performance Allocation */}
+            {/* Target Pace & Milestone Analytics Grid */}
+            <div className="reports-kpi-grid">
+              <div className="reports-kpi-card" style={{ borderLeft: '4px solid #0284c7' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="reports-kpi-label">Days Remaining</span>
+                  <Calendar size={16} color="#0284c7" />
+                </div>
+                <div className="reports-kpi-val">
+                  {currentTargetMetrics.daysRemaining !== null ? `${currentTargetMetrics.daysRemaining} Days` : '15 Days'}
+                </div>
+                <div className="reports-kpi-sub">
+                  Time left in active target period
+                </div>
+              </div>
+
+              <div className="reports-kpi-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="reports-kpi-label">Daily Run-Rate Needed</span>
+                  <TrendingUp size={16} color="#f59e0b" />
+                </div>
+                <div className="reports-kpi-val">
+                  {formatINR(currentTargetMetrics.requiredDailySales)}
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#64748b' }}> / day</span>
+                </div>
+                <div className="reports-kpi-sub">
+                  Required daily pace to meet target
+                </div>
+              </div>
+
+              <div className="reports-kpi-card" style={{ borderLeft: '4px solid #10b981' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="reports-kpi-label">Won Orders Count</span>
+                  <CheckCircle size={16} color="#10b981" />
+                </div>
+                <div className="reports-kpi-val">{contributingOrders.length}</div>
+                <div className="reports-kpi-sub">
+                  Confirmed sales contributing to revenue
+                </div>
+              </div>
+
+              <div className="reports-kpi-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="reports-kpi-label">Lead Conversion Rate</span>
+                  <Percent size={16} color="#8b5cf6" />
+                </div>
+                <div className="reports-kpi-val">{conversionRate}%</div>
+                <div className="reports-kpi-sub">
+                  {convertedLeads} converted of {totalLeads} total leads
+                </div>
+              </div>
+            </div>
+
+            {/* Contributing Sales Orders Breakdown Panel */}
             <div className="reports-panel">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                <div className="reports-panel-title" style={{ margin: 0 }}>
-                  <Users size={16} color="#0284c7" /> Sales Team Target Allocation &amp; Individual Achievement
+                <div>
+                  <div className="reports-panel-title" style={{ margin: 0 }}>
+                    <ClipboardList size={16} color="#0284c7" /> My Contributing Sales Orders &amp; Revenue Breakdown
+                  </div>
+                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
+                    Confirmed sales orders for {targetScopeSalesperson || myName || 'current user'} that count toward target achievement
+                  </span>
                 </div>
-                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
-                  Total Allocated Target: <strong style={{ color: '#002e5d' }}>{formatINR(salespersonStats.reduce((s, x) => s + x.target, 0))}</strong>
+                <span style={{
+                  fontSize: '12px',
+                  fontWeight: '800',
+                  color: '#002e5d',
+                  background: '#f1f5f9',
+                  padding: '4px 10px',
+                  borderRadius: '6px'
+                }}>
+                  Total: {formatINR(achievedVal)}
                 </span>
               </div>
 
               <div className="reports-table-scroll">
-                <table className="crm-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: '#002e5d', color: '#ffffff' }}>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Salesperson</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Assigned Target</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Achieved Revenue</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left', minWidth: '150px' }}>Progress (% Achieved)</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Remaining Deficit</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Target Status</th>
-                      <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Isolate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {salespersonStats.map(rep => (
-                      <tr key={rep.name} style={{ borderBottom: '1px solid #f1f5f9', background: selectedSalesperson === rep.name ? '#f0f9ff' : 'inherit' }}>
-                        <td style={{ fontWeight: '800', padding: '10px 14px', color: '#002e5d' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>👤</span>
-                            <span>{rep.name}</span>
-                            {selectedSalesperson === rep.name && (
-                              <span style={{ fontSize: '10px', background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>Active Filter</span>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: '#475569' }}>
-                          {formatINR(rep.target)}
-                        </td>
-                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: '#059669' }}>
-                          {formatINR(rep.achieved)}
-                        </td>
-                        <td style={{ padding: '10px 14px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div className="report-bar-track" style={{ flex: 1, height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                              <div
-                                className="report-bar-fill"
-                                style={{
-                                  width: `${rep.progress}%`,
-                                  height: '100%',
-                                  background: rep.progress >= 100 ? '#10b981' : '#0284c7',
-                                  borderRadius: '4px'
-                                }}
-                              ></div>
-                            </div>
-                            <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#002e5d', minWidth: '34px', textAlign: 'right' }}>
-                              {rep.progress}%
-                            </span>
-                          </div>
-                        </td>
-                        <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: rep.remaining > 0 ? '#dc2626' : '#10b981' }}>
-                          {rep.remaining > 0 ? formatINR(rep.remaining) : 'Target Met 🎉'}
-                        </td>
-                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                          <span style={{
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            fontWeight: '800',
-                            background: rep.statusBg,
-                            color: rep.statusColor,
-                            display: 'inline-block'
-                          }}>
-                            {rep.status}
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedSalesperson(selectedSalesperson === rep.name ? 'ALL' : rep.name)}
-                            style={{
-                              padding: '3px 9px',
-                              borderRadius: '6px',
-                              fontSize: '11.5px',
-                              fontWeight: '700',
-                              border: selectedSalesperson === rep.name ? '1px solid #0284c7' : '1px solid #cbd5e1',
-                              background: selectedSalesperson === rep.name ? '#0284c7' : '#ffffff',
-                              color: selectedSalesperson === rep.name ? '#ffffff' : '#334155',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {selectedSalesperson === rep.name ? 'Clear' : 'Isolate'}
-                          </button>
-                        </td>
+                {contributingOrders.length === 0 ? (
+                  <div style={{
+                    padding: '36px 20px',
+                    textAlign: 'center',
+                    background: '#f8fafc',
+                    borderRadius: '8px',
+                    border: '1px dashed #cbd5e1'
+                  }}>
+                    <Target size={36} color="#94a3b8" style={{ margin: '0 auto 10px auto', display: 'block' }} />
+                    <div style={{ fontWeight: '800', color: '#334155', fontSize: '14px' }}>
+                      No confirmed sales orders closed in this period yet
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', maxWidth: '420px', margin: '4px auto 0 auto' }}>
+                      Once sales orders are confirmed and closed, they will directly populate here and count toward your {formatINR(assignedTarget)} goal!
+                    </div>
+                  </div>
+                ) : (
+                  <table className="crm-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#002e5d', color: '#ffffff' }}>
+                        <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Order #</th>
+                        <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Customer</th>
+                        <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'left' }}>Order Date</th>
+                        <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Order Status</th>
+                        <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'center' }}>Payment Status</th>
+                        <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Order Value</th>
+                        <th style={{ padding: '10px 14px', fontSize: '11.5px', textAlign: 'right' }}>Target Contribution</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {contributingOrders.map(order => {
+                        const orderVal = Number(order.payment?.totalAmount || order.totalAmount || order.grandTotal || order.totalValue || 0);
+                        const contribPct = assignedTarget > 0 ? ((orderVal / assignedTarget) * 100).toFixed(2) : '0.00';
+                        const orderDate = order.createdAt || order.orderDate || order.date;
+                        const formattedDate = orderDate ? new Date(orderDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
+                        const paymentStatus = order.payment?.status || order.paymentStatus || (order.payment?.paidAmount >= orderVal ? 'Paid' : 'Pending');
+
+                        return (
+                          <tr key={order.id || order.orderNo} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ fontWeight: '800', padding: '10px 14px', color: '#002e5d' }}>
+                              #{order.orderNo || order.orderNumber || order.id?.slice(-6) || 'SO-000'}
+                            </td>
+                            <td style={{ fontWeight: '700', padding: '10px 14px', color: '#334155' }}>
+                              {order.customer?.name || order.customerName || order.companyName || 'Valued Customer'}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontSize: '12px', color: '#64748b' }}>
+                              {formattedDate}
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                background: '#dcfce7',
+                                color: '#16a34a',
+                                display: 'inline-block'
+                              }}>
+                                {order.status || 'CONFIRMED'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                background: paymentStatus === 'Paid' ? '#dcfce7' : '#fef3c7',
+                                color: paymentStatus === 'Paid' ? '#16a34a' : '#d97706',
+                                display: 'inline-block'
+                              }}>
+                                {paymentStatus}
+                              </span>
+                            </td>
+                            <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: '#059669' }}>
+                              {formatINR(orderVal)}
+                            </td>
+                            <td style={{ fontWeight: '800', padding: '10px 14px', textAlign: 'right', color: '#0284c7' }}>
+                              +{contribPct}%
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           </div>

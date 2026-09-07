@@ -270,6 +270,16 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   const [selectedDispatchForDelivery, setSelectedDispatchForDelivery] = useState(null);
   const [podFile, setPodFile] = useState('');
   const [podPreviewUrl, setPodPreviewUrl] = useState('');
+  const [deliveryInvoiceNumber, setDeliveryInvoiceNumber] = useState('');
+
+  useEffect(() => {
+    if (selectedDispatchForDelivery) {
+      const existing = selectedDispatchForDelivery.invoiceNumber || selectedDispatchForDelivery.invoice_number || selectedDispatchForDelivery.invoiceNo || '';
+      setDeliveryInvoiceNumber(existing && !String(existing).startsWith('INV-') ? existing : '');
+    } else {
+      setDeliveryInvoiceNumber('');
+    }
+  }, [selectedDispatchForDelivery]);
 
   const [sampleFilter, setSampleFilter] = useState('Pending Dispatch');
   const [historyFilter, setHistoryFilter] = useState('All');
@@ -308,6 +318,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   const [transportCost, setTransportCost] = useState('0');
   const [lrNumber, setLrNumber] = useState('');
   const [ewayBill, setEwayBill] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
   const [dispatchQuantities, setDispatchQuantities] = useState({});
   // -- Enhanced create-dispatch form extra fields --
   const [cdCourier, setCdCourier] = useState('');
@@ -322,6 +333,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   const [singleDriverName, setSingleDriverName] = useState('');
   const [singleDriverMobile, setSingleDriverMobile] = useState('');
   const [singleTransportCost, setSingleTransportCost] = useState('0');
+  const [singleInvoiceNumber, setSingleInvoiceNumber] = useState('');
 
   // ΓöÇΓöÇ New sample dispatch form state (per-sample, full ERP flow) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const [activeSampleDispatch, setActiveSampleDispatch] = useState(null); // sample being dispatched
@@ -689,6 +701,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           const createdAt = cdDispatchDate ? new Date(cdDispatchDate).toISOString() : new Date().toISOString();
           const dispatchId = `DSP-${Date.now()}`;
 
+          const cleanInvoiceNumber = invoiceNumber && invoiceNumber.trim() ? invoiceNumber.trim() : undefined;
+
           // Build dispatch records for each allocation
           const localDispatches = allocations.map((allocation, index) => ({
             id: `${dispatchId}-${index + 1}`,
@@ -703,6 +717,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             courier: cdCourier,
             lrNumber,
             ewayBill,
+            invoiceNumber: cleanInvoiceNumber,
+            invoice_number: cleanInvoiceNumber,
             dispatchDate: cdDispatchDate,
             transportCost: Number(transportCost || 0),
             dispatchDocument: cdDocFile,
@@ -716,11 +732,36 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             dispatchItems: [{ orderId: allocation.order.id, orderNo: allocation.order.orderNo, qty: Number(allocation.qty) }]
           }));
 
+          // Sync invoice number to localStorage for persistent immediate access across portals
+          if (cleanInvoiceNumber && typeof window !== 'undefined') {
+            try {
+              const stored = JSON.parse(window.localStorage.getItem('himalaya_dispatch_invoices') || '{}');
+              allocations.forEach(alloc => {
+                const keys = [alloc.order.id, alloc.order.orderNo, alloc.order.orderNumber].filter(Boolean);
+                keys.forEach(k => {
+                  stored[String(k).trim()] = cleanInvoiceNumber;
+                  stored[String(k).replace(/^#/, '').trim()] = cleanInvoiceNumber;
+                });
+              });
+              window.localStorage.setItem('himalaya_dispatch_invoices', JSON.stringify(stored));
+            } catch (e) {
+              console.warn('Failed to sync himalaya_dispatch_invoices', e);
+            }
+          }
+
           // Update orders to mark as DISPATCH_CREATED
           const createdOrderNos = new Set(localDispatches.map(d => String(d.orderNo)));
           const updatedOrders = (state.sales?.orders || []).map(o => {
             if (createdOrderNos.has(String(o.orderNo || o.id))) {
-              return { ...o, workflowStatus: 'DISPATCH_CREATED', status: 'Dispatch Created', dispatchStatus: 'created' };
+              return {
+                ...o,
+                workflowStatus: 'DISPATCH_CREATED',
+                status: 'Dispatch Created',
+                dispatchStatus: 'created',
+                invoiceNumber: cleanInvoiceNumber || o.invoiceNumber,
+                invoice_number: cleanInvoiceNumber || o.invoice_number,
+                invoiceNo: cleanInvoiceNumber || o.invoiceNo,
+              };
             }
             return o;
           });
@@ -747,6 +788,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           setTransportCost('0');
           setLrNumber('');
           setEwayBill('');
+          setInvoiceNumber('');
           setCdCourier('');
           setCdDispatchDate(new Date().toISOString().split('T')[0]);
           setCdDocFile('');
@@ -806,6 +848,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     setShowDeliveryModal(false);
     setSelectedDispatchForDelivery(null);
     setPodFile('');
+    setDeliveryInvoiceNumber('');
     if (podPreviewUrl) {
       URL.revokeObjectURL(podPreviewUrl);
       setPodPreviewUrl('');
@@ -910,17 +953,60 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           const dispatchId = selectedDispatchForDelivery.id;
           const dispatchRecord = (state.dispatches || []).find(d => d.id === dispatchId || d.dispatchId === dispatchId);
           const targetOrderId = dispatchRecord?.orderId || dispatchRecord?.orderNo || selectedDispatchForDelivery.orderNo;
+          const enteredDeliveryInv = deliveryInvoiceNumber?.trim() || dispatchRecord?.invoiceNumber || selectedDispatchForDelivery.invoiceNumber;
+
+          // Sync invoice number to localStorage so Sales Payment Follow-up gets it instantly
+          if (enteredDeliveryInv && typeof window !== 'undefined') {
+            try {
+              const stored = JSON.parse(window.localStorage.getItem('himalaya_dispatch_invoices') || '{}');
+              [targetOrderId, selectedDispatchForDelivery.orderNo, dispatchRecord?.orderNo, dispatchRecord?.orderId].filter(Boolean).forEach(k => {
+                stored[String(k).trim()] = enteredDeliveryInv;
+                stored[String(k).replace(/^#/, '').trim()] = enteredDeliveryInv;
+              });
+              window.localStorage.setItem('himalaya_dispatch_invoices', JSON.stringify(stored));
+            } catch (e) {
+              console.warn('Failed to sync himalaya_dispatch_invoices on delivery', e);
+            }
+          }
+
+          // Persist invoice number to backend PostgreSQL database
+          if (enteredDeliveryInv && targetOrderId) {
+            try {
+              await backendFetch(`/api/backend/sales/orders/${encodeURIComponent(targetOrderId)}/invoice-number`, {
+                method: 'PATCH',
+                body: { invoiceNumber: enteredDeliveryInv }
+              }).catch(() => {});
+            } catch (e) {
+              console.warn('Failed to persist delivery invoice to backend', e);
+            }
+          }
 
           const updatedDispatches = (state.dispatches || []).map(d => {
             if (d.id === dispatchId || d.dispatchId === dispatchId) {
-              return { ...d, dispatchStatus: 'delivered', status: 'Delivered', deliveredAt: new Date().toISOString() };
+              return {
+                ...d,
+                dispatchStatus: 'delivered',
+                status: 'Delivered',
+                deliveredAt: new Date().toISOString(),
+                invoiceNumber: enteredDeliveryInv || d.invoiceNumber,
+                invoice_number: enteredDeliveryInv || d.invoice_number,
+              };
             }
             return d;
           });
 
           const updatedOrders = (state.sales?.orders || []).map(o => {
             if (String(o.id) === String(targetOrderId) || String(o.orderNo) === String(targetOrderId)) {
-              return { ...o, workflowStatus: 'DELIVERED', status: 'Delivered', dispatchStatus: 'delivered', deliveredAt: new Date().toISOString() };
+              return {
+                ...o,
+                workflowStatus: 'DELIVERED',
+                status: 'Delivered',
+                dispatchStatus: 'delivered',
+                deliveredAt: new Date().toISOString(),
+                invoiceNumber: enteredDeliveryInv || o.invoiceNumber,
+                invoice_number: enteredDeliveryInv || o.invoice_number,
+                invoiceNo: enteredDeliveryInv || o.invoiceNo,
+              };
             }
             return o;
           });
@@ -1860,34 +1946,59 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             <input id="swal-driver" class="swal2-input" placeholder="e.g. Ramesh Kumar" style="margin:0;font-size:14px" />
             <label style="font-size:13px;font-weight:700;color:#475569">Driver Mobile</label>
             <input id="swal-mobile" class="swal2-input" placeholder="e.g. 9876543210" style="margin:0;font-size:14px" />
+            <label style="font-size:13px;font-weight:700;color:#475569">Invoice Number</label>
+            <input id="swal-invoice" class="swal2-input" placeholder="e.g. 875 or INV/2026/001" style="margin:0;font-size:14px" />
           </div>
         `,
         showCancelButton: true,
         confirmButtonText: 'Create Dispatch',
         cancelButtonText: 'Cancel',
         preConfirm: () => {
-          const vehicleNumber = document.getElementById('swal-vehicle').value.trim();
-          const driverName = document.getElementById('swal-driver').value.trim();
-          const driverMobile = document.getElementById('swal-mobile').value.trim();
+          const vehicleNumber = document.getElementById('swal-vehicle')?.value?.trim();
+          const driverName = document.getElementById('swal-driver')?.value?.trim();
+          const driverMobile = document.getElementById('swal-mobile')?.value?.trim();
+          const invoiceNumber = document.getElementById('swal-invoice')?.value?.trim();
           if (!vehicleNumber || !driverName) {
             Swal.showValidationMessage('Vehicle number and driver name are required.');
             return false;
           }
-          return { vehicleNumber, driverName, driverMobile };
+          return { vehicleNumber, driverName, driverMobile, invoiceNumber };
         }
       });
       if (!formValues) return;
       try {
         const payload = {
           salesOrderId: queueRecord.salesOrderId,
+          deliveryAddress: queueRecord.deliveryAddress || queueRecord.customerAddress || queueRecord.customer?.shippingAddress || 'Customer Site',
           vehicleNumber: formValues.vehicleNumber,
           driverName: formValues.driverName,
+          driverPhone: formValues.driverMobile,
           driverMobile: formValues.driverMobile,
+          invoiceNumber: formValues.invoiceNumber || undefined,
           items: (queueRecord.items || []).map((item) => ({
             salesOrderItemId: item.salesOrderItemId,
             quantity: Number(item.dispatchableQuantity || item.approvedQuantity),
           })),
         };
+
+        // Sync entered invoice number to localStorage so it is immediately visible in Sales Payment Follow-up
+        if (formValues.invoiceNumber && typeof window !== 'undefined') {
+          try {
+            const stored = JSON.parse(window.localStorage.getItem('himalaya_dispatch_invoices') || '{}');
+            const targetKeys = [
+              queueRecord.orderId,
+              queueRecord.salesOrderId,
+              queueRecord.orderNo,
+            ].filter(Boolean);
+            targetKeys.forEach(k => {
+              stored[String(k).trim()] = formValues.invoiceNumber.trim();
+              stored[String(k).replace(/^#/, '').trim()] = formValues.invoiceNumber.trim();
+            });
+            window.localStorage.setItem('himalaya_dispatch_invoices', JSON.stringify(stored));
+          } catch (e) {
+            console.warn('Failed to sync invoice to localStorage', e);
+          }
+        }
 
         await backendFetch('/api/backend/logistics/dispatches', {
           method: 'POST',
@@ -2168,6 +2279,10 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Courier / Transport *</label>
             <input type="text" required placeholder="e.g. Himalaya Own Fleet / DTDC" value={cdCourier} onChange={(e) => setCdCourier(e.target.value)} className="form-input" style={{ height: '42px', color: '#000', background: '#fff' }} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Invoice Number</label>
+            <input type="text" placeholder="e.g. 875 or INV/2026/001" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className="form-input" style={{ height: '42px', color: '#000', background: '#fff' }} />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">LR / AWB Number</label>
@@ -3258,6 +3373,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       if (result.isConfirmed) {
         showToast("Booking partial dispatch shipment...");
 
+        const cleanSingleInv = singleInvoiceNumber && singleInvoiceNumber.trim() ? singleInvoiceNumber.trim() : undefined;
+
         const dispatchRecordData = {
           vehicleNo: singleVehicleNo,
           driverName: singleDriverName,
@@ -3266,6 +3383,8 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
           transportCost: Number(singleTransportCost || 0),
           lrNumber: `LR-${Math.floor(100000 + Math.random() * 900000)}`,
           ewayBill: `EWB-${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+          invoiceNumber: cleanSingleInv,
+          invoice_number: cleanSingleInv,
           dispatchItems: [
             {
               orderId: order.orderNo,
@@ -3274,6 +3393,20 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             }
           ]
         };
+
+        if (cleanSingleInv && typeof window !== 'undefined') {
+          try {
+            const stored = JSON.parse(window.localStorage.getItem('himalaya_dispatch_invoices') || '{}');
+            const targetKeys = [order.id, order.orderNo, order.orderNumber, orderId].filter(Boolean);
+            targetKeys.forEach(k => {
+              stored[String(k).trim()] = cleanSingleInv;
+              stored[String(k).replace(/^#/, '').trim()] = cleanSingleInv;
+            });
+            window.localStorage.setItem('himalaya_dispatch_invoices', JSON.stringify(stored));
+          } catch (e) {
+            console.warn('Failed to sync single dispatch invoice to localStorage', e);
+          }
+        }
 
         try {
           const res = await dispatchService.createDispatch(
@@ -3290,6 +3423,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             setSingleDriverName('');
             setSingleDriverMobile('');
             setSingleTransportCost('0');
+            setSingleInvoiceNumber('');
 
             showToast("Successfully processed partial dispatch consignment!");
             navigate.push(`${basePath}/in-transit`);
@@ -3482,6 +3616,18 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                     placeholder="e.g. Satish Kumar"
                     value={singleDriverName}
                     onChange={(e) => setSingleDriverName(e.target.value)}
+                    className="form-input"
+                    style={{ height: '42px', color: '#000', background: '#fff' }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontWeight: '700' }}>Invoice Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 875 or INV/2026/001"
+                    value={singleInvoiceNumber}
+                    onChange={(e) => setSingleInvoiceNumber(e.target.value)}
                     className="form-input"
                     style={{ height: '42px', color: '#000', background: '#fff' }}
                   />
@@ -4386,6 +4532,23 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                     }}
                   />
                 </label>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ color: 'var(--color-text-primary)', fontWeight: '700', fontSize: '13px', marginBottom: '6px', display: 'block' }}>
+                  Invoice Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 875 or INV/2026/001"
+                  value={deliveryInvoiceNumber}
+                  onChange={(e) => setDeliveryInvoiceNumber(e.target.value)}
+                  className="form-input"
+                  style={{ height: '42px', color: '#000', background: '#fff' }}
+                />
+                <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px', display: 'block' }}>
+                  Entered invoice will be displayed on Sales Payment Follow-up.
+                </span>
               </div>
 
               <div style={{

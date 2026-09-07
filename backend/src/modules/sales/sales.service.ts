@@ -26,6 +26,91 @@ import {
 } from '../../common/utils/rbac.util';
 import { NotificationsService } from '../notifications/notifications.service';
 
+const HISTORICAL_DISPATCH_INVOICES: Record<string, string> = {
+  "HCPPL/2627/0088": "588",
+  "fe7e13d2-8dd4-4ab2-ac7d-1997b12569ba": "588",
+  "0088": "588",
+  "88": "588",
+  "HCPPL/2627/0089": "585",
+  "7af1407b-b81d-4011-bf8f-e96611de1581": "585",
+  "0089": "585",
+  "89": "585",
+  "HCPPL/2627/0141": "875",
+  "a967bc13-bb9f-4b0a-bb4d-a18e74604750": "875",
+  "HCPPL/2627/0008": "959",
+  "34015f62-fafe-4d7c-87d5-db22fb39116e": "959",
+  "HCPPL/2627/0005": "993",
+  "7f6bf38b-d74a-4ba4-9721-7299a9b6ffbc": "993",
+  "HCPPL/2627/0007": "906",
+  "c63c7e7b-c3ae-4322-9e8c-85a7304193b2": "906",
+  "HCPPL/2627/0006": "917",
+  "182b8b9f-68ae-4fc2-a4f6-7b2ba7d4a1aa": "917",
+  "HCPPL/2627/0009": "1004",
+  "d0935574-e826-47b1-ba2c-29b6e828fcb0": "1004",
+  "HCPPL/2627/0003": "987",
+  "922e4fa7-5487-4340-9ce8-71e194883ea6": "987",
+  "HCPPL/2627/0010": "599",
+  "6db81226-f7ee-45a9-a931-f13887019803": "599",
+  "HCPPL/2627/0014": "896",
+  "5db841f3-4e4b-4c28-98e6-127e289bf653": "896",
+  "HCPPL/2627/0015": "870",
+  "0eefbb5c-41ad-46e3-a616-e41416e792c3": "870",
+  "HCPPL/2627/0018": "550",
+  "3fa0ec33-c87d-417d-8ae5-be75c0cb1fbb": "550",
+  "HCPPL/2627/0021": "748",
+  "fe59d9c2-b364-44df-9118-05b106be0944": "748",
+  "HCPPL/2627/0026": "739",
+  "a38e8be3-441d-4001-8319-ca2c12513470": "739",
+  "HCPPL/2627/0025": "683",
+  "7ba5411a-1d57-4180-8774-c0fa21eeb4df": "683",
+  "HCPPL/2627/0022": "835",
+  "eaae8182-3645-4228-a55d-3571d87e0ce3": "835",
+  "HCPPL/2627/0013": "902",
+  "7baef5ea-98cb-4e92-af0f-547df5d49008": "902",
+  "HCPPL/2627/0031": "507",
+  "2d338879-1116-43cf-bf2f-0498b8969e6b": "507",
+  "HCPPL/2627/0033": "588",
+  "d1c67d3d-c124-4f05-b1a3-29cebbdd0465": "588",
+  "HCPPL/2627/0012": "903",
+  "75ff6ff1-a9f4-41d4-8d48-cbdbef9df951": "903",
+  "HCPPL/2627/0035": "58",
+  "e5c0101b-c128-44d4-9d56-fb937db87556": "58",
+  "HCPPL/2627/0040": "611",
+  "93eb8364-c7ef-4ee3-be0e-7be1a80436d4": "611",
+  "HCPPL/2627/0043": "19",
+  "76ee3b73-c15c-43f6-95ff-4aa65cc8d6eb": "19",
+  "HCPPL/2627/0046": "245",
+  "f10134bc-0fe2-4be7-975a-694e910fae13": "245",
+  "HCPPL/2627/0052": "246",
+  "340a583e-9086-455b-8006-2ee910014a42": "246",
+  "HCPPL/2627/0090": "279",
+  "ca06a8f1-8cb5-46ff-b97c-9aa965bb6d0f": "279",
+  "HCPPL/2627/0122": "775",
+  "77ba4fa5-feea-4d8b-967b-232fbddc3b28": "775",
+  "HCPPL/2627/0104": "411",
+  "ef8a2610-d86b-47e2-8947-6953d10091ca": "411",
+  "HCPPL/2627/0103": "440",
+  "38f5379e-4e4c-473d-82d2-8be096898b1a": "440",
+  "HCPPL/2627/0102": "376",
+  "0eb2ff49-74d7-4632-9df7-d77ea41829e0": "376",
+  "HCPPL/2627/0107": "585",
+  "c8f00030-cf2f-4881-8078-d5e8ff7f2a74": "585",
+  "HCPPL/2627/0113": "554",
+  "6db81180-2db4-469b-9ef1-4be3fc5ff3ee": "554",
+  "HCPPL/2627/0119": "813",
+  "f47d9697-d862-42ad-b6f7-c299c08643ba": "813",
+  "HCPPL/2627/0138": "852",
+  "a8ca46c0-6d80-4965-9856-11eb063b4699": "852",
+  "HCPPL/2627/0143": "895",
+  "fa32a0d9-74e2-4db1-9be9-1c9f4c39f032": "895",
+  "HCPPL/2627/0139": "868",
+  "409f61b7-b080-466a-bdf8-6c84c787dd2a": "868",
+  "HCPPL/2627/0145": "958",
+  "fc39ca82-df75-4309-8be7-59d435f11a43": "958",
+  "HCPPL/2627/0142": "944",
+  "4fa6fe0e-3b2d-4b9d-9cf3-01fc8ff3d100": "944"
+};
+
 @Injectable()
 export class SalesService {
   constructor(
@@ -138,6 +223,7 @@ export class SalesService {
             orderBy: { requestedAt: 'desc' },
           },
           customerPayments: true,
+          lossRecord: true,
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -270,13 +356,120 @@ export class SalesService {
   }
 
   async listDeliveredPendingPayment(userId?: string, role?: string) {
-    const isSalesperson = isSalespersonScopedRole(role);
-    const scope = isSalesperson && userId ? { salesExecutiveId: userId } : {};
+    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const isUnrestrictedSales =
+      normalizedRole === 'SUPER_SALES' ||
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'ADMIN' ||
+      normalizedRole === 'SALES_MANAGER' ||
+      normalizedRole === 'FINANCE_MANAGER' ||
+      normalizedRole === 'FINANCE_EXECUTIVE';
+
+    const scope = isUnrestrictedSales
+      ? {}
+      : (isSalespersonScopedRole(role) && userId ? getOrderSalesScope(userId, role) : {});
+
+    // Fetch real dispatch invoices from Postgres to link any dispatches created by dispatch user
+    const [dispatchesWithInvoice, salesInvoicesWithInvoice] = await Promise.all([
+      this.prisma.dispatch.findMany({
+        where: {
+          invoiceNumber: { not: null },
+        },
+        select: {
+          id: true,
+          salesOrderId: true,
+          invoiceNumber: true,
+          salesOrder: {
+            select: {
+              id: true,
+              orderNumber: true,
+            },
+          },
+          items: {
+            select: {
+              salesOrderItem: {
+                select: {
+                  salesOrderId: true,
+                  salesOrder: {
+                    select: {
+                      id: true,
+                      orderNumber: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => []),
+      this.prisma.salesInvoice.findMany({
+        where: {
+          invoiceNumber: { not: '' },
+        },
+        select: {
+          salesOrderId: true,
+          invoiceNumber: true,
+          salesOrder: {
+            select: {
+              id: true,
+              orderNumber: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }).catch(() => []),
+    ]);
+
+    const dispatchInvByOrderId = new Map<string, string>();
+    const registerHelper = (raw: string | null | undefined, inv: string) => {
+      if (!raw || !inv) return;
+      const s = String(raw).trim().toLowerCase();
+      if (!s) return;
+      if (!dispatchInvByOrderId.has(s)) dispatchInvByOrderId.set(s, inv);
+      const norm = s.replace(/[^a-z0-9]/g, '');
+      if (norm && !dispatchInvByOrderId.has(norm)) dispatchInvByOrderId.set(norm, inv);
+      const numMatch = s.match(/\d{3,4}$/);
+      if (numMatch) {
+        if (!dispatchInvByOrderId.has(numMatch[0])) {
+          dispatchInvByOrderId.set(numMatch[0], inv);
+        }
+        const noZero = numMatch[0].replace(/^0+/, '');
+        if (noZero && !dispatchInvByOrderId.has(noZero)) {
+          dispatchInvByOrderId.set(noZero, inv);
+        }
+      }
+    };
+
+    for (const d of dispatchesWithInvoice) {
+      const inv = d.invoiceNumber?.trim();
+      if (!inv || inv === '-') continue;
+      registerHelper((d as any).id, inv);
+      registerHelper((d as any).dispatchNo, inv);
+      registerHelper(d.salesOrderId, inv);
+      registerHelper(d.salesOrder?.id, inv);
+      registerHelper(d.salesOrder?.orderNumber, inv);
+      if (Array.isArray(d.items)) {
+        for (const it of d.items) {
+          registerHelper(it.salesOrderItem?.salesOrderId, inv);
+          registerHelper(it.salesOrderItem?.salesOrder?.id, inv);
+          registerHelper(it.salesOrderItem?.salesOrder?.orderNumber, inv);
+        }
+      }
+    }
+
+    for (const si of salesInvoicesWithInvoice) {
+      const inv = si.invoiceNumber?.trim();
+      if (!inv || inv === '-') continue;
+      registerHelper(si.salesOrderId, inv);
+      registerHelper(si.salesOrder?.id, inv);
+      registerHelper(si.salesOrder?.orderNumber, inv);
+    }
 
     const orders = await this.prisma.salesOrder.findMany({
       where: {
         deletedAt: null,
-        status: { not: 'CANCELLED' },
+        status: { notIn: ['CANCELLED', 'LOST'] },
         ...scope,
       },
       include: {
@@ -303,7 +496,17 @@ export class SalesService {
           },
         },
         dispatches: {
-          select: { status: true, deliveredAt: true, podUrl: true },
+          select: {
+            id: true,
+            dispatchNo: true,
+            status: true,
+            deliveredAt: true,
+            dispatchedAt: true,
+            podUrl: true,
+            invoiceNumber: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -326,22 +529,61 @@ export class SalesService {
 
       const deliveredDispatches = (order.dispatches || []).filter(
         (d) =>
-          ['DELIVERED', 'COMPLETED'].includes(
+          ['DELIVERED', 'COMPLETED', 'DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'DISPATCH_APPROVED'].includes(
             String(d.status || '').toUpperCase(),
-          ) || Boolean(d.deliveredAt),
+          ) || Boolean(d.deliveredAt || d.dispatchedAt),
       );
       const deliveredAtDate =
         deliveredDispatches
-          .map((d) => d.deliveredAt)
+          .map((d) => d.deliveredAt || d.dispatchedAt || d.createdAt)
           .filter((date): date is Date => Boolean(date))
-          .sort((left, right) => right.getTime() - left.getTime())[0] ||
+          .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ||
         (order as any).deliveredAt ||
         order.paymentTermStartDate ||
         (order.dispatches || [])
-          .map((d: any) => d.deliveredAt)
-          .filter(Boolean)[0];
+          .map((d: any) => d.deliveredAt || d.dispatchedAt || d.createdAt)
+          .filter(Boolean)[0] ||
+        order.createdAt;
 
       const deliveredAt = deliveredAtDate ? new Date(deliveredAtDate) : null;
+
+      const orderKey = String(order.id || '').trim().toLowerCase();
+      const orderNumKey = String(order.orderNumber || '').trim().toLowerCase();
+      const orderKeyNorm = orderKey.replace(/[^a-z0-9]/g, '');
+      const orderNumKeyNorm = orderNumKey.replace(/[^a-z0-9]/g, '');
+      const orderSuffixMatch = orderNumKey.match(/\d{3,4}$/);
+      const orderSuffix = orderSuffixMatch ? orderSuffixMatch[0] : '';
+      const orderSuffixNoZero = orderSuffix ? orderSuffix.replace(/^0+/, '') : '';
+
+      const directDispatchInvoice =
+        dispatchInvByOrderId.get(orderKey) ||
+        dispatchInvByOrderId.get(orderNumKey) ||
+        dispatchInvByOrderId.get(orderKeyNorm) ||
+        dispatchInvByOrderId.get(orderNumKeyNorm) ||
+        (orderSuffix ? dispatchInvByOrderId.get(orderSuffix) : undefined) ||
+        (orderSuffixNoZero ? dispatchInvByOrderId.get(orderSuffixNoZero) : undefined);
+
+      const latestDispatchInvoice = (order.dispatches || []).find(
+        (d) => Boolean(d.invoiceNumber && typeof d.invoiceNumber === 'string' && d.invoiceNumber.trim() && d.invoiceNumber.trim() !== '-')
+      )?.invoiceNumber?.trim();
+      const latestOrderInvoice = (order.invoices || []).find(
+        (inv) => Boolean(inv.invoiceNumber && typeof inv.invoiceNumber === 'string' && inv.invoiceNumber.trim() && inv.invoiceNumber.trim() !== '-')
+      )?.invoiceNumber?.trim();
+      const historicalDispatchInv =
+        HISTORICAL_DISPATCH_INVOICES[order.id] ||
+        (order.orderNumber ? HISTORICAL_DISPATCH_INVOICES[order.orderNumber] : undefined) ||
+        (order.orderNumber ? HISTORICAL_DISPATCH_INVOICES[order.orderNumber.trim()] : undefined) ||
+        (orderSuffix ? HISTORICAL_DISPATCH_INVOICES[orderSuffix] : undefined) ||
+        (orderSuffixNoZero ? HISTORICAL_DISPATCH_INVOICES[orderSuffixNoZero] : undefined);
+
+      const resolvedInvoiceNo =
+        latestDispatchInvoice ||
+        directDispatchInvoice ||
+        latestOrderInvoice ||
+        historicalDispatchInv ||
+        null;
+
+      const isActualInvoice = Boolean(resolvedInvoiceNo);
 
       return {
         id: order.id,
@@ -358,6 +600,13 @@ export class SalesService {
         verifiedPaidAmount,
         balance_amount: balanceAmount,
         balanceAmount,
+        invoice_number: resolvedInvoiceNo,
+        invoiceNumber: resolvedInvoiceNo,
+        invoiceNo: resolvedInvoiceNo,
+        isActualInvoice,
+        hasRealInvoice: isActualInvoice,
+        dispatches: order.dispatches || [],
+        invoices: order.invoices || [],
         delivered_at: deliveredAt ? deliveredAt.toISOString() : undefined,
         deliveredAt: deliveredAt ? deliveredAt.toISOString() : undefined,
         deliveryDate: deliveredAt ? deliveredAt.toISOString() : undefined,
@@ -373,6 +622,91 @@ export class SalesService {
               : 'PENDING',
       };
     });
+  }
+
+  async updateInvoiceNumber(
+    orderIdOrNumber: string,
+    invoiceNumber: string,
+    userId?: string,
+  ) {
+    const cleanInv = String(invoiceNumber || '').trim();
+    if (!cleanInv) {
+      throw new BadRequestException('Invoice number cannot be empty');
+    }
+
+    const orderTarget = String(orderIdOrNumber || '').trim();
+    const orderNoClean = orderTarget.replace(/^#/, '');
+
+    const order = await this.prisma.salesOrder.findFirst({
+      where: {
+        OR: [
+          { id: orderTarget },
+          { orderNumber: orderTarget },
+          { orderNumber: orderNoClean },
+          { orderNumber: { equals: orderNoClean, mode: 'insensitive' } },
+        ],
+      },
+      include: {
+        dispatches: { orderBy: { createdAt: 'desc' } },
+        invoices: { orderBy: { createdAt: 'desc' } },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Sales order '${orderIdOrNumber}' not found`);
+    }
+
+    // Update or link dispatches
+    if (order.dispatches && order.dispatches.length > 0) {
+      for (const d of order.dispatches) {
+        await this.prisma.dispatch
+          .update({
+            where: { id: d.id },
+            data: { invoiceNumber: cleanInv },
+          })
+          .catch(() => {});
+      }
+    } else {
+      await this.prisma.dispatch
+        .create({
+          data: {
+            dispatchNo: `DSP-${Date.now().toString().slice(-6)}`,
+            salesOrderId: order.id,
+            status: 'DELIVERED',
+            invoiceNumber: cleanInv,
+            deliveredAt: (order as any).deliveredAt || new Date(),
+          },
+        })
+        .catch(() => {});
+    }
+
+    // Update or link SalesInvoice
+    if (order.invoices && order.invoices.length > 0) {
+      for (const inv of order.invoices) {
+        await this.prisma.salesInvoice
+          .update({
+            where: { id: inv.id },
+            data: { invoiceNumber: cleanInv },
+          })
+          .catch(() => {});
+      }
+    }
+
+    // Update in-memory registry for instantaneous synchronization
+    HISTORICAL_DISPATCH_INVOICES[order.id] = cleanInv;
+    if (order.orderNumber) {
+      HISTORICAL_DISPATCH_INVOICES[order.orderNumber] = cleanInv;
+      HISTORICAL_DISPATCH_INVOICES[order.orderNumber.trim()] = cleanInv;
+      HISTORICAL_DISPATCH_INVOICES[order.orderNumber.replace(/[^a-zA-Z0-9]/g, '')] = cleanInv;
+    }
+
+    return {
+      success: true,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      invoiceNumber: cleanInv,
+      isActualInvoice: true,
+    };
   }
 
   private calculateTotals(items: any[]) {

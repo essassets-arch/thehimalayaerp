@@ -312,8 +312,8 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
     if ((currentView === 'quotations' || currentView === 'dashboard') && loadQuotations) {
       void loadQuotations();
     }
-    // Load orders on orders view, dashboard, or daily-task
-    if ((currentView === 'orders' || currentView === 'dashboard' || currentView === 'daily-task') && loadOrders) {
+    // Load orders on orders view, dashboard, daily-task, or payment-followup
+    if ((currentView === 'orders' || currentView === 'dashboard' || currentView === 'daily-task' || currentView === 'payment-followup') && loadOrders) {
       void loadOrders();
     }
     // Load other modules on dashboard or daily-task view for dynamic metrics & tasks

@@ -260,8 +260,12 @@ export default function OrderDetailPage() {
   }, [decodedOrderId]);
 
   useEffect(() => {
+    if (!decodedOrderId) {
+      router.replace("/sales/orders");
+      return;
+    }
     fetchOrderDetails();
-  }, [fetchOrderDetails]);
+  }, [decodedOrderId, fetchOrderDetails, router]);
 
   if (isLoading) {
     return (
@@ -489,6 +493,18 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Order Remarks Card ── */}
+      {(order.remarks || order.acceptanceRemarks || order.plantHeadRemarks) && (
+        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "16px 20px", marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+          <div style={{ fontWeight: 800, fontSize: 13, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+            <FileText size={15} color="#2563eb" /> Order & Plant Head Remarks
+          </div>
+          <div style={{ fontSize: 13.5, color: "#1e293b", fontStyle: "italic", lineHeight: 1.5, background: "#f8fafc", padding: "10px 14px", borderRadius: 8, border: "1px solid #f1f5f9" }}>
+            &ldquo;{order.remarks || order.acceptanceRemarks || order.plantHeadRemarks}&rdquo;
+          </div>
+        </div>
+      )}
 
       {/* ── Ordered Items Table ── */}
       {items.length > 0 && (

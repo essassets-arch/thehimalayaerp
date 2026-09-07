@@ -114,103 +114,74 @@ export function SalarySlipDocument({
     ? new Date(data.effectiveFrom).toLocaleDateString('en-GB')
     : data.payPeriod || 'Current Active';
 
-  // 1. Gross Earnings Resolution
-  const grossSalary = Number(
-    data.grossSalary ||
-    data.grossEarnings ||
-    data.grossTotal ||
-    (Number(data.basicSalary || 0) +
-      Number(data.hraAmount || data.hra || 0) +
-      Number(data.ltaAmount || data.lta || 0) +
-      Number(data.educationAllowanceAmount || data.educationAllowance || 0) +
-      Number(data.conveyanceAllowance || data.conveyanceAmount || 0))
-  );
-
-  // 2. Component Breakdowns (If raw components are missing, derive proportionally from Gross)
+  // 1. Component Breakdowns (Raw inputs from data)
   const rawBasic = Number(data.basicSalary || data.basic || 0);
-  const basicSalary = rawBasic > 0 ? rawBasic : (grossSalary > 0 ? Math.round(grossSalary * 0.80) : 0);
+  const rawHra = Number(data.hraAmount ?? data.hra ?? 0);
+  const rawLta = Number(data.ltaAmount ?? data.lta ?? data.specialAllowance ?? 0);
+  const rawEdu = Number(data.educationAllowanceAmount ?? data.educationAllowance ?? data.otherAllowance ?? 0);
+  const rawConv = Number(data.conveyanceAllowance ?? data.conveyanceAmount ?? data.conveyance ?? 0);
 
-  const rawHra = Number(data.hraAmount || data.hra || 0);
+  // If basic is 0 but gross exists, derive 80%
+  const basicSalary = rawBasic > 0 ? rawBasic : (Number(data.grossSalary || data.grossEarnings || 0) > 0 ? Math.round(Number(data.grossSalary || data.grossEarnings) * 0.80) : 0);
+
   const hraAmount = rawHra > 0 ? rawHra : (basicSalary > 0 ? Math.round(basicSalary * 0.10) : 0);
-  const hraPct = Number(data.hraPercentage || (basicSalary > 0 ? Math.round((hraAmount / basicSalary) * 100) : 10));
+  const hraPct = Number(data.hraPercentage) > 0 ? Number(data.hraPercentage) : (basicSalary > 0 && hraAmount > 0 ? Math.round((hraAmount / basicSalary) * 100) : 10);
 
-  const rawLta = Number(data.ltaAmount || data.lta || data.specialAllowance || 0);
   const ltaAmount = rawLta > 0 ? rawLta : (basicSalary > 0 ? Math.round(basicSalary * 0.05) : 0);
-  const ltaPct = Number(data.ltaPercentage || (basicSalary > 0 ? Math.round((ltaAmount / basicSalary) * 100) : 5));
+  const ltaPct = Number(data.ltaPercentage) > 0 ? Number(data.ltaPercentage) : (basicSalary > 0 && ltaAmount > 0 ? Math.round((ltaAmount / basicSalary) * 100) : 5);
 
-  const rawEdu = Number(data.educationAllowanceAmount || data.educationAllowance || data.otherAllowance || 0);
   const eduAmount = rawEdu > 0 ? rawEdu : (basicSalary > 0 ? Math.round(basicSalary * 0.05) : 0);
-  const eduPct = Number(data.educationAllowancePercentage || (basicSalary > 0 ? Math.round((eduAmount / basicSalary) * 100) : 5));
+  const eduPct = Number(data.educationAllowancePercentage) > 0 ? Number(data.educationAllowancePercentage) : (basicSalary > 0 && eduAmount > 0 ? Math.round((eduAmount / basicSalary) * 100) : 5);
 
-  const rawConv = Number(data.conveyanceAllowance || data.conveyanceAmount || data.conveyance || 0);
   const convAmount = rawConv > 0 ? rawConv : (basicSalary > 0 ? Math.round(basicSalary * 0.05) : 0);
-  const convPct = Number(data.conveyancePercentage || (basicSalary > 0 ? Math.round((convAmount / basicSalary) * 100) : 5));
+  const convPct = Number(data.conveyancePercentage) > 0 ? Number(data.conveyancePercentage) : (basicSalary > 0 && convAmount > 0 ? Math.round((convAmount / basicSalary) * 100) : 5);
 
-  const totalGross = grossSalary > 0 ? grossSalary : (basicSalary + hraAmount + ltaAmount + eduAmount + convAmount);
+  // Computed sum of earnings (Total Gross cannot be lower than Basic + Allowances)
+  const componentsSum = basicSalary + hraAmount + ltaAmount + eduAmount + convAmount;
+  const rawGross = Number(data.grossSalary || data.grossEarnings || data.grossTotal || 0);
+  const totalGross = Math.max(rawGross, componentsSum);
 
-  // 3. Deductions
-  const empEpfAmount = Number(
-    data.employeeEpfAmount ||
-    data.pfDeduction ||
-    data.epf ||
-    (basicSalary > 0 ? Math.round(Math.min(basicSalary, 15000) * 0.12) : 0)
-  );
-  const empEpfPct = Number(data.employeeEpfPercentage || 12);
+  // 2. Deductions
+  const rawEpf = Number(data.employeeEpfAmount ?? data.pfDeduction ?? data.epf ?? 0);
+  const empEpfAmount = rawEpf > 0 ? rawEpf : (basicSalary > 0 && data.employeeEpfPercentage !== 0 && data.employeeEpfPercentage !== '0' ? Math.round(Math.min(basicSalary, 15000) * 0.12) : 0);
+  const empEpfPct = Number(data.employeeEpfPercentage) > 0 ? Number(data.employeeEpfPercentage) : (empEpfAmount > 0 && basicSalary > 0 ? Math.round((empEpfAmount / Math.min(basicSalary, 15000)) * 100) : (empEpfAmount > 0 ? 12 : 0));
 
-  const empEsicAmount = Number(
-    data.employeeEsicAmount ||
-    data.esicDeduction ||
-    data.esic ||
-    (totalGross > 0 && totalGross <= 21000 ? Math.round(totalGross * 0.0075) : 0)
-  );
-  const empEsicPct = Number(data.employeeEsicPercentage || 0.75);
+  const rawEsic = Number(data.employeeEsicAmount ?? data.esicDeduction ?? data.esic ?? 0);
+  const empEsicAmount = rawEsic > 0 ? rawEsic : (totalGross > 0 && totalGross <= 21000 && data.employeeEsicPercentage !== 0 && data.employeeEsicPercentage !== '0' ? Math.round(totalGross * 0.0075) : 0);
+  const empEsicPct = Number(data.employeeEsicPercentage) > 0 ? Number(data.employeeEsicPercentage) : (totalGross <= 21000 && empEsicAmount > 0 ? 0.75 : 0);
 
-  const ptAmount = Number(
-    data.professionalTaxAmount ||
-    data.professionalTax ||
-    data.pt ||
-    (totalGross >= 12000 ? 200 : 0)
-  );
-  const ptPct = Number(data.professionalTaxPercentage || 0);
+  const rawPt = Number(data.professionalTaxAmount ?? data.professionalTax ?? data.pt ?? 0);
+  const ptAmount = rawPt > 0 ? rawPt : (totalGross >= 12000 ? 200 : 0);
+  const ptPct = Number(data.professionalTaxPercentage) > 0 ? Number(data.professionalTaxPercentage) : 0;
 
   const leaveDeduction = Number(data.leaveDeduction || data.lopDeduction || 0);
 
   const statutoryDeductions = empEpfAmount + empEsicAmount + ptAmount + leaveDeduction;
-  const totalDeductions = Number(data.totalDeduction || data.totalDeductions || statutoryDeductions);
+  const rawDeductions = Number(data.totalDeduction ?? data.totalDeductions ?? 0);
+  const totalDeductions = rawDeductions > 0 ? rawDeductions : statutoryDeductions;
 
   const netTakeHome = Math.max(
     0,
     Number(data.netTakeHome || data.netPayable || data.netSalary || (totalGross - totalDeductions))
   );
 
-  // 4. Employer Contributions & CTC
-  const compEpfAmount = Number(
-    data.companyEpfAmount ||
-    data.employerPf ||
-    (basicSalary > 0 ? Math.round(Math.min(basicSalary, 15000) * 0.12) : 0)
-  );
-  const compEpfPct = Number(data.companyEpfPercentage || 12);
+  // 3. Employer Contributions & CTC
+  const rawCompEpf = Number(data.companyEpfAmount ?? data.employerPf ?? 0);
+  const compEpfAmount = rawCompEpf > 0 ? rawCompEpf : (basicSalary > 0 && data.companyEpfPercentage !== 0 && data.companyEpfPercentage !== '0' ? Math.round(Math.min(basicSalary, 15000) * 0.12) : 0);
+  const compEpfPct = Number(data.companyEpfPercentage) > 0 ? Number(data.companyEpfPercentage) : (compEpfAmount > 0 && basicSalary > 0 ? Math.round((compEpfAmount / Math.min(basicSalary, 15000)) * 100) : (compEpfAmount > 0 ? 12 : 0));
 
-  const compEsicAmount = Number(
-    data.companyEsicAmount ||
-    data.employerEsic ||
-    (totalGross > 0 && totalGross <= 21000 ? Math.round(totalGross * 0.0325) : 0)
-  );
-  const compEsicPct = Number(data.companyEsicPercentage || 3.25);
+  const rawCompEsic = Number(data.companyEsicAmount ?? data.employerEsic ?? 0);
+  const compEsicAmount = rawCompEsic > 0 ? rawCompEsic : (totalGross > 0 && totalGross <= 21000 && data.companyEsicPercentage !== 0 && data.companyEsicPercentage !== '0' ? Math.round(totalGross * 0.0325) : 0);
+  const compEsicPct = Number(data.companyEsicPercentage) > 0 ? Number(data.companyEsicPercentage) : (totalGross <= 21000 && compEsicAmount > 0 ? 3.25 : 0);
 
-  const gratuityAmount = Number(
-    data.gratuityAmount ||
-    (basicSalary > 0 ? Math.round(basicSalary * 0.0481) : 0)
-  );
-  const gratuityPct = Number(data.gratuityPercentage || 4.81);
+  const rawGratuity = Number(data.gratuityAmount ?? 0);
+  const gratuityAmount = rawGratuity > 0 ? rawGratuity : (basicSalary > 0 ? Math.round(basicSalary * 0.0481 * 100) / 100 : 0);
+  const gratuityPct = Number(data.gratuityPercentage) > 0 ? Number(data.gratuityPercentage) : 4.81;
 
-  const totalCompanyCost = Number(
-    data.totalCompanyContribution ||
-    data.employerTotalCost ||
-    (compEpfAmount + compEsicAmount + gratuityAmount)
-  );
+  const calculatedCompanyCost = compEpfAmount + compEsicAmount + gratuityAmount;
+  const totalCompanyCost = Number(data.totalCompanyContribution || data.employerTotalCost || calculatedCompanyCost);
 
-  const ctcPerMonth = Number(data.ctcPerMonth || (totalGross + totalCompanyCost));
+  const ctcPerMonth = Number(data.ctcPerMonth) > 0 ? Number(data.ctcPerMonth) : (totalGross + totalCompanyCost);
   const ctcPerAnnum = ctcPerMonth * 12;
 
   // Print function
@@ -229,13 +200,15 @@ export function SalarySlipDocument({
     setDownloading(true);
     try {
       const canvas = await html2canvas(el, {
-        scale: 2.5,
+        scale: 2,
         useCORS: true,
-        logging: false,
+        allowTaint: true,
         backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: 1024,
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -244,30 +217,31 @@ export function SalarySlipDocument({
 
       const pdfWidth = 210; // A4 mm
       const pdfHeight = 297; // A4 mm
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const margin = 8;
+      const printableWidth = pdfWidth - (margin * 2);
+      const imgHeight = (canvas.height * printableWidth) / canvas.width;
 
-      if (imgHeight <= pdfHeight) {
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
+      if (imgHeight <= pdfHeight - (margin * 2)) {
+        pdf.addImage(imgData, 'JPEG', margin, margin, printableWidth, imgHeight, undefined, 'FAST');
       } else {
         let heightLeft = imgHeight;
-        let position = 0;
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= pdfHeight;
+        let position = margin;
+        pdf.addImage(imgData, 'JPEG', margin, position, printableWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= (pdfHeight - margin);
 
         while (heightLeft > 0) {
-          position = heightLeft - imgHeight;
+          position = heightLeft - imgHeight + margin;
           pdf.addPage();
-          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-          heightLeft -= pdfHeight;
+          pdf.addImage(imgData, 'JPEG', margin, position, printableWidth, imgHeight, undefined, 'FAST');
+          heightLeft -= (pdfHeight - margin);
         }
       }
 
       const safeName = (empName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_');
       const safeCode = (empCode || '').replace(/[^a-zA-Z0-9_-]/g, '_');
       const filename = `Salary_Slip_${safeName}_${safeCode}.pdf`;
-      const pdfBlob = pdf.output('blob');
-      await safeSaveFile(pdfBlob, filename, 'application/pdf');
+
+      pdf.save(filename);
     } catch (err) {
       console.error('Failed to generate PDF:', err);
       window.print();
@@ -284,6 +258,7 @@ export function SalarySlipDocument({
           <img
             src="/images/himalaya-logo.png"
             alt="Himalaya Composites & Precast Pvt. Ltd."
+            crossOrigin="anonymous"
             className="salary-slip-logo-img"
             onError={(e) => {
               (e.target as HTMLImageElement).src = '/himalaya-logo.png';

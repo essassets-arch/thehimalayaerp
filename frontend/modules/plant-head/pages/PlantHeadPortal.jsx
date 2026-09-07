@@ -46,6 +46,7 @@ import { useMaterialRequests } from '../../../hooks/useMaterialRequests';
 import DailyReportHistoryView from '../../production/components/DailyReportHistoryView';
 import AttendanceView from '../../../shared/components/AttendanceView';
 import CustomerComplaintManagement from '../../../components/CustomerComplaintManagement';
+import HRSOPsView from '../../hr/components/HRSOPsView';
 
 const isMaterialMatch = (invName, reqName) => {
   const inv = (invName || '').toLowerCase();
@@ -3339,11 +3340,16 @@ export default function PlantHeadPortal({ overrideView } = {}) {
             method: 'POST',
             body: { action: 'PLANT_APPROVE', remarks },
           });
+          try {
+            useERPStore.getState().acceptOrderByPlantHead(order.id || order.orderNo, { remarks }, user?.name || 'Plant Head');
+          } catch (e) {
+            console.warn('Could not sync local store:', e);
+          }
           await loadSalesOrders();
           const refreshed = await backendFetch('/api/backend/sales/orders?page=1&pageSize=100');
           setDirectBackendOrders(Array.isArray(refreshed) ? refreshed : refreshed?.data || []);
         } else {
-          useERPStore.getState().acceptOrderByPlantHead(order.id, { remarks }, user?.name || 'Plant Head');
+          useERPStore.getState().acceptOrderByPlantHead(order.id || order.orderNo, { remarks }, user?.name || 'Plant Head');
         }
         showToast(`✅ Order ${order.orderNo || order.id} accepted!`);
         Swal.fire({
@@ -3521,6 +3527,12 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                         <span style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '800' }}>Product Item</span>
                         <div>{renderProductSummary(row)}</div>
                       </div>
+                      {(row.remarks || row.acceptanceRemarks || row.plantHeadRemarks) && (
+                        <div style={{ gridColumn: 'span 2', marginTop: '4px', fontSize: '12px', color: '#475569', fontStyle: 'italic', background: '#f8fafc', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                          <span style={{ fontWeight: '700', textTransform: 'uppercase', fontSize: '10px', color: '#64748b', display: 'block' }}>Remarks</span>
+                          &ldquo;{row.remarks || row.acceptanceRemarks || row.plantHeadRemarks}&rdquo;
+                        </div>
+                      )}
                     </div>
 
                     {/* Actions Row */}
@@ -3602,7 +3614,32 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                   </div>
                 )
               },
-              { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) }
+              { header: 'Status', accessor: 'planningStatus', render: (row) => statusBadge(row) },
+              {
+                header: 'Remarks',
+                accessor: 'remarks',
+                render: (row) => {
+                  const rem = row.remarks || row.acceptanceRemarks || row.plantHeadRemarks || '';
+                  if (!rem) return <span style={{ color: '#94a3b8' }}>—</span>;
+                  return (
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        color: '#475569',
+                        fontStyle: 'italic',
+                        maxWidth: '180px',
+                        display: 'inline-block',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title={rem}
+                    >
+                      &ldquo;{rem}&rdquo;
+                    </span>
+                  );
+                }
+              }
             ]}
             data={displayedIncomingOrders}
             searchQuery={''}
@@ -5059,18 +5096,18 @@ export default function PlantHeadPortal({ overrideView } = {}) {
         </div>
 
         {/* Raw Inventory Table - Desktop View */}
-        <div className="desktop-only m-theme-table-container">
+        <div className="desktop-only m-theme-table-container inventory-table-wrapper">
           <table className="m-theme-table raw-inventory-table">
             <thead>
               <tr>
-                <th>Material Code</th>
-                <th>Material Name</th>
-                <th>Category</th>
-                <th>Unit</th>
-                <th>Current Stock</th>
-                <th>Minimum Stock</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+                <th style={{ width: '130px', minWidth: '130px', whiteSpace: 'nowrap' }}>Material Code</th>
+                <th style={{ minWidth: '240px', whiteSpace: 'nowrap' }}>Material Name</th>
+                <th style={{ width: '150px', minWidth: '150px', whiteSpace: 'nowrap' }}>Category</th>
+                <th style={{ width: '90px', minWidth: '90px', textAlign: 'center', whiteSpace: 'nowrap' }}>Unit</th>
+                <th style={{ width: '130px', minWidth: '130px', textAlign: 'right', whiteSpace: 'nowrap' }}>Current Stock</th>
+                <th style={{ width: '130px', minWidth: '130px', textAlign: 'right', whiteSpace: 'nowrap' }}>Minimum Stock</th>
+                <th style={{ width: '140px', minWidth: '140px', textAlign: 'center', whiteSpace: 'nowrap' }}>Status</th>
+                <th style={{ width: '230px', minWidth: '230px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -5107,19 +5144,32 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                         setShowDetailDrawer(true);
                       }}
                     >
-                      <td style={{ fontWeight: '800' }}>{item.code}</td>
-                      <td style={{ fontWeight: '600', color: '#0f766e' }}>{item.material}</td>
-                      <td style={{ color: '#5E6B82', fontSize: '12px' }}>{item.category || 'Raw Material'}</td>
-                      <td>{item.unit || 'Kg'}</td>
-                      <td style={{ fontWeight: '800' }}>{(item.stock ?? 0).toLocaleString()}</td>
-                      <td>{(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}</td>
-                      <td>
+                      <td style={{ fontWeight: '800', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontFamily: 'monospace', background: '#f1f5f9', color: '#1e293b', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', border: '1px solid #e2e8f0', display: 'inline-block' }}>
+                          {item.code || '—'}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: '700', color: '#0f766e', minWidth: '240px' }}>{item.material}</td>
+                      <td style={{ color: '#5E6B82', fontSize: '12.5px', whiteSpace: 'nowrap' }}>{item.category || 'Raw Material'}</td>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-block', padding: '2px 8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px', fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
+                          {item.unit || 'Kg'}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: '800', textAlign: 'right', whiteSpace: 'nowrap', color: isOutOfStock ? '#dc2626' : isLowStock ? '#d97706' : '#16a34a' }}>
+                        {(item.stock ?? 0).toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: '#64748b', fontWeight: '600' }}>
+                        {(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span>
                       </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '230px', width: '230px' }}>
+                        <div style={{ display: 'inline-flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
                           <button
                             className="m-theme-btn-action-green"
+                            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                             onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }}
                             title="Stock In"
                           >
@@ -5127,6 +5177,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                           </button>
                           <button
                             className="m-theme-btn-action-gray"
+                            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                             onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }}
                             title="Stock Out"
                           >
@@ -5134,6 +5185,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                           </button>
                           <button
                             className="m-theme-btn-action-gray"
+                            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                             onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }}
                             title="Adjust Stock"
                           >
@@ -5141,6 +5193,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                           </button>
                           <button
                             className="m-theme-btn-action-gray"
+                            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                             onClick={(e) => { e.stopPropagation(); navigate.push(`/plant-head/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`); }}
                             title="Edit Material"
                           >
@@ -6095,8 +6148,11 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       {currentView === 'daily-reports' && <DailyReportHistoryView roleMode="PLANT_HEAD" />}
       {currentView === 'attendance' && <AttendanceView />}
       {currentView === 'customer-complaints' && <CustomerComplaintManagement mode="plant-head" />}
+      {(currentView === 'sops' || currentView === 'hr-sops' || currentView === 'sop') && (
+        <HRSOPsView roleMode="PLANT_HEAD" />
+      )}
 
-      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'customer-complaints', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'purchase-approvals', 'profile', 'leave-approvals', 'daily-reports', 'attendance'].includes(currentView) && (
+      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'customer-complaints', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'purchase-approvals', 'profile', 'leave-approvals', 'daily-reports', 'attendance', 'sops', 'hr-sops', 'sop'].includes(currentView) && (
         <ModulePlaceholder
           title="Module Not Available"
           description="This Plant Head feature is not implemented yet."

@@ -185,7 +185,18 @@ export function getDispatchSalesScope(
   userId?: string,
   role?: string,
 ): Record<string, any> {
-  if (!isSalespersonScopedRole(role)) return {};
+  const normalizedRole = String(role || '')
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
+  if (
+    normalizedRole === 'SUPER_SALES' ||
+    normalizedRole === 'SUPER_ADMIN' ||
+    normalizedRole === 'ADMIN' ||
+    normalizedRole === 'SALES_MANAGER' ||
+    !isSalespersonScopedRole(role)
+  ) {
+    return {};
+  }
   if (!userId)
     throw new UnauthorizedException('User ID required for sales scoping');
   return {

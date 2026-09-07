@@ -115,7 +115,8 @@ export const navigationConfig = {
 
     { id: 'daily-reports', label: 'Daily Reports', icon: FileText, path: '/plant-head/daily-reports' },
     { id: 'leave-approvals', label: 'Leave Approvals', icon: Calendar, path: '/plant-head/leave-approvals' },
-    { id: 'attendance', label: 'Attendance Data', icon: Clock, path: '/plant-head/attendance' }
+    { id: 'attendance', label: 'Attendance Data', icon: Clock, path: '/plant-head/attendance' },
+    { id: 'sops', label: "SOP's & HR Forms", icon: BookOpen, path: '/plant-head/sops' }
   ],
 
   'Store': [

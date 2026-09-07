@@ -36,9 +36,24 @@ export function calculateSalaryStructure(input: SalaryInputData) {
   const esicPct = round(Number(input.employeeEsicPercentage) || 0);
   const ptPct = round(Number(input.professionalTaxPercentage) || 0);
 
-  const employeeEpfAmount = round((basic * epfPct) / 100);
-  const employeeEsicAmount = round((grossTotalA * esicPct) / 100);
-  const professionalTaxAmount = round((grossTotalA * ptPct) / 100);
+  // Statutory EPF Wage Ceiling is ₹15,000 (12% of 15,000 = ₹1,800)
+  const epfWage = basic > 15000 && epfPct === 12 ? 15000 : basic;
+  const employeeEpfAmount =
+    (input as any).employeeEpfAmount !== undefined && (input as any).employeeEpfAmount !== null && Number((input as any).employeeEpfAmount) >= 0
+      ? round(Number((input as any).employeeEpfAmount))
+      : round((epfWage * epfPct) / 100);
+
+  // Statutory ESIC Gross Ceiling is ₹21,000
+  const employeeEsicAmount =
+    (input as any).employeeEsicAmount !== undefined && (input as any).employeeEsicAmount !== null && Number((input as any).employeeEsicAmount) >= 0
+      ? round(Number((input as any).employeeEsicAmount))
+      : (grossTotalA <= 21000 ? round((grossTotalA * esicPct) / 100) : 0);
+
+  // Professional Tax: standard ₹200 if gross >= 12,000
+  const professionalTaxAmount =
+    (input as any).professionalTaxAmount !== undefined && (input as any).professionalTaxAmount !== null && Number((input as any).professionalTaxAmount) >= 0
+      ? round(Number((input as any).professionalTaxAmount))
+      : (ptPct > 0 ? round((grossTotalA * ptPct) / 100) : (grossTotalA >= 12000 ? 200 : 0));
 
   const totalDeductionB = round(
     employeeEpfAmount + employeeEsicAmount + professionalTaxAmount,
@@ -55,9 +70,20 @@ export function calculateSalaryStructure(input: SalaryInputData) {
       : 4.81,
   );
 
-  const companyEpfAmount = round((basic * compEpfPct) / 100);
-  const companyEsicAmount = round((grossTotalA * compEsicPct) / 100);
-  const gratuityAmount = round((basic * gratuityPct) / 100);
+  const companyEpfAmount =
+    (input as any).companyEpfAmount !== undefined && (input as any).companyEpfAmount !== null && Number((input as any).companyEpfAmount) >= 0
+      ? round(Number((input as any).companyEpfAmount))
+      : round((epfWage * compEpfPct) / 100);
+
+  const companyEsicAmount =
+    (input as any).companyEsicAmount !== undefined && (input as any).companyEsicAmount !== null && Number((input as any).companyEsicAmount) >= 0
+      ? round(Number((input as any).companyEsicAmount))
+      : (grossTotalA <= 21000 ? round((grossTotalA * compEsicPct) / 100) : 0);
+
+  const gratuityAmount =
+    (input as any).gratuityAmount !== undefined && (input as any).gratuityAmount !== null && Number((input as any).gratuityAmount) >= 0
+      ? round(Number((input as any).gratuityAmount))
+      : round((basic * gratuityPct) / 100);
 
   const totalCompanyContributionD = round(
     companyEpfAmount + companyEsicAmount + gratuityAmount,

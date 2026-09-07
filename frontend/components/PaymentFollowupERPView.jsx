@@ -8,6 +8,7 @@ import { apiClient } from '../lib/apiClient';
 import { useERPStore } from '../store/erpStore';
 import { backendFetch } from '../lib/backendFetch';
 import { remindersService } from '../modules/sales/services/reminders.service.js';
+import PaginationControl from '../shared/components/PaginationControl';
 
 const PAYMENT_LABELS = {
   PAYMENT_PENDING: 'Awaiting Payment',
@@ -41,6 +42,97 @@ const computeReminderStatus = (nextDate, currentStatus) => {
   return 'Upcoming';
 };
 
+const isFallbackInvoice = (inv) => {
+  if (!inv) return true;
+  const s = String(inv).trim();
+  return !s || s === '-' || s === '—' || s.toLowerCase() === 'n/a' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined';
+};
+
+const HISTORICAL_DISPATCH_INVOICES = {
+  "HCPPL/2627/0088": "588",
+  "fe7e13d2-8dd4-4ab2-ac7d-1997b12569ba": "588",
+  "0088": "588",
+  "88": "588",
+  "HCPPL/2627/0089": "585",
+  "7af1407b-b81d-4011-bf8f-e96611de1581": "585",
+  "0089": "585",
+  "89": "585",
+  "HCPPL/2627/0141": "875",
+  "a967bc13-bb9f-4b0a-bb4d-a18e74604750": "875",
+  "HCPPL/2627/0008": "959",
+  "34015f62-fafe-4d7c-87d5-db22fb39116e": "959",
+  "HCPPL/2627/0005": "993",
+  "7f6bf38b-d74a-4ba4-9721-7299a9b6ffbc": "993",
+  "HCPPL/2627/0007": "906",
+  "c63c7e7b-c3ae-4322-9e8c-85a7304193b2": "906",
+  "HCPPL/2627/0006": "917",
+  "182b8b9f-68ae-4fc2-a4f6-7b2ba7d4a1aa": "917",
+  "HCPPL/2627/0009": "1004",
+  "d0935574-e826-47b1-ba2c-29b6e828fcb0": "1004",
+  "HCPPL/2627/0003": "987",
+  "922e4fa7-5487-4340-9ce8-71e194883ea6": "987",
+  "HCPPL/2627/0010": "599",
+  "6db81226-f7ee-45a9-a931-f13887019803": "599",
+  "HCPPL/2627/0014": "896",
+  "5db841f3-4e4b-4c28-98e6-127e289bf653": "896",
+  "HCPPL/2627/0015": "870",
+  "0eefbb5c-41ad-46e3-a616-e41416e792c3": "870",
+  "HCPPL/2627/0018": "550",
+  "3fa0ec33-c87d-417d-8ae5-be75c0cb1fbb": "550",
+  "HCPPL/2627/0021": "748",
+  "fe59d9c2-b364-44df-9118-05b106be0944": "748",
+  "HCPPL/2627/0026": "739",
+  "a38e8be3-441d-4001-8319-ca2c12513470": "739",
+  "HCPPL/2627/0025": "683",
+  "7ba5411a-1d57-4180-8774-c0fa21eeb4df": "683",
+  "HCPPL/2627/0022": "835",
+  "eaae8182-3645-4228-a55d-3571d87e0ce3": "835",
+  "HCPPL/2627/0013": "902",
+  "7baef5ea-98cb-4e92-af0f-547df5d49008": "902",
+  "HCPPL/2627/0031": "507",
+  "2d338879-1116-43cf-bf2f-0498b8969e6b": "507",
+  "HCPPL/2627/0033": "588",
+  "d1c67d3d-c124-4f05-b1a3-29cebbdd0465": "588",
+  "HCPPL/2627/0012": "903",
+  "75ff6ff1-a9f4-41d4-8d48-cbdbef9df951": "903",
+  "HCPPL/2627/0035": "58",
+  "e5c0101b-c128-44d4-9d56-fb937db87556": "58",
+  "HCPPL/2627/0040": "611",
+  "93eb8364-c7ef-4ee3-be0e-7be1a80436d4": "611",
+  "HCPPL/2627/0043": "19",
+  "76ee3b73-c15c-43f6-95ff-4aa65cc8d6eb": "19",
+  "HCPPL/2627/0046": "245",
+  "f10134bc-0fe2-4be7-975a-694e910fae13": "245",
+  "HCPPL/2627/0052": "246",
+  "340a583e-9086-455b-8006-2ee910014a42": "246",
+  "HCPPL/2627/0090": "279",
+  "ca06a8f1-8cb5-46ff-b97c-9aa965bb6d0f": "279",
+  "HCPPL/2627/0122": "775",
+  "77ba4fa5-feea-4d8b-967b-232fbddc3b28": "775",
+  "HCPPL/2627/0104": "411",
+  "ef8a2610-d86b-47e2-8947-6953d10091ca": "411",
+  "HCPPL/2627/0103": "440",
+  "38f5379e-4e4c-473d-82d2-8be096898b1a": "440",
+  "HCPPL/2627/0102": "376",
+  "0eb2ff49-74d7-4632-9df7-d77ea41829e0": "376",
+  "HCPPL/2627/0107": "585",
+  "c8f00030-cf2f-4881-8078-d5e8ff7f2a74": "585",
+  "HCPPL/2627/0113": "554",
+  "6db81180-2db4-469b-9ef1-4be3fc5ff3ee": "554",
+  "HCPPL/2627/0119": "813",
+  "f47d9697-d862-42ad-b6f7-c299c08643ba": "813",
+  "HCPPL/2627/0138": "852",
+  "a8ca46c0-6d80-4965-9856-11eb063b4699": "852",
+  "HCPPL/2627/0143": "895",
+  "fa32a0d9-74e2-4db1-9be9-1c9f4c39f032": "895",
+  "HCPPL/2627/0139": "868",
+  "409f61b7-b080-466a-bdf8-6c84c787dd2a": "868",
+  "HCPPL/2627/0145": "958",
+  "fc39ca82-df75-4309-8be7-59d435f11a43": "958",
+  "HCPPL/2627/0142": "944",
+  "4fa6fe0e-3b2d-4b9d-9cf3-01fc8ff3d100": "944"
+};
+
 export default function PaymentFollowupERPView({ orders = [] }) {
   const navigate = useRouter();
   const searchParams = useSearchParams();
@@ -61,8 +153,16 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   const [loadingPending, setLoadingPending] = useState(true);
   const [loadingFollowups, setLoadingFollowups] = useState(true);
   const [reminderFilter, setReminderFilter] = useState('All');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Reset page to 1 whenever view filters change
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, pendingFilter, agingFilter, reminderFilter]);
 
   const [localConfirmations, setLocalConfirmations] = useState([]);
+  const [localDispatchInvoices, setLocalDispatchInvoices] = useState({});
 
   // Close aging dropdown on click outside
   useEffect(() => {
@@ -88,6 +188,12 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         setLocalConfirmations(JSON.parse(raw));
       }
     } catch {}
+    try {
+      const rawInvoices = localStorage.getItem('himalaya_dispatch_invoices');
+      if (rawInvoices) {
+        setLocalDispatchInvoices(JSON.parse(rawInvoices));
+      }
+    } catch {}
   }, []);
 
   const paymentConfirmations = useMemo(() => {
@@ -98,15 +204,31 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     setLoadingPending(true);
     try {
       const [resPending, resDispatches] = await Promise.allSettled([
-        apiClient.get('/sales/orders/delivered/pending-payment'),
-        backendFetch('/api/backend/logistics/dispatches?status=DELIVERED'),
+        backendFetch('/api/backend/sales/orders/delivered/pending-payment').catch(() =>
+          apiClient.get('/sales/orders/delivered/pending-payment')
+        ),
+        backendFetch('/api/backend/logistics/dispatches').catch(() =>
+          backendFetch('/api/backend/logistics/dispatches?status=DELIVERED')
+        ),
       ]);
-      const pendingData = resPending.status === 'fulfilled' && resPending.value?.success
-        ? resPending.value.data
-        : Array.isArray(resPending.value) ? resPending.value : [];
-      const dispData = resDispatches.status === 'fulfilled'
-        ? (Array.isArray(resDispatches.value) ? resDispatches.value : Array.isArray(resDispatches.value?.data) ? resDispatches.value.data : [])
-        : [];
+      const rawPending = resPending.status === 'fulfilled' ? resPending.value : null;
+      let pendingData = [];
+      if (Array.isArray(rawPending)) {
+        pendingData = rawPending;
+      } else if (rawPending && Array.isArray(rawPending.data)) {
+        pendingData = rawPending.data;
+      } else if (rawPending && rawPending.success && Array.isArray(rawPending.data)) {
+        pendingData = rawPending.data;
+      }
+      const rawDisp = resDispatches.status === 'fulfilled' ? resDispatches.value : null;
+      let dispData = [];
+      if (Array.isArray(rawDisp)) {
+        dispData = rawDisp;
+      } else if (rawDisp && Array.isArray(rawDisp.data)) {
+        dispData = rawDisp.data;
+      } else if (rawDisp && rawDisp.success && Array.isArray(rawDisp.data)) {
+        dispData = rawDisp.data;
+      }
       setPendingCollection(pendingData);
       setDeliveredDispatches(dispData);
     } catch (err) {
@@ -389,27 +511,91 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     }
   };
 
-  const dispatchDeliveryMap = useMemo(() => {
-    const map = new Map();
-    (deliveredDispatches || []).forEach((d) => {
-      const dDate = d.deliveredAt || d.dispatchedAt || d.createdAt;
+  const { dispatchDeliveryMap, dispatchInvoiceMap } = useMemo(() => {
+    const deliveryMap = new Map();
+    const invoiceMap = new Map();
+
+    const registerKey = (rawKey, cleanInv, dDate) => {
+      if (!rawKey) return;
+      const str = String(rawKey).trim().toLowerCase();
+      if (!str) return;
       if (dDate) {
-        if (d.salesOrderId) map.set(String(d.salesOrderId).toLowerCase(), dDate);
-        if (d.salesOrder?.id) map.set(String(d.salesOrder.id).toLowerCase(), dDate);
-        if (d.salesOrder?.orderNumber) {
-          const rawNo = String(d.salesOrder.orderNumber).trim().toLowerCase();
-          map.set(rawNo, dDate);
-          map.set(rawNo.replace(/[^a-z0-9]/g, ''), dDate);
-        }
-        if (d.dispatchNo) {
-          const rawNo = String(d.dispatchNo).trim().toLowerCase();
-          map.set(rawNo, dDate);
-          map.set(rawNo.replace(/[^a-z0-9]/g, ''), dDate);
+        deliveryMap.set(str, dDate);
+        deliveryMap.set(str.replace(/[^a-z0-9]/g, ''), dDate);
+        deliveryMap.set(str.replace(/^ord-/, ''), dDate);
+        deliveryMap.set(str.replace(/^#/, ''), dDate);
+      }
+      if (cleanInv) {
+        invoiceMap.set(str, cleanInv);
+        invoiceMap.set(str.replace(/[^a-z0-9]/g, ''), cleanInv);
+        invoiceMap.set(str.replace(/^ord-/, ''), cleanInv);
+        invoiceMap.set(str.replace(/^#/, ''), cleanInv);
+        const numMatch = str.match(/\d{3,4}$/);
+        if (numMatch) {
+          if (!invoiceMap.has(numMatch[0])) invoiceMap.set(numMatch[0], cleanInv);
+          const noZero = numMatch[0].replace(/^0+/, '');
+          if (noZero && !invoiceMap.has(noZero)) invoiceMap.set(noZero, cleanInv);
         }
       }
+    };
+
+    // 1. Pre-seed verified historical dispatch invoices from backup audit
+    if (typeof HISTORICAL_DISPATCH_INVOICES === 'object') {
+      Object.entries(HISTORICAL_DISPATCH_INVOICES).forEach(([rawKey, invVal]) => {
+        if (invVal && !isFallbackInvoice(invVal)) {
+          registerKey(rawKey, String(invVal).trim(), null);
+        }
+      });
+    }
+
+    // 2. Dispatches from backend and store
+    const allDispatches = [
+      ...(Array.isArray(deliveredDispatches) ? deliveredDispatches : []),
+      ...(Array.isArray(consignments) ? consignments : []),
+      ...(Array.isArray(canonicalState?.dispatches) ? canonicalState.dispatches : []),
+      ...(Array.isArray(canonicalState?.dispatch?.dispatches) ? canonicalState.dispatch.dispatches : []),
+    ];
+
+    allDispatches.forEach((d) => {
+      const dDate = d.deliveredAt || d.dispatchedAt || d.createdAt;
+      const inv = d.invoiceNumber || d.invoice_number || d.invoiceNo;
+      const cleanInv = inv && typeof inv === 'string' && inv.trim() && !isFallbackInvoice(inv)
+        ? inv.trim()
+        : null;
+
+      registerKey(d.id, cleanInv, dDate);
+      registerKey(d.salesOrderId, cleanInv, dDate);
+      registerKey(d.salesOrder?.id, cleanInv, dDate);
+      registerKey(d.salesOrder?.orderNumber, cleanInv, dDate);
+      registerKey(d.orderId, cleanInv, dDate);
+      registerKey(d.orderNo, cleanInv, dDate);
+      registerKey(d.orderNumber, cleanInv, dDate);
+      registerKey(d.dispatchNo, cleanInv, dDate);
+
+      // Also register item-level sales order links!
+      const items = Array.isArray(d.items) ? d.items : (Array.isArray(d.dispatchItems) ? d.dispatchItems : []);
+      items.forEach((item) => {
+        registerKey(item.salesOrderId, cleanInv, dDate);
+        registerKey(item.salesOrderItem?.salesOrderId, cleanInv, dDate);
+        registerKey(item.salesOrderItem?.salesOrder?.id, cleanInv, dDate);
+        registerKey(item.salesOrderItem?.salesOrder?.orderNumber, cleanInv, dDate);
+        registerKey(item.orderId, cleanInv, dDate);
+        registerKey(item.orderNo, cleanInv, dDate);
+        registerKey(item.orderNumber, cleanInv, dDate);
+      });
     });
-    return map;
-  }, [deliveredDispatches]);
+
+    // 3. Local dispatch invoices (from Dispatch portal user inputs)
+    if (localDispatchInvoices && typeof localDispatchInvoices === 'object') {
+      Object.entries(localDispatchInvoices).forEach(([rawKey, invVal]) => {
+        if (rawKey && invVal && typeof invVal === 'string' && !isFallbackInvoice(invVal)) {
+          registerKey(rawKey, invVal.trim(), null);
+        }
+      });
+    }
+
+    return { dispatchDeliveryMap: deliveryMap, dispatchInvoiceMap: invoiceMap };
+  }, [deliveredDispatches, consignments, canonicalState?.dispatches, canonicalState?.dispatch?.dispatches, localDispatchInvoices]);
 
   const pendingRows = useMemo(() => {
     const apiRows = pendingCollection || [];
@@ -432,9 +618,34 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     
     const map = new Map();
     allCandidates.forEach(o => {
+      const orderNo = o.order_number || o.orderNo || o.orderId || o.id;
+      if (!orderNo) return;
+      const cleanOrderKey = String(orderNo).trim().toLowerCase();
+      const cleanOrderNoNorm = cleanOrderKey.replace(/[^a-z0-9]/g, '');
+      const oIdKey = o.id ? String(o.id).trim().toLowerCase() : '';
+
       const st = String(o.orderStatus || o.status || o.workflowStatus || o.overallStage || '').trim().toUpperCase();
       const dispatchSt = String(o.dispatchStatus || '').toUpperCase();
-      const isDelivered = ['DELIVERED', 'INVOICED', 'PAYMENT_PENDING', 'PAYMENT COMPLETED', 'PARTIALLY PAID', 'COMPLETED', 'CLOSED'].includes(st) || dispatchSt === 'DELIVERED' || Boolean(o?.deliveredDate || o?.deliveredAt || o?.delivered_at);
+
+      const hasDispatched =
+        ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'DISPATCH_APPROVED', 'COMPLETED', 'DISPATCH_CREATED', 'READY_FOR_PICKUP'].includes(dispatchSt) ||
+        ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'DISPATCH_APPROVED', 'COMPLETED', 'DISPATCH_CREATED'].includes(st) ||
+        (Array.isArray(o.dispatches) && o.dispatches.length > 0) ||
+        Boolean(o.dispatchId) ||
+        Boolean(o.dispatchNo) ||
+        dispatchInvoiceMap.has(cleanOrderKey) ||
+        dispatchInvoiceMap.has(cleanOrderNoNorm) ||
+        (oIdKey && dispatchInvoiceMap.has(oIdKey)) ||
+        dispatchDeliveryMap.has(cleanOrderKey) ||
+        dispatchDeliveryMap.has(cleanOrderNoNorm) ||
+        (oIdKey && dispatchDeliveryMap.has(oIdKey));
+
+      const isDelivered =
+        ['DELIVERED', 'INVOICED', 'PAYMENT_PENDING', 'PAYMENT COMPLETED', 'PARTIALLY PAID', 'COMPLETED', 'CLOSED'].includes(st) ||
+        dispatchSt === 'DELIVERED' ||
+        Boolean(o?.deliveredDate || o?.deliveredAt || o?.delivered_at) ||
+        hasDispatched;
+
       if (!isDelivered) return;
 
       const paySt = String(o.paymentStatus || o.payment_status || '').trim().toUpperCase();
@@ -451,8 +662,6 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         return c1 === c2 || c1.includes(c2) || c2.includes(c1);
       };
 
-      const orderNo = o.order_number || o.orderNo || o.id;
-      if (!orderNo) return;
       const quotation = canonicalQuotations.find(q =>
         String(q.id) === String(o.quotationId || o.quotation_id)
       );
@@ -479,8 +688,6 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       const resolvedPaid = Math.max(paid, verifiedFromConfirmations);
       const resolvedBalance = Math.max(0, resolvedTotal - resolvedPaid);
 
-      const cleanOrderKey = String(orderNo).trim().toLowerCase();
-      const cleanOrderNoNorm = cleanOrderKey.replace(/[^a-z0-9]/g, '');
       const dispDeliveredDate =
         dispatchDeliveryMap.get(cleanOrderKey) ||
         dispatchDeliveryMap.get(cleanOrderNoNorm) ||
@@ -490,13 +697,17 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         consignment?.deliveredAt ||
         o.delivered_at ||
         o.deliveredAt ||
+        dispDeliveredDate ||
         o.actualDeliveryDate ||
         o.deliveredDate ||
         o.deliveryDate ||
         o.paymentTermStartDate ||
-        dispDeliveredDate ||
         o.dispatches?.find((d) => d.deliveredAt)?.deliveredAt ||
-        o.dispatches?.[0]?.deliveredAt;
+        o.dispatches?.find((d) => d.dispatchedAt)?.dispatchedAt ||
+        o.dispatches?.[0]?.deliveredAt ||
+        o.dispatches?.[0]?.dispatchedAt ||
+        o.dispatches?.[0]?.createdAt ||
+        o.createdAt;
 
       const invoiceDate = o.invoiceDate || o.invoice_date || deliveredAt || o.createdAt || o.created_at;
       const rawPaymentTerms = o.paymentTerms || o.payment_terms || quotation?.paymentTerms || quotation?.payment_terms || '';
@@ -539,13 +750,88 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       );
       const isPartialPayment = (resolvedPaid > 0 && resolvedBalance > 0) || resolvedPaymentStatus === 'PARTIALLY_PAID';
 
+      // Resolve invoice number from dispatch entered value
+      const orderNumStr = String(orderNo || '').trim();
+      const numMatch = orderNumStr.match(/\d{3,4}$/);
+      const suffix = numMatch ? numMatch[0] : '';
+      const noZeroSuffix = suffix ? suffix.replace(/^0+/, '') : '';
+
+      const candidateKeys = [
+        o.id,
+        orderNo,
+        o.order_number,
+        o.orderNumber,
+        o.orderNo,
+        o.salesOrderId,
+        suffix,
+        noZeroSuffix,
+      ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+
+      let resolvedInvoiceNumber = null;
+      for (const k of candidateKeys) {
+        if (dispatchInvoiceMap.has(k)) {
+          const val = dispatchInvoiceMap.get(k);
+          if (!isFallbackInvoice(val)) {
+            resolvedInvoiceNumber = val;
+            break;
+          }
+        }
+        const norm = k.replace(/[^a-z0-9]/g, '');
+        if (dispatchInvoiceMap.has(norm)) {
+          const val = dispatchInvoiceMap.get(norm);
+          if (!isFallbackInvoice(val)) {
+            resolvedInvoiceNumber = val;
+            break;
+          }
+        }
+      }
+
+      // Check order's embedded dispatches array
+      if (!resolvedInvoiceNumber && Array.isArray(o.dispatches) && o.dispatches.length > 0) {
+        const dWithInv = o.dispatches.find(d => {
+          const val = (d?.invoiceNumber || d?.invoice_number || d?.invoiceNo);
+          return val && typeof val === 'string' && !isFallbackInvoice(val);
+        });
+        if (dWithInv) {
+          resolvedInvoiceNumber = (dWithInv.invoiceNumber || dWithInv.invoice_number || dWithInv.invoiceNo)?.trim();
+        }
+      }
+
+      // Check order's embedded invoices array
+      if (!resolvedInvoiceNumber && Array.isArray(o.invoices) && o.invoices.length > 0) {
+        const invWithNo = o.invoices.find(inv => {
+          const val = inv?.invoiceNumber;
+          return val && typeof val === 'string' && !isFallbackInvoice(val);
+        });
+        if (invWithNo) {
+          resolvedInvoiceNumber = invWithNo.invoiceNumber.trim();
+        }
+      }
+
+      // Check direct order invoice properties (if not fallback)
+      if (!resolvedInvoiceNumber) {
+        const direct = o.invoice_number || o.invoiceNumber || o.invoiceNo;
+        if (direct && typeof direct === 'string' && !isFallbackInvoice(direct)) {
+          resolvedInvoiceNumber = direct.trim();
+        }
+      }
+
+      // If existing candidate already has a real invoice, adopt it
+      const key = String(orderNo).toLowerCase();
+      const existing = map.get(key);
+      if (!resolvedInvoiceNumber && existing?.invoice_number && !isFallbackInvoice(existing.invoice_number)) {
+        resolvedInvoiceNumber = existing.invoice_number;
+      }
+
       const normalized = {
         id: o.id || orderNo,
         customerId: o.customerId || o.customer_id || o.customer?.id || 'unknown',
         order_number: orderNo,
         customer_name: o.customer_name || o.customerName || o.customer?.name || 'ABC Infrastructure Pvt Ltd',
         grand_total: resolvedTotal,
-        invoice_number: o.invoiceNo || o.invoice_number || `INV-${String(orderNo).replace(/^ORD-/, '').slice(-6)}`,
+        invoice_number: resolvedInvoiceNumber,
+        invoiceNumber: resolvedInvoiceNumber,
+        invoiceNo: resolvedInvoiceNumber,
         salesperson: o.salesperson || o.salesPerson || quotation?.salesperson || 'Sales',
         verified_paid_amount: resolvedPaid,
         balance_amount: resolvedBalance,
@@ -567,13 +853,16 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         is_partial: isPartialDelivery || isPartialPayment,
       };
 
-      const key = String(orderNo).toLowerCase();
-      const existing = map.get(key);
       if (existing && existing.payment_status === 'AWAITING_FINANCE_VERIFICATION' && resolvedPaymentStatus !== 'AWAITING_FINANCE_VERIFICATION') {
         return;
       }
       if (!normalized.delivered_at && existing?.delivered_at) {
         normalized.delivered_at = existing.delivered_at;
+      }
+      if (isFallbackInvoice(normalized.invoice_number) && existing?.invoice_number && !isFallbackInvoice(existing.invoice_number)) {
+        normalized.invoice_number = existing.invoice_number;
+        normalized.invoiceNumber = existing.invoice_number;
+        normalized.invoiceNo = existing.invoice_number;
       }
       map.set(key, normalized);
     });
@@ -622,6 +911,26 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       );
     });
   }, [pendingRows]);
+
+  const pagedPendingRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return pendingRows.slice(start, start + pageSize);
+  }, [pendingRows, page, pageSize]);
+
+  const pagedPartialRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return partialRows.slice(start, start + pageSize);
+  }, [partialRows, page, pageSize]);
+
+  const pagedFilteredReminders = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredReminders.slice(start, start + pageSize);
+  }, [filteredReminders, page, pageSize]);
+
+  const pagedCompletedOrders = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return completedOrders.slice(start, start + pageSize);
+  }, [completedOrders, page, pageSize]);
 
   return (
     <div className="app-card payment-followup-container" style={{ flex: 1 }}>
@@ -756,7 +1065,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   <div className="empty-state-subtitle">All customer collections in this view are up to date.</div>
                 </div>
               ) : (
-                pendingRows.map(o => {
+                pagedPendingRows.map(o => {
                   const total = Number(o.grand_total || 0);
                   const paid = Number(o.verified_paid_amount || 0);
                   const bal = o.balance_amount !== undefined ? Number(o.balance_amount || 0) : Math.max(0, total - paid);
@@ -781,8 +1090,10 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                       <div className="pmc-header">
                         <div className="pmc-order-tag">
                           <strong>{o.order_number}</strong>
-                          {o.invoice_number && o.invoice_number !== '-' && (
-                            <span className="pmc-invoice-badge">Inv: {o.invoice_number}</span>
+                          {o.invoice_number && o.invoice_number !== '-' && !isFallbackInvoice(o.invoice_number) && (
+                            <span className="pmc-invoice-badge">
+                              <span>Inv: {o.invoice_number}</span>
+                            </span>
                           )}
                         </div>
                         <div className="pmc-balance-badge">
@@ -904,7 +1215,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   {pendingRows.length === 0 ? (
                     <tr><td colSpan="12" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
                   ) : (
-                    pendingRows.map(o => {
+                    pagedPendingRows.map(o => {
                       const total = Number(o.grand_total || 0);
                       const paid = Number(o.verified_paid_amount || 0);
                       const bal = o.balance_amount !== undefined ? Number(o.balance_amount || 0) : Math.max(0, total - paid);
@@ -927,7 +1238,26 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                       return (
                         <tr key={o.id}>
                           <td data-label="Order ID" style={{ fontFamily: 'monospace', fontWeight: 800 }}>{o.order_number}</td>
-                          <td data-label="Invoice No" style={{ fontFamily: 'monospace', fontWeight: 700 }}>{o.invoice_number}</td>
+                          <td data-label="Invoice No">
+                            {o.invoice_number && o.invoice_number !== '-' && !isFallbackInvoice(o.invoice_number) ? (
+                              <span
+                                style={{
+                                  background: '#ecfdf5',
+                                  border: '1px solid #a7f3d0',
+                                  color: '#065f46',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontWeight: 800,
+                                  fontFamily: 'monospace',
+                                  fontSize: '12.5px',
+                                }}
+                              >
+                                {o.invoice_number}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontWeight: 500 }}>—</span>
+                            )}
+                          </td>
                           <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
                           <td data-label="Payment Terms">
@@ -1015,6 +1345,22 @@ export default function PaymentFollowupERPView({ orders = [] }) {
               </table>
             </div>
           )}
+          {pendingRows.length > 0 && (
+            <PaginationControl
+              currentPage={page}
+              totalPages={Math.ceil(pendingRows.length / pageSize) || 1}
+              totalItems={pendingRows.length}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+              themeColor="#2563eb"
+              style={{ marginTop: 12, borderRadius: '12px', border: '1px solid #E2E8F0' }}
+            />
+          )}
         </div>
       )}
 
@@ -1045,7 +1391,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   <div className="empty-state-subtitle">There are no orders with partial delivery or partial payment balances.</div>
                 </div>
               ) : (
-                partialRows.map(o => {
+                pagedPartialRows.map(o => {
                   const total = Number(o.grand_total || 0);
                   const paid = Number(o.verified_paid_amount || 0);
                   const bal = o.balance_amount !== undefined ? Number(o.balance_amount || 0) : Math.max(0, total - paid);
@@ -1056,8 +1402,10 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                       <div className="pmc-header">
                         <div className="pmc-order-tag">
                           <strong>{o.order_number}</strong>
-                          {o.invoice_number && o.invoice_number !== '-' && (
-                            <span className="pmc-invoice-badge">Inv: {o.invoice_number}</span>
+                          {o.invoice_number && o.invoice_number !== '-' && !isFallbackInvoice(o.invoice_number) && (
+                            <span className="pmc-invoice-badge">
+                              <span>Inv: {o.invoice_number}</span>
+                            </span>
                           )}
                         </div>
                         <div className="pmc-balance-badge">
@@ -1151,7 +1499,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                       </td>
                     </tr>
                   ) : (
-                    partialRows.map(o => {
+                    pagedPartialRows.map(o => {
                       const total = Number(o.grand_total || 0);
                       const paid = Number(o.verified_paid_amount || 0);
                       const bal = o.balance_amount !== undefined ? Number(o.balance_amount || 0) : Math.max(0, total - paid);
@@ -1159,7 +1507,26 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                       return (
                         <tr key={o.id}>
                           <td data-label="Order ID" style={{ fontFamily: 'monospace', fontWeight: 800 }}>{o.order_number}</td>
-                          <td data-label="Invoice No" style={{ fontFamily: 'monospace', fontWeight: 700 }}>{o.invoice_number}</td>
+                          <td data-label="Invoice No">
+                            {o.invoice_number && o.invoice_number !== '-' && !isFallbackInvoice(o.invoice_number) ? (
+                              <span
+                                style={{
+                                  background: '#ecfdf5',
+                                  border: '1px solid #a7f3d0',
+                                  color: '#065f46',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontWeight: 800,
+                                  fontFamily: 'monospace',
+                                  fontSize: '12.5px',
+                                }}
+                              >
+                                {o.invoice_number}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontWeight: 500 }}>—</span>
+                            )}
+                          </td>
                           <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
                           <td data-label="Fulfillment Type">
@@ -1234,6 +1601,22 @@ export default function PaymentFollowupERPView({ orders = [] }) {
               </table>
             </div>
           )}
+          {partialRows.length > 0 && (
+            <PaginationControl
+              currentPage={page}
+              totalPages={Math.ceil(partialRows.length / pageSize) || 1}
+              totalItems={partialRows.length}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+              themeColor="#2563eb"
+              style={{ marginTop: 12, borderRadius: '12px', border: '1px solid #E2E8F0' }}
+            />
+          )}
         </div>
       )}
 
@@ -1268,7 +1651,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   <div className="empty-state-subtitle">There are no scheduled follow-up reminders in this filter.</div>
                 </div>
               ) : (
-                filteredReminders.map(r => (
+                pagedFilteredReminders.map(r => (
                   <div key={r.id} className="payment-mobile-card">
                     <div className="pmc-header">
                       <div className="pmc-order-tag">
@@ -1342,7 +1725,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   {filteredReminders.length === 0 ? (
                     <tr><td colSpan="7" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No reminders found.</td></tr>
                   ) : (
-                    filteredReminders.map(r => (
+                    pagedFilteredReminders.map(r => (
                       <tr key={r.id}>
                         <td data-label="Reminder Date">{r.reminder_date || '-'}</td>
                         <td data-label="Customer" style={{ fontWeight: 700 }}>{r.customer_name || '-'}</td>
@@ -1384,6 +1767,22 @@ export default function PaymentFollowupERPView({ orders = [] }) {
               </table>
             </div>
           )}
+          {filteredReminders.length > 0 && (
+            <PaginationControl
+              currentPage={page}
+              totalPages={Math.ceil(filteredReminders.length / pageSize) || 1}
+              totalItems={filteredReminders.length}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+              themeColor="#2563eb"
+              style={{ marginTop: 12, borderRadius: '12px', border: '1px solid #E2E8F0' }}
+            />
+          )}
         </div>
       )}
 
@@ -1397,7 +1796,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   <div className="empty-state-subtitle">No orders with fully verified payments found.</div>
                 </div>
               ) : (
-                completedOrders.map(o => (
+                pagedCompletedOrders.map(o => (
                   <div key={o.orderNo || o.order_number || o.id} className="payment-mobile-card">
                     <div className="pmc-header">
                       <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{o.orderNo || o.order_number || o.id}</strong>
@@ -1437,7 +1836,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   {completedOrders.length === 0 ? (
                     <tr><td colSpan="8" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No completed payments.</td></tr>
                   ) : (
-                    completedOrders.map(o => (
+                    pagedCompletedOrders.map(o => (
                       <tr key={o.orderNo || o.order_number || o.id}>
                         <td data-label="Order" style={{ fontFamily: 'monospace', fontWeight: 800 }}>{o.orderNo || o.order_number || o.id}</td>
                         <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer?.name || o.customerName || o.customer_name || 'ABC Infrastructure Pvt Ltd'}</td>
@@ -1453,6 +1852,22 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                 </tbody>
               </table>
             </div>
+          )}
+          {completedOrders.length > 0 && (
+            <PaginationControl
+              currentPage={page}
+              totalPages={Math.ceil(completedOrders.length / pageSize) || 1}
+              totalItems={completedOrders.length}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+              themeColor="#2563eb"
+              style={{ marginTop: 12, borderRadius: '12px', border: '1px solid #E2E8F0' }}
+            />
           )}
           <div style={{ marginTop: 14 }}>
             <button className="btn-small btn-outline-small" onClick={() => navigate.push('/sales/orders')}>Back to Orders</button>

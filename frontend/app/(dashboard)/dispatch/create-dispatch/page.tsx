@@ -1207,6 +1207,29 @@ export default function CreateDispatchPage() {
         showConfirmButton: false,
       });
 
+      if (invoiceNumber?.trim() && typeof window !== "undefined") {
+        try {
+          const rawLocal = localStorage.getItem("himalaya_dispatch_invoices");
+          const localMap = rawLocal ? JSON.parse(rawLocal) : {};
+          const cleanInv = invoiceNumber.trim();
+          for (const [orderId, grp] of orderGroups.entries()) {
+            if (orderId) {
+              const k = String(orderId).toLowerCase();
+              localMap[k] = cleanInv;
+              localMap[k.replace(/[^a-z0-9]/g, "")] = cleanInv;
+            }
+            if (grp.salesOrder?.orderNumber) {
+              const oNo = String(grp.salesOrder.orderNumber).toLowerCase();
+              localMap[oNo] = cleanInv;
+              localMap[oNo.replace(/[^a-z0-9]/g, "")] = cleanInv;
+            }
+          }
+          localStorage.setItem("himalaya_dispatch_invoices", JSON.stringify(localMap));
+        } catch (e) {
+          console.warn("Failed saving dispatch invoice to localStorage:", e);
+        }
+      }
+
       toast.success(
         orderGroups.size === 1
           ? "Dispatch created and marked In Transit"
@@ -1216,6 +1239,7 @@ export default function CreateDispatchPage() {
       queryClient.invalidateQueries({ queryKey: ["in-transit-dispatches"] });
       queryClient.invalidateQueries({ queryKey: ["delivery-run-dispatches"] });
       queryClient.invalidateQueries({ queryKey: ["delivery-history-dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["dispatches"] });
       router.push(`${basePath}/in-transit`);
     } catch (err: any) {
       console.error(

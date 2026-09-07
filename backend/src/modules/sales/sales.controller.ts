@@ -5,6 +5,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Put,
   Body,
   Param,
   Query,
@@ -80,6 +82,44 @@ export class SalesController {
     return this.salesService.listDeliveredPendingPayment(
       req.user?.sub,
       req.user?.role,
+    );
+  }
+
+  @Patch(':id/invoice-number')
+  @RequirePermissions(
+    'sales.orders.read',
+    'sales.orders.update',
+    'sales.orders.create',
+    'logistics.dispatches.create',
+  )
+  async updateInvoiceNumber(
+    @Param('id') id: string,
+    @Body('invoiceNumber') invoiceNumber: string,
+    @Req() req: any,
+  ) {
+    return this.salesService.updateInvoiceNumber(
+      id,
+      invoiceNumber,
+      req.user?.sub,
+    );
+  }
+
+  @Post(':id/invoice-number')
+  @RequirePermissions(
+    'sales.orders.read',
+    'sales.orders.update',
+    'sales.orders.create',
+    'logistics.dispatches.create',
+  )
+  async updateInvoiceNumberPost(
+    @Param('id') id: string,
+    @Body('invoiceNumber') invoiceNumber: string,
+    @Req() req: any,
+  ) {
+    return this.salesService.updateInvoiceNumber(
+      id,
+      invoiceNumber,
+      req.user?.sub,
     );
   }
 
