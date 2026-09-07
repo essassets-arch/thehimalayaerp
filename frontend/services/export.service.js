@@ -7,10 +7,28 @@ import { apiClient } from '../lib/apiClient';
 import { clientLogos } from './logosBase64';
 import { resolveQuotationTerms } from './sales/quotationTerms';
 
+export const isApkEnvironment = () => {
+  if (typeof window === 'undefined') return false;
+  const w = window;
+  const ua = navigator.userAgent || '';
+  return (
+    !!w.flutter_inappwebview ||
+    !!w.HimalayaNativeBridge ||
+    !!w.HimalayaBridge ||
+    !!w.HimalayaLocation ||
+    !!w.HimalayaDownload ||
+    !!w.HimalayaShare ||
+    !!w.AndroidBridge ||
+    !!w.Android ||
+    /HimalayaERP|wv|Version\/[0-9.]+\s+Chrome\/[0-9.]+\s+Mobile/i.test(ua) ||
+    (/Android.*Mobile/i.test(ua) && !/Chrome\/[0-9.]+\s+Mobile\s+Safari/i.test(ua))
+  );
+};
+
 /**
  * Universal safe file saver that works seamlessly on:
- * - Desktop browsers (Blob URL / dynamic link)
- * - Mobile / Flutter WebViews / Hybrid Apps (Web Share API / Base64 Data URL)
+ * - Desktop browsers (Blob URL / dynamic link / FileSaver)
+ * - Mobile / Flutter WebViews / Hybrid Apps (Native JS bridge / Base64 Data URL)
  * Completely eliminates DioException 'No host specified in URI blob:https...'
  */
 export const safeSaveFile = async (data, filename, mimeType = 'application/octet-stream') => {
@@ -107,6 +125,7 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
 
   const isImage = resolvedMimeType.startsWith('image/');
   const destination = isImage ? 'gallery' : 'downloads';
+  const isApk = isApkEnvironment();
 
   // 2. Flutter InAppWebView Native JavaScript Channel handler (Mobile APK)
   if (typeof window !== 'undefined' && window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
@@ -115,8 +134,10 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
         sourceType: absoluteDownloadUrl ? 'url' : 'base64-data-uri',
         url: absoluteDownloadUrl,
         filename: safeFilename,
+        fileName: safeFilename,
         mimeType: resolvedMimeType,
         data: base64Payload,
+        base64: base64Payload,
         destination,
       });
     } catch (e) {}
@@ -126,7 +147,9 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
         await window.flutter_inappwebview.callHandler('saveToGallery', {
           url: absoluteDownloadUrl,
           data: base64Payload,
+          base64: base64Payload,
           filename: safeFilename,
+          fileName: safeFilename,
           mimeType: resolvedMimeType
         });
       } catch (e2) {}
@@ -135,11 +158,25 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
         await window.flutter_inappwebview.callHandler('saveImage', {
           url: absoluteDownloadUrl,
           data: base64Payload,
+          base64: base64Payload,
           filename: safeFilename,
+          fileName: safeFilename,
           mimeType: resolvedMimeType
         });
       } catch (e3) {}
     }
+
+    try {
+      await window.flutter_inappwebview.callHandler('saveFile', {
+        url: absoluteDownloadUrl,
+        data: base64Payload,
+        base64: base64Payload,
+        filename: safeFilename,
+        fileName: safeFilename,
+        mimeType: resolvedMimeType,
+        destination,
+      });
+    } catch (e4) {}
   }
 
   // 3. Flutter & Android JavaScript Channels (postMessage / Native bridge)
@@ -149,9 +186,11 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
       type: isImage ? 'SAVE_IMAGE' : 'DOWNLOAD_FILE',
       action: isImage ? 'saveToGallery' : 'downloadFile',
       filename: safeFilename,
+      fileName: safeFilename,
       mimeType: resolvedMimeType,
       url: absoluteDownloadUrl,
       data: base64Payload,
+      base64: base64Payload,
       destination,
     });
 
@@ -172,7 +211,29 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     }
   }
 
-  // 4. Direct Browser / Native Android DownloadManager Trigger
+  // 4. In Mobile APK Environment: ONLY trigger anchor click if we have a real HTTPS URL with host
+  if (isApk) {
+    if (absoluteDownloadUrl && absoluteDownloadUrl.startsWith('http')) {
+      try {
+        const link = document.createElement('a');
+        link.href = absoluteDownloadUrl;
+        link.download = safeFilename;
+        link.setAttribute('download', safeFilename);
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          if (document.body.contains(link)) document.body.removeChild(link);
+        }, 1500);
+      } catch (anchorErr) {
+        console.warn('APK anchor download notice:', anchorErr);
+      }
+    }
+    // Return early in APK to completely avoid creating or clicking blob: URLs that cause DioException
+    return true;
+  }
+
+  // 5. Direct Browser Trigger for Desktop / Mobile Chrome / Safari (Blob URL)
   try {
     const downloadTarget = absoluteDownloadUrl || (blob ? URL.createObjectURL(blob) : base64Payload);
     const link = document.createElement('a');
@@ -189,7 +250,7 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     console.warn('Anchor download fallback notice:', anchorErr);
   }
 
-  // 5. File-Saver saveAs Fallback
+  // 6. File-Saver saveAs Fallback for Web Browsers
   try {
     if (blob) {
       saveAs(blob, safeFilename);
