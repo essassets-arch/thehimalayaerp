@@ -43,205 +43,114 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     blob = new Blob([data], { type: mimeType });
   }
 
-  // 1. Flutter InAppWebView JavaScript Channel handler (if registered in native APK)
-  if (typeof window !== 'undefined' && window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+  const resolvedMimeType = blob?.type || mimeType;
+  const safeFilename = String(filename || 'download')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  let base64Payload = rawData;
+  if (!base64Payload && blob) {
     try {
-      let base64data = rawData;
-      if (!base64data && blob) {
-        base64data = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.readAsDataURL(blob);
-        });
-      }
-      const resolvedMimeType = blob?.type || mimeType;
-      const safeFilename = String(filename || 'download')
-        .replace(/[\\/:*?"<>|]/g, '_')
-        .replace(/\s+/g, ' ')
-        .trim();
-      await window.flutter_inappwebview.callHandler('downloadFile', {
-        // The APK must decode data: URIs directly; it must not pass this to
-        // Dio.download(), which only accepts http(s) URLs.
-        sourceType: 'base64-data-uri',
-        filename: safeFilename || 'download',
-        mimeType: resolvedMimeType,
-        data: base64data,
-        destination: resolvedMimeType.startsWith('image/') ? 'gallery' : 'downloads',
+      base64Payload = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
       });
-      return true;
-    } catch (e) {
-      console.warn('Flutter webview handler notice:', e);
-    }
+    } catch (e) {}
   }
 
-  // 2. Server-side HTTPS Download Proxy (Completely eliminates Flutter DioException "No host specified in URI")
-  const isMobileClient = typeof window !== 'undefined' && (
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|wv|Flutter/i.test(navigator.userAgent) ||
-    window.innerWidth < 768
-  );
+  let absoluteDownloadUrl = '';
 
-  if (isMobileClient) {
-    try {
-      let base64Payload = rawData;
-      if (!base64Payload && blob) {
-        base64Payload = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      }
+  // 1. Prepare server-side download token URL (Enables native Android / iOS Download Manager & Flutter Dio download)
+  try {
+    if (base64Payload) {
+      const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('auth_token') || sessionStorage.getItem('token')) : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      if (base64Payload) {
-        const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('auth_token') || sessionStorage.getItem('token')) : null;
-        const headers = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
+      const response = await fetch('/api/backend/files/export-download', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          filename: safeFilename,
+          mimeType: resolvedMimeType,
+          data: base64Payload,
+        }),
+      });
 
-        const response = await fetch('/api/backend/files/export-download', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            filename,
-            mimeType,
-            data: base64Payload,
-          }),
-        });
-
-        if (response.ok) {
-          const resJson = await response.json();
-          if (resJson && resJson.downloadUrl) {
-            const absoluteDownloadUrl = resJson.downloadUrl.startsWith('http')
-              ? resJson.downloadUrl
-              : `${window.location.origin}${resJson.downloadUrl}`;
-
-            const link = document.createElement('a');
-            link.href = absoluteDownloadUrl;
-            link.download = filename;
-            link.target = '_blank';
-            document.body.appendChild(link);
-            link.click();
-            setTimeout(() => {
-              if (document.body.contains(link)) document.body.removeChild(link);
-            }, 2000);
-            return true;
-          }
+      if (response.ok) {
+        const resJson = await response.json();
+        if (resJson && resJson.downloadUrl) {
+          absoluteDownloadUrl = resJson.downloadUrl.startsWith('http')
+            ? resJson.downloadUrl
+            : `${window.location.origin}${resJson.downloadUrl}`;
         }
       }
-    } catch (apiErr) {
-      console.warn('Backend export-download fallback to client-side trigger:', apiErr);
     }
+  } catch (apiErr) {
+    console.warn('Backend export-download notice:', apiErr);
   }
 
-  // 3. Desktop / Standard Browser saveAs (file-saver)
-  try {
-    saveAs(blob, filename);
-    return true;
-  } catch (e) {
-    console.warn('saveAs failed, falling back to anchor click:', e);
+  // 2. Flutter InAppWebView Native JavaScript Channel handler (Mobile APK)
+  if (typeof window !== 'undefined' && window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+    try {
+      await window.flutter_inappwebview.callHandler('downloadFile', {
+        sourceType: absoluteDownloadUrl ? 'url' : 'base64-data-uri',
+        url: absoluteDownloadUrl,
+        filename: safeFilename,
+        mimeType: resolvedMimeType,
+        data: base64Payload,
+        destination: resolvedMimeType.startsWith('image/') ? 'gallery' : 'downloads',
+      });
+    } catch (e) {}
+
+    try {
+      await window.flutter_inappwebview.callHandler('saveToGallery', {
+        url: absoluteDownloadUrl,
+        data: base64Payload,
+        filename: safeFilename,
+        mimeType: resolvedMimeType
+      });
+    } catch (e2) {}
+
+    try {
+      await window.flutter_inappwebview.callHandler('saveImage', {
+        url: absoluteDownloadUrl,
+        data: base64Payload,
+        filename: safeFilename,
+        mimeType: resolvedMimeType
+      });
+    } catch (e3) {}
   }
 
-  // 4. Fallback anchor tag click with ObjectURL (Desktop standard)
+  // 3. Direct Browser Trigger (Android DownloadManager, iOS Safari, Desktop)
   try {
-    const url = window.URL.createObjectURL(blob);
+    const downloadTarget = absoluteDownloadUrl || (blob ? URL.createObjectURL(blob) : base64Payload);
     const link = document.createElement('a');
-    link.style.display = 'none';
-    link.href = url;
-    link.download = filename;
+    link.href = downloadTarget;
+    link.download = safeFilename;
+    link.setAttribute('download', safeFilename);
     document.body.appendChild(link);
     link.click();
     setTimeout(() => {
       if (document.body.contains(link)) document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
     }, 1500);
-    return true;
-  } catch (err) {
-    console.error('Final fallback download failed:', err);
+  } catch (anchorErr) {
+    console.warn('Anchor download fallback notice:', anchorErr);
   }
+
+  // 4. File-Saver saveAs Fallback
+  try {
+    if (blob) {
+      saveAs(blob, safeFilename);
+    }
+  } catch (saveAsErr) {}
+
+  return true;
 };
 
-/**
- * Generate PDF from data
- */
-export const exportToPDF = async (options = {}) => {
-  const {
-    title = 'Report',
-    subtitle = '',
-    columns = [],
-    rows = [],
-    orientation = 'landscape',
-    filename = 'report.pdf'
-  } = options;
-
-  const doc = new jsPDF({
-    orientation,
-    unit: 'mm',
-    format: 'a4'
-  });
-
-  // Page width for calculations
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 14;
-  let y = 20;
-
-  // Title
-  doc.setFontSize(18);
-  doc.text(title, pageWidth / 2, y, { align: 'center' });
-  y += 10;
-
-  // Subtitle / generated date
-  doc.setFontSize(10);
-  doc.text(subtitle || `Generated: ${new Date().toLocaleString()}`, pageWidth / 2, y, { align: 'center' });
-  y += 10;
-
-  // Horizontal line
-  doc.setDrawColor(200, 200, 200);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 10;
-
-  // Table
-  if (columns.length > 0 && rows.length > 0) {
-    autoTable(doc, {
-      head: [columns],
-      body: rows,
-      startY: y,
-      theme: 'striped',
-      styles: {
-        fontSize: 9,
-        cellPadding: 2.5,
-        overflow: 'linebreak'
-      },
-      headStyles: {
-        fillColor: [79, 70, 229],
-        textColor: [255, 255, 255],
-        fontSize: 10,
-        fontStyle: 'bold'
-      },
-      margin: { left: margin, right: margin }
-    });
-  }
-
-  // Footer with page numbers
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(
-      `Page ${i} of ${totalPages}`,
-      pageWidth / 2,
-      doc.internal.pageSize.getHeight() - 10,
-      { align: 'center' }
-    );
-    doc.setTextColor(0, 0, 0);
-  }
-
-  // Save PDF universally
-  await safeSaveFile(doc, filename, 'application/pdf');
-};
-
-/**
- * Export data to CSV
- */
 export const exportToCSV = async (data, filename = 'report.csv') => {
   if (!data || data.length === 0) {
     console.warn('No data to export');
