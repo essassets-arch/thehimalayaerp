@@ -144,7 +144,8 @@ export function mapSalesOrder(
       '';
     const directCustName =
       order.customer?.companyName ||
-      order.customer?.name ||
+      (order.customer as any)?.name ||
+      order.customer?.contactPerson ||
       (order as any).customerName ||
       (order as any).customerNameSnapshot ||
       (order as any).clientName ||
@@ -165,8 +166,8 @@ export function mapSalesOrder(
       customer: order.customer
         ? {
             id: order.customer.id,
-            name: resolvedCustomerName !== '—' ? resolvedCustomerName : (order.customer.companyName || order.customer.name),
-            companyName: resolvedCustomerName !== '—' ? resolvedCustomerName : (order.customer.companyName || order.customer.name),
+            name: resolvedCustomerName !== '—' ? resolvedCustomerName : (order.customer.companyName || (order.customer as any).name || order.customer.contactPerson || ''),
+            companyName: resolvedCustomerName !== '—' ? resolvedCustomerName : (order.customer.companyName || (order.customer as any).name || order.customer.contactPerson || ''),
             customerCode: order.customer.customerCode,
           }
         : resolvedCustomerName !== '—'
