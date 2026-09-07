@@ -129,12 +129,26 @@ export function mapSalesOrder(
     const leadName =
       (order as any).quotation?.lead?.companyName ||
       (order as any).quotation?.lead?.projectName ||
+      (order as any).quotation?.lead?.name ||
+      (order as any).quotation?.lead?.customerName ||
+      (order as any).quotation?.lead?.gstName ||
       (order as any).quotation?.customerName ||
       (order as any).sourceQuotation?.lead?.companyName ||
       (order as any).sourceQuotation?.lead?.projectName ||
+      (order as any).sourceQuotation?.lead?.name ||
+      (order as any).sourceQuotation?.lead?.customerName ||
+      (order as any).sourceQuotation?.lead?.gstName ||
       (order as any).sourceQuotation?.customerName ||
+      (order as any).lead?.companyName ||
+      (order as any).lead?.projectName ||
       '';
-    const directCustName = order.customer?.companyName || (order as any).customerName || '';
+    const directCustName =
+      order.customer?.companyName ||
+      order.customer?.name ||
+      (order as any).customerName ||
+      (order as any).customerNameSnapshot ||
+      (order as any).clientName ||
+      '';
     const resolvedCustomerName =
       (order.quotationId || (order as any).sourceQuotationId || (order as any).quotation || (order as any).sourceQuotation
         ? leadName || directCustName
@@ -151,9 +165,16 @@ export function mapSalesOrder(
       customer: order.customer
         ? {
             id: order.customer.id,
-            name: resolvedCustomerName !== '—' ? resolvedCustomerName : order.customer.companyName,
-            companyName: resolvedCustomerName !== '—' ? resolvedCustomerName : order.customer.companyName,
+            name: resolvedCustomerName !== '—' ? resolvedCustomerName : (order.customer.companyName || order.customer.name),
+            companyName: resolvedCustomerName !== '—' ? resolvedCustomerName : (order.customer.companyName || order.customer.name),
             customerCode: order.customer.customerCode,
+          }
+        : resolvedCustomerName !== '—'
+        ? {
+            id: order.customerId || 'direct',
+            name: resolvedCustomerName,
+            companyName: resolvedCustomerName,
+            customerCode: (order as any).customerCode || '',
           }
         : null,
     salesExecutiveId:

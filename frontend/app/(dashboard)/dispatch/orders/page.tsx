@@ -122,6 +122,7 @@ export interface UnifiedPendingDispatchItem {
   itemType: "WORK_ORDER" | "TRADING_SALES_ORDER";
   orderNumber: string;
   customerName: string;
+  projectName?: string;
   deliveryAddress: string;
   productName: string;
   productSku?: string;
@@ -142,6 +143,7 @@ interface PendingOrderGroup {
   orderKey: string;
   orderNumber: string;
   customerName: string;
+  projectName?: string;
   deliveryAddress: string;
   salesOrderId?: string;
   totalQty: number;
@@ -154,6 +156,170 @@ interface PendingOrderGroup {
 function normalizeKey(str?: string | null): string {
   if (!str) return "";
   return String(str).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}
+
+function isValidCustomerName(name?: any): boolean {
+  if (!name || typeof name !== "string") return false;
+  const trimmed = name.trim();
+  if (trimmed.length < 2) return false;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower === "n/a" ||
+    lower === "na" ||
+    lower === "null" ||
+    lower === "undefined" ||
+    lower === "factory stock staging" ||
+    lower === "factory staging area" ||
+    lower === "consignee client" ||
+    lower === "customer designated delivery site" ||
+    lower === "direct dispatch item" ||
+    lower === "unknown" ||
+    lower === "unknown customer" ||
+    lower === "none" ||
+    lower === "finished product" ||
+    trimmed === "—" ||
+    trimmed === "-" ||
+    trimmed === "--"
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
+  const allEntities = [entity, ...fallbackEntities].filter(Boolean);
+
+  for (const obj of allEntities) {
+    if (!obj) continue;
+
+    if (typeof obj === "string") {
+      if (isValidCustomerName(obj)) return obj.trim();
+      continue;
+    }
+
+    if (typeof obj !== "object") continue;
+
+    const directCandidates = [
+      // 1. Direct customer relation
+      obj.customer?.companyName,
+      obj.customer?.name,
+      obj.customer?.partyName,
+      obj.customer?.buyerName,
+      obj.customer?.clientName,
+      obj.customer?.gstName,
+
+      // 2. Direct name properties
+      obj.customerName,
+      obj.customerNameSnapshot,
+      obj.clientName,
+      obj.companyName,
+      obj.partyName,
+      obj.buyerName,
+
+      // 3. Lead attached to quotation
+      obj.quotation?.lead?.companyName,
+      obj.quotation?.lead?.projectName,
+      obj.quotation?.lead?.name,
+      obj.quotation?.lead?.customerName,
+      obj.quotation?.lead?.gstName,
+      obj.quotation?.customerName,
+      obj.quotation?.customer?.companyName,
+      obj.quotation?.customer?.name,
+
+      // 4. Lead attached to sourceQuotation
+      obj.sourceQuotation?.lead?.companyName,
+      obj.sourceQuotation?.lead?.projectName,
+      obj.sourceQuotation?.lead?.name,
+      obj.sourceQuotation?.lead?.customerName,
+      obj.sourceQuotation?.lead?.gstName,
+      obj.sourceQuotation?.customerName,
+      obj.sourceQuotation?.customer?.companyName,
+      obj.sourceQuotation?.customer?.name,
+
+      // 5. Direct lead relation
+      obj.lead?.companyName,
+      obj.lead?.projectName,
+      obj.lead?.name,
+      obj.lead?.customerName,
+      obj.lead?.gstName,
+
+      // 6. Nested productionPlan -> salesOrder (Work Orders)
+      obj.productionPlan?.salesOrder?.customer?.companyName,
+      obj.productionPlan?.salesOrder?.customer?.name,
+      obj.productionPlan?.salesOrder?.customerName,
+      obj.productionPlan?.salesOrder?.customerNameSnapshot,
+      obj.productionPlan?.salesOrder?.quotation?.lead?.companyName,
+      obj.productionPlan?.salesOrder?.quotation?.lead?.projectName,
+      obj.productionPlan?.salesOrder?.quotation?.customerName,
+      obj.productionPlan?.salesOrder?.sourceQuotation?.lead?.companyName,
+      obj.productionPlan?.salesOrder?.sourceQuotation?.lead?.projectName,
+      obj.productionPlan?.salesOrder?.sourceQuotation?.customerName,
+      obj.productionPlan?.salesOrder?.lead?.companyName,
+      obj.productionPlan?.salesOrder?.lead?.projectName,
+
+      // 7. Direct nested salesOrder (Work Orders / Finished Goods / Dispatches)
+      obj.salesOrder?.customer?.companyName,
+      obj.salesOrder?.customer?.name,
+      obj.salesOrder?.customerName,
+      obj.salesOrder?.customerNameSnapshot,
+      obj.salesOrder?.quotation?.lead?.companyName,
+      obj.salesOrder?.quotation?.lead?.projectName,
+      obj.salesOrder?.quotation?.customerName,
+      obj.salesOrder?.sourceQuotation?.lead?.companyName,
+      obj.salesOrder?.sourceQuotation?.lead?.projectName,
+      obj.salesOrder?.sourceQuotation?.customerName,
+      obj.salesOrder?.lead?.companyName,
+      obj.salesOrder?.lead?.projectName,
+
+      // 8. Nested workOrder (Finished Goods)
+      obj.workOrder?.productionPlan?.salesOrder?.customer?.companyName,
+      obj.workOrder?.productionPlan?.salesOrder?.customerName,
+      obj.workOrder?.productionPlan?.salesOrder?.quotation?.lead?.companyName,
+      obj.workOrder?.productionPlan?.salesOrder?.sourceQuotation?.lead?.companyName,
+      obj.workOrder?.customer?.companyName,
+      obj.workOrder?.customerName,
+      obj.workOrder?.companyName,
+
+      // 9. Project fallback
+      obj.projectName,
+      obj.siteName,
+    ];
+
+    for (const cand of directCandidates) {
+      if (isValidCustomerName(cand)) {
+        return String(cand).trim();
+      }
+    }
+  }
+
+  return "Consignee Client";
+}
+
+function resolveProjectName(entity?: any, ...fallbackEntities: any[]): string {
+  const allEntities = [entity, ...fallbackEntities].filter(Boolean);
+  for (const obj of allEntities) {
+    if (!obj || typeof obj !== "object") continue;
+    const candidates = [
+      obj.projectName,
+      obj.siteName,
+      obj.lead?.projectName,
+      obj.quotation?.lead?.projectName,
+      obj.sourceQuotation?.lead?.projectName,
+      obj.productionPlan?.salesOrder?.quotation?.lead?.projectName,
+      obj.productionPlan?.salesOrder?.sourceQuotation?.lead?.projectName,
+      obj.productionPlan?.salesOrder?.projectName,
+      obj.salesOrder?.quotation?.lead?.projectName,
+      obj.salesOrder?.sourceQuotation?.lead?.projectName,
+      obj.salesOrder?.projectName,
+      obj.workOrder?.productionPlan?.salesOrder?.quotation?.lead?.projectName,
+    ];
+    for (const cand of candidates) {
+      if (cand && typeof cand === "string" && cand.trim().length > 1 && cand.trim() !== "N/A") {
+        return cand.trim();
+      }
+    }
+  }
+  return "";
 }
 
 function formatAddressValue(value?: any): string {
@@ -204,7 +370,7 @@ function formatAddressValue(value?: any): string {
   return "";
 }
 
-function formatAddress(salesOrder?: any, customer?: any, workOrder?: any): string {
+function formatAddress(salesOrder?: any, customer?: any, workOrder?: any, fallbackSo?: any): string {
   const candidates = [
     // 1. Explicit shipping/delivery address on Sales Order (added by sales)
     salesOrder?.shippingAddress,
@@ -214,20 +380,26 @@ function formatAddress(salesOrder?: any, customer?: any, workOrder?: any): strin
     salesOrder?.destination,
     salesOrder?.billingAddress,
 
-    // 2. Customer shipping address
+    // 2. Fallback SO if available
+    fallbackSo?.shippingAddress,
+    fallbackSo?.deliveryAddress,
+    fallbackSo?.siteAddress,
+    fallbackSo?.billingAddress,
+
+    // 3. Customer shipping address
     customer?.shippingAddress,
     customer?.siteAddress,
     customer?.deliveryAddress,
     customer?.deliveryLocation,
 
-    // 3. Customer billing / registered / office address (added by sales/master)
+    // 4. Customer billing / registered / office address (added by sales/master)
     customer?.billingAddress,
     customer?.address,
     customer?.officeAddress,
     customer?.registeredAddress,
     customer?.factoryAddress,
 
-    // 4. Source Quotation addresses (added by salesperson during quote)
+    // 5. Source Quotation addresses (added by salesperson during quote)
     salesOrder?.sourceQuotation?.shippingAddress,
     salesOrder?.sourceQuotation?.customerAddress,
     salesOrder?.sourceQuotation?.deliveryAddress,
@@ -239,7 +411,7 @@ function formatAddress(salesOrder?: any, customer?: any, workOrder?: any): strin
     salesOrder?.quotation?.deliveryAddress,
     salesOrder?.quotation?.billingAddress,
 
-    // 5. Lead addresses (added by salesperson during lead creation)
+    // 6. Lead addresses (added by salesperson during lead creation)
     salesOrder?.sourceQuotation?.lead?.shippingAddress,
     salesOrder?.sourceQuotation?.lead?.billingAddress,
     salesOrder?.sourceQuotation?.lead?.address,
@@ -255,13 +427,13 @@ function formatAddress(salesOrder?: any, customer?: any, workOrder?: any): strin
     customer?.lead?.billingAddress,
     customer?.lead?.address,
 
-    // 6. Direct work order customer or plan info
+    // 7. Direct work order customer or plan info
     workOrder?.deliveryAddress,
     workOrder?.customer?.shippingAddress,
     workOrder?.customer?.billingAddress,
     workOrder?.customer?.address,
 
-    // 7. City / State / Pincode components if present
+    // 8. City / State / Pincode components if present
     customer ? { city: customer.city, state: customer.state, pincode: customer.pincode, country: customer.country } : null,
     salesOrder?.sourceQuotation?.lead ? { city: salesOrder.sourceQuotation.lead.city, state: salesOrder.sourceQuotation.lead.state, pincode: salesOrder.sourceQuotation.lead.pincode, country: salesOrder.sourceQuotation.lead.country } : null,
   ];
@@ -538,8 +710,32 @@ export default function DispatchOrdersPage() {
         }
       });
 
+      // Build index map of sales orders for deep metadata lookup
+      const salesOrdersMap = new Map<string, any>();
+      rawSalesOrders.forEach((so: any) => {
+        if (!so) return;
+        if (so.id) salesOrdersMap.set(String(so.id).toLowerCase(), so);
+        if (so.orderNumber) {
+          salesOrdersMap.set(String(so.orderNumber).toLowerCase(), so);
+          salesOrdersMap.set(normalizeKey(so.orderNumber), so);
+        }
+        if (so.orderId) {
+          salesOrdersMap.set(String(so.orderId).toLowerCase(), so);
+          salesOrdersMap.set(normalizeKey(so.orderId), so);
+        }
+        if (so.orderNo) {
+          salesOrdersMap.set(String(so.orderNo).toLowerCase(), so);
+          salesOrdersMap.set(normalizeKey(so.orderNo), so);
+        }
+      });
+
       const unifiedDirectDispatches: UnifiedPendingDispatchItem[] = [];
       rawQueue.forEach((qOrder: any) => {
+        const soKey = (qOrder.salesOrderId || qOrder.orderNo || qOrder.orderId || "").toLowerCase();
+        const matchedSo = salesOrdersMap.get(soKey) || salesOrdersMap.get(normalizeKey(qOrder.orderNo || qOrder.orderId));
+        const customerName = resolveCustomerName(qOrder, matchedSo, qOrder.customer);
+        const projectName = resolveProjectName(qOrder, matchedSo, qOrder.customer);
+        const deliveryAddress = formatAddress(qOrder, qOrder.customer, matchedSo) || "—";
         const items = Array.isArray(qOrder.items) ? qOrder.items : [];
         items.forEach((qItem: any) => {
           const qty = Number(qItem.approvedQuantity ?? qItem.dispatchableQuantity ?? qItem.reservedQuantity ?? 1);
@@ -547,15 +743,16 @@ export default function DispatchOrdersPage() {
             id: `alloc-${qItem.allocationId || qItem.id || Math.random()}`,
             itemType: "TRADING_SALES_ORDER",
             orderNumber: qOrder.orderNo || qOrder.orderId || "SO-DIRECT",
-            customerName: qOrder.customerName || "N/A",
-            deliveryAddress: formatAddress(qOrder, qOrder.customer) || "—",
+            customerName,
+            projectName,
+            deliveryAddress,
             productName: qItem.productName || "Direct Dispatch Item",
             approvedQuantity: qty,
             orderedQuantity: qty,
             dispatchedQuantity: 0,
             remainingQuantity: qty,
             isPartiallyDispatched: false,
-            salesOrderId: qOrder.salesOrderId,
+            salesOrderId: qOrder.salesOrderId || matchedSo?.id,
             salesOrderItemId: qItem.salesOrderItemId,
             productId: qItem.productId,
             dispatchCategory: (isTradingProduct(qItem, productsMap) ? "D2" : null) ||
@@ -581,16 +778,22 @@ export default function DispatchOrdersPage() {
         })
         .map((fg) => {
           const wo = fg.workOrder;
-          const salesOrder = wo?.productionPlan?.salesOrder || wo?.salesOrder || fg.salesOrder;
+          const soFromWo = wo?.productionPlan?.salesOrder || wo?.salesOrder || fg.salesOrder;
+          const soLookupKey = (soFromWo?.id || fg.salesOrderId || fg.jobNo || "").toLowerCase();
+          const matchedSo = salesOrdersMap.get(soLookupKey) || salesOrdersMap.get(normalizeKey(fg.jobNo));
+          const salesOrder = soFromWo || matchedSo;
           const customer = salesOrder?.customer || fg.customer || wo?.customer;
-          const address = formatAddress(salesOrder, customer);
+          const address = formatAddress(salesOrder, customer, fg, matchedSo);
+          const customerName = resolveCustomerName(salesOrder, matchedSo, fg, customer, wo);
+          const projectName = resolveProjectName(salesOrder, matchedSo, fg, customer, wo);
           const qtyVal = fg.availableQuantity ?? fg.quantity ?? 1;
           const qty = typeof qtyVal === "number" ? qtyVal : parseFloat(String(qtyVal)) || 1;
           return {
             id: `fg-${fg.id || fg.workOrderId}`,
             itemType: "WORK_ORDER",
             orderNumber: fg.jobNo || salesOrder?.orderNumber || "WO-FG",
-            customerName: fg.customerName || customer?.companyName || "Factory Stock Staging",
+            customerName,
+            projectName,
             deliveryAddress: address || "—",
             productName: fg.productName || "Finished Product",
             approvedQuantity: qty,
@@ -599,7 +802,7 @@ export default function DispatchOrdersPage() {
             remainingQuantity: qty,
             isPartiallyDispatched: false,
             workOrderId: fg.workOrderId || fg.id,
-            salesOrderId: salesOrder?.id,
+            salesOrderId: salesOrder?.id || matchedSo?.id,
             workOrderNumber: fg.jobNo,
             productId: fg.productId || wo?.salesOrderItem?.productId || fg.workOrder?.salesOrderItem?.productId,
             dispatchCategory:
@@ -624,9 +827,12 @@ export default function DispatchOrdersPage() {
           return true;
         })
         .map((wo) => {
-          const salesOrder = wo.productionPlan?.salesOrder || wo.salesOrder;
+          const soFromWo = wo.productionPlan?.salesOrder || wo.salesOrder;
+          const soLookupKey = (soFromWo?.id || wo.salesOrderId || wo.salesOrderNumber || wo.workOrderNumber || "").toLowerCase();
+          const matchedSo = salesOrdersMap.get(soLookupKey) || salesOrdersMap.get(normalizeKey(wo.salesOrderNumber)) || salesOrdersMap.get(normalizeKey(wo.workOrderNumber));
+          const salesOrder = soFromWo || matchedSo;
           const customer = salesOrder?.customer || wo.customer;
-          const address = formatAddress(salesOrder, customer, wo);
+          const address = formatAddress(salesOrder, customer, wo, matchedSo);
           const item = wo.salesOrderItem;
 
           const totalOrdered = Number(item?.orderedQuantity || wo.quantity || 1);
@@ -651,23 +857,15 @@ export default function DispatchOrdersPage() {
             wo.product ||
             "Finished Manufacturing Product";
 
-          const leadObj = salesOrder?.quotation?.lead || salesOrder?.sourceQuotation?.lead || wo.quotation?.lead || wo.sourceQuotation?.lead;
-          const customerName =
-            customer?.companyName ||
-            customer?.name ||
-            leadObj?.companyName ||
-            leadObj?.projectName ||
-            leadObj?.customerName ||
-            salesOrder?.customerName ||
-            wo.customerName ||
-            wo.companyName ||
-            "Consignee Client";
+          const customerName = resolveCustomerName(salesOrder, matchedSo, customer, wo);
+          const projectName = resolveProjectName(salesOrder, matchedSo, customer, wo);
 
           return {
             id: `wo-${wo.id}`,
             itemType: "WORK_ORDER",
             orderNumber: soNumber,
             customerName,
+            projectName,
             deliveryAddress: address || "—",
             productName: prodName,
             productSku: wo.salesOrderItem?.product?.sku || wo.productCode,
@@ -677,7 +875,7 @@ export default function DispatchOrdersPage() {
             remainingQuantity: remaining,
             isPartiallyDispatched,
             workOrderId: wo.id,
-            salesOrderId: salesOrder?.id,
+            salesOrderId: salesOrder?.id || matchedSo?.id,
             workOrderNumber: wo.workOrderNumber,
             productId: wo.salesOrderItem?.productId || wo.productId,
             dispatchCategory: isTradingProduct(wo.salesOrderItem || wo, productsMap)
@@ -697,6 +895,10 @@ export default function DispatchOrdersPage() {
 
         const status = String(so.status || so.dispatchStatus || "").toUpperCase();
         if (status === "IN_TRANSIT" || status === "COMPLETED" || status === "DELIVERED") return;
+
+        const customerName = resolveCustomerName(so, so.customer);
+        const projectName = resolveProjectName(so, so.customer);
+        const address = formatAddress(so, so.customer);
 
         const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
         if (items.length > 0) {
@@ -725,22 +927,13 @@ export default function DispatchOrdersPage() {
 
             if (remaining <= 0 && alreadyDispatched > 0) return;
 
-            const leadObj = so.quotation?.lead || so.sourceQuotation?.lead;
-            const customerName =
-              so.customer?.companyName ||
-              so.customer?.name ||
-              leadObj?.companyName ||
-              leadObj?.projectName ||
-              leadObj?.customerName ||
-              so.customerName ||
-              "Consignee Client";
-
             unifiedSalesOrders.push({
               id: `so-${so.id}-${idx}`,
               itemType: "TRADING_SALES_ORDER",
               orderNumber: so.orderNumber || so.orderId || so.orderNo || "N/A",
               customerName,
-              deliveryAddress: formatAddress(so, so.customer),
+              projectName,
+              deliveryAddress: address,
               productName: item.productNameSnapshot || item.productName || item.name || "Trading Product",
               productSku: item.product?.sku || item.sku,
               approvedQuantity: remaining > 0 ? remaining : totalOrdered,
@@ -795,10 +988,15 @@ export default function DispatchOrdersPage() {
           ? existing.deliveryAddress
           : incoming.deliveryAddress || existing.deliveryAddress;
 
-        const customerName =
-          incoming.customerName && incoming.customerName !== "N/A" && incoming.customerName !== "Factory Stock Staging"
-            ? incoming.customerName
-            : existing.customerName;
+        const customerName = isValidCustomerName(incoming.customerName)
+          ? incoming.customerName
+          : isValidCustomerName(existing.customerName)
+          ? existing.customerName
+          : incoming.customerName || existing.customerName || "Consignee Client";
+
+        const projectName = (incoming.projectName && incoming.projectName.trim().length > 1)
+          ? incoming.projectName
+          : existing.projectName || "";
 
         const resolvedCategory = (
           isTradingProduct(incoming, productsMap) ||
@@ -812,6 +1010,7 @@ export default function DispatchOrdersPage() {
           ...incoming,
           deliveryAddress,
           customerName,
+          projectName,
           salesOrderId: incoming.salesOrderId || existing.salesOrderId,
           salesOrderItemId: incoming.salesOrderItemId || existing.salesOrderItemId,
           workOrderId: incoming.workOrderId || existing.workOrderId,
@@ -882,6 +1081,7 @@ export default function DispatchOrdersPage() {
       return (
         item.orderNumber.toLowerCase().includes(lower) ||
         item.customerName.toLowerCase().includes(lower) ||
+        (item.projectName && item.projectName.toLowerCase().includes(lower)) ||
         item.productName.toLowerCase().includes(lower) ||
         item.deliveryAddress.toLowerCase().includes(lower) ||
         (item.workOrderNumber && item.workOrderNumber.toLowerCase().includes(lower))
@@ -910,12 +1110,22 @@ export default function DispatchOrdersPage() {
         existing.totalDispatchedQty = (existing.totalDispatchedQty || 0) + dispatchedNum;
         if (item.isPartiallyDispatched) existing.isPartiallyDispatched = true;
         if (!existing.salesOrderId && item.salesOrderId) existing.salesOrderId = item.salesOrderId;
+        if (!isValidCustomerName(existing.customerName) && isValidCustomerName(item.customerName)) {
+          existing.customerName = item.customerName;
+        }
+        if (!existing.projectName && item.projectName) {
+          existing.projectName = item.projectName;
+        }
+        if ((!existing.deliveryAddress || existing.deliveryAddress === "—" || existing.deliveryAddress === "N/A") && item.deliveryAddress && item.deliveryAddress !== "—" && item.deliveryAddress !== "N/A") {
+          existing.deliveryAddress = item.deliveryAddress;
+        }
         existing.items.push(item);
       } else {
         map.set(key, {
           orderKey: key,
           orderNumber: item.orderNumber,
           customerName: item.customerName,
+          projectName: item.projectName,
           deliveryAddress: item.deliveryAddress,
           salesOrderId: item.salesOrderId,
           totalQty: qtyNum,
@@ -966,14 +1176,18 @@ export default function DispatchOrdersPage() {
     if (!search.trim()) return sorted;
     const lower = search.toLowerCase();
     return sorted.filter(
-      (d) =>
-        d.dispatchNo?.toLowerCase().includes(lower) ||
-        d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
-        d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
-        d.receivedBy?.toLowerCase().includes(lower) ||
-        d.receiverPhone?.toLowerCase().includes(lower) ||
-        d.driverName?.toLowerCase().includes(lower) ||
-        d.vehicleNumber?.toLowerCase().includes(lower)
+      (d) => {
+        const cust = resolveCustomerName(d.salesOrder, d);
+        return (
+          d.dispatchNo?.toLowerCase().includes(lower) ||
+          d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+          cust.toLowerCase().includes(lower) ||
+          d.receivedBy?.toLowerCase().includes(lower) ||
+          d.receiverPhone?.toLowerCase().includes(lower) ||
+          d.driverName?.toLowerCase().includes(lower) ||
+          d.vehicleNumber?.toLowerCase().includes(lower)
+        );
+      }
     );
   }, [historyDispatches, search, isDispatch2]);
 
@@ -1028,6 +1242,7 @@ export default function DispatchOrdersPage() {
       const exportRows = targetItems.map((item) => ({
         "Order Number": item.orderNumber,
         "Customer": item.customerName,
+        "Project": item.projectName || "—",
         "Delivery Address": item.deliveryAddress,
         "Product Item": item.productName,
         "SKU": item.productSku || "—",
@@ -1055,7 +1270,7 @@ export default function DispatchOrdersPage() {
       const exportRows = filteredHistoryItems.map((d) => ({
         "Dispatch Gate Pass": (d.dispatchNo || "").replace(/\s+/g, ""),
         "Sales Order": d.salesOrder?.orderNumber || "—",
-        "Customer": d.salesOrder?.customer?.companyName || "—",
+        "Customer": resolveCustomerName(d.salesOrder, d),
         "Received By": d.receivedBy || "—",
         "Receiver Mobile": d.receiverPhone || "—",
         "Driver": d.driverName || "—",
@@ -1343,12 +1558,19 @@ export default function DispatchOrdersPage() {
 
                         {/* Customer Information */}
                         <div className={styles.customerInfo}>
-                          <div className={styles.customerAvatar}>
+                          <div className={styles.customerAvatar} style={isDispatch2 ? { background: "linear-gradient(135deg, #059669 0%, #047857 100%)" } : undefined}>
                             {(group.customerName || "C")[0].toUpperCase()}
                           </div>
-                          <span className={styles.customerName}>
-                            {group.customerName}
-                          </span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+                            <span className={styles.customerName}>
+                              {group.customerName}
+                            </span>
+                            {group.projectName && group.projectName !== group.customerName && (
+                              <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>
+                                Project: {group.projectName}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Destination Address */}
@@ -1605,9 +1827,16 @@ export default function DispatchOrdersPage() {
                           <div className={styles.customerAvatar} style={{ background: "#fef3c7", color: "#92400e" }}>
                             {(group.customerName || "C")[0].toUpperCase()}
                           </div>
-                          <span className={styles.customerName}>
-                            {group.customerName}
-                          </span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+                            <span className={styles.customerName}>
+                              {group.customerName}
+                            </span>
+                            {group.projectName && group.projectName !== group.customerName && (
+                              <span style={{ fontSize: "11px", color: "#b45309", fontWeight: 600 }}>
+                                Project: {group.projectName}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className={styles.destinationBadge} title={group.deliveryAddress}>
@@ -1927,7 +2156,7 @@ export default function DispatchOrdersPage() {
                                   flexShrink: 0,
                                 }}
                               >
-                                {(dispatchItem.salesOrder?.customer?.companyName || "C")[0]}
+                                {(resolveCustomerName(dispatchItem.salesOrder, dispatchItem) || "C")[0]}
                               </div>
                               <span
                                 style={{
@@ -1940,9 +2169,9 @@ export default function DispatchOrdersPage() {
                                   display: "block",
                                   maxWidth: 160,
                                 }}
-                                title={dispatchItem.salesOrder?.customer?.companyName || "—"}
+                                title={resolveCustomerName(dispatchItem.salesOrder, dispatchItem)}
                               >
-                                {dispatchItem.salesOrder?.customer?.companyName || "—"}
+                                {resolveCustomerName(dispatchItem.salesOrder, dispatchItem)}
                               </span>
                             </div>
                           </td>
