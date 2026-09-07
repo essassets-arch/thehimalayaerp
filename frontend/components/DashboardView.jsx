@@ -849,22 +849,10 @@ export default function DashboardView({
                   display: 'flex', flexDirection: 'column', gap: '6px',
                   boxShadow: '0 2px 6px rgba(99,102,241,0.08)'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#4f46e5' }}>Total Payment</span>
-                    {lostSalesTotal > 0 && (
-                      <span style={{ fontSize: '10px', color: '#dc2626', background: '#fee2e2', padding: '1px 6px', borderRadius: '8px', fontWeight: '700' }} title="Complaint loss deducted">
-                        - {formatINR(lostSalesTotal)} Loss Deducted
-                      </span>
-                    )}
-                  </div>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#4f46e5' }}>Total Payment</span>
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#3730a3' }}>
                     {formatINR(totalPaymentAmount)}
                   </span>
-                  {lostSalesTotal > 0 && (
-                    <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-                      Net collection target ({lostOrdersCount} lost {lostOrdersCount === 1 ? 'order' : 'orders'} deducted)
-                    </span>
-                  )}
                 </div>
 
                 {/* 2. Total Payment Due */}
@@ -875,22 +863,10 @@ export default function DashboardView({
                   display: 'flex', flexDirection: 'column', gap: '6px',
                   boxShadow: '0 2px 6px rgba(239,68,68,0.08)'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#ef4444' }}>Total Payment Due</span>
-                    {lostSalesTotal > 0 && (
-                      <span style={{ fontSize: '10px', color: '#15803d', background: '#dcfce7', padding: '1px 6px', borderRadius: '8px', fontWeight: '700' }}>
-                        Loss Excluded
-                      </span>
-                    )}
-                  </div>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#ef4444' }}>Total Payment Due</span>
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#dc2626' }}>
                     {formatINR(totalPaymentDueAmount)}
                   </span>
-                  {lostSalesTotal > 0 && (
-                    <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-                      Excludes {formatINR(lostSalesTotal)} complaint loss
-                    </span>
-                  )}
                 </div>
 
                 {/* 3. Total Customers */}
@@ -1171,11 +1147,6 @@ export default function DashboardView({
                   <span style={{ fontSize: '15px', fontWeight: '900', color: '#3730a3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {formatINR(totalPaymentAmount)}
                   </span>
-                  {lostSalesTotal > 0 && (
-                    <span style={{ fontSize: '9px', color: '#dc2626', fontWeight: '700' }}>
-                      -{formatINR(lostSalesTotal)} loss deducted
-                    </span>
-                  )}
                 </div>
 
                 {/* Total Payment Due */}
@@ -1188,11 +1159,6 @@ export default function DashboardView({
                   <span style={{ fontSize: '15px', fontWeight: '900', color: '#dc2626', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {formatINR(totalPaymentDueAmount)}
                   </span>
-                  {lostSalesTotal > 0 && (
-                    <span style={{ fontSize: '9px', color: '#15803d', fontWeight: '700' }}>
-                      Loss excluded
-                    </span>
-                  )}
                 </div>
 
                 {/* Total Customers */}
