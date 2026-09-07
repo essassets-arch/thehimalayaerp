@@ -296,6 +296,90 @@
   font-weight: 600;
 }
 
+.rowCheckbox {
+  width: 17px;
+  height: 17px;
+  cursor: pointer;
+  accent-color: #2563eb;
+  border-radius: 4px;
+}
+
+.rowSelected {
+  background: #f0fdf4 !important;
+  transition: background 0.15s ease;
+}
+
+.rowUnselected {
+  background: #fafafa !important;
+  opacity: 0.72;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.rowSelected:hover {
+  background: #e6fcf0 !important;
+}
+
+.rowUnselected:hover {
+  background: #f1f5f9 !important;
+  opacity: 0.95;
+}
+
+.orderIdRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.itemSelectedBadge {
+  font-size: 10px;
+  font-weight: 800;
+  color: #15803d;
+  background: #dcfce7;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  border: 1px solid #bbf7d0;
+}
+
+.itemExcludedBadge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  border: 1px solid #e2e8f0;
+}
+
+.productSkuBadge {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+  font-family: monospace;
+  margin-top: 2px;
+}
+
+.remainingPill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 800;
+  font-size: 12.5px;
+  border: 1px solid #dbeafe;
+}
+
+.selectedCountBadge {
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+}
+
 .cargoFooter {
   display: flex;
   align-items: center;
@@ -303,6 +387,8 @@
   padding: 12px 18px;
   border-top: 1px solid #e2e8f0;
   background: #f8fafc;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .totalLabel {

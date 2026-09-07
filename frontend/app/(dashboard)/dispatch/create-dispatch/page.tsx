@@ -547,6 +547,11 @@ export default function CreateDispatchPage() {
           const alreadyDispatched = Math.max(fromDispatchItems, fromDispatches);
           const remaining = Math.max(0, totalOrdered - alreadyDispatched);
 
+          const alreadyExists = list.some(
+            (wo) => wo.salesOrderItemId === item.id || (wo.salesOrderItem?.id && wo.salesOrderItem.id === item.id)
+          );
+          if (alreadyExists) return;
+
           const prodObj = item.product || productsMap.get(item.productId) || productsMap.get(item.product?.id);
           const dCat = isTradingProduct(item, productsMap) ? "D2" : (prodObj?.dispatchCategory || "D1");
 
@@ -592,35 +597,7 @@ export default function CreateDispatchPage() {
   const userDispatchCat = isDispatch2 ? "D2" : "D1";
 
   const filteredWorkOrders = React.useMemo(() => {
-    // 1. If explicit work order IDs were requested, strictly prioritize matching them
-    if (requestedWorkOrderIds.length > 0) {
-      const targetedList = workOrders.filter((wo) => {
-        return (
-          requestedWorkOrderIds.includes(wo.id) ||
-          (wo.workOrderNumber && requestedWorkOrderIds.includes(wo.workOrderNumber)) ||
-          (wo.salesOrderItemId && requestedWorkOrderIds.includes(wo.salesOrderItemId))
-        );
-      });
-      if (targetedList.length > 0) {
-        return targetedList;
-      }
-    }
-
-    // 2. If a specific salesOrderItemId was requested from the remaining tab
-    if (salesOrderItemId) {
-      const targetedList = workOrders.filter((wo) => {
-        return (
-          wo.salesOrderItemId === salesOrderItemId ||
-          wo.salesOrderItem?.id === salesOrderItemId ||
-          String(wo.id).includes(salesOrderItemId)
-        );
-      });
-      if (targetedList.length > 0) {
-        return targetedList;
-      }
-    }
-
-    // 3. If a specific salesOrderId or orderNumber was requested, strictly show ONLY items belonging to that sales order
+    // 1. If a specific salesOrderId or orderNumber was requested, strictly show ALL items belonging to that sales order
     if (salesOrderId || orderNumber) {
       const targetedList = workOrders.filter((wo) => {
         const woSoId = wo.productionPlan?.salesOrder?.id || (wo as any).salesOrderId || (wo as any).salesOrder?.id;
@@ -653,6 +630,34 @@ export default function CreateDispatchPage() {
       }
     }
 
+    // 2. If explicit work order IDs were requested
+    if (requestedWorkOrderIds.length > 0) {
+      const targetedList = workOrders.filter((wo) => {
+        return (
+          requestedWorkOrderIds.includes(wo.id) ||
+          (wo.workOrderNumber && requestedWorkOrderIds.includes(wo.workOrderNumber)) ||
+          (wo.salesOrderItemId && requestedWorkOrderIds.includes(wo.salesOrderItemId))
+        );
+      });
+      if (targetedList.length > 0) {
+        return targetedList;
+      }
+    }
+
+    // 3. If a specific salesOrderItemId was requested from the remaining tab
+    if (salesOrderItemId) {
+      const targetedList = workOrders.filter((wo) => {
+        return (
+          wo.salesOrderItemId === salesOrderItemId ||
+          wo.salesOrderItem?.id === salesOrderItemId ||
+          String(wo.id).includes(salesOrderItemId)
+        );
+      });
+      if (targetedList.length > 0) {
+        return targetedList;
+      }
+    }
+
     // 4. If no specific order was selected via URL, filter by current dispatch category (D1 vs D2)
     return workOrders.filter((wo) => {
       const productObj = productsMap.get(wo.salesOrderItem?.productId) || 
@@ -682,40 +687,37 @@ export default function CreateDispatchPage() {
 
   useEffect(() => {
     if (!filteredWorkOrders.length || initialSelectionSet.current) return;
-    let matching: WorkOrder[] = [];
+    let toSelect: WorkOrder[] = [];
 
     if (requestedWorkOrderIds.length > 0) {
-      matching = filteredWorkOrders.filter((row) =>
+      const matching = filteredWorkOrders.filter((row) =>
         requestedWorkOrderIds.includes(row.id) ||
         (row.workOrderNumber && requestedWorkOrderIds.includes(row.workOrderNumber)) ||
         (row.salesOrderItemId && requestedWorkOrderIds.includes(row.salesOrderItemId))
       );
+      if (matching.length > 0) {
+        toSelect = matching.filter((m) => availableQuantity(m) > 0);
+      }
     } else if (salesOrderItemId) {
-      matching = filteredWorkOrders.filter((row) =>
+      const matching = filteredWorkOrders.filter((row) =>
         row.salesOrderItemId === salesOrderItemId ||
         row.salesOrderItem?.id === salesOrderItemId ||
         String(row.id).includes(salesOrderItemId)
       );
-    } else if (salesOrderId || orderNumber) {
-      matching = filteredWorkOrders.filter((row) => {
-        const rowSoId = row.productionPlan?.salesOrder?.id || (row as any).salesOrderId || (row as any).salesOrder?.id;
-        const rowSoNo = row.productionPlan?.salesOrder?.orderNumber || (row as any).salesOrderNumber || (row as any).salesOrder?.orderNumber;
-        return (salesOrderId && (rowSoId === salesOrderId || rowSoNo === salesOrderId)) ||
-               (orderNumber && (rowSoNo === orderNumber || rowSoId === orderNumber));
-      });
+      if (matching.length > 0) {
+        toSelect = matching.filter((m) => availableQuantity(m) > 0);
+      }
     }
 
-    if (matching.length === 0) {
-      matching = filteredWorkOrders;
+    // Default: select all ready items
+    if (toSelect.length === 0) {
+      const withRemaining = filteredWorkOrders.filter((m) => availableQuantity(m) > 0);
+      toSelect = withRemaining.length > 0 ? withRemaining : filteredWorkOrders;
     }
-
-    // Only auto-select items that have remaining quantities to dispatch
-    const withRemaining = matching.filter((m) => availableQuantity(m) > 0);
-    const toSelect = withRemaining.length > 0 ? withRemaining : matching;
 
     const ids = toSelect.map((m) => m.id);
     const qtys: Record<string, number> = {};
-    toSelect.forEach((m) => {
+    filteredWorkOrders.forEach((m) => {
       const rem = availableQuantity(m);
       qtys[m.id] = rem > 0 ? rem : 1;
     });
@@ -992,30 +994,70 @@ export default function CreateDispatchPage() {
   }, [validateForm]);
 
   const toggleWorkOrder = (candidate: WorkOrder) => {
-    setSelectedIds((current) => {
-      if (current.includes(candidate.id)) {
-        return current.filter((id) => id !== candidate.id);
+    const isCurrentlySelected = selectedIds.includes(candidate.id);
+    if (isCurrentlySelected) {
+      setSelectedIds((current) => current.filter((id) => id !== candidate.id));
+    } else {
+      setSelectedIds((current) => [...current, candidate.id]);
+      setDispatchQuantities((current) => ({
+        ...current,
+        [candidate.id]: current[candidate.id] && current[candidate.id] > 0
+          ? current[candidate.id]
+          : (availableQuantity(candidate) > 0 ? availableQuantity(candidate) : 1),
+      }));
+    }
+  };
+
+  const handleSelectAll = () => {
+    const allAvailable = filteredWorkOrders.filter((wo) => availableQuantity(wo) > 0);
+    const ids = (allAvailable.length > 0 ? allAvailable : filteredWorkOrders).map((wo) => wo.id);
+    setSelectedIds(ids);
+    const qtys: Record<string, number> = { ...dispatchQuantities };
+    filteredWorkOrders.forEach((wo) => {
+      if (!qtys[wo.id] || qtys[wo.id] <= 0) {
+        const rem = availableQuantity(wo);
+        qtys[wo.id] = rem > 0 ? rem : 1;
       }
-      return [...current, candidate.id];
     });
-    setDispatchQuantities((current) => ({
-      ...current,
-      [candidate.id]: current[candidate.id] ?? availableQuantity(candidate),
-    }));
+    setDispatchQuantities(qtys);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds([]);
+  };
+
+  const handleToggleAll = () => {
+    const availableItems = filteredWorkOrders.filter((wo) => availableQuantity(wo) > 0);
+    const targetItems = availableItems.length > 0 ? availableItems : filteredWorkOrders;
+    const allSelected = targetItems.length > 0 && targetItems.every((wo) => selectedIds.includes(wo.id));
+    if (allSelected) {
+      handleDeselectAll();
+    } else {
+      handleSelectAll();
+    }
   };
 
   const handleAutoFillOneEach = () => {
+    const allAvailable = filteredWorkOrders.filter((wo) => availableQuantity(wo) > 0);
+    const targetItems = allAvailable.length > 0 ? allAvailable : filteredWorkOrders;
+    const ids = targetItems.map((wo) => wo.id);
+    setSelectedIds(ids);
     const qtys: Record<string, number> = {};
-    selectedWorkOrders.forEach((item) => {
+    targetItems.forEach((item) => {
       qtys[item.id] = 1;
     });
     setDispatchQuantities((current) => ({ ...current, ...qtys }));
   };
 
   const handleFillAllAvailable = () => {
+    const allAvailable = filteredWorkOrders.filter((wo) => availableQuantity(wo) > 0);
+    const targetItems = allAvailable.length > 0 ? allAvailable : filteredWorkOrders;
+    const ids = targetItems.map((wo) => wo.id);
+    setSelectedIds(ids);
     const qtys: Record<string, number> = {};
-    selectedWorkOrders.forEach((item) => {
-      qtys[item.id] = availableQuantity(item);
+    targetItems.forEach((item) => {
+      const rem = availableQuantity(item);
+      qtys[item.id] = rem > 0 ? rem : 1;
     });
     setDispatchQuantities((current) => ({ ...current, ...qtys }));
   };
@@ -1061,7 +1103,7 @@ export default function CreateDispatchPage() {
 
   const handleSubmit = async () => {
     if (!selectedWorkOrders.length) {
-      toast.error("Select at least one pending dispatch order");
+      toast.error("Please select at least 1 product to dispatch in this consignment.");
       return;
     }
 
@@ -1390,6 +1432,14 @@ export default function CreateDispatchPage() {
                 Cargo &amp; Ordered Items Summary
               </div>
               <div className={styles.cargoActions}>
+                <button
+                  type="button"
+                  onClick={handleToggleAll}
+                  className={styles.cargoActionBtn}
+                  style={{ background: selectedIds.length === filteredWorkOrders.length ? "#eff6ff" : "#fff", borderColor: selectedIds.length === filteredWorkOrders.length ? "#93c5fd" : "#cbd5e1" }}
+                >
+                  {selectedIds.length === filteredWorkOrders.length && filteredWorkOrders.length > 0 ? "Deselect All" : "Select All Products"}
+                </button>
                 <button type="button" onClick={handleAutoFillOneEach} className={styles.cargoActionBtn}>Auto Fill 1 each</button>
                 <button type="button" onClick={handleFillAllAvailable} className={styles.cargoActionBtn}>Fill All Ready</button>
               </div>
@@ -1399,51 +1449,117 @@ export default function CreateDispatchPage() {
               <table className={styles.cargoTable}>
                 <thead>
                   <tr>
-                    <th>Order ID</th>
-                    <th className={styles.center}>Ordered</th>
-                    <th className={styles.center}>Remaining</th>
-                    <th className={styles.center}>Dispatch Now</th>
+                    <th style={{ width: 44, textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={
+                          filteredWorkOrders.length > 0 &&
+                          filteredWorkOrders.every((wo) => selectedIds.includes(wo.id))
+                        }
+                        onChange={handleToggleAll}
+                        className={styles.rowCheckbox}
+                        title={
+                          selectedIds.length === filteredWorkOrders.length
+                            ? "Deselect all products"
+                            : "Select all products"
+                        }
+                      />
+                    </th>
+                    <th>Order ID &amp; Product Cargo</th>
+                    <th className={styles.center} style={{ width: 100 }}>Ordered</th>
+                    <th className={styles.center} style={{ width: 110 }}>Remaining</th>
+                    <th className={styles.center} style={{ width: 150 }}>Dispatch Now</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedWorkOrders.map((candidate) => {
+                  {filteredWorkOrders.map((candidate) => {
                     const candidateSalesOrder = candidate.productionPlan?.salesOrder;
+                    const isSelected = selectedIds.includes(candidate.id);
                     const maximum = availableQuantity(candidate);
-                    const orderedQty = candidate.salesOrderItem?.orderedQuantity || maximum;
+                    const orderedQty = candidate.salesOrderItem?.orderedQuantity || candidate.orderedQuantity || maximum;
+                    const prodName = candidate.salesOrderItem?.productNameSnapshot || candidate.salesOrderItem?.product?.name || "Product Cargo";
+                    const prodSku = candidate.salesOrderItem?.product?.sku || (candidate as any).productCode;
+                    const dispatchQty = dispatchQuantities[candidate.id] ?? (maximum > 0 ? maximum : 1);
+                    const willRemainAfterDispatch = isSelected ? Math.max(0, maximum - dispatchQty) : maximum;
+
                     return (
-                    <tr key={candidate.id}>
+                      <tr
+                        key={candidate.id}
+                        className={isSelected ? styles.rowSelected : styles.rowUnselected}
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).tagName === "INPUT") return;
+                          toggleWorkOrder(candidate);
+                        }}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <td className={styles.center} onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleWorkOrder(candidate)}
+                            className={styles.rowCheckbox}
+                          />
+                        </td>
                         <td data-label="Order / Product">
-                          <div className={styles.orderId}>
-                            {candidateSalesOrder?.orderNumber || candidate.workOrderNumber}
+                          <div className={styles.orderIdRow}>
+                            <span className={styles.orderId}>
+                              #{candidateSalesOrder?.orderNumber || candidate.workOrderNumber}
+                            </span>
+                            {isSelected ? (
+                              <span className={styles.itemSelectedBadge}>Selected for Dispatch</span>
+                            ) : (
+                              <span className={styles.itemExcludedBadge}>Excluded / Pending</span>
+                            )}
                           </div>
                           <div className={styles.productName}>
-                            {candidate.salesOrderItem?.productNameSnapshot || "Unknown Product"}
+                            {prodName}
                           </div>
+                          {prodSku && (
+                            <div className={styles.productSkuBadge}>SKU: {prodSku}</div>
+                          )}
                         </td>
-                        <td className={styles.center} data-label="Ordered">{orderedQty}</td>
-                        <td className={`${styles.center} ${styles.remaining}`} data-label="Remaining">{maximum}</td>
-                        <td className={styles.center} data-label="Dispatch Now">
-                          <input
-                            type="number"
-                            min={1}
-                            max={maximum}
-                            value={dispatchQuantities[candidate.id] ?? maximum}
-                            onChange={(event) =>
-                              setDispatchQuantities((current) => ({
-                                ...current,
-                                [candidate.id]: Number(event.target.value),
-                              }))
-                            }
-                            className={styles.qtyInput}
-                          />
+                        <td className={styles.center} data-label="Ordered">
+                          <span style={{ fontWeight: 600, color: "#475569" }}>{orderedQty}</span>
+                        </td>
+                        <td className={`${styles.center} ${styles.remaining}`} data-label="Remaining">
+                          <span className={styles.remainingPill}>{maximum}</span>
+                        </td>
+                        <td className={styles.center} data-label="Dispatch Now" onClick={(e) => e.stopPropagation()}>
+                          {isSelected ? (
+                            <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                              <input
+                                type="number"
+                                min={1}
+                                max={maximum > 0 ? maximum : 1}
+                                value={dispatchQty}
+                                onChange={(event) => {
+                                  const val = Math.max(1, Math.min(maximum > 0 ? maximum : 1, Number(event.target.value) || 1));
+                                  setDispatchQuantities((current) => ({
+                                    ...current,
+                                    [candidate.id]: val,
+                                  }));
+                                }}
+                                className={styles.qtyInput}
+                              />
+                              {willRemainAfterDispatch > 0 && (
+                                <span style={{ fontSize: "10.5px", color: "#d97706", fontWeight: 700 }}>
+                                  ({willRemainAfterDispatch} remaining)
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 600, fontStyle: "italic" }}>
+                              0 (Not Selected)
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );
                   })}
-                  {selectedWorkOrders.length === 0 && (
+                  {filteredWorkOrders.length === 0 && (
                     <tr>
-                      <td colSpan={4} className={styles.emptyMsg}>
-                        Select an order reference to view details
+                      <td colSpan={5} className={styles.emptyMsg}>
+                        No products available to dispatch for this order.
                       </td>
                     </tr>
                   )}
@@ -1452,13 +1568,21 @@ export default function CreateDispatchPage() {
             </div>
 
             <div className={styles.cargoFooter}>
-              <span className={styles.totalLabel}>Total Dispatch Quantity:</span>
-              <span className={styles.totalBadge}>
-                {selectedWorkOrders.reduce(
-                  (sum, sel) => sum + Number(dispatchQuantities[sel.id] || 0),
-                  0,
-                )}
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span className={styles.totalLabel}>Selected Products:</span>
+                <span className={styles.selectedCountBadge}>
+                  {selectedWorkOrders.length} of {filteredWorkOrders.length} Items Selected
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span className={styles.totalLabel}>Total Dispatch Quantity:</span>
+                <span className={styles.totalBadge}>
+                  {selectedWorkOrders.reduce(
+                    (sum, sel) => sum + Number(dispatchQuantities[sel.id] || 0),
+                    0,
+                  )} Units
+                </span>
+              </div>
             </div>
           </div>
         </div>
