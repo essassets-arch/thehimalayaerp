@@ -96,14 +96,16 @@ interface QuickAccount {
 }
 
 const QUICK_ACCOUNTS: QuickAccount[] = [
+  // SuperSales (Top Priority)
+  { email: 'supersales1@himalayaerp.com', password: 'supersales123', name: 'SuperSales 1', role: 'SuperSales Lead', dept: 'Sales Department', category: 'Sales', color: '#F59E0B' },
+  { email: 'supersales2@himalayaerp.com', password: 'supersales124', name: 'SuperSales 2', role: 'SuperSales Lead', dept: 'Sales Department', category: 'Sales', color: '#F59E0B' },
+
   // Super Admin & HR
   { email: 'super.admin@himalayaerp.com', password: 'SuperAdmin@hcppl', name: 'Super Admin', role: 'Super Admin', dept: 'Super Admin Department', category: 'Admin & HR', color: '#6366F1' },
   { email: 'hr@himalayaerp.com', password: 'HR@hcppl', name: 'HR Manager', role: 'HR Manager', dept: 'HR Department', category: 'Admin & HR', color: '#EC4899' },
   { email: 'abbas.b@himalayaerp.com', password: 'dataAnalyst#2101', name: 'Abbas B', role: 'Back Office', dept: 'Back Office Department', category: 'Admin & HR', color: '#0284c7' },
 
-  // Sales & SuperSales
-  { email: 'supersales1@himalayaerp.com', password: 'supersales123', name: 'SuperSales 1', role: 'SuperSales Lead', dept: 'Sales Department', category: 'Sales', color: '#F59E0B' },
-  { email: 'supersales2@himalayaerp.com', password: 'supersales124', name: 'SuperSales 2', role: 'SuperSales Lead', dept: 'Sales Department', category: 'Sales', color: '#F59E0B' },
+  // Sales Executives
   { email: 'sales1@himalayaerp.com', password: 'Himalaya@2026', name: 'Sales 1', role: 'Sales Executive', dept: 'Sales Department', category: 'Sales', color: '#3B82F6' },
   { email: 'sales2@himalayaerp.com', password: 'Himalaya@2026', name: 'Sales 2', role: 'Sales Executive', dept: 'Sales Department', category: 'Sales', color: '#3B82F6' },
   { email: 'sales3@himalayaerp.com', password: 'Himalaya@2026', name: 'Sales 3', role: 'Sales Executive', dept: 'Sales Department', category: 'Sales', color: '#3B82F6' },
@@ -205,7 +207,7 @@ export default function LoginPage() {
     }
   };
 
-  const categories = ['All', 'Admin & HR', 'Sales', 'Finance', 'Dispatch', 'Production', 'Store'];
+  const categories = ['All', 'Sales', 'Admin & HR', 'Finance', 'Dispatch', 'Production', 'Store'];
 
   const filteredAccounts = QUICK_ACCOUNTS.filter(acc => {
     const matchesCat = activeCategory === 'All' || acc.category === activeCategory;
