@@ -58,6 +58,7 @@ export default function QuotationsView({
   const [previewScale, setPreviewScale] = useState(1);
   const [sheetHeight, setSheetHeight] = useState(1150);
   const quotationSheetRef = useRef(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingImage, setDownloadingImage] = useState(false);
   const [sharingImage, setSharingImage] = useState(false);
 
@@ -1845,9 +1846,38 @@ export default function QuotationsView({
                   type="button"
                   className="btn-small btn-outline-small"
                   onClick={() => setSelectedQuotation(null)}
-                  style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0 }}
+                  style={{ padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0 }}
                 >
                   Close Preview
+                </button>
+                <button
+                  type="button"
+                  disabled={downloadingPdf}
+                  className="btn-small btn-outline-small"
+                  onClick={async () => {
+                    if (downloadingPdf) return;
+                    try {
+                      setDownloadingPdf(true);
+                      await exportQuotationPDF(selectedQuotation);
+                    } catch (err) {
+                      console.error('Error generating PDF:', err);
+                    } finally {
+                      setDownloadingPdf(false);
+                    }
+                  }}
+                  style={{ padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: downloadingPdf ? 'not-allowed' : 'pointer' }}
+                >
+                  {downloadingPdf ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14, border: '2px solid #2563eb', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.6s linear infinite' }} />
+                      <span>Saving PDF...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText size={14} />
+                      <span>Download PDF</span>
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -1866,12 +1896,12 @@ export default function QuotationsView({
                       setDownloadingImage(false);
                     }
                   }}
-                  style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: downloadingImage ? 'not-allowed' : 'pointer' }}
+                  style={{ padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: downloadingImage ? 'not-allowed' : 'pointer' }}
                 >
                   {downloadingImage ? (
                     <>
                       <span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14, border: '2px solid #2563eb', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.6s linear infinite' }} />
-                      <span>Saving...</span>
+                      <span>Saving Image...</span>
                     </>
                   ) : (
                     <>
@@ -1896,7 +1926,7 @@ export default function QuotationsView({
                       setSharingImage(false);
                     }
                   }}
-                  style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: sharingImage ? 'not-allowed' : 'pointer' }}
+                  style={{ padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: sharingImage ? 'not-allowed' : 'pointer' }}
                 >
                   {sharingImage ? (
                     <>

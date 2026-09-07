@@ -16,8 +16,11 @@ import { resolveQuotationTerms } from './sales/quotationTerms';
 export const safeSaveFile = async (data, filename, mimeType = 'application/octet-stream') => {
   let blob;
   let rawData = '';
+  let base64Payload = '';
+
   if (typeof data === 'string') {
     rawData = data;
+    base64Payload = data;
     if (data.startsWith('data:')) {
       try {
         const parts = data.split(',');
@@ -35,10 +38,17 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     } else {
       blob = new Blob([data], { type: mimeType });
     }
+  } else if (data && typeof data.output === 'function') {
+    // Direct fast output for jsPDF instances
+    try {
+      blob = data.output('blob');
+    } catch (e) {}
+    try {
+      rawData = data.output('datauristring');
+      base64Payload = rawData;
+    } catch (e) {}
   } else if (data instanceof Blob) {
     blob = data;
-  } else if (data && typeof data.output === 'function') {
-    blob = data.output('blob');
   } else {
     blob = new Blob([data], { type: mimeType });
   }
@@ -49,7 +59,6 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     .replace(/\s+/g, ' ')
     .trim();
 
-  let base64Payload = rawData;
   if (!base64Payload && blob) {
     try {
       base64Payload = await new Promise((resolve, reject) => {
@@ -62,6 +71,9 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
   }
 
   let absoluteDownloadUrl = '';
+  const origin = typeof window !== 'undefined' && window.location.origin && window.location.origin.startsWith('http')
+    ? window.location.origin
+    : 'https://thehimalaya.cloud';
 
   // 1. Prepare server-side download token URL (Enables native Android / iOS Download Manager & Flutter Dio download)
   try {
@@ -70,7 +82,7 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/backend/files/export-download', {
+      const response = await fetch(`${origin}/api/backend/files/export-download`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -85,13 +97,16 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
         if (resJson && resJson.downloadUrl) {
           absoluteDownloadUrl = resJson.downloadUrl.startsWith('http')
             ? resJson.downloadUrl
-            : `${window.location.origin}${resJson.downloadUrl}`;
+            : `${origin}${resJson.downloadUrl}`;
         }
       }
     }
   } catch (apiErr) {
     console.warn('Backend export-download notice:', apiErr);
   }
+
+  const isImage = resolvedMimeType.startsWith('image/');
+  const destination = isImage ? 'gallery' : 'downloads';
 
   // 2. Flutter InAppWebView Native JavaScript Channel handler (Mobile APK)
   if (typeof window !== 'undefined' && window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
@@ -102,36 +117,69 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
         filename: safeFilename,
         mimeType: resolvedMimeType,
         data: base64Payload,
-        destination: resolvedMimeType.startsWith('image/') ? 'gallery' : 'downloads',
+        destination,
       });
     } catch (e) {}
 
-    try {
-      await window.flutter_inappwebview.callHandler('saveToGallery', {
-        url: absoluteDownloadUrl,
-        data: base64Payload,
-        filename: safeFilename,
-        mimeType: resolvedMimeType
-      });
-    } catch (e2) {}
+    if (isImage) {
+      try {
+        await window.flutter_inappwebview.callHandler('saveToGallery', {
+          url: absoluteDownloadUrl,
+          data: base64Payload,
+          filename: safeFilename,
+          mimeType: resolvedMimeType
+        });
+      } catch (e2) {}
 
-    try {
-      await window.flutter_inappwebview.callHandler('saveImage', {
-        url: absoluteDownloadUrl,
-        data: base64Payload,
-        filename: safeFilename,
-        mimeType: resolvedMimeType
-      });
-    } catch (e3) {}
+      try {
+        await window.flutter_inappwebview.callHandler('saveImage', {
+          url: absoluteDownloadUrl,
+          data: base64Payload,
+          filename: safeFilename,
+          mimeType: resolvedMimeType
+        });
+      } catch (e3) {}
+    }
   }
 
-  // 3. Direct Browser Trigger (Android DownloadManager, iOS Safari, Desktop)
+  // 3. Flutter & Android JavaScript Channels (postMessage / Native bridge)
+  if (typeof window !== 'undefined') {
+    const w = window;
+    const msgPayload = JSON.stringify({
+      type: isImage ? 'SAVE_IMAGE' : 'DOWNLOAD_FILE',
+      action: isImage ? 'saveToGallery' : 'downloadFile',
+      filename: safeFilename,
+      mimeType: resolvedMimeType,
+      url: absoluteDownloadUrl,
+      data: base64Payload,
+      destination,
+    });
+
+    if (w.HimalayaDownload && typeof w.HimalayaDownload.postMessage === 'function') {
+      try { w.HimalayaDownload.postMessage(msgPayload); } catch (e) {}
+    }
+    if (w.HimalayaBridge && typeof w.HimalayaBridge.postMessage === 'function') {
+      try { w.HimalayaBridge.postMessage(msgPayload); } catch (e) {}
+    }
+    if (w.HimalayaNativeBridge && typeof w.HimalayaNativeBridge.postMessage === 'function') {
+      try { w.HimalayaNativeBridge.postMessage(msgPayload); } catch (e) {}
+    }
+    if (w.AndroidBridge && typeof w.AndroidBridge.downloadFile === 'function') {
+      try { w.AndroidBridge.downloadFile(absoluteDownloadUrl || base64Payload, safeFilename, resolvedMimeType); } catch (e) {}
+    }
+    if (w.Android && typeof w.Android.downloadFile === 'function') {
+      try { w.Android.downloadFile(absoluteDownloadUrl || base64Payload, safeFilename, resolvedMimeType); } catch (e) {}
+    }
+  }
+
+  // 4. Direct Browser / Native Android DownloadManager Trigger
   try {
     const downloadTarget = absoluteDownloadUrl || (blob ? URL.createObjectURL(blob) : base64Payload);
     const link = document.createElement('a');
     link.href = downloadTarget;
     link.download = safeFilename;
     link.setAttribute('download', safeFilename);
+    link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
     setTimeout(() => {
@@ -141,7 +189,7 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     console.warn('Anchor download fallback notice:', anchorErr);
   }
 
-  // 4. File-Saver saveAs Fallback
+  // 5. File-Saver saveAs Fallback
   try {
     if (blob) {
       saveAs(blob, safeFilename);
@@ -2099,7 +2147,42 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
   const quotationShareUrl = 'https://thehimalaya.cloud/supersales/quotations';
   const shareText = `Quotation #${quotationNo} for ${customerName || 'Valued Customer'}\n${quotationShareUrl}`;
 
-  // 1. Flutter in-app webview share handler (Mobile APK)
+  // Upload to server export endpoint to generate a permanent/temporary download link for sharing
+  let absoluteShareUrl = '';
+  const origin = typeof window !== 'undefined' && window.location.origin && window.location.origin.startsWith('http')
+    ? window.location.origin
+    : 'https://thehimalaya.cloud';
+
+  try {
+    if (dataUrl) {
+      const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('auth_token') || sessionStorage.getItem('token')) : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(`${origin}/api/backend/files/export-download`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          filename,
+          mimeType: 'image/png',
+          data: dataUrl,
+        }),
+      });
+
+      if (response.ok) {
+        const resJson = await response.json();
+        if (resJson && resJson.downloadUrl) {
+          absoluteShareUrl = resJson.downloadUrl.startsWith('http')
+            ? resJson.downloadUrl
+            : `${origin}${resJson.downloadUrl}`;
+        }
+      }
+    }
+  } catch (apiErr) {
+    console.warn('Backend export-share token notice:', apiErr);
+  }
+
+  // 1. Flutter InAppWebView Native JavaScript Channel handler (Mobile APK)
   if (typeof window !== 'undefined' && window.flutter_inappwebview?.callHandler) {
     try {
       await window.flutter_inappwebview.callHandler('shareFile', {
@@ -2107,6 +2190,7 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
         filename,
         mimeType: 'image/png',
         data: dataUrl,
+        imageUrl: absoluteShareUrl,
         text: shareText,
         url: quotationShareUrl
       });
@@ -2116,17 +2200,51 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
         await window.flutter_inappwebview.callHandler('share', {
           title: `Quotation ${quotationNo}`,
           text: shareText,
-          url: quotationShareUrl
+          url: quotationShareUrl,
+          imageUrl: absoluteShareUrl,
+          data: dataUrl,
+          filename
         });
         return { success: true, blob, dataUrl, filename };
       } catch (e2) {}
     }
   }
 
-  // 2. Web Share API with files (Android Chrome, iOS Safari, Modern Mobile Web)
+  // 2. Flutter & Android JavaScript Channels (postMessage / Native bridge)
+  if (typeof window !== 'undefined') {
+    const w = window;
+    const shareMessage = JSON.stringify({
+      type: 'SHARE_IMAGE',
+      action: 'shareFile',
+      filename,
+      mimeType: 'image/png',
+      data: dataUrl,
+      imageUrl: absoluteShareUrl,
+      text: shareText,
+      url: quotationShareUrl
+    });
+
+    if (w.HimalayaShare && typeof w.HimalayaShare.postMessage === 'function') {
+      try { w.HimalayaShare.postMessage(shareMessage); return { success: true, blob, dataUrl, filename }; } catch (e) {}
+    }
+    if (w.HimalayaBridge && typeof w.HimalayaBridge.postMessage === 'function') {
+      try { w.HimalayaBridge.postMessage(shareMessage); return { success: true, blob, dataUrl, filename }; } catch (e) {}
+    }
+    if (w.HimalayaNativeBridge && typeof w.HimalayaNativeBridge.postMessage === 'function') {
+      try { w.HimalayaNativeBridge.postMessage(shareMessage); return { success: true, blob, dataUrl, filename }; } catch (e) {}
+    }
+    if (w.AndroidBridge && typeof w.AndroidBridge.shareImage === 'function') {
+      try { w.AndroidBridge.shareImage(dataUrl || absoluteShareUrl, filename, shareText); return { success: true, blob, dataUrl, filename }; } catch (e) {}
+    }
+    if (w.Android && typeof w.Android.share === 'function') {
+      try { w.Android.share(shareText, absoluteShareUrl || dataUrl); return { success: true, blob, dataUrl, filename }; } catch (e) {}
+    }
+  }
+
+  // 3. Web Share API with files (Android Chrome, iOS Safari, Modern Mobile Web)
   if (typeof navigator !== 'undefined' && navigator.canShare && blob) {
     try {
-      const file = new File([blob], filename, { type: 'image/png' });
+      const file = new File([blob], filename, { type: 'image/png', lastModified: Date.now() });
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({
           title: `Quotation ${quotationNo}`,
@@ -2142,7 +2260,7 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
     }
   }
 
-  // 3. Web Share API text fallback
+  // 4. Web Share API text fallback
   if (typeof navigator !== 'undefined' && navigator.share) {
     try {
       await navigator.share({
@@ -2158,7 +2276,7 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
     }
   }
 
-  // 4. Direct WhatsApp Share fallback
+  // 5. Direct WhatsApp Share fallback
   if (typeof window !== 'undefined') {
     const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
     window.open(whatsappUrl, '_blank');
