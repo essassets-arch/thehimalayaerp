@@ -2041,6 +2041,9 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
 /**
  * Export a DOM element to a high-quality PNG image (⭐ GUARANTEED CANONICAL 794px A4 LAYOUT ON ANY DEVICE)
  */
+/**
+ * Export a DOM element to a high-quality PNG image (⭐ GUARANTEED CANONICAL 794px A4 LAYOUT ON ANY DEVICE)
+ */
 export const exportQuotationImage = async (elementId, filename = 'quotation.png', { save = true } = {}) => {
   const element = typeof elementId === 'string' ? document.getElementById(elementId) : elementId;
   if (!element) {
@@ -2129,38 +2132,22 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
   document.body.appendChild(wrapper);
 
   try {
-    if (document.fonts && document.fonts.ready) {
-      try {
-        await document.fonts.ready;
-      } catch { /* proceed */ }
-    }
-
-    const images = Array.from(clone.querySelectorAll('img'));
-    await Promise.all(images.map(img => {
-      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-      return new Promise((resolve) => {
-        img.onload = resolve;
-        img.onerror = resolve;
-        setTimeout(resolve, 600);
-      });
-    }));
-
     let blob;
     let dataUrl;
 
     try {
-      // Primary: htmlToImage supports modern CSS functions (oklch, color-mix, lab, etc.)
+      // Primary ultra-fast capture: htmlToImage
       dataUrl = await htmlToImage.toPng(clone, {
         pixelRatio: 2,
         width: 794,
         height: clone.scrollHeight || 1123,
         backgroundColor: '#ffffff',
-        cacheBust: true,
+        cacheBust: false,
       });
       const response = await fetch(dataUrl);
       blob = await response.blob();
     } catch (primaryErr) {
-      console.warn('htmlToImage primary capture failed, trying html2canvas fallback:', primaryErr);
+      console.warn('htmlToImage primary capture failed, trying fallback:', primaryErr);
       try {
         const canvas = await html2canvas(clone, {
           scale: 2,
@@ -2197,11 +2184,13 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
  */
 export const shareQuotationImage = async (elementId, quotationNo = 'Draft', customerName = 'Customer') => {
   const filename = `Quotation_${String(quotationNo).replace(/[\/\\]/g, '_') || 'Draft'}.png`;
-  // Sharing should open the system share sheet with an image; it must not
-  // silently download an extra copy to Gallery first.
   const exportRes = await exportQuotationImage(elementId, filename, { save: false });
   const { blob, dataUrl } = exportRes;
 
+  const quotationShareUrl = 'https://thehimalaya.cloud/supersales/quotations';
+  const shareText = `Quotation #${quotationNo} for ${customerName || 'Valued Customer'}\n${quotationShareUrl}`;
+
+  // 1. Flutter in-app webview share handler (Mobile APK)
   if (typeof window !== 'undefined' && window.flutter_inappwebview?.callHandler) {
     try {
       await window.flutter_inappwebview.callHandler('shareFile', {
@@ -2209,31 +2198,62 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
         filename,
         mimeType: 'image/png',
         data: dataUrl,
-        text: `Quotation for ${customerName}`,
+        text: shareText,
+        url: quotationShareUrl
       });
       return { success: true, blob, dataUrl, filename };
-    } catch (shareBridgeError) {
-      console.warn('Flutter image-share handler unavailable; using browser sharing instead.', shareBridgeError);
+    } catch (e) {
+      try {
+        await window.flutter_inappwebview.callHandler('share', {
+          title: `Quotation ${quotationNo}`,
+          text: shareText,
+          url: quotationShareUrl
+        });
+        return { success: true, blob, dataUrl, filename };
+      } catch (e2) {}
     }
   }
 
+  // 2. Web Share API with files (Android Chrome, iOS Safari, Modern Mobile Web)
   if (typeof navigator !== 'undefined' && navigator.canShare && blob) {
     try {
       const file = new File([blob], filename, { type: 'image/png' });
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({
           title: `Quotation ${quotationNo}`,
-          text: `Quotation for ${customerName}`,
+          text: shareText,
           files: [file]
         });
         return { success: true, blob, dataUrl, filename };
       }
     } catch (shareErr) {
       if (shareErr && (shareErr.name === 'AbortError' || shareErr.message?.includes('abort'))) {
-        return { success: true, blob, dataUrl, filename }; // User dismissed share sheet
+        return { success: true, blob, dataUrl, filename };
       }
-      console.warn('Navigator share with file failed, falling back to direct share modal:', shareErr);
     }
+  }
+
+  // 3. Web Share API text fallback
+  if (typeof navigator !== 'undefined' && navigator.share) {
+    try {
+      await navigator.share({
+        title: `Quotation ${quotationNo}`,
+        text: shareText,
+        url: quotationShareUrl
+      });
+      return { success: true, blob, dataUrl, filename };
+    } catch (e) {
+      if (e && (e.name === 'AbortError' || e.message?.includes('abort'))) {
+        return { success: true, blob, dataUrl, filename };
+      }
+    }
+  }
+
+  // 4. Direct WhatsApp Share fallback
+  if (typeof window !== 'undefined') {
+    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+    window.open(whatsappUrl, '_blank');
+    return { success: true, blob, dataUrl, filename };
   }
 
   return { success: false, blob, dataUrl, filename };
