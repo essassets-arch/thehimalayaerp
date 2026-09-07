@@ -129,6 +129,21 @@ export const resolveOrderNumber = (order) => {
   return '—';
 };
 
+export const isUUID = (str) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(str || '').trim());
+
+export const getCleanCustomerCode = (c) => {
+  if (!c) return null;
+  const raw = c.customer_code || c.customerCode || c.code || '';
+  if (raw && typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed && !isUUID(trimmed) && !trimmed.toLowerCase().startsWith('cust-undefined') && !trimmed.toLowerCase().startsWith('cust-null')) {
+      return trimmed;
+    }
+  }
+  return null;
+};
+
 export default function ReportsView({ leads = [], orders = [], payments = [], customers = [], quotations = [], user }) {
   const { state } = useERP();
   const settings = state?.settings || {};
@@ -665,7 +680,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
         return;
       }
       const data = myCustomers.map(c => ({
-        'Customer ID': c.customer_code || c.code || `CUST-${c.id}`,
+        'Customer ID': getCleanCustomerCode(c) || c.name || c.customer_name || 'Customer',
         'Customer Name': c.name || c.customer_name || '',
         'Email': c.email || '',
         'Phone': c.phone || '',
@@ -1653,7 +1668,9 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     return (
                       <div key={prod.id} className="report-bar-row" style={{ marginBottom: '12px' }}>
                         <div className="report-bar-label-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px', color: '#475569' }}>
-                          <span style={{ fontWeight: '700', color: '#002e5d' }}>{prod.product_name} ({prod.product_code})</span>
+                          <span style={{ fontWeight: '700', color: '#002e5d' }}>
+                            {prod.product_name} {prod.product_code && !isUUID(prod.product_code) ? `(${prod.product_code})` : ''}
+                          </span>
                           <span style={{ fontWeight: '800' }}>
                             {quantity} {prod.unit_of_measure} ({formatINR(revenue)})
                           </span>
@@ -2254,7 +2271,9 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                           <tr key={customer.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ fontWeight: '700', padding: '10px 14px' }}>
                               <div style={{ color: '#002e5d' }}>{customer.customer_name}</div>
-                              <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>Code: {customer.customer_code}</span>
+                              {getCleanCustomerCode(customer) && (
+                                <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>Code: {getCleanCustomerCode(customer)}</span>
+                              )}
                             </td>
                             <td style={{ padding: '10px 14px' }}>
                               <div>{customer.city || 'N/A'}, {customer.state || 'N/A'}</div>
@@ -2292,7 +2311,9 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                           <tr key={customer.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ fontWeight: '700', padding: '10px 14px' }}>
                               <div style={{ color: '#002e5d' }}>{customer.name}</div>
-                              <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>Code: {customer.customer_code || customer.code || `CUST-${customer.id}`}</span>
+                              {getCleanCustomerCode(customer) && (
+                                <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>Code: {getCleanCustomerCode(customer)}</span>
+                              )}
                             </td>
                             <td style={{ padding: '10px 14px' }}>
                               <div>{customer.email}</div>
