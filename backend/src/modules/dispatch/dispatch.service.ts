@@ -105,7 +105,15 @@ export class DispatchService {
             quotation: { include: { lead: true } },
           },
         },
-        items: { include: { salesOrderItem: true } },
+        items: {
+          include: {
+            salesOrderItem: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
         workflowState: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -182,7 +190,15 @@ export class DispatchService {
             quotation: { include: { lead: true } },
           },
         },
-        items: { include: { salesOrderItem: true } },
+        items: {
+          include: {
+            salesOrderItem: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
         workflowState: true,
       },
     });
@@ -602,8 +618,28 @@ export class DispatchService {
               ? new Date(dto.expectedDeliveryDate)
               : null,
             invoiceNumber: dto.invoiceNumber,
+            gatePassNumber: dto.challanNumber,
             ewayBillNumber: dto.ewayBillNumber,
+            lrNumber: dto.lrNumber || dto.ewayBillNumber,
+            podUrl: dto.documentUrl || dto.dispatchDocumentUrl || null,
             dispatchedAt: new Date(),
+            documentChecklist: {
+              challanNumber: dto.challanNumber,
+              invoiceNumber: dto.invoiceNumber,
+              ewayBillNumber: dto.ewayBillNumber,
+              lrNumber: dto.lrNumber || dto.ewayBillNumber,
+              driverName: dto.driverName,
+              driverPhone: dto.driverPhone,
+              vehicleNumber: dto.vehicleNumber,
+              transporterName: dto.transporterName,
+              dispatchRemarks: dto.dispatchRemarks,
+              totalWeight: dto.totalWeight,
+              expectedDeliveryDate: dto.expectedDeliveryDate,
+              fetchedTransportationCost: dto.fetchedTransportationCost,
+              toBePaid: dto.freightAmount,
+              documentUrl: dto.documentUrl || dto.dispatchDocumentUrl,
+              deliveryAddress: dto.deliveryAddress,
+            },
             items: {
               create: dto.items.map((item) => ({
                 salesOrderItemId: item.salesOrderItemId,

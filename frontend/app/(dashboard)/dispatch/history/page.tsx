@@ -22,6 +22,15 @@ import {
   Clock,
   Layers,
   FileText,
+  Eye,
+  MapPin,
+  ClipboardList,
+  Package,
+  FileSpreadsheet,
+  Printer,
+  IndianRupee,
+  Navigation,
+  FileCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,30 +38,189 @@ import { backendFetch } from "@/lib/backendFetch";
 import { getBackendAssetUrl, downloadAssetFile } from "@/lib/assetUrl";
 import styles from "./history.module.css";
 
+interface Product {
+  id?: string;
+  name?: string;
+  sku?: string;
+  description?: string;
+  unit?: string;
+  dispatchCategory?: string;
+}
+
+interface SalesOrderItem {
+  id?: string;
+  productId?: string;
+  productNameSnapshot?: string;
+  orderedQuantity?: number;
+  unitPrice?: number;
+  product?: Product;
+}
+
+interface DispatchItem {
+  id?: string;
+  salesOrderItemId?: string;
+  quantity?: number | string;
+  salesOrderItem?: SalesOrderItem;
+}
+
 interface Customer {
+  id?: string;
   companyName: string;
   address?: string;
+  billingAddress?: any;
+  shippingAddress?: any;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  country?: string;
+  phone?: string;
+  email?: string;
 }
 
 interface SalesOrder {
+  id?: string;
   orderNumber: string;
-  customer: Customer;
+  shippingAddress?: any;
+  deliveryAddress?: any;
+  requestedDeliveryDate?: string;
+  freightAmount?: number | string;
+  expectedTransportationCost?: number | string;
+  customer?: Customer;
+  sourceQuotation?: {
+    expectedTransportationCost?: number | string;
+    transportCharge?: number | string;
+    freightAmount?: number | string;
+    lead?: any;
+  };
 }
 
 interface Dispatch {
   id: string;
   dispatchNo: string;
   status: string;
+  dispatchCategory?: string | null;
   receivedBy: string | null;
   receiverPhone: string | null;
   deliveredAt: string | null;
   dispatchedAt: string | null;
   driverName: string | null;
+  driverPhone: string | null;
   vehicleNumber: string | null;
   transporterName: string | null;
   deliveryAddress: string | null;
+  totalWeight: number | string | null;
+  invoiceNumber: string | null;
+  gatePassNumber: string | null;
+  challanNumber?: string | null;
+  ewayBillNumber: string | null;
+  lrNumber: string | null;
+  transitRemarks: string | null;
+  freightAmount: number | string | null;
+  eta: string | null;
+  expectedDeliveryDate?: string | null;
   podUrl: string | null;
-  salesOrder: SalesOrder;
+  documentUrl?: string | null;
+  dispatchDocumentUrl?: string | null;
+  documentChecklist?: any;
+  deliveryRemarks: string | null;
+  createdAt?: string;
+  salesOrder?: SalesOrder;
+  items?: DispatchItem[];
+  invoices?: any[];
+}
+
+function formatAddressValue(value?: any): string {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (
+      !trimmed ||
+      trimmed === "null" ||
+      trimmed === "undefined" ||
+      trimmed === "N/A" ||
+      trimmed === "Factory Staging Area" ||
+      trimmed === "Customer Designated Delivery Site"
+    )
+      return "";
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return formatAddressValue(parsed);
+      } catch {
+        return trimmed;
+      }
+    }
+    return trimmed;
+  }
+
+  if (typeof value === "object") {
+    if (value.formattedAddress && typeof value.formattedAddress === "string")
+      return value.formattedAddress.trim();
+    if (value.fullAddress && typeof value.fullAddress === "string")
+      return value.fullAddress.trim();
+    if (value.address && typeof value.address === "string")
+      return value.address.trim();
+
+    const streetParts = [
+      value.plotNo || value.plotNumber || value.doorNo,
+      value.building || value.buildingName || value.premises,
+      value.line1 || value.addressLine1 || value.street || value.street1 || value.streetAddress,
+      value.line2 || value.addressLine2 || value.street2 || value.landmark || value.area,
+      value.line3 || value.addressLine3 || value.locality || value.sector,
+    ].filter((p): p is string => Boolean(p && String(p).trim()));
+
+    const city = value.city || value.town || value.district || value.taluka;
+    const state = value.state || value.province || value.region;
+    const pin = value.postalCode || value.pincode || value.pinCode || value.zipCode || value.zip;
+    const country = value.country || value.nation;
+
+    const parts = [
+      streetParts.join(", "),
+      city,
+      state,
+      pin,
+      country,
+    ].filter((p): p is string => Boolean(p && String(p).trim()));
+
+    return parts.join(", ");
+  }
+
+  return "";
+}
+
+function resolveConsignmentAddress(dispatch: Dispatch): string {
+  const candidates = [
+    dispatch.deliveryAddress,
+    dispatch.documentChecklist?.deliveryAddress,
+    dispatch.salesOrder?.shippingAddress,
+    dispatch.salesOrder?.deliveryAddress,
+    dispatch.salesOrder?.customer?.shippingAddress,
+    dispatch.salesOrder?.customer?.billingAddress,
+    dispatch.salesOrder?.customer?.address,
+  ];
+
+  for (const c of candidates) {
+    const formatted = formatAddressValue(c);
+    if (formatted && formatted.length > 2 && formatted !== "N/A" && formatted !== "Factory Staging Area") {
+      return formatted;
+    }
+  }
+
+  return "Customer Designated Delivery Site";
+}
+
+function formatDateDisplay(dateStr?: string | null): string {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  } catch {
+    return String(dateStr);
+  }
 }
 
 export default function DeliveryHistoryPage() {
@@ -61,6 +229,7 @@ export default function DeliveryHistoryPage() {
 
   const [search, setSearch] = useState("");
   const [selectedPodItem, setSelectedPodItem] = useState<Dispatch | null>(null);
+  const [selectedDispatchDetails, setSelectedDispatchDetails] = useState<Dispatch | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const {
@@ -73,7 +242,7 @@ export default function DeliveryHistoryPage() {
     queryKey: ["delivery-history-dispatches"],
     queryFn: async () => {
       const payload = await backendFetch<any>(
-        "/api/backend/logistics/dispatches?status=DELIVERED",
+        "/api/backend/logistics/dispatches",
       );
       if (Array.isArray(payload)) return payload;
       if (Array.isArray(payload?.data)) return payload.data;
@@ -98,7 +267,6 @@ export default function DeliveryHistoryPage() {
   const deliveredHistory = useMemo(() => {
     const targetCat = isDispatch2 ? "D2" : "D1";
     const categoryFiltered = dispatches.filter((d) => {
-      if (String(d.status || "").toUpperCase() !== "DELIVERED") return false;
       const cat = String((d as any).dispatchCategory || (d as any).dispatch_category || "D1").toUpperCase();
       if (targetCat === "D1") return cat === "D1" || cat === "DISPATCH 1" || cat === "DISPATCH_1";
       if (targetCat === "D2") return cat === "D2" || cat === "DISPATCH 2" || cat === "DISPATCH_2";
@@ -106,8 +274,8 @@ export default function DeliveryHistoryPage() {
     });
 
     const sorted = [...categoryFiltered].sort((a, b) => {
-      const tA = new Date(a.deliveredAt || (a as any).createdAt || 0).getTime();
-      const tB = new Date(b.deliveredAt || (b as any).createdAt || 0).getTime();
+      const tA = new Date(a.deliveredAt || a.dispatchedAt || a.createdAt || 0).getTime();
+      const tB = new Date(b.deliveredAt || b.dispatchedAt || b.createdAt || 0).getTime();
       return tB - tA;
     });
 
@@ -118,6 +286,11 @@ export default function DeliveryHistoryPage() {
         d.dispatchNo?.toLowerCase().includes(lower) ||
         d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
         (d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "").toLowerCase().includes(lower) ||
+        d.invoiceNumber?.toLowerCase().includes(lower) ||
+        d.gatePassNumber?.toLowerCase().includes(lower) ||
+        (d.challanNumber || d.documentChecklist?.challanNumber || "").toLowerCase().includes(lower) ||
+        d.ewayBillNumber?.toLowerCase().includes(lower) ||
+        d.lrNumber?.toLowerCase().includes(lower) ||
         d.receivedBy?.toLowerCase().includes(lower) ||
         d.receiverPhone?.toLowerCase().includes(lower) ||
         d.driverName?.toLowerCase().includes(lower) ||
@@ -128,20 +301,38 @@ export default function DeliveryHistoryPage() {
 
   const handleExportCsv = () => {
     if (!deliveredHistory.length) return;
-    const exportRows = deliveredHistory.map((d) => ({
-      "Dispatch Number": formatCleanNo(d.dispatchNo),
-      "Sales Order": formatCleanNo(d.salesOrder?.orderNumber),
-      Customer: d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "—",
-      "Delivery Address": d.deliveryAddress || "—",
-      "Received By": d.receivedBy || "—",
-      "Receiver Mobile": d.receiverPhone || "—",
-      Driver: d.driverName || "—",
-      Vehicle: d.vehicleNumber || "—",
-      Transporter: d.transporterName || "—",
-      "Delivered Timestamp": d.deliveredAt ? new Date(d.deliveredAt).toLocaleString("en-IN") : "—",
-      "POD Image URL": d.podUrl || "—",
-      Status: d.status || "DELIVERED",
-    }));
+    const exportRows = deliveredHistory.map((d) => {
+      const challan = d.gatePassNumber || d.documentChecklist?.challanNumber || d.challanNumber || "—";
+      const invoice = d.invoiceNumber || d.documentChecklist?.invoiceNumber || "—";
+      const lr = d.lrNumber || d.ewayBillNumber || d.documentChecklist?.lrNumber || "—";
+      const totalWeight = d.totalWeight || d.documentChecklist?.totalWeight || "—";
+      const expectedDate = d.eta ? formatDateDisplay(d.eta) : (d.documentChecklist?.expectedDeliveryDate ? formatDateDisplay(d.documentChecklist.expectedDeliveryDate) : "—");
+      const freight = d.freightAmount !== null && d.freightAmount !== undefined ? `₹${d.freightAmount}` : "—";
+      const itemsCount = d.items?.reduce((sum, it) => sum + Number(it.quantity || 0), 0) || 0;
+
+      return {
+        "Dispatch Number": formatCleanNo(d.dispatchNo),
+        "Sales Order": formatCleanNo(d.salesOrder?.orderNumber),
+        Customer: d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "—",
+        "Invoice Number": invoice,
+        "Challan Number": challan,
+        "Total Quantity": itemsCount,
+        "Total Weight (Tons)": totalWeight,
+        "Vehicle Number": d.vehicleNumber || "—",
+        Driver: d.driverName || "—",
+        "Driver Phone": d.driverPhone || "—",
+        Transporter: d.transporterName || "—",
+        "LR / AWB Number": lr,
+        "Expected Delivery Date": expectedDate,
+        "Freight To Be Paid": freight,
+        "Delivery Address": resolveConsignmentAddress(d),
+        "Received By": d.receivedBy || "—",
+        "Receiver Mobile": d.receiverPhone || "—",
+        "Delivered Timestamp": d.deliveredAt ? new Date(d.deliveredAt).toLocaleString("en-IN") : "—",
+        Status: d.status || "DISPATCHED",
+      };
+    });
+
     const headers = Object.keys(exportRows[0]);
     const csvContent = [
       headers.join(","),
@@ -153,15 +344,16 @@ export default function DeliveryHistoryPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `delivery_history_audit_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `dispatch_history_manifest_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
   };
 
   // Metrics
-  const totalDeliveredCount = deliveredHistory.length;
-  const totalWithPodCount = deliveredHistory.filter((d) => Boolean(d.podUrl)).length;
-  const podVerifiedPct =
-    totalDeliveredCount > 0 ? Math.round((totalWithPodCount / totalDeliveredCount) * 100) : 0;
+  const totalDispatchesCount = deliveredHistory.length;
+  const totalDeliveredCount = deliveredHistory.filter((d) => String(d.status).toUpperCase() === "DELIVERED").length;
+  const totalWithDocCount = deliveredHistory.filter(
+    (d) => Boolean(d.podUrl || d.documentUrl || d.dispatchDocumentUrl || d.documentChecklist?.documentUrl),
+  ).length;
   const uniqueCustomersCount = new Set(
     deliveredHistory.map((d) => d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name).filter(Boolean),
   ).size;
@@ -178,11 +370,11 @@ export default function DeliveryHistoryPage() {
             <div className={styles.heroTitleSection}>
               <div className={styles.heroBadge}>
                 <CheckCircle2 size={13} />
-                <span>Verified Deliveries · Logistics Audit Archive</span>
+                <span>Logistics &amp; Dispatch Archive · Full Audit Registry</span>
               </div>
-              <h1 className={styles.heroTitle}>Dispatch History &amp; POD Registry</h1>
+              <h1 className={styles.heroTitle}>Dispatch History &amp; Consignment Registry</h1>
               <p className={styles.heroSubtitle}>
-                Permanent audit registry of all fulfilled shipments, client delivery receipts, carrier handover timestamps, and high-resolution Proof of Delivery (POD) documents.
+                Complete permanent archive of all dispatched consignments, invoices, delivery challans, transport vehicles, cargo summaries, and verified Proof of Delivery (POD) documents.
               </p>
             </div>
 
@@ -191,7 +383,7 @@ export default function DeliveryHistoryPage() {
                 type="button"
                 onClick={() => refetch()}
                 className={styles.btnActionLight}
-                title="Refresh delivery history audit"
+                title="Refresh dispatch registry"
               >
                 <RefreshCw size={14} className={isRefetching ? "animate-spin" : ""} />
                 <span>Refresh Registry</span>
@@ -201,10 +393,10 @@ export default function DeliveryHistoryPage() {
                 type="button"
                 onClick={handleExportCsv}
                 className={styles.btnActionPrimary}
-                title="Export complete delivery history to CSV"
+                title="Export complete dispatch archive to CSV"
               >
                 <Download size={14} />
-                <span>Export Audit CSV</span>
+                <span>Export Manifest CSV</span>
               </button>
             </div>
           </div>
@@ -216,9 +408,9 @@ export default function DeliveryHistoryPage() {
                 <CheckCircle2 size={22} />
               </div>
               <div className={styles.kpiInfo}>
-                <div className={styles.kpiValue}>{totalDeliveredCount}</div>
-                <div className={styles.kpiLabel}>Fulfilled Deliveries</div>
-                <div className={styles.kpiSubtext}>Confirmed client handovers</div>
+                <div className={styles.kpiValue}>{totalDispatchesCount}</div>
+                <div className={styles.kpiLabel}>Total Consignments</div>
+                <div className={styles.kpiSubtext}>{totalDeliveredCount} confirmed delivered</div>
               </div>
             </div>
 
@@ -227,9 +419,9 @@ export default function DeliveryHistoryPage() {
                 <FileCheck2 size={22} />
               </div>
               <div className={styles.kpiInfo}>
-                <div className={styles.kpiValue}>{podVerifiedPct}%</div>
-                <div className={styles.kpiLabel}>POD Verification Rate</div>
-                <div className={styles.kpiSubtext}>{totalWithPodCount} files indexed</div>
+                <div className={styles.kpiValue}>{totalWithDocCount}</div>
+                <div className={styles.kpiLabel}>Documents &amp; PODs</div>
+                <div className={styles.kpiSubtext}>Indexed consignment attachments</div>
               </div>
             </div>
 
@@ -239,7 +431,7 @@ export default function DeliveryHistoryPage() {
               </div>
               <div className={styles.kpiInfo}>
                 <div className={styles.kpiValue}>{uniqueCustomersCount}</div>
-                <div className={styles.kpiLabel}>Unique Clients</div>
+                <div className={styles.kpiLabel}>Consignee Clients</div>
                 <div className={styles.kpiSubtext}>Corporate consignees fulfilled</div>
               </div>
             </div>
@@ -270,7 +462,7 @@ export default function DeliveryHistoryPage() {
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search dispatch #, sales order, customer, receiver, driver or plate..."
+                  placeholder="Search dispatch #, sales order, invoice, challan, customer, driver, plate..."
                   className={styles.searchInput}
                 />
                 {search && (
@@ -324,7 +516,7 @@ export default function DeliveryHistoryPage() {
               <div className={styles.emptyIconBox} style={{ color: "#ef4444", background: "#fef2f2" }}>
                 <ShieldCheck size={28} />
               </div>
-              <h3 className={styles.emptyTitle}>Unable to Load Delivery History</h3>
+              <h3 className={styles.emptyTitle}>Unable to Load Dispatch History</h3>
               <p className={styles.emptyDesc}>
                 An error occurred while communicating with the logistics service. Please check your network or click retry.
               </p>
@@ -340,12 +532,12 @@ export default function DeliveryHistoryPage() {
                 <CheckCircle2 size={28} color="#10b981" />
               </div>
               <h3 className={styles.emptyTitle}>
-                {search ? "No Matching History Found" : "No Completed Deliveries"}
+                {search ? "No Matching Consignments Found" : "No Dispatches Found"}
               </h3>
               <p className={styles.emptyDesc}>
                 {search
-                  ? `No delivered dispatches match "${search}". Try clearing your search filter.`
-                  : "No completed delivery runs recorded yet. Confirmed deliveries with verified POD will appear here."}
+                  ? `No dispatches match "${search}". Try clearing your search filter.`
+                  : "No completed or in-transit dispatch consignments recorded yet."}
               </p>
               {search && (
                 <button type="button" onClick={() => setSearch("")} className={styles.btnActionLight} style={{ marginTop: 14, color: "#0f172a" }}>
@@ -361,20 +553,23 @@ export default function DeliveryHistoryPage() {
               <table className={styles.dataTable}>
                 <thead>
                   <tr>
-                    <th style={{ width: 170 }}>Dispatch Number</th>
-                    <th style={{ width: 160 }}>Sales Order</th>
+                    <th style={{ width: 160 }}>Dispatch #</th>
+                    <th style={{ width: 150 }}>Sales Order</th>
                     <th>Customer &amp; Consignee</th>
-                    <th style={{ width: 220 }}>Receiver Person</th>
-                    <th style={{ width: 190 }}>Driver / Vehicle</th>
-                    <th style={{ width: 170 }}>Delivered Timestamp</th>
-                    <th style={{ width: 130, textAlign: "center" }}>POD Proof</th>
-                    <th style={{ width: 130, textAlign: "center" }}>Status</th>
+                    <th style={{ width: 170 }}>Invoice / Challan</th>
+                    <th style={{ width: 180 }}>Driver &amp; Vehicle</th>
+                    <th style={{ width: 140 }}>Dispatched Date</th>
+                    <th style={{ width: 110, textAlign: "center" }}>Status</th>
+                    <th style={{ width: 130, textAlign: "center" }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {deliveredHistory.map((d) => {
                     const cleanDispNo = formatCleanNo(d.dispatchNo);
                     const cleanSoNo = formatCleanNo(d.salesOrder?.orderNumber);
+                    const invoice = d.invoiceNumber || d.documentChecklist?.invoiceNumber;
+                    const challan = d.gatePassNumber || d.documentChecklist?.challanNumber || d.challanNumber;
+                    const isDelivered = String(d.status).toUpperCase() === "DELIVERED";
 
                     return (
                       <tr key={d.id}>
@@ -408,32 +603,27 @@ export default function DeliveryHistoryPage() {
                             <span style={{ fontWeight: 700, color: "#0f172a" }}>
                               {d.salesOrder?.customer?.companyName || (d as any).customerName || (d as any).customer?.name || "Consignee Client"}
                             </span>
-                            {d.deliveryAddress && (
-                              <span style={{ fontSize: "11.5px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 280 }}>
-                                {d.deliveryAddress}
-                              </span>
-                            )}
+                            <span style={{ fontSize: "11.5px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>
+                              {resolveConsignmentAddress(d)}
+                            </span>
                           </div>
                         </td>
 
-                        {/* Receiver Details */}
+                        {/* Invoice / Challan */}
                         <td>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                              <User size={13} color="#16a34a" />
-                              <span style={{ fontWeight: 700, color: "#0f172a" }}>
-                                {d.receivedBy || "Recipient Signed"}
+                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                            {invoice ? (
+                              <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b", fontFamily: "monospace" }}>
+                                Inv: {invoice}
                               </span>
-                            </div>
-                            {d.receiverPhone && (
-                              <a
-                                href={`tel:${d.receiverPhone}`}
-                                style={{ display: "flex", alignItems: "center", gap: 4, color: "#2563eb", fontSize: "11.5px", textDecoration: "none" }}
-                              >
-                                <Phone size={11} />
-                                <span>{d.receiverPhone}</span>
-                              </a>
+                            ) : (
+                              <span style={{ fontSize: "11px", color: "#94a3b8" }}>Inv: —</span>
                             )}
+                            {challan ? (
+                              <span style={{ fontSize: "11.5px", color: "#64748b", fontFamily: "monospace" }}>
+                                Chn: {challan}
+                              </span>
+                            ) : null}
                           </div>
                         </td>
 
@@ -451,45 +641,42 @@ export default function DeliveryHistoryPage() {
                           </div>
                         </td>
 
-                        {/* Delivered Timestamp */}
+                        {/* Dispatched Date */}
                         <td>
                           <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#475569", fontSize: "12px" }}>
                             <Calendar size={12} color="#64748b" />
                             <span>
-                              {d.deliveredAt
-                                ? new Date(d.deliveredAt).toLocaleDateString("en-IN", {
-                                    month: "short",
-                                    day: "numeric",
-                                    year: "numeric",
-                                  })
-                                : "—"}
+                              {formatDateDisplay(d.dispatchedAt || d.createdAt)}
                             </span>
                           </div>
                         </td>
 
-                        {/* POD Proof */}
+                        {/* Status */}
                         <td style={{ textAlign: "center" }}>
-                          {d.podUrl ? (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedPodItem(d)}
-                              className={styles.btnViewPod}
-                              title="Inspect Proof of Delivery"
-                            >
-                              <ImageIcon size={13} color="#2563eb" />
-                              <span>View POD</span>
-                            </button>
+                          {isDelivered ? (
+                            <span className={styles.badgeStatusDelivered}>
+                              <CheckCircle2 size={12} />
+                              Delivered
+                            </span>
                           ) : (
-                            <span style={{ fontSize: "11.5px", color: "#94a3b8" }}>No Image</span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 9999, background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", fontSize: "11.5px", fontWeight: 700 }}>
+                              <Truck size={11} />
+                              {d.status || "In Transit"}
+                            </span>
                           )}
                         </td>
 
-                        {/* Status */}
+                        {/* Action: View Button */}
                         <td style={{ textAlign: "center" }}>
-                          <span className={styles.badgeStatusDelivered}>
-                            <CheckCircle2 size={12} />
-                            Delivered
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDispatchDetails(d)}
+                            className={styles.btnViewDetails}
+                            title="View all create dispatch consignment details"
+                          >
+                            <Eye size={13} />
+                            <span>View</span>
+                          </button>
                         </td>
                       </tr>
                     );
@@ -505,6 +692,7 @@ export default function DeliveryHistoryPage() {
               {deliveredHistory.map((d) => {
                 const cleanDispNo = formatCleanNo(d.dispatchNo);
                 const cleanSoNo = formatCleanNo(d.salesOrder?.orderNumber);
+                const isDelivered = String(d.status).toUpperCase() === "DELIVERED";
 
                 return (
                   <div key={d.id} className={styles.mobileCard}>
@@ -513,9 +701,15 @@ export default function DeliveryHistoryPage() {
                         <Truck size={13} color="#2563eb" />
                         <span>#{cleanDispNo}</span>
                       </div>
-                      <span className={styles.badgeStatusDelivered}>
-                        <CheckCircle2 size={11} /> Delivered
-                      </span>
+                      {isDelivered ? (
+                        <span className={styles.badgeStatusDelivered}>
+                          <CheckCircle2 size={11} /> Delivered
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "11px", fontWeight: 700, color: "#2563eb", background: "#eff6ff", padding: "2px 8px", borderRadius: 9999 }}>
+                          {d.status || "In Transit"}
+                        </span>
+                      )}
                     </div>
 
                     <div className={styles.mobileCardRow}>
@@ -534,42 +728,29 @@ export default function DeliveryHistoryPage() {
 
                     <div className={styles.mobileCardRow}>
                       <div className={styles.mobileCardIcon}>
-                        <User size={14} />
+                        <Truck size={14} />
                       </div>
                       <div>
                         <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "12.5px" }}>
-                          Received by: {d.receivedBy || "Recipient Signed"}
+                          {d.driverName || "Driver"} · {d.vehicleNumber || "Vehicle"}
                         </div>
-                        {d.receiverPhone && (
-                          <div style={{ fontSize: "12px", color: "#2563eb" }}>
-                            Tel: {d.receiverPhone}
+                        {d.invoiceNumber && (
+                          <div style={{ fontSize: "11.5px", color: "#64748b" }}>
+                            Invoice: {d.invoiceNumber}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    {d.deliveredAt && (
-                      <div className={styles.mobileCardRow}>
-                        <div className={styles.mobileCardIcon}>
-                          <Calendar size={14} />
-                        </div>
-                        <div style={{ fontSize: "12px", color: "#475569" }}>
-                          {new Date(d.deliveredAt).toLocaleString("en-IN")}
-                        </div>
-                      </div>
-                    )}
-
-                    {d.podUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPodItem(d)}
-                        className={styles.btnViewPod}
-                        style={{ width: "100%", justifyContent: "center", padding: "8px" }}
-                      >
-                        <ImageIcon size={14} color="#2563eb" />
-                        <span>View Proof of Delivery (POD)</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDispatchDetails(d)}
+                      className={styles.btnViewDetails}
+                      style={{ width: "100%", justifyContent: "center", padding: "9px" }}
+                    >
+                      <Eye size={14} />
+                      <span>View All Dispatch Details</span>
+                    </button>
                   </div>
                 );
               })}
@@ -578,7 +759,439 @@ export default function DeliveryHistoryPage() {
         </div>
       </div>
 
-      {/* ─── POD IMAGE / DOCUMENT LIGHTBOX ─── */}
+      {/* ─── FULL CREATE DISPATCH DETAILS MODAL ─── */}
+      {selectedDispatchDetails && (() => {
+        const d = selectedDispatchDetails;
+        const cleanDispNo = formatCleanNo(d.dispatchNo);
+        const cleanSoNo = formatCleanNo(d.salesOrder?.orderNumber);
+        const customerName =
+          d.salesOrder?.customer?.companyName ||
+          (d as any).customerName ||
+          (d as any).customer?.name ||
+          "Consignee Client";
+        const deliveryAddr = resolveConsignmentAddress(d);
+
+        const invoice = d.invoiceNumber || d.documentChecklist?.invoiceNumber || "—";
+        const challan = d.gatePassNumber || d.documentChecklist?.challanNumber || d.challanNumber || "—";
+        const weight = d.totalWeight || d.documentChecklist?.totalWeight ? `${d.totalWeight || d.documentChecklist?.totalWeight} Tons` : "—";
+        const vehicle = d.vehicleNumber || d.documentChecklist?.vehicleNumber || "—";
+        const driver = d.driverName || d.documentChecklist?.driverName || "—";
+        const phone = d.driverPhone || d.documentChecklist?.driverPhone || "—";
+        const transporter = d.transporterName || d.documentChecklist?.transporterName || "—";
+        const lrNo = d.lrNumber || d.ewayBillNumber || d.documentChecklist?.lrNumber || d.documentChecklist?.ewayBillNumber || "—";
+        const expDate = d.eta ? formatDateDisplay(d.eta) : (d.documentChecklist?.expectedDeliveryDate ? formatDateDisplay(d.documentChecklist.expectedDeliveryDate) : "—");
+        const remarks = d.transitRemarks || d.documentChecklist?.dispatchRemarks || d.deliveryRemarks || "—";
+
+        const fetchedCost = d.documentChecklist?.fetchedTransportationCost ?? d.salesOrder?.sourceQuotation?.expectedTransportationCost ?? (d as any).expectedTransportationCost;
+        const toBePaidCost = d.freightAmount ?? d.documentChecklist?.toBePaid;
+
+        const docUrl = d.podUrl || d.documentUrl || d.dispatchDocumentUrl || d.documentChecklist?.documentUrl;
+        const assetUrl = docUrl ? getBackendAssetUrl(docUrl) : null;
+        const isPdf = Boolean(assetUrl && assetUrl.toLowerCase().includes(".pdf"));
+
+        const itemsList = Array.isArray(d.items) && d.items.length > 0
+          ? d.items
+          : [{
+              id: "item-fallback-1",
+              quantity: 1,
+              salesOrderItem: {
+                productNameSnapshot: "Consignment Cargo Items",
+                orderedQuantity: 1,
+              }
+            }];
+
+        const totalQty = itemsList.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+
+        return (
+          <div className={styles.detailsModalBackdrop} onClick={() => setSelectedDispatchDetails(null)}>
+            <div className={styles.detailsModalCard} onClick={(e) => e.stopPropagation()}>
+              {/* Modal Header */}
+              <div className={styles.detailsModalHeader}>
+                <div className={styles.detailsHeaderTitleBox}>
+                  <div className={styles.detailsHeaderTagRow}>
+                    <span className={styles.detailsHeaderTag}>
+                      <Truck size={12} />
+                      Dispatch Consignment
+                    </span>
+                    <span style={{ background: "rgba(255, 255, 255, 0.15)", color: "#ffffff", padding: "2px 8px", borderRadius: 9999, fontSize: "11px", fontWeight: 700 }}>
+                      {d.dispatchCategory === "D2" ? "Category 2 (D2)" : "Category 1 (D1)"}
+                    </span>
+                    <span style={{ background: String(d.status).toUpperCase() === "DELIVERED" ? "rgba(16, 185, 129, 0.25)" : "rgba(59, 130, 246, 0.25)", color: String(d.status).toUpperCase() === "DELIVERED" ? "#34d399" : "#60a5fa", padding: "2px 8px", borderRadius: 9999, fontSize: "11px", fontWeight: 700 }}>
+                      {d.status || "IN_TRANSIT"}
+                    </span>
+                  </div>
+                  <h2 className={styles.detailsHeaderTitle}>
+                    <span>Consignment #{cleanDispNo}</span>
+                  </h2>
+                  <p className={styles.detailsHeaderSubtitle}>
+                    Order #{cleanSoNo} · Created {formatDateDisplay(d.dispatchedAt || d.createdAt)}
+                  </p>
+                </div>
+
+                <div className={styles.detailsHeaderActions}>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className={styles.btnActionLight}
+                    title="Print Consignment Manifest"
+                  >
+                    <Printer size={14} />
+                    <span>Print Manifest</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDispatchDetails(null)}
+                    className={styles.btnModalClose}
+                    title="Close Details"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body with All Create Dispatch Sections */}
+              <div className={styles.detailsModalBody}>
+                {/* ── Section 1: Cargo & Ordered Items Summary ── */}
+                <div className={styles.detailsSection}>
+                  <div className={styles.detailsSectionHeader}>
+                    <h3 className={styles.detailsSectionTitle}>
+                      <ClipboardList size={16} />
+                      Cargo &amp; Ordered Items Summary
+                    </h3>
+                  </div>
+
+                  <div className={styles.cargoTableWrapper}>
+                    <table className={styles.cargoSummaryTable}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: 170 }}>Order ID</th>
+                          <th>Product Name &amp; Description</th>
+                          <th style={{ width: 100, textAlign: "center" }}>Ordered</th>
+                          <th style={{ width: 120, textAlign: "center" }}>Dispatch Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itemsList.map((item, idx) => {
+                          const prodName =
+                            item.salesOrderItem?.productNameSnapshot ||
+                            item.salesOrderItem?.product?.name ||
+                            "HIMALAYA FRP COMPOSITE PRODUCT";
+                          const prodSku = item.salesOrderItem?.product?.sku;
+                          const orderedQty = item.salesOrderItem?.orderedQuantity ?? item.quantity ?? 1;
+                          const dispatchQty = item.quantity ?? 1;
+
+                          return (
+                            <tr key={item.id || idx}>
+                              <td>
+                                <span className={styles.addressOrderBadge}>
+                                  #{cleanSoNo}
+                                </span>
+                              </td>
+                              <td>
+                                <div className={styles.cargoProductTitle}>{prodName}</div>
+                                {prodSku && <div className={styles.cargoProductSku}>SKU: {prodSku}</div>}
+                              </td>
+                              <td style={{ textAlign: "center", fontWeight: 600 }}>{orderedQty}</td>
+                              <td style={{ textAlign: "center", fontWeight: 800, color: "#10b981" }}>
+                                {dispatchQty}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className={styles.cargoSummaryFooter}>
+                    <span style={{ fontWeight: 700, color: "#475569" }}>Total Dispatch Quantity:</span>
+                    <span className={styles.totalDispatchQtyBadge}>
+                      {totalQty} {totalQty === 1 ? "Unit" : "Units"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* ── Section 2: Delivery Addresses ── */}
+                <div className={styles.detailsSection}>
+                  <div className={styles.detailsSectionHeader}>
+                    <h3 className={styles.detailsSectionTitle}>
+                      <MapPin size={16} />
+                      Delivery Addresses
+                    </h3>
+                  </div>
+
+                  <div className={styles.addressCard}>
+                    <div className={styles.addressHeaderRow}>
+                      <span className={styles.addressOrderBadge}>
+                        Order #{cleanSoNo}
+                      </span>
+                      <span className={styles.addressShippingLabel}>
+                        Shipping To
+                      </span>
+                    </div>
+                    <div className={styles.addressCustomerName}>
+                      {customerName}
+                    </div>
+                    <div className={styles.addressValue}>
+                      {deliveryAddr}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Section 3: Consignment & Carrier Specifications ── */}
+                <div className={styles.detailsSection}>
+                  <div className={styles.detailsSectionHeader}>
+                    <h3 className={styles.detailsSectionTitle}>
+                      <Truck size={16} />
+                      Consignment &amp; Transport Specifications
+                    </h3>
+                  </div>
+
+                  <div className={styles.specsGrid}>
+                    {/* Invoice Number */}
+                    <div className={styles.specItem}>
+                      <span className={styles.specLabel}>
+                        <FileText size={12} />
+                        Invoice Number
+                      </span>
+                      <span className={styles.specValueMono}>{invoice}</span>
+                    </div>
+
+                    {/* Challan Number */}
+                    <div className={styles.specItem}>
+                      <span className={styles.specLabel}>
+                        <FileCheck size={12} />
+                        Challan Number
+                      </span>
+                      <span className={styles.specValueMono}>{challan}</span>
+                    </div>
+
+                    {/* Total Weight */}
+                    <div className={styles.specItem}>
+                      <span className={styles.specLabel}>
+                        <Package size={12} />
+                        Total Weight
+                      </span>
+                      <span className={styles.specValue}>{weight}</span>
+                    </div>
+
+                    {/* Vehicle No */}
+                    <div className={styles.specItem}>
+                      <span className={styles.specLabel}>
+                        <Truck size={12} />
+                        Vehicle No.
+                      </span>
+                      <span className={styles.specValueMono}>{vehicle}</span>
+                    </div>
+
+                    {/* Driver Name */}
+                    <div className={styles.specItem}>
+                      <span className={styles.specLabel}>
+                        <User size={12} />
+                        Driver Name
+                      </span>
+                      <span className={styles.specValue}>{driver}</span>
+                    </div>
+
+                    {/* Driver Phone */}
+                    <div className={styles.specItem}>
+                      <span className={styles.specLabel}>
+                        <Phone size={12} />
+                        Driver Phone
+                      </span>
+                      {phone !== "—" ? (
+                        <a href={`tel:${phone}`} className={styles.specLink}>
+                          <Phone size={12} />
+                          <span>{phone}</span>
+                        </a>
+                      ) : (
+                        <span className={styles.specValue}>—</span>
+                      )}
+                    </div>
+
+                    {/* Courier / Transport */}
+                    <div className={styles.specItem}>
+                      <span className={styles.specLabel}>
+                        <Navigation size={12} />
+                        Courier / Transport
+                      </span>
+                      <span className={styles.specValue}>{transporter}</span>
+                    </div>
+
+                    {/* LR / AWB Number */}
+                    <div className={styles.specItem}>
+                      <span className={styles.specLabel}>
+                        <FileCheck2 size={12} />
+                        LR / AWB Number
+                      </span>
+                      <span className={styles.specValueMono}>{lrNo}</span>
+                    </div>
+
+                    {/* Expected Delivery Date */}
+                    <div className={styles.specItem}>
+                      <span className={styles.specLabel}>
+                        <Calendar size={12} />
+                        Expected Delivery Date
+                      </span>
+                      <span className={styles.specValue}>{expDate}</span>
+                    </div>
+
+                    {/* Dispatch Remarks */}
+                    <div className={styles.specItem} style={{ gridColumn: "1 / -1" }}>
+                      <span className={styles.specLabel}>
+                        <ClipboardList size={12} />
+                        Dispatch Remarks
+                      </span>
+                      <span className={styles.specValue} style={{ fontWeight: 500, color: "#334155" }}>
+                        {remarks}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Section 4: Freight & Transportation Cost ── */}
+                <div className={styles.detailsSection}>
+                  <div className={styles.detailsSectionHeader}>
+                    <h3 className={styles.detailsSectionTitle}>
+                      <IndianRupee size={16} />
+                      Transportation Cost &amp; Freight Charges
+                    </h3>
+                  </div>
+
+                  <div className={styles.costsGrid}>
+                    <div className={styles.costCard}>
+                      <div>
+                        <div className={styles.costLabel}>Fetched Transportation Cost</div>
+                        <div style={{ fontSize: "11px", color: "#64748b", marginTop: 2 }}>System estimated / quoted freight</div>
+                      </div>
+                      <div className={styles.costAmount}>
+                        {fetchedCost !== undefined && fetchedCost !== null && !isNaN(Number(fetchedCost))
+                          ? `₹${Number(fetchedCost).toLocaleString("en-IN")}`
+                          : "—"}
+                      </div>
+                    </div>
+
+                    <div className={styles.costCard}>
+                      <div>
+                        <div className={styles.costLabel}>To Be Paid (₹)</div>
+                        <div style={{ fontSize: "11px", color: "#64748b", marginTop: 2 }}>Carrier agreed payable amount</div>
+                      </div>
+                      <div className={styles.costAmount} style={{ color: "#10b981" }}>
+                        {toBePaidCost !== undefined && toBePaidCost !== null && !isNaN(Number(toBePaidCost))
+                          ? `₹${Number(toBePaidCost).toLocaleString("en-IN")}`
+                          : "₹0"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Section 5: Dispatch Document (PDF / Image) ── */}
+                <div className={styles.detailsSection}>
+                  <div className={styles.detailsSectionHeader}>
+                    <h3 className={styles.detailsSectionTitle}>
+                      <FileText size={16} />
+                      Dispatch Document (PDF / Image) &amp; Proof
+                    </h3>
+                  </div>
+
+                  {assetUrl ? (
+                    <div className={styles.docContainer}>
+                      <div className={styles.docPreviewBox}>
+                        {isPdf ? (
+                          <iframe
+                            src={assetUrl}
+                            className={styles.docPdfFrame}
+                            title="Dispatch PDF Document"
+                          />
+                        ) : (
+                          <img
+                            src={assetUrl}
+                            alt="Dispatch Document"
+                            className={styles.docImage}
+                          />
+                        )}
+                      </div>
+
+                      <div className={styles.docActionsBar}>
+                        <a
+                          href={assetUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.btnActionPrimary}
+                          style={{ padding: "7px 14px", fontSize: "12px", textDecoration: "none" }}
+                        >
+                          <ExternalLink size={13} />
+                          <span>Open in New Tab</span>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => downloadAssetFile(docUrl!, `dispatch_doc_${cleanDispNo}`)}
+                          className={styles.btnModalAction}
+                        >
+                          <Download size={13} />
+                          <span>Download Document</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={styles.docNoFile}>
+                      No dispatch document or POD uploaded during consignment booking.
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Section 6: Delivery Handover Confirmation (if delivered) ── */}
+                {String(d.status).toUpperCase() === "DELIVERED" && (
+                  <div className={styles.detailsSection} style={{ borderLeft: "4px solid #10b981" }}>
+                    <div className={styles.detailsSectionHeader}>
+                      <h3 className={styles.detailsSectionTitle} style={{ color: "#166534" }}>
+                        <CheckCircle2 size={16} color="#16a34a" />
+                        Consignee Delivery Handover Verification
+                      </h3>
+                    </div>
+
+                    <div className={styles.handoverGrid}>
+                      <div className={styles.specItem}>
+                        <span className={styles.specLabel}>Received By</span>
+                        <span className={styles.specValue}>{d.receivedBy || "Recipient Signed"}</span>
+                      </div>
+                      <div className={styles.specItem}>
+                        <span className={styles.specLabel}>Receiver Mobile</span>
+                        <span className={styles.specValue}>{d.receiverPhone || "—"}</span>
+                      </div>
+                      <div className={styles.specItem}>
+                        <span className={styles.specLabel}>Delivered Timestamp</span>
+                        <span className={styles.specValue}>
+                          {d.deliveredAt ? new Date(d.deliveredAt).toLocaleString("en-IN") : "—"}
+                        </span>
+                      </div>
+                      <div className={styles.specItem}>
+                        <span className={styles.specLabel}>Delivery Remarks</span>
+                        <span className={styles.specValue}>{d.deliveryRemarks || "Verified Handover"}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className={styles.detailsModalFooter}>
+                <div style={{ fontSize: "12px", color: "#64748b" }}>
+                  Dispatch ID: <code style={{ fontFamily: "monospace" }}>{d.id}</code>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDispatchDetails(null)}
+                  className={styles.btnActionPrimary}
+                >
+                  Close Consignment View
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── POD IMAGE / DOCUMENT LIGHTBOX (Fallback quick inspect) ─── */}
       {selectedPodItem && (() => {
         const podAssetUrl = getBackendAssetUrl(selectedPodItem.podUrl);
         const cleanDispNo = formatCleanNo(selectedPodItem.dispatchNo);
@@ -598,20 +1211,17 @@ export default function DeliveryHistoryPage() {
             >
               {/* Modal Header */}
               <div className={styles.lightboxHeader}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", display: "grid", placeItems: "center", color: "#2563eb" }}>
-                    <ImageIcon size={18} />
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ padding: 6, background: "rgba(16, 185, 129, 0.15)", borderRadius: 8, color: "#10b981", display: "grid", placeItems: "center" }}>
+                    <ImageIcon size={16} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span>Proof of Delivery (POD)</span>
-                      <span style={{ fontSize: 12, padding: "2px 8px", background: "#f1f5f9", borderRadius: 6, color: "#475569", fontFamily: "monospace" }}>
-                        #{cleanDispNo}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>
-                      SO #{cleanSoNo} · {customerName}
-                    </div>
+                    <h3 style={{ fontSize: "14.5px", fontWeight: 800, color: "#0f172a", margin: 0 }}>
+                      Proof of Delivery · Dispatch #{cleanDispNo}
+                    </h3>
+                    <p style={{ fontSize: "12px", color: "#64748b", margin: "2px 0 0 0" }}>
+                      Order #{cleanSoNo} · {customerName}
+                    </p>
                   </div>
                 </div>
 
@@ -620,123 +1230,81 @@ export default function DeliveryHistoryPage() {
                     <>
                       <button
                         type="button"
-                        onClick={() => window.open(podAssetUrl, "_blank", "noopener,noreferrer")}
+                        onClick={() => downloadAssetFile(selectedPodItem.podUrl!, `POD_${cleanDispNo}`)}
                         className={styles.btnModalAction}
-                        title="Open document in new tab"
+                        title="Download POD Image"
                       >
-                        <ExternalLink size={14} />
-                        <span>Open in New Tab</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadAssetFile(podAssetUrl, `POD_${cleanDispNo}.png`)}
-                        className={styles.btnModalAction}
-                        title="Download file"
-                      >
-                        <Download size={14} />
+                        <Download size={13} />
                         <span>Download</span>
                       </button>
+                      <a
+                        href={podAssetUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.btnModalAction}
+                        title="Open in new window"
+                        style={{ textDecoration: "none" }}
+                      >
+                        <ExternalLink size={13} />
+                        <span>Open Full</span>
+                      </a>
                     </>
                   )}
                   <button
                     type="button"
                     onClick={() => setSelectedPodItem(null)}
                     className={styles.btnModalClose}
-                    title="Close"
+                    title="Close POD Preview"
                   >
-                    <X size={18} />
+                    <X size={16} />
                   </button>
                 </div>
               </div>
 
-              {/* Modal Body / Image View */}
+              {/* Modal Body */}
               <div className={styles.lightboxBody}>
                 {podAssetUrl ? (
                   isPdf ? (
                     <iframe
                       src={podAssetUrl}
                       style={{ width: "100%", height: "60vh", border: "none", borderRadius: 8 }}
-                      title="POD PDF Document"
+                      title="POD Document"
                     />
                   ) : (
-                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 280, width: "100%", position: "relative" }}>
-                      <img
-                        src={podAssetUrl}
-                        alt="Proof of Delivery Document"
-                        className={styles.lightboxImg}
-                        onError={(e: any) => {
-                          e.currentTarget.onerror = null;
-                          e.currentTarget.style.display = "none";
-                          const fb = document.getElementById(`pod-lightbox-fallback-${selectedPodItem.id}`);
-                          if (fb) fb.style.display = "flex";
-                        }}
-                      />
-                      <div
-                        id={`pod-lightbox-fallback-${selectedPodItem.id}`}
-                        style={{
-                          display: "none",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: "36px 20px",
-                          gap: 12,
-                          background: "#ffffff",
-                          borderRadius: 12,
-                          border: "1.5px dashed #cbd5e1",
-                          width: "100%",
-                          maxWidth: 520,
-                        }}
-                      >
-                        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#eff6ff", border: "1.5px solid #bfdbfe", display: "grid", placeItems: "center" }}>
-                          <FileCheck2 size={28} color="#2563eb" />
-                        </div>
-                        <div style={{ textAlign: "center" }}>
-                          <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 16 }}>Verified Handover Record</div>
-                          <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
-                            Shipment #{cleanDispNo} confirmed and received by <strong>{selectedPodItem.receivedBy || "Authorized Representative"}</strong>.
-                          </div>
-                        </div>
-                        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700, color: "#065f46" }}>
-                          <CheckCircle2 size={14} />
-                          <span>Delivery Verified &amp; Handover Complete</span>
-                        </div>
-                      </div>
-                    </div>
+                    <img
+                      src={podAssetUrl}
+                      alt={`POD Proof - ${cleanDispNo}`}
+                      className={styles.lightboxImg}
+                    />
                   )
                 ) : (
                   <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>
-                    No digital POD uploaded for this record.
+                    No Proof of Delivery document available.
                   </div>
                 )}
               </div>
 
-              {/* Consignee & Delivery Handover Details Bar */}
+              {/* Modal Footer with handover details */}
               <div className={styles.lightboxFooter}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, width: "100%", fontSize: 12 }}>
-                  <div>
-                    <span style={{ color: "#64748b", display: "block" }}>Received By</span>
-                    <strong style={{ color: "#0f172a" }}>{selectedPodItem.receivedBy || "Recipient Signed"}</strong>
-                    {selectedPodItem.receiverPhone && <span style={{ color: "#2563eb", display: "block" }}>{selectedPodItem.receiverPhone}</span>}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, fontSize: "12px", color: "#475569" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <User size={13} color="#16a34a" />
+                    <span>Received By: <strong>{selectedPodItem.receivedBy || "Client Representative"}</strong></span>
                   </div>
-                  <div>
-                    <span style={{ color: "#64748b", display: "block" }}>Driver &amp; Vehicle</span>
-                    <strong style={{ color: "#0f172a" }}>{selectedPodItem.driverName || "Assigned Driver"}</strong>
-                    {selectedPodItem.vehicleNumber && <span style={{ color: "#475569", display: "block", fontFamily: "monospace" }}>{selectedPodItem.vehicleNumber}</span>}
-                  </div>
-                  <div>
-                    <span style={{ color: "#64748b", display: "block" }}>Delivery Timestamp</span>
-                    <strong style={{ color: "#0f172a" }}>
-                      {selectedPodItem.deliveredAt
-                        ? new Date(selectedPodItem.deliveredAt).toLocaleString("en-IN")
-                        : "—"}
-                    </strong>
-                  </div>
-                  <div>
-                    <span style={{ color: "#64748b", display: "block" }}>Delivery Location</span>
-                    <span style={{ color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>
-                      {selectedPodItem.deliveryAddress || "Consignee Address on File"}
-                    </span>
-                  </div>
+                  {selectedPodItem.receiverPhone && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#2563eb" }}>
+                      <Phone size={12} />
+                      <a href={`tel:${selectedPodItem.receiverPhone}`} style={{ color: "inherit", textDecoration: "none" }}>
+                        {selectedPodItem.receiverPhone}
+                      </a>
+                    </div>
+                  )}
+                  {selectedPodItem.deliveredAt && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <Calendar size={12} color="#64748b" />
+                      <span>{new Date(selectedPodItem.deliveredAt).toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -93,6 +93,28 @@ export class CreateDispatchDto {
   dispatchCategory?: string;
 
   @IsOptional()
+  @IsString()
+  lrNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  documentUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  dispatchDocumentUrl?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) return undefined;
+    const num = Number(value);
+    return isNaN(num) ? undefined : num;
+  })
+  @IsNumber()
+  @Min(0)
+  fetchedTransportationCost?: number;
+
+  @IsOptional()
   @Transform(({ value }) => {
     if (value === '' || value === null || value === undefined) return undefined;
     const num = Number(value);

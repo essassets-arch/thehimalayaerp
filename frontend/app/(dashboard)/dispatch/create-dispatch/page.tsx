@@ -1127,6 +1127,24 @@ export default function CreateDispatchPage() {
         }
       }
 
+      let uploadedDocUrl: string | undefined = undefined;
+      if (documentFile) {
+        try {
+          const formData = new FormData();
+          formData.append("file", documentFile);
+          formData.append("category", "dispatch");
+          const uploadRes = await backendFetch<any>("/api/backend/files/upload?category=dispatch", {
+            method: "POST",
+            body: formData,
+          });
+          if (uploadRes?.relativePath || uploadRes?.url) {
+            uploadedDocUrl = uploadRes.relativePath || uploadRes.url;
+          }
+        } catch (uploadErr) {
+          console.warn("Document file upload failed, proceeding without attachment:", uploadErr);
+        }
+      }
+
       for (const group of orderGroups.values()) {
         const consolidatedItems = Array.from(
           group.workOrders.reduce((items, selected) => {
@@ -1135,6 +1153,7 @@ export default function CreateDispatchPage() {
             const current = items.get(itemId) || {
               salesOrderItemId: itemId,
               productId: selected.salesOrderItem?.productId,
+              productName: selected.salesOrderItem?.productNameSnapshot,
               quantity: 0,
               workOrderIds: [] as string[],
             };
@@ -1142,7 +1161,7 @@ export default function CreateDispatchPage() {
             if (selected.id) current.workOrderIds.push(selected.id);
             items.set(itemId, current);
             return items;
-          }, new Map<string, { salesOrderItemId: string; productId?: string; quantity: number; workOrderIds: string[] }>())
+          }, new Map<string, { salesOrderItemId: string; productId?: string; productName?: string; quantity: number; workOrderIds: string[] }>())
           .values(),
         ).filter((item) => item.quantity > 0);
         const groupAddress = deliveryAddresses[group.salesOrder.id] || formatAddress(group.salesOrder, group.salesOrder.customer) || "";
@@ -1152,7 +1171,7 @@ export default function CreateDispatchPage() {
           deliveryAddress: groupAddress,
           dispatchCategory: isDispatch2 ? "D2" : "D1",
           totalWeight: Number(totalWeight) || 0,
-          vehicleNumber: vehicleNumber.trim(),
+          vehicleNumber: vehicleNumber.trim().toUpperCase(),
           items: consolidatedItems.map((item) => ({
             salesOrderItemId: String(item.salesOrderItemId),
             quantity: Number(item.quantity),
@@ -1172,7 +1191,17 @@ export default function CreateDispatchPage() {
         }
         if (invoiceNumber?.trim()) payload.invoiceNumber = invoiceNumber.trim();
         if (challanNumber?.trim()) payload.challanNumber = challanNumber.trim();
-        if (ewayBillNumber?.trim()) payload.ewayBillNumber = ewayBillNumber.trim();
+        if (ewayBillNumber?.trim()) {
+          payload.ewayBillNumber = ewayBillNumber.trim().toUpperCase();
+          payload.lrNumber = ewayBillNumber.trim().toUpperCase();
+        }
+        if (transportationCost !== undefined && transportationCost >= 0) {
+          payload.fetchedTransportationCost = transportationCost;
+        }
+        if (uploadedDocUrl) {
+          payload.documentUrl = uploadedDocUrl;
+          payload.dispatchDocumentUrl = uploadedDocUrl;
+        }
 
         const individualCost = Number(
           group.salesOrder.sourceQuotation?.expectedTransportationCost ??
@@ -1190,10 +1219,10 @@ export default function CreateDispatchPage() {
 
         console.log("Sending dispatch data:", payload);
 
-          await backendFetch<unknown>("/api/backend/logistics/dispatches", {
-            method: "POST",
-            body: payload,
-          });
+        await backendFetch<unknown>("/api/backend/logistics/dispatches", {
+          method: "POST",
+          body: payload,
+        });
       }
 
       await Swal.fire({
