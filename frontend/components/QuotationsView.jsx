@@ -1,5 +1,15 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { calculateQuotationTotals, exportQuotationPDF, exportQuotationImage, shareQuotationImage } from '../services/export.service';
+import { calculateQuotationTotals, exportQuotationImage, shareQuotationImage } from '../services/export.service';
+import {
+  himalayaLogoBase64,
+  himalayaLogoMarkBase64,
+  himalayaStampBase64,
+  himalayaSignatureBase64,
+  relianceLogoBase64,
+  adaniLogoBase64,
+  ltLogoBase64,
+  ashridharLogoBase64
+} from '../services/quotationAssetsBase64';
 import { Search, Plus, Eye, ArrowRight, Download, Share2, Edit, Trash2, Truck, ChevronLeft, ChevronRight, ArrowLeft, FileText, Bell, ShieldCheck, ChevronDown, MoreVertical, User, Calendar, CreditCard, MapPin, Star, Phone, Mail, Globe, Percent, CheckSquare, Image as ImageIcon } from 'lucide-react';
 import Swal from 'sweetalert2';
 import CreateQuotation from './CreateQuotation';
@@ -1511,7 +1521,7 @@ export default function QuotationsView({
                     </svg>
                     {/* Content inside wave (Original Himalaya Logo) */}
                     <div style={{ position: 'relative', zIndex: 2, padding: '20px 32px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: '100%', boxSizing: 'border-box' }}>
-                      <img src="/himalaya-logo-trimmed.png" alt="Himalaya Logo" style={{ height: '75px', width: 'auto', objectFit: 'contain' }} />
+                      <img src={himalayaLogoBase64} alt="Himalaya Logo" style={{ height: '75px', width: 'auto', objectFit: 'contain' }} />
                       <div style={{ color: '#ffffff', fontSize: '8.5px', fontWeight: '700', marginTop: '6px', letterSpacing: '0.8px' }}>
                         STRENGTH. DURABILITY. TRUST.
                       </div>
@@ -1600,7 +1610,7 @@ export default function QuotationsView({
                 </div>
                 {/* Faint watermark outline background on the right */}
                 <div style={{ position: 'absolute', right: 0, bottom: 0, top: 0, width: '160px', opacity: 0.08, pointerEvents: 'none', zIndex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: '4px' }}>
-                  <img src="/himalaya-logo-mark.png" alt="watermark" style={{ height: '85%', width: 'auto', objectFit: 'contain' }} />
+                  <img src={himalayaLogoMarkBase64} alt="watermark" style={{ height: '85%', width: 'auto', objectFit: 'contain' }} />
                 </div>
               </div>
 
@@ -1760,19 +1770,19 @@ export default function QuotationsView({
                 <div className="clients-container" style={{ padding: '16px 20px', background: '#ffffff', display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
                   {/* Reliance Logo */}
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <img src="/client-logos/reliance-logo.png" alt="Reliance Industries Limited" style={{ maxHeight: '42px', maxWidth: '120px', objectFit: 'contain' }} />
+                    <img src={relianceLogoBase64} alt="Reliance Industries Limited" style={{ maxHeight: '42px', maxWidth: '120px', objectFit: 'contain' }} />
                   </div>
                   {/* Adani Logo */}
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <img src="/client-logos/adani-logo.png" alt="adani" style={{ maxHeight: '36px', maxWidth: '110px', objectFit: 'contain' }} />
+                    <img src={adaniLogoBase64} alt="adani" style={{ maxHeight: '36px', maxWidth: '110px', objectFit: 'contain' }} />
                   </div>
                   {/* L&T Logo */}
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <img src="/client-logos/lt-logo.png" alt="L&T" style={{ maxHeight: '40px', maxWidth: '100px', objectFit: 'contain' }} />
+                    <img src={ltLogoBase64} alt="L&T" style={{ maxHeight: '40px', maxWidth: '100px', objectFit: 'contain' }} />
                   </div>
                   {/* A.SHRIDHAR Logo */}
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <img src="/client-logos/ashridhar-logo.png" alt="A.SHRIDHAR" style={{ maxHeight: '38px', maxWidth: '120px', objectFit: 'contain' }} />
+                    <img src={ashridharLogoBase64} alt="A.SHRIDHAR" style={{ maxHeight: '38px', maxWidth: '120px', objectFit: 'contain' }} />
                   </div>
                 </div>
               </div>
@@ -1782,7 +1792,7 @@ export default function QuotationsView({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   {/* Official Company Seal Stamp */}
                   <img
-                    src="/himalaya-stamp.png"
+                    src={himalayaStampBase64}
                     alt="Himalaya Seal Stamp"
                     style={{ width: '84px', height: '84px', objectFit: 'contain', marginRight: '8px', flexShrink: 0 }}
                   />
@@ -1803,7 +1813,7 @@ export default function QuotationsView({
                   {/* Authorised Signature Image */}
                   <div style={{ height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '6px' }}>
                     <img
-                      src="/himalaya-signature.png"
+                      src={himalayaSignatureBase64}
                       alt="Authorised Signature"
                       style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
                     />
@@ -1852,35 +1862,6 @@ export default function QuotationsView({
                 </button>
                 <button
                   type="button"
-                  disabled={downloadingPdf}
-                  className="btn-small btn-outline-small"
-                  onClick={async () => {
-                    if (downloadingPdf) return;
-                    try {
-                      setDownloadingPdf(true);
-                      await exportQuotationPDF(selectedQuotation);
-                    } catch (err) {
-                      console.error('Error generating PDF:', err);
-                    } finally {
-                      setDownloadingPdf(false);
-                    }
-                  }}
-                  style={{ padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: downloadingPdf ? 'not-allowed' : 'pointer' }}
-                >
-                  {downloadingPdf ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14, border: '2px solid #2563eb', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.6s linear infinite' }} />
-                      <span>Saving PDF...</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileText size={14} />
-                      <span>Download PDF</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
                   disabled={downloadingImage}
                   className="btn-small btn-outline-small"
                   onClick={async () => {
@@ -1896,16 +1877,16 @@ export default function QuotationsView({
                       setDownloadingImage(false);
                     }
                   }}
-                  style={{ padding: '9px 14px', fontSize: '12.5px', fontWeight: '700', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', cursor: downloadingImage ? 'not-allowed' : 'pointer' }}
+                  style={{ padding: '9px 16px', fontSize: '12.5px', fontWeight: '750', borderRadius: '8px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', background: '#0284c7', color: '#ffffff', border: '1px solid #0284c7', cursor: downloadingImage ? 'not-allowed' : 'pointer' }}
                 >
                   {downloadingImage ? (
                     <>
-                      <span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14, border: '2px solid #2563eb', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.6s linear infinite' }} />
-                      <span>Saving Image...</span>
+                      <span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14, border: '2px solid #ffffff', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.6s linear infinite' }} />
+                      <span>Saving HD Image...</span>
                     </>
                   ) : (
                     <>
-                      <ImageIcon size={14} />
+                      <Download size={14} />
                       <span>Download Image</span>
                     </>
                   )}

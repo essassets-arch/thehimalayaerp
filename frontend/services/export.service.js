@@ -2098,6 +2098,24 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
     throw new Error(`Element with id "${elementId}" not found`);
   }
 
+  // Helper to convert any image to base64 via canvas if not already data URI
+  const convertImgToBase64 = (img) => {
+    try {
+      if (!img || !img.src || img.src.startsWith('data:')) return img?.src;
+      if (img.complete && img.naturalWidth > 0) {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth || img.width || 200;
+        c.height = img.naturalHeight || img.height || 200;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        return c.toDataURL('image/png');
+      }
+    } catch (e) {
+      console.warn('Canvas conversion note for image:', e);
+    }
+    return img?.src;
+  };
+
   // Create isolated off-screen wrapper at (0, 0), top-level visible in DOM for canvas rendering
   const wrapper = document.createElement('div');
   wrapper.id = `${typeof elementId === 'string' ? elementId : 'quotation'}-export-wrapper`;
@@ -2125,6 +2143,22 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
   clone.style.boxSizing = 'border-box';
   clone.style.background = '#ffffff';
   clone.style.display = 'block';
+
+  // Ensure all images in clone have valid base64 sources
+  const origImgs = element.querySelectorAll('img');
+  const cloneImgs = clone.querySelectorAll('img');
+  cloneImgs.forEach((cloneImg, idx) => {
+    const origImg = origImgs[idx];
+    if (origImg) {
+      const b64 = convertImgToBase64(origImg);
+      if (b64 && b64.startsWith('data:')) {
+        cloneImg.src = b64;
+      }
+    }
+    cloneImg.crossOrigin = 'anonymous';
+    cloneImg.loading = 'eager';
+    cloneImg.style.display = 'block';
+  });
 
   // Enforce desktop row layouts on all clone sections
   const mobileFlexRows = clone.querySelectorAll('.quotation-sheet-mobile-flex, .quotation-sheet-title-flex, .quotation-footer-flex');
@@ -2184,13 +2218,14 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
     let dataUrl;
 
     try {
-      // Primary ultra-fast capture: htmlToImage
+      // Primary ultra-fast capture: htmlToImage at high 2.5x pixel ratio for crystal clear text and logo
       dataUrl = await htmlToImage.toPng(clone, {
-        pixelRatio: 2,
+        pixelRatio: 2.5,
         width: 794,
         height: clone.scrollHeight || 1123,
         backgroundColor: '#ffffff',
         cacheBust: false,
+        skipFonts: false,
       });
       const response = await fetch(dataUrl);
       blob = await response.blob();
@@ -2198,7 +2233,7 @@ export const exportQuotationImage = async (elementId, filename = 'quotation.png'
       console.warn('htmlToImage primary capture failed, trying fallback:', primaryErr);
       try {
         const canvas = await html2canvas(clone, {
-          scale: 2,
+          scale: 2.5,
           width: 794,
           height: clone.scrollHeight || 1123,
           windowWidth: 794,
