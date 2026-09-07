@@ -573,9 +573,9 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* ── Ordered Items Table ── */}
-      <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 20, marginBottom: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-        <div style={{ fontWeight: 800, fontSize: 14, color: "#002e5d", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      {/* ── Ordered Items Table & Mobile List ── */}
+      <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "18px 20px", marginBottom: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+        <div style={{ fontWeight: 800, fontSize: 14, color: "#002e5d", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Package size={16} color="#0284c7" /> Line Items ({items.length})
           </div>
@@ -584,7 +584,8 @@ export default function OrderDetailPage() {
           </span>
         </div>
 
-        <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
+        {/* Desktop Table View (>= 768px) */}
+        <div className="hidden md:block" style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#002e5d", color: "#ffffff" }}>
@@ -664,15 +665,143 @@ export default function OrderDetailPage() {
             )}
           </table>
         </div>
+
+        {/* Mobile List View (< 768px) */}
+        <div className="block md:hidden" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {items.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "20px", color: "#64748b", background: "#f8fafc", borderRadius: 8 }}>
+              No line items recorded for this order.
+            </div>
+          ) : (
+            items.map((item: any, i: number) => {
+              const pName = item.productName || item.productNameSnapshot || item.product?.name || item.name || "Standard Product";
+              const pSku = item.productCode || item.productCodeSnapshot || item.product?.sku || "";
+              const qty = Number(item.orderedQuantity ?? item.quantity ?? 1);
+              const unit = item.unit || "SET";
+              const price = Number(item.unitPrice || 0);
+              const taxable = Number(item.taxableAmount || (qty * price) || 0);
+
+              return (
+                <div
+                  key={item.id || i}
+                  style={{
+                    background: "#f8fafc",
+                    border: "1.5px solid #e2e8f0",
+                    borderRadius: 10,
+                    padding: "13px 14px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <span
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: "50%",
+                        background: "#002e5d",
+                        color: "#ffffff",
+                        fontSize: 11,
+                        fontWeight: 800,
+                        display: "grid",
+                        placeItems: "center",
+                        flexShrink: 0,
+                        marginTop: 1,
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, color: "#002e5d", fontSize: 13.5, lineHeight: 1.35 }}>
+                        {pName}
+                      </div>
+                      {pSku && (
+                        <div style={{ fontSize: 11, fontFamily: "monospace", color: "#64748b", marginTop: 2 }}>
+                          SKU: <strong style={{ color: "#0284c7" }}>{pSku}</strong>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr 1fr",
+                      gap: 6,
+                      padding: "10px 12px",
+                      background: "#ffffff",
+                      borderRadius: 8,
+                      border: "1px solid #e2e8f0",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 750, color: "#64748b", textTransform: "uppercase" }}>Ordered Qty</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 2 }}>
+                        {qty} {unit}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 750, color: "#64748b", textTransform: "uppercase" }}>Unit Price</div>
+                      <div style={{ fontSize: 12.5, fontWeight: 750, color: "#475569", marginTop: 2 }}>
+                        {price ? `₹${price.toLocaleString("en-IN")}` : "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 750, color: "#64748b", textTransform: "uppercase" }}>Total Amount</div>
+                      <div style={{ fontSize: 13, fontWeight: 850, color: "#16a34a", marginTop: 2 }}>
+                        {taxable ? `₹${taxable.toLocaleString("en-IN")}` : "—"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+
+          {/* Mobile Financial Breakdown Card */}
+          {items.length > 0 && (
+            <div
+              style={{
+                background: "#f8fafc",
+                border: "1.5px solid #cbd5e1",
+                borderRadius: 10,
+                padding: "12px 14px",
+                marginTop: 4,
+                display: "flex",
+                flexDirection: "column",
+                gap: 7,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "#475569" }}>
+                <span>Subtotal (Base Value):</span>
+                <strong style={{ color: "#002e5d" }}>₹{subtotalAmount.toLocaleString("en-IN")}</strong>
+              </div>
+              {taxAmount > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#64748b" }}>
+                  <span>Applicable Taxes (18% GST):</span>
+                  <strong style={{ color: "#64748b" }}>+₹{taxAmount.toLocaleString("en-IN")}</strong>
+                </div>
+              )}
+              <div style={{ height: 1, background: "#cbd5e1", margin: "2px 0" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14.5, fontWeight: 900, color: "#15803d" }}>
+                <span>Grand Total:</span>
+                <span>₹{totalAmount.toLocaleString("en-IN")}</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Production & Work Orders Execution Card ── */}
       {workOrders.length > 0 && (
-        <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 20, marginBottom: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+        <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "18px 20px", marginBottom: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
           <div style={{ fontWeight: 800, fontSize: 14, color: "#002e5d", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
             <Factory size={16} color="#0284c7" /> Production &amp; Work Orders ({workOrders.length})
           </div>
-          <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
+
+          {/* Desktop Table (>= 768px) */}
+          <div className="hidden md:block" style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "#002e5d", color: "#ffffff" }}>
@@ -706,12 +835,68 @@ export default function OrderDetailPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Card List (< 768px) */}
+          <div className="block md:hidden" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {workOrders.map((wo: any, idx: number) => (
+              <div
+                key={wo.id || idx}
+                style={{
+                  background: "#f8fafc",
+                  border: "1.5px solid #e2e8f0",
+                  borderRadius: 10,
+                  padding: "13px 14px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ fontWeight: 800, fontFamily: "monospace", fontSize: 13.5, color: "#0284c7" }}>
+                    {wo.workOrderNumber || wo.woNumber || `WO-${idx + 1}`}
+                  </div>
+                  <StatusPill status={wo.status || "IN_PRODUCTION"} />
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gap: 6,
+                    padding: "10px 12px",
+                    background: "#ffffff",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 750, color: "#64748b", textTransform: "uppercase" }}>Planned Qty</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a", marginTop: 2 }}>
+                      {wo.plannedQuantity || wo.quantity || "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 750, color: "#64748b", textTransform: "uppercase" }}>Completed Qty</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "#16a34a", marginTop: 2 }}>
+                      {wo.completedQuantity ?? wo.producedQuantity ?? "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 750, color: "#64748b", textTransform: "uppercase" }}>Timeline</div>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: "#64748b", marginTop: 2 }}>
+                      {wo.startDate ? new Date(wo.startDate).toLocaleDateString("en-IN") : "—"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* ── Dispatch History & Delivery Proof Section ── */}
-      <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 20, marginBottom: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
-        <div style={{ fontWeight: 800, fontSize: 14, color: "#002e5d", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "18px 20px", marginBottom: 20, boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+        <div style={{ fontWeight: 800, fontSize: 14, color: "#002e5d", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Truck size={16} color="#0284c7" /> Dispatch Runs &amp; Proof of Delivery ({dispatches.length})
           </div>
@@ -723,86 +908,208 @@ export default function OrderDetailPage() {
         </div>
 
         {dispatches.length > 0 ? (
-          <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: "#002e5d", color: "#ffffff" }}>
-                  <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Dispatch No</th>
-                  <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Invoice Ref</th>
-                  <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Driver / Vehicle</th>
-                  <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Receiver Info</th>
-                  <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Dispatched At</th>
-                  <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Delivered At</th>
-                  <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700, textAlign: "center" }}>POD Proof</th>
-                  <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700, textAlign: "center" }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dispatches.map((disp: any) => (
-                  <tr key={disp.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: "12px 14px" }}>
-                      <span style={{ fontFamily: "monospace", fontWeight: 800, color: "#0284c7", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "3px 8px", borderRadius: 6 }}>
-                        #{disp.dispatchNo || disp.dispatchNumber || disp.id?.slice(0, 8)}
-                      </span>
-                    </td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: "#002e5d" }}>
-                      {disp.invoiceNumber || invoiceNo}
-                    </td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <div style={{ fontWeight: 750, color: "#002e5d" }}>{disp.driverName || "Driver Assigned"}</div>
-                      {disp.vehicleNumber && (
-                        <div style={{ fontSize: 11, fontFamily: "monospace", color: "#64748b" }}>Vehicle: {disp.vehicleNumber}</div>
-                      )}
-                      {disp.driverPhone && (
-                        <div style={{ fontSize: 11, color: "#0284c7" }}>📞 {disp.driverPhone}</div>
-                      )}
-                    </td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <div style={{ fontWeight: 750, color: "#002e5d" }}>{disp.receivedBy || customerName}</div>
-                      {disp.receiverPhone && (
-                        <div style={{ fontSize: 11, fontFamily: "monospace", color: "#16a34a", fontWeight: 700 }}>+91 {disp.receiverPhone}</div>
-                      )}
-                    </td>
-                    <td style={{ padding: "12px 14px", color: "#475569", fontSize: 12 }}>
-                      {disp.dispatchedAt ? new Date(disp.dispatchedAt).toLocaleString("en-IN") : "—"}
-                    </td>
-                    <td style={{ padding: "12px 14px", color: "#475569", fontSize: 12 }}>
-                      {disp.deliveredAt ? new Date(disp.deliveredAt).toLocaleString("en-IN") : "—"}
-                    </td>
-                    <td style={{ padding: "12px 14px", textAlign: "center" }}>
-                      {disp.podUrl ? (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPodImage(resolvePodUrl(disp.podUrl))}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                            padding: "5px 10px",
-                            borderRadius: 6,
-                            background: "#f0fdf4",
-                            border: "1px solid #bbf7d0",
-                            color: "#166534",
-                            fontSize: 11,
-                            fontWeight: 750,
-                            cursor: "pointer",
-                          }}
-                        >
-                          <ImageIcon size={13} />
-                          <span>View POD</span>
-                        </button>
-                      ) : (
-                        <span style={{ color: "#94a3b8", fontSize: 11, fontStyle: "italic" }}>No POD Uploaded</span>
-                      )}
-                    </td>
-                    <td style={{ padding: "12px 14px", textAlign: "center" }}>
-                      <StatusPill status={disp.status || "DISPATCHED"} />
-                    </td>
+          <>
+            {/* Desktop Table View (>= 768px) */}
+            <div className="hidden md:block" style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#002e5d", color: "#ffffff" }}>
+                    <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Dispatch No</th>
+                    <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Invoice Ref</th>
+                    <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Driver / Vehicle</th>
+                    <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Receiver Info</th>
+                    <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Dispatched At</th>
+                    <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700 }}>Delivered At</th>
+                    <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700, textAlign: "center" }}>POD Proof</th>
+                    <th style={{ padding: "10px 14px", fontSize: 11.5, fontWeight: 700, textAlign: "center" }}>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {dispatches.map((disp: any) => (
+                    <tr key={disp.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                      <td style={{ padding: "12px 14px" }}>
+                        <span style={{ fontFamily: "monospace", fontWeight: 800, color: "#0284c7", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "3px 8px", borderRadius: 6 }}>
+                          #{disp.dispatchNo || disp.dispatchNumber || disp.id?.slice(0, 8)}
+                        </span>
+                      </td>
+                      <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: "#002e5d" }}>
+                        {disp.invoiceNumber || invoiceNo}
+                      </td>
+                      <td style={{ padding: "12px 14px" }}>
+                        <div style={{ fontWeight: 750, color: "#002e5d" }}>{disp.driverName || "Driver Assigned"}</div>
+                        {disp.vehicleNumber && (
+                          <div style={{ fontSize: 11, fontFamily: "monospace", color: "#64748b" }}>Vehicle: {disp.vehicleNumber}</div>
+                        )}
+                        {disp.driverPhone && (
+                          <div style={{ fontSize: 11, color: "#0284c7" }}>📞 {disp.driverPhone}</div>
+                        )}
+                      </td>
+                      <td style={{ padding: "12px 14px" }}>
+                        <div style={{ fontWeight: 750, color: "#002e5d" }}>{disp.receivedBy || customerName}</div>
+                        {disp.receiverPhone && (
+                          <div style={{ fontSize: 11, fontFamily: "monospace", color: "#16a34a", fontWeight: 700 }}>+91 {disp.receiverPhone}</div>
+                        )}
+                      </td>
+                      <td style={{ padding: "12px 14px", color: "#475569", fontSize: 12 }}>
+                        {disp.dispatchedAt ? new Date(disp.dispatchedAt).toLocaleString("en-IN") : "—"}
+                      </td>
+                      <td style={{ padding: "12px 14px", color: "#475569", fontSize: 12 }}>
+                        {disp.deliveredAt ? new Date(disp.deliveredAt).toLocaleString("en-IN") : "—"}
+                      </td>
+                      <td style={{ padding: "12px 14px", textAlign: "center" }}>
+                        {disp.podUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPodImage(resolvePodUrl(disp.podUrl))}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              padding: "5px 10px",
+                              borderRadius: 6,
+                              background: "#f0fdf4",
+                              border: "1px solid #bbf7d0",
+                              color: "#166534",
+                              fontSize: 11,
+                              fontWeight: 750,
+                              cursor: "pointer",
+                            }}
+                          >
+                            <ImageIcon size={13} />
+                            <span>View POD</span>
+                          </button>
+                        ) : (
+                          <span style={{ color: "#94a3b8", fontSize: 11, fontStyle: "italic" }}>No POD Uploaded</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "12px 14px", textAlign: "center" }}>
+                        <StatusPill status={disp.status || "DISPATCHED"} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View (< 768px) */}
+            <div className="block md:hidden" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {dispatches.map((disp: any) => {
+                const dispNo = disp.dispatchNo || disp.dispatchNumber || disp.id?.slice(0, 8);
+                const invNo = disp.invoiceNumber || invoiceNo;
+                const driverName = disp.driverName || "Driver Assigned";
+                const vehicleNo = disp.vehicleNumber || "";
+                const driverPhone = disp.driverPhone || "";
+                const receiverName = disp.receivedBy || customerName;
+                const receiverPhone = disp.receiverPhone || "";
+                const dispAt = disp.dispatchedAt ? new Date(disp.dispatchedAt).toLocaleString("en-IN") : "—";
+                const delAt = disp.deliveredAt ? new Date(disp.deliveredAt).toLocaleString("en-IN") : "—";
+
+                return (
+                  <div
+                    key={disp.id}
+                    style={{
+                      background: "#f8fafc",
+                      border: "1.5px solid #e2e8f0",
+                      borderRadius: 12,
+                      padding: "14px 15px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
+                    {/* Header with dispatch no, invoice, and status */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontFamily: "monospace", fontWeight: 800, color: "#0284c7", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "3px 7px", borderRadius: 6, fontSize: 11.5 }}>
+                          #{dispNo}
+                        </span>
+                        {invNo && invNo !== "—" && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#475569", background: "#ffffff", padding: "3px 7px", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                            Inv: <strong style={{ color: "#002e5d" }}>{invNo}</strong>
+                          </span>
+                        )}
+                      </div>
+                      <StatusPill status={disp.status || "DISPATCHED"} />
+                    </div>
+
+                    {/* Driver & Receiver 2-Column Info */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <div style={{ background: "#ffffff", padding: "9px 10px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                        <div style={{ fontSize: 10, fontWeight: 750, color: "#64748b", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
+                          <Truck size={11} color="#0284c7" /> Driver / Vehicle
+                        </div>
+                        <div style={{ fontWeight: 800, color: "#002e5d", fontSize: 12.5, marginTop: 3 }}>{driverName}</div>
+                        {vehicleNo && (
+                          <div style={{ fontSize: 10.5, fontFamily: "monospace", color: "#64748b", marginTop: 1 }}>
+                            {vehicleNo}
+                          </div>
+                        )}
+                        {driverPhone && (
+                          <a href={`tel:${driverPhone}`} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, color: "#0284c7", fontWeight: 700, textDecoration: "none", marginTop: 2 }}>
+                            <Phone size={10} /> {driverPhone}
+                          </a>
+                        )}
+                      </div>
+
+                      <div style={{ background: "#ffffff", padding: "9px 10px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                        <div style={{ fontSize: 10, fontWeight: 750, color: "#64748b", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
+                          <User size={11} color="#16a34a" /> Receiver Info
+                        </div>
+                        <div style={{ fontWeight: 800, color: "#002e5d", fontSize: 12.5, marginTop: 3 }}>{receiverName}</div>
+                        {receiverPhone && (
+                          <a href={`tel:${receiverPhone}`} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, color: "#16a34a", fontWeight: 700, textDecoration: "none", marginTop: 2, fontFamily: "monospace" }}>
+                            <Phone size={10} /> +91 {receiverPhone}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Timestamps */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 11, color: "#64748b", background: "#ffffff", padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                      <div>
+                        <span style={{ fontWeight: 700, color: "#475569" }}>Dispatched: </span>
+                        <span>{dispAt}</span>
+                      </div>
+                      <div>
+                        <span style={{ fontWeight: 700, color: "#475569" }}>Delivered: </span>
+                        <span>{delAt}</span>
+                      </div>
+                    </div>
+
+                    {/* POD Button */}
+                    {disp.podUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPodImage(resolvePodUrl(disp.podUrl))}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          width: "100%",
+                          padding: "8px 12px",
+                          borderRadius: 8,
+                          background: "#f0fdf4",
+                          border: "1.5px solid #86efac",
+                          color: "#166534",
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <ImageIcon size={14} />
+                        <span>View Proof of Delivery (POD)</span>
+                      </button>
+                    ) : (
+                      <div style={{ textAlign: "center", color: "#94a3b8", fontSize: 11, fontStyle: "italic", padding: "2px 0" }}>
+                        No POD document uploaded for this run
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         ) : (
           <div style={{ color: "#64748b", fontSize: 13, textAlign: "center", padding: "28px 20px", background: "#f8fafc", borderRadius: 8, border: "1px dashed #cbd5e1" }}>
             <Truck size={32} color="#94a3b8" style={{ margin: "0 auto 8px auto", display: "block" }} />
