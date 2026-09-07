@@ -74,6 +74,11 @@ export interface SalesOrderResponseDto {
   remarks?: string;
   dispatches?: any[];
 
+  lostReason?: string | null;
+  lostAt?: string | null;
+  lostComplaintId?: string | null;
+  lossRecord?: any;
+
   createdAt: string;
   updatedAt: string;
   version: number;
