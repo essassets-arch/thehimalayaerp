@@ -13,6 +13,8 @@ export const isApkEnvironment = () => {
   const ua = navigator.userAgent || '';
   return (
     !!w.flutter_inappwebview ||
+    !!w.QuotationDownload ||
+    !!w.QuotationShare ||
     !!w.HimalayaNativeBridge ||
     !!w.HimalayaBridge ||
     !!w.HimalayaLocation ||
@@ -88,6 +90,9 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     } catch (e) {}
   }
 
+  // Pure Base64 data without data: prefix for direct Flutter base64Decode()
+  const base64Clean = base64Payload.includes(',') ? base64Payload.split(',')[1] : base64Payload;
+
   let absoluteDownloadUrl = '';
   const origin = typeof window !== 'undefined' && window.location.origin && window.location.origin.startsWith('http')
     ? window.location.origin
@@ -129,6 +134,23 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
 
   // 2. Flutter InAppWebView Native JavaScript Channel handler (Mobile APK)
   if (typeof window !== 'undefined' && window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+    // Direct official downloadQuotationImage handler: (base64, fileName)
+    try {
+      await window.flutter_inappwebview.callHandler('downloadQuotationImage', base64Clean, safeFilename);
+    } catch (e) {}
+
+    // Object arguments fallback
+    try {
+      await window.flutter_inappwebview.callHandler('downloadQuotationImage', {
+        data: base64Clean,
+        base64: base64Clean,
+        dataUrl: base64Payload,
+        fileName: safeFilename,
+        filename: safeFilename,
+        mimeType: resolvedMimeType
+      });
+    } catch (e) {}
+
     try {
       await window.flutter_inappwebview.callHandler('downloadFile', {
         sourceType: absoluteDownloadUrl ? 'url' : 'base64-data-uri',
@@ -136,8 +158,9 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
         filename: safeFilename,
         fileName: safeFilename,
         mimeType: resolvedMimeType,
-        data: base64Payload,
-        base64: base64Payload,
+        data: base64Clean,
+        base64: base64Clean,
+        dataUrl: base64Payload,
         destination,
       });
     } catch (e) {}
@@ -146,8 +169,9 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
       try {
         await window.flutter_inappwebview.callHandler('saveToGallery', {
           url: absoluteDownloadUrl,
-          data: base64Payload,
-          base64: base64Payload,
+          data: base64Clean,
+          base64: base64Clean,
+          dataUrl: base64Payload,
           filename: safeFilename,
           fileName: safeFilename,
           mimeType: resolvedMimeType
@@ -157,8 +181,9 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
       try {
         await window.flutter_inappwebview.callHandler('saveImage', {
           url: absoluteDownloadUrl,
-          data: base64Payload,
-          base64: base64Payload,
+          data: base64Clean,
+          base64: base64Clean,
+          dataUrl: base64Payload,
           filename: safeFilename,
           fileName: safeFilename,
           mimeType: resolvedMimeType
@@ -169,8 +194,9 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
     try {
       await window.flutter_inappwebview.callHandler('saveFile', {
         url: absoluteDownloadUrl,
-        data: base64Payload,
-        base64: base64Payload,
+        data: base64Clean,
+        base64: base64Clean,
+        dataUrl: base64Payload,
         filename: safeFilename,
         fileName: safeFilename,
         mimeType: resolvedMimeType,
@@ -182,32 +208,36 @@ export const safeSaveFile = async (data, filename, mimeType = 'application/octet
   // 3. Flutter & Android JavaScript Channels (postMessage / Native bridge)
   if (typeof window !== 'undefined') {
     const w = window;
-    const msgPayload = JSON.stringify({
+    const channelPayload = JSON.stringify({
       type: isImage ? 'SAVE_IMAGE' : 'DOWNLOAD_FILE',
       action: isImage ? 'saveToGallery' : 'downloadFile',
-      filename: safeFilename,
       fileName: safeFilename,
+      filename: safeFilename,
       mimeType: resolvedMimeType,
+      data: base64Clean,
+      base64: base64Clean,
+      dataUrl: base64Payload,
       url: absoluteDownloadUrl,
-      data: base64Payload,
-      base64: base64Payload,
       destination,
     });
 
+    if (w.QuotationDownload && typeof w.QuotationDownload.postMessage === 'function') {
+      try { w.QuotationDownload.postMessage(channelPayload); } catch (e) {}
+    }
     if (w.HimalayaDownload && typeof w.HimalayaDownload.postMessage === 'function') {
-      try { w.HimalayaDownload.postMessage(msgPayload); } catch (e) {}
+      try { w.HimalayaDownload.postMessage(channelPayload); } catch (e) {}
     }
     if (w.HimalayaBridge && typeof w.HimalayaBridge.postMessage === 'function') {
-      try { w.HimalayaBridge.postMessage(msgPayload); } catch (e) {}
+      try { w.HimalayaBridge.postMessage(channelPayload); } catch (e) {}
     }
     if (w.HimalayaNativeBridge && typeof w.HimalayaNativeBridge.postMessage === 'function') {
-      try { w.HimalayaNativeBridge.postMessage(msgPayload); } catch (e) {}
+      try { w.HimalayaNativeBridge.postMessage(channelPayload); } catch (e) {}
     }
     if (w.AndroidBridge && typeof w.AndroidBridge.downloadFile === 'function') {
-      try { w.AndroidBridge.downloadFile(absoluteDownloadUrl || base64Payload, safeFilename, resolvedMimeType); } catch (e) {}
+      try { w.AndroidBridge.downloadFile(base64Clean, safeFilename, resolvedMimeType); } catch (e) {}
     }
     if (w.Android && typeof w.Android.downloadFile === 'function') {
-      try { w.Android.downloadFile(absoluteDownloadUrl || base64Payload, safeFilename, resolvedMimeType); } catch (e) {}
+      try { w.Android.downloadFile(base64Clean, safeFilename, resolvedMimeType); } catch (e) {}
     }
   }
 
@@ -2205,6 +2235,7 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
   const exportRes = await exportQuotationImage(elementId, filename, { save: false });
   const { blob, dataUrl } = exportRes;
 
+  const base64Clean = dataUrl && dataUrl.includes(',') ? dataUrl.split(',')[1] : (dataUrl || '');
   const quotationShareUrl = 'https://thehimalaya.cloud/supersales/quotations';
   const shareText = `Quotation #${quotationNo} for ${customerName || 'Valued Customer'}\n${quotationShareUrl}`;
 
@@ -2245,30 +2276,58 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
 
   // 1. Flutter InAppWebView Native JavaScript Channel handler (Mobile APK)
   if (typeof window !== 'undefined' && window.flutter_inappwebview?.callHandler) {
+    // Official shareQuotationImage positional handler: (base64, fileName, text)
+    try {
+      await window.flutter_inappwebview.callHandler('shareQuotationImage', base64Clean, filename, shareText);
+      return { success: true, blob, dataUrl, filename };
+    } catch (e) {}
+
+    // Object arguments fallback
+    try {
+      await window.flutter_inappwebview.callHandler('shareQuotationImage', {
+        data: base64Clean,
+        base64: base64Clean,
+        dataUrl,
+        filename,
+        fileName: filename,
+        mimeType: 'image/png',
+        text: shareText,
+        url: quotationShareUrl,
+        imageUrl: absoluteShareUrl,
+      });
+      return { success: true, blob, dataUrl, filename };
+    } catch (e) {}
+
     try {
       await window.flutter_inappwebview.callHandler('shareFile', {
         sourceType: 'base64-data-uri',
         filename,
+        fileName: filename,
         mimeType: 'image/png',
-        data: dataUrl,
+        data: base64Clean,
+        base64: base64Clean,
+        dataUrl,
         imageUrl: absoluteShareUrl,
         text: shareText,
         url: quotationShareUrl
       });
       return { success: true, blob, dataUrl, filename };
-    } catch (e) {
-      try {
-        await window.flutter_inappwebview.callHandler('share', {
-          title: `Quotation ${quotationNo}`,
-          text: shareText,
-          url: quotationShareUrl,
-          imageUrl: absoluteShareUrl,
-          data: dataUrl,
-          filename
-        });
-        return { success: true, blob, dataUrl, filename };
-      } catch (e2) {}
-    }
+    } catch (e) {}
+
+    try {
+      await window.flutter_inappwebview.callHandler('share', {
+        title: `Quotation ${quotationNo}`,
+        text: shareText,
+        url: quotationShareUrl,
+        imageUrl: absoluteShareUrl,
+        data: base64Clean,
+        base64: base64Clean,
+        dataUrl,
+        filename,
+        fileName: filename
+      });
+      return { success: true, blob, dataUrl, filename };
+    } catch (e2) {}
   }
 
   // 2. Flutter & Android JavaScript Channels (postMessage / Native bridge)
@@ -2278,13 +2337,19 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
       type: 'SHARE_IMAGE',
       action: 'shareFile',
       filename,
+      fileName: filename,
       mimeType: 'image/png',
-      data: dataUrl,
+      data: base64Clean,
+      base64: base64Clean,
+      dataUrl,
       imageUrl: absoluteShareUrl,
       text: shareText,
       url: quotationShareUrl
     });
 
+    if (w.QuotationShare && typeof w.QuotationShare.postMessage === 'function') {
+      try { w.QuotationShare.postMessage(shareMessage); return { success: true, blob, dataUrl, filename }; } catch (e) {}
+    }
     if (w.HimalayaShare && typeof w.HimalayaShare.postMessage === 'function') {
       try { w.HimalayaShare.postMessage(shareMessage); return { success: true, blob, dataUrl, filename }; } catch (e) {}
     }
@@ -2295,10 +2360,10 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
       try { w.HimalayaNativeBridge.postMessage(shareMessage); return { success: true, blob, dataUrl, filename }; } catch (e) {}
     }
     if (w.AndroidBridge && typeof w.AndroidBridge.shareImage === 'function') {
-      try { w.AndroidBridge.shareImage(dataUrl || absoluteShareUrl, filename, shareText); return { success: true, blob, dataUrl, filename }; } catch (e) {}
+      try { w.AndroidBridge.shareImage(base64Clean, filename, shareText); return { success: true, blob, dataUrl, filename }; } catch (e) {}
     }
     if (w.Android && typeof w.Android.share === 'function') {
-      try { w.Android.share(shareText, absoluteShareUrl || dataUrl); return { success: true, blob, dataUrl, filename }; } catch (e) {}
+      try { w.Android.share(shareText, absoluteShareUrl || base64Clean); return { success: true, blob, dataUrl, filename }; } catch (e) {}
     }
   }
 
