@@ -24,8 +24,25 @@ export function isSalespersonScopedRole(role?: string): boolean {
   const normalizedRole = String(role)
     .toUpperCase()
     .replace(/[\s-]+/g, '_');
-  return ['SALES_EXECUTIVE', 'SALES_INTERN', 'SUPER_SALES'].includes(
-    normalizedRole,
+  const salespersonRoles = [
+    'SALES_EXECUTIVE',
+    'SALES_INTERN',
+    'SUPER_SALES',
+    'SUPER_SALES_1',
+    'SUPER_SALES_2',
+    'SUPERSALES',
+    'SUPERSALES_1',
+    'SUPERSALES_2',
+    'SALES',
+    'SALES_1',
+    'SALES_2',
+    'SALESPERSON',
+  ];
+  return (
+    salespersonRoles.includes(normalizedRole) ||
+    normalizedRole.startsWith('SUPER_SALES') ||
+    normalizedRole.startsWith('SUPERSALES') ||
+    (normalizedRole.startsWith('SALES_') && !['SALES_ADMIN', 'SALES_MANAGER'].includes(normalizedRole))
   );
 }
 

@@ -468,7 +468,9 @@ export default function DashboardView({
     .reduce((sum, order) => sum + orderValue(order), 0);
   const effectiveMonthlyTarget = salesTarget > 0 
     ? salesTarget 
-    : (confirmedOrdersTotal > 0 ? Math.round((confirmedOrdersTotal / 3) * 1.15) : 500000);
+    : (targetData?.monthlyTarget > 0 
+        ? targetData.monthlyTarget 
+        : (confirmedOrdersTotal > 0 ? Math.round((confirmedOrdersTotal / 3) * 1.15) : 0));
 
   const monthlyTargetData = Array.from({ length: 6 }, (_, index) => {
     const date = new Date(nowForSales.getFullYear(), nowForSales.getMonth() - 5 + index, 1);

@@ -190,15 +190,16 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     fetchReports();
   }, [dateFrom, dateTo]);
 
-  // Role detection
-  const isSalesAdmin = 
-    user?.role === 'Sales Admin' || 
-    user?.role === 'Super Admin' || 
-    user?.role === 'Admin' || 
-    user?.role === 'SUPER_SALES' || 
-    user?.role === 'SuperSales' || 
-    String(user?.role || '').toLowerCase().includes('supersales') ||
-    String(user?.role || '').toLowerCase().includes('admin');
+  // Role detection: Only true administrators have cross-rep visibility
+  const roleCode = String(user?.role || '')
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
+  const isSalesAdmin = [
+    'SUPER_ADMIN',
+    'ADMIN',
+    'SALES_ADMIN',
+    'SUPER_USER',
+  ].includes(roleCode);
   const myName = user?.name || '';
 
   // Extract salesperson name from order or lead or quotation
@@ -229,6 +230,10 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
 
   // Discover all distinct salespeople across orders, leads, quotations, settings, and team
   const discoveredSalespeople = useMemo(() => {
+    if (!isSalesAdmin) {
+      return myName ? [myName] : [];
+    }
+
     const namesSet = new Set();
     if (myName) namesSet.add(myName);
 
@@ -254,17 +259,21 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
     }
 
     return Array.from(namesSet);
-  }, [orders, leads, allQuotations, settings, myName]);
+  }, [isSalesAdmin, orders, leads, allQuotations, settings, myName]);
 
   const [selectedSalesperson, setSelectedSalesperson] = useState(() => {
-    if (myName) return myName;
-    return 'ALL';
+    if (!isSalesAdmin && myName) return myName;
+    if (isSalesAdmin) return 'ALL';
+    return myName || 'ALL';
   });
 
+  const effectiveSalesperson = isSalesAdmin ? selectedSalesperson : (myName || 'ALL');
+
   const matchesSalesperson = (item, targetName) => {
-    if (!targetName || targetName === 'ALL') return true;
+    const scope = isSalesAdmin ? targetName : (myName || targetName);
+    if (!scope || scope === 'ALL') return true;
     const itemSales = getSalespersonName(item).toLowerCase();
-    const target = targetName.toLowerCase();
+    const target = scope.toLowerCase();
     if (!itemSales) return false;
     return itemSales === target || itemSales.includes(target) || target.includes(itemSales);
   };
@@ -292,24 +301,24 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   // Current scope filtered data
   const myLeads = useMemo(() => {
     return leads.filter(l => 
-      matchesSalesperson(l, selectedSalesperson) && 
+      matchesSalesperson(l, effectiveSalesperson) && 
       isDateInRange(l.createdAt || l.date)
     );
-  }, [leads, selectedSalesperson, dateFrom, dateTo]);
+  }, [leads, effectiveSalesperson, dateFrom, dateTo]);
 
   const myQuotations = useMemo(() => {
     return allQuotations.filter(q => 
-      matchesSalesperson(q, selectedSalesperson) && 
+      matchesSalesperson(q, effectiveSalesperson) && 
       isDateInRange(q.createdAt || q.quotationDate || q.date)
     );
-  }, [allQuotations, selectedSalesperson, dateFrom, dateTo]);
+  }, [allQuotations, effectiveSalesperson, dateFrom, dateTo]);
 
   const myOrders = useMemo(() => {
     return activeOrdersList.filter(o => 
-      matchesSalesperson(o, selectedSalesperson) && 
+      matchesSalesperson(o, effectiveSalesperson) && 
       isDateInRange(o.createdAt || o.orderDate || o.date)
     );
-  }, [activeOrdersList, selectedSalesperson, dateFrom, dateTo]);
+  }, [activeOrdersList, effectiveSalesperson, dateFrom, dateTo]);
 
   const myPayments = useMemo(() => {
     return payments.filter(p => 
@@ -357,17 +366,16 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
 
   // Individual Salesperson Target vs Achievement Breakdown
   const salespersonStats = useMemo(() => {
-    return discoveredSalespeople.map(name => {
+    const listToProcess = isSalesAdmin ? discoveredSalespeople : (myName ? [myName] : []);
+    return listToProcess.map(name => {
       // Find assigned target
-      let target = 10000000; // Default ₹1.00 Cr
-      if (settings.salesTargets && settings.salesTargets[name]) {
-        target = Number(settings.salesTargets[name]);
-      } else if (targetData?.monthlyTarget && (name === myName || selectedSalesperson === name)) {
+      let target = 0;
+      if (name === myName && targetData?.monthlyTarget > 0) {
         target = Number(targetData.monthlyTarget);
-      } else if (name === myName && targetData?.target?.revenueTarget) {
+      } else if (name === myName && targetData?.target?.revenueTarget > 0) {
         target = Number(targetData.target.revenueTarget);
-      } else {
-        target = 2500000;
+      } else if (settings.salesTargets && settings.salesTargets[name]) {
+        target = Number(settings.salesTargets[name]);
       }
 
       // Orders and Revenue for this salesperson
@@ -387,21 +395,23 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       const remaining = Math.max(0, target - achieved);
       const progress = target > 0 ? Math.min(100, Math.round((achieved / target) * 100)) : 0;
 
-      let status = 'In Progress';
-      let statusColor = '#3b82f6';
-      let statusBg = '#eff6ff';
-      if (achieved >= target && target > 0) {
-        status = '🎯 Target Met';
-        statusColor = '#16a34a';
-        statusBg = '#dcfce7';
-      } else if (progress >= 60) {
-        status = '🔥 On Track';
-        statusColor = '#0284c7';
-        statusBg = '#e0f2fe';
-      } else if (progress < 25) {
-        status = '⚠️ Needs Attention';
-        statusColor = '#dc2626';
-        statusBg = '#fee2e2';
+      let status = target === 0 ? 'No Target Assigned' : '⚠️ Needs Attention';
+      let statusColor = target === 0 ? '#64748b' : '#dc2626';
+      let statusBg = target === 0 ? '#f1f5f9' : '#fee2e2';
+      if (target > 0) {
+        if (achieved >= target) {
+          status = '🎯 Target Met';
+          statusColor = '#16a34a';
+          statusBg = '#dcfce7';
+        } else if (progress >= 60) {
+          status = '🔥 On Track';
+          statusColor = '#0284c7';
+          statusBg = '#e0f2fe';
+        } else if (progress >= 25) {
+          status = 'In Progress';
+          statusColor = '#3b82f6';
+          statusBg = '#eff6ff';
+        }
       }
 
       const repPayments = payments.filter(p => repOrders.some(o => (o.orderNo || o.id) === (p.orderNo || p.orderId)) && isDateInRange(p.date || p.createdAt));
@@ -423,12 +433,12 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
         revenue: achieved
       };
     }).sort((a, b) => b.achieved - a.achieved);
-  }, [discoveredSalespeople, activeOrdersList, leads, payments, settings, targetData, selectedSalesperson, dateFrom, dateTo, myName]);
+  }, [isSalesAdmin, discoveredSalespeople, activeOrdersList, leads, payments, settings, targetData, effectiveSalesperson, dateFrom, dateTo, myName]);
 
   // Target metrics scoped to the active logged-in user (Target Tracker focus)
   const currentTargetMetrics = useMemo(() => {
-    // If a specific other salesperson is explicitly isolated, show their metrics
-    if (selectedSalesperson && selectedSalesperson !== 'ALL' && selectedSalesperson !== myName) {
+    // If admin explicitly selected another salesperson, show their metrics
+    if (isSalesAdmin && selectedSalesperson && selectedSalesperson !== 'ALL' && selectedSalesperson !== myName) {
       const personStat = salespersonStats.find(s => s.name.toLowerCase() === selectedSalesperson.toLowerCase());
       if (personStat) {
         return {
@@ -438,21 +448,21 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
           progress: personStat.progress,
           exactProgressPct: personStat.target > 0 ? ((personStat.achieved / personStat.target) * 100).toFixed(2) : '0',
           label: personStat.name,
-          daysRemaining: targetData?.daysRemaining ?? null,
+          daysRemaining: null,
           requiredDailySales: personStat.remaining > 0 ? Math.round(personStat.remaining / 30) : 0,
           period: 'Monthly Target',
           startDate: null,
           endDate: null,
-          status: personStat.status
+          status: personStat.target === 0 ? 'No Target Assigned' : personStat.status
         };
       }
     }
 
     // Default to the Logged-In User Target (from targetData or settings)
-    let target = 10000000; // Default ₹1.00 Cr
-    if (targetData?.monthlyTarget) {
+    let target = 0;
+    if (targetData?.monthlyTarget > 0) {
       target = Number(targetData.monthlyTarget);
-    } else if (targetData?.target?.revenueTarget) {
+    } else if (targetData?.target?.revenueTarget > 0) {
       target = Number(targetData.target.revenueTarget);
     } else if (settings.salesTargets && settings.salesTargets[myName]) {
       target = Number(settings.salesTargets[myName]);
@@ -467,25 +477,24 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       sum + Number(o.payment?.totalAmount || o.totalAmount || o.grandTotal || o.totalValue || 0), 0
     );
 
-    // Prefer achievedSales from backend dashboard if available
-    const achieved = (targetData && typeof targetData.achievedSales === 'number')
+    // Prefer achievedSales from backend dashboard if target exists and backend returned valid number
+    const achieved = (target > 0 && targetData && typeof targetData.achievedSales === 'number' && targetData.achievedSales > 0)
       ? Number(targetData.achievedSales)
       : calculatedAchieved;
 
-    const remaining = (targetData && typeof targetData.remainingTarget === 'number')
-      ? Number(targetData.remainingTarget)
-      : Math.max(0, target - achieved);
-
+    const remaining = Math.max(0, target - achieved);
     const progress = target > 0 ? (achieved >= target ? 100 : Math.round((achieved / target) * 100)) : 0;
     const exactProgressPct = target > 0 ? ((achieved / target) * 100).toFixed(2) : '0';
 
-    let status = '⚠️ Needs Attention';
-    if (achieved >= target && target > 0) {
-      status = '🎯 Target Met';
-    } else if (progress >= 60) {
-      status = '🔥 On Track';
-    } else if (progress >= 25) {
-      status = 'In Progress';
+    let status = target === 0 ? 'No Target Assigned' : '⚠️ Needs Attention';
+    if (target > 0) {
+      if (achieved >= target) {
+        status = '🎯 Target Met';
+      } else if (progress >= 60) {
+        status = '🔥 On Track';
+      } else if (progress >= 25) {
+        status = 'In Progress';
+      }
     }
 
     return {
@@ -495,7 +504,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       progress,
       exactProgressPct,
       daysRemaining: targetData?.daysRemaining ?? null,
-      requiredDailySales: targetData?.requiredDailySales ?? (remaining > 0 ? Math.round(remaining / 30) : 0),
+      requiredDailySales: targetData?.requiredDailySales ?? (target > 0 && remaining > 0 ? Math.round(remaining / 30) : 0),
       period: targetData?.target?.period || 'Monthly Target',
       startDate: targetData?.target?.startDate || null,
       endDate: targetData?.target?.endDate || null,
@@ -504,7 +513,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
       ordersCount: myOwnOrders.length,
       ordersList: myOwnOrders
     };
-  }, [selectedSalesperson, myName, salespersonStats, targetData, settings, activeOrdersList, dateFrom, dateTo]);
+  }, [isSalesAdmin, selectedSalesperson, myName, salespersonStats, targetData, settings, activeOrdersList, dateFrom, dateTo]);
 
   const assignedTarget = currentTargetMetrics.target;
   const achievedVal = currentTargetMetrics.achieved;
@@ -514,8 +523,8 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
   const teamStats = salespersonStats;
   const totalTeamRevenue = teamStats.reduce((sum, t) => sum + t.achieved, 0) || 1;
 
-  // Contributing sales orders for Target Tracker
-  const targetScopeSalesperson = (selectedSalesperson && selectedSalesperson !== 'ALL') ? selectedSalesperson : myName;
+  // Contributing sales orders for Target Tracker strictly scoped to active user / selection
+  const targetScopeSalesperson = isSalesAdmin ? ((selectedSalesperson && selectedSalesperson !== 'ALL') ? selectedSalesperson : myName) : myName;
   const contributingOrders = useMemo(() => {
     return activeOrdersList.filter(o => 
       matchesSalesperson(o, targetScopeSalesperson) && 
@@ -1118,23 +1127,42 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
             />
           </div>
 
-          {/* Salesperson Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '4px' }}>
-            <Users size={14} color="#0284c7" />
-            <select
-              value={selectedSalesperson}
-              onChange={(e) => setSelectedSalesperson(e.target.value)}
-              className="reports-date-input"
-              style={{ fontWeight: '700', color: '#002e5d', background: '#ffffff', cursor: 'pointer' }}
-            >
-              <option value="ALL">👥 All Sales Team (Consolidated)</option>
-              {discoveredSalespeople.map(name => (
-                <option key={name} value={name}>
-                  👤 {name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Salesperson Filter - Admin only; sales reps have locked personal scope */}
+          {isSalesAdmin ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '4px' }}>
+              <Users size={14} color="#0284c7" />
+              <select
+                value={selectedSalesperson}
+                onChange={(e) => setSelectedSalesperson(e.target.value)}
+                className="reports-date-input"
+                style={{ fontWeight: '700', color: '#002e5d', background: '#ffffff', cursor: 'pointer' }}
+              >
+                <option value="ALL">👥 All Sales Team (Consolidated)</option>
+                {discoveredSalespeople.map(name => (
+                  <option key={name} value={name}>
+                    👤 {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              background: '#e0f2fe',
+              border: '1px solid #bae6fd',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: '700',
+              color: '#0369a1',
+              marginLeft: '4px'
+            }}>
+              <Users size={13} color="#0284c7" />
+              <span>Salesperson: <strong style={{ color: '#002e5d' }}>{myName || 'My Scope'}</strong></span>
+            </div>
+          )}
 
           <button
             onClick={fetchReports}
@@ -1914,14 +1942,14 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     <span style={{
                       fontSize: '11px',
                       fontWeight: '800',
-                      background: '#10b981',
+                      background: assignedTarget > 0 ? '#10b981' : '#64748b',
                       color: '#ffffff',
                       padding: '2px 8px',
                       borderRadius: '12px',
                       textTransform: 'uppercase',
                       letterSpacing: '0.4px'
                     }}>
-                      Active Sales Target
+                      {assignedTarget > 0 ? 'Active Sales Target' : 'No Target Set'}
                     </span>
                   </div>
                   <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.82)', marginTop: '4px' }}>
@@ -1939,8 +1967,8 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                   fontSize: '12px',
                   fontWeight: '700'
                 }}>
-                  🎯 {currentTargetMetrics.period || 'Monthly Target'}
-                  {currentTargetMetrics.startDate && currentTargetMetrics.endDate && (
+                  🎯 {assignedTarget > 0 ? (currentTargetMetrics.period || 'Monthly Target') : 'No Active Target'}
+                  {assignedTarget > 0 && currentTargetMetrics.startDate && currentTargetMetrics.endDate && (
                     <span style={{ marginLeft: '6px', opacity: 0.85, fontSize: '11px', fontWeight: '500' }}>
                       ({new Date(currentTargetMetrics.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} – {new Date(currentTargetMetrics.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
                     </span>
@@ -1949,7 +1977,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
 
                 <div style={{
                   background: '#ffffff',
-                  color: targetPct >= 100 ? '#15803d' : targetPct >= 60 ? '#0284c7' : '#b91c1c',
+                  color: assignedTarget === 0 ? '#475569' : targetPct >= 100 ? '#15803d' : targetPct >= 60 ? '#0284c7' : '#b91c1c',
                   padding: '6px 14px',
                   borderRadius: '8px',
                   fontSize: '12px',
@@ -1997,20 +2025,28 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                       {targetPct}%
                     </span>
                     <span style={{ fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase', color: '#64748b', marginTop: '4px' }}>
-                      {currentTargetMetrics.exactProgressPct}% Actual
+                      {assignedTarget > 0 ? `${currentTargetMetrics.exactProgressPct}% Actual` : 'No Target'}
                     </span>
                   </div>
                 </div>
                 
                 <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#002e5d', margin: '4px 0 0 0' }}>
-                  {targetPct >= 80 ? 'Exceptional Performance!' : targetPct >= 50 ? 'On Track' : 'Action Required'}
+                  {assignedTarget === 0 
+                    ? 'Target Not Configured' 
+                    : targetPct >= 80 
+                      ? 'Exceptional Performance!' 
+                      : targetPct >= 50 
+                        ? 'On Track' 
+                        : 'Action Required'}
                 </h4>
                 <p style={{ fontSize: '12px', color: '#64748b', maxWidth: '300px', marginTop: '6px', lineHeight: 1.4 }}>
-                  {targetPct >= 80 
-                    ? 'Excellent job! You are hitting key sales milestones and driving top-line revenue.' 
-                    : targetPct >= 50 
-                      ? 'Progress is steady. Convert pending high-value quotations to guarantee goal completion.'
-                      : 'Immediate follow-up on outstanding payments and warm leads is required to secure targets.'}
+                  {assignedTarget === 0 
+                    ? 'No sales target has been assigned for this period yet. Your confirmed orders and closed revenue are tracked below.' 
+                    : targetPct >= 80 
+                      ? 'Excellent job! You are hitting key sales milestones and driving top-line revenue.' 
+                      : targetPct >= 50 
+                        ? 'Progress is steady. Convert pending high-value quotations to guarantee goal completion.'
+                        : 'Immediate follow-up on outstanding payments and warm leads is required to secure targets.'}
                 </p>
               </div>
 
@@ -2021,7 +2057,7 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     Assigned Sales Target
                   </span>
                   <div style={{ fontSize: '24px', fontWeight: '900', color: '#002e5d', marginTop: '4px' }}>
-                    {formatINR(assignedTarget)}
+                    {assignedTarget > 0 ? formatINR(assignedTarget) : 'Not Assigned'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
                     Quota allocated for {targetScopeSalesperson || myName || 'current user'}
@@ -2036,19 +2072,19 @@ export default function ReportsView({ leads = [], orders = [], payments = [], cu
                     {formatINR(achievedVal)}
                   </div>
                   <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '2px', fontWeight: '600' }}>
-                    {currentTargetMetrics.exactProgressPct}% of target completed ({contributingOrders.length} confirmed orders)
+                    {assignedTarget > 0 ? `${currentTargetMetrics.exactProgressPct}% of target completed` : 'Total closed sales'} ({contributingOrders.length} confirmed orders)
                   </div>
                 </div>
 
-                <div style={{ background: targetRemaining > 0 ? '#fef2f2' : '#f0fdf4', padding: '14px 18px', borderRadius: '10px', border: `1px solid ${targetRemaining > 0 ? '#fecaca' : '#bbf7d0'}` }}>
-                  <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: targetRemaining > 0 ? '#dc2626' : '#16a34a', letterSpacing: '0.4px' }}>
+                <div style={{ background: assignedTarget === 0 ? '#f8fafc' : targetRemaining > 0 ? '#fef2f2' : '#f0fdf4', padding: '14px 18px', borderRadius: '10px', border: `1px solid ${assignedTarget === 0 ? '#e2e8f0' : targetRemaining > 0 ? '#fecaca' : '#bbf7d0'}` }}>
+                  <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: assignedTarget === 0 ? '#64748b' : targetRemaining > 0 ? '#dc2626' : '#16a34a', letterSpacing: '0.4px' }}>
                     Remaining Deficit
                   </span>
-                  <div style={{ fontSize: '24px', fontWeight: '900', color: targetRemaining > 0 ? '#b91c1c' : '#15803d', marginTop: '4px' }}>
-                    {targetRemaining > 0 ? formatINR(targetRemaining) : 'Target Met 🎉'}
+                  <div style={{ fontSize: '24px', fontWeight: '900', color: assignedTarget === 0 ? '#475569' : targetRemaining > 0 ? '#b91c1c' : '#15803d', marginTop: '4px' }}>
+                    {assignedTarget === 0 ? '—' : targetRemaining > 0 ? formatINR(targetRemaining) : 'Target Met 🎉'}
                   </div>
-                  <div style={{ fontSize: '11px', color: targetRemaining > 0 ? '#b91c1c' : '#16a34a', marginTop: '2px' }}>
-                    {targetRemaining > 0 ? 'Balance needed to hit 100% quota' : 'Congratulations! Goal achieved.'}
+                  <div style={{ fontSize: '11px', color: assignedTarget === 0 ? '#64748b' : targetRemaining > 0 ? '#b91c1c' : '#16a34a', marginTop: '2px' }}>
+                    {assignedTarget === 0 ? 'No target quota assigned' : targetRemaining > 0 ? 'Balance needed to hit 100% quota' : 'Congratulations! Goal achieved.'}
                   </div>
                 </div>
               </div>

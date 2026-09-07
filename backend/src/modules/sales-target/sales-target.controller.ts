@@ -32,8 +32,14 @@ export class SalesTargetController {
 
   @Get()
   @RequirePermissions('sales.targets.read', 'super-admin')
-  async findAll() {
-    const data = await this.service.findAll();
+  async findAll(@Req() req) {
+    const userId = req.user?.sub || req.user?.id;
+    const role = req.user?.role;
+    const roleCode = String(role || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN', 'SALES_ADMIN', 'SUPER_USER'].includes(roleCode);
+    const data = await this.service.findAll(isAdmin ? undefined : userId);
     return { data };
   }
 

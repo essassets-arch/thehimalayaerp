@@ -42,8 +42,9 @@ export class SalesTargetService {
     });
   }
 
-  async findAll() {
+  async findAll(salespersonId?: string) {
     return this.prisma.salesTarget.findMany({
+      where: salespersonId ? { salespersonId } : undefined,
       include: {
         salesperson: {
           select: { id: true, name: true, email: true },
@@ -66,7 +67,12 @@ export class SalesTargetService {
   async dashboard(userId: string, role?: string) {
     const today = new Date();
 
-    // 1. Prioritize active target assigned specifically to this user
+    const roleCode = String(role || '')
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN', 'SALES_ADMIN', 'SUPER_USER'].includes(roleCode);
+
+    // 1. Look for active target assigned specifically to this user
     let target = await this.prisma.salesTarget.findFirst({
       where: {
         salespersonId: userId,
@@ -75,8 +81,9 @@ export class SalesTargetService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // 2. Fall back to any active target in the database
-    if (!target) {
+    // 2. Only for Admin roles: if no personal target is assigned, fall back to the latest active target
+    // For non-admin sales representatives (Sales 1, Sales 2, etc.), NEVER fall back to another salesperson's target!
+    if (!target && isAdmin) {
       target = await this.prisma.salesTarget.findFirst({
         where: {
           status: 'ACTIVE',
@@ -98,17 +105,8 @@ export class SalesTargetService {
       };
     }
 
-    // 3. For salesperson scoped roles, measure achievement for their own user ID.
-    // For admin/manager roles, measure achievement for the salesperson the target is assigned to.
-    const roleCode = String(role || '')
-      .toUpperCase()
-      .replace(/[\s-]+/g, '_');
-    const isSalesperson = [
-      'SUPER_SALES',
-      'SALES_EXECUTIVE',
-      'SALES_INTERN',
-    ].includes(roleCode);
-    const targetSalespersonId = isSalesperson ? userId : target.salespersonId;
+    // Measure achievement for targetSalespersonId
+    const targetSalespersonId = !isAdmin ? userId : (target.salespersonId || userId);
     const achieved = await this.prisma.salesOrder.aggregate({
       _sum: { totalAmount: true },
       where: {
