@@ -8,6 +8,7 @@ import { apiClient } from '../lib/apiClient';
 import { useERPStore } from '../store/erpStore';
 import { backendFetch } from '../lib/backendFetch';
 import { remindersService } from '../modules/sales/services/reminders.service.js';
+import PaginationControl from '../shared/components/PaginationControl';
 
 const PAYMENT_LABELS = {
   PAYMENT_PENDING: 'Awaiting Payment',
@@ -152,6 +153,13 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   const [loadingPending, setLoadingPending] = useState(true);
   const [loadingFollowups, setLoadingFollowups] = useState(true);
   const [reminderFilter, setReminderFilter] = useState('All');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Reset page to 1 whenever view filters change
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, pendingFilter, agingFilter, reminderFilter]);
 
   const [localConfirmations, setLocalConfirmations] = useState([]);
   const [localDispatchInvoices, setLocalDispatchInvoices] = useState({});
@@ -904,6 +912,26 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     });
   }, [pendingRows]);
 
+  const pagedPendingRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return pendingRows.slice(start, start + pageSize);
+  }, [pendingRows, page, pageSize]);
+
+  const pagedPartialRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return partialRows.slice(start, start + pageSize);
+  }, [partialRows, page, pageSize]);
+
+  const pagedFilteredReminders = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredReminders.slice(start, start + pageSize);
+  }, [filteredReminders, page, pageSize]);
+
+  const pagedCompletedOrders = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return completedOrders.slice(start, start + pageSize);
+  }, [completedOrders, page, pageSize]);
+
   return (
     <div className="app-card payment-followup-container" style={{ flex: 1 }}>
       {/* Top Header Row */}
@@ -1037,7 +1065,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   <div className="empty-state-subtitle">All customer collections in this view are up to date.</div>
                 </div>
               ) : (
-                pendingRows.map(o => {
+                pagedPendingRows.map(o => {
                   const total = Number(o.grand_total || 0);
                   const paid = Number(o.verified_paid_amount || 0);
                   const bal = o.balance_amount !== undefined ? Number(o.balance_amount || 0) : Math.max(0, total - paid);
@@ -1187,7 +1215,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   {pendingRows.length === 0 ? (
                     <tr><td colSpan="12" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
                   ) : (
-                    pendingRows.map(o => {
+                    pagedPendingRows.map(o => {
                       const total = Number(o.grand_total || 0);
                       const paid = Number(o.verified_paid_amount || 0);
                       const bal = o.balance_amount !== undefined ? Number(o.balance_amount || 0) : Math.max(0, total - paid);
@@ -1317,6 +1345,22 @@ export default function PaymentFollowupERPView({ orders = [] }) {
               </table>
             </div>
           )}
+          {pendingRows.length > 0 && (
+            <PaginationControl
+              currentPage={page}
+              totalPages={Math.ceil(pendingRows.length / pageSize) || 1}
+              totalItems={pendingRows.length}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+              themeColor="#2563eb"
+              style={{ marginTop: 12, borderRadius: '12px', border: '1px solid #E2E8F0' }}
+            />
+          )}
         </div>
       )}
 
@@ -1347,7 +1391,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   <div className="empty-state-subtitle">There are no orders with partial delivery or partial payment balances.</div>
                 </div>
               ) : (
-                partialRows.map(o => {
+                pagedPartialRows.map(o => {
                   const total = Number(o.grand_total || 0);
                   const paid = Number(o.verified_paid_amount || 0);
                   const bal = o.balance_amount !== undefined ? Number(o.balance_amount || 0) : Math.max(0, total - paid);
@@ -1455,7 +1499,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                       </td>
                     </tr>
                   ) : (
-                    partialRows.map(o => {
+                    pagedPartialRows.map(o => {
                       const total = Number(o.grand_total || 0);
                       const paid = Number(o.verified_paid_amount || 0);
                       const bal = o.balance_amount !== undefined ? Number(o.balance_amount || 0) : Math.max(0, total - paid);
@@ -1557,6 +1601,22 @@ export default function PaymentFollowupERPView({ orders = [] }) {
               </table>
             </div>
           )}
+          {partialRows.length > 0 && (
+            <PaginationControl
+              currentPage={page}
+              totalPages={Math.ceil(partialRows.length / pageSize) || 1}
+              totalItems={partialRows.length}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+              themeColor="#2563eb"
+              style={{ marginTop: 12, borderRadius: '12px', border: '1px solid #E2E8F0' }}
+            />
+          )}
         </div>
       )}
 
@@ -1591,7 +1651,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   <div className="empty-state-subtitle">There are no scheduled follow-up reminders in this filter.</div>
                 </div>
               ) : (
-                filteredReminders.map(r => (
+                pagedFilteredReminders.map(r => (
                   <div key={r.id} className="payment-mobile-card">
                     <div className="pmc-header">
                       <div className="pmc-order-tag">
@@ -1665,7 +1725,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   {filteredReminders.length === 0 ? (
                     <tr><td colSpan="7" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No reminders found.</td></tr>
                   ) : (
-                    filteredReminders.map(r => (
+                    pagedFilteredReminders.map(r => (
                       <tr key={r.id}>
                         <td data-label="Reminder Date">{r.reminder_date || '-'}</td>
                         <td data-label="Customer" style={{ fontWeight: 700 }}>{r.customer_name || '-'}</td>
@@ -1707,6 +1767,22 @@ export default function PaymentFollowupERPView({ orders = [] }) {
               </table>
             </div>
           )}
+          {filteredReminders.length > 0 && (
+            <PaginationControl
+              currentPage={page}
+              totalPages={Math.ceil(filteredReminders.length / pageSize) || 1}
+              totalItems={filteredReminders.length}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+              themeColor="#2563eb"
+              style={{ marginTop: 12, borderRadius: '12px', border: '1px solid #E2E8F0' }}
+            />
+          )}
         </div>
       )}
 
@@ -1720,7 +1796,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   <div className="empty-state-subtitle">No orders with fully verified payments found.</div>
                 </div>
               ) : (
-                completedOrders.map(o => (
+                pagedCompletedOrders.map(o => (
                   <div key={o.orderNo || o.order_number || o.id} className="payment-mobile-card">
                     <div className="pmc-header">
                       <strong style={{ fontFamily: 'monospace', color: '#0f172a' }}>{o.orderNo || o.order_number || o.id}</strong>
@@ -1760,7 +1836,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                   {completedOrders.length === 0 ? (
                     <tr><td colSpan="8" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No completed payments.</td></tr>
                   ) : (
-                    completedOrders.map(o => (
+                    pagedCompletedOrders.map(o => (
                       <tr key={o.orderNo || o.order_number || o.id}>
                         <td data-label="Order" style={{ fontFamily: 'monospace', fontWeight: 800 }}>{o.orderNo || o.order_number || o.id}</td>
                         <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer?.name || o.customerName || o.customer_name || 'ABC Infrastructure Pvt Ltd'}</td>
@@ -1776,6 +1852,22 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                 </tbody>
               </table>
             </div>
+          )}
+          {completedOrders.length > 0 && (
+            <PaginationControl
+              currentPage={page}
+              totalPages={Math.ceil(completedOrders.length / pageSize) || 1}
+              totalItems={completedOrders.length}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+              themeColor="#2563eb"
+              style={{ marginTop: 12, borderRadius: '12px', border: '1px solid #E2E8F0' }}
+            />
           )}
           <div style={{ marginTop: 14 }}>
             <button className="btn-small btn-outline-small" onClick={() => navigate.push('/sales/orders')}>Back to Orders</button>
