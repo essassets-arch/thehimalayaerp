@@ -209,6 +209,20 @@ function resolveConsignmentAddress(dispatch: Dispatch): string {
   return "Customer Designated Delivery Site";
 }
 
+function formatDateDisplay(dateStr?: string | null): string {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  } catch {
+    return String(dateStr);
+  }
+}
+
 function extractTransportationCost(order: any): number {
   if (!order) return 0;
   const directCost =
