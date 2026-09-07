@@ -355,6 +355,7 @@ export default function CreateDispatchPage() {
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
   const [fileError, setFileError] = useState<string | null>(null);
   const initialSelectionSet = React.useRef(false);
+  const userEditedFreight = React.useRef(false);
 
   // Fetch existing dispatches for duplicate Invoice + Challan validation
   const { data: existingDispatches = EMPTY_ARRAY } = useQuery<any[]>({
@@ -423,7 +424,10 @@ export default function CreateDispatchPage() {
 
       rawDispatches.forEach((d: any) => {
         const st = String(d.status || "").toUpperCase();
-        if (["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "PENDING"].includes(st)) {
+        if (
+          ["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "PENDING_DISPATCH", "PENDING", "COMPLETED"].includes(st) ||
+          (!["CANCELLED", "REJECTED", "DRAFT"].includes(st) && st.length > 0)
+        ) {
           if (Array.isArray(d.items)) {
             d.items.forEach((it: any) => {
               const q = Number(it.quantity || 0);
@@ -435,14 +439,37 @@ export default function CreateDispatchPage() {
                 const k = String(it.workOrderId).toLowerCase();
                 dispatchedByWorkOrder.set(k, (dispatchedByWorkOrder.get(k) || 0) + q);
               }
-              if (d.salesOrderId && it.productId) {
-                const k = `${String(d.salesOrderId).toLowerCase()}_${String(it.productId).toLowerCase()}`;
+              const pId = it.productId || it.salesOrderItem?.productId;
+              if (d.salesOrderId && pId) {
+                const k = `${String(d.salesOrderId).toLowerCase()}_${String(pId).toLowerCase()}`;
                 dispatchedBySalesOrderProduct.set(k, (dispatchedBySalesOrderProduct.get(k) || 0) + q);
+              }
+              if (d.salesOrder?.orderNumber && pId) {
+                const k2 = `${normalizeKey(d.salesOrder.orderNumber)}_${String(pId).toLowerCase()}`;
+                dispatchedBySalesOrderProduct.set(k2, (dispatchedBySalesOrderProduct.get(k2) || 0) + q);
               }
             });
           }
         }
       });
+
+      if (typeof window !== "undefined") {
+        try {
+          const rawTracker = localStorage.getItem("himalaya_dispatched_items_tracker");
+          if (rawTracker) {
+            const tracker = JSON.parse(rawTracker);
+            Object.entries(tracker).forEach(([k, v]) => {
+              const q = Number(v || 0);
+              if (q > 0) {
+                const lowerK = k.toLowerCase();
+                dispatchedBySalesOrderItem.set(lowerK, Math.max(dispatchedBySalesOrderItem.get(lowerK) || 0, q));
+                dispatchedByWorkOrder.set(lowerK, Math.max(dispatchedByWorkOrder.get(lowerK) || 0, q));
+                dispatchedBySalesOrderProduct.set(lowerK, Math.max(dispatchedBySalesOrderProduct.get(lowerK) || 0, q));
+              }
+            });
+          }
+        } catch {}
+      }
 
       let list: WorkOrder[] = [...rawWorkOrders, ...rawReady].map((wo: any) => {
         const item = wo.salesOrderItem;
@@ -852,10 +879,10 @@ export default function CreateDispatchPage() {
       return firstOrderWithDate ? new Date(firstOrderWithDate.requestedDeliveryDate || Date.now()).toISOString().slice(0, 10) : "";
     });
 
-    if (transportationCost !== undefined && transportationCost >= 0) {
+    if (!userEditedFreight.current && transportationCost !== undefined && transportationCost >= 0) {
       setActualFreightPaidAmount(transportationCost);
     }
-  }, [selectedSalesOrders, transportationCost]);
+  }, [selectedSalesOrders, transportationCost, deliveryAddressParam]);
 
   const validateForm = React.useCallback(() => {
     const errors: Record<string, string> = {};
@@ -957,7 +984,7 @@ export default function CreateDispatchPage() {
       }
     }
 
-    // 11. To Be Paid (₹): Optional. Numeric only. Must be >= 0. Allow up to 2 decimal places. Should not exceed transportation cost.
+    // 11. To Be Paid (₹): Optional. Numeric only. Must be >= 0. Allow up to 2 decimal places. Any higher/lower custom agreed freight allowed.
     if (actualFreightPaidAmount !== undefined && actualFreightPaidAmount !== null) {
       if (isNaN(actualFreightPaidAmount) || actualFreightPaidAmount < 0) {
         errors.actualFreightPaidAmount = "To Be Paid (₹) must be 0 or greater.";
@@ -965,9 +992,6 @@ export default function CreateDispatchPage() {
         const str = String(actualFreightPaidAmount);
         if (str.includes('.') && str.split('.')[1].length > 2) {
           errors.actualFreightPaidAmount = "Maximum 2 decimal places allowed.";
-        }
-        if (transportationCost > 0 && actualFreightPaidAmount > transportationCost) {
-          errors.actualFreightPaidAmount = `To Be Paid (₹${actualFreightPaidAmount}) cannot exceed Fetched Transportation Cost (₹${transportationCost}).`;
         }
       }
     }
@@ -985,7 +1009,6 @@ export default function CreateDispatchPage() {
     ewayBillNumber,
     expectedDeliveryDate,
     actualFreightPaidAmount,
-    transportationCost,
     existingDispatches,
   ]);
 
@@ -1287,6 +1310,9 @@ export default function CreateDispatchPage() {
           const rawFullMeta = localStorage.getItem("himalaya_dispatches_full_metadata");
           const fullMetaMap = rawFullMeta ? JSON.parse(rawFullMeta) : {};
 
+          const rawItemsTracker = localStorage.getItem("himalaya_dispatched_items_tracker");
+          const itemsTracker = rawItemsTracker ? JSON.parse(rawItemsTracker) : {};
+
           for (const [orderId, grp] of orderGroups.entries()) {
             const k = String(orderId).toLowerCase();
             const oNo = grp.salesOrder?.orderNumber ? String(grp.salesOrder.orderNumber).toLowerCase() : "";
@@ -1301,6 +1327,31 @@ export default function CreateDispatchPage() {
                 localMap[oNo.replace(/[^a-z0-9]/g, "")] = cleanInv;
               }
             }
+
+            // Track dispatched items and quantities
+            grp.workOrders.forEach((wo) => {
+              const qty = Number(dispatchQuantities[wo.id] || 0);
+              if (qty > 0) {
+                if (wo.id) {
+                  itemsTracker[wo.id] = (itemsTracker[wo.id] || 0) + qty;
+                  itemsTracker[String(wo.id).toLowerCase()] = (itemsTracker[String(wo.id).toLowerCase()] || 0) + qty;
+                }
+                const soItemId = wo.salesOrderItem?.id || wo.salesOrderItemId;
+                if (soItemId) {
+                  itemsTracker[soItemId] = (itemsTracker[soItemId] || 0) + qty;
+                  itemsTracker[String(soItemId).toLowerCase()] = (itemsTracker[String(soItemId).toLowerCase()] || 0) + qty;
+                }
+                const pId = wo.salesOrderItem?.productId || wo.productId;
+                if (orderId && pId) {
+                  const key = `${String(orderId).toLowerCase()}_${String(pId).toLowerCase()}`;
+                  itemsTracker[key] = (itemsTracker[key] || 0) + qty;
+                }
+                if (oNo && pId) {
+                  const key2 = `${String(oNo).toLowerCase()}_${String(pId).toLowerCase()}`;
+                  itemsTracker[key2] = (itemsTracker[key2] || 0) + qty;
+                }
+              }
+            });
 
             const snapshot = {
               orderId,
@@ -1330,6 +1381,7 @@ export default function CreateDispatchPage() {
 
           localStorage.setItem("himalaya_dispatch_invoices", JSON.stringify(localMap));
           localStorage.setItem("himalaya_dispatches_full_metadata", JSON.stringify(fullMetaMap));
+          localStorage.setItem("himalaya_dispatched_items_tracker", JSON.stringify(itemsTracker));
         } catch (e) {
           console.warn("Failed saving dispatch metadata to localStorage:", e);
         }
@@ -1851,6 +1903,7 @@ export default function CreateDispatchPage() {
               step="0.01"
               value={actualFreightPaidAmount !== undefined ? actualFreightPaidAmount : ""}
               onChange={(e) => {
+                userEditedFreight.current = true;
                 const val = e.target.value;
                 setActualFreightPaidAmount(val === "" ? 0 : Number(val));
                 setTouchedFields((t) => ({ ...t, actualFreightPaidAmount: true }));

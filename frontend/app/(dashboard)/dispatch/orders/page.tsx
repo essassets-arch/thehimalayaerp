@@ -686,10 +686,26 @@ export default function DispatchOrdersPage() {
       const dispatchedBySalesOrderItem = new Map<string, number>();
       const dispatchedByWorkOrder = new Map<string, number>();
       const dispatchedBySalesOrderProduct = new Map<string, number>();
+      const ordersWithPriorDispatches = new Set<string>();
+
+      const isDispatchedStatus = (st: any) => {
+        const s = String(st || "").toUpperCase();
+        return (
+          ["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "PENDING_DISPATCH", "PENDING", "COMPLETED"].includes(s) ||
+          (!["CANCELLED", "REJECTED", "DRAFT"].includes(s) && s.length > 0)
+        );
+      };
 
       rawActiveDispatches.forEach((d: any) => {
-        const st = String(d.status || "").toUpperCase();
-        if (["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED"].includes(st)) {
+        if (isDispatchedStatus(d.status)) {
+          if (d.salesOrderId) {
+            ordersWithPriorDispatches.add(String(d.salesOrderId).toLowerCase());
+            ordersWithPriorDispatches.add(normalizeKey(d.salesOrderId));
+          }
+          if (d.salesOrder?.orderNumber) {
+            ordersWithPriorDispatches.add(String(d.salesOrder.orderNumber).toLowerCase());
+            ordersWithPriorDispatches.add(normalizeKey(d.salesOrder.orderNumber));
+          }
           if (Array.isArray(d.items)) {
             d.items.forEach((it: any) => {
               const q = Number(it.quantity || 0);
@@ -701,14 +717,55 @@ export default function DispatchOrdersPage() {
                 const k = String(it.workOrderId).toLowerCase();
                 dispatchedByWorkOrder.set(k, (dispatchedByWorkOrder.get(k) || 0) + q);
               }
-              if (d.salesOrderId && it.productId) {
-                const k = `${String(d.salesOrderId).toLowerCase()}_${String(it.productId).toLowerCase()}`;
+              const pId = it.productId || it.salesOrderItem?.productId;
+              if (d.salesOrderId && pId) {
+                const k = `${String(d.salesOrderId).toLowerCase()}_${String(pId).toLowerCase()}`;
                 dispatchedBySalesOrderProduct.set(k, (dispatchedBySalesOrderProduct.get(k) || 0) + q);
+              }
+              if (d.salesOrder?.orderNumber && pId) {
+                const k2 = `${normalizeKey(d.salesOrder.orderNumber)}_${String(pId).toLowerCase()}`;
+                dispatchedBySalesOrderProduct.set(k2, (dispatchedBySalesOrderProduct.get(k2) || 0) + q);
               }
             });
           }
         }
       });
+
+      if (typeof window !== "undefined") {
+        try {
+          const rawFullMeta = localStorage.getItem("himalaya_dispatches_full_metadata");
+          if (rawFullMeta) {
+            const metaMap = JSON.parse(rawFullMeta);
+            Object.keys(metaMap).forEach((k) => {
+              ordersWithPriorDispatches.add(k.toLowerCase());
+              ordersWithPriorDispatches.add(normalizeKey(k));
+              const entry = metaMap[k];
+              if (entry?.orderNumber) {
+                ordersWithPriorDispatches.add(entry.orderNumber.toLowerCase());
+                ordersWithPriorDispatches.add(normalizeKey(entry.orderNumber));
+              }
+              if (entry?.orderId) {
+                ordersWithPriorDispatches.add(entry.orderId.toLowerCase());
+                ordersWithPriorDispatches.add(normalizeKey(entry.orderId));
+              }
+            });
+          }
+
+          const rawTracker = localStorage.getItem("himalaya_dispatched_items_tracker");
+          if (rawTracker) {
+            const tracker = JSON.parse(rawTracker);
+            Object.entries(tracker).forEach(([k, v]) => {
+              const q = Number(v || 0);
+              if (q > 0) {
+                const lowerK = k.toLowerCase();
+                dispatchedBySalesOrderItem.set(lowerK, Math.max(dispatchedBySalesOrderItem.get(lowerK) || 0, q));
+                dispatchedByWorkOrder.set(lowerK, Math.max(dispatchedByWorkOrder.get(lowerK) || 0, q));
+                dispatchedBySalesOrderProduct.set(lowerK, Math.max(dispatchedBySalesOrderProduct.get(lowerK) || 0, q));
+              }
+            });
+          }
+        } catch {}
+      }
 
       // Build index map of sales orders for deep metadata lookup
       const salesOrdersMap = new Map<string, any>();
@@ -727,6 +784,39 @@ export default function DispatchOrdersPage() {
           salesOrdersMap.set(String(so.orderNo).toLowerCase(), so);
           salesOrdersMap.set(normalizeKey(so.orderNo), so);
         }
+
+        if (Array.isArray(so.dispatches) && so.dispatches.length > 0) {
+          so.dispatches.forEach((d: any) => {
+            if (isDispatchedStatus(d.status)) {
+              if (so.id) {
+                ordersWithPriorDispatches.add(String(so.id).toLowerCase());
+                ordersWithPriorDispatches.add(normalizeKey(so.id));
+              }
+              if (so.orderNumber) {
+                ordersWithPriorDispatches.add(String(so.orderNumber).toLowerCase());
+                ordersWithPriorDispatches.add(normalizeKey(so.orderNumber));
+              }
+              if (Array.isArray(d.items)) {
+                d.items.forEach((it: any) => {
+                  const q = Number(it.quantity || 0);
+                  if (it.salesOrderItemId) {
+                    const k = String(it.salesOrderItemId).toLowerCase();
+                    dispatchedBySalesOrderItem.set(k, (dispatchedBySalesOrderItem.get(k) || 0) + q);
+                  }
+                  const pId = it.productId || it.salesOrderItem?.productId;
+                  if (so.id && pId) {
+                    const k = `${String(so.id).toLowerCase()}_${String(pId).toLowerCase()}`;
+                    dispatchedBySalesOrderProduct.set(k, (dispatchedBySalesOrderProduct.get(k) || 0) + q);
+                  }
+                  if (so.orderNumber && pId) {
+                    const k2 = `${normalizeKey(so.orderNumber)}_${String(pId).toLowerCase()}`;
+                    dispatchedBySalesOrderProduct.set(k2, (dispatchedBySalesOrderProduct.get(k2) || 0) + q);
+                  }
+                });
+              }
+            }
+          });
+        }
       });
 
       const unifiedDirectDispatches: UnifiedPendingDispatchItem[] = [];
@@ -737,6 +827,9 @@ export default function DispatchOrdersPage() {
         const projectName = resolveProjectName(qOrder, matchedSo, qOrder.customer);
         const deliveryAddress = formatAddress(qOrder, qOrder.customer, matchedSo) || "—";
         const items = Array.isArray(qOrder.items) ? qOrder.items : [];
+        const soKeyNorm = normalizeKey(qOrder.orderNo || qOrder.orderId);
+        const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (qOrder.salesOrderId && ordersWithPriorDispatches.has(String(qOrder.salesOrderId).toLowerCase()));
+
         items.forEach((qItem: any) => {
           const qty = Number(qItem.approvedQuantity ?? qItem.dispatchableQuantity ?? qItem.reservedQuantity ?? 1);
           unifiedDirectDispatches.push({
@@ -751,7 +844,7 @@ export default function DispatchOrdersPage() {
             orderedQuantity: qty,
             dispatchedQuantity: 0,
             remainingQuantity: qty,
-            isPartiallyDispatched: false,
+            isPartiallyDispatched: Boolean(orderHasPriorDispatches),
             salesOrderId: qOrder.salesOrderId || matchedSo?.id,
             salesOrderItemId: qItem.salesOrderItemId,
             productId: qItem.productId,
@@ -788,6 +881,9 @@ export default function DispatchOrdersPage() {
           const projectName = resolveProjectName(salesOrder, matchedSo, fg, customer, wo);
           const qtyVal = fg.availableQuantity ?? fg.quantity ?? 1;
           const qty = typeof qtyVal === "number" ? qtyVal : parseFloat(String(qtyVal)) || 1;
+          const soKeyNorm = normalizeKey(fg.jobNo || salesOrder?.orderNumber);
+          const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (salesOrder?.id && ordersWithPriorDispatches.has(String(salesOrder.id).toLowerCase()));
+
           return {
             id: `fg-${fg.id || fg.workOrderId}`,
             itemType: "WORK_ORDER",
@@ -800,7 +896,7 @@ export default function DispatchOrdersPage() {
             orderedQuantity: qty,
             dispatchedQuantity: 0,
             remainingQuantity: qty,
-            isPartiallyDispatched: false,
+            isPartiallyDispatched: Boolean(orderHasPriorDispatches),
             workOrderId: fg.workOrderId || fg.id,
             salesOrderId: salesOrder?.id || matchedSo?.id,
             workOrderNumber: fg.jobNo,
@@ -843,7 +939,6 @@ export default function DispatchOrdersPage() {
             0;
           const alreadyDispatched = Math.max(fromDispatchItems, fromActiveDispatches);
           const remaining = Math.max(0, totalOrdered - alreadyDispatched);
-          const isPartiallyDispatched = alreadyDispatched > 0 && remaining > 0;
 
           const numPart = (wo.workOrderNumber || wo.id || "").replace(/\D/g, "").slice(-5);
           const soNumber =
@@ -859,6 +954,11 @@ export default function DispatchOrdersPage() {
 
           const customerName = resolveCustomerName(salesOrder, matchedSo, customer, wo);
           const projectName = resolveProjectName(salesOrder, matchedSo, customer, wo);
+
+          const soKeyNorm = normalizeKey(soNumber);
+          const soIdLower = String(salesOrder?.id || matchedSo?.id || wo.salesOrderId || "").toLowerCase();
+          const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (soIdLower ? ordersWithPriorDispatches.has(soIdLower) : false);
+          const isPartiallyDispatched = (alreadyDispatched > 0 && remaining > 0) || (orderHasPriorDispatches && remaining > 0);
 
           return {
             id: `wo-${wo.id}`,
@@ -890,11 +990,8 @@ export default function DispatchOrdersPage() {
 
       const unifiedSalesOrders: UnifiedPendingDispatchItem[] = [];
       rawSalesOrders.forEach((so: any) => {
-        const orderNo = String(so.orderNumber || so.orderId || "");
+        const orderNo = String(so.orderNumber || so.orderId || so.orderNo || "");
         if (orderNo.includes("SO-TEST-")) return;
-
-        const status = String(so.status || so.dispatchStatus || "").toUpperCase();
-        if (status === "IN_TRANSIT" || status === "COMPLETED" || status === "DELIVERED") return;
 
         const customerName = resolveCustomerName(so, so.customer);
         const projectName = resolveProjectName(so, so.customer);
@@ -903,14 +1000,6 @@ export default function DispatchOrdersPage() {
         const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
         if (items.length > 0) {
           items.forEach((item: any, idx: number) => {
-            const hasFgReservation = Array.isArray(item.allocations) && item.allocations.some(
-              (a: any) => a.allocationType === "FINISHED_GOODS_RESERVATION" && Number(a.reservedQuantity || 0) > 0
-            );
-
-            if (!isTradingProduct(item, productsMap) && !hasFgReservation) {
-              return;
-            }
-
             const totalOrdered = Number(item.orderedQuantity || item.quantity || 1);
             const fromDispatchItems = Array.isArray(item.dispatchItems)
               ? item.dispatchItems.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0)
@@ -920,21 +1009,28 @@ export default function DispatchOrdersPage() {
               (so.id && item.productId
                 ? dispatchedBySalesOrderProduct.get(`${String(so.id).toLowerCase()}_${String(item.productId).toLowerCase()}`)
                 : 0) ||
+              (orderNo && item.productId
+                ? dispatchedBySalesOrderProduct.get(`${normalizeKey(orderNo)}_${String(item.productId).toLowerCase()}`)
+                : 0) ||
               0;
             const alreadyDispatched = Math.max(fromDispatchItems, fromActiveDispatches);
             const remaining = Math.max(0, totalOrdered - alreadyDispatched);
-            const isPartiallyDispatched = alreadyDispatched > 0 && remaining > 0;
+
+            const soKeyNorm = normalizeKey(orderNo);
+            const soIdLower = String(so.id || "").toLowerCase();
+            const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (soIdLower ? ordersWithPriorDispatches.has(soIdLower) : false);
+            const isPartiallyDispatched = (alreadyDispatched > 0 && remaining > 0) || (orderHasPriorDispatches && remaining > 0);
 
             if (remaining <= 0 && alreadyDispatched > 0) return;
 
             unifiedSalesOrders.push({
               id: `so-${so.id}-${idx}`,
-              itemType: "TRADING_SALES_ORDER",
-              orderNumber: so.orderNumber || so.orderId || so.orderNo || "N/A",
+              itemType: isTradingProduct(item, productsMap) ? "TRADING_SALES_ORDER" : "WORK_ORDER",
+              orderNumber: orderNo || "N/A",
               customerName,
               projectName,
               deliveryAddress: address,
-              productName: item.productNameSnapshot || item.productName || item.name || "Trading Product",
+              productName: item.productNameSnapshot || item.productName || item.name || "Product Cargo",
               productSku: item.product?.sku || item.sku,
               approvedQuantity: remaining > 0 ? remaining : totalOrdered,
               orderedQuantity: totalOrdered,
@@ -1108,7 +1204,9 @@ export default function DispatchOrdersPage() {
         existing.totalQty += qtyNum;
         existing.totalOrderedQty = (existing.totalOrderedQty || 0) + orderedNum;
         existing.totalDispatchedQty = (existing.totalDispatchedQty || 0) + dispatchedNum;
-        if (item.isPartiallyDispatched) existing.isPartiallyDispatched = true;
+        if (item.isPartiallyDispatched || existing.totalDispatchedQty > 0) {
+          existing.isPartiallyDispatched = true;
+        }
         if (!existing.salesOrderId && item.salesOrderId) existing.salesOrderId = item.salesOrderId;
         if (!isValidCustomerName(existing.customerName) && isValidCustomerName(item.customerName)) {
           existing.customerName = item.customerName;
@@ -1131,7 +1229,7 @@ export default function DispatchOrdersPage() {
           totalQty: qtyNum,
           totalOrderedQty: orderedNum,
           totalDispatchedQty: dispatchedNum,
-          isPartiallyDispatched: item.isPartiallyDispatched,
+          isPartiallyDispatched: Boolean(item.isPartiallyDispatched || dispatchedNum > 0),
           items: [item],
         });
       }
@@ -1146,15 +1244,25 @@ export default function DispatchOrdersPage() {
   }, [filteredPendingItems]);
 
   // Remaining Items (Partially Dispatched)
-  const filteredRemainingItems = useMemo(() => {
-    return filteredPendingItems.filter((item) => item.isPartiallyDispatched === true);
-  }, [filteredPendingItems]);
-
   const groupedRemainingOrders = useMemo(() => {
     return groupedPendingOrders.filter(
-      (group) => group.isPartiallyDispatched || group.items.some((i) => i.isPartiallyDispatched)
+      (group) =>
+        (group.isPartiallyDispatched ||
+          (group.totalDispatchedQty !== undefined && group.totalDispatchedQty > 0) ||
+          group.items.some((i) => i.isPartiallyDispatched || (i.dispatchedQuantity && i.dispatchedQuantity > 0))) &&
+        group.totalQty > 0
     );
   }, [groupedPendingOrders]);
+
+  const filteredRemainingItems = useMemo(() => {
+    const remainingOrderKeys = new Set(groupedRemainingOrders.map((g) => g.orderKey));
+    return filteredPendingItems.filter((item) => {
+      if (item.isPartiallyDispatched) return true;
+      if ((item.dispatchedQuantity ?? 0) > 0 && (item.remainingQuantity ?? 0) > 0) return true;
+      const key = item.orderNumber || item.salesOrderId || "SO-UNASSIGNED";
+      return remainingOrderKeys.has(key);
+    });
+  }, [filteredPendingItems, groupedRemainingOrders]);
 
   // Filter history items
   const filteredHistoryItems = useMemo(() => {
