@@ -2075,7 +2075,7 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('+91 98795 22226  |  info@himalayacomposites.com  |  www.himalayacomposites.com', pageWidth / 2, pageHeight - 4.5, { align: 'center' });
+    doc.text('+91 84888 11609  |  Info@thehimalaya.co.in  |  www.thehimalaya.co.in', pageWidth / 2, pageHeight - 4.5, { align: 'center' });
 
     // Page numbering right-aligned
     doc.setFontSize(8.5);

@@ -1897,13 +1897,13 @@ export default function QuotationsView({
               </svg>
               <div className="quotation-footer-contact" style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '100%', boxSizing: 'border-box', padding: '30px 34px 10px', color: '#ffffff', fontSize: '11.5px', fontWeight: '700' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
-                  <Phone size={13} color="#ffffff" fill="#ffffff" /> +91 98795 22226
+                  <Phone size={13} color="#ffffff" fill="#ffffff" /> +91 84888 11609
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
-                  <Mail size={13} color="#ffffff" /> info@himalayacomposites.com
+                  <Mail size={13} color="#ffffff" /> Info@thehimalaya.co.in
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
-                  <Globe size={13} color="#ffffff" /> www.himalayacomposites.com
+                  <Globe size={13} color="#ffffff" /> www.thehimalaya.co.in
                 </span>
               </div>
             </div>
