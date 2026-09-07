@@ -2,12 +2,32 @@ const { PrismaClient, Prisma } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
 
-const targetDbs = process.env.DATABASE_URL
-  ? [{ name: 'Production Database', url: process.env.DATABASE_URL }]
-  : [
-      { name: 'Active DB (himalaya_erp_browser_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
-      { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
-    ];
+const isDocker = require('fs').existsSync('/.dockerenv') || (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('@postgres:'));
+const targetDbs = [];
+
+if (process.env.DATABASE_URL) {
+  targetDbs.push({ name: 'Configured DATABASE_URL', url: process.env.DATABASE_URL });
+}
+if (process.env.LIVE_DATABASE_URL) {
+  targetDbs.push({ name: 'Live Database', url: process.env.LIVE_DATABASE_URL });
+}
+if (process.env.PROD_DATABASE_URL) {
+  targetDbs.push({ name: 'Production Database', url: process.env.PROD_DATABASE_URL });
+}
+
+if (!isDocker) {
+  targetDbs.push(
+    { name: 'Active DB (himalaya_erp_browser_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+    { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
+  );
+}
+
+const seen = new Set();
+const uniqueTargetDbs = targetDbs.filter(db => {
+  if (seen.has(db.url)) return false;
+  seen.add(db.url);
+  return true;
+});
 
 function parseCSV(content) {
   const result = [];
@@ -89,87 +109,61 @@ function parseAddressObj(addrStr, stateStr, cityStr, pinStr) {
 }
 
 function findProduct(prodType, prodSize, prodCap, allProducts) {
-  const normType = (prodType || '').toUpperCase().trim();
-  const normSize = (prodSize || '').toUpperCase().trim().replace(/MM/g, '').trim();
-  const normCap = (prodCap || '').toUpperCase().trim();
+  let t = (prodType || '').toUpperCase().trim();
+  let s = (prodSize || '').toUpperCase().trim().replace(/\s+/g, '');
+  if (s.includes('DAI')) s = s.replace('DAI', 'DIA');
+  if (s.includes('DIA') && !s.includes('MM')) s = s.replace('DIA', 'MMDIA');
+  if (s === '900MM') s = '900MMDIA';
+  if (s.match(/^\d+X\d+X\d+$/)) {
+    s = s.substring(0, s.lastIndexOf('X'));
+  }
+  if (s === '30X0') s = '30X30';
+  if (s === '900X600') s = '600X900';
+  
+  let c = (prodCap || '').toUpperCase().trim();
+  if (c === '3T') c = 'LD';
 
-  // Try exact match
-  let matched = allProducts.find(p => {
-    const pName = (p.name || '').toUpperCase();
-    const pSku = (p.sku || '').toUpperCase();
-    const matchType = pName.includes(normType) || pSku.includes(normType);
-    const matchSize = normSize && (pName.includes(normSize) || pSku.includes(normSize));
-    return matchType && matchSize;
+  let match = allProducts.find(p => {
+    const name = (p.name || '').toUpperCase();
+    const sku = (p.sku || '').toUpperCase();
+    return (name.includes(t) || sku.includes(t)) &&
+           (name.includes(s) || sku.includes(s)) &&
+           (name.includes(c) || sku.includes(c));
   });
 
-  if (matched) return matched;
+  if (!match) {
+    match = allProducts.find(p => {
+      const name = (p.name || '').toUpperCase();
+      const sku = (p.sku || '').toUpperCase();
+      return (name.includes(s) || sku.includes(s)) &&
+             (name.includes(c) || sku.includes(c));
+    });
+  }
 
-  // Try type match
-  matched = allProducts.find(p => {
-    const pName = (p.name || '').toUpperCase();
-    return pName.includes(normType);
-  });
-
-  return matched || allProducts[0];
+  return match;
 }
 
 async function alignDatabaseColumns(prisma) {
   const statements = [
+    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "projectName" TEXT;`,
+    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "groupName" TEXT;`,
+    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "gstName" TEXT;`,
+    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "gstNumber" TEXT;`,
+    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "contactPerson" TEXT;`,
     `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "salesExecutiveId" TEXT;`,
     `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "detailedItems" JSONB;`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "gstName" TEXT;`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "groupName" TEXT;`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "projectName" TEXT;`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "leadDate" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "nextReminder" TIMESTAMP(3);`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "notes" TEXT;`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "unit" TEXT;`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "assignedToId" TEXT;`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "estimatedQuantity" DECIMAL(65,30);`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "lostAt" TIMESTAMP(3);`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "lostReason" TEXT;`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "lostComplaintId" TEXT;`,
-    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "wonAt" TIMESTAMP(3);`,
-    `ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "nextReminder" TIMESTAMP(3);`,
+    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "address" JSONB;`,
+    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "convertedCustomerId" TEXT;`,
+    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "convertedAt" TIMESTAMP(3);`,
+    `ALTER TABLE "Lead" ADD COLUMN IF NOT EXISTS "convertedById" TEXT;`,
     `ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "salesExecutiveId" TEXT;`,
-    `ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "companyId" TEXT;`,
-    `ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "lostReason" TEXT;`,
-    `ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "lostAt" TIMESTAMP(3);`,
-    `ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "paymentTerms" TEXT;`,
-    `ALTER TABLE "Quotation" ADD COLUMN IF NOT EXISTS "paymentTermDays" INT;`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "nextReminder" TIMESTAMP(3);`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "sourceQuotationId" TEXT;`,
     `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "salesExecutiveId" TEXT;`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentTerms" TEXT;`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentTermDays" INT;`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentTermStartDate" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentDueDate" TIMESTAMP(3);`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentTermsDays" INT;`,
+    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "taxableAmount" DECIMAL(18,2);`,
+    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "discountAmount" DECIMAL(18,2) DEFAULT 0;`,
     `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paidAmount" DECIMAL(18,2) DEFAULT 0;`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "outstandingAmount" DECIMAL(18,2);`,
+    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "outstandingAmount" DECIMAL(18,2) DEFAULT 0;`,
     `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT DEFAULT 'PENDING';`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "deliveryTerms" TEXT;`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "currency" TEXT DEFAULT 'INR';`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "freightAmount" DECIMAL(18,2) DEFAULT 0;`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "lostReason" TEXT;`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "lostAt" TIMESTAMP(3);`,
-    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "lostComplaintId" TEXT;`,
-    `ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "size" TEXT;`,
-    `ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "capacity" TEXT;`,
-    `ALTER TABLE "ProductionPlan" ADD COLUMN IF NOT EXISTS "priority" TEXT DEFAULT 'NORMAL';`,
-    `ALTER TABLE "ProductionPlan" ADD COLUMN IF NOT EXISTS "productionLine" TEXT;`,
-    `ALTER TABLE "WorkOrder" ADD COLUMN IF NOT EXISTS "productionStatus" TEXT DEFAULT 'DISPATCHED';`,
-    `ALTER TABLE "WorkOrder" ADD COLUMN IF NOT EXISTS "qcResult" TEXT;`,
-    `ALTER TABLE "WorkOrder" ADD COLUMN IF NOT EXISTS "qcRemarks" TEXT;`,
-    `ALTER TABLE "WorkOrder" ADD COLUMN IF NOT EXISTS "startedById" TEXT;`,
-    `ALTER TABLE "WorkOrder" ADD COLUMN IF NOT EXISTS "completedById" TEXT;`,
-    `ALTER TABLE "WorkOrder" ADD COLUMN IF NOT EXISTS "startedAt" TIMESTAMP(3);`,
-    `ALTER TABLE "WorkOrder" ADD COLUMN IF NOT EXISTS "completedAt" TIMESTAMP(3);`,
-    `ALTER TABLE "QCInspection" ADD COLUMN IF NOT EXISTS "approvedQuantity" DECIMAL(18,3);`,
-    `ALTER TABLE "QCInspection" ADD COLUMN IF NOT EXISTS "rejectedQuantity" DECIMAL(18,3);`,
-    `ALTER TABLE "QCInspection" ADD COLUMN IF NOT EXISTS "remarks" TEXT;`,
-    `ALTER TABLE "QCInspection" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);`,
-    `ALTER TABLE "QCInspection" ADD COLUMN IF NOT EXISTS "inspectorId" TEXT;`
+    `ALTER TABLE "SalesOrder" ADD COLUMN IF NOT EXISTS "currency" TEXT DEFAULT 'INR';`
   ];
 
   for (const query of statements) {
@@ -184,22 +178,31 @@ async function syncSuperSales2Database(config) {
   console.log(`SYNCHRONIZING SUPERSALES 2 (TAHER SIR): ${config.name}`);
   console.log(`======================================================================`);
 
-  const prisma = new PrismaClient({ datasources: { db: { url: config.url } } });
+  let prisma;
+  try {
+    prisma = new PrismaClient({ datasources: { db: { url: config.url } } });
+    await prisma.$connect();
+  } catch (err) {
+    console.warn(`Could not connect to ${config.name}: ${err.message}. Skipping.`);
+    return;
+  }
 
   try {
     await alignDatabaseColumns(prisma);
 
     const ss2CsvPath = [
+      path.resolve('taher.csv'),
+      path.resolve('backend/scripts/taher.csv'),
+      path.resolve('scripts/taher.csv'),
       path.resolve('taher_sir(super_sales2) (3).csv'),
-      path.resolve('backend/scripts/taher_sir(super_sales2) (3).csv'),
-      path.resolve('scripts/taher_sir(super_sales2) (3).csv'),
-      path.join(__dirname, 'taher_sir(super_sales2) (3).csv')
+      path.resolve('backend/scripts/taher_sir(super_sales2) (3).csv')
     ].find(p => fs.existsSync(p));
 
     if (!ss2CsvPath) {
       throw new Error('SuperSales 2 CSV file not found!');
     }
 
+    console.log(`Reading CSV from: ${ss2CsvPath}`);
     const ss2Content = fs.readFileSync(ss2CsvPath, 'utf8');
     const ss2Rows = parseCSV(ss2Content).slice(1).filter(r => r.length > 5 && r[0]);
 
@@ -248,109 +251,111 @@ async function syncSuperSales2Database(config) {
           { orderNumber: { startsWith: 'SO-SS2-' } },
           { orderNumber: { startsWith: 'HCPPL/SS2/' } },
           { orderNumber: { startsWith: 'SO/2627/02' } },
-          { salesExecutiveId: { in: allSs2UserIds } },
+          { orderNumber: { startsWith: 'SO/2627/01' } },
+          { orderNumber: { startsWith: 'HCPPL/2627/0146' } },
+          { orderNumber: { startsWith: 'HCPPL/2627/0147' } },
+          { orderNumber: { startsWith: 'HCPPL/2627/0148' } },
+          { orderNumber: { startsWith: 'HCPPL/2627/0149' } },
+          { orderNumber: { startsWith: 'HCPPL/2627/015' } },
+          { orderNumber: { startsWith: 'HCPPL/2627/016' } },
+          { orderNumber: { startsWith: 'HCPPL/2627/017' } },
           { createdById: { in: allSs2UserIds } },
+          { salesExecutiveId: { in: allSs2UserIds } },
           { remarks: { contains: 'SuperSales 2', mode: 'insensitive' } },
           { remarks: { contains: 'Taher', mode: 'insensitive' } }
         ]
       },
-      select: { id: true }
+      select: { id: true, orderNumber: true }
     });
-    const orderIds = existingOrders.map(o => o.id);
 
-    if (orderIds.length > 0) {
-      const orderItems = await prisma.salesOrderItem.findMany({ where: { salesOrderId: { in: orderIds } }, select: { id: true } });
-      const orderItemIds = orderItems.map(x => x.id);
-
-      const dispatches = await prisma.dispatch.findMany({ where: { salesOrderId: { in: orderIds } }, select: { id: true } });
-      const dispatchIds = dispatches.map(d => d.id);
-
-      const invoices = await prisma.salesInvoice.findMany({ where: { salesOrderId: { in: orderIds } }, select: { id: true } });
-      const invoiceIds = invoices.map(i => i.id);
-
-      const plans = await prisma.productionPlan.findMany({ where: { salesOrderId: { in: orderIds } }, select: { id: true } });
-      const planIds = plans.map(p => p.id);
-
-      const workOrders = await prisma.workOrder.findMany({
-        where: { OR: [{ productionPlanId: { in: planIds } }, { salesOrderItemId: { in: orderItemIds } }] },
-        select: { id: true }
-      });
-      const woIds = workOrders.map(w => w.id);
-
-      try { await prisma.customerPaymentAllocation.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
-      try { await prisma.paymentAllocation.deleteMany({ where: { invoiceId: { in: invoiceIds } } }); } catch (e) {}
-      try { await prisma.invoiceItem.deleteMany({ where: { invoiceId: { in: invoiceIds } } }); } catch (e) {}
-      try { await prisma.salesInvoice.deleteMany({ where: { id: { in: invoiceIds } } }); } catch (e) {}
-
-      try { await prisma.dispatchItem.deleteMany({ where: { dispatchId: { in: dispatchIds } } }); } catch (e) {}
-      try { await prisma.dispatch.deleteMany({ where: { id: { in: dispatchIds } } }); } catch (e) {}
-
-      try { await prisma.finishedGoods.deleteMany({ where: { OR: [{ workOrderId: { in: woIds } }, { salesOrderId: { in: orderIds } }] } }); } catch (e) {}
-      try { await prisma.qCInspection.deleteMany({ where: { workOrderId: { in: woIds } } }); } catch (e) {}
-      try { await prisma.productionBatch.deleteMany({ where: { workOrderId: { in: woIds } } }); } catch (e) {}
-      try { await prisma.productionShiftEntry.deleteMany({ where: { workOrderId: { in: woIds } } }); } catch (e) {}
-      try { await prisma.productionScrapEntry.deleteMany({ where: { workOrderId: { in: woIds } } }); } catch (e) {}
-      try { await prisma.productionStatusHistory.deleteMany({ where: { workOrderId: { in: woIds } } }); } catch (e) {}
-      try { await prisma.workOrder.deleteMany({ where: { id: { in: woIds } } }); } catch (e) {}
-      try { await prisma.productionPlan.deleteMany({ where: { id: { in: planIds } } }); } catch (e) {}
-
-      try { await prisma.salesOrderAllocation.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
-      try { await prisma.salesOrderCreditReview.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
-      try { await prisma.salesOrderLoss.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
-      try { await prisma.salesOrderItem.deleteMany({ where: { salesOrderId: { in: orderIds } } }); } catch (e) {}
-      try { await prisma.salesOrder.deleteMany({ where: { id: { in: orderIds } } }); } catch (e) {}
-    }
-
-    const quotes = await prisma.quotation.findMany({
+    const existingQuotes = await prisma.quotation.findMany({
       where: {
         OR: [
           { quotationNumber: { startsWith: 'QT-SS2-' } },
           { quotationNumber: { startsWith: 'QT/SS2/' } },
+          { quotationNumber: { startsWith: 'QT/2627/02' } },
+          { quotationNumber: { startsWith: 'QT/2627/0146' } },
+          { quotationNumber: { startsWith: 'QT/2627/0147' } },
+          { quotationNumber: { startsWith: 'QT/2627/0148' } },
+          { quotationNumber: { startsWith: 'QT/2627/0149' } },
+          { quotationNumber: { startsWith: 'QT/2627/015' } },
+          { quotationNumber: { startsWith: 'QT/2627/016' } },
+          { quotationNumber: { startsWith: 'QT/2627/017' } },
           { createdById: { in: allSs2UserIds } },
           { salesExecutiveId: { in: allSs2UserIds } },
           { remarks: { contains: 'SuperSales 2', mode: 'insensitive' } },
           { remarks: { contains: 'Taher', mode: 'insensitive' } }
         ]
       },
-      select: { id: true }
+      select: { id: true, quotationNumber: true }
     });
-    const quoteIds = quotes.map(q => q.id);
-    if (quoteIds.length > 0) {
-      try { await prisma.quotationItem.deleteMany({ where: { quotationId: { in: quoteIds } } }); } catch (e) {}
-      try { await prisma.quotationTerm.deleteMany({ where: { quotationId: { in: quoteIds } } }); } catch (e) {}
-      try { await prisma.quotation.deleteMany({ where: { id: { in: quoteIds } } }); } catch (e) {}
-    }
 
-    await prisma.lead.deleteMany({
+    const existingLeads = await prisma.lead.findMany({
       where: {
         OR: [
-          { leadNumber: { startsWith: 'LEAD-SS2-' } },
           { leadNumber: { startsWith: 'LD-SS2-' } },
+          { leadNumber: { startsWith: 'LD/SS2/' } },
+          { leadNumber: { startsWith: 'LD/2627/02' } },
+          { leadNumber: { startsWith: 'LD/2627/0146' } },
+          { leadNumber: { startsWith: 'LD/2627/0147' } },
+          { leadNumber: { startsWith: 'LD/2627/0148' } },
+          { leadNumber: { startsWith: 'LD/2627/0149' } },
+          { leadNumber: { startsWith: 'LD/2627/015' } },
+          { leadNumber: { startsWith: 'LD/2627/016' } },
+          { leadNumber: { startsWith: 'LD/2627/017' } },
           { createdById: { in: allSs2UserIds } },
           { salesExecutiveId: { in: allSs2UserIds } },
           { assignedToId: { in: allSs2UserIds } },
           { remarks: { contains: 'SuperSales 2', mode: 'insensitive' } },
           { remarks: { contains: 'Taher', mode: 'insensitive' } }
         ]
-      }
+      },
+      select: { id: true, leadNumber: true }
     });
 
-    console.log('Existing SuperSales 2 records wiped cleanly. (SuperSales 1 preserved intact)');
+    const orderIdsToDel = existingOrders.map(o => o.id);
+    const quoteIdsToDel = existingQuotes.map(q => q.id);
+    const leadIdsToDel = existingLeads.map(l => l.id);
 
-    // 3. Products & Workflows
+    if (orderIdsToDel.length > 0) {
+      await prisma.$executeRawUnsafe(`DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "SalesInvoice" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}'))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesInvoice" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}')`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "DispatchItem" WHERE "dispatchId" IN (SELECT id FROM "Dispatch" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}'))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "Dispatch" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}')`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "QCInspection" WHERE "workOrderId" IN (SELECT id FROM "WorkOrder" WHERE "productionPlanId" IN (SELECT id FROM "ProductionPlan" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}')))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "ProductionBatch" WHERE "workOrderId" IN (SELECT id FROM "WorkOrder" WHERE "productionPlanId" IN (SELECT id FROM "ProductionPlan" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}')))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "FinishedGoods" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}')`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "WorkOrderItem" WHERE "workOrderId" IN (SELECT id FROM "WorkOrder" WHERE "productionPlanId" IN (SELECT id FROM "ProductionPlan" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}')))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "WorkOrder" WHERE "productionPlanId" IN (SELECT id FROM "ProductionPlan" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}'))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "ProductionPlanItem" WHERE "productionPlanId" IN (SELECT id FROM "ProductionPlan" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}'))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "ProductionPlan" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}')`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrderItem" WHERE "salesOrderId" IN ('${orderIdsToDel.join("','")}')`).catch(() => {});
+      await prisma.salesOrder.deleteMany({ where: { id: { in: orderIdsToDel } } }).catch(() => {});
+    }
+
+    if (quoteIdsToDel.length > 0) {
+      await prisma.quotationItem.deleteMany({ where: { quotationId: { in: quoteIdsToDel } } }).catch(() => {});
+      await prisma.quotationTerm.deleteMany({ where: { quotationId: { in: quoteIdsToDel } } }).catch(() => {});
+      await prisma.quotation.deleteMany({ where: { id: { in: quoteIdsToDel } } }).catch(() => {});
+    }
+
+    if (leadIdsToDel.length > 0) {
+      await prisma.$executeRawUnsafe(`DELETE FROM "FollowUp" WHERE "leadId" IN ('${leadIdsToDel.join("','")}')`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "LeadActivity" WHERE "leadId" IN ('${leadIdsToDel.join("','")}')`).catch(() => {});
+      await prisma.lead.deleteMany({ where: { id: { in: leadIdsToDel } } }).catch(() => {});
+    }
+
+    console.log('Existing SS2 records cleaned cleanly.');
+
+    // 3. Products & Workflow States
     const allProducts = await prisma.product.findMany();
     const defaultProduct = allProducts[0];
 
     const leadWonState = await prisma.workflowState.findFirst({ where: { workflow: { code: 'LEAD' }, name: { contains: 'Won', mode: 'insensitive' } } });
     const quoteApprovedState = await prisma.workflowState.findFirst({ where: { workflow: { code: 'QUOTATION' }, name: { contains: 'Approved', mode: 'insensitive' } } });
     const orderConfirmedState = await prisma.workflowState.findFirst({ where: { workflow: { code: 'SALES_ORDER' }, name: { contains: 'Confirmed', mode: 'insensitive' } } });
-    const prodReleasedState = await prisma.workflowState.findFirst({ where: { workflow: { code: 'PRODUCTION_PLAN' }, name: { contains: 'Released', mode: 'insensitive' } } }) ||
-                              await prisma.workflowState.findFirst({ where: { workflow: { code: 'PRODUCTION_PLAN' }, name: { contains: 'In Progress', mode: 'insensitive' } } }) ||
-                              await prisma.workflowState.findFirst({ where: { workflow: { code: 'PRODUCTION_PLAN' }, name: { contains: 'Completed', mode: 'insensitive' } } });
-    const woInProgressState = await prisma.workflowState.findFirst({ where: { workflow: { code: 'WORK_ORDER' }, name: { contains: 'In Progress', mode: 'insensitive' } } }) ||
-                              await prisma.workflowState.findFirst({ where: { workflow: { code: 'WORK_ORDER' }, name: { contains: 'Completed', mode: 'insensitive' } } });
 
-    // 4. Group SS2 Rows into Distinct Customer Order Groups
+    // 4. Group SS2 Rows into distinct transactions
     const groups = [];
     let currentGroup = null;
 
@@ -388,12 +393,12 @@ async function syncSuperSales2Database(config) {
 
     console.log(`Processing ${groups.length} distinct grouped transactions for SuperSales 2...`);
 
-    let totalWorkOrdersCount = 0;
-    let batchCounter = 1;
+    // SuperSales 1 ends at 0145 -> SuperSales 2 starts at 0146
+    const baseSeqOffset = 145;
 
     for (let idx = 0; idx < groups.length; idx++) {
       const g = groups[idx];
-      const seqStr = String(144 + idx + 1).padStart(4, '0');
+      const seqStr = String(baseSeqOffset + idx + 1).padStart(4, '0');
       const leadDateObj = parseCsvDate(g.date);
       const parsedAddr = parseAddressObj(g.addressStr, g.stateStr, g.cityStr, g.pincodeStr);
 
@@ -471,7 +476,7 @@ async function syncSuperSales2Database(config) {
       const primaryProduct = groupItemsData[0]?.product;
       const productInterestStr = `${primaryProduct?.name || 'FRP Products'} (${totalQty} Qty)`;
 
-      // B. Create Lead (1:1) in exact sequence LD/2627/0145...
+      // B. Create Lead (1:1) in exact sequence LD/2627/0146...
       const leadNumber = `LD/2627/${seqStr}`;
       const createdLead = await prisma.lead.create({
         data: {
@@ -510,7 +515,7 @@ async function syncSuperSales2Database(config) {
         }
       });
 
-      // C. Create Quotation (1:1) in exact sequence QT/2627/0145...
+      // C. Create Quotation (1:1) in exact sequence QT/2627/0146...
       const quotationNumber = `QT/2627/${seqStr}`;
       const createdQuote = await prisma.quotation.create({
         data: {
@@ -544,9 +549,9 @@ async function syncSuperSales2Database(config) {
         }
       });
 
-      // D. Create Sales Order (1:1) in exact sequence HCPPL/2627/0145...
+      // D. Create Sales Order (1:1) in exact sequence HCPPL/2627/0146...
       const orderNumber = `HCPPL/2627/${seqStr}`;
-      const createdOrder = await prisma.salesOrder.create({
+      await prisma.salesOrder.create({
         data: {
           orderNumber,
           customerId: customer.id,
@@ -569,7 +574,7 @@ async function syncSuperSales2Database(config) {
           paymentStatus: 'PENDING',
           billingAddress: parsedAddr,
           shippingAddress: parsedAddr,
-          remarks: 'Imported from Taher Sir SuperSales 2 CSV - Sent to Plant Head',
+          remarks: 'Imported from Taher Sir SuperSales 2 CSV',
           version: 1,
           createdAt: leadDateObj,
           items: {
@@ -587,70 +592,19 @@ async function syncSuperSales2Database(config) {
               unit: 'SET'
             }))
           }
-        },
-        include: { items: true }
-      });
-
-      // E. Send Order to Plant Head -> Create Production Plan in exact sequence PLAN/2627/0145...
-      const planNumber = `PLAN/2627/${seqStr}`;
-      const createdPlan = await prisma.productionPlan.create({
-        data: {
-          planNumber,
-          salesOrderId: createdOrder.id,
-          assignedToId: userId,
-          status: 'RELEASED',
-          priority: 'NORMAL',
-          plannedStartDate: leadDateObj,
-          plannedEndDate: new Date(leadDateObj.getTime() + 7 * 24 * 60 * 60 * 1000),
-          productionLine: 'Main FRP Molding Line',
-          workflowStateId: prodReleasedState?.id || null,
-          createdAt: leadDateObj
         }
       });
-
-      // F. Create Work Orders in exact sequence WO/2627/0316...
-      for (let itemIdx = 0; itemIdx < createdOrder.items.length; itemIdx++) {
-        const orderItem = createdOrder.items[itemIdx];
-        const woSeqStr = String(315 + (++totalWorkOrdersCount)).padStart(4, '0');
-        const workOrderNumber = `WO/2627/${woSeqStr}`;
-
-        const createdWO = await prisma.workOrder.create({
-          data: {
-            workOrderNumber,
-            productionPlanId: createdPlan.id,
-            salesOrderItemId: orderItem.id,
-            quantity: orderItem.orderedQuantity,
-            status: 'STARTED',
-            productionStatus: 'IN_PRODUCTION',
-            startedById: userId,
-            startedAt: leadDateObj,
-            workflowStateId: woInProgressState?.id || null,
-            createdById: userId,
-            createdAt: leadDateObj
-          }
-        });
-
-        // Create Production Batch
-        const batchNumber = `BATCH/2627/${woSeqStr}`;
-        await prisma.productionBatch.create({
-          data: {
-            batchNumber,
-            workOrderId: createdWO.id,
-            quantity: orderItem.orderedQuantity,
-            createdAt: leadDateObj
-          }
-        });
-      }
     }
 
     console.log(`\n======================================================================`);
     console.log(`SYNC FINISHED FOR SuperSales 2 (${config.name})`);
     console.log(`======================================================================`);
-    console.log(`Total Leads Created (WON)           : ${groups.length}`);
-    console.log(`Total Quotations Created (APPROVED) : ${groups.length}`);
+    console.log(`Total Leads Created (WON)             : ${groups.length}`);
+    console.log(`Total Quotations Created (APPROVED)   : ${groups.length}`);
     console.log(`Total Sales Orders Created (CONFIRMED): ${groups.length}`);
-    console.log(`Total Production Plans (To Plant Head): ${groups.length}`);
-    console.log(`Total Work Orders Generated         : ${totalWorkOrdersCount}`);
+    console.log(`Sequence Range                        : 0146 to 0168`);
+    console.log(`Orders Page Target                    : https://thehimalaya.cloud/supersales/orders`);
+    console.log(`Downstream (Plant/QC/Dispatch)        : STOPPED AT ORDERS AS REQUESTED`);
 
   } catch (err) {
     console.error(`Error in ${config.name}:`, err);
@@ -660,7 +614,7 @@ async function syncSuperSales2Database(config) {
 }
 
 async function main() {
-  for (const cfg of targetDbs) {
+  for (const cfg of uniqueTargetDbs) {
     await syncSuperSales2Database(cfg);
   }
 }

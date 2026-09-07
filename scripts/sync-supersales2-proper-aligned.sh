@@ -13,7 +13,11 @@ echo "⚡ SYNCING SUPER SALES 2 (TAHER SIR) PIPELINE ON VPS / DOCKER"
 echo "========================================================================"
 
 CSV_SS2=""
-if [ -f "taher_sir(super_sales2) (3).csv" ]; then
+if [ -f "taher.csv" ]; then
+    CSV_SS2="taher.csv"
+elif [ -f "backend/scripts/taher.csv" ]; then
+    CSV_SS2="backend/scripts/taher.csv"
+elif [ -f "taher_sir(super_sales2) (3).csv" ]; then
     CSV_SS2="taher_sir(super_sales2) (3).csv"
 elif [ -f "backend/scripts/taher_sir(super_sales2) (3).csv" ]; then
     CSV_SS2="backend/scripts/taher_sir(super_sales2) (3).csv"
