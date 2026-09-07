@@ -1236,26 +1236,60 @@ export default function CreateDispatchPage() {
         showConfirmButton: false,
       });
 
-      if (invoiceNumber?.trim() && typeof window !== "undefined") {
+      if (typeof window !== "undefined") {
         try {
           const rawLocal = localStorage.getItem("himalaya_dispatch_invoices");
           const localMap = rawLocal ? JSON.parse(rawLocal) : {};
-          const cleanInv = invoiceNumber.trim();
+          const cleanInv = invoiceNumber?.trim() || "";
+
+          const rawFullMeta = localStorage.getItem("himalaya_dispatches_full_metadata");
+          const fullMetaMap = rawFullMeta ? JSON.parse(rawFullMeta) : {};
+
           for (const [orderId, grp] of orderGroups.entries()) {
-            if (orderId) {
-              const k = String(orderId).toLowerCase();
-              localMap[k] = cleanInv;
-              localMap[k.replace(/[^a-z0-9]/g, "")] = cleanInv;
+            const k = String(orderId).toLowerCase();
+            const oNo = grp.salesOrder?.orderNumber ? String(grp.salesOrder.orderNumber).toLowerCase() : "";
+
+            if (cleanInv) {
+              if (k) {
+                localMap[k] = cleanInv;
+                localMap[k.replace(/[^a-z0-9]/g, "")] = cleanInv;
+              }
+              if (oNo) {
+                localMap[oNo] = cleanInv;
+                localMap[oNo.replace(/[^a-z0-9]/g, "")] = cleanInv;
+              }
             }
-            if (grp.salesOrder?.orderNumber) {
-              const oNo = String(grp.salesOrder.orderNumber).toLowerCase();
-              localMap[oNo] = cleanInv;
-              localMap[oNo.replace(/[^a-z0-9]/g, "")] = cleanInv;
-            }
+
+            const snapshot = {
+              orderId,
+              orderNumber: grp.salesOrder?.orderNumber,
+              customerName: grp.salesOrder?.customer?.companyName,
+              invoiceNumber: cleanInv,
+              challanNumber: challanNumber?.trim() || "",
+              totalWeight: Number(totalWeight) || 0,
+              vehicleNumber: vehicleNumber?.trim().toUpperCase() || "",
+              driverName: driverName?.trim() || "",
+              driverPhone: driverPhone?.trim() || "",
+              transporterName: transporterName?.trim() || "Himalaya Own Fleet / Transport",
+              lrNumber: ewayBillNumber?.trim().toUpperCase() || "",
+              ewayBillNumber: ewayBillNumber?.trim().toUpperCase() || "",
+              expectedDeliveryDate: expectedDeliveryDate || grp.salesOrder?.requestedDeliveryDate,
+              dispatchRemarks: dispatchRemarks?.trim() || "",
+              fetchedTransportationCost: transportationCost,
+              toBePaid: Number(actualFreightPaidAmount || 0),
+              documentUrl: uploadedDocUrl,
+              deliveryAddress: deliveryAddresses[orderId] || formatAddress(grp.salesOrder, grp.salesOrder.customer),
+              createdAt: new Date().toISOString(),
+            };
+
+            if (k) fullMetaMap[k] = snapshot;
+            if (oNo) fullMetaMap[oNo] = snapshot;
           }
+
           localStorage.setItem("himalaya_dispatch_invoices", JSON.stringify(localMap));
+          localStorage.setItem("himalaya_dispatches_full_metadata", JSON.stringify(fullMetaMap));
         } catch (e) {
-          console.warn("Failed saving dispatch invoice to localStorage:", e);
+          console.warn("Failed saving dispatch metadata to localStorage:", e);
         }
       }
 
