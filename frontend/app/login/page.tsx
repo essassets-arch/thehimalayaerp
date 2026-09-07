@@ -102,7 +102,6 @@ const QUICK_ACCOUNTS: QuickAccount[] = [
   { email: 'abbas.b@himalayaerp.com', password: 'dataAnalyst#2101', name: 'Abbas B', role: 'Back Office', dept: 'Back Office Department', category: 'Admin & HR', color: '#0284c7' },
 
   // Sales & SuperSales
-  { email: 'supersales1@himalayaerp.com', password: 'supersales123', name: 'SuperSales 1', role: 'SuperSales Lead', dept: 'Sales Department', category: 'Sales', color: '#F59E0B' },
   { email: 'supersales2@himalayaerp.com', password: 'supersales124', name: 'SuperSales 2', role: 'SuperSales Lead', dept: 'Sales Department', category: 'Sales', color: '#F59E0B' },
   { email: 'sales1@himalayaerp.com', password: 'Himalaya@2026', name: 'Sales 1', role: 'Sales Executive', dept: 'Sales Department', category: 'Sales', color: '#3B82F6' },
   { email: 'sales2@himalayaerp.com', password: 'Himalaya@2026', name: 'Sales 2', role: 'Sales Executive', dept: 'Sales Department', category: 'Sales', color: '#3B82F6' },
