@@ -244,108 +244,79 @@ async function alignDatabaseColumns(prisma) {
   }
 }
 
-async function ensureMissingProductsExist(prisma, companyId) {
-  const missingProds = [
-    {
-      sku: 'HIMALAYAFRPMHC600X450LD',
-      name: 'HIMALAYA FRP MHC 600X450 LD',
-      size: '600X450',
-      type: 'MHC',
-      capacity: 'LD',
-      unitPrice: 6000
-    },
-    {
-      sku: 'HIMALAYAFRPMHC600X450D400',
-      name: 'HIMALAYA FRP MHC 600X450 D400',
-      size: '600X450',
-      type: 'MHC',
-      capacity: 'D400',
-      unitPrice: 7315
-    },
-    {
-      sku: 'HIMALAYAFRPRCS600X6003T',
-      name: 'HIMALAYA FRP RCS 600X600 3T',
-      size: '600X600',
-      type: 'RCS',
-      capacity: '3T',
-      unitPrice: 9800
-    },
-    {
-      sku: 'HIMALAYAFRPMHC15X153T',
-      name: 'HIMALAYA FRP MHC 15X15 3T',
-      size: '15X15',
-      type: 'MHC',
-      capacity: '3T',
-      unitPrice: 518
-    },
-    {
-      sku: 'ONGC-600X450-D400',
-      name: 'ONGC 600X450 D400',
-      size: '600X450',
-      type: 'ONGC',
-      capacity: 'D400',
-      unitPrice: 4433
-    },
-    {
-      sku: 'MHC-1200X900-C250',
-      name: 'MHC 1200X900 C250',
-      size: '1200X900',
-      type: 'MHC',
-      capacity: 'C250',
-      unitPrice: 15000
-    },
-    {
-      sku: 'MHC-1200X900-LD',
-      name: 'MHC 1200X900 LD',
-      size: '1200X900',
-      type: 'MHC',
-      capacity: 'LD',
-      unitPrice: 12000
-    }
-  ];
+async function ensureMissingProductsExist(prisma, companyId, consolidatedLeads) {
+  let allProducts = await prisma.product.findMany();
 
-  for (const p of missingProds) {
-    const existing = await prisma.product.findFirst({
-      where: {
-        OR: [
-          { sku: { equals: p.sku, mode: 'insensitive' } },
-          { name: { equals: p.name, mode: 'insensitive' } },
-          {
-            AND: [
-              { name: { contains: p.type, mode: 'insensitive' } },
-              { name: { contains: p.size, mode: 'insensitive' } },
-              { name: { contains: p.capacity, mode: 'insensitive' } }
-            ]
-          }
-        ]
+  // Extract all distinct items from the CSV
+  const distinctItems = [];
+  const seen = new Set();
+  for (const lead of consolidatedLeads) {
+    for (const item of (lead.items || [])) {
+      const type = (item.product || '').trim().toUpperCase();
+      const size = (item.size || '').trim().toUpperCase();
+      const cap = (item.capacity || '').trim().toUpperCase();
+      const key = `${type}|${size}|${cap}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        distinctItems.push({
+          type: (item.product || '').trim(),
+          size: (item.size || '').trim(),
+          capacity: (item.capacity || '').trim(),
+          unitPrice: item.unit_price || 1000
+        });
       }
-    });
-
-    if (!existing) {
-      const publicId = `PRD-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-      await prisma.product.create({
-        data: {
-          publicId,
-          sku: p.sku,
-          name: p.name,
-          description: `FRP Cover ${p.type} ${p.size} ${p.capacity}`,
-          category: 'FRP Covers',
-          productType: 'MANUFACTURING',
-          dispatchCategory: 'D1',
-          hsnCode: '39259090',
-          gstRate: 18,
-          unit: 'NOS',
-          unitPrice: p.unitPrice,
-          isActive: true,
-          companyId,
-          size: p.size,
-          type: p.type,
-          capacity: p.capacity
-        }
-      });
-      console.log(`  + Created accurate product: ${p.name}`);
     }
   }
+
+  for (const p of distinctItems) {
+    if (!p.type && !p.size && !p.capacity) continue;
+    const match = findExactProduct(p.type, p.size, p.capacity, allProducts);
+    if (!match) {
+      const cleanType = (p.type || 'MHC').trim().toUpperCase();
+      const cleanSize = (p.size || '').trim().toUpperCase().replace(/\s+/g, '');
+      const cleanCap = (p.capacity || 'LD').trim().toUpperCase();
+      const sku = `HIMALAYAFRP${cleanType}${cleanSize}${cleanCap}`.replace(/[^A-Z0-9]/g, '');
+      const name = `HIMALAYA FRP ${cleanType} ${p.size} ${cleanCap}`.trim();
+      const publicId = `PRD-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+      try {
+        const created = await prisma.product.create({
+          data: {
+            publicId,
+            sku,
+            name,
+            description: `FRP Cover ${cleanType} ${p.size} ${cleanCap}`,
+            category: 'FRP Covers',
+            productType: 'MANUFACTURING',
+            dispatchCategory: 'D1',
+            hsnCode: '39259090',
+            gstRate: 18,
+            unit: 'NOS',
+            unitPrice: p.unitPrice || 1000,
+            isActive: true,
+            companyId,
+            size: p.size,
+            type: cleanType,
+            capacity: cleanCap
+          }
+        });
+        console.log(`  + Auto-created missing accurate catalog product: ${name} (SKU: ${sku})`);
+        allProducts.push(created);
+      } catch (e) {
+        const fallback = await prisma.product.findFirst({
+          where: {
+            OR: [
+              { sku: { equals: sku, mode: 'insensitive' } },
+              { name: { equals: name, mode: 'insensitive' } }
+            ]
+          }
+        });
+        if (fallback) allProducts.push(fallback);
+      }
+    }
+  }
+
+  return allProducts;
 }
 
 function findExactProduct(type, size, capacity, products) {
@@ -454,8 +425,7 @@ async function syncSuperSales1ForDatabase(config, consolidatedLeads) {
     const userId = user.id;
 
     // 2. Ensure missing products exist
-    await ensureMissingProductsExist(prisma, companyId);
-    const allProducts = await prisma.product.findMany();
+    const allProducts = await ensureMissingProductsExist(prisma, companyId, consolidatedLeads);
     console.log(`Loaded ${allProducts.length} products from database.`);
 
     // 3. Clean up conflicting or outdated records
