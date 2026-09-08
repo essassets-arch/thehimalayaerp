@@ -3,7 +3,10 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcrypt');
 
-const isDocker = fs.existsSync('/.dockerenv') || (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('@postgres:'));
+const isDocker = fs.existsSync('/.dockerenv') ||
+  process.cwd() === '/app' ||
+  __dirname.startsWith('/app') ||
+  Boolean(process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost'));
 const targetDbs = [];
 
 if (process.env.DATABASE_URL) {
@@ -432,13 +435,11 @@ async function syncSuperSales1ForDatabase(config, consolidatedLeads) {
     console.log('Cleaning existing SuperSales 1 and conflicting FY 2627 records...');
 
     // Find all sales orders to wipe:
-    // (a) created by or assigned to supersales1
-    // (b) orderNumber starts with HCPPL/2627/
+    // Find all sales orders for SuperSales 1 (0001 - 0145)
     const existingOrders = await prisma.salesOrder.findMany({
       where: {
         OR: [
-          { orderNumber: { startsWith: 'HCPPL/2627/' } },
-          { orderNumber: { startsWith: 'SO/2627/' } },
+          { orderNumber: { gte: 'HCPPL/2627/0001', lte: 'HCPPL/2627/0145' } },
           { salesExecutiveId: userId },
           { createdById: userId }
         ]
@@ -494,12 +495,12 @@ async function syncSuperSales1ForDatabase(config, consolidatedLeads) {
       try { await prisma.salesOrder.deleteMany({ where: { id: { in: orderIds } } }); } catch (e) {}
     }
 
-    // Clean Quotations
+    // Clean Quotations (0001 - 0145)
     const existingQuotes = await prisma.quotation.findMany({
       where: {
         OR: [
-          { quotationNumber: { startsWith: 'QU/2627/' } },
-          { quotationNumber: { startsWith: 'QT/2627/' } },
+          { quotationNumber: { gte: 'QT/2627/0001', lte: 'QT/2627/0145' } },
+          { quotationNumber: { gte: 'QU/2627/0001', lte: 'QU/2627/0145' } },
           { salesExecutiveId: userId },
           { createdById: userId }
         ]
@@ -513,13 +514,13 @@ async function syncSuperSales1ForDatabase(config, consolidatedLeads) {
       try { await prisma.quotation.deleteMany({ where: { id: { in: quoteIds } } }); } catch (e) {}
     }
 
-    // Clean Leads
+    // Clean Leads (0001 - 0145)
     try {
       await prisma.lead.deleteMany({
         where: {
           OR: [
-            { leadNumber: { startsWith: 'LEAD/2627/' } },
-            { leadNumber: { startsWith: 'LD/2627/' } },
+            { leadNumber: { gte: 'LD/2627/0001', lte: 'LD/2627/0145' } },
+            { leadNumber: { gte: 'LEAD/2627/0001', lte: 'LEAD/2627/0145' } },
             { salesExecutiveId: userId },
             { createdById: userId },
             { assignedToId: userId }
