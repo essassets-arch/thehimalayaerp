@@ -518,18 +518,22 @@ async function syncSuperSales2PipelineToReadyDispatch(config, groups) {
         .join(', ');
 
       // B. Create / Update Lead (Status: WON)
-      const leadNumber = `LEAD/${fyPrefix}/${seqStr}`;
-      let createdLead = await prisma.lead.findFirst({
+      let createdLead = null;
+      createdLead = await prisma.lead.findFirst({
         where: {
-          OR: [
-            { leadNumber },
-            { companyName, salesExecutiveId: userId, leadDate: leadDateObj }
-          ]
+          salesExecutiveId: userId,
+          companyName,
+          leadDate: leadDateObj
+        }
+      }) || await prisma.lead.findFirst({
+        where: {
+          leadNumber: `LEAD/${fyPrefix}/${seqStr}`
         }
       });
 
+      const fallbackLeadNumber = `LEAD/${fyPrefix}/${seqStr}`;
+
       const leadPayload = {
-        leadNumber,
         leadDate: leadDateObj,
         companyName,
         groupName: g.groupName || companyName,
@@ -558,18 +562,27 @@ async function syncSuperSales2PipelineToReadyDispatch(config, groups) {
       };
 
       if (createdLead) {
+        // NEVER update leadNumber on existing lead to avoid unique constraint collisions
         createdLead = await prisma.lead.update({
           where: { id: createdLead.id },
           data: leadPayload
         });
       } else {
         createdLead = await prisma.lead.create({
-          data: leadPayload
+          data: {
+            ...leadPayload,
+            leadNumber: fallbackLeadNumber
+          }
         });
       }
 
+      // Extract sequence from actual leadNumber: e.g. "LEAD/2627/0001" -> activeFy="2627", activeSeq="0001"
+      const match = (createdLead.leadNumber || '').match(/LEAD\/(\d+)\/(\d+)/);
+      const activeFy = match ? match[1] : fyPrefix;
+      const activeSeq = match ? match[2] : seqStr;
+
       // C. Create Quotation (APPROVED)
-      const quotationNumber = `QT/${fyPrefix}/${seqStr}`;
+      const quotationNumber = `QT/${activeFy}/${activeSeq}`;
       const createdQuote = await prisma.quotation.create({
         data: {
           quotationNumber,
@@ -603,7 +616,7 @@ async function syncSuperSales2PipelineToReadyDispatch(config, groups) {
       });
 
       // D. Create Sales Order (CONFIRMED & READY_FOR_DISPATCH, Plant Head Accepted)
-      const orderNumber = `HCPPL/${fyPrefix}/${seqStr}`;
+      const orderNumber = `HCPPL/${activeFy}/${activeSeq}`;
       const createdOrder = await prisma.salesOrder.create({
         data: {
           orderNumber,
@@ -650,7 +663,7 @@ async function syncSuperSales2PipelineToReadyDispatch(config, groups) {
       });
 
       // E. Create Production Plan (COMPLETED)
-      const planNumber = `PP/${fyPrefix}/${seqStr}`;
+      const planNumber = `PP/${activeFy}/${activeSeq}`;
       const createdPlan = await prisma.productionPlan.create({
         data: {
           planNumber,
@@ -671,7 +684,7 @@ async function syncSuperSales2PipelineToReadyDispatch(config, groups) {
         const orderItem = createdOrder.items[itemIdx];
         totalWorkOrdersCount++;
         const woSeqStr = String(itemIdx + 1).padStart(2, '0');
-        const workOrderNumber = `WO/${fyPrefix}/${seqStr}-${woSeqStr}`;
+        const workOrderNumber = `WO/${activeFy}/${activeSeq}-${woSeqStr}`;
 
         // 1. Work Order
         const createdWO = await prisma.workOrder.create({
@@ -701,7 +714,7 @@ async function syncSuperSales2PipelineToReadyDispatch(config, groups) {
         });
 
         // 2. Production Batch
-        const batchNumber = `BATCH/${fyPrefix}/${seqStr}-${woSeqStr}`;
+        const batchNumber = `BATCH/${activeFy}/${activeSeq}-${woSeqStr}`;
         await prisma.productionBatch.create({
           data: {
             batchNumber,
@@ -743,7 +756,7 @@ async function syncSuperSales2PipelineToReadyDispatch(config, groups) {
         });
       }
 
-      console.log(`  ✔ [${idx + 1}/27] Lead [${leadNumber}] -> Quote [${quotationNumber}] -> Order [${orderNumber}] -> Plan [${planNumber}] -> ${createdOrder.items.length} Work Orders READY FOR DISPATCH!`);
+      console.log(`  ✔ [${idx + 1}/27] Lead [${createdLead.leadNumber}] -> Quote [${quotationNumber}] -> Order [${orderNumber}] -> Plan [${planNumber}] -> ${createdOrder.items.length} Work Orders READY FOR DISPATCH!`);
     }
 
     // 4. Update ID Sequences in DB so subsequent manual creation starts from next sequence
