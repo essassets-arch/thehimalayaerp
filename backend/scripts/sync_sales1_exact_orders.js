@@ -2,17 +2,36 @@ const { PrismaClient, Prisma } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
 
-const targetDbs = [
-  { name: 'Active DB (himalaya_erp_browser_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
-  { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
-];
+const isDocker = fs.existsSync('/.dockerenv') ||
+  process.cwd() === '/app' ||
+  __dirname.startsWith('/app') ||
+  Boolean(process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost'));
+
+const targetDbs = [];
 
 if (process.env.DATABASE_URL) {
-  const exists = targetDbs.some(d => d.url === process.env.DATABASE_URL);
-  if (!exists) {
-    targetDbs.unshift({ name: 'Configured DATABASE_URL', url: process.env.DATABASE_URL });
-  }
+  targetDbs.push({ name: 'Configured DATABASE_URL', url: process.env.DATABASE_URL });
 }
+if (process.env.LIVE_DATABASE_URL) {
+  targetDbs.push({ name: 'Live Database', url: process.env.LIVE_DATABASE_URL });
+}
+if (process.env.PROD_DATABASE_URL) {
+  targetDbs.push({ name: 'Production Database', url: process.env.PROD_DATABASE_URL });
+}
+
+if (!isDocker) {
+  targetDbs.push(
+    { name: 'Active DB (himalaya_erp_browser_test)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public' },
+    { name: 'Main DB (himalaya_erp)', url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp?schema=public' }
+  );
+}
+
+const seen = new Set();
+const uniqueTargetDbs = targetDbs.filter(db => {
+  if (!db.url || seen.has(db.url)) return false;
+  seen.add(db.url);
+  return true;
+});
 
 function parseCSV(content) {
   const result = [];
@@ -672,9 +691,27 @@ async function syncSales1ExactOrders(config) {
 }
 
 async function main() {
-  for (const cfg of targetDbs) {
-    await syncSales1ExactOrders(cfg);
+  if (uniqueTargetDbs.length === 0) {
+    throw new Error('No target database configured! Please set DATABASE_URL.');
+  }
+  let successCount = 0;
+  for (const cfg of uniqueTargetDbs) {
+    try {
+      await syncSales1ExactOrders(cfg);
+      successCount++;
+    } catch (err) {
+      console.error(`❌ Error syncing ${cfg.name}:`, err.message || err);
+      if (uniqueTargetDbs.length === 1) {
+        throw err;
+      }
+    }
+  }
+  if (successCount === 0) {
+    throw new Error('All target databases failed to sync.');
   }
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
