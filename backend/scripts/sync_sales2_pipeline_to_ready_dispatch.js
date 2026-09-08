@@ -66,6 +66,7 @@ function normalizeProductParams(type, size, capacity) {
   if (s.match(/^\d+X\d+X\d+$/)) {
     s = s.substring(0, s.lastIndexOf('X'));
   }
+  if (s === '450X600') s = '600X450';
   
   let c = (capacity || '').trim().toUpperCase();
   if (c === '3T') c = 'LD';
@@ -121,31 +122,29 @@ function parseAddressObj(addrStr, stateStr, cityStr, pincodeStr) {
   }
 
   if (!city) {
-    if (/AHMEDABAD/i.test(line1)) city = 'Ahmedabad';
+    if (/SURAT/i.test(line1)) city = 'Surat';
+    else if (/AHMEDABAD/i.test(line1)) city = 'Ahmedabad';
     else if (/GANDHINAGAR/i.test(line1)) city = 'Gandhinagar';
-    else if (/SURAT/i.test(line1)) city = 'Surat';
-    else if (/RAJKOT/i.test(line1)) city = 'Rajkot';
-    else if (/VADODARA/i.test(line1)) city = 'Vadodara';
-    else city = 'Ahmedabad';
+    else city = 'Surat';
   }
 
   if (!state) state = 'Gujarat';
 
   return {
     line1: line1 || 'Address on file',
-    city: city || 'Ahmedabad',
+    city: city || 'Surat',
     state: state || 'Gujarat',
-    pincode: pincode || '380001',
+    pincode: pincode || '395001',
     country: 'India'
   };
 }
 
-function loadSales1Leads() {
+function loadSales2Leads() {
   const jsonCandidates = [
-    path.resolve('backend/scripts/sales1_leads_data.json'),
-    path.resolve('scripts/sales1_leads_data.json'),
-    path.resolve('/app/scripts/sales1_leads_data.json'),
-    path.join(__dirname, 'sales1_leads_data.json'),
+    path.resolve('backend/scripts/sales2_leads_data.json'),
+    path.resolve('scripts/sales2_leads_data.json'),
+    path.resolve('/app/scripts/sales2_leads_data.json'),
+    path.join(__dirname, 'sales2_leads_data.json'),
   ];
   let jsonPath = jsonCandidates.find(p => fs.existsSync(p));
   if (jsonPath) {
@@ -159,43 +158,41 @@ function loadSales1Leads() {
   }
 
   const candidatePaths = [
-    path.resolve('backend/scripts/JP_data_sales1.csv'),
-    path.resolve('scripts/JP_data_sales1.csv'),
-    path.resolve('/app/scripts/JP_data_sales1.csv'),
-    path.join(__dirname, 'JP_data_sales1.csv'),
-    path.resolve('JP_data(sales1) (1).csv'),
+    path.resolve('backend/scripts/rushi_data_sales2.csv'),
+    path.resolve('scripts/rushi_data_sales2.csv'),
+    path.resolve('/app/scripts/rushi_data_sales2.csv'),
+    path.join(__dirname, 'rushi_data_sales2.csv'),
+    path.resolve('rushi_data(sales2) (6).csv'),
   ];
 
   let csvPath = candidatePaths.find(p => fs.existsSync(p));
   if (!csvPath) {
-    throw new Error(`Sales 1 CSV not found in candidate paths: ${candidatePaths.join(', ')}`);
+    throw new Error(`Sales 2 CSV not found in candidate paths: ${candidatePaths.join(', ')}`);
   }
 
-  console.log(`Reading Sales 1 CSV from: ${csvPath}`);
+  console.log(`Reading Sales 2 CSV from: ${csvPath}`);
   const content = fs.readFileSync(csvPath, 'utf8').replace(/^\uFEFF/, '');
   const rows = parseCSV(content);
-  const dataRows = rows.slice(1);
+  const dataRows = rows.slice(1).filter(r => r[0] && r[1]);
 
   let lastLead = null;
   const groupedLeads = [];
 
   for (let i = 0; i < dataRows.length; i++) {
     const r = dataRows[i];
-    if (!r[1] && !r[0]) continue;
-
-    const leadDateStr = r[0] || '';
+    const orderDateStr = (r[0] || '').trim();
     const projectName = (r[1] || '').trim();
     const groupName = (r[2] || projectName).trim();
     const gstName = (r[3] || projectName).trim();
     const gstNo = (r[4] || '').trim();
-    const siteIncharge = (r[5] || 'JP').trim();
+    const siteIncharge = (r[5] || 'RS').trim();
     const siteInchargeMobile = (r[6] || '').trim();
     const officeContact = (r[7] || '').trim();
     const email = (r[8] || 'info@thehimalaya.co.in').trim();
-    const salesRep = (r[9] || 'sales1').trim();
+    const salesRep = (r[9] || 'sales2').trim();
     const address = (r[11] || '').trim();
     const state = (r[12] || 'Gujarat').trim();
-    const city = (r[13] || 'Ahmedabad').trim();
+    const city = (r[13] || 'Surat').trim();
     const pincode = (r[14] || '').trim();
 
     const productType = (r[15] || '').trim();
@@ -235,7 +232,7 @@ function loadSales1Leads() {
 
     const hasLeadInfo = Boolean(projectName || groupName || gstName);
     const isSameAsLast = lastLead &&
-      (leadDateStr === lastLead.rawDate || !leadDateStr) &&
+      (orderDateStr === lastLead.rawDate || !orderDateStr) &&
       (projectName === lastLead.companyName || (!projectName && gstName === lastLead.gstName)) &&
       (gstNo === (lastLead.gstNumber || 'URD') || !gstNo) &&
       (siteInchargeMobile === lastLead.phone || !siteInchargeMobile);
@@ -247,19 +244,19 @@ function loadSales1Leads() {
 
     if (hasLeadInfo) {
       lastLead = {
-        rawDate: leadDateStr,
-        leadDate: parseCsvDate(leadDateStr),
+        rawDate: orderDateStr,
+        leadDate: parseCsvDate(orderDateStr),
         companyName: projectName || groupName || gstName || 'Client',
         groupName: groupName || projectName,
         projectName: projectName || groupName,
         gstName: gstName || projectName,
         gstNumber: (gstNo && gstNo !== 'URD') ? gstNo : undefined,
-        contactPerson: siteIncharge || 'JP',
-        phone: siteInchargeMobile || officeContact || '9974442244',
+        contactPerson: siteIncharge || 'RS',
+        phone: siteInchargeMobile || officeContact || '9825137600',
         email: email || 'info@thehimalaya.co.in',
-        salesRep: salesRep || 'sales1',
+        salesRep: salesRep || 'sales2',
         address: parsedAddr,
-        remarks: 'Sales 1 Lead (Converted to Quotation, Order & Ready for Dispatch)',
+        remarks: 'Sales 2 Lead (Converted to Quotation, Order & Ready for Dispatch)',
         source: 'OTHER',
         items: [itemObj]
       };
@@ -298,22 +295,22 @@ async function getMaxSequenceForFY(prisma, fyPrefix) {
   return maxSeq;
 }
 
-async function syncSales1PipelineToReadyDispatch(config, groups) {
+async function syncSales2PipelineToReadyDispatch(config, groups) {
   console.log(`\n======================================================================`);
-  console.log(`🚀 SYNCING SALES 1 FULL PIPELINE (LEAD -> QUOTE -> ORDER -> PROD -> QC -> READY FOR DISPATCH)`);
+  console.log(`🚀 SYNCING SALES 2 FULL PIPELINE (LEAD -> QUOTE -> ORDER -> PROD -> QC -> READY FOR DISPATCH)`);
   console.log(`Database: ${config.name}`);
   console.log(`======================================================================`);
 
   const prisma = new PrismaClient({ datasources: { db: { url: config.url } } });
 
   try {
-    // 1. Resolve Sales 1 User
+    // 1. Resolve Sales 2 User strictly
     let user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: { equals: 'sales1@himalayaerp.com', mode: 'insensitive' } },
-          { name: { equals: 'Sales 1', mode: 'insensitive' } },
-          { name: { equals: 'Sales One', mode: 'insensitive' } },
+          { email: { equals: 'sales2@himalayaerp.com', mode: 'insensitive' } },
+          { name: { equals: 'Sales 2', mode: 'insensitive' } },
+          { name: { equals: 'Sales Two', mode: 'insensitive' } },
         ]
       }
     });
@@ -322,15 +319,15 @@ async function syncSales1PipelineToReadyDispatch(config, groups) {
     const companyId = user?.companyId || company?.id || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
 
     if (!user) {
-      console.log(`Creating Sales 1 user in ${config.name}...`);
+      console.log(`Creating Sales 2 user in ${config.name}...`);
       const role = await prisma.role.findFirst({
         where: { OR: [{ code: 'SALES_EXECUTIVE' }, { name: { contains: 'Sales', mode: 'insensitive' } }] }
       });
       user = await prisma.user.create({
         data: {
           companyId,
-          name: 'Sales 1',
-          email: 'sales1@himalayaerp.com',
+          name: 'Sales 2',
+          email: 'sales2@himalayaerp.com',
           roleId: role?.id || null,
           isActive: true,
           status: 'Active'
@@ -339,7 +336,7 @@ async function syncSales1PipelineToReadyDispatch(config, groups) {
     }
 
     const userId = user.id;
-    console.log(`Resolved Sales 1 user: ${user.name} (${user.email} - ${userId})`);
+    console.log(`Resolved Sales 2 user: ${user.name} (${user.email} - ${userId})`);
 
     // Resolve Plant Head User
     const plantHeadUser = await prisma.user.findFirst({
@@ -354,8 +351,8 @@ async function syncSales1PipelineToReadyDispatch(config, groups) {
     });
     console.log(`Resolved Plant Head user: ${plantHeadUser?.name || 'Plant Head'} (${plantHeadUser?.id || userId})`);
 
-    // 2. Clean ONLY previous Sales 1 orders & work orders cleanly if any exist
-    console.log('Cleaning previous Sales 1 orders, quotes, plans, and work orders...');
+    // 2. Clean ONLY previous Sales 2 orders & work orders cleanly if any exist
+    console.log('Cleaning previous Sales 2 orders, quotes, plans, and work orders...');
     const existingOrders = await prisma.salesOrder.findMany({
       where: { salesExecutiveId: userId },
       select: { id: true }
@@ -438,8 +435,8 @@ async function syncSales1PipelineToReadyDispatch(config, groups) {
       const leadDateObj = g.leadDate;
       const parsedAddr = g.address;
       const companyName = g.companyName;
-      const contactPerson = g.contactPerson || 'Site Incharge';
-      const phone = g.phone || '9974442244';
+      const contactPerson = g.contactPerson || 'RS';
+      const phone = g.phone || '9825137600';
       const email = g.email || 'info@thehimalaya.co.in';
       const gstNumber = g.gstNumber || null;
       const gstName = g.gstName || companyName;
@@ -535,7 +532,7 @@ async function syncSales1PipelineToReadyDispatch(config, groups) {
         detailedItems: groupItemsData,
         estimatedQuantity: new Prisma.Decimal(totalQty),
         unit: 'SET',
-        remarks: 'Sales 1 Lead (Converted to Quotation, Order & Ready for Dispatch)',
+        remarks: 'Sales 2 Lead (Converted to Quotation, Order & Ready for Dispatch)',
         workflowStateId: leadWonState?.id || null,
         assignedToId: userId,
         salesExecutiveId: userId,
@@ -578,7 +575,7 @@ async function syncSales1PipelineToReadyDispatch(config, groups) {
         expectedTransportationCost: new Prisma.Decimal(0),
         workflowStateId: quoteApprovedState?.id || null,
         createdAt: leadDateObj,
-        remarks: 'Converted from Sales 1 Lead - Ready for Order'
+        remarks: 'Converted from Sales 2 Lead - Ready for Order'
       };
 
       let createdQuote = await prisma.quotation.findFirst({
@@ -649,7 +646,7 @@ async function syncSales1PipelineToReadyDispatch(config, groups) {
         paymentStatus: 'PENDING',
         billingAddress: parsedAddr,
         shippingAddress: parsedAddr,
-        remarks: 'Sales 1 Order - Plant Head Accepted - Production & QC Passed - Ready For Dispatch',
+        remarks: 'Sales 2 Order - Plant Head Accepted - Production & QC Passed - Ready For Dispatch',
         version: 1,
         createdAt: leadDateObj
       };
@@ -750,7 +747,6 @@ async function syncSales1PipelineToReadyDispatch(config, groups) {
       }
 
       // F. Upsert Work Orders, Batches, QC Inspections, and Finished Goods
-      // NOTE: sentToDispatchAt is null so that these work orders sit ready in the Ready Queue!
       for (let itemIdx = 0; itemIdx < refreshedOrder.items.length; itemIdx++) {
         const orderItem = refreshedOrder.items[itemIdx];
         totalWorkOrdersCount++;
@@ -914,18 +910,18 @@ async function syncSales1PipelineToReadyDispatch(config, groups) {
 
 async function main() {
   console.log('========================================================================');
-  console.log('📦 SALES 1 (JP) COMPLETE LIFECYCLE PIPELINE SYNC TO READY FOR DISPATCH');
+  console.log('📦 SALES 2 (RS) COMPLETE LIFECYCLE PIPELINE SYNC TO READY FOR DISPATCH');
   console.log('========================================================================');
 
-  const groups = loadSales1Leads();
-  console.log(`Total Sales 1 Orders to Process: ${groups.length}`);
+  const groups = loadSales2Leads();
+  console.log(`Total Sales 2 Orders to Process: ${groups.length}`);
   const totalItemsCount = groups.reduce((acc, g) => acc + g.items.length, 0);
   const totalUnitsCount = groups.reduce((acc, g) => acc + g.items.reduce((s, it) => s + it.quantity, 0), 0);
   console.log(`Total Line Items: ${totalItemsCount}, Total Units: ${totalUnitsCount}\n`);
 
   for (const db of targetDbs) {
     try {
-      await syncSales1PipelineToReadyDispatch(db, groups);
+      await syncSales2PipelineToReadyDispatch(db, groups);
     } catch (e) {
       console.error(`Failed on database ${db.name}:`, e.message);
     }
@@ -933,7 +929,7 @@ async function main() {
 
   console.log('\n========================================================================');
   console.log('🏁 ALL DATABASES PROCESSED SUCCESSFULLY!');
-  console.log('All Sales 1 leads are WON -> Quoted -> Ordered -> Production Completed -> QC Passed -> Staged Ready for Dispatch.');
+  console.log('All Sales 2 leads are WON -> Quoted -> Ordered -> Production Completed -> QC Passed -> Staged Ready for Dispatch.');
   console.log('Open https://thehimalaya.cloud/production/ready-for-dispatch to view them in the Ready Queue!');
   console.log('========================================================================');
 }
@@ -945,4 +941,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { syncSales1PipelineToReadyDispatch, loadSales1Leads };
+module.exports = { syncSales2PipelineToReadyDispatch, loadSales2Leads };
