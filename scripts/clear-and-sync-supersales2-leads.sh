@@ -14,21 +14,27 @@ echo "======================================================================"
 
 if docker ps --format '{{.Names}}' | grep -q "^himalaya-backend$"; then
   echo "Copying scripts & CSV into himalaya-backend container..."
+  docker cp "backend/scripts/taher_sir(super_sales2) (1) (2).csv" himalaya-backend:/app/scripts/ || true
+  docker cp "taher_sir(super_sales2) (1) (2).csv" himalaya-backend:/app/scripts/ || true
   docker cp "backend/scripts/taher_sir(super_sales2) (3).csv" himalaya-backend:/app/scripts/ || true
   docker cp "taher_sir(super_sales2) (3).csv" himalaya-backend:/app/scripts/ || true
   docker cp backend/scripts/clear_and_sync_supersales2_leads.js himalaya-backend:/app/scripts/ || true
+  docker cp backend/scripts/sync_supersales2_leads_local.js himalaya-backend:/app/scripts/ || true
   
   echo "Running cleanup and lead sync inside himalaya-backend container..."
-  docker exec -i himalaya-backend node scripts/clear_and_sync_supersales2_leads.js
+  docker exec -i himalaya-backend node scripts/sync_supersales2_leads_local.js
 
 elif docker compose ps --services --filter "status=running" 2>/dev/null | grep -q "backend"; then
   echo "Copying scripts & CSV via docker compose..."
+  docker compose cp "backend/scripts/taher_sir(super_sales2) (1) (2).csv" backend:/app/scripts/ || true
+  docker compose cp "taher_sir(super_sales2) (1) (2).csv" backend:/app/scripts/ || true
   docker compose cp "backend/scripts/taher_sir(super_sales2) (3).csv" backend:/app/scripts/ || true
   docker compose cp "taher_sir(super_sales2) (3).csv" backend:/app/scripts/ || true
   docker compose cp backend/scripts/clear_and_sync_supersales2_leads.js backend:/app/scripts/ || true
+  docker compose cp backend/scripts/sync_supersales2_leads_local.js backend:/app/scripts/ || true
   
   echo "Running cleanup and lead sync via docker compose backend..."
-  docker compose exec backend node scripts/clear_and_sync_supersales2_leads.js
+  docker compose exec backend node scripts/sync_supersales2_leads_local.js
 
 elif [ -d "backend" ]; then
   echo "Running on host backend..."

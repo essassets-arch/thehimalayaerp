@@ -157,6 +157,14 @@ function parseAddressObj(addrStr, stateStr, cityStr, pincodeStr) {
 
 function loadSuperSales2Leads() {
   const candidatePaths = [
+    path.join(__dirname, 'taher_sir(super_sales2) (1) (2).csv'),
+    path.resolve('taher_sir(super_sales2) (1) (2).csv'),
+    path.join(__dirname, '../taher_sir(super_sales2) (1) (2).csv'),
+    path.join(__dirname, '../../taher_sir(super_sales2) (1) (2).csv'),
+    path.resolve('scripts/taher_sir(super_sales2) (1) (2).csv'),
+    path.resolve('backend/scripts/taher_sir(super_sales2) (1) (2).csv'),
+    path.resolve('/app/scripts/taher_sir(super_sales2) (1) (2).csv'),
+    path.resolve('/app/taher_sir(super_sales2) (1) (2).csv'),
     path.join(__dirname, 'taher_sir(super_sales2) (3).csv'),
     path.resolve('taher_sir(super_sales2) (3).csv'),
     path.join(__dirname, '../taher_sir(super_sales2) (3).csv'),
@@ -173,7 +181,7 @@ function loadSuperSales2Leads() {
   }
 
   console.log(`Reading SuperSales 2 CSV from: ${csvPath}`);
-  const content = fs.readFileSync(csvPath, 'utf8');
+  const content = fs.readFileSync(csvPath, 'utf8').replace(/^\uFEFF/, '');
   const rows = parseCSV(content);
   const headers = rows[0].map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/g, '_'));
   const dataRows = rows.slice(1);
@@ -186,31 +194,37 @@ function loadSuperSales2Leads() {
     const obj = {};
     headers.forEach((h, idx) => { obj[h] = r[idx] ? r[idx].trim() : ''; });
 
-    const leadDate = obj.lead_date || '';
-    const projectName = obj.project_name || obj.group_name || obj.gst_name || '';
+    const leadDate = obj.lead_date || r[0] || '';
+    const projectName = obj.project_name || obj.group_name || obj.gst_name || r[1] || '';
     const groupName = obj.group_name || projectName;
     const gstName = obj.gst_name || projectName;
-    const gstNo = obj.gst_no || '';
-    const siteIncharge = obj.site_incharge || 'Site Incharge';
-    const siteInchargeMobile = obj.site_incharge_mobile || obj.office_contact || '';
-    const officeContact = obj.office_contact || '';
-    const email = obj.email || 'info@thehimalaya.co.in';
-    const address = obj.address || '';
-    const state = obj.state || 'Gujarat';
-    const city = obj.city || '';
-    const pincode = obj.pincode || '';
+    const gstNo = obj.gst_no || r[4] || '';
+    let siteIncharge = obj.site_incharge || r[5] || 'Site Incharge';
+    let siteInchargeMobile = obj.site_incharge_mobile || obj.office_contact || r[6] || r[7] || '';
+    const officeContact = obj.office_contact || r[7] || '';
+    const email = obj.email || r[8] || 'info@thehimalaya.co.in';
+    const address = obj.address || r[11] || '';
+    const state = obj.state || r[12] || 'Gujarat';
+    const city = obj.city || r[13] || '';
+    const pincode = obj.pincode || r[14] || '';
 
-    const product = obj.product || '';
-    const size = obj.size || '';
-    const capacity = obj.capcity || obj.capacity || '';
-    const qty = parseFloat(obj.qty) || 1;
-    const color = obj.specification || obj.color || 'GREY';
-    const unitPrice = parseFloat(obj.unit_pricew || obj.unit_price || 0) || 0;
-    const subTotal = parseFloat(obj.sub_total || 0) || 0;
-    const gst = obj.gst || '18%';
-    const gstAmount = parseFloat(obj.gst_amount || 0) || 0;
-    const discount = parseFloat(obj.discount || 0) || 0;
-    const grandTotal = parseFloat(obj.grand_total || 0) || 0;
+    if (siteInchargeMobile.includes(':')) {
+      const parts = siteInchargeMobile.split(':');
+      siteIncharge = parts[0].trim();
+      siteInchargeMobile = parts[1].trim();
+    }
+
+    const product = obj.product || r[15] || '';
+    const size = obj.size || r[16] || '';
+    const capacity = obj.capcity || obj.capacity || r[17] || '';
+    const qty = parseFloat(obj.qty || r[18]) || 1;
+    const color = obj.specification || obj.color || r[19] || 'GREY';
+    const unitPrice = parseFloat(obj.unit_pricew || obj.unit_price || r[20] || 0) || 0;
+    const subTotal = parseFloat(obj.sub_total || r[21] || 0) || (unitPrice * qty);
+    const gst = obj.gst || r[22] || '18%';
+    const gstAmount = parseFloat(obj.gst_amount || r[23] || 0) || Math.round(subTotal * 0.18 * 100) / 100;
+    const discount = parseFloat(obj.discount || r[24] || 0) || 0;
+    const grandTotal = parseFloat(obj.grand_total || r[25] || 0) || (subTotal + gstAmount - discount);
 
     const hasLeadInfo = Boolean(projectName || groupName || gstName || gstNo);
     const hasProductInfo = Boolean(product || size || capacity);
@@ -507,13 +521,14 @@ async function cleanAndSyncSuperSales2(config, leadsList) {
       const phone = gl.site_incharge_mobile || gl.office_contact || 'N/A';
       const email = gl.email || 'info@thehimalaya.co.in';
       const gstNumber = gl.gst_no || null;
-      const gstName = gl.gst_name || companyName;
+      const isDuplicateGstin = companyName.includes('D.D RETAILS') || gstName.includes('D.D RETAILS');
+      const validGstin = (gstNumber && gstNumber !== 'URD' && !isDuplicateGstin) ? gstNumber : null;
 
       // Find or create Customer
       let customer = null;
-      if (gstNumber && gstNumber !== 'URD') {
+      if (validGstin) {
         customer = await prisma.customer.findFirst({
-          where: { companyId, gstin: gstNumber }
+          where: { companyId, gstin: validGstin }
         });
       }
       if (!customer) {
@@ -528,7 +543,7 @@ async function cleanAndSyncSuperSales2(config, leadsList) {
             contactPerson,
             email,
             phone,
-            gstin: (gstNumber && gstNumber !== 'URD') ? gstNumber : null,
+            gstin: validGstin,
             billingAddress: parsedAddress,
             shippingAddress: parsedAddress,
             companyId,
@@ -537,12 +552,13 @@ async function cleanAndSyncSuperSales2(config, leadsList) {
         });
       }
 
+      const fy = (leadDateObj.getUTCFullYear() === 2026 && leadDateObj.getUTCMonth() >= 3) ? '2627' : '2526';
       let seqStr = String(seqCounter).padStart(4, '0');
-      let leadNumber = `LEAD/2627/${seqStr}`;
+      let leadNumber = `LEAD/${fy}/${seqStr}`;
       while (await prisma.lead.findFirst({ where: { leadNumber }, select: { id: true } })) {
         seqCounter++;
         seqStr = String(seqCounter).padStart(4, '0');
-        leadNumber = `LEAD/2627/${seqStr}`;
+        leadNumber = `LEAD/${fy}/${seqStr}`;
       }
       seqCounter++;
 
