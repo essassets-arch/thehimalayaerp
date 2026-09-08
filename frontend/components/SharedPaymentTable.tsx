@@ -159,10 +159,10 @@ export default function SharedPaymentTable({ mode = 'sales' }: { mode?: 'sales' 
         dueDate: paymentInfo.dueDate,
         remainingDays: paymentInfo.remainingDays,
         badgeColor: paymentInfo.badgeColor,
-        hasPendingFinanceConfirmation,
-        isDelivered: consignment?.status === 'DELIVERED' ||
-          String(o.dispatchStatus || '').toUpperCase() === 'DELIVERED' ||
-          Boolean(deliveryDate && deliveryDate !== '--')
+        isDelivered: Boolean(
+          (consignment?.status === 'DELIVERED' || String(o.dispatchStatus || '').toUpperCase() === 'DELIVERED' || Boolean(deliveryDate && deliveryDate !== '--')) &&
+          (o.podUrl || o.proofOfDelivery || consignment?.podUrl)
+        )
       };
     });
   }, [orders, quotations, paymentConfirmations, backendPayments, consignments]);

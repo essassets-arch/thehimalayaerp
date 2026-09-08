@@ -9,6 +9,7 @@ import { useERPStore } from '../store/erpStore';
 import { backendFetch } from '../lib/backendFetch';
 import { remindersService } from '../modules/sales/services/reminders.service.js';
 import PaginationControl from '../shared/components/PaginationControl';
+import { getBackendAssetUrl } from '../lib/assetUrl';
 
 const PAYMENT_LABELS = {
   PAYMENT_PENDING: 'Awaiting Payment',
@@ -131,6 +132,154 @@ const HISTORICAL_DISPATCH_INVOICES = {
   "fc39ca82-df75-4309-8be7-59d435f11a43": "958",
   "HCPPL/2627/0142": "944",
   "4fa6fe0e-3b2d-4b9d-9cf3-01fc8ff3d100": "944"
+};
+
+/**
+ * Strict verification: an order must only appear in Payment Follow-up once
+ * dispatch delivery is confirmed AND proof of delivery (POD) is uploaded.
+ */
+export const isOrderDeliveredWithPod = (o, dispatchesList = []) => {
+  if (!o) return false;
+
+  // 1. Direct verified proof on order object (e.g. from backend listDeliveredPendingPayment)
+  const directPod = o.podUrl || o.proofOfDelivery || o.pod_url;
+  const hasDirectPod = Boolean(
+    directPod &&
+    typeof directPod === 'string' &&
+    directPod.trim() !== '' &&
+    directPod.trim().toLowerCase() !== 'null' &&
+    directPod.trim().toLowerCase() !== 'undefined'
+  );
+
+  // 2. Check embedded dispatches on order
+  if (Array.isArray(o.dispatches) && o.dispatches.length > 0) {
+    const deliveredWithPod = o.dispatches.some((d) => {
+      const isDel = String(d?.status || '').toUpperCase() === 'DELIVERED';
+      const hasDate = Boolean(d?.deliveredAt || d?.deliveredDate);
+      const podVal = d?.podUrl || d?.podImageUrl || d?.proofOfDelivery;
+      const hasPod = Boolean(
+        podVal &&
+        typeof podVal === 'string' &&
+        podVal.trim() !== '' &&
+        podVal.trim().toLowerCase() !== 'null' &&
+        podVal.trim().toLowerCase() !== 'undefined'
+      );
+      return isDel && hasDate && hasPod;
+    });
+    if (deliveredWithPod) return true;
+  }
+
+  if (hasDirectPod && (o.delivered_at || o.deliveredAt || o.deliveryDate)) {
+    return true;
+  }
+
+  // 3. Cross-check against all dispatches list
+  if (Array.isArray(dispatchesList) && dispatchesList.length > 0) {
+    const orderId = String(o.id || '').trim().toLowerCase();
+    const orderNo = String(o.order_number || o.orderNo || o.orderNumber || o.orderId || '').trim().toLowerCase();
+    const cleanNo = orderNo.replace(/[^a-z0-9]/g, '');
+
+    const matchingDispatch = dispatchesList.find((d) => {
+      const isDel = String(d?.status || '').toUpperCase() === 'DELIVERED';
+      const hasDate = Boolean(d?.deliveredAt || d?.deliveredDate);
+      const podVal = d?.podUrl || d?.podImageUrl || d?.proofOfDelivery;
+      const hasPod = Boolean(
+        podVal &&
+        typeof podVal === 'string' &&
+        podVal.trim() !== '' &&
+        podVal.trim().toLowerCase() !== 'null' &&
+        podVal.trim().toLowerCase() !== 'undefined'
+      );
+      if (!isDel || !hasDate || !hasPod) return false;
+
+      const dOrderId = String(d.salesOrderId || d.orderId || d.salesOrder?.id || '').trim().toLowerCase();
+      const dOrderNo = String(d.orderNo || d.orderNumber || d.salesOrder?.orderNumber || '').trim().toLowerCase();
+      const dCleanNo = dOrderNo.replace(/[^a-z0-9]/g, '');
+
+      if (orderId && (dOrderId === orderId || dOrderId.includes(orderId) || orderId.includes(dOrderId))) return true;
+      if (orderNo && (dOrderNo === orderNo || dOrderNo.includes(orderNo) || orderNo.includes(dOrderNo))) return true;
+      if (cleanNo && dCleanNo && (cleanNo === dCleanNo || cleanNo.includes(dCleanNo) || dCleanNo.includes(cleanNo))) return true;
+
+      const items = Array.isArray(d.items) ? d.items : (Array.isArray(d.dispatchItems) ? d.dispatchItems : []);
+      return items.some((it) => {
+        const itOrderId = String(it.salesOrderId || it.orderId || it.salesOrderItem?.salesOrderId || it.salesOrderItem?.salesOrder?.id || '').trim().toLowerCase();
+        const itOrderNo = String(it.orderNo || it.orderNumber || it.salesOrderItem?.salesOrder?.orderNumber || '').trim().toLowerCase();
+        return (orderId && itOrderId === orderId) || (orderNo && itOrderNo === orderNo);
+      });
+    });
+
+    if (matchingDispatch) return true;
+  }
+
+  return false;
+};
+
+export const extractPodUrl = (o, dispatchesList = []) => {
+  if (!o) return null;
+  const directPod = o.pod_url || o.podUrl || o.proofOfDelivery;
+  if (
+    directPod &&
+    typeof directPod === 'string' &&
+    directPod.trim() !== '' &&
+    directPod.trim().toLowerCase() !== 'null' &&
+    directPod.trim().toLowerCase() !== 'undefined'
+  ) {
+    return directPod.trim();
+  }
+
+  if (Array.isArray(o.dispatches)) {
+    const dWithPod = o.dispatches.find(
+      (d) =>
+        String(d?.status || '').toUpperCase() === 'DELIVERED' &&
+        (d?.podUrl || d?.podImageUrl || d?.proofOfDelivery) &&
+        typeof (d.podUrl || d.podImageUrl || d.proofOfDelivery) === 'string' &&
+        (d.podUrl || d.podImageUrl || d.proofOfDelivery).trim() !== '' &&
+        (d.podUrl || d.podImageUrl || d.proofOfDelivery).trim().toLowerCase() !== 'null'
+    );
+    if (dWithPod) {
+      return (dWithPod.podUrl || dWithPod.podImageUrl || dWithPod.proofOfDelivery).trim();
+    }
+  }
+
+  if (Array.isArray(dispatchesList) && dispatchesList.length > 0) {
+    const orderId = String(o.id || '').trim().toLowerCase();
+    const orderNo = String(o.order_number || o.orderNo || o.orderNumber || o.orderId || '').trim().toLowerCase();
+    const cleanNo = orderNo.replace(/[^a-z0-9]/g, '');
+
+    const matchingDispatch = dispatchesList.find((d) => {
+      const isDel = String(d?.status || '').toUpperCase() === 'DELIVERED';
+      const podVal = d?.podUrl || d?.podImageUrl || d?.proofOfDelivery;
+      const hasPod = Boolean(
+        podVal &&
+        typeof podVal === 'string' &&
+        podVal.trim() !== '' &&
+        podVal.trim().toLowerCase() !== 'null' &&
+        podVal.trim().toLowerCase() !== 'undefined'
+      );
+      if (!isDel || !hasPod) return false;
+
+      const dOrderId = String(d.salesOrderId || d.orderId || d.salesOrder?.id || '').trim().toLowerCase();
+      const dOrderNo = String(d.orderNo || d.orderNumber || d.salesOrder?.orderNumber || '').trim().toLowerCase();
+      const dCleanNo = dOrderNo.replace(/[^a-z0-9]/g, '');
+
+      if (orderId && (dOrderId === orderId || dOrderId.includes(orderId) || orderId.includes(dOrderId))) return true;
+      if (orderNo && (dOrderNo === orderNo || dOrderNo.includes(orderNo) || orderNo.includes(dOrderNo))) return true;
+      if (cleanNo && dCleanNo && (cleanNo === dCleanNo || cleanNo.includes(dCleanNo) || dCleanNo.includes(cleanNo))) return true;
+
+      const items = Array.isArray(d.items) ? d.items : (Array.isArray(d.dispatchItems) ? d.dispatchItems : []);
+      return items.some((it) => {
+        const itOrderId = String(it.salesOrderId || it.orderId || it.salesOrderItem?.salesOrderId || it.salesOrderItem?.salesOrder?.id || '').trim().toLowerCase();
+        const itOrderNo = String(it.orderNo || it.orderNumber || it.salesOrderItem?.salesOrder?.orderNumber || '').trim().toLowerCase();
+        return (orderId && itOrderId === orderId) || (orderNo && itOrderNo === orderNo);
+      });
+    });
+
+    if (matchingDispatch) {
+      return (matchingDispatch.podUrl || matchingDispatch.podImageUrl || matchingDispatch.proofOfDelivery)?.trim() || null;
+    }
+  }
+
+  return null;
 };
 
 export default function PaymentFollowupERPView({ orders = [] }) {
@@ -271,20 +420,46 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     }
   }, [searchParams]);
 
+  const allDispatchesList = useMemo(() => {
+    return [
+      ...(Array.isArray(deliveredDispatches) ? deliveredDispatches : []),
+      ...(Array.isArray(consignments) ? consignments : []),
+      ...(Array.isArray(canonicalState?.dispatches) ? canonicalState.dispatches : []),
+      ...(Array.isArray(canonicalState?.dispatch?.dispatches) ? canonicalState.dispatch.dispatches : []),
+    ];
+  }, [deliveredDispatches, consignments, canonicalState?.dispatches, canonicalState?.dispatch?.dispatches]);
+
   const completedOrders = useMemo(() => {
-    const delivered = (orders || []).filter(o => {
-      const st = String(o.orderStatus || o.status || o.workflowStatus || o.overallStage || '').trim().toUpperCase();
-      const dispatchSt = String(o.dispatchStatus || '').toUpperCase();
-      return ['DELIVERED', 'INVOICED', 'PAYMENT_PENDING', 'PAYMENT COMPLETED', 'PARTIALLY PAID', 'COMPLETED', 'CLOSED'].includes(st) || dispatchSt === 'DELIVERED' || Boolean(o?.deliveredDate || o?.deliveredAt);
+    const allCandidates = [...(pendingCollection || []), ...(orders || []), ...canonicalOrders];
+    const deliveredWithPod = allCandidates.filter(o => isOrderDeliveredWithPod(o, allDispatchesList));
+    const map = new Map();
+    deliveredWithPod.forEach(o => {
+      const orderNo = o.order_number || o.orderNo || o.orderId || o.id;
+      if (!orderNo) return;
+      const key = String(orderNo).toLowerCase();
+      if (map.has(key)) return;
+
+      const paySt = String(o.paymentStatus || o.payment_status || '').toUpperCase();
+      const total = Number(o.grand_total || o.totalAmount || o.totalValue || o.grandTotal || 0);
+      const paid = Number(o.verified_paid_amount || o.verifiedPaidAmount || o.payment?.paidAmount || o.payment?.paid || 0);
+      const bal = o.balance_amount !== undefined ? Number(o.balance_amount) : (o.balanceAmount !== undefined ? Number(o.balanceAmount) : Math.max(0, total - paid));
+
+      if (paySt === 'PAID' || (bal <= 0 && total > 0)) {
+        map.set(key, {
+          ...o,
+          id: o.id || orderNo,
+          order_number: orderNo,
+          customer_name: o.customer_name || o.customerName || o.customer?.name || 'Customer',
+          grand_total: total,
+          verified_paid_amount: paid,
+          balance_amount: bal,
+          pod_url: extractPodUrl(o, allDispatchesList),
+          podUrl: extractPodUrl(o, allDispatchesList),
+        });
+      }
     });
-    return delivered.filter(o => {
-      const paySt = String(o.paymentStatus || '').toUpperCase();
-      const total = Number(o.totalAmount || o.totalValue || o.grandTotal || 0);
-      const paid = Number(o.verifiedPaidAmount || o.payment?.paidAmount || o.payment?.paid || 0);
-      const bal = o.balanceAmount !== undefined ? Number(o.balanceAmount) : Math.max(0, total - paid);
-      return paySt === 'PAID' || (bal <= 0 && total > 0);
-    });
-  }, [orders]);
+    return Array.from(map.values());
+  }, [orders, canonicalOrders, pendingCollection, allDispatchesList]);
 
   const openAddFollowup = async (order) => {
     const today = new Date().toISOString().split('T')[0];
@@ -549,14 +724,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     }
 
     // 2. Dispatches from backend and store
-    const allDispatches = [
-      ...(Array.isArray(deliveredDispatches) ? deliveredDispatches : []),
-      ...(Array.isArray(consignments) ? consignments : []),
-      ...(Array.isArray(canonicalState?.dispatches) ? canonicalState.dispatches : []),
-      ...(Array.isArray(canonicalState?.dispatch?.dispatches) ? canonicalState.dispatch.dispatches : []),
-    ];
-
-    allDispatches.forEach((d) => {
+    allDispatchesList.forEach((d) => {
       const dDate = d.deliveredAt || d.dispatchedAt || d.createdAt;
       const inv = d.invoiceNumber || d.invoice_number || d.invoiceNo;
       const cleanInv = inv && typeof inv === 'string' && inv.trim() && !isFallbackInvoice(inv)
@@ -595,7 +763,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     }
 
     return { dispatchDeliveryMap: deliveryMap, dispatchInvoiceMap: invoiceMap };
-  }, [deliveredDispatches, consignments, canonicalState?.dispatches, canonicalState?.dispatch?.dispatches, localDispatchInvoices]);
+  }, [allDispatchesList, localDispatchInvoices]);
 
   const pendingRows = useMemo(() => {
     const apiRows = pendingCollection || [];
@@ -613,8 +781,8 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       orderStatus: 'DELIVERED',
       deliveredAt: c.createdAt || new Date().toISOString()
     }));
-    // API/legacy records are fallbacks; canonical Zustand orders must win deduplication.
-    const allCandidates = [...syntheticCandidates, ...apiRows, ...(orders || []), ...canonicalOrders];
+    // API records from delivered/pending-payment already enforce delivered status + POD upload
+    const allCandidates = [...apiRows, ...syntheticCandidates, ...(orders || []), ...canonicalOrders];
     
     const map = new Map();
     allCandidates.forEach(o => {
@@ -624,29 +792,10 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       const cleanOrderNoNorm = cleanOrderKey.replace(/[^a-z0-9]/g, '');
       const oIdKey = o.id ? String(o.id).trim().toLowerCase() : '';
 
-      const st = String(o.orderStatus || o.status || o.workflowStatus || o.overallStage || '').trim().toUpperCase();
-      const dispatchSt = String(o.dispatchStatus || '').toUpperCase();
-
-      const hasDispatched =
-        ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'DISPATCH_APPROVED', 'COMPLETED', 'DISPATCH_CREATED', 'READY_FOR_PICKUP'].includes(dispatchSt) ||
-        ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'DISPATCH_APPROVED', 'COMPLETED', 'DISPATCH_CREATED'].includes(st) ||
-        (Array.isArray(o.dispatches) && o.dispatches.length > 0) ||
-        Boolean(o.dispatchId) ||
-        Boolean(o.dispatchNo) ||
-        dispatchInvoiceMap.has(cleanOrderKey) ||
-        dispatchInvoiceMap.has(cleanOrderNoNorm) ||
-        (oIdKey && dispatchInvoiceMap.has(oIdKey)) ||
-        dispatchDeliveryMap.has(cleanOrderKey) ||
-        dispatchDeliveryMap.has(cleanOrderNoNorm) ||
-        (oIdKey && dispatchDeliveryMap.has(oIdKey));
-
-      const isDelivered =
-        ['DELIVERED', 'INVOICED', 'PAYMENT_PENDING', 'PAYMENT COMPLETED', 'PARTIALLY PAID', 'COMPLETED', 'CLOSED'].includes(st) ||
-        dispatchSt === 'DELIVERED' ||
-        Boolean(o?.deliveredDate || o?.deliveredAt || o?.delivered_at) ||
-        hasDispatched;
-
-      if (!isDelivered) return;
+      // STRICT USER REQUIREMENT: Only show in Payment Follow-up once dispatch delivery is confirmed and proof of delivery (POD) is uploaded from /dispatch/delivery
+      if (!isOrderDeliveredWithPod(o, allDispatchesList)) {
+        return;
+      }
 
       const paySt = String(o.paymentStatus || o.payment_status || '').trim().toUpperCase();
       const total = Number(o.grand_total || o.totalAmount || o.totalValue || o.grandTotal || 0);
@@ -823,6 +972,8 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         resolvedInvoiceNumber = existing.invoice_number;
       }
 
+      const resolvedPodUrl = extractPodUrl(o, allDispatchesList);
+
       const normalized = {
         id: o.id || orderNo,
         customerId: o.customerId || o.customer_id || o.customer?.id || 'unknown',
@@ -837,6 +988,8 @@ export default function PaymentFollowupERPView({ orders = [] }) {
         balance_amount: resolvedBalance,
         payment_status: resolvedPaymentStatus,
         delivered_at: deliveredAt,
+        pod_url: resolvedPodUrl,
+        podUrl: resolvedPodUrl,
         invoice_date: invoiceDate,
         payment_terms: displayPaymentTerms,
         payment_due_date: dueDateValue,
@@ -858,6 +1011,10 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       }
       if (!normalized.delivered_at && existing?.delivered_at) {
         normalized.delivered_at = existing.delivered_at;
+      }
+      if (!normalized.pod_url && existing?.pod_url) {
+        normalized.pod_url = existing.pod_url;
+        normalized.podUrl = existing.pod_url;
       }
       if (isFallbackInvoice(normalized.invoice_number) && existing?.invoice_number && !isFallbackInvoice(existing.invoice_number)) {
         normalized.invoice_number = existing.invoice_number;
@@ -898,6 +1055,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
     pendingFilter,
     activeTab,
     agingFilter,
+    allDispatchesList,
   ]);
 
   const partialRows = useMemo(() => {
@@ -1062,7 +1220,9 @@ export default function PaymentFollowupERPView({ orders = [] }) {
               {pendingRows.length === 0 ? (
                 <div className="empty-state-card">
                   <div className="empty-state-title">No pending collections</div>
-                  <div className="empty-state-subtitle">All customer collections in this view are up to date.</div>
+                  <div className="empty-state-subtitle">
+                    Orders appear here once dispatch delivery is confirmed and proof of delivery (POD) is uploaded from Dispatch &amp; Delivery (/dispatch/delivery).
+                  </div>
                 </div>
               ) : (
                 pagedPendingRows.map(o => {
@@ -1121,6 +1281,32 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                           <span>Delivery Date:</span>
                           <strong>{isoDate(o.delivered_at) || '—'}</strong>
                         </div>
+                        {o.pod_url && (
+                          <div className="pmc-metric-item" style={{ gridColumn: 'span 2' }}>
+                            <span>Proof of Delivery:</span>
+                            <a
+                              href={getBackendAssetUrl(o.pod_url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: '#ecfdf5',
+                                border: '1px solid #a7f3d0',
+                                color: '#047857',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11.5px',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                width: 'fit-content'
+                              }}
+                            >
+                              📄 Verified POD Document
+                            </a>
+                          </div>
+                        )}
                         <div className="pmc-metric-item">
                           <span>Terms:</span>
                           <strong style={{ color: isAdv ? '#0284c7' : '#2563eb' }}>{o.payment_terms || '15 Days'}</strong>
@@ -1201,6 +1387,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                     <th>Invoice No</th>
                     <th>Customer</th>
                     <th>Delivery Date</th>
+                    <th>Proof (POD)</th>
                     <th>Payment Terms</th>
                     <th>Due Date</th>
                     <th>Remaining Days</th>
@@ -1213,7 +1400,16 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                 </thead>
                 <tbody>
                   {pendingRows.length === 0 ? (
-                    <tr><td colSpan="12" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>No pending collections.</td></tr>
+                    <tr>
+                      <td colSpan="13" style={{ textAlign: 'center', padding: 36, color: 'var(--color-text-muted)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)' }}>No pending collections</span>
+                          <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)', maxWidth: '540px' }}>
+                            Orders appear in Payment Follow-up once dispatch delivery is confirmed and Proof of Delivery (POD) is uploaded from the <strong>Dispatch &amp; Delivery</strong> page.
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
                   ) : (
                     pagedPendingRows.map(o => {
                       const total = Number(o.grand_total || 0);
@@ -1260,6 +1456,34 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                           </td>
                           <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
+                          <td data-label="Proof (POD)">
+                            {o.pod_url ? (
+                              <a
+                                href={getBackendAssetUrl(o.pod_url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: '#ecfdf5',
+                                  border: '1px solid #a7f3d0',
+                                  color: '#047857',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700,
+                                  textDecoration: 'none',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="View Verified Proof of Delivery (POD)"
+                              >
+                                📄 View POD
+                              </a>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontSize: '11.5px' }}>—</span>
+                            )}
+                          </td>
                           <td data-label="Payment Terms">
                             <span style={{
                               fontWeight: 700,
@@ -1481,6 +1705,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                     <th>Invoice No</th>
                     <th>Customer</th>
                     <th>Delivery Date</th>
+                    <th>Proof (POD)</th>
                     <th>Fulfillment Type</th>
                     <th>Payment Terms</th>
                     <th>Due Date</th>
@@ -1494,7 +1719,7 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                 <tbody>
                   {partialRows.length === 0 ? (
                     <tr>
-                      <td colSpan="12" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>
+                      <td colSpan="13" style={{ textAlign: 'center', padding: 28, color: 'var(--color-text-muted)' }}>
                         No orders with partial delivery or partial payment balances.
                       </td>
                     </tr>
@@ -1529,6 +1754,34 @@ export default function PaymentFollowupERPView({ orders = [] }) {
                           </td>
                           <td data-label="Customer" style={{ fontWeight: 700 }}>{o.customer_name}</td>
                           <td data-label="Delivery Date">{isoDate(o.delivered_at) || '—'}</td>
+                          <td data-label="Proof (POD)">
+                            {o.pod_url ? (
+                              <a
+                                href={getBackendAssetUrl(o.pod_url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: '#ecfdf5',
+                                  border: '1px solid #a7f3d0',
+                                  color: '#047857',
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700,
+                                  textDecoration: 'none',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="View Verified Proof of Delivery (POD)"
+                              >
+                                📄 View POD
+                              </a>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontSize: '11.5px' }}>—</span>
+                            )}
+                          </td>
                           <td data-label="Fulfillment Type">
                             <span style={{
                               display: 'inline-flex',

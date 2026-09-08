@@ -478,6 +478,13 @@ export class SalesService {
         deletedAt: null,
         status: { notIn: ['CANCELLED', 'LOST'] },
         ...scope,
+        dispatches: {
+          some: {
+            status: 'DELIVERED',
+            deliveredAt: { not: null },
+            podUrl: { not: null },
+          },
+        },
       },
       include: {
         customer: true,
@@ -511,6 +518,8 @@ export class SalesService {
             dispatchedAt: true,
             podUrl: true,
             invoiceNumber: true,
+            receivedBy: true,
+            receiverPhone: true,
             createdAt: true,
           },
           orderBy: { createdAt: 'desc' },
@@ -519,7 +528,23 @@ export class SalesService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return orders.map((order) => {
+    const verifiedDeliveredOrders = orders.filter((order) => {
+      const deliveredDispatches = (order.dispatches || []).filter((d) => {
+        const isDelivered = String(d.status || '').toUpperCase() === 'DELIVERED';
+        const hasDeliveredAt = Boolean(d.deliveredAt);
+        const hasPod = Boolean(
+          d.podUrl &&
+          typeof d.podUrl === 'string' &&
+          d.podUrl.trim() !== '' &&
+          d.podUrl.trim().toLowerCase() !== 'null' &&
+          d.podUrl.trim().toLowerCase() !== 'undefined'
+        );
+        return isDelivered && hasDeliveredAt && hasPod;
+      });
+      return deliveredDispatches.length > 0;
+    });
+
+    return verifiedDeliveredOrders.map((order) => {
       const verifiedPaidAmount = (order.customerPayments || [])
         .filter((p) =>
           [
@@ -534,25 +559,23 @@ export class SalesService {
       const totalAmount = Number(order.totalAmount || 0);
       const balanceAmount = Math.max(0, totalAmount - verifiedPaidAmount);
 
-      const deliveredDispatches = (order.dispatches || []).filter(
-        (d) =>
-          ['DELIVERED', 'COMPLETED', 'DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'POD_RECEIVED', 'DISPATCH_CLOSED', 'DISPATCH_APPROVED'].includes(
-            String(d.status || '').toUpperCase(),
-          ) || Boolean(d.deliveredAt || d.dispatchedAt),
-      );
-      const deliveredAtDate =
-        deliveredDispatches
-          .map((d) => d.deliveredAt || d.dispatchedAt || d.createdAt)
-          .filter((date): date is Date => Boolean(date))
-          .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ||
-        (order as any).deliveredAt ||
-        order.paymentTermStartDate ||
-        (order.dispatches || [])
-          .map((d: any) => d.deliveredAt || d.dispatchedAt || d.createdAt)
-          .filter(Boolean)[0] ||
-        order.createdAt;
+      const deliveredDispatches = (order.dispatches || []).filter((d) => {
+        const isDelivered = String(d.status || '').toUpperCase() === 'DELIVERED';
+        const hasDeliveredAt = Boolean(d.deliveredAt);
+        const hasPod = Boolean(
+          d.podUrl &&
+          typeof d.podUrl === 'string' &&
+          d.podUrl.trim() !== '' &&
+          d.podUrl.trim().toLowerCase() !== 'null' &&
+          d.podUrl.trim().toLowerCase() !== 'undefined'
+        );
+        return isDelivered && hasDeliveredAt && hasPod;
+      });
 
+      const latestDeliveredDispatch = deliveredDispatches[0];
+      const deliveredAtDate = latestDeliveredDispatch?.deliveredAt;
       const deliveredAt = deliveredAtDate ? new Date(deliveredAtDate) : null;
+      const podUrl = latestDeliveredDispatch?.podUrl || null;
 
       const orderKey = String(order.id || '').trim().toLowerCase();
       const orderNumKey = String(order.orderNumber || '').trim().toLowerCase();
@@ -618,6 +641,11 @@ export class SalesService {
         deliveredAt: deliveredAt ? deliveredAt.toISOString() : undefined,
         deliveryDate: deliveredAt ? deliveredAt.toISOString() : undefined,
         delivery_date: deliveredAt ? deliveredAt.toISOString() : undefined,
+        podUrl: podUrl,
+        pod_url: podUrl,
+        proofOfDelivery: podUrl,
+        receivedBy: latestDeliveredDispatch?.receivedBy || null,
+        receiverPhone: latestDeliveredDispatch?.receiverPhone || null,
         paymentTerms:
           order.paymentTerms || `${order.paymentTermDays || 15} Days`,
         paymentDueDate: order.paymentDueDate?.toISOString(),
