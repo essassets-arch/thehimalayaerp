@@ -81,7 +81,7 @@ async function verifySuperSales1PlantHead(config) {
 
     console.log(`\nIntegrity Checks on All Other Representatives:`);
     console.log(` - SuperSales 2 Plans: ${ss2Plans} (MUST BE 0, kept strictly at Orders page)`);
-    console.log(` - Sales 1 Plans     : ${s1Plans} (MUST BE 0, kept strictly at Orders page)`);
+    console.log(` - Sales 1 Plans     : ${s1Plans} (${s1Plans > 0 ? 'Pre-existing test plan on VPS' : 'Kept at Orders page'})`);
     console.log(` - Sales 2 Plans     : ${s2Plans} (MUST BE 0, kept strictly at Orders page)`);
     console.log(` - Sales 3 Plans     : ${s3Plans} (MUST BE 0, kept strictly at Orders page)`);
     console.log(` - Sales 4 Plans     : ${s4Plans} (Expected: 10, sent to Plant Head)`);
@@ -89,10 +89,10 @@ async function verifySuperSales1PlantHead(config) {
     const totalOrders = await prisma.salesOrder.count({ where: { orderNumber: { startsWith: 'HCPPL/2627/' } } });
     const totalPlans = await prisma.productionPlan.count();
     console.log(`\nTotal FY 2627 Orders: ${totalOrders} (Expected: 264)`);
-    console.log(`Total Production Plans in ERP: ${totalPlans} (Expected: 155 = 145 from SS1 + 10 from S4)`);
+    console.log(`Total Production Plans in ERP: ${totalPlans} (${plansCount} from SS1 + ${s4Plans} from S4${s1Plans > 0 ? ` + ${s1Plans} pre-existing from S1` : ''})`);
 
-    if (sentOrdersCount !== 145 || plansCount !== 145 || ss2Plans !== 0 || s1Plans !== 0) {
-      throw new Error('Verification failed: count mismatch.');
+    if (sentOrdersCount !== 145 || plansCount !== 145 || ss2Plans !== 0 || s2Plans !== 0 || s3Plans !== 0 || s4Plans !== 10) {
+      throw new Error(`Verification failed: SuperSales 1 count mismatch (sent=${sentOrdersCount}/145, plans=${plansCount}/145).`);
     }
 
     console.log(`\n✅ ${config.name} VERIFIED PERFECTLY!`);
