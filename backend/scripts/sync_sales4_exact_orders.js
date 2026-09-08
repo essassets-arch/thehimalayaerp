@@ -430,23 +430,25 @@ async function syncSales4ExactOrders(config) {
       const customerName = g.gstName || g.proj || g.grp || `Customer S4-${idx + 1}`;
       const gstinVal = (g.gstNo && g.gstNo !== 'URD') ? g.gstNo : null;
 
-      // A. Upsert Customer
-      let customer = null;
-      if (gstinVal) {
-        customer = await prisma.customer.findFirst({
+      // A. Upsert Customer: Match by companyName first
+      let customer = await prisma.customer.findFirst({
+        where: {
+          companyId,
+          companyName: { equals: customerName, mode: 'insensitive' }
+        }
+      });
+      if (!customer && gstinVal) {
+        const gstMatch = await prisma.customer.findFirst({
           where: { companyId, gstin: gstinVal }
         });
-      }
-      if (!customer) {
-        customer = await prisma.customer.findFirst({
-          where: {
-            companyId,
-            companyName: { equals: customerName, mode: 'insensitive' }
-          }
-        });
+        if (gstMatch && gstMatch.companyName.toUpperCase() === customerName.toUpperCase()) {
+          customer = gstMatch;
+        }
       }
 
       if (!customer) {
+        const existingGstinCust = gstinVal ? await prisma.customer.findFirst({ where: { companyId, gstin: gstinVal } }) : null;
+        const gstinToSave = (!existingGstinCust && gstinVal) ? gstinVal : null;
         customer = await prisma.customer.create({
           data: {
             companyId,
@@ -454,7 +456,7 @@ async function syncSales4ExactOrders(config) {
             contactPerson: g.contactPerson || 'Site Incharge',
             phone: g.phone || '9876543210',
             email: g.email || 'customer@example.com',
-            gstin: gstinVal,
+            gstin: gstinToSave,
             status: 'ACTIVE',
             shippingAddress: parsedAddr,
             billingAddress: parsedAddr,
@@ -510,14 +512,14 @@ async function syncSales4ExactOrders(config) {
         data: {
           leadNumber,
           leadDate: leadDateObj,
-          companyName: customer.companyName,
-          groupName: g.grp,
-          projectName: g.proj,
+          companyName: customerName,
+          groupName: g.grp || customerName,
+          projectName: g.proj || customerName,
           contactPerson: g.contactPerson || customer.contactPerson,
           phone: g.phone || customer.phone,
           email: g.email || customer.email,
-          gstName: g.gstName || customer.companyName,
-          gstNumber: (g.gstNo && g.gstNo !== 'URD') ? g.gstNo : customer.gstin,
+          gstName: g.gstName || customerName,
+          gstNumber: (g.gstNo && g.gstNo !== 'URD') ? g.gstNo : null,
           address: parsedAddr,
           source: 'OTHER',
           productInterest: productInterestStr,
@@ -602,7 +604,7 @@ async function syncSales4ExactOrders(config) {
           paymentStatus: 'PENDING',
           billingAddress: parsedAddr,
           shippingAddress: parsedAddr,
-          remarks: 'Converted from Quotation - Ready on Orders Page',
+          remarks: `Sales 4 Order - ${customerName}`,
           version: 1,
           createdAt: leadDateObj,
           items: {
