@@ -341,15 +341,23 @@ export default function LoginPage() {
           box-sizing: border-box;
         }
 
+        .login-input-wrap input,
+        .login-card input[type="email"],
+        .login-card input[type="password"],
+        .login-card input[type="text"],
+        #login-email,
+        #login-password,
         .login-input {
           width: 100% !important;
-          height: 48px !important;
-          min-height: 48px !important;
+          height: 50px !important;
+          min-height: 50px !important;
           box-sizing: border-box !important;
           border: 1.5px solid #d5dfef !important;
           border-radius: 11px !important;
           background: #eaf1fc !important;
-          padding: 0 16px 0 46px !important;
+          padding: 0 18px 0 54px !important;
+          padding-left: 54px !important;
+          padding-right: 18px !important;
           font-size: 14.5px !important;
           font-weight: 500 !important;
           font-family: 'Outfit', sans-serif !important;
@@ -378,14 +386,18 @@ export default function LoginPage() {
           box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14) !important;
         }
 
+        .login-input-wrap input.login-input-pass,
+        .login-card input[type="password"],
+        #login-password,
         .login-input-pass {
-          padding-left: 46px !important;
-          padding-right: 46px !important;
+          padding: 0 54px 0 54px !important;
+          padding-left: 54px !important;
+          padding-right: 54px !important;
         }
 
         .login-icon {
           position: absolute !important;
-          left: 15px !important;
+          left: 17px !important;
           top: 50% !important;
           transform: translateY(-50%) !important;
           width: 18px !important;
@@ -395,7 +407,7 @@ export default function LoginPage() {
           justify-content: center !important;
           color: #8294ad !important;
           pointer-events: none !important;
-          z-index: 2 !important;
+          z-index: 3 !important;
           transition: color 0.2s ease !important;
         }
 
@@ -405,7 +417,7 @@ export default function LoginPage() {
 
         .pass-toggle {
           position: absolute !important;
-          right: 12px !important;
+          right: 14px !important;
           top: 50% !important;
           transform: translateY(-50%) !important;
           width: 28px !important;
@@ -419,7 +431,7 @@ export default function LoginPage() {
           cursor: pointer !important;
           border-radius: 8px !important;
           padding: 0 !important;
-          z-index: 3 !important;
+          z-index: 4 !important;
           transition: all 0.2s ease !important;
         }
 
@@ -489,10 +501,14 @@ export default function LoginPage() {
             font-size: 12.5px;
           }
           .login-input {
-            height: 46px !important;
-            min-height: 46px !important;
-            padding-left: 44px !important;
-            font-size: 13.5px !important;
+            height: 48px !important;
+            min-height: 48px !important;
+            padding-left: 52px !important;
+            font-size: 14px !important;
+          }
+          .login-input-pass {
+            padding-left: 52px !important;
+            padding-right: 52px !important;
           }
         }
       `}</style>
@@ -530,7 +546,7 @@ export default function LoginPage() {
               <div className="form-group">
                 <label htmlFor="login-email" className="login-label">Email Address</label>
                 <div className="login-input-wrap">
-                  <span className="login-icon">
+                  <span className="login-icon" style={{ left: '17px' }}>
                     <Mail size={18} />
                   </span>
                   <input
@@ -544,6 +560,10 @@ export default function LoginPage() {
                     disabled={loading}
                     autoComplete="username"
                     required
+                    style={{
+                      paddingLeft: '54px',
+                      paddingRight: '18px',
+                    }}
                   />
                 </div>
               </div>
@@ -552,7 +572,7 @@ export default function LoginPage() {
               <div className="form-group">
                 <label htmlFor="login-password" className="login-label">Password</label>
                 <div className="login-input-wrap">
-                  <span className="login-icon">
+                  <span className="login-icon" style={{ left: '17px' }}>
                     <KeyRound size={18} />
                   </span>
                   <input
@@ -566,6 +586,10 @@ export default function LoginPage() {
                     disabled={loading}
                     autoComplete="current-password"
                     required
+                    style={{
+                      paddingLeft: '54px',
+                      paddingRight: '54px',
+                    }}
                   />
                   <button
                     type="button"
@@ -573,6 +597,7 @@ export default function LoginPage() {
                     onClick={() => setShowPass(p => !p)}
                     tabIndex={-1}
                     aria-label={showPass ? 'Hide password' : 'Show password'}
+                    style={{ right: '14px' }}
                   >
                     {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
