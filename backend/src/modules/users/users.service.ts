@@ -12,6 +12,7 @@ const KNOWN_USER_PASSWORDS: Record<string, string> = {
   'supersales1@himalayaerp.com': 'supersales123',
   'supersales2@himalayaerp.com': 'supersales124',
   'sales1@himalayaerp.com': 'Himalaya@2026',
+  'sales1@himalayaerp.co': 'Himalaya@2026',
   'sales2@himalayaerp.com': 'Himalaya@2026',
   'sales3@himalayaerp.com': 'Himalaya@2026',
   'sales4@himalayaerp.com': 'Himalaya@2026',
@@ -37,8 +38,11 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByEmail(email: string) {
+    const normalizedEmail = (email && email.trim().toLowerCase() === 'sales1@himalayaerp.co')
+      ? 'sales1@himalayaerp.com'
+      : email;
     return this.prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
       include: {
         role: {
           include: {
