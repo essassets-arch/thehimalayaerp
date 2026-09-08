@@ -581,70 +581,126 @@ async function syncSuperSales2PipelineToReadyDispatch(config, groups) {
       const activeFy = match ? match[1] : fyPrefix;
       const activeSeq = match ? match[2] : seqStr;
 
-      // C. Create Quotation (APPROVED)
+      // C. Upsert Quotation (APPROVED)
       const quotationNumber = `QT/${activeFy}/${activeSeq}`;
-      const createdQuote = await prisma.quotation.create({
-        data: {
-          quotationNumber,
-          companyId,
-          customerId: customer.id,
-          leadId: createdLead.id,
-          salesExecutiveId: userId,
-          createdById: userId,
-          approvedById: userId,
-          approvedAt: leadDateObj,
-          subtotal: new Prisma.Decimal(subTotal),
-          discount: new Prisma.Decimal(0),
-          tax: new Prisma.Decimal(totalTax),
-          total: new Prisma.Decimal(grandTotal),
-          expectedTransportationCost: new Prisma.Decimal(0),
-          workflowStateId: quoteApprovedState?.id || null,
-          createdAt: leadDateObj,
-          remarks: 'Converted from SuperSales 2 Lead - Ready for Order',
-          items: {
-            create: groupItemsData.map(gi => ({
-              productId: gi.productId,
-              description: gi.productName,
-              quantity: new Prisma.Decimal(gi.quantity),
-              unitPrice: new Prisma.Decimal(gi.unitPrice),
-              tax: new Prisma.Decimal(18),
-              discount: new Prisma.Decimal(0),
-              lineTotal: new Prisma.Decimal(gi.grandTotal)
-            }))
-          }
+      const quotePayload = {
+        companyId,
+        customerId: customer.id,
+        leadId: createdLead.id,
+        salesExecutiveId: userId,
+        createdById: userId,
+        approvedById: userId,
+        approvedAt: leadDateObj,
+        subtotal: new Prisma.Decimal(subTotal),
+        discount: new Prisma.Decimal(0),
+        tax: new Prisma.Decimal(totalTax),
+        total: new Prisma.Decimal(grandTotal),
+        expectedTransportationCost: new Prisma.Decimal(0),
+        workflowStateId: quoteApprovedState?.id || null,
+        createdAt: leadDateObj,
+        remarks: 'Converted from SuperSales 2 Lead - Ready for Order'
+      };
+
+      let createdQuote = await prisma.quotation.findFirst({
+        where: {
+          OR: [
+            { quotationNumber },
+            { leadId: createdLead.id }
+          ]
         }
       });
 
-      // D. Create Sales Order (CONFIRMED & READY_FOR_DISPATCH, Plant Head Accepted)
+      if (createdQuote) {
+        createdQuote = await prisma.quotation.update({
+          where: { id: createdQuote.id },
+          data: {
+            ...quotePayload,
+            quotationNumber
+          }
+        });
+        await prisma.quotationItem.deleteMany({ where: { quotationId: createdQuote.id } });
+        await prisma.quotationItem.createMany({
+          data: groupItemsData.map(gi => ({
+            quotationId: createdQuote.id,
+            productId: gi.productId,
+            description: gi.productName,
+            quantity: new Prisma.Decimal(gi.quantity),
+            unitPrice: new Prisma.Decimal(gi.unitPrice),
+            tax: new Prisma.Decimal(18),
+            discount: new Prisma.Decimal(0),
+            lineTotal: new Prisma.Decimal(gi.grandTotal)
+          }))
+        });
+      } else {
+        createdQuote = await prisma.quotation.create({
+          data: {
+            quotationNumber,
+            ...quotePayload,
+            items: {
+              create: groupItemsData.map(gi => ({
+                productId: gi.productId,
+                description: gi.productName,
+                quantity: new Prisma.Decimal(gi.quantity),
+                unitPrice: new Prisma.Decimal(gi.unitPrice),
+                tax: new Prisma.Decimal(18),
+                discount: new Prisma.Decimal(0),
+                lineTotal: new Prisma.Decimal(gi.grandTotal)
+              }))
+            }
+          }
+        });
+      }
+
+      // D. Upsert Sales Order (CONFIRMED & READY_FOR_DISPATCH, Plant Head Accepted)
       const orderNumber = `HCPPL/${activeFy}/${activeSeq}`;
-      const createdOrder = await prisma.salesOrder.create({
-        data: {
-          orderNumber,
-          customerId: customer.id,
-          quotationId: createdQuote.id,
-          sourceQuotationId: createdQuote.id,
-          salesExecutiveId: userId,
-          createdById: userId,
-          orderDate: leadDateObj,
-          status: 'READY_FOR_DISPATCH',
-          workflowStateId: orderReadyDispatchState?.id || null,
-          subtotal: new Prisma.Decimal(subTotal),
-          taxableAmount: new Prisma.Decimal(subTotal),
-          discountAmount: new Prisma.Decimal(0),
-          taxAmount: new Prisma.Decimal(totalTax),
-          freightAmount: new Prisma.Decimal(0),
-          totalAmount: new Prisma.Decimal(grandTotal),
-          currency: 'INR',
-          paidAmount: new Prisma.Decimal(0),
-          outstandingAmount: new Prisma.Decimal(grandTotal),
-          paymentStatus: 'PENDING',
-          billingAddress: parsedAddr,
-          shippingAddress: parsedAddr,
-          remarks: 'SuperSales 2 Order - Plant Head Accepted - Production & QC Passed - Ready For Dispatch',
-          version: 1,
-          createdAt: leadDateObj,
-          items: {
-            create: groupItemsData.map(gi => ({
+      const orderPayload = {
+        customerId: customer.id,
+        quotationId: createdQuote.id,
+        sourceQuotationId: createdQuote.id,
+        salesExecutiveId: userId,
+        createdById: userId,
+        orderDate: leadDateObj,
+        status: 'READY_FOR_DISPATCH',
+        workflowStateId: orderReadyDispatchState?.id || null,
+        subtotal: new Prisma.Decimal(subTotal),
+        taxableAmount: new Prisma.Decimal(subTotal),
+        discountAmount: new Prisma.Decimal(0),
+        taxAmount: new Prisma.Decimal(totalTax),
+        freightAmount: new Prisma.Decimal(0),
+        totalAmount: new Prisma.Decimal(grandTotal),
+        currency: 'INR',
+        paidAmount: new Prisma.Decimal(0),
+        outstandingAmount: new Prisma.Decimal(grandTotal),
+        paymentStatus: 'PENDING',
+        billingAddress: parsedAddr,
+        shippingAddress: parsedAddr,
+        remarks: 'SuperSales 2 Order - Plant Head Accepted - Production & QC Passed - Ready For Dispatch',
+        version: 1,
+        createdAt: leadDateObj
+      };
+
+      let createdOrder = await prisma.salesOrder.findFirst({
+        where: {
+          OR: [
+            { orderNumber },
+            { quotationId: createdQuote.id }
+          ]
+        }
+      });
+
+      if (createdOrder) {
+        createdOrder = await prisma.salesOrder.update({
+          where: { id: createdOrder.id },
+          data: {
+            ...orderPayload,
+            orderNumber
+          }
+        });
+        await prisma.salesOrderItem.deleteMany({ where: { salesOrderId: createdOrder.id } });
+        for (const gi of groupItemsData) {
+          await prisma.salesOrderItem.create({
+            data: {
+              salesOrderId: createdOrder.id,
               productId: gi.productId,
               productNameSnapshot: gi.productName,
               productCodeSnapshot: gi.productCode,
@@ -656,107 +712,211 @@ async function syncSuperSales2PipelineToReadyDispatch(config, groups) {
               taxAmount: new Prisma.Decimal(gi.gstAmount),
               lineTotal: new Prisma.Decimal(gi.grandTotal),
               unit: 'SET'
-            }))
-          }
-        },
-        include: { items: true }
-      });
-
-      // E. Create Production Plan (COMPLETED)
-      const planNumber = `PP/${activeFy}/${activeSeq}`;
-      const createdPlan = await prisma.productionPlan.create({
-        data: {
-          planNumber,
-          salesOrderId: createdOrder.id,
-          assignedToId: plantHeadUser?.id || userId,
-          status: 'COMPLETED',
-          priority: 'NORMAL',
-          plannedStartDate: leadDateObj,
-          plannedEndDate: new Date(leadDateObj.getTime() + 7 * 24 * 60 * 60 * 1000),
-          productionLine: 'Main FRP Molding Line',
-          workflowStateId: prodCompletedState?.id || null,
-          createdAt: leadDateObj
+            }
+          });
         }
-      });
-
-      // F. Create Work Orders, Batches, QC Inspections, and Finished Goods for each line item
-      for (let itemIdx = 0; itemIdx < createdOrder.items.length; itemIdx++) {
-        const orderItem = createdOrder.items[itemIdx];
-        totalWorkOrdersCount++;
-        const woSeqStr = String(itemIdx + 1).padStart(2, '0');
-        const workOrderNumber = `WO/${activeFy}/${activeSeq}-${woSeqStr}`;
-
-        // 1. Work Order
-        const createdWO = await prisma.workOrder.create({
+      } else {
+        createdOrder = await prisma.salesOrder.create({
           data: {
-            workOrderNumber,
-            productionPlanId: createdPlan.id,
-            salesOrderItemId: orderItem.id,
-            quantity: orderItem.orderedQuantity,
-            status: 'COMPLETED',
-            productionStatus: 'READY_FOR_DISPATCH',
-            startedById: userId,
-            startedAt: leadDateObj,
-            completedById: userId,
-            completedAt: now,
-            productionStartTime: leadDateObj,
-            productionEndTime: now,
-            sentToDispatchAt: now,
-            sentToDispatchById: userId,
-            qcResult: 'PASS',
-            qcRemarks: 'Technical QC Passed - All Dimension, Load & Visual Checks OK',
-            qcTimestamp: now,
-            reworkCount: 0,
-            workflowStateId: woCompletedState?.id || null,
-            createdById: userId,
-            createdAt: leadDateObj
-          }
-        });
-
-        // 2. Production Batch
-        const batchNumber = `BATCH/${activeFy}/${activeSeq}-${woSeqStr}`;
-        await prisma.productionBatch.create({
-          data: {
-            batchNumber,
-            workOrderId: createdWO.id,
-            quantity: orderItem.orderedQuantity,
-            createdAt: leadDateObj
-          }
-        });
-
-        // 3. QC Inspection (PASSED)
-        await prisma.qCInspection.create({
-          data: {
-            workOrderId: createdWO.id,
-            status: 'PASSED',
-            approvedQuantity: orderItem.orderedQuantity,
-            rejectedQuantity: new Prisma.Decimal(0),
-            remarks: 'Technical QC Passed - All Dimension, Load & Visual Checks OK',
-            approvedAt: now,
-            inspectorId: userId,
-            workflowStateId: qcApprovedState?.id || null,
-            createdAt: leadDateObj
-          }
-        });
-
-        // 4. Finished Goods (Staged for Dispatch)
-        await prisma.finishedGoods.create({
-          data: {
-            workOrderId: createdWO.id,
-            productId: orderItem.productId,
-            salesOrderId: createdOrder.id,
-            quantity: orderItem.orderedQuantity,
-            availableQuantity: orderItem.orderedQuantity,
-            reservedQuantity: new Prisma.Decimal(0),
-            unit: 'SET',
-            status: 'AVAILABLE',
-            receivedAt: now,
-            receivedById: userId
+            orderNumber,
+            ...orderPayload,
+            items: {
+              create: groupItemsData.map(gi => ({
+                productId: gi.productId,
+                productNameSnapshot: gi.productName,
+                productCodeSnapshot: gi.productCode,
+                orderedQuantity: new Prisma.Decimal(gi.quantity),
+                unitPrice: new Prisma.Decimal(gi.unitPrice),
+                discountAmount: new Prisma.Decimal(0),
+                taxableAmount: new Prisma.Decimal(gi.subTotal),
+                taxRate: new Prisma.Decimal(18),
+                taxAmount: new Prisma.Decimal(gi.gstAmount),
+                lineTotal: new Prisma.Decimal(gi.grandTotal),
+                unit: 'SET'
+              }))
+            }
           }
         });
       }
 
-      console.log(`  ✔ [${idx + 1}/27] Lead [${createdLead.leadNumber}] -> Quote [${quotationNumber}] -> Order [${orderNumber}] -> Plan [${planNumber}] -> ${createdOrder.items.length} Work Orders READY FOR DISPATCH!`);
+      const refreshedOrder = await prisma.salesOrder.findUnique({
+        where: { id: createdOrder.id },
+        include: { items: true }
+      });
+
+      // E. Upsert Production Plan (COMPLETED)
+      const planNumber = `PP/${activeFy}/${activeSeq}`;
+      let createdPlan = await prisma.productionPlan.findFirst({
+        where: {
+          OR: [
+            { planNumber },
+            { salesOrderId: refreshedOrder.id }
+          ]
+        }
+      });
+
+      const planPayload = {
+        salesOrderId: refreshedOrder.id,
+        assignedToId: plantHeadUser?.id || userId,
+        status: 'COMPLETED',
+        priority: 'NORMAL',
+        plannedStartDate: leadDateObj,
+        plannedEndDate: new Date(leadDateObj.getTime() + 7 * 24 * 60 * 60 * 1000),
+        productionLine: 'Main FRP Molding Line',
+        workflowStateId: prodCompletedState?.id || null,
+        createdAt: leadDateObj
+      };
+
+      if (createdPlan) {
+        createdPlan = await prisma.productionPlan.update({
+          where: { id: createdPlan.id },
+          data: {
+            planNumber,
+            ...planPayload
+          }
+        });
+      } else {
+        createdPlan = await prisma.productionPlan.create({
+          data: {
+            planNumber,
+            ...planPayload
+          }
+        });
+      }
+
+      // F. Upsert Work Orders, Batches, QC Inspections, and Finished Goods for each line item
+      for (let itemIdx = 0; itemIdx < refreshedOrder.items.length; itemIdx++) {
+        const orderItem = refreshedOrder.items[itemIdx];
+        totalWorkOrdersCount++;
+        const woSeqStr = String(itemIdx + 1).padStart(2, '0');
+        const workOrderNumber = `WO/${activeFy}/${activeSeq}-${woSeqStr}`;
+
+        const woPayload = {
+          productionPlanId: createdPlan.id,
+          salesOrderItemId: orderItem.id,
+          quantity: orderItem.orderedQuantity,
+          status: 'COMPLETED',
+          productionStatus: 'READY_FOR_DISPATCH',
+          startedById: userId,
+          startedAt: leadDateObj,
+          completedById: userId,
+          completedAt: now,
+          productionStartTime: leadDateObj,
+          productionEndTime: now,
+          sentToDispatchAt: now,
+          sentToDispatchById: userId,
+          qcResult: 'PASS',
+          qcRemarks: 'Technical QC Passed - All Dimension, Load & Visual Checks OK',
+          qcTimestamp: now,
+          reworkCount: 0,
+          workflowStateId: woCompletedState?.id || null,
+          createdById: userId,
+          createdAt: leadDateObj
+        };
+
+        // 1. Work Order
+        let createdWO = await prisma.workOrder.findFirst({
+          where: { workOrderNumber }
+        });
+
+        if (createdWO) {
+          createdWO = await prisma.workOrder.update({
+            where: { id: createdWO.id },
+            data: woPayload
+          });
+        } else {
+          createdWO = await prisma.workOrder.create({
+            data: {
+              workOrderNumber,
+              ...woPayload
+            }
+          });
+        }
+
+        // 2. Production Batch
+        const batchNumber = `BATCH/${activeFy}/${activeSeq}-${woSeqStr}`;
+        let batch = await prisma.productionBatch.findFirst({ where: { batchNumber } });
+        if (batch) {
+          await prisma.productionBatch.update({
+            where: { id: batch.id },
+            data: { workOrderId: createdWO.id, quantity: orderItem.orderedQuantity }
+          });
+        } else {
+          await prisma.productionBatch.create({
+            data: {
+              batchNumber,
+              workOrderId: createdWO.id,
+              quantity: orderItem.orderedQuantity,
+              createdAt: leadDateObj
+            }
+          });
+        }
+
+        // 3. QC Inspection (PASSED)
+        let existingQc = await prisma.qCInspection.findFirst({ where: { workOrderId: createdWO.id } });
+        if (existingQc) {
+          await prisma.qCInspection.update({
+            where: { id: existingQc.id },
+            data: {
+              status: 'PASSED',
+              approvedQuantity: orderItem.orderedQuantity,
+              rejectedQuantity: new Prisma.Decimal(0),
+              remarks: 'Technical QC Passed - All Dimension, Load & Visual Checks OK',
+              approvedAt: now,
+              inspectorId: userId,
+              workflowStateId: qcApprovedState?.id || null
+            }
+          });
+        } else {
+          await prisma.qCInspection.create({
+            data: {
+              workOrderId: createdWO.id,
+              status: 'PASSED',
+              approvedQuantity: orderItem.orderedQuantity,
+              rejectedQuantity: new Prisma.Decimal(0),
+              remarks: 'Technical QC Passed - All Dimension, Load & Visual Checks OK',
+              approvedAt: now,
+              inspectorId: userId,
+              workflowStateId: qcApprovedState?.id || null,
+              createdAt: leadDateObj
+            }
+          });
+        }
+
+        // 4. Finished Goods (Staged for Dispatch)
+        let existingFg = await prisma.finishedGoods.findFirst({ where: { workOrderId: createdWO.id } });
+        if (existingFg) {
+          await prisma.finishedGoods.update({
+            where: { id: existingFg.id },
+            data: {
+              productId: orderItem.productId,
+              salesOrderId: refreshedOrder.id,
+              quantity: orderItem.orderedQuantity,
+              availableQuantity: orderItem.orderedQuantity,
+              status: 'AVAILABLE',
+              receivedAt: now,
+              receivedById: userId
+            }
+          });
+        } else {
+          await prisma.finishedGoods.create({
+            data: {
+              workOrderId: createdWO.id,
+              productId: orderItem.productId,
+              salesOrderId: refreshedOrder.id,
+              quantity: orderItem.orderedQuantity,
+              availableQuantity: orderItem.orderedQuantity,
+              reservedQuantity: new Prisma.Decimal(0),
+              unit: 'SET',
+              status: 'AVAILABLE',
+              receivedAt: now,
+              receivedById: userId
+            }
+          });
+        }
+      }
+
+      console.log(`  ✔ [${idx + 1}/27] Lead [${createdLead.leadNumber}] -> Quote [${quotationNumber}] -> Order [${orderNumber}] -> Plan [${planNumber}] -> ${refreshedOrder.items.length} Work Orders READY FOR DISPATCH!`);
     }
 
     // 4. Update ID Sequences in DB so subsequent manual creation starts from next sequence
