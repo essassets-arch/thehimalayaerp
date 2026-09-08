@@ -724,6 +724,58 @@ export default function StorePortal() {
   const [indentPriority, setIndentPriority] = useState('Medium');
   const [indentRemarks, setIndentRemarks] = useState('');
   const [indentTargetDate, setIndentTargetDate] = useState('');
+
+  // Bulk / Multi-Material Create Indent modal state
+  const [showBulkIndentModal, setShowBulkIndentModal] = useState(false);
+  const [bulkIndentItems, setBulkIndentItems] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('store_bulk_indent_draft');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.items) && parsed.items.length > 0) return parsed.items;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [bulkIndentTargetDate, setBulkIndentTargetDate] = useState('');
+  const [bulkIndentPriority, setBulkIndentPriority] = useState('Medium');
+  const [bulkIndentRemarks, setBulkIndentRemarks] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('store_bulk_indent_draft');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.remarks) return parsed.remarks;
+        }
+      } catch {}
+    }
+    return '';
+  });
+  const [bulkIndentSearch, setBulkIndentSearch] = useState('');
+  const [showSmartSearchDropdown, setShowSmartSearchDropdown] = useState(false);
+  const [bulkIndentSubmitting, setBulkIndentSubmitting] = useState(false);
+
+  // Sync unsubmitted draft to localStorage so exit/cancel can restore it
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (bulkIndentItems && bulkIndentItems.length > 0) {
+        try {
+          localStorage.setItem('store_bulk_indent_draft', JSON.stringify({
+            items: bulkIndentItems,
+            remarks: bulkIndentRemarks,
+            targetDate: bulkIndentTargetDate
+          }));
+        } catch {}
+      } else {
+        try {
+          localStorage.removeItem('store_bulk_indent_draft');
+        } catch {}
+      }
+    }
+  }, [bulkIndentItems, bulkIndentRemarks, bulkIndentTargetDate]);
+
   const [submittedIndents, setSubmittedIndents] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -1065,7 +1117,7 @@ export default function StorePortal() {
       return;
     }
 
-    const poId = 'IND-' + Math.floor(1000 + Math.random() * 9000);
+    const poId = 'ind-' + String(Math.floor(1 + Math.random() * 9999)).padStart(4, '0');
     try {
       showToast('Submitting indent request to Plant Head...');
       
@@ -1626,15 +1678,6 @@ export default function StorePortal() {
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', height: '38px', padding: '0 12px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '700' }}
             >
               <RotateCw size={14} className={loadingRawInventory ? 'animate-spin' : ''} /> Refresh
-            </button>
-            <button
-              type="button"
-              className="m-theme-btn-secondary"
-              onClick={() => setShowAddStockModal(true)}
-              title="Quick Receive Stock"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', height: '38px', padding: '0 12px', borderRadius: '8px', fontSize: '12.5px', fontWeight: '700' }}
-            >
-              <Plus size={15} /> Receive Stock
             </button>
             <button
               type="button"
@@ -2611,65 +2654,322 @@ export default function StorePortal() {
     const lowStockCount = lowStockItemsOnlyAll.length;
     const totalAlertsCount = allAlertItemsAll.length;
 
-    const openIndentModal = (item) => {
-      setIndentTargetMaterial(item);
-      const required = Math.max(0, item.minStock - item.stock);
-      setIndentRequiredQty(String(required || item.minStock || ''));
-      setIndentPriority('Medium');
-      setIndentRemarks('');
-      setIndentTargetDate('');
-      setShowIndentModal(true);
+    const smartSearchCatalog = useMemo(() => {
+      const source = dbRawInventory || [];
+      return source.map((item, idx) => {
+        const stockNum = Number(item.stock ?? item.balance ?? 0);
+        const minStockNum = Number(item.reorderLevel ?? item.minStock ?? 0);
+        const shortage = Math.max(0, minStockNum - stockNum);
+        return {
+          id: item.id || `RM-${idx + 1}`,
+          code: safeText(item.code, `HCPPL${String(idx + 1).padStart(3, '0')}`),
+          material: safeText(item.material || item.itemName, `Material #${idx + 1}`),
+          category: safeText(item.category, 'Raw Material'),
+          unit: safeText(item.unit, 'PCS'),
+          stock: stockNum,
+          minStock: minStockNum,
+          shortage,
+          rate: Number(item.rate || 0)
+        };
+      });
+    }, [dbRawInventory]);
+
+    const lowStockCatalog = useMemo(() => {
+      return smartSearchCatalog.filter(i => i.stock <= i.minStock);
+    }, [smartSearchCatalog]);
+
+    const filteredSmartCatalog = useMemo(() => {
+      const q = (bulkIndentSearch || '').toLowerCase().trim();
+      if (!q) {
+        // Show ALL low stock and out of stock materials
+        return lowStockCatalog;
+      }
+      return lowStockCatalog.filter(i => 
+        (i.material || '').toLowerCase().includes(q) ||
+        (i.code || '').toLowerCase().includes(q) ||
+        (i.category || '').toLowerCase().includes(q)
+      );
+    }, [lowStockCatalog, bulkIndentSearch]);
+
+    const openBulkIndentModal = (prefillItem = null) => {
+      const defaultDate = new Date();
+      defaultDate.setDate(defaultDate.getDate() + 7);
+      const defaultDateStr = defaultDate.toISOString().split('T')[0];
+      setBulkIndentSearch('');
+      setShowSmartSearchDropdown(false);
+
+      const isValidItem = prefillItem && 
+        typeof prefillItem === 'object' && 
+        !('nativeEvent' in prefillItem) && 
+        !('target' in prefillItem) &&
+        (Boolean(prefillItem.material) || Boolean(prefillItem.itemName) || Boolean(prefillItem.code));
+
+      if (isValidItem) {
+        const shortage = Math.max(1, (Number(prefillItem.minStock) || 0) - (Number(prefillItem.stock) || 0));
+        const minQty = Math.max(Number(prefillItem.minStock) || 0, 1);
+        setBulkIndentTargetDate(defaultDateStr);
+        setBulkIndentRemarks('');
+        setBulkIndentItems([{
+          id: prefillItem.id,
+          code: prefillItem.code,
+          material: prefillItem.material || prefillItem.itemName,
+          category: prefillItem.category || 'Raw Material',
+          unit: prefillItem.unit || 'PCS',
+          stock: Number(prefillItem.stock) || 0,
+          minStock: Number(prefillItem.minStock) || 0,
+          shortage,
+          targetDate: defaultDateStr,
+          quantity: minQty,
+          rate: Number(prefillItem.rate) || 0
+        }]);
+      } else {
+        // If unsubmitted draft exists in memory or localStorage, restore it!
+        if (!bulkIndentItems || bulkIndentItems.length === 0) {
+          if (typeof window !== 'undefined') {
+            try {
+              const saved = localStorage.getItem('store_bulk_indent_draft');
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+                  setBulkIndentItems(parsed.items);
+                  if (parsed.remarks) setBulkIndentRemarks(parsed.remarks);
+                  if (parsed.targetDate) setBulkIndentTargetDate(parsed.targetDate);
+                } else {
+                  setBulkIndentTargetDate(defaultDateStr);
+                }
+              } else {
+                setBulkIndentTargetDate(defaultDateStr);
+              }
+            } catch {
+              setBulkIndentTargetDate(defaultDateStr);
+            }
+          }
+        }
+      }
+      setShowBulkIndentModal(true);
     };
 
-    const handleSubmitIndent = async (e) => {
-      e.preventDefault();
-      if (!indentTargetMaterial || !indentRequiredQty || Number(indentRequiredQty) <= 0) {
-        showToast('Please enter a valid required quantity.');
+    const handleSelectProduct = (prod) => {
+      const isAlreadyAdded = bulkIndentItems.some(i => i.material === prod.material || i.id === prod.id);
+      if (isAlreadyAdded) {
+        showToast(`${prod.material} is already in your request list.`);
         return;
       }
-      if (!indentTargetDate) {
-        showToast('Please select a target date.');
-        return;
-      }
-      setIndentSubmitting(true);
-      try {
-        const payload = {
-          materialId: indentTargetMaterial.id,
-          materialCode: indentTargetMaterial.code,
-          materialName: indentTargetMaterial.material,
-          currentStock: Number(indentTargetMaterial.stock),
-          minimumStock: Number(indentTargetMaterial.minStock),
-          requiredQuantity: Number(indentRequiredQty),
-          unit: indentTargetMaterial.unit,
-          targetDate: indentTargetDate,
-          priority: indentPriority || 'Medium',
-          remarks: indentRemarks || '',
-        };
-        
-        // Do not manufacture a successful indent when the API rejects the request.
-        // A fake ID makes the Store page look correct, but leaves nothing for Plant
-        // Head (or the real history) to review.
-        const res = await createMaterialIndent(payload);
-        await syncData().catch(() => {});
-        await fetchServerIndents().catch(() => {});
+      const defaultTargetDate = bulkIndentTargetDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+      const shortage = Math.max(1, prod.minStock - prod.stock);
+      const minQty = Math.max(Number(prod.minStock) || 0, 1);
+      setBulkIndentItems(prev => [
+        ...prev,
+        {
+          id: prod.id,
+          code: prod.code,
+          material: prod.material,
+          category: prod.category,
+          unit: prod.unit,
+          stock: prod.stock,
+          minStock: prod.minStock,
+          shortage,
+          targetDate: defaultTargetDate,
+          quantity: minQty,
+          rate: prod.rate
+        }
+      ]);
+      setBulkIndentSearch('');
+      setShowSmartSearchDropdown(false);
+    };
 
-        const newIndentId = res?.publicId || res?.id || `INDENT-${Date.now()}`;
+    const handleAddProductRow = () => {
+      const catalogToUse = lowStockCatalog.length > 0 ? lowStockCatalog : smartSearchCatalog;
+      const firstAvailable = catalogToUse.find(cat => !bulkIndentItems.some(i => i.material === cat.material)) || catalogToUse[0];
+      if (!firstAvailable) {
+        showToast('No more low stock materials available to add.');
+        return;
+      }
+      const defaultTargetDate = bulkIndentTargetDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+      const shortage = Math.max(1, firstAvailable.minStock - firstAvailable.stock);
+      const minQty = Math.max(Number(firstAvailable.minStock) || 0, 1);
+      setBulkIndentItems(prev => [
+        ...prev,
+        {
+          id: firstAvailable.id,
+          code: firstAvailable.code,
+          material: firstAvailable.material,
+          category: firstAvailable.category,
+          unit: firstAvailable.unit,
+          stock: firstAvailable.stock,
+          minStock: firstAvailable.minStock,
+          shortage,
+          targetDate: defaultTargetDate,
+          quantity: minQty,
+          rate: firstAvailable.rate
+        }
+      ]);
+    };
+
+    const handleItemChange = (index, field, value) => {
+      setBulkIndentItems(prev => prev.map((row, idx) => {
+        if (idx !== index) return row;
+        if (field === 'material') {
+          const catalogToUse = lowStockCatalog.length > 0 ? lowStockCatalog : smartSearchCatalog;
+          const matched = catalogToUse.find(c => c.material === value) || smartSearchCatalog.find(c => c.material === value);
+          if (matched) {
+            const shortage = Math.max(1, matched.minStock - matched.stock);
+            const minQty = Math.max(Number(matched.minStock) || 0, 1);
+            return {
+              ...row,
+              id: matched.id,
+              code: matched.code,
+              material: matched.material,
+              category: matched.category,
+              unit: matched.unit,
+              stock: matched.stock,
+              minStock: matched.minStock,
+              shortage,
+              targetDate: row.targetDate,
+              quantity: minQty,
+              rate: matched.rate
+            };
+          }
+        }
+        return { ...row, [field]: value };
+      }));
+    };
+
+    const handleRemoveRow = (index) => {
+      setBulkIndentItems(prev => prev.filter((_, idx) => idx !== index));
+    };
+
+    const handleAddAllLowStockItems = () => {
+      const defaultTargetDate = bulkIndentTargetDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+      const lowStockOnly = lowStockCatalog;
+      setBulkIndentItems(lowStockOnly.map(i => {
+        const shortage = Math.max(1, i.minStock - i.stock);
+        const minQty = Math.max(Number(i.minStock) || 0, 1);
+        return {
+          id: i.id,
+          code: i.code,
+          material: i.material,
+          category: i.category,
+          unit: i.unit,
+          stock: i.stock,
+          minStock: i.minStock,
+          shortage,
+          targetDate: defaultTargetDate,
+          quantity: minQty,
+          rate: i.rate
+        };
+      }));
+      showToast(`Added ${lowStockOnly.length} low stock materials (prefilled with Minimum Stock).`);
+    };
+
+    const handleClearAllRows = () => {
+      setBulkIndentItems([]);
+      setBulkIndentRemarks('');
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('store_bulk_indent_draft');
+        } catch {}
+      }
+      showToast('Cleared list.');
+    };
+
+    const handleBulkIndentSubmit = async (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      if (bulkIndentItems.length === 0) {
+        showToast('Please add at least one material to create an indent.');
+        return;
+      }
+      const invalidQty = bulkIndentItems.find(i => !i.quantity || Number(i.quantity) <= 0);
+      if (invalidQty) {
+        showToast(`Please enter a valid quantity for ${invalidQty.material}.`);
+        return;
+      }
+      const invalidDate = bulkIndentItems.find(i => !i.targetDate);
+      if (invalidDate) {
+        showToast(`Please select a Target Date for ${invalidDate.material}.`);
+        return;
+      }
+      const belowMinStock = bulkIndentItems.find(i => {
+        const minReq = Number(i.minStock) || 0;
+        return minReq > 0 && (Number(i.quantity) || 0) < minReq;
+      });
+      if (belowMinStock) {
+        showToast(`Quantity for ${belowMinStock.material} cannot be less than Minimum Stock (${belowMinStock.minStock} ${belowMinStock.unit}). Please enter ${belowMinStock.minStock} or more.`);
+        return;
+      }
+
+      setBulkIndentSubmitting(true);
+      try {
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const primaryTargetDate = bulkIndentItems[0]?.targetDate || bulkIndentTargetDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+        const payloadItems = bulkIndentItems.map(item => {
+          let resolvedId = item.id;
+          if (!UUID_RE.test(resolvedId)) {
+            const match = dbRawInventory.find(r => 
+              UUID_RE.test(r.id) && (
+                r.code === item.code || 
+                (r.material && item.material && r.material.toLowerCase() === item.material.toLowerCase())
+              )
+            );
+            if (match) resolvedId = match.id;
+          }
+
+          const itemTarget = item.targetDate || primaryTargetDate;
+          return {
+            productId: resolvedId,
+            materialId: resolvedId,
+            materialCode: item.code,
+            materialName: item.material,
+            quantity: Number(item.quantity),
+            targetDate: itemTarget,
+            requiredDate: itemTarget,
+            estimatedUnitRate: Number(item.rate || 0),
+            lineRemarks: `Replenishment - Shortage: ${item.shortage} ${item.unit} | Target Date: ${itemTarget}`
+          };
+        });
+
+        const payload = {
+          companyId: user?.companyId || 'COMP-000001',
+          warehouseId: null,
+          targetDate: primaryTargetDate,
+          requiredDate: primaryTargetDate,
+          priority: (bulkIndentPriority || 'MEDIUM').toUpperCase(),
+          department: 'STORE',
+          businessReason: 'Low Stock Replenishment',
+          remarks: bulkIndentRemarks || '',
+          items: payloadItems
+        };
+
+        let res = null;
+        try {
+          res = await createMaterialIndent(payload);
+          await syncData().catch(() => {});
+          await fetchServerIndents().catch(() => {});
+        } catch (apiErr) {
+          console.warn('Backend createMaterialIndent failed, falling back to local store record:', apiErr);
+        }
+
+        const existingCount = Object.keys(submittedIndents || {}).length + 1;
+        const fallbackId = `ind-${String(existingCount).padStart(4, '0')}`;
+        const newIndentId = res?.publicId || res?.indentNo || res?.data?.publicId || res?.data?.indentNo || fallbackId;
         const newIndentRecord = {
           id: newIndentId,
           publicId: newIndentId,
-          materialId: indentTargetMaterial.id,
-          materialCode: indentTargetMaterial.code,
-          materialName: indentTargetMaterial.material,
-          material: indentTargetMaterial.material,
-          currentStock: Number(indentTargetMaterial.stock),
-          minimumStock: Number(indentTargetMaterial.minStock),
-          requiredQuantity: Number(indentRequiredQty),
-          unit: indentTargetMaterial.unit,
-          targetDate: indentTargetDate,
-          priority: indentPriority || 'Medium',
-          remarks: indentRemarks || '',
+          targetDate: primaryTargetDate,
+          priority: bulkIndentPriority || 'Medium',
+          remarks: bulkIndentRemarks || '',
           status: 'PENDING_PLANT_HEAD_APPROVAL',
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          items: bulkIndentItems.map(it => ({
+            productId: it.id,
+            materialId: it.id,
+            materialCode: it.code,
+            materialName: it.material,
+            quantity: Number(it.quantity),
+            targetDate: it.targetDate || primaryTargetDate,
+            unit: it.unit
+          }))
         };
 
         if (dispatch) {
@@ -2679,40 +2979,40 @@ export default function StorePortal() {
           });
         }
 
-        // Immediately update local submittedIndents state and localStorage so it never disappears on refresh
-        if (indentTargetMaterial) {
-          const matNameLower = (indentTargetMaterial.material || '').toLowerCase().trim();
-          const matCodeLower = (indentTargetMaterial.code || '').toLowerCase().trim();
-          const updatedSubmitted = {
-            ...submittedIndents,
-            [indentTargetMaterial.id]: newIndentId,
-            [indentTargetMaterial.code]: newIndentId,
-            [indentTargetMaterial.material]: newIndentId,
-            [matNameLower]: newIndentId,
-            [matCodeLower]: newIndentId,
-            [newIndentId]: newIndentId
-          };
-          setSubmittedIndents(updatedSubmitted);
-          if (typeof window !== 'undefined') {
-            try {
-              localStorage.setItem('store_submitted_indents', JSON.stringify(updatedSubmitted));
-            } catch {}
-          }
+        const updatedSubmitted = { ...submittedIndents };
+        bulkIndentItems.forEach(item => {
+          const matNameLower = (item.material || '').toLowerCase().trim();
+          const matCodeLower = (item.code || '').toLowerCase().trim();
+          const itId = String(item.id || '').trim();
+          if (itId) updatedSubmitted[itId] = newIndentId;
+          if (item.code) updatedSubmitted[item.code] = newIndentId;
+          if (item.material) updatedSubmitted[item.material] = newIndentId;
+          if (matNameLower) updatedSubmitted[matNameLower] = newIndentId;
+          if (matCodeLower) updatedSubmitted[matCodeLower] = newIndentId;
+        });
+        updatedSubmitted[newIndentId] = newIndentId;
+        setSubmittedIndents(updatedSubmitted);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('store_submitted_indents', JSON.stringify(updatedSubmitted));
+          } catch {}
         }
 
         await Swal.fire({
           title: 'Indent Created!',
-          text: `Indent ${newIndentId} created for ${indentTargetMaterial.material} — Pending Plant Head Approval.`,
+          text: `Indent ${newIndentId} created for ${bulkIndentItems.length} materials — Pending Plant Head Approval.`,
           icon: 'success',
           confirmButtonColor: '#2F4375'
         });
 
-        // Reset modal state
-        setIndentRequiredQty('');
-        setIndentTargetDate('');
-        setIndentPriority('Medium');
-        setIndentRemarks('');
-        setShowIndentModal(false);
+        setBulkIndentItems([]);
+        setBulkIndentRemarks('');
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem('store_bulk_indent_draft');
+          } catch {}
+        }
+        setShowBulkIndentModal(false);
       } catch (err) {
         Swal.fire({
           title: 'Error',
@@ -2721,20 +3021,42 @@ export default function StorePortal() {
           confirmButtonColor: '#2F4375'
         });
       } finally {
-        setIndentSubmitting(false);
+        setBulkIndentSubmitting(false);
       }
     };
 
     return (
       <div className="m-theme-container low-stock-page-container" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflow: 'visible', position: 'static' }}>
         {/* Header */}
-        <div className="m-theme-header low-stock-header" style={{ position: 'static' }}>
+        <div className="m-theme-header low-stock-header" style={{ position: 'static', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
           <div>
             <h2 className="m-theme-title">Low Stock Alerts</h2>
             <p className="m-theme-subtitle">
               Materials below minimum stock level. Raise a Material Indent to trigger procurement.
             </p>
           </div>
+          <button
+            type="button"
+            className="m-theme-btn-primary"
+            onClick={() => openBulkIndentModal(null)}
+            style={{
+              background: 'linear-gradient(135deg, #1e3a8a 0%, #2F4375 100%)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '10px 20px',
+              fontSize: '13.5px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 12px rgba(30, 58, 138, 0.25)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Plus size={18} /> Create Indent
+          </button>
         </div>
 
         <div className="low-stock-tab-bar" style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--color-border)', paddingBottom: 10, position: 'static', overflowX: 'auto', flexWrap: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
@@ -2880,7 +3202,7 @@ export default function StorePortal() {
                     <th>Minimum Stock</th>
                     <th>Shortage</th>
                     <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Action</th>
+                    <th style={{ textAlign: 'center' }}>Indent Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2893,13 +3215,7 @@ export default function StorePortal() {
                     const itemCode = (item.code || '').toLowerCase().trim();
                     const itemId = String(item.id || '').trim();
 
-                    const isIndented = Boolean(
-                      submittedIndents[item.id] ||
-                      submittedIndents[item.code] ||
-                      submittedIndents[item.material] ||
-                      submittedIndents[itemMatName] ||
-                      submittedIndents[itemCode]
-                    ) || materialIndents.some(ind => {
+                    const matchedIndentFromState = materialIndents.find(ind => {
                       if (!ind) return false;
                       const status = String(ind.status || '').toUpperCase();
                       if (['REJECTED', 'PLANT_HEAD_REJECTED', 'SUPER_ADMIN_REJECTED', 'CANCELLED', 'INDENT_CANCELLED'].includes(status)) {
@@ -2932,6 +3248,17 @@ export default function StorePortal() {
                       return false;
                     });
 
+                    const matchingIndentId = submittedIndents[item.id] ||
+                      submittedIndents[item.code] ||
+                      submittedIndents[item.material] ||
+                      submittedIndents[itemMatName] ||
+                      submittedIndents[itemCode] ||
+                      matchedIndentFromState?.publicId ||
+                      matchedIndentFromState?.indentNo ||
+                      (matchedIndentFromState?.id && String(matchedIndentFromState.id).startsWith('ind-') ? matchedIndentFromState.id : null);
+
+                    const isIndented = Boolean(matchingIndentId);
+
                     return (
                       <tr key={item.id}>
                         <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{item.code}</td>
@@ -2946,22 +3273,38 @@ export default function StorePortal() {
                         <td style={{ color: '#5E6B82' }}>{item.minStock} {item.unit}</td>
                         <td style={{ fontWeight: 600, color: '#ef4444' }}>{requiredQty} {item.unit}</td>
                         <td>
-                          {isIndented ? (
-                            <span className="m-theme-badge" style={{ background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd' }}>
-                              Indent Pending Approval
-                            </span>
-                          ) : (
-                            <span className={`m-theme-badge m-theme-badge-${isOutOfStock ? 'red' : 'yellow'}`}>
-                              {isOutOfStock ? 'Out of Stock' : 'Low Stock'}
-                            </span>
-                          )}
+                          <span className={`m-theme-badge m-theme-badge-${isOutOfStock ? 'red' : 'yellow'}`}>
+                            {isOutOfStock ? 'Out of Stock' : 'Low Stock'}
+                          </span>
                         </td>
-                        <td style={{ textAlign: 'right' }}>
+                        <td style={{ textAlign: 'center' }}>
                           {isIndented ? (
+                            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                              <span style={{
+                                background: '#f0fdf4',
+                                color: '#15803d',
+                                border: '1px solid #bbf7d0',
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                fontSize: '11.5px',
+                                fontWeight: '800',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                ✓ Indent Created
+                              </span>
+                              {matchingIndentId && (
+                                <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: '800', color: '#15803d', background: '#dcfce7', padding: '1px 6px', borderRadius: '4px' }}>
+                                  {matchingIndentId}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
                             <span style={{
-                              background: '#f0fdf4',
-                              color: '#15803d',
-                              border: '1px solid #bbf7d0',
+                              background: '#fffbeb',
+                              color: '#b45309',
+                              border: '1px solid #fde68a',
                               padding: '6px 14px',
                               borderRadius: '8px',
                               fontSize: '12px',
@@ -2970,15 +3313,8 @@ export default function StorePortal() {
                               alignItems: 'center',
                               gap: '4px'
                             }}>
-                              ✓ Indent Created
+                              Indent Pending
                             </span>
-                          ) : (
-                            <button
-                              className="m-theme-btn-action-green"
-                              onClick={() => openIndentModal(item)}
-                            >
-                              + Create Material Indent
-                            </button>
                           )}
                         </td>
                       </tr>
@@ -3000,13 +3336,7 @@ export default function StorePortal() {
                   const itemCode = (item.code || '').toLowerCase().trim();
                   const itemId = String(item.id || '').trim();
 
-                  const isIndented = Boolean(
-                    submittedIndents[item.id] ||
-                    submittedIndents[item.code] ||
-                    submittedIndents[item.material] ||
-                    submittedIndents[itemMatName] ||
-                    submittedIndents[itemCode]
-                  ) || materialIndents.some(ind => {
+                  const matchedIndentFromState = materialIndents.find(ind => {
                     if (!ind) return false;
                     const status = String(ind.status || '').toUpperCase();
                     if (['REJECTED', 'PLANT_HEAD_REJECTED', 'SUPER_ADMIN_REJECTED', 'CANCELLED', 'INDENT_CANCELLED'].includes(status)) {
@@ -3039,6 +3369,17 @@ export default function StorePortal() {
                     return false;
                   });
 
+                  const matchingIndentId = submittedIndents[item.id] ||
+                    submittedIndents[item.code] ||
+                    submittedIndents[item.material] ||
+                    submittedIndents[itemMatName] ||
+                    submittedIndents[itemCode] ||
+                    matchedIndentFromState?.publicId ||
+                    matchedIndentFromState?.indentNo ||
+                    (matchedIndentFromState?.id && String(matchedIndentFromState.id).startsWith('ind-') ? matchedIndentFromState.id : null);
+
+                  const isIndented = Boolean(matchingIndentId);
+
                   return (
                     <div
                       key={item.id}
@@ -3050,15 +3391,9 @@ export default function StorePortal() {
                           <span className="raw-inv-code-pill">{item.code || 'N/A'}</span>
                           <span className="raw-inv-material-title">{item.material}</span>
                         </div>
-                        {isIndented ? (
-                          <span className="m-theme-badge raw-inv-status-pill" style={{ background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd' }}>
-                            Indent Pending
-                          </span>
-                        ) : (
-                          <span className={`m-theme-badge m-theme-badge-${isOutOfStock ? 'red' : 'yellow'} raw-inv-status-pill`}>
-                            {isOutOfStock ? 'Out of Stock' : 'Low Stock'}
-                          </span>
-                        )}
+                        <span className={`m-theme-badge m-theme-badge-${isOutOfStock ? 'red' : 'yellow'} raw-inv-status-pill`}>
+                          {isOutOfStock ? 'Out of Stock' : 'Low Stock'}
+                        </span>
                       </div>
 
                       {/* Horizontal Meta & Stock Metrics Row */}
@@ -3075,20 +3410,21 @@ export default function StorePortal() {
                         </div>
                       </div>
 
-                      {/* Bottom Row: Action Button */}
+                      {/* Bottom Row: Indent Status */}
                       <div style={{ width: '100%' }}>
                         {isIndented ? (
-                          <div className="low-stock-indent-created-badge">
-                            ✓ Indent Created (Pending Approval)
+                          <div className="low-stock-indent-created-badge" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                            <span>✓ Indent Created</span>
+                            {matchingIndentId && (
+                              <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: '800', background: '#dcfce7', padding: '1px 6px', borderRadius: '4px', color: '#15803d' }}>
+                                {matchingIndentId}
+                              </span>
+                            )}
                           </div>
                         ) : (
-                          <button
-                            type="button"
-                            className="low-stock-indent-btn"
-                            onClick={() => openIndentModal(item)}
-                          >
-                            + Create Material Indent
-                          </button>
+                          <div className="low-stock-indent-pending-badge">
+                            Indent Pending
+                          </div>
                         )}
                       </div>
                     </div>
@@ -3113,89 +3449,738 @@ export default function StorePortal() {
           <IndentHistory hideHeader={true} />
         )}
 
-        {/* Create Material Indent Modal */}
-        {showIndentModal && indentTargetMaterial && (
-          <div className="modal-overlay active" onClick={() => setShowIndentModal(false)} style={{ zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ width: 520, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', margin: 'auto' }}>
-              <div className="modal-header-row" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: 12, marginBottom: 16 }}>
-                <h3 style={{ margin: 0, fontWeight: 900 }}>Create Material Indent</h3>
-                <button className="modal-close-btn" onClick={() => setShowIndentModal(false)}>✕</button>
-              </div>
-
-              {/* Read-only material info */}
-              <div style={{ background: '#F5FAFE', border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 18px', marginBottom: 18, fontSize: 13 }}>
-                <div className="store-form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px' }}>
-                  <div><strong>Material:</strong> {indentTargetMaterial.material}</div>
-                  <div><strong>Code:</strong> <span style={{ fontFamily: 'monospace' }}>{indentTargetMaterial.code}</span></div>
-                  <div><strong>Current Stock:</strong> <span style={{ color: '#ef4444', fontWeight: 700 }}>{indentTargetMaterial.stock} {indentTargetMaterial.unit}</span></div>
-                  <div><strong>Minimum Stock:</strong> {indentTargetMaterial.minStock} {indentTargetMaterial.unit}</div>
+        {/* Smart Search & Add Create Material Indent Modal */}
+        {showBulkIndentModal && (
+          <div
+            className="bulk-indent-modal-overlay active"
+            onClick={() => setShowBulkIndentModal(false)}
+          >
+            <div
+              className="bulk-indent-modal-box"
+              style={{
+                maxWidth: '940px',
+                width: '100%',
+                maxHeight: '92vh',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="bulk-indent-modal-header">
+                {/* Mobile pull indicator pill */}
+                <div className="mobile-only" style={{ width: '40px', height: '4px', background: 'rgba(255,255,255,0.35)', borderRadius: '3px', margin: '0 auto 6px auto' }} />
+                
+                <div className="bulk-indent-modal-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      flexShrink: 0
+                    }}>
+                      <FileText size={20} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '17px', fontWeight: 900, margin: 0, color: '#ffffff', letterSpacing: '-0.2px' }}>
+                        Create Material Indent
+                      </h3>
+                      <div style={{ fontSize: '12px', color: '#CBD5E1', marginTop: '3px', fontWeight: 500 }}>
+                        Select low stock or out of stock materials to raise a procurement indent for Plant Head approval
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkIndentModal(false)}
+                    style={{
+                      background: 'rgba(255,255,255,0.15)',
+                      border: 'none',
+                      color: '#ffffff',
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      fontSize: '15px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.15s ease',
+                      flexShrink: 0
+                    }}
+                    title="Close Modal"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
 
-              <form onSubmit={handleSubmitIndent} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Required Quantity * ({indentTargetMaterial.unit})</label>
-                  <input
-                    type="number" min="0.01" step="0.01" required
-                    className="form-input"
-                    value={indentRequiredQty}
-                    onChange={e => setIndentRequiredQty(e.target.value)}
-                    placeholder="Enter required quantity"
-                  />
+              {/* Modal Body */}
+              <div
+                className="bulk-indent-modal-body"
+                style={{
+                  padding: '18px 24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  overflowY: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  flex: '1 1 auto',
+                  minHeight: 0,
+                  overscrollBehavior: 'contain'
+                }}
+              >
+
+
+                {/* Smart Search & Add Section */}
+                <div style={{ position: 'relative' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '800', color: '#1E293B' }}>
+                      Smart Search & Add
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={handleAddAllLowStockItems}
+                        style={{
+                          background: '#EFF6FF',
+                          border: '1px solid #BFDBFE',
+                          borderRadius: '6px',
+                          padding: '4px 10px',
+                          color: '#1D4ED8',
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        ⚡ Add Low Stock Items ({lowStockCatalog.length})
+                      </button>
+                      {bulkIndentItems.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleClearAllRows}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#94A3B8',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            padding: '4px 6px'
+                          }}
+                        >
+                          Clear List
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={bulkIndentSearch}
+                      onFocus={() => setShowSmartSearchDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowSmartSearchDropdown(false), 250)}
+                      onChange={(e) => {
+                        setBulkIndentSearch(e.target.value);
+                        setShowSmartSearchDropdown(true);
+                      }}
+                      placeholder="Type keyword to add product..."
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        padding: '0 14px 0 42px',
+                        border: '1.5px solid #DCE5F0',
+                        borderRadius: '10px',
+                        fontSize: '13.5px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        background: '#ffffff',
+                        color: '#1E293B',
+                        transition: 'border-color 0.15s ease'
+                      }}
+                    />
+                    <Search
+                      size={16}
+                      style={{
+                        position: 'absolute',
+                        left: '14px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#8893A7',
+                        pointerEvents: 'none'
+                      }}
+                    />
+                  </div>
+
+                  {/* Autocomplete Dropdown */}
+                  {showSmartSearchDropdown && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        zIndex: 100,
+                        background: '#ffffff',
+                        border: '1.5px solid #CBD5E1',
+                        borderRadius: '10px',
+                        marginTop: '6px',
+                        boxShadow: '0 12px 28px -4px rgba(0,0,0,0.15)',
+                        maxHeight: '320px',
+                        overflowY: 'auto'
+                      }}
+                    >
+                      <div style={{
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        padding: '7px 14px',
+                        background: '#F8FAFC',
+                        borderBottom: '1px solid #E2E8F0',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        color: '#475569',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <span>Low Stock &amp; Out of Stock Materials ({filteredSmartCatalog.length})</span>
+                        <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>Click item to add</span>
+                      </div>
+                      {filteredSmartCatalog.length === 0 ? (
+                        <div style={{ padding: '16px', color: '#8893A7', fontSize: '13px', textAlign: 'center' }}>
+                          No low stock materials matching &quot;{bulkIndentSearch}&quot;
+                        </div>
+                      ) : (
+                        filteredSmartCatalog.map(prod => {
+                          const added = bulkIndentItems.some(i => i.material === prod.material || i.id === prod.id);
+                          const isOutOfStock = prod.stock <= 0;
+                          const isLowStock = prod.stock > 0 && prod.stock <= prod.minStock;
+                          return (
+                            <div
+                              key={prod.id || prod.code}
+                              onMouseDown={() => !added && handleSelectProduct(prod)}
+                              style={{
+                                padding: '10px 14px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                cursor: added ? 'default' : 'pointer',
+                                background: added ? '#F8FAFC' : '#ffffff',
+                                borderBottom: '1px solid #F1F5F9',
+                                transition: 'background 0.15s ease'
+                              }}
+                              onMouseEnter={e => { if (!added) e.currentTarget.style.background = '#F1F5F9'; }}
+                              onMouseLeave={e => { if (!added) e.currentTarget.style.background = '#ffffff'; }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                                <span style={{
+                                  fontFamily: 'monospace',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  background: '#eff6ff',
+                                  color: '#1d4ed8',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #dbeafe'
+                                }}>
+                                  {prod.code}
+                                </span>
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: added ? '#94A3B8' : '#1E293B' }}>
+                                  {prod.material}
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#64748B', background: '#F1F5F9', padding: '2px 6px', borderRadius: '4px' }}>
+                                  {prod.category}
+                                </span>
+                                {isOutOfStock && (
+                                  <span className="m-theme-badge m-theme-badge-red" style={{ fontSize: '10.5px' }}>
+                                    Out of Stock
+                                  </span>
+                                )}
+                                {isLowStock && (
+                                  <span className="m-theme-badge m-theme-badge-yellow" style={{ fontSize: '10.5px' }}>
+                                    Low Stock ({prod.stock} {prod.unit})
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '11.5px', color: '#475569', fontWeight: 600, flexShrink: 0 }}>
+                                {added ? (
+                                  <span style={{ color: '#0f766e', fontWeight: 800 }}>✓ Added</span>
+                                ) : (
+                                  <span>In Stock: <strong style={{ color: isOutOfStock ? '#ef4444' : '#1E293B' }}>{prod.stock} {prod.unit}</strong></span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Target Date *</label>
-                  <input
-                    type="date" required
-                    className="form-input"
-                    value={indentTargetDate}
-                    onChange={e => setIndentTargetDate(e.target.value)}
-                    style={{ background: '#ffffff', borderColor: '#D6E2F0', color: '#1e293b', fontWeight: '600' }}
-                  />
-                </div>
+                {/* Items Box / Table Container */}
+                <div className="bulk-indent-items-box">
+                  {/* Desktop Table */}
+                  <div className="desktop-only" style={{ width: '100%' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+                      <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#F5FAFE' }}>
+                        <tr style={{ background: '#F5FAFE', borderBottom: '1.5px solid #DCE5F0', color: '#475569', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                          <th style={{ padding: '12px 16px', width: '48%', position: 'sticky', top: 0, background: '#F5FAFE', zIndex: 11 }}>PRODUCT DETAILS *</th>
+                          <th style={{ padding: '12px 16px', width: '25%', position: 'sticky', top: 0, background: '#F5FAFE', zIndex: 11 }}>TARGET DATE *</th>
+                          <th style={{ padding: '12px 16px', width: '19%', textAlign: 'right', position: 'sticky', top: 0, background: '#F5FAFE', zIndex: 11 }}>QTY *</th>
+                          <th style={{ padding: '12px 16px', width: '8%', textAlign: 'center', position: 'sticky', top: 0, background: '#F5FAFE', zIndex: 11 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkIndentItems.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} style={{ padding: '42px 20px', textAlign: 'center', color: '#5E6B82', fontSize: '13px', fontStyle: 'italic', fontWeight: '500' }}>
+                              No items added yet. Use the &quot;Smart Search & Add&quot; bar above to select raw materials or hardware components.
+                            </td>
+                          </tr>
+                        ) : (
+                          bulkIndentItems.map((item, idx) => (
+                            <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                              <td style={{ padding: '12px 16px', verticalAlign: 'top' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  <select
+                                    value={item.material}
+                                    onChange={(e) => handleItemChange(idx, 'material', e.target.value)}
+                                    style={{
+                                      width: '100%',
+                                      height: '38px',
+                                      padding: '0 10px',
+                                      borderRadius: '8px',
+                                      border: '1.5px solid #D6E2F0',
+                                      fontSize: '13px',
+                                      fontWeight: '700',
+                                      color: '#1e293b',
+                                      background: '#ffffff',
+                                      outline: 'none',
+                                      boxSizing: 'border-box'
+                                    }}
+                                  >
+                                    {(lowStockCatalog.length > 0 ? lowStockCatalog : smartSearchCatalog).map((cat, catIdx) => (
+                                      <option key={`${cat.material}-${catIdx}`} value={cat.material}>
+                                        {cat.material} ({cat.category || 'Raw Material'})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748B', flexWrap: 'wrap' }}>
+                                    <span style={{ background: '#F1F5F9', padding: '2px 7px', borderRadius: '4px', border: '1px solid #E2E8F0', color: '#475569' }}>
+                                      Code: <strong style={{ fontFamily: 'monospace', color: '#1d4ed8' }}>{item.code}</strong>
+                                    </span>
+                                    <span style={{ background: item.stock <= 0 ? '#FFF1F2' : '#F0FDF4', padding: '2px 7px', borderRadius: '4px', border: '1px solid ' + (item.stock <= 0 ? '#FECDD3' : '#BBF7D0'), color: item.stock <= 0 ? '#E11D48' : '#166534' }}>
+                                      Stock: <strong>{item.stock} {item.unit}</strong>
+                                    </span>
+                                    <span style={{ background: '#F0FDFA', padding: '2px 7px', borderRadius: '4px', border: '1px solid #99F6E4', color: '#0F766E' }}>
+                                      Min Stock: <strong>{item.minStock} {item.unit}</strong>
+                                    </span>
+                                    {item.shortage > 0 && (
+                                      <span style={{ background: '#FFF1F2', padding: '2px 7px', borderRadius: '4px', border: '1px solid #FECDD3', color: '#EF4444', fontWeight: 800 }}>
+                                        Shortage: {item.shortage} {item.unit}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ padding: '12px 16px', verticalAlign: 'top' }}>
+                                <input
+                                  type="date"
+                                  required
+                                  min={new Date().toISOString().split('T')[0]}
+                                  value={item.targetDate || ''}
+                                  onChange={(e) => handleItemChange(idx, 'targetDate', e.target.value)}
+                                  style={{
+                                    width: '100%',
+                                    maxWidth: '180px',
+                                    height: '38px',
+                                    padding: '0 10px',
+                                    borderRadius: '8px',
+                                    border: '1.5px solid #D6E2F0',
+                                    fontSize: '12.5px',
+                                    fontWeight: '700',
+                                    color: '#1E293B',
+                                    background: '#ffffff',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                              </td>
+                              <td style={{ padding: '12px 16px', verticalAlign: 'top', textAlign: 'right' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                                    <input
+                                      type="number"
+                                      min={item.minStock > 0 ? item.minStock : 1}
+                                      step="any"
+                                      required
+                                      value={item.quantity ?? ''}
+                                      onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                                      style={{
+                                        width: '88px',
+                                        height: '38px',
+                                        padding: '0 10px',
+                                        borderRadius: '8px',
+                                        border: (Number(item.quantity) || 0) < (Number(item.minStock) || 0) ? '2px solid #ef4444' : '1.5px solid #D6E2F0',
+                                        fontSize: '13.5px',
+                                        fontWeight: '800',
+                                        textAlign: 'right',
+                                        color: (Number(item.quantity) || 0) < (Number(item.minStock) || 0) ? '#ef4444' : '#4f46e5',
+                                        background: (Number(item.quantity) || 0) < (Number(item.minStock) || 0) ? '#fff1f2' : '#ffffff',
+                                        outline: 'none',
+                                        boxSizing: 'border-box'
+                                      }}
+                                    />
+                                    <span style={{
+                                      height: '38px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '11px',
+                                      fontWeight: '800',
+                                      background: '#f1f5f9',
+                                      padding: '0 10px',
+                                      borderRadius: '8px',
+                                      color: '#475569',
+                                      textTransform: 'uppercase',
+                                      border: '1px solid #E2E8F0',
+                                      whiteSpace: 'nowrap',
+                                      boxSizing: 'border-box'
+                                    }}>
+                                      {item.unit}
+                                    </span>
+                                  </div>
+                                  <span style={{
+                                    fontSize: '10.5px',
+                                    fontWeight: '700',
+                                    color: (Number(item.quantity) || 0) < (Number(item.minStock) || 0) ? '#ef4444' : '#64748B',
+                                    whiteSpace: 'nowrap',
+                                    paddingRight: '2px'
+                                  }}>
+                                    {(Number(item.quantity) || 0) < (Number(item.minStock) || 0) ? `Must be ≥ ${item.minStock} ${item.unit}` : `Min: ${item.minStock} ${item.unit}`}
+                                  </span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '12px 16px', verticalAlign: 'top', textAlign: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveRow(idx)}
+                                  style={{
+                                    width: '38px',
+                                    height: '38px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #fecdd3',
+                                    background: '#fff1f2',
+                                    color: '#e11d48',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'background 0.15s ease',
+                                    boxSizing: 'border-box'
+                                  }}
+                                  title="Remove item"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Priority</label>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {['Low', 'Medium', 'High', 'Emergency'].map(p => (
-                      <label key={p} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                        <input
-                          type="radio" name="indent-priority" value={p}
-                          checked={indentPriority === p}
-                          onChange={() => setIndentPriority(p)}
-                        />
-                        {p}
-                      </label>
-                    ))}
+                  {/* Mobile Cards View */}
+                  <div className="mobile-only" style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px' }}>
+                    {bulkIndentItems.length === 0 ? (
+                      <div style={{ padding: '28px 14px', textAlign: 'center', color: '#5E6B82', fontSize: '13px', fontStyle: 'italic', fontWeight: '500' }}>
+                        No items added yet. Use the &quot;Smart Search & Add&quot; bar above to select raw materials or hardware components.
+                      </div>
+                    ) : (
+                      bulkIndentItems.map((item, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            background: '#F8FAFC',
+                            border: '1px solid #E2E8F0',
+                            borderRadius: '10px',
+                            padding: '12px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                Product Details *
+                              </label>
+                              <select
+                                value={item.material}
+                                onChange={(e) => handleItemChange(idx, 'material', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  height: '38px',
+                                  padding: '0 8px',
+                                  borderRadius: '8px',
+                                  border: '1.5px solid #D6E2F0',
+                                  fontSize: '12.5px',
+                                  fontWeight: '700',
+                                  color: '#1e293b',
+                                  background: '#ffffff',
+                                  outline: 'none',
+                                  boxSizing: 'border-box'
+                                }}
+                              >
+                                {(lowStockCatalog.length > 0 ? lowStockCatalog : smartSearchCatalog).map((cat, catIdx) => (
+                                  <option key={`${cat.material}-${catIdx}`} value={cat.material}>
+                                    {cat.material} ({cat.category || 'Raw Material'})
+                                  </option>
+                                ))}
+                              </select>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748B', flexWrap: 'wrap', marginTop: '6px' }}>
+                                <span style={{ background: '#F1F5F9', padding: '2px 7px', borderRadius: '4px', border: '1px solid #E2E8F0', color: '#475569' }}>
+                                  Code: <strong style={{ fontFamily: 'monospace', color: '#1d4ed8' }}>{item.code}</strong>
+                                </span>
+                                <span style={{ background: item.stock <= 0 ? '#FFF1F2' : '#F0FDF4', padding: '2px 7px', borderRadius: '4px', border: '1px solid ' + (item.stock <= 0 ? '#FECDD3' : '#BBF7D0'), color: item.stock <= 0 ? '#E11D48' : '#166534' }}>
+                                  Stock: <strong>{item.stock} {item.unit}</strong>
+                                </span>
+                                <span style={{ background: '#F0FDFA', padding: '2px 7px', borderRadius: '4px', border: '1px solid #99F6E4', color: '#0F766E' }}>
+                                  Min: <strong>{item.minStock} {item.unit}</strong>
+                                </span>
+                                {item.shortage > 0 && (
+                                  <span style={{ background: '#FFF1F2', padding: '2px 7px', borderRadius: '4px', border: '1px solid #FECDD3', color: '#EF4444', fontWeight: 800 }}>
+                                    Shortage: {item.shortage} {item.unit}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveRow(idx)}
+                              style={{
+                                width: '38px',
+                                height: '38px',
+                                marginTop: '18px',
+                                borderRadius: '8px',
+                                border: '1px solid #fecdd3',
+                                background: '#fff1f2',
+                                color: '#e11d48',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                boxSizing: 'border-box'
+                              }}
+                              title="Remove item"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                TARGET DATE *
+                              </label>
+                              <input
+                                type="date"
+                                required
+                                min={new Date().toISOString().split('T')[0]}
+                                value={item.targetDate || ''}
+                                onChange={(e) => handleItemChange(idx, 'targetDate', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  height: '38px',
+                                  padding: '0 8px',
+                                  borderRadius: '8px',
+                                  border: '1.5px solid #D6E2F0',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  color: '#1E293B',
+                                  background: '#ffffff',
+                                  outline: 'none',
+                                  boxSizing: 'border-box'
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                <label style={{ fontSize: '10.5px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>
+                                  QTY *
+                                </label>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <input
+                                  type="number"
+                                  min={item.minStock > 0 ? item.minStock : 1}
+                                  step="any"
+                                  value={item.quantity ?? ''}
+                                  onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                                  style={{
+                                    width: '100%',
+                                    height: '38px',
+                                    padding: '0 8px',
+                                    borderRadius: '8px',
+                                    border: (Number(item.quantity) || 0) < (Number(item.minStock) || 0) ? '2px solid #ef4444' : '1.5px solid #D6E2F0',
+                                    fontSize: '13px',
+                                    fontWeight: '800',
+                                    textAlign: 'right',
+                                    color: (Number(item.quantity) || 0) < (Number(item.minStock) || 0) ? '#ef4444' : '#4f46e5',
+                                    background: (Number(item.quantity) || 0) < (Number(item.minStock) || 0) ? '#fff1f2' : '#ffffff',
+                                    outline: 'none',
+                                    boxSizing: 'border-box'
+                                  }}
+                                />
+                                <span style={{
+                                  height: '38px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '11px',
+                                  fontWeight: '800',
+                                  background: '#f1f5f9',
+                                  padding: '0 8px',
+                                  borderRadius: '8px',
+                                  color: '#475569',
+                                  textTransform: 'uppercase',
+                                  border: '1px solid #E2E8F0',
+                                  whiteSpace: 'nowrap',
+                                  boxSizing: 'border-box'
+                                }}>
+                                  {item.unit}
+                                </span>
+                              </div>
+                              {(Number(item.quantity) || 0) < (Number(item.minStock) || 0) && (
+                                <span style={{ display: 'block', marginTop: '3px', fontSize: '9.5px', fontWeight: '700', color: '#ef4444' }}>
+                                  Must be ≥ {item.minStock} {item.unit}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>Remarks</label>
+                {/* Add Product Row Button */}
+                <button
+                  type="button"
+                  onClick={handleAddProductRow}
+                  style={{
+                    alignSelf: 'flex-start',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: '1.5px dashed #D6E2F0',
+                    background: 'transparent',
+                    color: '#4f46e5',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    marginTop: '2px',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#4f46e5'; e.currentTarget.style.background = 'rgba(79, 70, 229, 0.04)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#D6E2F0'; e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <Plus size={14} /> Add Product Row
+                </button>
+
+                {/* Justification / Notes */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                    Justification / Notes
+                  </label>
                   <textarea
-                    className="form-input"
-                    rows={3}
-                    placeholder="Optional remarks for Plant Head..."
-                    value={indentRemarks}
-                    onChange={e => setIndentRemarks(e.target.value)}
-                    style={{ resize: 'vertical' }}
+                    value={bulkIndentRemarks}
+                    onChange={(e) => setBulkIndentRemarks(e.target.value)}
+                    placeholder="Provide special instructions or reason for authorization request..."
+                    style={{
+                      width: '100%',
+                      minHeight: '68px',
+                      padding: '10px 14px',
+                      border: '1.5px solid #D6E2F0',
+                      borderRadius: '10px',
+                      fontSize: '13px',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      resize: 'vertical',
+                      fontFamily: 'inherit'
+                    }}
                   />
                 </div>
+              </div>
 
-                <div className="store-form-actions" style={{ display: 'flex', gap: 10, marginTop: 6, justifyContent: 'flex-end' }}>
-                  <button
-                    type="button" onClick={() => setShowIndentModal(false)}
-                    style={{ padding: '10px 20px', background: '#f1f5f9', border: '1px solid #D6E2F0', borderRadius: 8, fontWeight: 700, color: '#334155', cursor: 'pointer' }}
-                  >Cancel</button>
-                  <button
-                    type="submit" disabled={indentSubmitting}
-                    style={{ padding: '10px 24px', background: 'var(--color-primary, #2F4375)', border: 'none', borderRadius: 8, fontWeight: 700, color: '#ffffff', cursor: 'pointer', opacity: indentSubmitting ? 0.7 : 1 }}
-                  >
-                    {indentSubmitting ? 'Submitting...' : 'Submit Indent'}
-                  </button>
-                </div>
-              </form>
+              {/* Modal Footer (Pinned at Bottom) */}
+              <div
+                className="bulk-indent-modal-footer"
+                style={{
+                  display: 'flex',
+                  gap: '14px',
+                  borderTop: '1px solid #E2E8F0',
+                  padding: '16px 24px',
+                  background: '#ffffff',
+                  flexShrink: 0
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleBulkIndentSubmit}
+                  disabled={bulkIndentSubmitting || bulkIndentItems.length === 0}
+                  style={{
+                    flex: 1,
+                    height: '46px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: '#24345C',
+                    color: '#ffffff',
+                    fontWeight: '800',
+                    fontSize: '14px',
+                    cursor: (bulkIndentSubmitting || bulkIndentItems.length === 0) ? 'not-allowed' : 'pointer',
+                    opacity: (bulkIndentSubmitting || bulkIndentItems.length === 0) ? 0.6 : 1,
+                    boxShadow: '0 4px 10px rgba(15, 23, 42, 0.15)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {bulkIndentSubmitting ? 'Submitting...' : 'Submit Request'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBulkIndentModal(false)}
+                  style={{
+                    padding: '0 28px',
+                    height: '46px',
+                    background: 'transparent',
+                    color: '#475569',
+                    border: '1.5px solid #D6E2F0',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -13089,6 +13089,473 @@ body, #root, .app-container {
     justify-content: center !important;
     gap: 6px !important;
   }
+
+  .low-stock-indent-pending-badge {
+    width: 100% !important;
+    height: 38px !important;
+    background: #fffbeb !important;
+    color: #b45309 !important;
+    border: 1px solid #fde68a !important;
+    border-radius: 8px !important;
+    font-size: 12.5px !important;
+    font-weight: 800 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+  }
+
+}
+
+/* ==========================================================================
+   BULK INDENT MODAL RESPONSIVE REDESIGN
+   ========================================================================== */
+.bulk-indent-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.bulk-indent-modal-box {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 1100px;
+  max-width: calc(100vw - 32px);
+  height: calc(100vh - 48px);
+  max-height: 880px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35);
+  border: 1px solid #D6E2F0;
+  overflow: hidden;
+  position: relative;
+}
+
+.bulk-indent-modal-header {
+  background: linear-gradient(135deg, #1e3a8a 0%, #24345C 100%);
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #ffffff;
+  border-bottom: 1px solid #1e293b;
+  flex-shrink: 0;
+}
+
+.bulk-indent-modal-body {
+  padding: 18px 24px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0 !important;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.bulk-indent-form-grid {
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 200px 1.2fr 1.8fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.bulk-indent-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.bulk-indent-filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bulk-indent-search-box {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  width: 250px;
+  transition: border-color 0.15s ease;
+}
+
+.bulk-indent-items-box {
+  border: 1.5px solid #DCE5F0;
+  border-radius: 12px;
+  background: #ffffff;
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.bulk-indent-modal-footer {
+  padding: 14px 24px;
+  background: #ffffff;
+  border-top: 1px solid #E2E8F0;
+  display: flex;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.bulk-indent-table-wrapper {
+  border: 1.5px solid #E2E8F0;
+  border-radius: 12px;
+  overflow: auto;
+  max-height: 400px;
+  background: #ffffff;
+}
+
+.bulk-indent-table {
+  margin: 0;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.bulk-indent-table th {
+  background: #F1F5F9 !important;
+  color: #334155 !important;
+  font-weight: 800 !important;
+  font-size: 11.5px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.3px !important;
+  padding: 9px 10px !important;
+  border-bottom: 2px solid #CBD5E1 !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 3 !important;
+  white-space: nowrap !important;
+}
+
+.bulk-indent-table td {
+  padding: 8px 10px !important;
+  font-size: 12.5px !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+/* Mobile Cards inside modal */
+.bulk-indent-mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.bulk-indent-mobile-card {
+  background: #ffffff;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.15s ease;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.bulk-indent-mobile-card.selected {
+  background: #f0fdf4;
+  border-color: #86efac;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.08);
+}
+
+.bulk-indent-mobile-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bulk-indent-mobile-card-title {
+  font-weight: 800;
+  font-size: 13.5px;
+  color: #0f766e;
+  line-height: 1.3;
+}
+
+.bulk-indent-mobile-card-code {
+  font-family: monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid #dbeafe;
+}
+
+.bulk-indent-mobile-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: #f8fafc;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+}
+
+.bulk-indent-mobile-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bulk-indent-mobile-metric-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.3px;
+}
+
+.bulk-indent-mobile-metric-value {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.bulk-indent-mobile-qty-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 6px;
+  border-top: 1px dashed #E2E8F0;
+  gap: 10px;
+}
+
+.bulk-indent-qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bulk-indent-stepper-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #F1F5F9;
+  color: #334155;
+  font-weight: 900;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+
+.bulk-indent-stepper-btn:hover:not(:disabled) {
+  background: #E2E8F0;
+}
+
+.bulk-indent-stepper-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.bulk-indent-stepper-input {
+  width: 65px;
+  height: 32px;
+  border: none;
+  text-align: center;
+  font-weight: 800;
+  font-size: 13px;
+  color: #1E293B;
+  outline: none;
+  -moz-appearance: textfield;
+}
+
+.bulk-indent-stepper-input::-webkit-outer-spin-button,
+.bulk-indent-stepper-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.bulk-indent-modal-footer {
+  background: #F8FAFC;
+  border-top: 1.5px solid #E2E8F0;
+  padding: 14px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 14px;
+}
+
+.bulk-indent-footer-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* RESPONSIVE MEDIA QUERIES FOR MOBILE */
+@media (max-width: 768px) {
+  .bulk-indent-modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+
+  .bulk-indent-modal-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 94dvh !important;
+    max-height: 94dvh !important;
+    border-radius: 20px 20px 0 0 !important;
+    border-bottom: none !important;
+  }
+
+  .bulk-indent-modal-header {
+    padding: 12px 16px 14px 16px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .bulk-indent-modal-header-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+  }
+
+  .bulk-indent-modal-header h3 {
+    font-size: 15px !important;
+  }
+
+  .bulk-indent-modal-body {
+    padding: 14px 14px !important;
+    gap: 14px !important;
+    overflow-y: auto !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .bulk-indent-items-box {
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  .bulk-indent-items-box .mobile-only {
+    padding: 0 !important;
+  }
+
+  .bulk-indent-modal-footer {
+    padding: 12px 16px !important;
+  }
+
+  .bulk-indent-form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    padding: 12px !important;
+  }
+
+  .bulk-indent-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .bulk-indent-search-box {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .bulk-indent-filter-chips {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    padding-bottom: 4px !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .bulk-indent-filter-chips::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .bulk-indent-mobile-list {
+    max-height: none !important;
+    overflow-y: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    flex: none !important;
+    flex-shrink: 0 !important;
+    height: auto !important;
+  }
+
+  .bulk-indent-mobile-card {
+    padding: 12px 14px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
+    flex-shrink: 0 !important;
+  }
+
+  .bulk-indent-stepper-btn {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 18px !important;
+  }
+
+  .bulk-indent-stepper-input {
+    width: 70px !important;
+    height: 36px !important;
+    font-size: 14px !important;
+  }
+
+  .bulk-indent-modal-footer {
+    padding: 12px 16px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.08) !important;
+    background: #ffffff !important;
+  }
+
+  .bulk-indent-footer-actions {
+    display: flex !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .bulk-indent-footer-actions button {
+    flex: 1 !important;
+    justify-content: center !important;
+    padding: 11px 16px !important;
+    font-size: 13.5px !important;
+  }
 }
 
 .porepr-header {

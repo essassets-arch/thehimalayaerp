@@ -157,7 +157,7 @@ export default function MaterialIndentApproval() {
 
     const result = await Swal.fire({
       title: 'Approve Indent?',
-      text: `Are you sure you want to approve indent ${selectedIndent.id} and forward it to Finance?`,
+      text: `Are you sure you want to approve indent ${selectedIndent.publicId || selectedIndent.indentNo || selectedIndent.id} and forward it to Finance?`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#4F46E5',
@@ -194,7 +194,7 @@ export default function MaterialIndentApproval() {
       
       await Swal.fire({
         title: 'Indent Approved!',
-        text: `Indent ${selectedIndent.id} has been approved and forwarded to Finance for PO creation.`,
+        text: `Indent ${selectedIndent.publicId || selectedIndent.indentNo || selectedIndent.id} has been approved and forwarded to Finance for PO creation.`,
         icon: 'success',
         confirmButtonColor: '#10b981'
       });
@@ -241,7 +241,7 @@ export default function MaterialIndentApproval() {
       
       await Swal.fire({
         title: 'Indent Returned',
-        text: `Indent ${selectedIndent.id} returned to Store for correction.`,
+        text: `Indent ${selectedIndent.publicId || selectedIndent.indentNo || selectedIndent.id} returned to Store for correction.`,
         icon: 'info',
         confirmButtonColor: '#f59e0b'
       });
@@ -288,7 +288,7 @@ export default function MaterialIndentApproval() {
       
       await Swal.fire({
         title: 'Indent Rejected',
-        text: `Indent ${selectedIndent.id} has been rejected.`,
+        text: `Indent ${selectedIndent.publicId || selectedIndent.indentNo || selectedIndent.id} has been rejected.`,
         icon: 'error',
         confirmButtonColor: '#dc2626'
       });
@@ -587,7 +587,7 @@ export default function MaterialIndentApproval() {
 
                         return (
                           <tr key={indent.id} style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s' }}>
-                            <td style={{ padding: '16px 20px', fontWeight: 900, color: '#0F172A' }}>{indent.id}</td>
+                            <td style={{ padding: '16px 20px', fontWeight: 900, color: '#0F172A', fontFamily: 'monospace' }}>{indent.publicId || indent.indentNo || indent.id}</td>
                             <td style={{ padding: '16px 20px', fontWeight: 700, color: '#475569' }}>{indent.requestedByDepartment || indent.department || 'Store'}</td>
                             <td style={{ padding: '16px 20px', color: '#64748B' }}>{formatDate(indent.createdAt)}</td>
                             <td style={{ padding: '16px 20px', color: '#64748B' }}>{formatDate(indent.targetDate || indent.requiredDate)}</td>
@@ -681,7 +681,7 @@ export default function MaterialIndentApproval() {
                         background: '#ffffff'
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: '16px', fontWeight: 950, color: '#0F172A' }}>{indent.id}</span>
+                          <span style={{ fontSize: '16px', fontWeight: 950, color: '#0F172A', fontFamily: 'monospace' }}>{indent.publicId || indent.indentNo || indent.id}</span>
                           <ProcurementStatusBadge status={indent.status} />
                         </div>
 
@@ -815,7 +815,7 @@ export default function MaterialIndentApproval() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <h1 style={{ fontSize: isMobile ? '18px' : '22px', fontWeight: 950, color: '#0F172A', margin: 0 }}>
-                    Review Indent: {selectedIndent.id}
+                    Review Indent: {selectedIndent.publicId || selectedIndent.indentNo || selectedIndent.id}
                   </h1>
                   <span style={{
                     padding: '4px 10px',

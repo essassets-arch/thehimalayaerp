@@ -790,14 +790,15 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       </tr>
     `).join('');
 
+    const indentDisplayId = indent.publicId || indent.indentNo || indent.id;
     const { value } = await Swal.fire({
-      title: `Approve Indent — ${indent.id}`,
+      title: `Approve Indent — ${indentDisplayId}`,
       width: 640,
       html: `
         <div style="text-align:left; font-size:13px;">
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; margin-bottom:14px; background:#F5FAFE; padding:12px; border-radius:8px;">
             <div><strong>Priority:</strong> ${indent.priority || 'Normal'}</div>
-            <div><strong>Indent ID:</strong> <span style="font-family:monospace">${indent.id}</span></div>
+            <div><strong>Indent ID:</strong> <span style="font-family:monospace">${indentDisplayId}</span></div>
             <div style="grid-column:span 2"><strong>Reason:</strong> ${indent.reason || indent.notes || '—'}</div>
             <div style="grid-column:span 2"><strong>Required Date:</strong> ${indent.requiredDate || indent.expectedDate || '—'}</div>
           </div>
@@ -836,8 +837,9 @@ export default function PlantHeadPortal({ overrideView } = {}) {
   };
 
   const handleRejectIndentClick = async (indent) => {
+    const indentDisplayId = indent.publicId || indent.indentNo || indent.id;
     const { value: remarks } = await Swal.fire({
-      title: `Reject Indent — ${indent.id}`,
+      title: `Reject Indent — ${indentDisplayId}`,
       input: 'textarea',
       inputLabel: 'Reason for rejection *',
       inputPlaceholder: 'Enter reason...',
@@ -853,8 +855,9 @@ export default function PlantHeadPortal({ overrideView } = {}) {
   };
 
   const handleReturnForCorrectionClick = async (indent) => {
+    const indentDisplayId = indent.publicId || indent.indentNo || indent.id;
     const { value: remarks } = await Swal.fire({
-      title: `Return Indent for Correction — ${indent.id}`,
+      title: `Return Indent for Correction — ${indentDisplayId}`,
       input: 'textarea',
       inputLabel: 'Reason/Correction remarks *',
       inputPlaceholder: 'Enter instructions for correction...',
@@ -5828,7 +5831,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
 
     const filteredIndents = allIndents.filter(ind => {
       const matchSearch = !indentSearch ||
-        ind.id?.toLowerCase().includes(indentSearch.toLowerCase()) ||
+        (ind.publicId || ind.indentNo || ind.id || '').toLowerCase().includes(indentSearch.toLowerCase()) ||
         (ind.materialName || ind.material || '').toLowerCase().includes(indentSearch.toLowerCase()) ||
         (ind.items || []).some(it => (it.material || it.name || '').toLowerCase().includes(indentSearch.toLowerCase()));
       let matchStatus = true;
@@ -5939,7 +5942,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                     <Box size={16} color="#3BAEEB" />
                   </div>
                   <div>
-                    <div style={{ fontWeight: 900, fontSize: 14, color: '#24345C', letterSpacing: '0.01em' }}>{ind.id}</div>
+                    <div style={{ fontWeight: 900, fontSize: 14, color: '#24345C', letterSpacing: '0.01em' }}>{ind.publicId || ind.indentNo || ind.id}</div>
                     <div style={{ fontSize: 12, color: '#5E6B82', marginTop: 1 }}>{ind.reason || ind.notes || 'Purchase Indent Request'}</div>
                   </div>
                 </div>

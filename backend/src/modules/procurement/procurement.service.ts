@@ -1298,9 +1298,8 @@ export class ProcurementService {
     const warehouseId = dto.warehouseId || null;
 
     return this.prisma.$transaction(async (tx) => {
-      const currentYear = new Date().getFullYear();
-      const seqKey = `${companyId}_PURCHASE_INDENT_${currentYear}`;
-      const prefix = `IND-${currentYear}-`;
+      const seqKey = `${companyId}_PURCHASE_INDENT`;
+      const prefix = `ind-`;
       let indentNo;
       let isUnique = false;
       while (!isUnique) {
@@ -1308,10 +1307,15 @@ export class ProcurementService {
           tx,
           seqKey,
           prefix,
-          6,
+          4,
         );
-        const existing = await tx.purchaseIndent.findUnique({
-          where: { publicId: indentNo },
+        const existing = await tx.purchaseIndent.findFirst({
+          where: {
+            OR: [
+              { publicId: indentNo },
+              { indentNo: indentNo },
+            ],
+          },
         });
         if (!existing) {
           isUnique = true;
@@ -1335,39 +1339,60 @@ export class ProcurementService {
           });
 
           if (!rawMaterial) {
+            const globalProduct = await tx.product.findUnique({
+              where: { id: i.productId },
+            });
+            if (globalProduct) {
+              product = globalProduct;
+            } else {
+              rawMaterial = await tx.rawMaterial.findUnique({
+                where: { id: i.productId },
+              });
+            }
+          }
+
+          if (!product && !rawMaterial) {
             throw new BadRequestException(
               'The selected material no longer exists. Refresh Low Stock Alerts and try again.',
             );
           }
 
-          product = await tx.product.findFirst({
-            where: {
-              companyId,
-              OR: [
-                ...(rawMaterial.sku ? [{ sku: rawMaterial.sku }] : []),
-                { name: { equals: rawMaterial.name, mode: 'insensitive' } },
-              ],
-            },
-          });
-
-          // Raw materials created through the Store module do not necessarily
-          // have a Product counterpart. Create that purchasing reference once,
-          // then reuse it for all subsequent indents.
-          if (!product) {
-            product = await tx.product.create({
-              data: {
-                publicId: `PRD-RM-${rawMaterial.id}`,
+          if (!product && rawMaterial) {
+            product = await tx.product.findFirst({
+              where: {
                 companyId,
-                name: rawMaterial.name,
-                sku: rawMaterial.sku,
-                category: rawMaterial.category || 'Raw Material',
-                productType: 'RAW_MATERIAL',
-                unit: rawMaterial.unit || 'PCS',
-                unitPrice: MONEY(0),
-                minimumStock: rawMaterial.minimumStock || MONEY(0),
+                OR: [
+                  ...(rawMaterial.sku ? [{ sku: rawMaterial.sku }] : []),
+                  { name: { equals: rawMaterial.name, mode: 'insensitive' } },
+                ],
               },
             });
+
+            // Raw materials created through the Store module do not necessarily
+            // have a Product counterpart. Create that purchasing reference once,
+            // then reuse it for all subsequent indents.
+            if (!product) {
+              product = await tx.product.create({
+                data: {
+                  publicId: `PRD-RM-${rawMaterial.id}`,
+                  companyId,
+                  name: rawMaterial.name,
+                  sku: rawMaterial.sku,
+                  category: rawMaterial.category || 'Raw Material',
+                  productType: 'RAW_MATERIAL',
+                  unit: rawMaterial.unit || 'PCS',
+                  unitPrice: MONEY(0),
+                  minimumStock: rawMaterial.minimumStock || MONEY(0),
+                },
+              });
+            }
           }
+        }
+
+        if (!product) {
+          throw new BadRequestException(
+            'The selected material no longer exists. Refresh Low Stock Alerts and try again.',
+          );
         }
 
         // Calculate current stock levels from the ledger transactions
