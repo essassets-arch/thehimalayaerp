@@ -320,13 +320,20 @@ async function syncSales4ExactOrders(config) {
     const userId = user.id;
     const companyId = user.companyId || company.id;
 
-    // 2. Clean existing Sales 4 records if any (NEVER TOUCH SuperSales 1 & 2, Sales 1, 2, 3)
+    // 2. Clean existing Sales 4 records safely (SuperSales 1 & 2, Sales 1, 2, 3 preserved intact)
     console.log('Cleaning existing Sales 4 records (SuperSales 1 & 2, Sales 1, 2, 3 preserved intact)...');
+
+    const targetOrderNumbers = [];
+    for (let i = 255; i <= 264; i++) {
+      targetOrderNumbers.push(`HCPPL/2627/${String(i).padStart(4, '0')}`);
+      targetOrderNumbers.push(`SO/2627/${String(i).padStart(4, '0')}`);
+    }
+
     const existingOrders = await prisma.salesOrder.findMany({
       where: {
         OR: [
-          { orderNumber: { gte: 'HCPPL/2627/0255', lte: 'HCPPL/2627/0300' } },
-          { orderNumber: { startsWith: 'SO-S4-' } },
+          { orderNumber: { in: targetOrderNumbers } },
+          { orderNumber: { gte: 'HCPPL/2627/0255', lte: 'HCPPL/2627/0264' } },
           { salesExecutiveId: userId },
           { createdById: userId }
         ]
@@ -336,15 +343,60 @@ async function syncSales4ExactOrders(config) {
     const orderIds = existingOrders.map(o => o.id);
 
     if (orderIds.length > 0) {
-      await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrderItem" WHERE "salesOrderId" IN ('${orderIds.join("','")}')`).catch(() => {});
+      const idList = `'${orderIds.join("','")}'`;
+
+      // 1. Invoices & Dispatches
+      await prisma.$executeRawUnsafe(`DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "SalesInvoice" WHERE "salesOrderId" IN (${idList}))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesInvoice" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "DispatchItem" WHERE "dispatchId" IN (SELECT id FROM "Dispatch" WHERE "salesOrderId" IN (${idList}))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "Dispatch" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+
+      // 2. Production Plans, Work Orders, QC, Batches, FinishedGoods
+      await prisma.$executeRawUnsafe(`DELETE FROM "FinishedGoods" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "FinishedGoods" WHERE "workOrderId" IN (SELECT id FROM "WorkOrder" WHERE "productionPlanId" IN (SELECT id FROM "ProductionPlan" WHERE "salesOrderId" IN (${idList})))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "QCInspection" WHERE "workOrderId" IN (SELECT id FROM "WorkOrder" WHERE "productionPlanId" IN (SELECT id FROM "ProductionPlan" WHERE "salesOrderId" IN (${idList})))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "ProductionBatch" WHERE "workOrderId" IN (SELECT id FROM "WorkOrder" WHERE "productionPlanId" IN (SELECT id FROM "ProductionPlan" WHERE "salesOrderId" IN (${idList})))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "WorkOrderItem" WHERE "workOrderId" IN (SELECT id FROM "WorkOrder" WHERE "productionPlanId" IN (SELECT id FROM "ProductionPlan" WHERE "salesOrderId" IN (${idList})))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "WorkOrder" WHERE "productionPlanId" IN (SELECT id FROM "ProductionPlan" WHERE "salesOrderId" IN (${idList}))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "ProductionPlanItem" WHERE "productionPlanId" IN (SELECT id FROM "ProductionPlan" WHERE "salesOrderId" IN (${idList}))`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "ProductionPlan" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+
+      // 3. Other relations
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrderAllocation" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrderHistory" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrderCreditReview" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "OrderAmendment" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrderLoss" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "CustomerComplaint" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "CustomerPaymentAllocation" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "CustomerPayment" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesReturn" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "ReplacementRequest" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "ReplacementOrder" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+
+      // 4. Items & Orders
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrderItem" WHERE "salesOrderId" IN (${idList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrder" WHERE id IN (${idList})`).catch(() => {});
       await prisma.salesOrder.deleteMany({ where: { id: { in: orderIds } } }).catch(() => {});
     }
 
+    // Direct wipe of any remaining by target order numbers
+    const numList = `'${targetOrderNumbers.join("','")}'`;
+    await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrderItem" WHERE "salesOrderId" IN (SELECT id FROM "SalesOrder" WHERE "orderNumber" IN (${numList}))`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrder" WHERE "orderNumber" IN (${numList})`).catch(() => {});
+
+    // Clean Quotations
+    const targetQuoteNumbers = [];
+    for (let i = 255; i <= 264; i++) {
+      targetQuoteNumbers.push(`QT/2627/${String(i).padStart(4, '0')}`);
+      targetQuoteNumbers.push(`QU/2627/${String(i).padStart(4, '0')}`);
+    }
     const existingQuotes = await prisma.quotation.findMany({
       where: {
         OR: [
-          { quotationNumber: { gte: 'QT/2627/0255', lte: 'QT/2627/0300' } },
-          { quotationNumber: { gte: 'QU/2627/0255', lte: 'QU/2627/0300' } },
+          { quotationNumber: { in: targetQuoteNumbers } },
+          { quotationNumber: { gte: 'QT/2627/0255', lte: 'QT/2627/0264' } },
+          { quotationNumber: { gte: 'QU/2627/0255', lte: 'QU/2627/0264' } },
           { createdById: userId },
           { salesExecutiveId: userId }
         ]
@@ -353,22 +405,47 @@ async function syncSales4ExactOrders(config) {
     });
     const quoteIds = existingQuotes.map(q => q.id);
     if (quoteIds.length > 0) {
-      await prisma.quotationItem.deleteMany({ where: { quotationId: { in: quoteIds } } }).catch(() => {});
-      await prisma.quotationTerm.deleteMany({ where: { quotationId: { in: quoteIds } } }).catch(() => {});
+      const qIdList = `'${quoteIds.join("','")}'`;
+      await prisma.$executeRawUnsafe(`UPDATE "SalesOrder" SET "quotationId" = NULL, "sourceQuotationId" = NULL WHERE "quotationId" IN (${qIdList}) OR "sourceQuotationId" IN (${qIdList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "QuotationItem" WHERE "quotationId" IN (${qIdList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "QuotationTerm" WHERE "quotationId" IN (${qIdList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "Quotation" WHERE id IN (${qIdList})`).catch(() => {});
       await prisma.quotation.deleteMany({ where: { id: { in: quoteIds } } }).catch(() => {});
     }
+    const qNumList = `'${targetQuoteNumbers.join("','")}'`;
+    await prisma.$executeRawUnsafe(`DELETE FROM "QuotationItem" WHERE "quotationId" IN (SELECT id FROM "Quotation" WHERE "quotationNumber" IN (${qNumList}))`).catch(() => {});
+    await prisma.$executeRawUnsafe(`DELETE FROM "Quotation" WHERE "quotationNumber" IN (${qNumList})`).catch(() => {});
 
-    await prisma.lead.deleteMany({
+    // Clean Leads
+    const targetLeadNumbers = [];
+    for (let i = 255; i <= 264; i++) {
+      targetLeadNumbers.push(`LD/2627/${String(i).padStart(4, '0')}`);
+      targetLeadNumbers.push(`LEAD/2627/${String(i).padStart(4, '0')}`);
+    }
+    const existingLeads = await prisma.lead.findMany({
       where: {
         OR: [
-          { leadNumber: { gte: 'LD/2627/0255', lte: 'LD/2627/0300' } },
-          { leadNumber: { gte: 'LEAD/2627/0255', lte: 'LEAD/2627/0300' } },
+          { leadNumber: { in: targetLeadNumbers } },
+          { leadNumber: { gte: 'LD/2627/0255', lte: 'LD/2627/0264' } },
+          { leadNumber: { gte: 'LEAD/2627/0255', lte: 'LEAD/2627/0264' } },
           { createdById: userId },
           { salesExecutiveId: userId },
           { assignedToId: userId }
         ]
-      }
-    }).catch(() => {});
+      },
+      select: { id: true }
+    });
+    const leadIds = existingLeads.map(l => l.id);
+    if (leadIds.length > 0) {
+      const lIdList = `'${leadIds.join("','")}'`;
+      await prisma.$executeRawUnsafe(`UPDATE "Quotation" SET "leadId" = NULL WHERE "leadId" IN (${lIdList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "FollowUp" WHERE "leadId" IN (${lIdList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "LeadActivity" WHERE "leadId" IN (${lIdList})`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "Lead" WHERE id IN (${lIdList})`).catch(() => {});
+      await prisma.lead.deleteMany({ where: { id: { in: leadIds } } }).catch(() => {});
+    }
+    const lNumList = `'${targetLeadNumbers.join("','")}'`;
+    await prisma.$executeRawUnsafe(`DELETE FROM "Lead" WHERE "leadNumber" IN (${lNumList})`).catch(() => {});
 
     console.log('Existing Sales 4 data cleaned cleanly.');
 
@@ -508,6 +585,7 @@ async function syncSales4ExactOrders(config) {
 
       // B. Create Lead (1:1) in exact sequence LD/2627/0255...
       const leadNumber = `LD/2627/${seqStr}`;
+      await prisma.$executeRawUnsafe(`DELETE FROM "Lead" WHERE "leadNumber" = '${leadNumber}'`).catch(() => {});
       const createdLead = await prisma.lead.create({
         data: {
           leadNumber,
@@ -547,6 +625,8 @@ async function syncSales4ExactOrders(config) {
 
       // C. Create Quotation (1:1) in exact sequence QT/2627/0255...
       const quotationNumber = `QT/2627/${seqStr}`;
+      await prisma.$executeRawUnsafe(`DELETE FROM "QuotationItem" WHERE "quotationId" IN (SELECT id FROM "Quotation" WHERE "quotationNumber" = '${quotationNumber}')`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "Quotation" WHERE "quotationNumber" = '${quotationNumber}'`).catch(() => {});
       const createdQuote = await prisma.quotation.create({
         data: {
           quotationNumber,
@@ -581,6 +661,8 @@ async function syncSales4ExactOrders(config) {
 
       // D. Create Sales Order (1:1) in exact sequence HCPPL/2627/0255...
       const orderNumber = `HCPPL/2627/${seqStr}`;
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrderItem" WHERE "salesOrderId" IN (SELECT id FROM "SalesOrder" WHERE "orderNumber" = '${orderNumber}')`).catch(() => {});
+      await prisma.$executeRawUnsafe(`DELETE FROM "SalesOrder" WHERE "orderNumber" = '${orderNumber}'`).catch(() => {});
       await prisma.salesOrder.create({
         data: {
           orderNumber,
