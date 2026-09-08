@@ -220,7 +220,7 @@ async function tryRefreshToken(): Promise<boolean> {
       const res = await fetch('/api/backend/auth/refresh', { method: 'POST' });
       if (res.ok) {
         const json = await res.json();
-        const newToken = json.data?.accessToken;
+        const newToken = json?.data?.accessToken || json?.accessToken;
         if (newToken) {
           useAuthStore.getState().setAccessToken(newToken);
           return true;

@@ -1,17 +1,37 @@
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
 
-async function main() {
-  const o = await prisma.salesOrder.findFirst({
-    where: { orderNumber: 'HCPPL/2627/0139' },
-    include: {
-      customer: true,
-      items: true,
-      dispatches: true,
-      invoices: true,
+async function checkDispatches() {
+  const prisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public'
+      }
     }
   });
-  console.log('Order 0139 full detail:', JSON.stringify(o, null, 2));
+
+  try {
+    const dispatches = await prisma.dispatch.findMany({
+      select: {
+        id: true,
+        dispatchNo: true,
+        status: true,
+        deliveredAt: true,
+        podUrl: true,
+        salesOrderId: true,
+        salesOrder: {
+          select: { orderNumber: true, status: true }
+        }
+      }
+    });
+    console.log(`Total Dispatches: ${dispatches.length}`);
+    dispatches.forEach(d => {
+      console.log(`- ${d.dispatchNo}: Status=${d.status}, DeliveredAt=${d.deliveredAt}, podUrl=${d.podUrl}, Order=${d.salesOrder?.orderNumber}`);
+    });
+  } catch (e) {
+    console.error(e);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect());
+checkDispatches();

@@ -51,7 +51,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      path: '/auth/refresh',
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -90,7 +90,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      path: '/auth/refresh',
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -109,6 +109,10 @@ export class AuthController {
       await this.authService.logout(reqWithMeta.user?.sub || '', refreshToken);
     }
 
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      path: '/',
+    });
     res.clearCookie('refreshToken', {
       httpOnly: true,
       path: '/auth/refresh',

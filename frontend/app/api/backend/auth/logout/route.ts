@@ -27,16 +27,14 @@ export async function POST(request: Request) {
 
     clearTimeout(timeout);
 
-    // NestJS logout returns 204 No Content
-    const nextResponse = new NextResponse(null, { status: res.status });
+    // Always return a clean success response and expire all auth cookies
+    const nextResponse = NextResponse.json({ success: true }, { status: 200 });
 
-    const setCookieHeader = res.headers.get('Set-Cookie');
-    if (setCookieHeader) {
-      nextResponse.headers.set('Set-Cookie', setCookieHeader);
-    } else {
-      nextResponse.headers.append('Set-Cookie', 'refreshToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax');
-      nextResponse.headers.append('Set-Cookie', 'accessToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax');
-    }
+    const cookiesToClear = ['accessToken', 'token', 'himalaya_token', 'refreshToken', 'role', 'erpUser'];
+    cookiesToClear.forEach((name) => {
+      nextResponse.cookies.set(name, '', { path: '/', expires: new Date(0), maxAge: 0, sameSite: 'lax' });
+      nextResponse.cookies.set(name, '', { path: '/auth/refresh', expires: new Date(0), maxAge: 0, sameSite: 'lax' });
+    });
 
     return nextResponse;
   } catch (err: unknown) {

@@ -71,12 +71,19 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       }
 
       // Case 2: User was persisted but no token (e.g., page refresh) — try silent refresh
-      if (user) {
+      const effectiveUser = user || (typeof window !== 'undefined' ? (() => {
+        try {
+          const raw = localStorage.getItem('erpUser') || sessionStorage.getItem('erpUser');
+          return raw ? JSON.parse(raw) : null;
+        } catch { return null; }
+      })() : null);
+
+      if (effectiveUser) {
         try {
           const res = await fetch('/api/backend/auth/refresh', { method: 'POST' });
           if (res.ok) {
             const json = await res.json();
-            const newToken = json.data?.accessToken;
+            const newToken = json?.data?.accessToken || json?.accessToken;
             if (newToken && !newToken.startsWith('demo-token-')) {
               setAccessToken(newToken);
               if (!cancelled) setStatus('allowed');
@@ -179,8 +186,15 @@ function getUserRoleName(rawRole: any): string {
     const allowedRoles = ROUTE_ROLE_MAP[pathSegment];
 
     if (allowedRoles && allowedRoles.length > 0) {
-      const activeRoleName = getUserRoleName(role || user?.role);
-      const rawUserRole = typeof role === 'object' ? (role?.code || role?.role || role?.name) : (typeof user?.role === 'object' ? (user.role?.code || user.role?.role || user.role?.name) : (role || user?.role));
+      const savedUser = user || (typeof window !== 'undefined' ? (() => {
+        try {
+          const raw = localStorage.getItem('erpUser') || sessionStorage.getItem('erpUser');
+          return raw ? JSON.parse(raw) : null;
+        } catch { return null; }
+      })() : null);
+      const effectiveRole = role || savedUser?.role;
+      const activeRoleName = getUserRoleName(effectiveRole);
+      const rawUserRole = typeof effectiveRole === 'object' ? (effectiveRole?.code || effectiveRole?.role || effectiveRole?.name) : effectiveRole;
       const rawRoleString = String(rawUserRole || '').trim().toUpperCase();
       const activeNameUpper = String(activeRoleName || '').trim().toUpperCase();
       

@@ -32,10 +32,19 @@ export async function POST(request: Request) {
     
     const nextResponse = NextResponse.json(json, { status: res.status });
 
-    // Forward the new Set-Cookie header from NestJS back to the browser
+    // Forward the new Set-Cookie header from NestJS back to the browser, ensuring Path=/
     const setCookieHeader = res.headers.get('Set-Cookie');
     if (setCookieHeader) {
-      nextResponse.headers.set('Set-Cookie', setCookieHeader);
+      const normalizedCookie = setCookieHeader.replace(/Path=\/auth\/refresh/gi, 'Path=/');
+      nextResponse.headers.set('Set-Cookie', normalizedCookie);
+    }
+
+    const newToken = json?.data?.accessToken || json?.accessToken;
+    if (res.ok && newToken) {
+      const maxAge = 7 * 24 * 60 * 60;
+      nextResponse.cookies.set('accessToken', newToken, { path: '/', httpOnly: false, sameSite: 'lax', maxAge });
+      nextResponse.cookies.set('token', newToken, { path: '/', httpOnly: false, sameSite: 'lax', maxAge });
+      nextResponse.cookies.set('himalaya_token', newToken, { path: '/', httpOnly: false, sameSite: 'lax', maxAge });
     }
 
     return nextResponse;

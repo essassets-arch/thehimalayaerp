@@ -60,10 +60,27 @@ export async function POST(request: NextRequest) {
       status: response.status,
     });
 
-    // Forward the Set-Cookie header from NestJS back to the browser
+    // Forward the Set-Cookie header from NestJS back to the browser, ensuring Path=/
     const setCookieHeader = response.headers.get('Set-Cookie');
     if (setCookieHeader) {
-      nextResponse.headers.set('Set-Cookie', setCookieHeader);
+      const normalizedCookie = setCookieHeader.replace(/Path=\/auth\/refresh/gi, 'Path=/');
+      nextResponse.headers.set('Set-Cookie', normalizedCookie);
+    }
+
+    if (response.ok && typeof responseBody === 'object' && responseBody !== null) {
+      const data = (responseBody as any).data || responseBody;
+      const accessToken = data.accessToken;
+      const user = data.user;
+      if (accessToken) {
+        const maxAge = 7 * 24 * 60 * 60;
+        nextResponse.cookies.set('accessToken', accessToken, { path: '/', httpOnly: false, sameSite: 'lax', maxAge });
+        nextResponse.cookies.set('token', accessToken, { path: '/', httpOnly: false, sameSite: 'lax', maxAge });
+        nextResponse.cookies.set('himalaya_token', accessToken, { path: '/', httpOnly: false, sameSite: 'lax', maxAge });
+        if (user?.role) {
+          const roleStr = typeof user.role === 'object' ? user.role?.code || user.role?.role || user.role?.name || '' : String(user.role);
+          nextResponse.cookies.set('role', encodeURIComponent(roleStr), { path: '/', httpOnly: false, sameSite: 'lax', maxAge });
+        }
+      }
     }
 
     return nextResponse;
