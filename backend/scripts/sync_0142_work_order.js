@@ -63,55 +63,127 @@ async function main() {
     }
 
     // 3. Work Orders
-    for (let i = 0; i < so.items.length; i++) {
+    for (let i = 0; i < (so.items || []).length; i++) {
       const item = so.items[i];
+      const targetWoNum = `WO/2627/0142-${String(i + 1).padStart(2, '0')}`;
+      const qty = Number(item.orderedQuantity || item.quantity || 1);
+
+      // Look up by workOrderNumber, or plan/item linkage
       let wo = await prisma.workOrder.findFirst({
         where: {
           OR: [
+            { workOrderNumber: targetWoNum },
             { productionPlanId: plan.id, salesOrderItemId: item.id },
-            { salesOrderItemId: item.id }
+            { salesOrderItemId: item.id },
+            { workOrderNumber: { contains: '0142' } }
           ]
         }
       });
 
-      const woNum = `WO/2627/0142-${String(i + 1).padStart(2, '0')}`;
-
       if (!wo) {
-        wo = await prisma.workOrder.create({
-          data: {
-            workOrderNumber: woNum,
-            productionPlanId: plan.id,
-            salesOrderItemId: item.id,
-            quantity: Number(item.orderedQuantity || item.quantity || 1),
-            status: 'READY',
-            productionStatus: 'IN_PRODUCTION',
-            workflowStateId: readyState?.id || null
+        try {
+          wo = await prisma.workOrder.create({
+            data: {
+              workOrderNumber: targetWoNum,
+              productionPlanId: plan.id,
+              salesOrderItemId: item.id,
+              quantity: qty,
+              status: 'READY',
+              productionStatus: 'IN_PRODUCTION',
+              workflowStateId: readyState?.id || null
+            }
+          });
+          console.log(`Created WorkOrder: ${wo.workOrderNumber} (ID: ${wo.id}), Status: READY, Quantity: ${wo.quantity}`);
+        } catch (createErr) {
+          // If workOrderNumber already exists due to unique constraint, retrieve and update it
+          wo = await prisma.workOrder.findFirst({
+            where: { workOrderNumber: targetWoNum }
+          });
+          if (wo) {
+            wo = await prisma.workOrder.update({
+              where: { id: wo.id },
+              data: {
+                productionPlanId: plan.id,
+                salesOrderItemId: item.id,
+                quantity: qty,
+                status: 'READY',
+                productionStatus: 'IN_PRODUCTION',
+                workflowStateId: readyState?.id || wo.workflowStateId
+              }
+            });
+            console.log(`Retrieved and updated WorkOrder: ${wo.workOrderNumber} to READY status`);
+          } else {
+            throw createErr;
           }
-        });
-        console.log(`Created WorkOrder: ${wo.workOrderNumber} (ID: ${wo.id}), Status: READY, Quantity: ${wo.quantity}`);
-
-        // Allocation
-        await prisma.salesOrderAllocation.create({
-          data: {
-            salesOrderId: so.id,
-            salesOrderItemId: item.id,
-            allocationType: 'PRODUCTION_REQUIRED',
-            requiredQuantity: Number(item.orderedQuantity || item.quantity || 1),
-            productionQuantity: Number(item.orderedQuantity || item.quantity || 1),
-            workOrderId: wo.id
-          }
-        });
-        console.log(`Created salesOrderAllocation for WorkOrder ${wo.workOrderNumber}`);
+        }
       } else {
-        await prisma.workOrder.update({
+        wo = await prisma.workOrder.update({
           where: { id: wo.id },
           data: {
+            productionPlanId: plan.id,
+            salesOrderItemId: item.id,
+            quantity: qty,
             status: 'READY',
             productionStatus: 'IN_PRODUCTION',
             workflowStateId: readyState?.id || wo.workflowStateId
           }
         });
-        console.log(`Updated existing WorkOrder: ${wo.workOrderNumber} to READY status`);
+        console.log(`Updated existing WorkOrder: ${wo.workOrderNumber} (ID: ${wo.id}) to READY status`);
+      }
+
+      // Upsert allocation
+      const existingAlloc = await prisma.salesOrderAllocation.findFirst({
+        where: {
+          OR: [
+            { workOrderId: wo.id },
+            { salesOrderId: so.id, salesOrderItemId: item.id }
+          ]
+        }
+      });
+
+      if (!existingAlloc) {
+        await prisma.salesOrderAllocation.create({
+          data: {
+            salesOrderId: so.id,
+            salesOrderItemId: item.id,
+            allocationType: 'PRODUCTION_REQUIRED',
+            requiredQuantity: qty,
+            productionQuantity: qty,
+            workOrderId: wo.id
+          }
+        });
+        console.log(`Created salesOrderAllocation for WorkOrder ${wo.workOrderNumber}`);
+      } else {
+        await prisma.salesOrderAllocation.update({
+          where: { id: existingAlloc.id },
+          data: {
+            salesOrderId: so.id,
+            salesOrderItemId: item.id,
+            workOrderId: wo.id,
+            allocationType: 'PRODUCTION_REQUIRED',
+            requiredQuantity: qty,
+            productionQuantity: qty
+          }
+        });
+        console.log(`Updated salesOrderAllocation for WorkOrder ${wo.workOrderNumber}`);
+      }
+    }
+
+    // 4. Ensure any remaining work orders attached to this plan are also READY
+    const planWos = await prisma.workOrder.findMany({
+      where: { productionPlanId: plan.id }
+    });
+    for (const pw of planWos) {
+      if (pw.status !== 'READY') {
+        await prisma.workOrder.update({
+          where: { id: pw.id },
+          data: {
+            status: 'READY',
+            productionStatus: 'IN_PRODUCTION',
+            workflowStateId: readyState?.id || pw.workflowStateId
+          }
+        });
+        console.log(`Ensured plan work order ${pw.workOrderNumber} is in READY status`);
       }
     }
 
@@ -119,7 +191,7 @@ async function main() {
     const allWos = await prisma.workOrder.findMany({
       where: {
         OR: [
-          { workOrderNumber: { startsWith: 'WO/2627/0142' } },
+          { workOrderNumber: { contains: '0142' } },
           { productionPlanId: plan.id }
         ]
       },
