@@ -708,24 +708,47 @@ function buildAllProducts() {
 
 const ALL_PRODUCTS = buildAllProducts();
 
-const DBS = [
-  {
-    name: 'Environment DATABASE_URL',
-    url: process.env.DATABASE_URL,
-  },
-  {
-    name: 'Docker Host Port 5435',
-    url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public',
-  },
-  {
-    name: 'Docker Internal Postgres 5432',
-    url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public',
-  },
-  {
-    name: 'Standalone DB (Port 5432)',
-    url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public',
-  },
-].filter((db, idx, arr) => db.url && arr.findIndex(x => x.url === db.url) === idx);
+function loadEnvFromFiles() {
+  const fs = require('fs');
+  const path = require('path');
+  const possibleDirs = [
+    process.cwd(),
+    path.resolve(process.cwd(), '..'),
+    path.resolve(process.cwd(), '../..'),
+    path.resolve(__dirname, '..'),
+    path.resolve(__dirname, '../..'),
+    path.resolve(__dirname),
+    '/home/himalay/the_himalaya_erp',
+    '/app',
+  ];
+  const possibleNames = ['.env', '.env.production', '.env.local', 'backend/.env'];
+
+  const env = {};
+  for (const dir of possibleDirs) {
+    for (const name of possibleNames) {
+      const p = path.resolve(dir, name);
+      if (fs.existsSync(p)) {
+        try {
+          const content = fs.readFileSync(p, 'utf8');
+          content.split('\n').forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) return;
+            const eqIdx = trimmed.indexOf('=');
+            if (eqIdx > 0) {
+              const key = trimmed.substring(0, eqIdx).trim();
+              let val = trimmed.substring(eqIdx + 1).trim();
+              if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                val = val.substring(1, val.length - 1);
+              }
+              if (!env[key]) env[key] = val;
+            }
+          });
+        } catch (_) {}
+      }
+    }
+  }
+  return env;
+}
 
 async function seedDatabase(dbConfig) {
   console.log(`\n======================================================`);
@@ -843,40 +866,113 @@ async function seedDatabase(dbConfig) {
 async function main() {
   console.log(`Starting Product Seeder: Total products to process = ${ALL_PRODUCTS.length}`);
 
-  // 1. Primary: Use DATABASE_URL from environment (production container)
-  if (process.env.DATABASE_URL) {
-    const success = await seedDatabase({
-      name: 'Primary Database (env)',
-      url: process.env.DATABASE_URL,
-    });
-    if (success) {
-      console.log(`\n🎉 All done! Products successfully synced.`);
-      return;
+  const targetDbs = [];
+  const fileEnv = loadEnvFromFiles();
+
+  const addUrlVariations = (label, rawUrl) => {
+    if (!rawUrl) return;
+    targetDbs.push({ name: `${label} (raw)`, url: rawUrl });
+
+    if (rawUrl.includes('@postgres')) {
+      targetDbs.push({
+        name: `${label} (via 127.0.0.1:5435)`,
+        url: rawUrl.replace('@postgres:5432', '@127.0.0.1:5435').replace('@postgres:', '@127.0.0.1:5435')
+      });
+      targetDbs.push({
+        name: `${label} (via 127.0.0.1:5432)`,
+        url: rawUrl.replace('@postgres:5432', '@127.0.0.1:5432').replace('@postgres:', '@127.0.0.1:5432')
+      });
+      targetDbs.push({
+        name: `${label} (via localhost:5435)`,
+        url: rawUrl.replace('@postgres:5432', '@localhost:5435').replace('@postgres:', '@localhost:5435')
+      });
     }
+
+    if (rawUrl.includes('@localhost:')) {
+      targetDbs.push({
+        name: `${label} (via 127.0.0.1)`,
+        url: rawUrl.replace('@localhost:', '@127.0.0.1:')
+      });
+    }
+  };
+
+  if (process.env.DATABASE_URL) {
+    addUrlVariations('Environment DATABASE_URL', process.env.DATABASE_URL);
   }
 
-  // 2. Local fallback ports
-  const devFallbacks = [
+  if (fileEnv.DATABASE_URL) {
+    addUrlVariations('.env DATABASE_URL', fileEnv.DATABASE_URL);
+  }
+
+  const pass = fileEnv.POSTGRES_PASSWORD || process.env.POSTGRES_PASSWORD;
+  const user = fileEnv.POSTGRES_USER || process.env.POSTGRES_USER || 'himalaya_erp_user';
+  const db = fileEnv.POSTGRES_DB || process.env.POSTGRES_DB || 'himalaya_erp';
+
+  if (pass) {
+    targetDbs.push({
+      name: 'Host 127.0.0.1:5435 (from env credentials)',
+      url: `postgresql://${user}:${pass}@127.0.0.1:5435/${db}?schema=public`
+    });
+    targetDbs.push({
+      name: 'Internal postgres:5432 (from env credentials)',
+      url: `postgresql://${user}:${pass}@postgres:5432/${db}?schema=public`
+    });
+    targetDbs.push({
+      name: 'Host 127.0.0.1:5432 (from env credentials)',
+      url: `postgresql://${user}:${pass}@127.0.0.1:5432/${db}?schema=public`
+    });
+    targetDbs.push({
+      name: 'Host localhost:5435 (from env credentials)',
+      url: `postgresql://${user}:${pass}@localhost:5435/${db}?schema=public`
+    });
+  }
+
+  // Fallbacks for local offline development
+  targetDbs.push(
     {
-      name: 'Docker Host Port 5435',
+      name: 'Default 127.0.0.1:5435',
+      url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@127.0.0.1:5435/himalaya_erp?schema=public',
+    },
+    {
+      name: 'Default Localhost Docker Port 5435',
       url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public',
     },
     {
-      name: 'Standalone DB (Port 5432)',
-      url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public',
+      name: 'Default 127.0.0.1:5432',
+      url: 'postgresql://himalaya_erp_user:12345678@127.0.0.1:5432/himalaya_erp_browser_test?schema=public',
     },
-  ];
+    {
+      name: 'Default Localhost Standalone Port 5432',
+      url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public',
+    }
+  );
 
-  for (const fb of devFallbacks) {
-    const success = await seedDatabase(fb);
+  const seen = new Set();
+  const uniqueDbs = targetDbs.filter(d => {
+    if (!d.url || seen.has(d.url)) return false;
+    seen.add(d.url);
+    return true;
+  });
+
+  let anySucceeded = false;
+  for (const db of uniqueDbs) {
+    const success = await seedDatabase(db);
     if (success) {
       console.log(`\n🎉 All done! Products successfully synced.`);
-      return;
+      anySucceeded = true;
+      process.exit(0);
     }
   }
 
-  console.log(`\n🎉 All done!`);
+  if (!anySucceeded) {
+    console.error('\n❌ Could not connect to any database target. Please verify database container is running.');
+    process.exit(1);
+  }
 }
 
-main().catch(console.error);
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});
+
 
