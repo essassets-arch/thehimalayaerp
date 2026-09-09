@@ -386,11 +386,31 @@ textarea {
   padding: 20px 20px 32px;
   gap: 24px;
   height: 100vh;
+  min-height: 0;
   min-width: 0;
   /* Ensure content never exceeds viewport width */
   width: 100%;
   /* Prevent flex children from creating horizontal overflow */
   box-sizing: border-box;
+}
+
+/* ── QC INSPECTION STATION: CLEAN FLEX-1 MIN-H-0 SCROLL CHAIN ── */
+.main-viewport-qc-station {
+  height: 100vh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 16px 20px 16px 20px !important;
+  gap: 12px !important;
+}
+
+@media (max-width: 768px) {
+  .main-viewport-qc-station {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow-y: auto !important;
+    padding: 10px 10px 24px 10px !important;
+    gap: 12px !important;
+  }
 }
 
 .main-viewport > * {

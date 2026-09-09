@@ -132,7 +132,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       />
 
       {/* Main Viewport */}
-      <main className="main-viewport">
+      <main className={`main-viewport ${pathname === '/production/qc-pending' ? 'main-viewport-qc-station' : ''}`}>
         {/* Global Header & Hero Stats */}
         <HeroBanner
           stats={(((user as any)?.role === 'Super Admin') ? [] : getRoleStats()) as any}

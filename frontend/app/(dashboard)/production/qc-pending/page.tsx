@@ -969,6 +969,7 @@ export default function QCPendingPage() {
                 setPageSize(newSize);
                 setCurrentPage(1);
               }}
+              style={{ flexShrink: 0 }}
             />
           </>
         )}
