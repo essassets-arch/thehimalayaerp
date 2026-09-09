@@ -302,6 +302,7 @@ export default function FinancePortal({ initialView, forceView }) {
   }, [tabParam]);
 
   const [selectedPO, setSelectedPO] = useState(null);
+  const [selectedIndentItems, setSelectedIndentItems] = useState([]);
   const [serverPurchaseIndents, setServerPurchaseIndents] = useState([]);
   const [serverPurchaseOrders, setServerPurchaseOrders] = useState([]);
   const [serverPurchaseOrdersLoaded, setServerPurchaseOrdersLoaded] = useState(false);
@@ -344,6 +345,9 @@ export default function FinancePortal({ initialView, forceView }) {
       return purchaseIndentObj.publicId || purchaseIndentObj.indentNo || purchaseIndentObj.id;
     }
     if (typeof rowOrId === 'object' && rowOrId !== null) {
+      if (rowOrId.snapshot?.selectedIndents?.length) {
+        return rowOrId.snapshot.selectedIndents.map(i => i.publicId || i.indentNo || i.id).join(', ');
+      }
       if (rowOrId.purchaseIndent) {
         return rowOrId.purchaseIndent.publicId || rowOrId.purchaseIndent.indentNo || rowOrId.purchaseIndent.id;
       }
@@ -1941,67 +1945,353 @@ export default function FinancePortal({ initialView, forceView }) {
   }, [serverPurchaseIndents]);
 
   const renderPendingRequestsTab = () => {
+    // Helper to toggle item selection
+    const toggleItemSelection = (indent, item) => {
+      const itemId = item.id || item.indentItemId;
+      setSelectedIndentItems(prev => {
+        const exists = prev.some(i => (i.indentItemId || i.id) === itemId);
+        if (exists) {
+          return prev.filter(i => (i.indentItemId || i.id) !== itemId);
+        } else {
+          const matName = item.product?.name || item.materialName || item.material || item.name || 'Material';
+          const approvedQty = Number(item.remainingQuantity ?? item.approvedQuantity ?? item.quantity ?? 0);
+          const newItem = {
+            indentId: indent.id,
+            indentPublicId: indent.publicId || indent.indentNo || indent.id,
+            indentItemId: item.id,
+            productId: item.productId || item.product?.id,
+            materialId: item.productId || item.materialId || item.product?.id,
+            materialName: matName,
+            unit: item.unit || item.uom || item.product?.unit || 'Units',
+            approvedQty: approvedQty,
+            quantity: approvedQty,
+            estimatedUnitRate: Number(item.estimatedUnitRate || item.product?.unitPrice || item.unitPrice || item.rate || 0),
+            requiredDate: item.requiredDate || indent.requiredDate || indent.targetDate,
+            department: indent.department || 'STORE'
+          };
+          return [...prev, newItem];
+        }
+      });
+    };
+
+    // Helper to toggle select all materials within an indent
+    const toggleSelectIndentAll = (indent) => {
+      const items = indent.items || [];
+      const indentItemIds = new Set(items.map(it => it.id));
+      const allSelected = items.length > 0 && items.every(it => selectedIndentItems.some(s => (s.indentItemId || s.id) === it.id));
+
+      setSelectedIndentItems(prev => {
+        if (allSelected) {
+          return prev.filter(s => !indentItemIds.has(s.indentItemId || s.id));
+        } else {
+          const existingNonIndent = prev.filter(s => !indentItemIds.has(s.indentItemId || s.id));
+          const newItems = items.map(item => {
+            const matName = item.product?.name || item.materialName || item.material || item.name || 'Material';
+            const approvedQty = Number(item.remainingQuantity ?? item.approvedQuantity ?? item.quantity ?? 0);
+            return {
+              indentId: indent.id,
+              indentPublicId: indent.publicId || indent.indentNo || indent.id,
+              indentItemId: item.id,
+              productId: item.productId || item.product?.id,
+              materialId: item.productId || item.materialId || item.product?.id,
+              materialName: matName,
+              unit: item.unit || item.uom || item.product?.unit || 'Units',
+              approvedQty: approvedQty,
+              quantity: approvedQty,
+              estimatedUnitRate: Number(item.estimatedUnitRate || item.product?.unitPrice || item.unitPrice || item.rate || 0),
+              requiredDate: item.requiredDate || indent.requiredDate || indent.targetDate,
+              department: indent.department || 'STORE'
+            };
+          });
+          return [...existingNonIndent, ...newItems];
+        }
+      });
+    };
+
     const pendingIndents = combinedIndents.filter(i => {
       const status = String(i.status || '').toUpperCase();
-      const hasActivePurchaseOrder = purchaseOrders.some((po) =>
-        (po.purchaseIndentId === i.id || po.indentId === i.id) &&
-        !['SUPER_ADMIN_REJECTED', 'CANCELLED'].includes(po.status),
-      );
-      return status === 'PLANT_HEAD_APPROVED' &&
-        !i.hasActivePurchaseOrder && !hasActivePurchaseOrder;
+      const isEligible = status === 'PLANT_HEAD_APPROVED' || status === 'PARTIALLY_CONVERTED';
+      const isStore = !i.department || String(i.department).toUpperCase() === 'STORE';
+      const items = i.items || [];
+      return isEligible && isStore && items.length > 0;
     });
 
+    const totalAvailableItems = pendingIndents.reduce((sum, ind) => sum + (ind.items?.length || 0), 0);
+
     return (
-      <div className="app-card">
-        <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2 className="card-heading" style={{ margin: 0 }}>Approved Indents (Waiting for PO)</h2>
-          <span style={{ fontSize: '12px', fontWeight: '700', color: '#0284c7', background: '#e0f2fe', padding: '4px 12px', borderRadius: '12px' }}>
-            {pendingIndents.length} Pending Indent Request(s)
-          </span>
-        </div>
-        <DataTable
-          columns={[
-            { header: 'Indent ID', accessor: 'id', render: row => <strong style={{ color: 'var(--color-primary)' }}>{resolveIndentDisplayId(row)}</strong> },
-            { header: 'Material', accessor: 'material', render: row => row.materialName || row.material || (row.items && (row.items[0]?.product?.name || row.items[0]?.materialName)) || 'Material' },
-            { header: 'Quantity', accessor: 'approvedQuantity', render: row => `${row.approvedQuantity ?? row.requestedQuantity ?? row.requiredQuantity ?? row.quantity ?? (row.items && (row.items[0]?.approvedQuantity ?? row.items[0]?.quantity)) ?? 0} ${row.unit || (row.items && row.items[0]?.unit) || 'Units'}` },
-            { header: 'Required Date', accessor: 'requiredDate', render: row => (row.targetDate || row.requiredDate || (row.items && row.items[0]?.requiredDate)) ? new Date(row.targetDate || row.requiredDate || row.items[0].requiredDate).toLocaleDateString('en-IN') : '15/08/2026' },
-            { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }
-          ]}
-          data={pendingIndents}
-          actions={row => (
-            <button className="btn-small btn-primary-small" onClick={() => {
-              setSelectedPO(row);
-              setActiveTab('Create PO');
-            }}>
-              Convert to Draft PO
+      <div className="app-card" style={{ padding: '24px' }}>
+        {/* Top Bar */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '16px',
+          marginBottom: '24px',
+          paddingBottom: '16px',
+          borderBottom: '1px solid #E2E8F0'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h2 className="card-heading" style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#1E293B' }}>
+                Approved Indents (Waiting for PO)
+              </h2>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: '#0284c7', background: '#e0f2fe', padding: '4px 10px', borderRadius: '12px' }}>
+                {pendingIndents.length} Indent(s)
+              </span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: '#475569', background: '#f1f5f9', padding: '4px 10px', borderRadius: '12px' }}>
+                {totalAvailableItems} Material(s)
+              </span>
+            </div>
+            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+              Select any combination of approved materials across indents to consolidate into a single Purchase Order.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {selectedIndentItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedIndentItems([])}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #CBD5E1',
+                  background: '#FFFFFF',
+                  color: '#475569',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+              >
+                Clear Selection ({selectedIndentItems.length})
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={selectedIndentItems.length === 0}
+              onClick={() => setActiveTab('Create PO')}
+              style={{
+                padding: '10px 22px',
+                borderRadius: '8px',
+                border: 'none',
+                background: selectedIndentItems.length > 0 ? '#2F4375' : '#94A3B8',
+                color: '#FFFFFF',
+                fontSize: '14px',
+                fontWeight: 800,
+                cursor: selectedIndentItems.length > 0 ? 'pointer' : 'not-allowed',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: selectedIndentItems.length > 0 ? '0 4px 14px rgba(47, 67, 117, 0.35)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Layers size={17} />
+              Create Purchase Order ({selectedIndentItems.length} {selectedIndentItems.length === 1 ? 'Item' : 'Items'})
             </button>
-          )}
-          emptyMessage="No plant-head approved indents waiting for PO."
-        />
+          </div>
+        </div>
+
+        {/* Indent Groups */}
+        {pendingIndents.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 20px', color: '#64748B' }}>
+            <FileText size={40} color="#CBD5E1" style={{ marginBottom: '12px' }} />
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#334155', margin: '0 0 4px 0' }}>No Approved Indents Waiting for PO</h3>
+            <p style={{ fontSize: '13.5px', color: '#64748B', margin: 0 }}>
+              All approved indent items have been converted to Purchase Orders or no indents are currently awaiting PO creation.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {pendingIndents.map((indent) => {
+              const indentDisplayId = resolveIndentDisplayId(indent);
+              const items = indent.items || [];
+              const allSelected = items.length > 0 && items.every(it =>
+                selectedIndentItems.some(s => (s.indentItemId || s.id) === it.id)
+              );
+              const someSelected = items.some(it =>
+                selectedIndentItems.some(s => (s.indentItemId || s.id) === it.id)
+              );
+
+              return (
+                <div
+                  key={indent.id || indentDisplayId}
+                  style={{
+                    border: someSelected ? '1.5px solid #38BDF8' : '1px solid #E2E8F0',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    background: '#FFFFFF',
+                    boxShadow: someSelected ? '0 4px 16px rgba(56, 189, 248, 0.12)' : '0 2px 6px rgba(0,0,0,0.02)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {/* Indent Group Header */}
+                  <div style={{
+                    background: someSelected ? '#F0F9FF' : '#F8FAFC',
+                    padding: '14px 18px',
+                    borderBottom: '1px solid #E2E8F0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{
+                          background: '#0284c7',
+                          color: '#FFFFFF',
+                          padding: '4px 12px',
+                          borderRadius: '6px',
+                          fontWeight: 800,
+                          fontSize: '13px',
+                          fontFamily: 'monospace',
+                          letterSpacing: '0.04em'
+                        }}>
+                          {indentDisplayId}
+                        </span>
+                        <StatusBadge status="PLANT_HEAD_APPROVED" />
+                      </div>
+
+                      <span style={{ background: '#EFF6FF', color: '#1D4ED8', padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }}>
+                        {indent.department || 'STORE'}
+                      </span>
+
+                      {(indent.requiredDate || indent.targetDate) && (
+                        <span style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Calendar size={13} color="#94A3B8" />
+                          Req: {new Date(indent.requiredDate || indent.targetDate).toLocaleDateString('en-IN')}
+                        </span>
+                      )}
+
+                      <span style={{ fontSize: '12px', color: '#64748B' }}>
+                        • {items.length} item(s) available
+                      </span>
+                    </div>
+
+                    {/* Group Select All */}
+                    <label style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: allSelected ? '#0369A1' : '#475569',
+                      userSelect: 'none'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                        onChange={() => toggleSelectIndentAll(indent)}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#0284c7' }}
+                      />
+                      Select All Materials ({items.length})
+                    </label>
+                  </div>
+
+                  {/* Materials List / Table */}
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ background: '#FFFFFF', borderBottom: '1px solid #F1F5F9', color: '#64748B', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          <th style={{ width: '46px', padding: '10px 16px', textAlign: 'center' }}>Select</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'left' }}>Material Name</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'right' }}>Approved Qty</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'left' }}>Required Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((it, idx) => {
+                          const itemId = it.id;
+                          const isChecked = selectedIndentItems.some(s => (s.indentItemId || s.id) === itemId);
+                          const matName = it.product?.name || it.materialName || it.material || it.name || 'Material';
+                          const qtyVal = Number(it.remainingQuantity ?? it.approvedQuantity ?? it.quantity ?? 0);
+                          const unitStr = it.unit || it.uom || it.product?.unit || 'Units';
+
+                          return (
+                            <tr
+                              key={it.id || idx}
+                              onClick={() => toggleItemSelection(indent, it)}
+                              style={{
+                                cursor: 'pointer',
+                                background: isChecked ? '#F0F9FF' : idx % 2 === 0 ? '#FFFFFF' : '#FAFAFA',
+                                borderBottom: idx < items.length - 1 ? '1px solid #F1F5F9' : 'none',
+                                transition: 'background 0.15s ease'
+                              }}
+                            >
+                              <td style={{ padding: '12px 16px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleItemSelection(indent, it)}
+                                  style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#0284c7' }}
+                                />
+                              </td>
+                              <td style={{ padding: '12px 16px' }}>
+                                <div style={{ fontWeight: 800, color: isChecked ? '#0369A1' : '#1E293B', fontSize: '13.5px' }}>
+                                  {matName}
+                                </div>
+                                {it.materialCode && (
+                                  <div style={{ fontSize: '11px', color: '#94A3B8', fontFamily: 'monospace' }}>
+                                    {it.materialCode}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: '#0284C7', fontSize: '14px' }}>
+                                {qtyVal} <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>{unitStr}</span>
+                              </td>
+                              <td style={{ padding: '12px 16px', color: '#64748B' }}>
+                                {(it.requiredDate || indent.requiredDate || indent.targetDate) ? new Date(it.requiredDate || indent.requiredDate || indent.targetDate).toLocaleDateString('en-IN') : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
 
   const renderCreatePOTab = () => {
-    if (!selectedPO || (!String(selectedPO.status || '').toUpperCase().includes('APPROVED'))) {
+    if (selectedIndentItems.length === 0) {
       return (
         <div className="app-card" style={{ padding: '40px', textAlign: 'center' }}>
           <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
             <FileText size={24} color="#5E6B82" />
           </div>
-          <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#24345C', marginBottom: '8px' }}>Select an Approved Indent to Generate PO</h2>
-          <p style={{ fontSize: '14px', color: '#5E6B82', maxWidth: '400px', margin: '0 auto' }}>Go to the <strong>Pending Requests</strong> tab and click "Create PO" next to any Plant Head approved purchase indent.</p>
+          <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#24345C', marginBottom: '8px' }}>Select Approved Indent Materials to Generate PO</h2>
+          <p style={{ fontSize: '14px', color: '#5E6B82', maxWidth: '440px', margin: '0 auto 20px' }}>
+            Go to the <strong>Pending Requests</strong> tab and select the approved indent material checkboxes you want to include in this Purchase Order.
+          </p>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setActiveTab('Pending Requests')}
+            style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 700 }}
+          >
+            ← Back to Pending Requests
+          </button>
         </div>
       );
     }
 
-    const lineItems = selectedPO.items?.length
-      ? selectedPO.items
-      : [{ material: selectedPO.material || 'Material', quantity: selectedPO.quantity || 0, unit: selectedPO.unit || 'Units' }];
-    const displaySubtotal = lineItems.reduce((sum, it) => {
-      const matName = it.product?.name || it.materialName || it.material || it.name || 'Material';
-      const qty = Number(it.approvedQty ?? it.quantity_ordered ?? it.quantity ?? 0);
-      const rate = Number(poRates[matName] ?? addMatRate ?? 0);
+    const uniqueSelectedIndents = Array.from(new Set(selectedIndentItems.map(i => i.indentPublicId || i.indentId)));
+
+    const displaySubtotal = selectedIndentItems.reduce((sum, it) => {
+      const itemKey = it.indentItemId || it.id;
+      const qty = Number(it.approvedQty ?? it.quantity ?? 0);
+      const rate = Number(poRates[itemKey] ?? poRates[it.materialName] ?? addMatRate ?? 0);
       return sum + (qty * rate);
     }, 0);
     const isGstEnabled = hasGst === true;
@@ -2012,14 +2302,19 @@ export default function FinancePortal({ initialView, forceView }) {
 
     const handleGeneratePO = async (e) => {
       e.preventDefault();
-      const itemsPayload = lineItems.map(it => {
-        const matName = it.product?.name || it.materialName || it.material || it.name || 'Material';
-        const qty = Number(it.approvedQty ?? it.quantity_ordered ?? it.quantity ?? 0);
-        const rate = Number(poRates[matName] ?? addMatRate ?? 0);
+      const itemsPayload = selectedIndentItems.map(it => {
+        const itemKey = it.indentItemId || it.id;
+        const qty = Number(it.approvedQty ?? it.quantity ?? 0);
+        const rate = Number(poRates[itemKey] ?? poRates[it.materialName] ?? addMatRate ?? 0);
         return {
-          productId: it.productId || it.materialId || it.product?.id || 'MAT-UNKNOWN',
-          name: matName,
+          indentId: it.indentId,
+          indentPublicId: it.indentPublicId,
+          indentItemId: it.indentItemId || it.id,
+          productId: it.productId || it.materialId,
+          materialId: it.materialId || it.productId,
+          name: it.materialName,
           quantity: qty,
+          approvedQty: qty,
           unitPrice: rate,
           rate: rate,
           unit: it.unit || 'Units',
@@ -2027,9 +2322,16 @@ export default function FinancePortal({ initialView, forceView }) {
         };
       });
 
-      const subtotal = itemsPayload.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-      const totalTax = itemsPayload.reduce((sum, item) => sum + (item.quantity * item.unitPrice * (item.gstPercent / 100)), 0);
-      const totalAmount = subtotal + totalTax + Number(poFreight || 0);
+      const primaryIndentId = selectedIndentItems[0]?.indentId;
+      const uniqueIndentsList = uniqueSelectedIndents.map(idOrPublicId => {
+        const ind = serverPurchaseIndents.find(i => i.id === idOrPublicId || i.publicId === idOrPublicId || i.indentNo === idOrPublicId);
+        return {
+          id: ind?.id || idOrPublicId,
+          publicId: ind?.publicId || idOrPublicId,
+          indentNo: ind?.indentNo || idOrPublicId,
+          department: ind?.department || 'STORE'
+        };
+      });
 
       const poPayload = {
         id: 'PO-DRAFT-' + Date.now(),
@@ -2039,31 +2341,41 @@ export default function FinancePortal({ initialView, forceView }) {
         paymentTerms: poPaymentTerms || '30 Days Net',
         expectedDeliveryDate: poExpectedDate,
         expectedDate: poExpectedDate,
-        totalAmount: totalAmount,
+        totalAmount: displayTotal,
         items: itemsPayload,
         gst: isGstEnabled ? (poGst || '18') : '0',
         hasGst: isGstEnabled,
+        gstApplicable: isGstEnabled,
+        gstRate: isGstEnabled ? Number(poGst || 18) : 0,
         freight: poFreight || '0',
-        purchaseIndent: selectedPO
+        transportationCost: Number(poFreight || 0),
+        selectedIndents: uniqueIndentsList,
+        purchaseIndent: serverPurchaseIndents.find(i => i.id === primaryIndentId) || null,
       };
 
       try {
-        await createPurchaseOrderFromIndent(selectedPO.id, poPayload);
+        await createPurchaseOrderFromIndent(primaryIndentId, poPayload);
         await syncData();
         await refreshPurchaseOrders();
-        setServerPurchaseIndents((current) => current.filter((indent) => indent.id !== selectedPO.id));
 
-        if (totalAmount <= 10000) {
-          showToast(`PO created & directly approved (₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). No approval step required!`, 'success');
-          setSelectedPO(null);
+        try {
+          const freshResp = await purchaseIndentService.eligibleForPO({ limit: 100 });
+          const freshData = Array.isArray(freshResp) ? freshResp : (freshResp?.data || []);
+          setServerPurchaseIndents(freshData);
+        } catch (err) {
+          // ignore
+        }
+
+        setSelectedIndentItems([]);
+
+        if (displayTotal <= 10000) {
+          showToast(`PO created & directly approved (₹${displayTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). No approval step required!`, 'success');
           setActiveTab('Approved POs');
-        } else if (totalAmount <= 15000) {
-          showToast(`PO created (₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Routed to Plant Head for approval.`, 'info');
-          setSelectedPO(null);
+        } else if (displayTotal <= 15000) {
+          showToast(`PO created (₹${displayTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Routed to Plant Head for approval.`, 'info');
           setActiveTab('Draft POs');
         } else {
-          showToast(`PO created (₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Routed to Super Admin for approval.`, 'info');
-          setSelectedPO(null);
+          showToast(`PO created (₹${displayTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Routed to Super Admin for approval.`, 'info');
           setActiveTab('Draft POs');
         }
       } catch (error) {
@@ -2074,45 +2386,60 @@ export default function FinancePortal({ initialView, forceView }) {
     return (
       <div style={{ maxWidth: '850px', margin: '0 auto' }}>
         {/* Header Bar */}
-        <div style={{ background: '#24345C', padding: '20px 24px', borderRadius: '14px 14px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ background: '#24345C', padding: '20px 24px', borderRadius: '14px 14px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(59, 174, 235, 0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <FileText size={22} color="#3BAEEB" />
             </div>
             <div>
-              <h2 style={{ fontSize: '19px', fontWeight: 800, color: '#ffffff', margin: 0, letterSpacing: '0.01em' }}>Create Draft PO for {resolveIndentDisplayId(selectedPO)}</h2>
-              <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '2px' }}>Review approved indent materials and set vendor & financial terms</div>
+              <h2 style={{ fontSize: '19px', fontWeight: 800, color: '#ffffff', margin: 0, letterSpacing: '0.01em' }}>
+                Create Draft PO
+              </h2>
+              <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '2px' }}>
+                Review selected approved indent materials ({selectedIndentItems.length} items from {uniqueSelectedIndents.join(', ')}) and set vendor & financial terms
+              </div>
             </div>
           </div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '20px', background: 'rgba(255,255,255,0.1)', color: '#ffffff', fontSize: '12px', fontWeight: 700 }}>
-            Indent Status: <span style={{ color: '#3BAEEB' }}>Approved</span>
+            Indents: <span style={{ color: '#3BAEEB' }}>{uniqueSelectedIndents.join(', ')}</span>
           </div>
         </div>
 
         {/* Form Content */}
         <form onSubmit={handleGeneratePO} style={{ padding: '26px 28px', background: '#ffffff', borderRadius: '0 0 14px 14px', border: '1px solid #DCE5F0', borderTop: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.04)' }}>
-          {/* Section 1: Approved Materials & Quantity Card */}
+          {/* Section 1: Selected Indent Materials Table */}
           <div style={{ marginBottom: '26px' }}>
             <div style={{ fontSize: '13px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Layers size={16} color="#0284c7" /> Approved Indent Line Items ({resolveIndentDisplayId(selectedPO)})
+              <Layers size={16} color="#0284c7" /> Selected Indent Materials ({selectedIndentItems.length})
             </div>
             <div style={{ border: '1px solid #DCE5F0', borderRadius: '10px', overflow: 'hidden', background: '#ffffff' }}>
-              <div style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', padding: '10px 16px', display: 'grid', gridTemplateColumns: '1fr 140px 180px', fontSize: '12px', fontWeight: 700, color: '#5E6B82' }}>
+              <div style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', padding: '10px 16px', display: 'grid', gridTemplateColumns: '120px 1fr 120px 150px 130px 40px', fontSize: '12px', fontWeight: 700, color: '#5E6B82', alignItems: 'center' }}>
+                <div>Indent ID</div>
                 <div>Material Name</div>
                 <div style={{ textAlign: 'right' }}>Approved Qty</div>
                 <div style={{ textAlign: 'right' }}>Material Rate (₹) *</div>
+                <div style={{ textAlign: 'right' }}>Line Total (₹)</div>
+                <div></div>
               </div>
-              {lineItems.map((it, idx) => {
-                const matKey = it.product?.name || it.materialName || it.material || it.name || 'Material';
-                const qtyVal = Number(it.approvedQty ?? it.quantity_ordered ?? it.quantity ?? 0);
+              {selectedIndentItems.map((it, idx) => {
+                const itemKey = it.indentItemId || it.id;
+                const itemEstRate = Number(it.estimatedUnitRate || it.product?.unitPrice || it.unitPrice || it.rate || 0);
+                const rateVal = poRates[itemKey] ?? poRates[it.materialName] ?? (itemEstRate > 0 ? itemEstRate : (addMatRate ?? ''));
+                const lineTotal = Number(it.approvedQty || 0) * Number(rateVal || 0);
+
                 return (
-                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 140px 180px', padding: '14px 16px', borderBottom: idx < lineItems.length - 1 ? '1px solid #f1f5f9' : 'none', alignItems: 'center', fontSize: '14px' }}>
+                  <div key={itemKey || idx} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 150px 130px 40px', padding: '12px 16px', borderBottom: idx < selectedIndentItems.length - 1 ? '1px solid #f1f5f9' : 'none', alignItems: 'center', fontSize: '13.5px' }}>
                     <div>
-                      <span style={{ fontWeight: 800, color: '#24345C' }}>{matKey}</span>
+                      <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '4px', fontWeight: 800, fontSize: '12px', fontFamily: 'monospace' }}>
+                        {it.indentPublicId}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ fontWeight: 800, color: '#24345C' }}>{it.materialName}</span>
                       {it.unit && <span style={{ fontSize: '12px', color: '#5E6B82', marginLeft: '6px', fontWeight: 600 }}>({it.unit})</span>}
                     </div>
-                    <div style={{ textAlign: 'right', fontWeight: 800, color: '#0284c7', fontSize: '15px' }}>
-                      {qtyVal} <span style={{ fontSize: '12px', fontWeight: 600, color: '#5E6B82' }}>{it.unit || 'Units'}</span>
+                    <div style={{ textAlign: 'right', fontWeight: 800, color: '#0284c7', fontSize: '14px' }}>
+                      {it.approvedQty} <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>{it.unit || 'Units'}</span>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <input
@@ -2121,14 +2448,32 @@ export default function FinancePortal({ initialView, forceView }) {
                         step="any"
                         required
                         placeholder="Rate per unit"
-                        value={poRates[matKey] ?? addMatRate ?? ''}
+                        value={rateVal}
                         onChange={e => {
                           const val = e.target.value;
-                          setAddMatRate(val);
-                          setPoRates(prev => ({ ...prev, [matKey]: val }));
+                          setPoRates(prev => ({
+                            ...prev,
+                            [itemKey]: val,
+                            [it.materialName]: val
+                          }));
                         }}
-                        style={{ width: '140px', padding: '8px 12px', border: '1.5px solid #D6E2F0', borderRadius: '8px', fontSize: '14px', fontWeight: 700, color: '#24345C', textAlign: 'right', background: '#F5FAFE', outline: 'none' }}
+                        style={{ width: '120px', padding: '7px 10px', border: '1.5px solid #D6E2F0', borderRadius: '8px', fontSize: '13.5px', fontWeight: 700, color: '#24345C', textAlign: 'right', background: '#F5FAFE', outline: 'none' }}
                       />
+                    </div>
+                    <div style={{ textAlign: 'right', fontWeight: 800, color: '#1E293B', fontSize: '13.5px' }}>
+                      ₹{lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        title="Remove item from PO"
+                        onClick={() => {
+                          setSelectedIndentItems(prev => prev.filter(p => (p.indentItemId || p.id) !== itemKey));
+                        }}
+                        style={{ border: 'none', background: 'transparent', color: '#EF4444', cursor: 'pointer', padding: '4px' }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
                 );

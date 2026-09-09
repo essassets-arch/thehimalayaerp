@@ -439,21 +439,64 @@ export class ProcurementService {
     const { page, limit, skip } = this.page(query);
     const where: any = {
       ...(companyId && { companyId }),
-      status: 'PLANT_HEAD_APPROVED',
-      // PurchaseIndent has one PO relation; a rejected/cancelled PO is still
-      // blocked by the schema's unique indent reference and the create guard.
-      purchaseOrder: { is: null },
+      status: { in: ['PLANT_HEAD_APPROVED', 'PARTIALLY_CONVERTED'] },
+      OR: [
+        { department: { equals: 'STORE', mode: 'insensitive' } },
+        { department: null },
+      ],
     };
-    const [data, total] = await this.prisma.$transaction([
-      this.prisma.purchaseIndent.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: { items: { include: { product: true } } },
-      }),
-      this.prisma.purchaseIndent.count({ where }),
-    ]);
+
+    const indents = await this.prisma.purchaseIndent.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: { items: { include: { product: true } } },
+    });
+
+    // Fetch all active PO items that link to an indentItem
+    const activePOItems = await this.prisma.purchaseOrderItem.findMany({
+      where: {
+        indentItemId: { not: null },
+        purchaseOrder: {
+          status: { notIn: ['SUPER_ADMIN_REJECTED', 'CANCELLED'] },
+        },
+      },
+      select: { indentItemId: true, quantity: true },
+    });
+
+    const consumedMap = new Map<string, number>();
+    for (const poi of activePOItems) {
+      if (poi.indentItemId) {
+        const prev = consumedMap.get(poi.indentItemId) || 0;
+        consumedMap.set(poi.indentItemId, prev + Number(poi.quantity || 0));
+      }
+    }
+
+    const eligibleIndents: any[] = [];
+    for (const ind of indents) {
+      const remainingItems = ind.items
+        .map((it: any) => {
+          const approved = Number(it.approvedQuantity ?? it.quantity ?? 0);
+          const consumed = consumedMap.get(it.id) || 0;
+          const remaining = Math.max(0, approved - consumed);
+          return {
+            ...it,
+            approvedQuantity: approved,
+            convertedQuantity: consumed,
+            remainingQuantity: remaining,
+          };
+        })
+        .filter((it: any) => it.remainingQuantity > 0);
+
+      if (remainingItems.length > 0) {
+        eligibleIndents.push({
+          ...ind,
+          items: remainingItems,
+        });
+      }
+    }
+
+    const total = eligibleIndents.length;
+    const data = eligibleIndents.slice(skip, skip + limit);
     return { data, meta: { page, limit, total } };
   }
 
@@ -1636,24 +1679,60 @@ export class ProcurementService {
   }
   async createPO(indentId: string, dto: any, actorId?: string) {
     return this.prisma.$transaction(async (tx) => {
-      const indent = await this.entity(tx, 'purchaseIndent', indentId);
-      if (indent.status !== 'PLANT_HEAD_APPROVED')
-        throw new BadRequestException(
-          'Only Plant Head approved indents can be converted to a Draft PO',
-        );
-      const existingPO = await tx.purchaseOrder.findFirst({
-        where: {
-          companyId: indent.companyId,
-          purchaseIndentId: indent.id,
-          status: { notIn: ['SUPER_ADMIN_REJECTED', 'CANCELLED'] },
-        },
-      });
-      if (existingPO)
-        throw new ConflictException(
-          'An active PO already exists for this indent',
-        );
+      const items = dto.items;
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new BadRequestException('At least one indent material item must be selected to create a Purchase Order');
+      }
 
-      let supplierId = dto.supplierId;
+      // 1. Reject duplicate indentItemIds within the same PO request
+      const seenIndentItemIds = new Set<string>();
+      for (const it of items) {
+        const key = it.indentItemId || `${it.indentId || indentId}_${it.productId || it.materialId}`;
+        if (seenIndentItemIds.has(key)) {
+          throw new BadRequestException(`Duplicate indent item in request: ${it.indentItemId || it.name || key}`);
+        }
+        seenIndentItemIds.add(key);
+      }
+
+      // 2. Identify all unique indents involved
+      const rawIndentIds = Array.from(new Set(items.map((i: any) => i.indentId || indentId).filter(Boolean))) as string[];
+      if (rawIndentIds.length === 0 && indentId) {
+        rawIndentIds.push(indentId);
+      }
+      if (rawIndentIds.length === 0) {
+        throw new BadRequestException('No source indent specified for Purchase Order');
+      }
+
+      // Fetch and validate every indent
+      const indentsMap = new Map<string, any>();
+      for (const idOrPublicId of rawIndentIds) {
+        const ind = await tx.purchaseIndent.findFirst({
+          where: {
+            OR: [
+              { id: idOrPublicId },
+              { publicId: idOrPublicId },
+              { indentNo: idOrPublicId },
+            ],
+          },
+          include: { items: { include: { product: true } } },
+        });
+        if (!ind) {
+          throw new NotFoundException(`Purchase Indent not found: ${idOrPublicId}`);
+        }
+        if (!['PLANT_HEAD_APPROVED', 'PARTIALLY_CONVERTED'].includes(ind.status)) {
+          throw new BadRequestException(`Indent ${ind.publicId || ind.id} is not approved for PO creation (current status: ${ind.status})`);
+        }
+        indentsMap.set(ind.id, ind);
+        indentsMap.set(ind.publicId, ind);
+        if (ind.indentNo) indentsMap.set(ind.indentNo, ind);
+      }
+
+      const uniqueIndents = Array.from(new Set(Array.from(indentsMap.values())));
+      const primaryIndent = uniqueIndents[0];
+      const companyId = primaryIndent.companyId;
+
+      // 3. Supplier resolution
+      let supplierId = dto.supplierId || dto.vendorId;
       let supplierExists: any = null;
       if (supplierId) {
         supplierExists = await tx.supplier.findFirst({
@@ -1667,30 +1746,30 @@ export class ProcurementService {
           },
         });
       }
-
       if (supplierExists) {
         supplierId = supplierExists.id;
       } else {
         let defaultSupplier = await tx.supplier.findFirst({
-          where: { companyId: indent.companyId, isActive: true },
+          where: { companyId, isActive: true },
         });
-
         if (!defaultSupplier) {
           defaultSupplier = await tx.supplier.create({
             data: {
               publicId: this.id('SUP'),
-              companyId: indent.companyId,
-              name: dto.supplierName || 'Default Supplier',
+              companyId,
+              name: dto.supplierName || dto.vendorName || 'Default Supplier',
             },
           });
         }
         supplierId = defaultSupplier.id;
+        supplierExists = defaultSupplier;
       }
 
+      // 4. Draft PO Number Generation
       const currentYear = new Date().getFullYear();
-      const seqKey = `${indent.companyId}_PURCHASE_ORDER_DRAFT_${currentYear}`;
+      const seqKey = `${companyId}_PURCHASE_ORDER_DRAFT_${currentYear}`;
       const prefix = `PO-DRAFT-${currentYear}-`;
-      let draftPoNo;
+      let draftPoNo = '';
       let isUnique = false;
       while (!isUnique) {
         draftPoNo = await this.sequenceService.generateNextWithTx(
@@ -1707,40 +1786,91 @@ export class ProcurementService {
         }
       }
 
+      // 5. Item validation, quantity calculation, and rate recalculation
       let subtotal = new Prisma.Decimal(0);
-      let gstAmount = new Prisma.Decimal(0);
+      let totalGstAmount = new Prisma.Decimal(0);
       const itemsToCreate: any[] = [];
 
-      for (const i of dto.items || []) {
-        const product = await tx.product.findUnique({
-          where: { id: i.productId || i.materialId },
+      for (const i of items) {
+        const itemIndent = indentsMap.get(i.indentId) || primaryIndent;
+        const targetIndentId = itemIndent.id;
+
+        // Validate indentItem
+        let indentItem: any = null;
+        if (i.indentItemId) {
+          indentItem = itemIndent.items.find((it: any) => it.id === i.indentItemId);
+          if (!indentItem) {
+            indentItem = await tx.purchaseIndentItem.findFirst({
+              where: { id: i.indentItemId, purchaseIndentId: targetIndentId },
+              include: { product: true },
+            });
+          }
+          if (!indentItem) {
+            throw new BadRequestException(`Indent item ${i.indentItemId} does not belong to indent ${itemIndent.publicId || targetIndentId}`);
+          }
+        } else {
+          indentItem = itemIndent.items.find((it: any) => it.productId === (i.productId || i.materialId));
+        }
+
+        if (!indentItem) {
+          throw new BadRequestException(`No matching indent item found for product ${i.productId || i.materialId} in indent ${itemIndent.publicId || targetIndentId}`);
+        }
+
+        const product = indentItem.product || await tx.product.findUnique({
+          where: { id: indentItem.productId || i.productId || i.materialId },
         });
 
-        const qty = new Prisma.Decimal(i.quantity || 0);
-        const rate = new Prisma.Decimal(i.unitPrice || i.rate || 0);
-        const gstPct = new Prisma.Decimal(i.gstPercent || i.tax || 18);
+        // Check already converted quantity across active POs
+        const activePOItems = await tx.purchaseOrderItem.findMany({
+          where: {
+            indentItemId: indentItem.id,
+            purchaseOrder: {
+              status: { notIn: ['SUPER_ADMIN_REJECTED', 'CANCELLED'] },
+            },
+          },
+          select: { quantity: true },
+        });
+        const alreadyConverted = activePOItems.reduce(
+          (sum: Prisma.Decimal, poi: any) => sum.add(poi.quantity),
+          new Prisma.Decimal(0),
+        );
+        const approvedQty = new Prisma.Decimal(indentItem.approvedQuantity || indentItem.quantity);
+        const remainingQty = Prisma.Decimal.max(0, approvedQty.sub(alreadyConverted));
 
-        const lineSub = qty.mul(rate);
+        if (remainingQty.lte(0)) {
+          throw new BadRequestException(`Item ${indentItem.materialName || product?.name || indentItem.id} from indent ${itemIndent.publicId} has already been fully converted to Purchase Order(s).`);
+        }
+
+        const requestedQty = new Prisma.Decimal(i.quantity || i.approvedQty || remainingQty);
+        if (requestedQty.lte(0)) {
+          throw new BadRequestException(`Quantity for item ${indentItem.materialName || product?.name} must be greater than zero.`);
+        }
+        if (requestedQty.gt(remainingQty)) {
+          throw new BadRequestException(`Requested quantity (${requestedQty}) exceeds remaining unfulfilled quantity (${remainingQty}) for ${indentItem.materialName || product?.name}.`);
+        }
+
+        // Server-side rates & tax calculation
+        const rate = new Prisma.Decimal(i.unitPrice || i.rate || indentItem.estimatedUnitRate || 0);
+        const isGstApplicable = dto.gstApplicable !== false && dto.hasGst !== false;
+        const gstPct = isGstApplicable
+          ? new Prisma.Decimal(i.gstPercent ?? dto.gstRate ?? dto.gst ?? 18)
+          : new Prisma.Decimal(0);
+
+        const lineSub = requestedQty.mul(rate);
         const lineGst = lineSub.mul(gstPct).div(100);
         const lineTot = lineSub.add(lineGst);
 
         subtotal = subtotal.add(lineSub);
-        gstAmount = gstAmount.add(lineGst);
-
-        const indentItem = await tx.purchaseIndentItem.findFirst({
-          where: {
-            purchaseIndentId: indentId,
-            productId: i.productId || i.materialId,
-          },
-        });
+        totalGstAmount = totalGstAmount.add(lineGst);
 
         itemsToCreate.push({
-          productId: i.productId || i.materialId,
-          indentItemId: indentItem?.id || null,
-          materialCodeSnapshot: product?.sku || '',
-          materialNameSnapshot: product?.name || '',
-          uomSnapshot: product?.unit || '',
-          quantity: qty,
+          productId: product?.id || indentItem.productId,
+          indentItemId: indentItem.id,
+          purchaseIndentId: targetIndentId,
+          materialCodeSnapshot: product?.sku || indentItem.materialCode || '',
+          materialNameSnapshot: product?.name || indentItem.materialName || i.name || '',
+          uomSnapshot: product?.unit || indentItem.uom || i.unit || '',
+          quantity: requestedQty,
           unitPrice: rate,
           discountPercent: new Prisma.Decimal(i.discountPercent || 0),
           gstPercent: gstPct,
@@ -1750,28 +1880,41 @@ export class ProcurementService {
         });
       }
 
-      const freight = new Prisma.Decimal(dto.freight || 0);
+      const freight = new Prisma.Decimal(dto.transportationCost || dto.freight || 0);
       const otherCharges = new Prisma.Decimal(dto.otherCharges || 0);
-      const grandTotal = subtotal.add(gstAmount).add(freight).add(otherCharges);
+      const grandTotal = subtotal.add(totalGstAmount).add(freight).add(otherCharges);
 
       const snapshot = {
         subtotal: subtotal.toNumber(),
-        gstAmount: gstAmount.toNumber(),
-        gstPercent: dto.items?.[0]?.gstPercent || 18,
+        gstAmount: totalGstAmount.toNumber(),
+        gstPercent: itemsToCreate[0]?.gstPercent?.toNumber() || 18,
         freight: freight.toNumber(),
         grandTotal: grandTotal.toNumber(),
         vendorName: supplierExists?.name || 'Default Vendor',
+        selectedIndents: uniqueIndents.map((ind) => ({
+          id: ind.id,
+          publicId: ind.publicId,
+          indentNo: ind.indentNo,
+          department: ind.department,
+        })),
+        selectedItems: itemsToCreate.map((it) => ({
+          indentId: it.purchaseIndentId,
+          indentItemId: it.indentItemId,
+          productId: it.productId,
+          materialName: it.materialNameSnapshot,
+          quantity: it.quantity.toNumber(),
+          unitPrice: it.unitPrice.toNumber(),
+          lineTotal: it.lineTotal.toNumber(),
+        })),
         ...(dto.snapshot || {}),
       };
 
       const grandTotalNum = grandTotal.toNumber();
       let initialStatus = 'DRAFT';
-      let initialIndentStatus = 'DRAFT_PO_CREATED';
 
       // PO Total <= 10,000 has NO approval step and is directly approved
       if (grandTotalNum <= 10000) {
         initialStatus = 'FINANCE_APPROVED';
-        initialIndentStatus = 'FINANCE_APPROVED';
       }
 
       const po = await tx.purchaseOrder.create({
@@ -1779,9 +1922,9 @@ export class ProcurementService {
           publicId: draftPoNo,
           draftPoNo,
           poNumber: draftPoNo,
-          companyId: indent.companyId,
+          companyId,
           supplierId,
-          purchaseIndentId: indentId,
+          purchaseIndentId: primaryIndent.id,
           status: initialStatus,
           freight,
           otherCharges,
@@ -1790,7 +1933,7 @@ export class ProcurementService {
             ? new Date(dto.expectedDeliveryDate)
             : null,
           totalAmount: grandTotal,
-          gstAmount,
+          gstAmount: totalGstAmount,
           snapshot,
           ...(initialStatus === 'FINANCE_APPROVED' && {
             superAdminApprovedById: actorId || null,
@@ -1806,17 +1949,71 @@ export class ProcurementService {
           purchaseIndent: { include: { requestedBy: true } },
         },
       });
-      await tx.purchaseIndent.update({
-        where: { id: indentId },
-        data: { status: initialIndentStatus, version: { increment: 1 } },
-      });
+
+      // 6. Update statuses of all involved indents
+      for (const ind of uniqueIndents) {
+        const allIndentItems = await tx.purchaseIndentItem.findMany({
+          where: { purchaseIndentId: ind.id },
+        });
+
+        let allItemsFullyConsumed = true;
+        let anyItemConsumed = false;
+
+        for (const item of allIndentItems) {
+          const activePOItems = await tx.purchaseOrderItem.findMany({
+            where: {
+              indentItemId: item.id,
+              purchaseOrder: {
+                status: { notIn: ['SUPER_ADMIN_REJECTED', 'CANCELLED'] },
+              },
+            },
+            select: { quantity: true },
+          });
+          const totalConverted = activePOItems.reduce(
+            (sum: Prisma.Decimal, poi: any) => sum.add(poi.quantity),
+            new Prisma.Decimal(0),
+          );
+          const reqQty = new Prisma.Decimal(item.approvedQuantity || item.quantity);
+
+          if (totalConverted.gte(reqQty)) {
+            anyItemConsumed = true;
+          } else {
+            allItemsFullyConsumed = false;
+            if (totalConverted.gt(0)) anyItemConsumed = true;
+          }
+        }
+
+        let newIndentStatus = ind.status;
+        if (allItemsFullyConsumed) {
+          newIndentStatus = initialStatus === 'FINANCE_APPROVED' ? 'FINANCE_APPROVED' : 'DRAFT_PO_CREATED';
+        } else {
+          newIndentStatus = 'PLANT_HEAD_APPROVED';
+        }
+
+        if (newIndentStatus !== ind.status) {
+          await tx.purchaseIndent.update({
+            where: { id: ind.id },
+            data: { status: newIndentStatus, version: { increment: 1 } },
+          });
+          await tx.purchaseIndentStatusHistory.create({
+            data: {
+              purchaseIndentId: ind.id,
+              oldStatus: ind.status,
+              newStatus: newIndentStatus,
+              remarks: `PO ${po.publicId} created with selected items`,
+              actorId,
+            },
+          });
+        }
+      }
+
       await tx.purchaseOrderStatusHistory.create({
         data: { purchaseOrderId: po.id, newStatus: po.status, actorId },
       });
       await tx.auditLog.create({
         data: {
           actorUserId: actorId,
-          companyId: indent.companyId,
+          companyId,
           action: 'PO_CREATED',
           entityType: 'PurchaseOrder',
           entityId: po.id,
@@ -1825,7 +2022,7 @@ export class ProcurementService {
       });
       await this.notifyRole(
         tx,
-        indent.companyId,
+        companyId,
         ['FINANCE', 'FINANCE_EXECUTIVE', 'FINANCE_MANAGER'],
         initialStatus === 'FINANCE_APPROVED'
           ? 'PO Directly Approved'

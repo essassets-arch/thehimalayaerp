@@ -390,22 +390,36 @@ export async function createPurchaseOrder(indentId: string, poData: any, actorNa
 
   const payload = {
     supplierId: poData.supplierId || poData.vendorId,
+    vendorId: poData.vendorId || poData.supplierId,
     totalAmount: totalAmountNum,
     freight: Number(poData.freight || 0),
     otherCharges: Number(poData.otherCharges || 0),
+    transportationCost: Number(poData.transportationCost || poData.freight || 0),
     paymentTerms: poData.paymentTerms || '',
     expectedDeliveryDate: poData.expectedDeliveryDate || poData.expectedDate || null,
+    hasGst: poData.hasGst !== false,
+    gstApplicable: poData.gstApplicable !== false && poData.hasGst !== false,
+    gstRate: Number(poData.gstRate ?? poData.gst ?? 18),
     items: (poData.items || []).map((i: any) => ({
+      indentId: i.indentId || indentId,
+      indentPublicId: i.indentPublicId,
+      indentItemId: i.indentItemId || i.id,
       productId: i.productId || i.materialId || i.id,
-      quantity: Number(i.quantity || 0),
+      materialId: i.materialId || i.productId || i.id,
+      name: i.name || i.materialName,
+      quantity: Number(i.quantity ?? i.approvedQty ?? 0),
+      approvedQty: Number(i.approvedQty ?? i.quantity ?? 0),
       unitPrice: Number(i.unitPrice || i.rate || 0),
       discountPercent: Number(i.discountPercent || i.discount || 0),
-      gstPercent: Number(i.gstPercent || i.tax || 18)
-    }))
+      gstPercent: Number(i.gstPercent ?? poData.gstRate ?? poData.gst ?? 18),
+    })),
+    selectedIndents: poData.selectedIndents || [],
   };
 
   try {
-    const res = await purchaseOrderService.createFromIndent(indentId, payload);
+    const res = await (poData.selectedIndents?.length > 1
+      ? purchaseOrderService.createFromSelectedIndents(payload)
+      : purchaseOrderService.createFromIndent(indentId, payload));
     await syncProcurementData();
     return res;
   } catch (err: any) {

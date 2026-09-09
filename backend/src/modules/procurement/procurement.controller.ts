@@ -263,6 +263,12 @@ export class ProcurementController {
   createPO(@Param('indentId') id: string, @Body() d: any, @Req() r: any) {
     return this.service.createPO(id, d, r.user?.sub);
   }
+  @Post('purchase-orders/from-selected-indents')
+  @RequirePermissions('procurement.purchase_orders.create')
+  createPOFromSelectedIndents(@Body() d: any, @Req() r: any) {
+    const primaryIndentId = d.items?.[0]?.indentId || d.indentId || '';
+    return this.service.createPO(primaryIndentId, d, r.user?.sub);
+  }
   @Get('purchase-orders/:id/closure-status')
   @RequirePermissions('procurement.purchase_orders.read')
   closureStatus(@Param('id') id: string) {

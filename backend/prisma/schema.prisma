@@ -1996,8 +1996,9 @@ model PurchaseOrder {
 model PurchaseOrderItem {
   id                          String                       @id @default(uuid())
   purchaseOrderId             String
-  productId                   String
+  productId                   String  
   indentItemId                String?
+  purchaseIndentId            String?
   materialCodeSnapshot        String?
   materialNameSnapshot        String?
   uomSnapshot                 String?
