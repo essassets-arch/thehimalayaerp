@@ -841,7 +841,7 @@ async function seedDatabase(dbConfig) {
         }
       }
 
-      // Ensure all manufacturing products for this company are strictly D1
+      // Ensure all manufacturing products for this company are strictly D1 with standard HSN & GST
       await prisma.product.updateMany({
         where: {
           companyId: comp.id,
@@ -853,6 +853,25 @@ async function seedDatabase(dbConfig) {
         },
         data: {
           dispatchCategory: 'D1',
+        },
+      });
+
+      await prisma.product.updateMany({
+        where: {
+          companyId: comp.id,
+          productType: 'MANUFACTURING',
+          OR: [
+            { gstRate: null },
+            { hsnCode: null },
+            { hsnCode: '' },
+            { brand: null },
+            { brand: '' },
+          ],
+        },
+        data: {
+          gstRate: 18,
+          hsnCode: '39259090',
+          brand: 'HIMALAYA',
         },
       });
 
