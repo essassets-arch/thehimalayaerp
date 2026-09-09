@@ -535,10 +535,15 @@ export default function QCPendingPage() {
     });
   }, [jobs, searchQuery]);
 
+  const isShowingAll = pageSize >= 99999 || (filteredJobs.length > 0 && pageSize >= filteredJobs.length);
+
   const paginatedJobs = useMemo(() => {
+    if (isShowingAll) {
+      return filteredJobs;
+    }
     const start = (currentPage - 1) * pageSize;
     return filteredJobs.slice(start, start + pageSize);
-  }, [filteredJobs, currentPage, pageSize]);
+  }, [filteredJobs, currentPage, pageSize, isShowingAll]);
 
   if (!isClient) return null;
 
@@ -564,7 +569,24 @@ export default function QCPendingPage() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (isShowingAll) {
+                setPageSize(25);
+              } else {
+                setPageSize(99999);
+              }
+              setCurrentPage(1);
+            }}
+            className={`${styles.btnShowAll} ${isShowingAll ? styles.btnShowAllActive : ''}`}
+            title={isShowingAll ? 'Switch back to paginated view (25 per page)' : 'Show all data without pagination'}
+          >
+            <Layers size={14} />
+            {isShowingAll ? 'Show Paginated (25)' : `Show All Data (${filteredJobs.length})`}
+          </button>
+
           <button 
             type="button" 
             onClick={() => fetchJobs(true)} 
@@ -873,10 +895,11 @@ export default function QCPendingPage() {
             </div>
             <PaginationControl
               currentPage={currentPage}
-              totalPages={Math.ceil(filteredJobs.length / pageSize) || 1}
+              totalPages={isShowingAll ? 1 : (Math.ceil(filteredJobs.length / pageSize) || 1)}
               totalItems={filteredJobs.length}
               pageSize={pageSize}
-              pageSizeOptions={[10, 25, 50, 100]}
+              pageSizeOptions={[10, 25, 50, 100, 250, 500, 'all']}
+              showAllOption={true}
               onPageChange={setCurrentPage}
               onPageSizeChange={(newSize) => {
                 setPageSize(newSize);

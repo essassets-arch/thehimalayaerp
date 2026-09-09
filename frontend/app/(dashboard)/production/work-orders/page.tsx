@@ -81,7 +81,7 @@ interface GroupedOrder {
 export default function WorkOrderListPage() {
   const router = useRouter();
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'ALL' | 'READY' | 'IN_PROGRESS' | 'COMPLETED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'READY' | 'IN_PROGRESS' | 'COMPLETED'>('READY');
   const [viewMode, setViewMode] = useState<'ORDER_WISE' | 'FLAT'>('ORDER_WISE');
   const [startingId, setStartingId] = useState<string | null>(null);
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<any>(null);
@@ -345,12 +345,18 @@ export default function WorkOrderListPage() {
 
   // Paginated grouped orders
   const paginatedGroupedOrders = useMemo(() => {
+    if (pageSize >= 99999 || pageSize >= filteredGroupedOrders.length) {
+      return filteredGroupedOrders;
+    }
     const start = (currentPage - 1) * pageSize;
     return filteredGroupedOrders.slice(start, start + pageSize);
   }, [filteredGroupedOrders, currentPage, pageSize]);
 
   // Paginated flat data
   const paginatedFlatData = useMemo(() => {
+    if (pageSize >= 99999 || pageSize >= filteredFlatData.length) {
+      return filteredFlatData;
+    }
     const start = (currentPage - 1) * pageSize;
     return filteredFlatData.slice(start, start + pageSize);
   }, [filteredFlatData, currentPage, pageSize]);
@@ -985,11 +991,16 @@ export default function WorkOrderListPage() {
             ))}
             <PaginationControl
               currentPage={currentPage}
-              totalPages={Math.ceil(filteredGroupedOrders.length / pageSize) || 1}
+              totalPages={pageSize >= 99999 ? 1 : (Math.ceil(filteredGroupedOrders.length / pageSize) || 1)}
               totalItems={filteredGroupedOrders.length}
               pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100, 250, 500, 'all']}
+              showAllOption={true}
               onPageChange={setCurrentPage}
-              onPageSizeChange={setPageSize}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setCurrentPage(1);
+              }}
             />
           </div>
         )
@@ -1135,11 +1146,16 @@ export default function WorkOrderListPage() {
           </div>
           <PaginationControl
             currentPage={currentPage}
-            totalPages={Math.ceil(filteredFlatData.length / pageSize) || 1}
+            totalPages={pageSize >= 99999 ? 1 : (Math.ceil(filteredFlatData.length / pageSize) || 1)}
             totalItems={filteredFlatData.length}
             pageSize={pageSize}
+            pageSizeOptions={[10, 25, 50, 100, 250, 500, 'all']}
+            showAllOption={true}
             onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
           />
         </div>
       )}

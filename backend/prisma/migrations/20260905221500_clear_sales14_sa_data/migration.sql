@@ -47,7 +47,7 @@ BEGIN
 
   -- 5. Identify Production Plans & Work Orders & Dispatches
   SELECT ARRAY_AGG(id) INTO v_plan_ids FROM "ProductionPlan" WHERE "salesOrderId" = ANY(v_order_ids);
-  SELECT ARRAY_AGG(id) INTO v_wo_ids FROM "WorkOrder" WHERE "productionPlanId" = ANY(v_plan_ids) OR "salesOrderId" = ANY(v_order_ids);
+  SELECT ARRAY_AGG(id) INTO v_wo_ids FROM "WorkOrder" WHERE "productionPlanId" = ANY(v_plan_ids);
   SELECT ARRAY_AGG(id) INTO v_dispatch_ids FROM "Dispatch" WHERE "salesOrderId" = ANY(v_order_ids);
 
   -- Cascade Deletions
@@ -57,8 +57,8 @@ BEGIN
   END IF;
 
   IF v_wo_ids IS NOT NULL AND ARRAY_LENGTH(v_wo_ids, 1) > 0 THEN
-    DELETE FROM "QualityInspection" WHERE "workOrderId" = ANY(v_wo_ids);
-    DELETE FROM "DailyReportItem" WHERE "workOrderId" = ANY(v_wo_ids);
+    DELETE FROM "QCInspection" WHERE "workOrderId" = ANY(v_wo_ids);
+    DELETE FROM "ProductionDailyReportItem" WHERE "workOrderId" = ANY(v_wo_ids);
     DELETE FROM "WorkOrder" WHERE "id" = ANY(v_wo_ids);
   END IF;
 

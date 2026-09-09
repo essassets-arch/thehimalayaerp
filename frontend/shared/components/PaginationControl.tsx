@@ -8,7 +8,8 @@ export interface PaginationControlProps {
   totalPages: number;
   totalItems: number;
   pageSize: number;
-  pageSizeOptions?: number[];
+  pageSizeOptions?: (number | string)[];
+  showAllOption?: boolean;
   onPageChange: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
   themeColor?: string;
@@ -22,6 +23,7 @@ export default function PaginationControl({
   totalItems = 0,
   pageSize = 25,
   pageSizeOptions = [10, 25, 50, 100],
+  showAllOption = false,
   onPageChange,
   onPageSizeChange,
   themeColor = '#2F4375',
@@ -30,8 +32,9 @@ export default function PaginationControl({
 }: PaginationControlProps) {
   if (totalItems <= 0 && totalPages <= 1) return null;
 
+  const isShowingAll = pageSize >= 99999;
   const startRecord = totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0;
-  const endRecord = totalItems > 0 ? Math.min(currentPage * pageSize, totalItems) : 0;
+  const endRecord = isShowingAll ? totalItems : Math.min(currentPage * pageSize, totalItems);
 
   // Generate window of page numbers with smart ellipsis
   const getPageNumbers = () => {
@@ -79,14 +82,22 @@ export default function PaginationControl({
       {/* Left: Entries Info + Optional Page Size Selector */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
         <div style={{ fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
-          Showing{' '}
-          <strong style={{ fontWeight: 700, color: '#0F172A' }}>{startRecord}</strong> to{' '}
-          <strong style={{ fontWeight: 700, color: '#0F172A' }}>{endRecord}</strong> of{' '}
-          <strong style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems}</strong> entries
-          {totalPages > 1 && (
-            <span style={{ color: '#94A3B8', marginLeft: '6px' }}>
-              (Page {currentPage} of {totalPages})
-            </span>
+          {isShowingAll ? (
+            <>
+              Showing all <strong style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems}</strong> entries
+            </>
+          ) : (
+            <>
+              Showing{' '}
+              <strong style={{ fontWeight: 700, color: '#0F172A' }}>{startRecord}</strong> to{' '}
+              <strong style={{ fontWeight: 700, color: '#0F172A' }}>{endRecord}</strong> of{' '}
+              <strong style={{ fontWeight: 700, color: '#0F172A' }}>{totalItems}</strong> entries
+              {totalPages > 1 && (
+                <span style={{ color: '#94A3B8', marginLeft: '6px' }}>
+                  (Page {currentPage} of {totalPages})
+                </span>
+              )}
+            </>
           )}
         </div>
 
@@ -94,9 +105,10 @@ export default function PaginationControl({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#64748B' }}>
             <span>Per page:</span>
             <select
-              value={pageSize}
+              value={isShowingAll ? 'all' : pageSize}
               onChange={(e) => {
-                onPageSizeChange(Number(e.target.value));
+                const val = e.target.value === 'all' ? 99999 : Number(e.target.value);
+                onPageSizeChange(val);
                 onPageChange(1);
               }}
               style={{
@@ -111,11 +123,17 @@ export default function PaginationControl({
                 outline: 'none',
               }}
             >
-              {pageSizeOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
+              {pageSizeOptions.map((opt) => {
+                const isAll = opt === 'all' || opt === 'All' || Number(opt) >= 99999;
+                return (
+                  <option key={String(opt)} value={isAll ? 'all' : opt}>
+                    {isAll ? `All (${totalItems})` : opt}
+                  </option>
+                );
+              })}
+              {showAllOption && !pageSizeOptions.some((o) => o === 'all' || o === 'All' || Number(o) >= 99999) && (
+                <option value="all">All ({totalItems})</option>
+              )}
             </select>
           </div>
         )}
