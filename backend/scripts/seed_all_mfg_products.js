@@ -841,6 +841,21 @@ async function seedDatabase(dbConfig) {
         }
       }
 
+      // Ensure all manufacturing products for this company are strictly D1
+      await prisma.product.updateMany({
+        where: {
+          companyId: comp.id,
+          productType: 'MANUFACTURING',
+          OR: [
+            { dispatchCategory: null },
+            { dispatchCategory: '' },
+          ],
+        },
+        data: {
+          dispatchCategory: 'D1',
+        },
+      });
+
       console.log(`  ✓ Company ${comp.name}: Created ${created} products, Updated ${updated} products.`);
 
       const mfgCount = await prisma.product.count({
@@ -850,7 +865,15 @@ async function seedDatabase(dbConfig) {
           isActive: true,
         },
       });
-      console.log(`  📊 Current Active Manufacturing Products in ${comp.name}: ${mfgCount}`);
+      const d1Count = await prisma.product.count({
+        where: {
+          companyId: comp.id,
+          productType: 'MANUFACTURING',
+          dispatchCategory: 'D1',
+          isActive: true,
+        },
+      });
+      console.log(`  📊 Current Active Manufacturing Products in ${comp.name}: ${mfgCount} (All ${d1Count} in Dispatch 1 - D1)`);
     }
 
     console.log(`\n✅ Completed seeding for ${dbConfig.name}`);
