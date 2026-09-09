@@ -518,9 +518,10 @@ export default function QCPendingPage() {
       const q = searchQuery.toLowerCase();
       const soNo = (job.productionPlan?.salesOrder?.orderNumber || job.salesOrder?.orderNumber || '').toLowerCase();
       const woNo = (job.workOrderNumber || job.id || '').toLowerCase();
-      const customer = (job.productionPlan?.salesOrder?.customer?.companyName || job.productionPlan?.salesOrder?.customer?.name || job.customerName || '').toLowerCase();
+      const customer = (resolveCustomerName(job) || job.productionPlan?.salesOrder?.customer?.companyName || job.productionPlan?.salesOrder?.customer?.name || job.customerName || '').toLowerCase();
+      const leadProject = (job.productionPlan?.salesOrder?.sourceQuotation?.lead?.projectName || job.productionPlan?.salesOrder?.quotation?.lead?.projectName || '').toLowerCase();
       const product = (job.salesOrderItem?.product?.name || job.productName || '').toLowerCase();
-      return soNo.includes(q) || woNo.includes(q) || customer.includes(q) || product.includes(q);
+      return soNo.includes(q) || woNo.includes(q) || customer.includes(q) || leadProject.includes(q) || product.includes(q);
     });
 
     return [...list].sort((a: any, b: any) => {

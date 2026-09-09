@@ -31,6 +31,8 @@ export class ProductionWorkflowService {
                 salesOrder: {
                   include: {
                     customer: true,
+                    quotation: { include: { lead: true } },
+                    sourceQuotation: { include: { lead: true } },
                   },
                 },
               },
@@ -73,6 +75,8 @@ export class ProductionWorkflowService {
                 salesOrder: {
                   include: {
                     customer: true,
+                    quotation: { include: { lead: true } },
+                    sourceQuotation: { include: { lead: true } },
                   },
                 },
               },
