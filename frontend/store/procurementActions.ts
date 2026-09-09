@@ -342,12 +342,19 @@ export async function createPurchaseOrder(indentId: string, poData: any, actorNa
     localStatus = 'FINANCE_APPROVED';
   }
 
+  const storeState = useERPStore.getState();
+  const matchedIndent = poData.purchaseIndent ||
+    storeState.state?.procurement?.materialIndents?.find((i: any) => i.id === indentId) ||
+    storeState.state?.purchaseIndents?.find((i: any) => i.id === indentId) ||
+    storeState.state?.materialIndents?.find((i: any) => i.id === indentId);
+
   const newPO = {
     id: poId,
     poNumber: poId,
     publicId: poId,
     indentId: indentId,
     purchaseIndentId: indentId,
+    purchaseIndent: matchedIndent || null,
     vendorName: poData.vendorName || poData.supplierName || 'Selected Vendor',
     vendorId: poData.vendorId || poData.supplierId,
     supplierId: poData.supplierId || poData.vendorId,

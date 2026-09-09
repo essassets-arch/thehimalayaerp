@@ -718,10 +718,10 @@ export default function PurchaseIndentsView() {
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <h2 style={{ fontSize: '17px', fontWeight: 800, color: '#1e293b', margin: 0, letterSpacing: '-0.01em', wordBreak: 'break-all' }}>
-                      Purchase Order Details ({selectedPO.id})
+                      Purchase Order Details ({selectedPO.poNumber || selectedPO.publicId || selectedPO.id})
                     </h2>
                     <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '3px', fontWeight: 600 }}>
-                      Indent Ref: <span style={{ color: '#0284c7', background: '#f0f9ff', padding: '2px 8px', borderRadius: '4px', border: '1px solid #bae6fd', marginLeft: '4px' }}>{selectedPO.indentId || selectedPO.poNumber || 'PI-REF'}</span>
+                      Indent Ref: <span style={{ color: '#0284c7', background: '#f0f9ff', padding: '2px 8px', borderRadius: '4px', border: '1px solid #bae6fd', marginLeft: '4px' }}>{selectedPO.purchaseIndent?.publicId || selectedPO.purchaseIndent?.indentNo || selectedPO.indentId || selectedPO.poNumber || 'PI-REF'}</span>
                     </div>
                   </div>
                 </div>

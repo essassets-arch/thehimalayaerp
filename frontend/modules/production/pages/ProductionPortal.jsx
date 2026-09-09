@@ -996,7 +996,23 @@ export default function ProductionPortal() {
     if (!confirmation.isConfirmed) return;
 
     try {
-      if (order.workOrderIds && order.workOrderIds.length > 0) {
+      const decisionRes = await backendFetch('/api/backend/production/incoming-orders/decision', {
+        method: 'POST',
+        body: {
+          orderId: order.id || order.orderNo,
+          orderNo: order.orderNo,
+          productionPlanId: order.productionPlanId,
+          workOrderIds: order.workOrderIds,
+          action,
+          remarks: isAccept ? 'Accepted by Production' : confirmation.value,
+        },
+      }).catch(err => {
+        console.warn('[Production Incoming Decision API fallback]', err);
+        return null;
+      });
+
+      // Secondary fallback if specific workOrderIds exist
+      if (!decisionRes && order.workOrderIds && order.workOrderIds.length > 0) {
         await Promise.all((order.workOrderIds || []).map(workOrderId =>
           backendFetch(`/api/backend/production/work-orders/${workOrderId}/action`, {
             method: 'POST',
@@ -1008,16 +1024,6 @@ export default function ProductionPortal() {
             console.warn('[Production Accept WorkOrder fallback]', err);
           })
         ));
-      } else if (order.id) {
-        await backendFetch(`/api/backend/sales/orders/${order.id}/action`, {
-          method: 'POST',
-          body: {
-            action: isAccept ? 'START_PRODUCTION' : 'PLANT_REJECT',
-            remarks: isAccept ? 'Accepted by Production' : confirmation.value,
-          },
-        }).catch(err => {
-          console.warn('[Production Accept SalesOrder fallback]', err);
-        });
       }
 
       // Also activate/update local ERP store so UI state updates immediately
@@ -2352,6 +2358,7 @@ export default function ProductionPortal() {
       return (
         hasStarted ||
         [
+          'READY',
           'IN_PROGRESS',
           'PRODUCTION_STARTED',
           'RUNNING',

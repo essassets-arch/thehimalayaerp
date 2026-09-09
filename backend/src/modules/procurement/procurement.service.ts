@@ -1800,6 +1800,11 @@ export class ProcurementService {
             create: itemsToCreate,
           },
         },
+        include: {
+          supplier: true,
+          items: { include: { product: true } },
+          purchaseIndent: { include: { requestedBy: true } },
+        },
       });
       await tx.purchaseIndent.update({
         where: { id: indentId },

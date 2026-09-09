@@ -51,6 +51,42 @@ export class ProductionWorkflowController {
     return { success: true, ...result };
   }
 
+  @Post('production/incoming-orders/decision')
+  @RequirePermissions(
+    'production.floor.create',
+    'production.floor.start',
+    'production.workorder.start',
+    'production.workorder.create',
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'production.view',
+    'production.read',
+    'admin.planthead.create',
+    'admin.planthead.read',
+    'planthead.create',
+    'planthead.read',
+    'superadmin.create',
+    'superadmin.read',
+  )
+  async handleIncomingOrderDecision(
+    @Body()
+    dto: {
+      orderId: string;
+      orderNo?: string;
+      action: string;
+      remarks?: string;
+    },
+    @Req() req: any,
+  ) {
+    const data = await this.workflowService.handleIncomingOrderDecision(
+      dto.orderId || dto.orderNo || '',
+      dto.action,
+      dto.remarks,
+      req.user?.sub || 'system',
+    );
+    return data;
+  }
+
   // ==========================================
   // DASHBOARD
   // ==========================================

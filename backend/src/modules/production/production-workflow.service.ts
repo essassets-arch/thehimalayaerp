@@ -9,12 +9,15 @@ import { QcPassDto } from './dto/qc-pass.dto';
 import { InventoryService } from '../inventory/inventory.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
+import { SequenceService } from '../../common/sequence/sequence.service';
+
 @Injectable()
 export class ProductionWorkflowService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventoryService: InventoryService,
     private readonly notificationsService?: NotificationsService,
+    private readonly sequenceService?: SequenceService,
   ) {}
 
   async getQcHistoryInspections() {
@@ -108,6 +111,7 @@ export class ProductionWorkflowService {
         return (
           hasStarted ||
           [
+            'READY',
             'IN_PROGRESS',
             'PRODUCTION_STARTED',
             'RUNNING',
@@ -2366,5 +2370,261 @@ export class ProductionWorkflowService {
     }
 
     return this.inventoryService.getFinishedGoodsHistory(companyId, cleanId);
+  }
+
+  async handleIncomingOrderDecision(
+    orderId: string,
+    action: string,
+    remarks?: string,
+    userId?: string,
+  ) {
+    if (!orderId) {
+      throw new BadRequestException('Order ID is required');
+    }
+
+    const isAccept = String(action || '').toUpperCase() === 'ACCEPT';
+
+    return await this.prisma.$transaction(async (tx) => {
+      // 1. Locate SalesOrder
+      let salesOrder = await tx.salesOrder.findFirst({
+        where: {
+          OR: [
+            { id: orderId },
+            { orderNumber: orderId },
+            { productionPlans: { some: { id: orderId } } },
+          ],
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          productionPlans: {
+            include: {
+              workOrders: true,
+            },
+          },
+          customer: true,
+        },
+      });
+
+      // If not found by SalesOrder, check if orderId is a WorkOrder id
+      if (!salesOrder) {
+        const wo = await tx.workOrder.findUnique({
+          where: { id: orderId },
+          include: {
+            productionPlan: {
+              include: {
+                salesOrder: {
+                  include: {
+                    items: { include: { product: true } },
+                    productionPlans: { include: { workOrders: true } },
+                    customer: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        if (wo?.productionPlan?.salesOrder) {
+          salesOrder = wo.productionPlan.salesOrder;
+        }
+      }
+
+      if (!salesOrder) {
+        throw new NotFoundException(`Order with ID ${orderId} not found`);
+      }
+
+      if (!isAccept) {
+        // Handle rejection
+        const cancelState = await tx.workflowState.findFirst({
+          where: { workflow: { code: 'SALES_ORDER' }, code: 'CANCELLED' },
+        });
+        await tx.salesOrder.update({
+          where: { id: salesOrder.id },
+          data: {
+            status: 'CANCELLED',
+            ...(cancelState ? { workflowStateId: cancelState.id } : {}),
+            remarks: remarks || 'Rejected by Production',
+          },
+        });
+
+        await tx.productionPlan.updateMany({
+          where: { salesOrderId: salesOrder.id },
+          data: { status: 'CANCELLED' as any },
+        });
+
+        const planIds = salesOrder.productionPlans.map((p) => p.id);
+        if (planIds.length > 0) {
+          await tx.workOrder.updateMany({
+            where: { productionPlanId: { in: planIds } },
+            data: { status: 'CANCELLED' as any, productionStatus: 'CANCELLED' as any },
+          });
+        }
+
+        return {
+          success: true,
+          message: `Order #${salesOrder.orderNumber} has been rejected.`,
+          action: 'REJECT',
+        };
+      }
+
+      // ACCEPT FLOW
+      // 1. Update SalesOrder status to PLANT_APPROVED (if still pending)
+      const plantApprovedState = await tx.workflowState.findFirst({
+        where: { workflow: { code: 'SALES_ORDER' }, code: 'PLANT_APPROVED' },
+      });
+      if (
+        [
+          'SENT_TO_PLANT_HEAD',
+          'SENT_TO_PLANT',
+          'DRAFT',
+          'CONFIRMED',
+          'PENDING_APPROVAL',
+        ].includes(String(salesOrder.status))
+      ) {
+        await tx.salesOrder.update({
+          where: { id: salesOrder.id },
+          data: {
+            status: 'PLANT_APPROVED',
+            ...(plantApprovedState ? { workflowStateId: plantApprovedState.id } : {}),
+          },
+        });
+      }
+
+      // 2. Ensure ProductionPlan exists and is RELEASED
+      let plan = salesOrder.productionPlans?.[0];
+      const planReleasedState =
+        (await tx.workflowState.findFirst({
+          where: { workflow: { code: 'PRODUCTION_PLAN' }, code: 'RELEASED' },
+        })) ||
+        (await tx.workflowState.findFirst({
+          where: { workflow: { code: 'PRODUCTION_PLAN' } },
+        }));
+
+      if (!plan) {
+        let planNumber: string;
+        try {
+          planNumber = this.sequenceService
+            ? await this.sequenceService.generateNextWithTx(
+                tx,
+                'production_plan_number',
+                'PP-',
+              )
+            : `PP-2627-${Date.now().toString().slice(-4)}`;
+        } catch {
+          const suffix = salesOrder.orderNumber
+            ? salesOrder.orderNumber.split('/').pop()
+            : Date.now().toString().slice(-4);
+          planNumber = `PP-2627-${suffix}`;
+        }
+
+        plan = await tx.productionPlan.create({
+          data: {
+            planNumber,
+            salesOrderId: salesOrder.id,
+            status: 'RELEASED',
+            plannedStartDate: new Date(),
+            workflowStateId: planReleasedState?.id,
+          },
+          include: { workOrders: true },
+        });
+      } else if (plan.status !== 'COMPLETED' && plan.status !== 'CANCELLED') {
+        plan = await tx.productionPlan.update({
+          where: { id: plan.id },
+          data: {
+            status: 'RELEASED',
+            ...(planReleasedState ? { workflowStateId: planReleasedState.id } : {}),
+          },
+          include: { workOrders: true },
+        });
+      }
+
+      // 3. Ensure Work Orders exist for items to manufacture
+      const woReadyState =
+        (await tx.workflowState.findFirst({
+          where: { workflow: { code: 'WORK_ORDER' }, code: 'READY' },
+        })) ||
+        (await tx.workflowState.findFirst({
+          where: { workflow: { code: 'WORK_ORDER' } },
+        }));
+
+      const existingWos = plan.workOrders || [];
+      const createdOrUpdatedWoIds: string[] = [];
+
+      // If work orders already exist, ensure any in CREATED state are transitioned to READY
+      for (const existingWo of existingWos) {
+        if (existingWo.status === 'CREATED' || existingWo.workflowStateId !== woReadyState?.id) {
+          const updatedWo = await tx.workOrder.update({
+            where: { id: existingWo.id },
+            data: {
+              status: 'READY',
+              workflowStateId: woReadyState?.id || existingWo.workflowStateId,
+            },
+          });
+          createdOrUpdatedWoIds.push(updatedWo.id);
+        } else {
+          createdOrUpdatedWoIds.push(existingWo.id);
+        }
+      }
+
+      // If no work orders exist or some items have no work order:
+      const items = salesOrder.items || [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const alreadyHasWo = existingWos.some((w) => w.salesOrderItemId === item.id);
+        if (!alreadyHasWo) {
+          const qty = Number(item.orderedQuantity || 1);
+          if (qty > 0) {
+            let woNumber: string;
+            try {
+              woNumber = this.sequenceService
+                ? await this.sequenceService.generateWorkOrderNumber(new Date(), tx)
+                : `WO/2627/${Date.now().toString().slice(-4)}-${String(i + 1).padStart(2, '0')}`;
+            } catch {
+              const baseSeq = salesOrder.orderNumber
+                ? salesOrder.orderNumber.split('/').pop()
+                : Date.now().toString().slice(-4);
+              woNumber = `WO/2627/${baseSeq}-${String(i + 1).padStart(2, '0')}`;
+            }
+
+            const newWo = await tx.workOrder.create({
+              data: {
+                workOrderNumber: woNumber,
+                productionPlanId: plan.id,
+                salesOrderItemId: item.id,
+                quantity: qty,
+                status: 'READY',
+                productionStatus: 'IN_PRODUCTION',
+                workflowStateId: woReadyState?.id,
+              },
+            });
+
+            await tx.salesOrderAllocation.create({
+              data: {
+                salesOrderId: salesOrder.id,
+                salesOrderItemId: item.id,
+                allocationType: 'PRODUCTION_REQUIRED',
+                requiredQuantity: qty,
+                productionQuantity: qty,
+                workOrderId: newWo.id,
+              },
+            });
+
+            createdOrUpdatedWoIds.push(newWo.id);
+          }
+        }
+      }
+
+      return {
+        success: true,
+        message: `Order #${salesOrder.orderNumber} accepted successfully. Work orders are now in Ready queue.`,
+        action: 'ACCEPT',
+        salesOrderId: salesOrder.id,
+        productionPlanId: plan.id,
+        workOrderIds: createdOrUpdatedWoIds,
+      };
+    });
   }
 }

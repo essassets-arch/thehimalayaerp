@@ -147,7 +147,7 @@ export default function StoreDept({ state, deptEmployee, setDeptEmployee, onBack
           <h3 className="card-heading" style={{ fontSize: '14px', marginBottom: '14px' }}>Issued Indents History</h3>
           <DataTable
             columns={[
-              { header: 'Indent ID', accessor: 'id' },
+              { header: 'Indent ID', accessor: 'id', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.publicId || row.indentNo || row.id}</strong> },
               { header: 'Work Order Ref', accessor: 'workOrderId', render: (row) => <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>{row.workOrderId}</span> },
               { header: 'Materials Issued', accessor: 'materials', render: (row) => row.materials.map(m => `${m.materialName} (x${m.quantityApproved})`).join(', ') },
               { header: 'Status', accessor: 'status', render: (row) => <span style={{ color: '#10b981', fontWeight: 'bold' }}>{row.status}</span> }

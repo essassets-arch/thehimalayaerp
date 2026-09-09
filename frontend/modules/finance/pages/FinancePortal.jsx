@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useRouter, usePathname, useParams, useSearchParams } from 'next/navigation';
@@ -337,6 +337,29 @@ export default function FinancePortal({ initialView, forceView }) {
   useEffect(() => {
     void refreshPurchaseOrders();
   }, []);
+
+  const resolveIndentDisplayId = useCallback((rowOrId, purchaseIndentObj) => {
+    if (!rowOrId && !purchaseIndentObj) return 'N/A';
+    if (purchaseIndentObj) {
+      return purchaseIndentObj.publicId || purchaseIndentObj.indentNo || purchaseIndentObj.id;
+    }
+    if (typeof rowOrId === 'object' && rowOrId !== null) {
+      if (rowOrId.purchaseIndent) {
+        return rowOrId.purchaseIndent.publicId || rowOrId.purchaseIndent.indentNo || rowOrId.purchaseIndent.id;
+      }
+      if (rowOrId.publicId || rowOrId.indentNo) {
+        return rowOrId.publicId || rowOrId.indentNo;
+      }
+      const targetId = rowOrId.purchaseIndentId || rowOrId.indentId || rowOrId.id;
+      const matched = purchaseIndents.find(i => i.id === targetId || i.publicId === targetId || i.indentNo === targetId) ||
+                      serverPurchaseIndents.find(i => i.id === targetId || i.publicId === targetId || i.indentNo === targetId);
+      return matched?.publicId || matched?.indentNo || targetId || 'N/A';
+    }
+    const targetId = String(rowOrId);
+    const matched = purchaseIndents.find(i => i.id === targetId || i.publicId === targetId || i.indentNo === targetId) ||
+                    serverPurchaseIndents.find(i => i.id === targetId || i.publicId === targetId || i.indentNo === targetId);
+    return matched?.publicId || matched?.indentNo || targetId;
+  }, [purchaseIndents, serverPurchaseIndents]);
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [draftPOsSubTab, setDraftPOsSubTab] = useState('Pending Drafts');
@@ -1938,7 +1961,7 @@ export default function FinancePortal({ initialView, forceView }) {
         </div>
         <DataTable
           columns={[
-            { header: 'Indent ID', accessor: 'id', render: row => <strong style={{ color: 'var(--color-primary)' }}>{row.id}</strong> },
+            { header: 'Indent ID', accessor: 'id', render: row => <strong style={{ color: 'var(--color-primary)' }}>{resolveIndentDisplayId(row)}</strong> },
             { header: 'Material', accessor: 'material', render: row => row.materialName || row.material || (row.items && (row.items[0]?.product?.name || row.items[0]?.materialName)) || 'Material' },
             { header: 'Quantity', accessor: 'approvedQuantity', render: row => `${row.approvedQuantity ?? row.requestedQuantity ?? row.requiredQuantity ?? row.quantity ?? (row.items && (row.items[0]?.approvedQuantity ?? row.items[0]?.quantity)) ?? 0} ${row.unit || (row.items && row.items[0]?.unit) || 'Units'}` },
             { header: 'Required Date', accessor: 'requiredDate', render: row => (row.targetDate || row.requiredDate || (row.items && row.items[0]?.requiredDate)) ? new Date(row.targetDate || row.requiredDate || row.items[0].requiredDate).toLocaleDateString('en-IN') : '15/08/2026' },
@@ -2020,7 +2043,8 @@ export default function FinancePortal({ initialView, forceView }) {
         items: itemsPayload,
         gst: isGstEnabled ? (poGst || '18') : '0',
         hasGst: isGstEnabled,
-        freight: poFreight || '0'
+        freight: poFreight || '0',
+        purchaseIndent: selectedPO
       };
 
       try {
@@ -2056,7 +2080,7 @@ export default function FinancePortal({ initialView, forceView }) {
               <FileText size={22} color="#3BAEEB" />
             </div>
             <div>
-              <h2 style={{ fontSize: '19px', fontWeight: 800, color: '#ffffff', margin: 0, letterSpacing: '0.01em' }}>Create Draft PO for {selectedPO.id}</h2>
+              <h2 style={{ fontSize: '19px', fontWeight: 800, color: '#ffffff', margin: 0, letterSpacing: '0.01em' }}>Create Draft PO for {resolveIndentDisplayId(selectedPO)}</h2>
               <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '2px' }}>Review approved indent materials and set vendor & financial terms</div>
             </div>
           </div>
@@ -2070,7 +2094,7 @@ export default function FinancePortal({ initialView, forceView }) {
           {/* Section 1: Approved Materials & Quantity Card */}
           <div style={{ marginBottom: '26px' }}>
             <div style={{ fontSize: '13px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Layers size={16} color="#0284c7" /> Approved Indent Line Items ({selectedPO.id})
+              <Layers size={16} color="#0284c7" /> Approved Indent Line Items ({resolveIndentDisplayId(selectedPO)})
             </div>
             <div style={{ border: '1px solid #DCE5F0', borderRadius: '10px', overflow: 'hidden', background: '#ffffff' }}>
               <div style={{ background: '#F5FAFE', borderBottom: '1px solid #DCE5F0', padding: '10px 16px', display: 'grid', gridTemplateColumns: '1fr 140px 180px', fontSize: '12px', fontWeight: 700, color: '#5E6B82' }}>
@@ -2391,7 +2415,7 @@ export default function FinancePortal({ initialView, forceView }) {
         <DataTable
           columns={[
             { header: 'PO ID', accessor: 'id', render: row => <strong>{row.poNumber || row.publicId || row.id}</strong> },
-            { header: 'Indent ID', accessor: 'purchaseIndentId', render: row => row.purchaseIndentId || row.indentId || 'N/A' },
+            { header: 'Indent ID', accessor: 'purchaseIndentId', render: row => resolveIndentDisplayId(row) },
             { header: 'Vendor', accessor: 'vendorName', render: row => row.vendorName || row.supplier?.name || 'N/A' },
             {
               header: 'Amount', accessor: 'totalAmount', render: row => {
@@ -2633,7 +2657,7 @@ export default function FinancePortal({ initialView, forceView }) {
         <DataTable
           columns={[
             { header: 'PO Draft ID', accessor: 'id', render: row => <strong style={{ color: '#24345C' }}>{row.poNumber || row.publicId || row.id}</strong> },
-            { header: 'Indent Ref', accessor: 'purchaseIndentId', render: row => <span style={{ background: '#f0f9ff', color: '#0284c7', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, border: '1px solid #bae6fd' }}>{row.purchaseIndent?.publicId || row.purchaseIndentId || row.indentId || 'PI-REF'}</span> },
+            { header: 'Indent Ref', accessor: 'purchaseIndentId', render: row => <span style={{ background: '#f0f9ff', color: '#0284c7', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, border: '1px solid #bae6fd' }}>{resolveIndentDisplayId(row)}</span> },
             { header: 'Vendor Name', accessor: 'vendorName', render: row => <strong style={{ color: '#334155' }}>{row.supplier?.name || row.vendorName || 'Vendor'}</strong> },
             {
               header: 'Grand Total', accessor: 'grandTotal', render: row => {
@@ -2713,7 +2737,7 @@ export default function FinancePortal({ initialView, forceView }) {
               <div style={{ background: '#24345C', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff' }}>
                 <div>
                   <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#ffffff' }}>Purchase Order PDF Preview ({selectedApprovedPO.id})</h3>
-                  <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '3px' }}>Indent Ref: {selectedApprovedPO.indentId || 'PI-REF'} • Status: {selectedApprovedPO.status}</div>
+                  <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '3px' }}>Indent Ref: {resolveIndentDisplayId(selectedApprovedPO)} • Status: {selectedApprovedPO.status}</div>
                 </div>
                 <button onClick={() => setShowPOPdfModal(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#ffffff', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px' }}>✕</button>
               </div>
@@ -2919,7 +2943,7 @@ export default function FinancePortal({ initialView, forceView }) {
         <DataTable
           columns={[
             { header: 'Official PO Ref', accessor: 'poNumber', render: row => <strong style={{ color: 'var(--color-primary)' }}>{row.poNumber || row.id}</strong> },
-            { header: 'Indent Ref', accessor: 'purchaseIndentId', render: row => row.purchaseIndentId || row.indentId || 'N/A' },
+            { header: 'Indent Ref', accessor: 'purchaseIndentId', render: row => resolveIndentDisplayId(row) },
             { header: 'Vendor', accessor: 'vendorName', render: row => row.vendorName || row.supplier?.name || 'N/A' },
             { header: 'Date Created', accessor: 'createdAt', render: row => new Date(row.createdAt).toLocaleDateString() },
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }

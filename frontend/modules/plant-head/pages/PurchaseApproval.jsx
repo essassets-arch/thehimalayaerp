@@ -109,7 +109,7 @@ export default function PurchaseApproval() {
       const matchesSearch = 
         (po.poNumber || po.publicId || po.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (po.vendorName || po.supplier?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (po.purchaseIndentId || po.indentId || '').toLowerCase().includes(searchQuery.toLowerCase());
+        (po.purchaseIndent?.publicId || po.purchaseIndent?.indentNo || po.purchaseIndentId || po.indentId || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
 
@@ -435,7 +435,7 @@ export default function PurchaseApproval() {
                   <div>
                     <div style={{ fontWeight: 800, color: '#1E293B' }}>{row.poNumber || row.publicId || row.id}</div>
                     <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
-                      Indent: {row.purchaseIndentId || row.indentId || 'Direct'}
+                      Indent: {row.purchaseIndent?.publicId || row.purchaseIndent?.indentNo || row.purchaseIndentId || row.indentId || 'Direct'}
                     </div>
                   </div>
                 )
@@ -599,7 +599,7 @@ export default function PurchaseApproval() {
                 <div>
                   <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Indent Reference</div>
                   <div style={{ fontSize: '14px', fontWeight: 800, color: '#2F4375', marginTop: '2px' }}>
-                    {selectedPO.purchaseIndentId || selectedPO.indentId || 'N/A'}
+                    {selectedPO.purchaseIndent?.publicId || selectedPO.purchaseIndent?.indentNo || selectedPO.purchaseIndentId || selectedPO.indentId || 'N/A'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#94A3B8' }}>Department: {selectedPO.purchaseIndent?.department || selectedPO.department || 'Plant Store'}</div>
                 </div>

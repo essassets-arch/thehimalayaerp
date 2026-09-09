@@ -261,7 +261,7 @@ export default function IndentHistory({ hideHeader = false } = {}) {
                       >
                         <td style={tdStyle}>
                           <strong style={{ color: '#0369a1', fontFamily: 'monospace', fontSize: '12px' }}>
-                            {ind.id?.slice(0, 16) || '—'}
+                            {ind.publicId || ind.indentNo || ind.id?.slice(0, 16) || '—'}
                           </strong>
                         </td>
                         <td style={tdStyle}>
@@ -362,7 +362,7 @@ export default function IndentHistory({ hideHeader = false } = {}) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                     <div>
                       <strong style={{ color: '#0369a1', fontFamily: 'monospace', fontSize: '13px', wordBreak: 'break-all' }}>
-                        {ind.id || '—'}
+                        {ind.publicId || ind.indentNo || ind.id || '—'}
                       </strong>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                         <span style={{
