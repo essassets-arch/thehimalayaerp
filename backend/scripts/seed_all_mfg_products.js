@@ -734,12 +734,12 @@ async function seedDatabase(dbConfig) {
 
   let prisma;
   try {
-    prisma = new PrismaClient({ datasources: { db: { url: dbConfig.url } } });
+    prisma = new PrismaClient(dbConfig.url ? { datasources: { db: { url: dbConfig.url } } } : undefined);
     const companies = await prisma.company.findMany();
     if (companies.length === 0) {
       console.log(`  [SKIP] No companies found in ${dbConfig.name}`);
       await prisma.$disconnect();
-      return;
+      return false;
     }
 
     for (const comp of companies) {
@@ -831,8 +831,10 @@ async function seedDatabase(dbConfig) {
     }
 
     console.log(`\n✅ Completed seeding for ${dbConfig.name}`);
+    return true;
   } catch (err) {
     console.error(`❌ Error with ${dbConfig.name}: ${err.message}`);
+    return false;
   } finally {
     if (prisma) await prisma.$disconnect();
   }
@@ -840,10 +842,41 @@ async function seedDatabase(dbConfig) {
 
 async function main() {
   console.log(`Starting Product Seeder: Total products to process = ${ALL_PRODUCTS.length}`);
-  for (const db of DBS) {
-    await seedDatabase(db);
+
+  // 1. Primary: Use DATABASE_URL from environment (production container)
+  if (process.env.DATABASE_URL) {
+    const success = await seedDatabase({
+      name: 'Primary Database (env)',
+      url: process.env.DATABASE_URL,
+    });
+    if (success) {
+      console.log(`\n🎉 All done! Products successfully synced.`);
+      return;
+    }
   }
+
+  // 2. Local fallback ports
+  const devFallbacks = [
+    {
+      name: 'Docker Host Port 5435',
+      url: 'postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@localhost:5435/himalaya_erp?schema=public',
+    },
+    {
+      name: 'Standalone DB (Port 5432)',
+      url: 'postgresql://himalaya_erp_user:12345678@localhost:5432/himalaya_erp_browser_test?schema=public',
+    },
+  ];
+
+  for (const fb of devFallbacks) {
+    const success = await seedDatabase(fb);
+    if (success) {
+      console.log(`\n🎉 All done! Products successfully synced.`);
+      return;
+    }
+  }
+
   console.log(`\n🎉 All done!`);
 }
 
 main().catch(console.error);
+
