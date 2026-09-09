@@ -34,6 +34,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: himalaya-backend:latest
     container_name: himalaya-migrate
     restart: "no"
     command: sh -c "npx prisma migrate deploy"
@@ -55,6 +56,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: himalaya-backend:latest
     container_name: himalaya-seed
     restart: "no"
     command: node dist-seed/prisma/seed.js
@@ -80,6 +82,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: himalaya-backend:latest
     container_name: himalaya-backend
     restart: unless-stopped
     environment:

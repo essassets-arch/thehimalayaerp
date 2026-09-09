@@ -75,7 +75,7 @@ BEGIN
     DELETE FROM "ReplacementOrderItem" WHERE "salesOrderId" = ANY(v_order_ids);
     DELETE FROM "ReplacementRequestItem" WHERE "replacementRequestId" IN (SELECT id FROM "ReplacementRequest" WHERE "salesOrderId" = ANY(v_order_ids));
     DELETE FROM "ReplacementRequest" WHERE "salesOrderId" = ANY(v_order_ids);
-    DELETE FROM "SalesOrderItemAllocation" WHERE "salesOrderItemId" IN (SELECT id FROM "SalesOrderItem" WHERE "salesOrderId" = ANY(v_order_ids));
+    DELETE FROM "SalesOrderAllocation" WHERE "salesOrderId" = ANY(v_order_ids);
     DELETE FROM "SalesOrderItem" WHERE "salesOrderId" = ANY(v_order_ids);
     DELETE FROM "SalesOrder" WHERE "id" = ANY(v_order_ids);
   END IF;

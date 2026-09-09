@@ -25,6 +25,8 @@ docker compose build
 
 echo ""
 echo "⚙️ Step 3: Executing database migrations..."
+POSTGRES_CONTAINER=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -E 'himalaya-postgres|postgres' | head -n 1 || echo "himalaya-postgres")
+docker exec -i "$POSTGRES_CONTAINER" psql -U "${POSTGRES_USER:-himalaya_erp_user}" -d "${POSTGRES_DB:-himalaya_erp}" -c "DELETE FROM _prisma_migrations WHERE finished_at IS NULL;" 2>/dev/null || true
 docker compose run --rm migrate
 
 echo ""
