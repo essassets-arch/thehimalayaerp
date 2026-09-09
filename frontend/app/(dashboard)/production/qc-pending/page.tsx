@@ -970,12 +970,9 @@ export default function QCPendingPage() {
                 setCurrentPage(1);
               }}
               style={{
-                position: 'sticky',
-                bottom: 0,
-                zIndex: 10,
-                background: '#FFFFFF',
-                boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)',
+                flexShrink: 0,
                 borderTop: '1px solid #E2E8F0',
+                background: '#FFFFFF',
               }}
             />
           </>

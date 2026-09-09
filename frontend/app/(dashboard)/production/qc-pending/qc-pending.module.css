@@ -316,13 +316,17 @@
   overflow: hidden;
   width: 100%;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ─── Desktop vs Mobile Visibility ─── */
 .desktopTableWrapper {
   display: block;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: auto;
+  max-height: calc(100vh - 270px);
+  min-height: 380px;
   width: 100%;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
@@ -365,11 +369,14 @@
 .qcTable thead {
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 10;
   background: #f8fafc;
 }
 
 .qcTable th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   background: #f8fafc;
   padding: 13px 16px;
   font-size: 11px;
@@ -379,6 +386,7 @@
   color: #475569;
   white-space: nowrap;
   border-bottom: 1.5px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .qcTable td {
