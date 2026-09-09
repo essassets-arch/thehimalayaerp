@@ -21,7 +21,9 @@ import {
   Activity,
   History,
   Clock,
-  Layers
+  Layers,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
@@ -93,7 +95,7 @@ export default function QCPendingPage() {
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -536,6 +538,7 @@ export default function QCPendingPage() {
   }, [jobs, searchQuery]);
 
   const isShowingAll = pageSize >= 99999 || (filteredJobs.length > 0 && pageSize >= filteredJobs.length);
+  const totalPages = isShowingAll ? 1 : (Math.ceil(filteredJobs.length / pageSize) || 1);
 
   const paginatedJobs = useMemo(() => {
     if (isShowingAll) {
@@ -574,17 +577,17 @@ export default function QCPendingPage() {
             type="button"
             onClick={() => {
               if (isShowingAll) {
-                setPageSize(25);
+                setPageSize(10);
               } else {
                 setPageSize(99999);
               }
               setCurrentPage(1);
             }}
             className={`${styles.btnShowAll} ${isShowingAll ? styles.btnShowAllActive : ''}`}
-            title={isShowingAll ? 'Switch back to paginated view (25 per page)' : 'Show all data without pagination'}
+            title={isShowingAll ? 'Switch back to paginated view (10 per page)' : 'Show all data without pagination'}
           >
             <Layers size={14} />
-            {isShowingAll ? 'Show Paginated (25)' : `Show All Data (${filteredJobs.length})`}
+            {isShowingAll ? 'Show Paginated (10)' : `Show All Data (${filteredJobs.length})`}
           </button>
 
           <button 
@@ -623,24 +626,85 @@ export default function QCPendingPage() {
           </div>
         </div>
 
-        {/* Search Box */}
-        <div className={styles.searchBox}>
-          <Search size={16} color="#64748b" style={{ flexShrink: 0 }} />
-          <input
-            type="text"
-            placeholder="Search sales order, WO, product, customer..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button 
-              type="button" 
-              onClick={() => setSearchQuery('')}
-              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', padding: '0 4px' }}
-            >
-              ✕
-            </button>
+        {/* Right side: Top Pagination Controls + Search */}
+        <div className={styles.controlBarRight}>
+          {filteredJobs.length > 0 && (
+            <div className={styles.topPaginationBar}>
+              <span className={styles.topPaginationInfo}>
+                {isShowingAll ? (
+                  <>Showing all <strong>{filteredJobs.length}</strong></>
+                ) : (
+                  <>
+                    <strong>{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredJobs.length)}</strong> of <strong>{filteredJobs.length}</strong>
+                  </>
+                )}
+              </span>
+
+              <select
+                value={isShowingAll ? 'all' : pageSize}
+                onChange={(e) => {
+                  const val = e.target.value === 'all' ? 99999 : Number(e.target.value);
+                  setPageSize(val);
+                  setCurrentPage(1);
+                }}
+                className={styles.topPageSizeSelect}
+                title="Rows per page"
+              >
+                <option value={10}>10 / page</option>
+                <option value={25}>25 / page</option>
+                <option value={50}>50 / page</option>
+                <option value={100}>100 / page</option>
+                <option value={250}>250 / page</option>
+                <option value="all">All ({filteredJobs.length})</option>
+              </select>
+
+              {!isShowingAll && totalPages > 1 && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    className={styles.topNavBtn}
+                    title="Previous page"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className={styles.topPageText}>
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    className={styles.topNavBtn}
+                    title="Next page"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
           )}
+
+          {/* Search Box */}
+          <div className={styles.searchBox}>
+            <Search size={16} color="#64748b" style={{ flexShrink: 0 }} />
+            <input
+              type="text"
+              placeholder="Search sales order, WO, product, customer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button 
+                type="button" 
+                onClick={() => setSearchQuery('')}
+                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', padding: '0 4px' }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -895,7 +959,7 @@ export default function QCPendingPage() {
             </div>
             <PaginationControl
               currentPage={currentPage}
-              totalPages={isShowingAll ? 1 : (Math.ceil(filteredJobs.length / pageSize) || 1)}
+              totalPages={totalPages}
               totalItems={filteredJobs.length}
               pageSize={pageSize}
               pageSizeOptions={[10, 25, 50, 100, 250, 500, 'all']}
@@ -904,6 +968,14 @@ export default function QCPendingPage() {
               onPageSizeChange={(newSize) => {
                 setPageSize(newSize);
                 setCurrentPage(1);
+              }}
+              style={{
+                position: 'sticky',
+                bottom: 0,
+                zIndex: 10,
+                background: '#FFFFFF',
+                boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)',
+                borderTop: '1px solid #E2E8F0',
               }}
             />
           </>
