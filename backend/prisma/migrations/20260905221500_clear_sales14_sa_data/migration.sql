@@ -57,6 +57,10 @@ BEGIN
   END IF;
 
   IF v_wo_ids IS NOT NULL AND ARRAY_LENGTH(v_wo_ids, 1) > 0 THEN
+    DELETE FROM "FinishedGoods" WHERE "workOrderId" = ANY(v_wo_ids);
+    DELETE FROM "ProductionBatch" WHERE "workOrderId" = ANY(v_wo_ids);
+    DELETE FROM "ProductionShiftEntry" WHERE "workOrderId" = ANY(v_wo_ids);
+    DELETE FROM "ProductionScrapEntry" WHERE "workOrderId" = ANY(v_wo_ids);
     DELETE FROM "QCInspection" WHERE "workOrderId" = ANY(v_wo_ids);
     DELETE FROM "ProductionDailyReportItem" WHERE "workOrderId" = ANY(v_wo_ids);
     DELETE FROM "WorkOrder" WHERE "id" = ANY(v_wo_ids);
@@ -69,6 +73,7 @@ BEGIN
   END IF;
 
   IF v_order_ids IS NOT NULL AND ARRAY_LENGTH(v_order_ids, 1) > 0 THEN
+    DELETE FROM "FinishedGoods" WHERE "salesOrderId" = ANY(v_order_ids);
     DELETE FROM "CustomerPayment" WHERE "salesOrderId" = ANY(v_order_ids);
     DELETE FROM "SalesReturnItem" WHERE "salesReturnId" IN (SELECT id FROM "SalesReturn" WHERE "salesOrderId" = ANY(v_order_ids));
     DELETE FROM "SalesReturn" WHERE "salesOrderId" = ANY(v_order_ids);
