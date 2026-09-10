@@ -50,12 +50,14 @@ BEGIN
   SELECT ARRAY_AGG(id) INTO v_wo_ids FROM "WorkOrder" WHERE "productionPlanId" = ANY(v_plan_ids);
   SELECT ARRAY_AGG(id) INTO v_dispatch_ids FROM "Dispatch" WHERE "salesOrderId" = ANY(v_order_ids);
 
-  -- Cascade Deletions
+  -- Cascade Deletions: Dispatch
   IF v_dispatch_ids IS NOT NULL AND ARRAY_LENGTH(v_dispatch_ids, 1) > 0 THEN
+    UPDATE "SalesInvoice" SET "dispatchId" = NULL WHERE "dispatchId" = ANY(v_dispatch_ids);
     DELETE FROM "DispatchItem" WHERE "dispatchId" = ANY(v_dispatch_ids);
     DELETE FROM "Dispatch" WHERE "id" = ANY(v_dispatch_ids);
   END IF;
 
+  -- Cascade Deletions: WorkOrder
   IF v_wo_ids IS NOT NULL AND ARRAY_LENGTH(v_wo_ids, 1) > 0 THEN
     DELETE FROM "FinishedGoods" WHERE "workOrderId" = ANY(v_wo_ids);
     DELETE FROM "ProductionBatch" WHERE "workOrderId" = ANY(v_wo_ids);
@@ -66,38 +68,57 @@ BEGIN
     DELETE FROM "WorkOrder" WHERE "id" = ANY(v_wo_ids);
   END IF;
 
+  -- Cascade Deletions: ProductionPlan
   IF v_plan_ids IS NOT NULL AND ARRAY_LENGTH(v_plan_ids, 1) > 0 THEN
-    DELETE FROM "MaterialRequestItem" WHERE "materialRequestId" IN (SELECT id FROM "MaterialRequest" WHERE "productionPlanId" = ANY(v_plan_ids));
-    DELETE FROM "MaterialRequest" WHERE "productionPlanId" = ANY(v_plan_ids);
+    DELETE FROM "ProductionDailyReportItem" WHERE "productionPlanId" = ANY(v_plan_ids);
     DELETE FROM "ProductionPlan" WHERE "id" = ANY(v_plan_ids);
   END IF;
 
+  -- Cascade Deletions: SalesOrder
   IF v_order_ids IS NOT NULL AND ARRAY_LENGTH(v_order_ids, 1) > 0 THEN
     DELETE FROM "FinishedGoods" WHERE "salesOrderId" = ANY(v_order_ids);
+    DELETE FROM "PaymentAllocation" WHERE "invoiceId" IN (SELECT id FROM "SalesInvoice" WHERE "salesOrderId" = ANY(v_order_ids)) OR "paymentId" IN (SELECT id FROM "CustomerPayment" WHERE "salesOrderId" = ANY(v_order_ids));
+    DELETE FROM "InvoiceItem" WHERE "invoiceId" IN (SELECT id FROM "SalesInvoice" WHERE "salesOrderId" = ANY(v_order_ids));
+    DELETE FROM "SalesInvoice" WHERE "salesOrderId" = ANY(v_order_ids);
+    DELETE FROM "CustomerPaymentAllocation" WHERE "salesOrderId" = ANY(v_order_ids);
     DELETE FROM "CustomerPayment" WHERE "salesOrderId" = ANY(v_order_ids);
+    DELETE FROM "ReturnGateEntry" WHERE "salesReturnId" IN (SELECT id FROM "SalesReturn" WHERE "salesOrderId" = ANY(v_order_ids));
     DELETE FROM "SalesReturnItem" WHERE "salesReturnId" IN (SELECT id FROM "SalesReturn" WHERE "salesOrderId" = ANY(v_order_ids));
     DELETE FROM "SalesReturn" WHERE "salesOrderId" = ANY(v_order_ids);
-    DELETE FROM "ReplacementOrderItem" WHERE "salesOrderId" = ANY(v_order_ids);
+    DELETE FROM "ReplacementOrderItem" WHERE "replacementOrderId" IN (SELECT id FROM "ReplacementOrder" WHERE "originalSalesOrderId" = ANY(v_order_ids));
+    DELETE FROM "ReplacementOrderHistory" WHERE "replacementOrderId" IN (SELECT id FROM "ReplacementOrder" WHERE "originalSalesOrderId" = ANY(v_order_ids));
+    DELETE FROM "ReplacementOrder" WHERE "originalSalesOrderId" = ANY(v_order_ids);
     DELETE FROM "ReplacementRequestItem" WHERE "replacementRequestId" IN (SELECT id FROM "ReplacementRequest" WHERE "salesOrderId" = ANY(v_order_ids));
     DELETE FROM "ReplacementRequest" WHERE "salesOrderId" = ANY(v_order_ids);
+    DELETE FROM "CustomerComplaintItem" WHERE "complaintId" IN (SELECT id FROM "CustomerComplaint" WHERE "orderId" = ANY(v_order_ids) OR "salesExecutiveId" = ANY(v_user_ids)) OR "orderItemId" IN (SELECT id FROM "SalesOrderItem" WHERE "salesOrderId" = ANY(v_order_ids));
+    DELETE FROM "CustomerComplaint" WHERE "orderId" = ANY(v_order_ids) OR "salesExecutiveId" = ANY(v_user_ids);
+    DELETE FROM "SalesOrderLoss" WHERE "salesOrderId" = ANY(v_order_ids);
+    DELETE FROM "OrderAmendment" WHERE "salesOrderId" = ANY(v_order_ids);
     DELETE FROM "SalesOrderAllocation" WHERE "salesOrderId" = ANY(v_order_ids);
+    DELETE FROM "SalesOrderCreditReview" WHERE "salesOrderId" = ANY(v_order_ids);
+    DELETE FROM "SalesOrderHistory" WHERE "salesOrderId" = ANY(v_order_ids);
     DELETE FROM "SalesOrderItem" WHERE "salesOrderId" = ANY(v_order_ids);
     DELETE FROM "SalesOrder" WHERE "id" = ANY(v_order_ids);
   END IF;
 
+  -- Cascade Deletions: Quotation
   IF v_quote_ids IS NOT NULL AND ARRAY_LENGTH(v_quote_ids, 1) > 0 THEN
+    UPDATE "Quotation" SET "parentQuotationId" = NULL WHERE "id" = ANY(v_quote_ids) OR "parentQuotationId" = ANY(v_quote_ids);
     DELETE FROM "QuotationItem" WHERE "quotationId" = ANY(v_quote_ids);
+    DELETE FROM "QuotationTerm" WHERE "quotationId" = ANY(v_quote_ids);
     DELETE FROM "Quotation" WHERE "id" = ANY(v_quote_ids);
   END IF;
 
+  -- Cascade Deletions: Lead
   IF v_lead_ids IS NOT NULL AND ARRAY_LENGTH(v_lead_ids, 1) > 0 THEN
-    DELETE FROM "CustomerComplaint" WHERE "leadId" = ANY(v_lead_ids);
+    DELETE FROM "FollowUp" WHERE "leadId" = ANY(v_lead_ids);
     DELETE FROM "SampleItem" WHERE "sampleRequestId" IN (SELECT id FROM "SampleRequest" WHERE "leadId" = ANY(v_lead_ids));
     DELETE FROM "SampleRequest" WHERE "leadId" = ANY(v_lead_ids);
     DELETE FROM "LeadActivity" WHERE "leadId" = ANY(v_lead_ids);
     DELETE FROM "Lead" WHERE "id" = ANY(v_lead_ids);
   END IF;
 
+  -- Cascade Deletions: User Notifications
   IF v_user_ids IS NOT NULL AND ARRAY_LENGTH(v_user_ids, 1) > 0 THEN
     DELETE FROM "Notification" WHERE "userId" = ANY(v_user_ids);
   END IF;
