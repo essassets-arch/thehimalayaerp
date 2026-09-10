@@ -1053,6 +1053,13 @@ export class PlantHeadService {
             .filter((a) => a.allocationType === 'PRODUCTION_REQUIRED')
             .reduce((sum, p) => sum + Number(p.productionQuantity), 0);
 
+          // If this item already has production allocations committed for this sales order,
+          // only the incremental (additional) quantity requires remaining unallocated buffer.
+          const additionalProductionQty = Math.max(
+            0,
+            productionQty - activeProductionCommittedQty,
+          );
+
           const remainingUnallocatedQty = Math.max(
             0,
             Number(orderItem.orderedQuantity) -
@@ -1061,9 +1068,9 @@ export class PlantHeadService {
               activeProductionCommittedQty,
           );
 
-          if (productionQty > remainingUnallocatedQty) {
+          if (additionalProductionQty > remainingUnallocatedQty) {
             throw new BadRequestException(
-              `Requested production quantity (${productionQty}) exceeds remaining unallocated ordered quantity (${remainingUnallocatedQty}) for ${orderItem.productNameSnapshot}.`,
+              `Requested production quantity (${productionQty}) exceeds remaining unallocated ordered quantity (${remainingUnallocatedQty + activeProductionCommittedQty}) for ${orderItem.productNameSnapshot}.`,
             );
           }
         }
@@ -1079,7 +1086,6 @@ export class PlantHeadService {
         console.log(
           `[FULFILLMENT_PLAN:${orderId}] Step 4: Committing production allocations`,
         );
-        let totalProductionCreated = 0;
         for (const item of planDto.items) {
           const orderItem = salesOrder.items.find(
             (i) => i.id === item.salesOrderItemId,
@@ -1091,7 +1097,6 @@ export class PlantHeadService {
           );
 
           if (productionQty > 0) {
-            totalProductionCreated += productionQty;
             console.log(
               `[FULFILLMENT_PLAN:${orderId}] Step 5: Scheduling production work order for quantity ${productionQty}`,
             );
@@ -1146,42 +1151,84 @@ export class PlantHeadService {
               });
             }
 
-            // Generate Work Order number
-            const workOrderNumber =
-              await this.sequenceService.generateWorkOrderNumber(
-                new Date(),
-                tx,
-              );
-
-            const initialWOState = await tx.workflowState.findFirst({
-              where: { workflow: { code: 'WORK_ORDER' } },
-            });
-
-            // Create Work Order
-            const wo = await tx.workOrder.create({
-              data: {
-                workOrderNumber,
-                productionPlanId: productionPlan.id,
-                salesOrderItemId: item.salesOrderItemId,
-                quantity: productionQty,
-                workflowStateId: initialWOState?.id,
-                status: 'CREATED',
-                productionStatus: 'IN_PRODUCTION',
-              },
-            });
-
-            // Create SalesOrderAllocation of type PRODUCTION_REQUIRED
-            await tx.salesOrderAllocation.create({
-              data: {
-                salesOrderId: orderId,
+            // Check existing allocations committed for this item
+            const existingAllocations = await tx.salesOrderAllocation.findMany({
+              where: {
                 salesOrderItemId: item.salesOrderItemId,
                 allocationType: 'PRODUCTION_REQUIRED',
-                requiredQuantity: productionQty,
-                reservedQuantity: 0,
-                productionQuantity: productionQty,
-                workOrderId: wo.id,
               },
             });
+            const existingCommittedQty = existingAllocations.reduce(
+              (sum, a) => sum + Number(a.productionQuantity),
+              0,
+            );
+
+            // Check if work orders already exist for this item in this production plan
+            const existingWos = await tx.workOrder.findMany({
+              where: {
+                productionPlanId: productionPlan.id,
+                salesOrderItemId: item.salesOrderItemId,
+              },
+            });
+
+            if (existingWos.length > 0) {
+              for (const wo of existingWos) {
+                await tx.workOrder.update({
+                  where: { id: wo.id },
+                  data: {
+                    productionStatus: 'IN_PRODUCTION',
+                    status:
+                      wo.status === 'CREATED'
+                        ? 'CREATED'
+                        : wo.status,
+                  },
+                });
+              }
+            }
+
+            const additionalQtyToSchedule = Math.max(
+              0,
+              productionQty - existingCommittedQty,
+            );
+
+            if (additionalQtyToSchedule > 0) {
+              // Generate Work Order number
+              const workOrderNumber =
+                await this.sequenceService.generateWorkOrderNumber(
+                  new Date(),
+                  tx,
+                );
+
+              const initialWOState = await tx.workflowState.findFirst({
+                where: { workflow: { code: 'WORK_ORDER' } },
+              });
+
+              // Create Work Order
+              const wo = await tx.workOrder.create({
+                data: {
+                  workOrderNumber,
+                  productionPlanId: productionPlan.id,
+                  salesOrderItemId: item.salesOrderItemId,
+                  quantity: additionalQtyToSchedule,
+                  workflowStateId: initialWOState?.id,
+                  status: 'CREATED',
+                  productionStatus: 'IN_PRODUCTION',
+                },
+              });
+
+              // Create SalesOrderAllocation of type PRODUCTION_REQUIRED
+              await tx.salesOrderAllocation.create({
+                data: {
+                  salesOrderId: orderId,
+                  salesOrderItemId: item.salesOrderItemId,
+                  allocationType: 'PRODUCTION_REQUIRED',
+                  requiredQuantity: additionalQtyToSchedule,
+                  reservedQuantity: 0,
+                  productionQuantity: additionalQtyToSchedule,
+                  workOrderId: wo.id,
+                },
+              });
+            }
           }
         }
 
@@ -1189,6 +1236,10 @@ export class PlantHeadService {
         console.log(
           `[FULFILLMENT_PLAN:${orderId}] Step 6: Updating SalesOrder status`,
         );
+        const soUpdateData: any = {};
+        if (plannedEndDateVal) {
+          soUpdateData.requestedDeliveryDate = plannedEndDateVal;
+        }
         if (
           salesOrder.status === 'SENT_TO_PLANT_HEAD' ||
           salesOrder.status === 'SENT_TO_PLANT' ||
@@ -1198,12 +1249,13 @@ export class PlantHeadService {
           const approvedState = await tx.workflowState.findFirst({
             where: { code: 'PLANT_APPROVED' },
           });
+          soUpdateData.status = 'PLANT_APPROVED';
+          if (approvedState?.id) soUpdateData.workflowStateId = approvedState.id;
+        }
+        if (Object.keys(soUpdateData).length > 0) {
           await tx.salesOrder.update({
             where: { id: orderId },
-            data: {
-              status: 'PLANT_APPROVED',
-              workflowStateId: approvedState?.id || salesOrder.workflowStateId,
-            },
+            data: soUpdateData,
           });
         }
 

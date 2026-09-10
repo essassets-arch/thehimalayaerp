@@ -1078,6 +1078,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
 
           await syncData();
           await fetchPlanningOrders();
+          await fetchWorkOrders();
           await loadSalesOrders();
 
           setShowPlanningModal(false);
@@ -1151,19 +1152,19 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       });
 
       const dateStr = new Date(newDate).toISOString();
-      setAllPlanningOrders((prev) =>
-        prev.map((o) =>
+      setPlanningOrders((prev) =>
+        Array.isArray(prev) ? prev.map((o) =>
           o.id === order.id || o.orderNo === order.orderNo
             ? { ...o, targetDate: dateStr, _selectedTargetDate: newDate }
             : o
-        )
+        ) : []
       );
       setIncomingOrders((prev) =>
-        prev.map((o) =>
+        Array.isArray(prev) ? prev.map((o) =>
           o.id === order.id || o.orderNo === order.orderNo
             ? { ...o, targetDate: dateStr, _selectedTargetDate: newDate }
             : o
-        )
+        ) : []
       );
       if (selectedOrderForPlanning && (selectedOrderForPlanning.id === order.id || selectedOrderForPlanning.orderNo === order.orderNo)) {
         setSelectedOrderForPlanning((prev) => ({
@@ -1183,6 +1184,9 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       });
 
       await syncData();
+      await fetchPlanningOrders();
+      await fetchWorkOrders();
+      await loadSalesOrders();
     } catch (err) {
       Swal.fire({
         icon: 'error',
