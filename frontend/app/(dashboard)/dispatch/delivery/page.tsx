@@ -298,8 +298,8 @@ export default function DeliveryRunPage() {
       toast.error("Please upload a valid image file (JPG, PNG, WebP) or PDF.");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File size cannot exceed 5 MB.");
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("File size cannot exceed 50 MB.");
       return;
     }
 

@@ -4,7 +4,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 
-const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25 MB
+const MAX_IMAGE_SIZE = 50 * 1024 * 1024; // 50 MB
 const EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
     if (file.size > MAX_IMAGE_SIZE) {
       return NextResponse.json(
-        { message: "File must be 25 MB or smaller." },
+        { message: "File must be 50 MB or smaller." },
         { status: 413 },
       );
     }

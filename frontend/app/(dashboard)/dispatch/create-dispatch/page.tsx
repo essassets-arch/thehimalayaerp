@@ -1522,8 +1522,8 @@ export default function CreateDispatchPage() {
         return;
       }
 
-      if (file.size > 5 * 1024 * 1024) {
-        setFileError("Maximum allowed file size is 5 MB.");
+      if (file.size > 50 * 1024 * 1024) {
+        setFileError("Maximum allowed file size is 50 MB.");
         setDocumentFile(null);
         setDocumentPreview(null);
         return;
@@ -2435,7 +2435,10 @@ export default function CreateDispatchPage() {
 
           {/* Dispatch Document (PDF / Image) */}
           <div className={`${styles.formGroup} ${styles.span2}`}>
-            <label className={styles.formLabel}>Dispatch Document (PDF / Image)</label>
+            <label className={styles.formLabel}>
+              Dispatch Document (PDF / Image){" "}
+              <span style={{ fontSize: "11px", fontWeight: "normal", color: "#64748b" }}>(Max 50 MB)</span>
+            </label>
             <label className={styles.fileInput}>
               <span className={styles.fileInputBtn}>Choose File</span>
               <span className={styles.fileInputText}>
@@ -2454,17 +2457,22 @@ export default function CreateDispatchPage() {
               </span>
             )}
             {documentPreview && (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: "12px" }}>
                 <img 
                   src={documentPreview} 
                   alt="Document Preview" 
                   style={{ maxWidth: "200px", maxHeight: "200px", borderRadius: "8px", border: "1px solid #e2e8f0", objectFit: "contain" }} 
                 />
+                {documentFile && (
+                  <span style={{ fontSize: 13, color: "#64748b" }}>
+                    {documentFile.name} ({documentFile.size > 1024 * 1024 ? `${(documentFile.size / (1024 * 1024)).toFixed(2)} MB` : `${(documentFile.size / 1024).toFixed(1)} KB`})
+                  </span>
+                )}
               </div>
             )}
             {documentFile && !documentPreview && (
                <div style={{ marginTop: 12, fontSize: 13, color: '#64748b' }}>
-                 Selected PDF: {documentFile.name} ({(documentFile.size / 1024).toFixed(1)} KB)
+                 Selected PDF: {documentFile.name} ({documentFile.size > 1024 * 1024 ? `${(documentFile.size / (1024 * 1024)).toFixed(2)} MB` : `${(documentFile.size / 1024).toFixed(1)} KB`})
                </div>
             )}
           </div>

@@ -127,7 +127,7 @@ export class DispatchController {
   )
   @UseInterceptors(
     FileInterceptor('pod', {
-      limits: { fileSize: 25 * 1024 * 1024 },
+      limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB max
     }),
   )
   async deliverDispatch(
