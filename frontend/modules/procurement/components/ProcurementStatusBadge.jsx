@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { ShieldCheck, UserCircle2, CheckCircle2, Clock, XCircle, AlertCircle } from 'lucide-react';
 
 export function ProcurementStatusBadge({ status, type = 'PO' }) {
@@ -12,10 +12,14 @@ export function ProcurementStatusBadge({ status, type = 'PO' }) {
       // Indent
       case 'PENDING_PLANT_HEAD_APPROVAL': return { bg: '#fef3c7', text: '#92400e', icon: Clock, label: 'Pending PH Approval' };
       case 'PLANT_HEAD_CORRECTION_REQUIRED': return { bg: '#ffe4e6', text: '#9f1239', icon: AlertCircle, label: 'Needs Correction' };
-      case 'PLANT_HEAD_APPROVED': return { bg: '#d1fae5', text: '#065f46', icon: CheckCircle2, label: 'PH Approved' };
+      case 'PLANT_HEAD_APPROVED': return { bg: '#d1fae5', text: '#065f46', icon: CheckCircle2, label: 'Approved by Plant Head' };
       case 'FINANCE_ACCEPTED': return { bg: '#dbeafe', text: '#1e40af', icon: ShieldCheck, label: 'Finance Accepted' };
       case 'CONVERTED_TO_PO': return { bg: '#f3e8ff', text: '#6b21a8', icon: ShieldCheck, label: 'PO Created' };
-      case 'PLANT_HEAD_REJECTED': return { bg: '#fee2e2', text: '#991b1b', icon: XCircle, label: 'Rejected' };
+      case 'PLANT_HEAD_REJECTED': return { bg: '#fee2e2', text: '#991b1b', icon: XCircle, label: 'Rejected by Plant Head' };
+      case 'PARTIALLY_DELIVERED': return { bg: '#cffafe', text: '#155e75', icon: Clock, label: 'Partially Delivered' };
+      case 'DELIVERED': return { bg: '#d1fae5', text: '#065f46', icon: CheckCircle2, label: 'Delivered' };
+      case 'ORDERED': return { bg: '#dbeafe', text: '#1e40af', icon: UserCircle2, label: 'Ordered' };
+      case 'DELIVERY_PENDING_FINANCE_AUDIT': return { bg: '#e0e7ff', text: '#3730a3', icon: Clock, label: 'Delivery In Audit' };
 
       // PO
       case 'PENDING_SUPER_ADMIN_APPROVAL': return { bg: '#fef3c7', text: '#92400e', icon: Clock, label: 'Pending SA Approval' };

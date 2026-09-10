@@ -318,7 +318,11 @@ export async function approveMaterialIndent(indentId: string, approvedItems: any
   }
 
   const items = approvedItems.map(i => ({
-    productId: i.productId || i.materialId,
+    id: i.id || i.indentItemId,
+    indentItemId: i.indentItemId || i.id,
+    productId: i.productId || i.product?.id || i.materialId,
+    materialId: i.materialId || i.productId,
+    materialCode: i.materialCode || i.product?.sku,
     approvedQuantity: Number(i.approvedQuantity ?? i.approvedQty ?? i.quantity ?? 0),
     // quantity must be >= approvedQuantity for the backend validation;
     // pass the stored requestedQuantity if available, otherwise use approvedQuantity itself

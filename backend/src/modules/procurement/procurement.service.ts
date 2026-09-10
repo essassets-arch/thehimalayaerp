@@ -1712,19 +1712,36 @@ export class ProcurementService {
         const storedItems = await tx.purchaseIndentItem.findMany({
           where: { purchaseIndentId: id },
         });
-        const storedQtyMap = new Map(
-          storedItems.map((si: any) => [si.productId, si.quantity]),
+        const storedItemById = new Map(storedItems.map((si: any) => [si.id, si]));
+        const storedItemByProduct = new Map(storedItems.map((si: any) => [si.productId, si]));
+        const storedItemByCode = new Map(
+          storedItems
+            .filter((si: any) => si.materialCode)
+            .map((si: any) => [si.materialCode, si])
         );
-        for (const i of lines) {
-          const storedQty =
-            storedQtyMap.get(i.productId) ??
-            storedItems[0]?.quantity ??
-            MONEY(999999);
-          if (
-            MONEY(i.approvedQuantity).lt(0) ||
-            MONEY(i.approvedQuantity).gt(MONEY(storedQty))
-          ) {
-            throw new BadRequestException('Invalid approved quantity');
+
+        for (let idx = 0; idx < lines.length; idx++) {
+          const i = lines[idx];
+          const matched =
+            (i.id && storedItemById.get(i.id)) ||
+            (i.indentItemId && storedItemById.get(i.indentItemId)) ||
+            (i.productId && (storedItemByProduct.get(i.productId) || storedItemById.get(i.productId) || storedItemByCode.get(i.productId))) ||
+            (i.materialId && (storedItemByProduct.get(i.materialId) || storedItemById.get(i.materialId) || storedItemByCode.get(i.materialId))) ||
+            (i.materialCode && storedItemByCode.get(i.materialCode)) ||
+            storedItems[idx] ||
+            storedItems[0];
+
+          const rawStoredQty = matched ? Number(matched.quantity) : (row.requiredQuantity ? Number(row.requiredQuantity) : 0);
+          const storedQty = rawStoredQty > 0 ? rawStoredQty : 999999;
+          const appQty = Number(i.approvedQuantity ?? i.approvedQty ?? 0);
+
+          if (appQty < 0) {
+            throw new BadRequestException('Approved quantity cannot be negative');
+          }
+          if (rawStoredQty > 0 && appQty > storedQty) {
+            throw new BadRequestException(
+              `Approved quantity (${appQty}) cannot exceed requested quantity (${rawStoredQty})`,
+            );
           }
         }
 
@@ -1782,11 +1799,39 @@ export class ProcurementService {
 
       if (action === 'approve') {
         const lines = dto.items || [];
-        for (const i of lines) {
-          await tx.purchaseIndentItem.updateMany({
-            where: { purchaseIndentId: id, productId: i.productId },
-            data: { approvedQuantity: MONEY(i.approvedQuantity) },
-          });
+        const storedItems = await tx.purchaseIndentItem.findMany({
+          where: { purchaseIndentId: id },
+        });
+        const storedItemById = new Map(storedItems.map((si: any) => [si.id, si]));
+        const storedItemByProduct = new Map(storedItems.map((si: any) => [si.productId, si]));
+        const storedItemByCode = new Map(
+          storedItems
+            .filter((si: any) => si.materialCode)
+            .map((si: any) => [si.materialCode, si])
+        );
+
+        for (let idx = 0; idx < lines.length; idx++) {
+          const i = lines[idx];
+          const matched =
+            (i.id && storedItemById.get(i.id)) ||
+            (i.indentItemId && storedItemById.get(i.indentItemId)) ||
+            (i.productId && (storedItemByProduct.get(i.productId) || storedItemById.get(i.productId) || storedItemByCode.get(i.productId))) ||
+            (i.materialId && (storedItemByProduct.get(i.materialId) || storedItemById.get(i.materialId) || storedItemByCode.get(i.materialId))) ||
+            (i.materialCode && storedItemByCode.get(i.materialCode)) ||
+            storedItems[idx] ||
+            storedItems[0];
+
+          if (matched) {
+            await tx.purchaseIndentItem.update({
+              where: { id: matched.id },
+              data: { approvedQuantity: MONEY(i.approvedQuantity) },
+            });
+          } else if (i.productId) {
+            await tx.purchaseIndentItem.updateMany({
+              where: { purchaseIndentId: id, productId: i.productId },
+              data: { approvedQuantity: MONEY(i.approvedQuantity) },
+            });
+          }
         }
       }
 
