@@ -1651,7 +1651,7 @@ export default function CreateDispatchPage() {
 
       for (const group of orderGroups.values()) {
         const consolidatedItems = Array.from(
-          group.workOrders.reduce((items, selected) => {
+          group.workOrders.reduce((items: Map<string, any>, selected: any) => {
             const itemId =
               selected.salesOrderItem?.id ||
               selected.salesOrderItemId ||
@@ -1674,10 +1674,10 @@ export default function CreateDispatchPage() {
             return items;
           }, new Map<string, { salesOrderItemId: string; productId?: string; productName?: string; quantity: number; workOrderIds: string[] }>())
           .values(),
-        ).filter((item) => item.quantity > 0);
+        ).filter((item: any) => item.quantity > 0);
 
         if (consolidatedItems.length === 0 && group.workOrders.length > 0) {
-          group.workOrders.forEach((wo) => {
+          group.workOrders.forEach((wo: any) => {
             const fallbackItemId =
               wo.salesOrderItem?.id ||
               wo.salesOrderItemId ||
@@ -1714,12 +1714,12 @@ export default function CreateDispatchPage() {
           dispatchCategory: isDispatch2 ? "D2" : "D1",
           totalWeight: Number(totalWeight) || 0,
           vehicleNumber: vehicleNumber.trim().toUpperCase(),
-          items: consolidatedItems.map((item) => ({
+          items: consolidatedItems.map((item: any) => ({
             salesOrderItemId: String(item.salesOrderItemId),
             quantity: Number(item.quantity),
             ...(item.productId ? { productId: String(item.productId) } : {}),
             ...(Array.isArray(item.workOrderIds) && item.workOrderIds.length > 0
-              ? { workOrderIds: item.workOrderIds.map((id) => cleanWorkOrderId(id)).filter(Boolean) }
+              ? { workOrderIds: item.workOrderIds.map((id: string) => cleanWorkOrderId(id)).filter(Boolean) }
               : {}),
           })),
         };
@@ -1806,7 +1806,7 @@ export default function CreateDispatchPage() {
             }
 
             // Track dispatched items and quantities
-            grp.workOrders.forEach((wo) => {
+            grp.workOrders.forEach((wo: any) => {
               const qty = Number(dispatchQuantities[wo.id] || 0);
               if (qty > 0) {
                 if (wo.id) {
@@ -1874,6 +1874,8 @@ export default function CreateDispatchPage() {
       queryClient.invalidateQueries({ queryKey: ["delivery-run-dispatches"] });
       queryClient.invalidateQueries({ queryKey: ["delivery-history-dispatches"] });
       queryClient.invalidateQueries({ queryKey: ["dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-dispatch-work-orders-create"] });
+      queryClient.invalidateQueries({ queryKey: ["dispatches-duplicate-check"] });
       router.push(`${basePath}/in-transit`);
     } catch (err: any) {
       console.error(
@@ -2012,6 +2014,20 @@ export default function CreateDispatchPage() {
                       ? dispatchQuantities[candidate.id]
                       : remainingQty;
                     const willRemainAfterDispatch = isSelected ? Math.max(0, remainingQty - (Number(dispatchQty) || 0)) : remainingQty;
+                    const prodName =
+                      candidate.salesOrderItem?.productNameSnapshot ||
+                      candidate.salesOrderItem?.product?.name ||
+                      candidate.productNameSnapshot ||
+                      candidate.productName ||
+                      candidate.product?.name ||
+                      candidate.product ||
+                      "Finished Manufacturing Product";
+                    const prodSku =
+                      candidate.salesOrderItem?.product?.sku ||
+                      candidate.product?.sku ||
+                      candidate.productSku ||
+                      candidate.sku ||
+                      "";
 
                     return (
                       <tr

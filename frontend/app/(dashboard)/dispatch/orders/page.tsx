@@ -552,14 +552,14 @@ export default function DispatchOrdersPage() {
   const { user } = useAuth();
 
   const isDispatch2User = 
-    user?.email?.toLowerCase() === "sahad.dispatch@himalayaerp.com" ||
+    String(user?.email || "").toLowerCase() === "sahad.dispatch@himalayaerp.com" ||
     String(user?.role || "").toLowerCase().includes("dispatch 2") ||
     String(user?.role || "").toLowerCase().includes("cat 2") ||
     user?.role === "DISPATCH_2" ||
     pathname?.includes("/dispatch-2");
 
   const isDispatch1User =
-    user?.email?.toLowerCase() === "ravikant.t@himalayaerp.com" ||
+    String(user?.email || "").toLowerCase() === "ravikant.t@himalayaerp.com" ||
     String(user?.role || "").toLowerCase().includes("dispatch 1") ||
     String(user?.role || "").toLowerCase().includes("cat 1") ||
     user?.role === "DISPATCH_1";
@@ -623,17 +623,15 @@ export default function DispatchOrdersPage() {
       const [
         workOrdersPayload,
         readyForDispatchPayload,
-        historyDispatchesPayload,
         salesOrdersPayload,
         finishedGoodsPayload,
         queuePayload,
         activeDispatchesPayload,
       ] = await Promise.allSettled([
         backendFetch<any>(
-          "/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,DISPATCHED"
+          "/api/backend/production/work-orders?status=READY_FOR_DISPATCH,SENT_TO_DISPATCH,QC_APPROVED,COMPLETED"
         ),
         backendFetch<any>("/api/backend/production/ready-for-dispatch"),
-        backendFetch<any>("/api/backend/production/ready-for-dispatch-history"),
         backendFetch<any>("/api/backend/sales/orders?limit=1000"),
         backendFetch<any>("/api/backend/production/finished-goods"),
         backendFetch<any>("/api/backend/logistics/dispatches/queue"),
@@ -644,10 +642,25 @@ export default function DispatchOrdersPage() {
         workOrdersPayload.status === "fulfilled" ? extractArray(workOrdersPayload.value) : [];
       const readyJobs: any[] =
         readyForDispatchPayload.status === "fulfilled" ? extractArray(readyForDispatchPayload.value) : [];
-      const historyJobs: any[] =
-        historyDispatchesPayload.status === "fulfilled" ? extractArray(historyDispatchesPayload.value) : [];
 
-      const allProductionJobs = [...workOrders, ...readyJobs, ...historyJobs];
+      const allProductionJobs = [...workOrders, ...readyJobs].filter((wo: any) => {
+        if (!wo || !wo.id) return false;
+        const prodStatus = String(wo.productionStatus || "").toUpperCase();
+        const woStatus = String(wo.status || "").toUpperCase();
+        if (
+          prodStatus === "DELIVERED" ||
+          prodStatus === "SHIPPED" ||
+          prodStatus === "DISPATCHED" ||
+          woStatus === "DELIVERED" ||
+          woStatus === "SHIPPED" ||
+          woStatus === "DISPATCHED" ||
+          woStatus === "CLOSED" ||
+          woStatus === "CANCELLED"
+        ) {
+          return false;
+        }
+        return true;
+      });
 
       let rawSalesOrders =
         salesOrdersPayload.status === "fulfilled" ? extractArray(salesOrdersPayload.value) : [];
@@ -730,7 +743,7 @@ export default function DispatchOrdersPage() {
         }
       });
 
-      if (rawActiveDispatches.length === 0 && typeof window !== "undefined") {
+      if (typeof window !== "undefined") {
         try {
           const rawTracker = localStorage.getItem("himalaya_dispatched_items_tracker");
           if (rawTracker) {
@@ -831,10 +844,21 @@ export default function DispatchOrdersPage() {
         const deliveryAddress = formatAddress(qOrder, qOrder.customer, matchedSo) || "—";
         const items = Array.isArray(qOrder.items) ? qOrder.items : [];
         const soKeyNorm = normalizeKey(qOrder.orderNo || qOrder.orderId);
-        const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (qOrder.salesOrderId && ordersWithPriorDispatches.has(String(qOrder.salesOrderId).toLowerCase()));
+        const soIdLower = String(qOrder.salesOrderId || matchedSo?.id || "").toLowerCase();
+        const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (soIdLower ? ordersWithPriorDispatches.has(soIdLower) : false);
 
         items.forEach((qItem: any) => {
           const qty = Number(qItem.approvedQuantity ?? qItem.dispatchableQuantity ?? qItem.reservedQuantity ?? 1);
+          const pIdLower = String(qItem.productId || "").toLowerCase();
+          const fromActiveDispatches =
+            (qItem.salesOrderItemId ? dispatchedBySalesOrderItem.get(String(qItem.salesOrderItemId).toLowerCase()) : 0) ||
+            (soIdLower && pIdLower ? dispatchedBySalesOrderProduct.get(`${soIdLower}_${pIdLower}`) : 0) ||
+            (soKeyNorm && pIdLower ? dispatchedBySalesOrderProduct.get(`${soKeyNorm}_${pIdLower}`) : 0) ||
+            0;
+
+          const remaining = Math.max(0, qty - fromActiveDispatches);
+          if (remaining <= 0 && fromActiveDispatches > 0) return;
+
           unifiedDirectDispatches.push({
             id: `alloc-${qItem.allocationId || qItem.id || Math.random()}`,
             itemType: "TRADING_SALES_ORDER",
@@ -843,11 +867,11 @@ export default function DispatchOrdersPage() {
             projectName,
             deliveryAddress,
             productName: qItem.productName || "Direct Dispatch Item",
-            approvedQuantity: qty,
+            approvedQuantity: remaining,
             orderedQuantity: qty,
-            dispatchedQuantity: 0,
-            remainingQuantity: qty,
-            isPartiallyDispatched: Boolean(orderHasPriorDispatches),
+            dispatchedQuantity: fromActiveDispatches,
+            remainingQuantity: remaining,
+            isPartiallyDispatched: Boolean(orderHasPriorDispatches || fromActiveDispatches > 0),
             salesOrderId: qOrder.salesOrderId || matchedSo?.id,
             salesOrderItemId: qItem.salesOrderItemId,
             productId: qItem.productId,
@@ -863,135 +887,165 @@ export default function DispatchOrdersPage() {
         });
       });
 
-      const unifiedFinishedGoods: UnifiedPendingDispatchItem[] = rawFinishedGoods
-        .filter((fg) => {
-          const s = String(fg.status || "").toUpperCase();
-          const qtyVal = fg.availableQuantity ?? fg.quantity ?? 0;
-          const qty = typeof qtyVal === "number" ? qtyVal : parseFloat(String(qtyVal)) || 0;
+      const unifiedFinishedGoods: UnifiedPendingDispatchItem[] = [];
+      rawFinishedGoods.forEach((fg) => {
+        const s = String(fg.status || "").toUpperCase();
+        const qtyVal = fg.availableQuantity ?? fg.quantity ?? 0;
+        const qty = typeof qtyVal === "number" ? qtyVal : parseFloat(String(qtyVal)) || 0;
 
-          if (qty <= 0) return false;
-          return ["AVAILABLE", "READY_FOR_DISPATCH", "QC_APPROVED", "PASSED", "STAGED", "IN_STAGING", "PENDING_HANDOFF"].includes(s);
-        })
-        .map((fg) => {
-          const wo = fg.workOrder;
-          const soFromWo = wo?.productionPlan?.salesOrder || wo?.salesOrder || fg.salesOrder;
-          const soLookupKey = (soFromWo?.id || fg.salesOrderId || fg.jobNo || "").toLowerCase();
-          const matchedSo = salesOrdersMap.get(soLookupKey) || salesOrdersMap.get(normalizeKey(fg.jobNo));
-          const salesOrder = soFromWo || matchedSo;
-          const customer = salesOrder?.customer || fg.customer || wo?.customer;
-          const address = formatAddress(salesOrder, customer, fg, matchedSo);
-          const customerName = resolveCustomerName(salesOrder, matchedSo, fg, customer, wo);
-          const projectName = resolveProjectName(salesOrder, matchedSo, fg, customer, wo);
-          const qtyVal = fg.availableQuantity ?? fg.quantity ?? 1;
-          const qty = typeof qtyVal === "number" ? qtyVal : parseFloat(String(qtyVal)) || 1;
-          const soKeyNorm = normalizeKey(fg.jobNo || salesOrder?.orderNumber);
-          const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (salesOrder?.id && ordersWithPriorDispatches.has(String(salesOrder.id).toLowerCase()));
+        if (qty <= 0) return;
+        if (s === "DISPATCHED" || s === "DELIVERED" || s === "SHIPPED") return;
+        if (!["AVAILABLE", "READY_FOR_DISPATCH", "QC_APPROVED", "PASSED", "STAGED", "IN_STAGING", "PENDING_HANDOFF"].includes(s)) return;
 
-          return {
-            id: `fg-${fg.id || fg.workOrderId}`,
-            itemType: "WORK_ORDER",
-            orderNumber: fg.jobNo || salesOrder?.orderNumber || "WO-FG",
-            customerName,
-            projectName,
-            deliveryAddress: address || "—",
-            productName: fg.productName || "Finished Product",
-            approvedQuantity: qty,
-            orderedQuantity: qty,
-            dispatchedQuantity: 0,
-            remainingQuantity: qty,
-            isPartiallyDispatched: Boolean(orderHasPriorDispatches),
-            workOrderId: fg.workOrderId || fg.id,
-            salesOrderId: salesOrder?.id || matchedSo?.id,
-            salesOrderItemId: fg.salesOrderItemId || wo?.salesOrderItemId || fg.workOrder?.salesOrderItemId || fg.workOrder?.salesOrderItem?.id || undefined,
-            workOrderNumber: fg.jobNo,
-            productId: fg.productId || wo?.salesOrderItem?.productId || fg.workOrder?.salesOrderItem?.productId,
-            dispatchCategory:
-              (isTradingProduct(fg.product || fg, productsMap) ? "D2" : null) ||
-              fg.dispatchCategory ||
-              fg.dispatch_category ||
-              fg.product?.dispatchCategory ||
-              fg.product?.dispatch_category ||
-              wo?.salesOrderItem?.product?.dispatchCategory ||
-              wo?.salesOrderItem?.product?.dispatch_category ||
-              productsMap.get(fg.productId || "")?.dispatchCategory ||
-              productsMap.get(fg.productId || "")?.dispatch_category ||
-              "D1",
-          };
+        const wo = fg.workOrder;
+        const soFromWo = wo?.productionPlan?.salesOrder || wo?.salesOrder || fg.salesOrder;
+        const soLookupKey = (soFromWo?.id || fg.salesOrderId || fg.jobNo || "").toLowerCase();
+        const matchedSo = salesOrdersMap.get(soLookupKey) || salesOrdersMap.get(normalizeKey(fg.jobNo));
+        const salesOrder = soFromWo || matchedSo;
+        const customer = salesOrder?.customer || fg.customer || wo?.customer;
+        const address = formatAddress(salesOrder, customer, fg, matchedSo);
+        const customerName = resolveCustomerName(salesOrder, matchedSo, fg, customer, wo);
+        const projectName = resolveProjectName(salesOrder, matchedSo, fg, customer, wo);
+        const soKeyNorm = normalizeKey(fg.jobNo || salesOrder?.orderNumber);
+        const soIdLower = String(salesOrder?.id || matchedSo?.id || fg.salesOrderId || "").toLowerCase();
+        const pIdLower = String(fg.productId || wo?.salesOrderItem?.productId || "").toLowerCase();
+
+        const fromActiveDispatches =
+          (fg.workOrderId ? dispatchedByWorkOrder.get(String(fg.workOrderId).toLowerCase()) : 0) ||
+          (fg.salesOrderItemId ? dispatchedBySalesOrderItem.get(String(fg.salesOrderItemId).toLowerCase()) : 0) ||
+          (soIdLower && pIdLower ? dispatchedBySalesOrderProduct.get(`${soIdLower}_${pIdLower}`) : 0) ||
+          (soKeyNorm && pIdLower ? dispatchedBySalesOrderProduct.get(`${soKeyNorm}_${pIdLower}`) : 0) ||
+          0;
+
+        const remaining = Math.max(0, qty - fromActiveDispatches);
+        if (remaining <= 0 && fromActiveDispatches > 0) return;
+
+        const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (soIdLower ? ordersWithPriorDispatches.has(soIdLower) : false);
+
+        unifiedFinishedGoods.push({
+          id: `fg-${fg.id || fg.workOrderId}`,
+          itemType: "WORK_ORDER",
+          orderNumber: fg.jobNo || salesOrder?.orderNumber || "WO-FG",
+          customerName,
+          projectName,
+          deliveryAddress: address || "—",
+          productName: fg.productName || "Finished Product",
+          approvedQuantity: remaining,
+          orderedQuantity: qty,
+          dispatchedQuantity: fromActiveDispatches,
+          remainingQuantity: remaining,
+          isPartiallyDispatched: Boolean(orderHasPriorDispatches || fromActiveDispatches > 0),
+          workOrderId: fg.workOrderId || fg.id,
+          salesOrderId: salesOrder?.id || matchedSo?.id,
+          salesOrderItemId: fg.salesOrderItemId || wo?.salesOrderItemId || fg.workOrder?.salesOrderItemId || fg.workOrder?.salesOrderItem?.id || undefined,
+          workOrderNumber: fg.jobNo,
+          productId: fg.productId || wo?.salesOrderItem?.productId || fg.workOrder?.salesOrderItem?.productId,
+          dispatchCategory:
+            (isTradingProduct(fg.product || fg, productsMap) ? "D2" : null) ||
+            fg.dispatchCategory ||
+            fg.dispatch_category ||
+            fg.product?.dispatchCategory ||
+            fg.product?.dispatch_category ||
+            wo?.salesOrderItem?.product?.dispatchCategory ||
+            wo?.salesOrderItem?.product?.dispatch_category ||
+            productsMap.get(fg.productId || "")?.dispatchCategory ||
+            productsMap.get(fg.productId || "")?.dispatch_category ||
+            "D1",
         });
+      });
 
-      const unifiedWorkOrders: UnifiedPendingDispatchItem[] = allProductionJobs
-        .filter((wo) => {
-          if (!wo || !wo.id) return false;
-          const prodStatus = String(wo.productionStatus || wo.status || "").toUpperCase();
-          if (prodStatus === "DELIVERED" || prodStatus === "SHIPPED") return false;
-          return true;
-        })
-        .map((wo) => {
-          const soFromWo = wo.productionPlan?.salesOrder || wo.salesOrder;
-          const soLookupKey = (soFromWo?.id || wo.salesOrderId || wo.salesOrderNumber || wo.workOrderNumber || "").toLowerCase();
-          const matchedSo = salesOrdersMap.get(soLookupKey) || salesOrdersMap.get(normalizeKey(wo.salesOrderNumber)) || salesOrdersMap.get(normalizeKey(wo.workOrderNumber));
-          const salesOrder = soFromWo || matchedSo;
-          const customer = salesOrder?.customer || wo.customer;
-          const address = formatAddress(salesOrder, customer, wo, matchedSo);
-          const item = wo.salesOrderItem;
+      const unifiedWorkOrders: UnifiedPendingDispatchItem[] = [];
+      allProductionJobs.forEach((wo) => {
+        if (!wo || !wo.id) return;
+        const prodStatus = String(wo.productionStatus || "").toUpperCase();
+        const woStatus = String(wo.status || "").toUpperCase();
+        if (
+          prodStatus === "DELIVERED" ||
+          prodStatus === "SHIPPED" ||
+          prodStatus === "DISPATCHED" ||
+          woStatus === "DELIVERED" ||
+          woStatus === "SHIPPED" ||
+          woStatus === "DISPATCHED" ||
+          woStatus === "CLOSED" ||
+          woStatus === "CANCELLED"
+        ) {
+          return;
+        }
 
-          const totalOrdered = Number(item?.orderedQuantity || wo.quantity || 1);
-          const fromDispatchItems = item?.dispatchItems?.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0) || 0;
-          const fromActiveDispatches =
-            (wo.id ? dispatchedByWorkOrder.get(String(wo.id).toLowerCase()) : 0) ||
-            (wo.salesOrderItemId ? dispatchedBySalesOrderItem.get(String(wo.salesOrderItemId).toLowerCase()) : 0) ||
-            0;
-          const alreadyDispatched = Math.max(fromDispatchItems, fromActiveDispatches);
-          const remaining = Math.max(0, totalOrdered - alreadyDispatched);
+        const soFromWo = wo.productionPlan?.salesOrder || wo.salesOrder;
+        const soLookupKey = (soFromWo?.id || wo.salesOrderId || wo.salesOrderNumber || wo.workOrderNumber || "").toLowerCase();
+        const matchedSo = salesOrdersMap.get(soLookupKey) || salesOrdersMap.get(normalizeKey(wo.salesOrderNumber)) || salesOrdersMap.get(normalizeKey(wo.workOrderNumber));
+        const salesOrder = soFromWo || matchedSo;
+        const customer = salesOrder?.customer || wo.customer;
+        const address = formatAddress(salesOrder, customer, wo, matchedSo);
+        const item = wo.salesOrderItem;
 
-          const numPart = (wo.workOrderNumber || wo.id || "").replace(/\D/g, "").slice(-5);
-          const soNumber =
-            salesOrder?.orderNumber ||
-            wo.salesOrderNumber ||
-            (numPart ? `SO-2026-${numPart.padStart(5, "0")}` : wo.workOrderNumber || "SO-DISPATCH");
-          const prodName =
-            wo.salesOrderItem?.productNameSnapshot ||
-            wo.salesOrderItem?.product?.name ||
-            wo.productName ||
-            wo.product ||
-            "Finished Manufacturing Product";
+        const totalOrdered = Number(item?.orderedQuantity || wo.quantity || 1);
+        const fromDispatchItems = item?.dispatchItems?.reduce((sum: number, d: any) => sum + Number(d.quantity || 0), 0) || 0;
 
-          const customerName = resolveCustomerName(salesOrder, matchedSo, customer, wo);
-          const projectName = resolveProjectName(salesOrder, matchedSo, customer, wo);
+        const numPart = (wo.workOrderNumber || wo.id || "").replace(/\D/g, "").slice(-5);
+        const soNumber =
+          salesOrder?.orderNumber ||
+          wo.salesOrderNumber ||
+          (numPart ? `SO-2026-${numPart.padStart(5, "0")}` : wo.workOrderNumber || "SO-DISPATCH");
+        const soKeyNorm = normalizeKey(soNumber);
+        const soIdLower = String(salesOrder?.id || matchedSo?.id || wo.salesOrderId || "").toLowerCase();
+        const pIdLower = String(wo.salesOrderItem?.productId || wo.productId || "").toLowerCase();
 
-          const soKeyNorm = normalizeKey(soNumber);
-          const soIdLower = String(salesOrder?.id || matchedSo?.id || wo.salesOrderId || "").toLowerCase();
-          const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (soIdLower ? ordersWithPriorDispatches.has(soIdLower) : false);
-          const isPartiallyDispatched = (alreadyDispatched > 0 && remaining > 0) || (orderHasPriorDispatches && remaining > 0);
+        const fromActiveDispatches =
+          (wo.id ? dispatchedByWorkOrder.get(String(wo.id).toLowerCase()) : 0) ||
+          (wo.salesOrderItemId ? dispatchedBySalesOrderItem.get(String(wo.salesOrderItemId).toLowerCase()) : 0) ||
+          (item?.id ? dispatchedBySalesOrderItem.get(String(item.id).toLowerCase()) : 0) ||
+          (soIdLower && pIdLower ? dispatchedBySalesOrderProduct.get(`${soIdLower}_${pIdLower}`) : 0) ||
+          (soKeyNorm && pIdLower ? dispatchedBySalesOrderProduct.get(`${soKeyNorm}_${pIdLower}`) : 0) ||
+          0;
+        const alreadyDispatched = Math.max(fromDispatchItems, fromActiveDispatches);
+        const remaining = Math.max(0, totalOrdered - alreadyDispatched);
 
-          return {
-            id: `wo-${wo.id}`,
-            itemType: "WORK_ORDER",
-            orderNumber: soNumber,
-            customerName,
-            projectName,
-            deliveryAddress: address || "—",
-            productName: prodName,
-            productSku: wo.salesOrderItem?.product?.sku || wo.productCode,
-            approvedQuantity: remaining > 0 ? remaining : totalOrdered,
-            orderedQuantity: totalOrdered,
-            dispatchedQuantity: alreadyDispatched,
-            remainingQuantity: remaining,
-            isPartiallyDispatched,
-            workOrderId: wo.id,
-            salesOrderId: salesOrder?.id || matchedSo?.id,
-            salesOrderItemId: item?.id || wo.salesOrderItemId || wo.salesOrderItem?.id || undefined,
-            workOrderNumber: wo.workOrderNumber,
-            productId: wo.salesOrderItem?.productId || wo.productId,
-            dispatchCategory: isTradingProduct(wo.salesOrderItem || wo, productsMap)
-              ? "D2"
-              : (wo.salesOrderItem?.product?.dispatchCategory ||
-                 wo.salesOrderItem?.product?.dispatch_category ||
-                 productsMap.get(wo.salesOrderItem?.productId || "")?.dispatchCategory ||
-                 productsMap.get(wo.salesOrderItem?.productId || "")?.dispatch_category ||
-                 "D1"),
-          };
+        // If this work order is fully dispatched, do NOT include in pending list!
+        if (remaining <= 0 && alreadyDispatched > 0) return;
+
+        const prodName =
+          wo.salesOrderItem?.productNameSnapshot ||
+          wo.salesOrderItem?.product?.name ||
+          wo.productName ||
+          wo.product ||
+          "Finished Manufacturing Product";
+
+        const customerName = resolveCustomerName(salesOrder, matchedSo, customer, wo);
+        const projectName = resolveProjectName(salesOrder, matchedSo, customer, wo);
+
+        const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (soIdLower ? ordersWithPriorDispatches.has(soIdLower) : false);
+        const isPartiallyDispatched = (alreadyDispatched > 0 && remaining > 0) || (orderHasPriorDispatches && remaining > 0);
+
+        unifiedWorkOrders.push({
+          id: `wo-${wo.id}`,
+          itemType: "WORK_ORDER",
+          orderNumber: soNumber,
+          customerName,
+          projectName,
+          deliveryAddress: address || "—",
+          productName: prodName,
+          productSku: wo.salesOrderItem?.product?.sku || wo.productCode,
+          approvedQuantity: remaining,
+          orderedQuantity: totalOrdered,
+          dispatchedQuantity: alreadyDispatched,
+          remainingQuantity: remaining,
+          isPartiallyDispatched,
+          workOrderId: wo.id,
+          salesOrderId: salesOrder?.id || matchedSo?.id,
+          salesOrderItemId: item?.id || wo.salesOrderItemId || wo.salesOrderItem?.id || undefined,
+          workOrderNumber: wo.workOrderNumber,
+          productId: wo.salesOrderItem?.productId || wo.productId,
+          dispatchCategory: isTradingProduct(wo.salesOrderItem || wo, productsMap)
+            ? "D2"
+            : (wo.salesOrderItem?.product?.dispatchCategory ||
+               wo.salesOrderItem?.product?.dispatch_category ||
+               productsMap.get(wo.salesOrderItem?.productId || "")?.dispatchCategory ||
+               productsMap.get(wo.salesOrderItem?.productId || "")?.dispatch_category ||
+               "D1"),
         });
+      });
 
       const unifiedSalesOrders: UnifiedPendingDispatchItem[] = [];
       rawSalesOrders.forEach((so: any) => {
@@ -1037,7 +1091,7 @@ export default function DispatchOrdersPage() {
               deliveryAddress: address,
               productName: item.productNameSnapshot || item.productName || item.name || "Product Cargo",
               productSku: item.product?.sku || item.sku,
-              approvedQuantity: remaining > 0 ? remaining : totalOrdered,
+              approvedQuantity: remaining,
               orderedQuantity: totalOrdered,
               dispatchedQuantity: alreadyDispatched,
               remainingQuantity: remaining,
@@ -1120,10 +1174,10 @@ export default function DispatchOrdersPage() {
           productName: incoming.productName || existing.productName,
           productSku: incoming.productSku || existing.productSku,
           dispatchCategory: resolvedCategory,
-          approvedQuantity: incoming.approvedQuantity || existing.approvedQuantity,
-          orderedQuantity: incoming.orderedQuantity || existing.orderedQuantity,
-          dispatchedQuantity: incoming.dispatchedQuantity || existing.dispatchedQuantity,
-          remainingQuantity: incoming.remainingQuantity || existing.remainingQuantity,
+          approvedQuantity: incoming.approvedQuantity !== undefined ? incoming.approvedQuantity : existing.approvedQuantity,
+          orderedQuantity: incoming.orderedQuantity !== undefined ? incoming.orderedQuantity : existing.orderedQuantity,
+          dispatchedQuantity: Math.max(incoming.dispatchedQuantity || 0, existing.dispatchedQuantity || 0),
+          remainingQuantity: incoming.remainingQuantity !== undefined ? incoming.remainingQuantity : existing.remainingQuantity,
           isPartiallyDispatched: incoming.isPartiallyDispatched || existing.isPartiallyDispatched,
         };
       };
@@ -1144,7 +1198,9 @@ export default function DispatchOrdersPage() {
       unifiedSalesOrders.forEach(addOrMerge);
 
       return combined.filter((item) => {
-        const rem = Number(item.remainingQuantity ?? item.approvedQuantity ?? 1);
+        const rem = Number(item.remainingQuantity ?? item.approvedQuantity ?? 0);
+        const dispatched = Number(item.dispatchedQuantity || 0);
+        if (rem <= 0 && dispatched > 0) return false;
         return rem > 0;
       });
     },
@@ -1195,15 +1251,15 @@ export default function DispatchOrdersPage() {
     const map = new Map<string, PendingOrderGroup>();
 
     filteredPendingItems.forEach((item) => {
+      const remQty = typeof item.remainingQuantity === "number" ? item.remainingQuantity : (typeof item.approvedQuantity === "number" ? item.approvedQuantity : 1);
+      const dispatchedNum = item.dispatchedQuantity ?? 0;
+      if (remQty <= 0 && dispatchedNum > 0) return;
+
       const key = item.orderNumber || item.salesOrderId || "SO-UNASSIGNED";
       const existing = map.get(key);
 
-      const qtyNum =
-        typeof item.approvedQuantity === "number"
-          ? item.approvedQuantity
-          : parseFloat(String(item.approvedQuantity)) || 1;
+      const qtyNum = remQty;
       const orderedNum = item.orderedQuantity ?? qtyNum;
-      const dispatchedNum = item.dispatchedQuantity ?? 0;
 
       if (existing) {
         existing.totalQty += qtyNum;
@@ -1240,12 +1296,17 @@ export default function DispatchOrdersPage() {
       }
     });
 
-    return Array.from(map.values()).sort((a, b) => {
-      const numA = parseInt((a.orderNumber || "").replace(/\D/g, "")) || 0;
-      const numB = parseInt((b.orderNumber || "").replace(/\D/g, "")) || 0;
-      if (numA && numB && numA !== numB) return numB - numA;
-      return (b.orderNumber || "").localeCompare(a.orderNumber || "");
-    });
+    return Array.from(map.values())
+      .filter((group) => {
+        const totalRemaining = group.items.reduce((sum, it) => sum + Number(it.remainingQuantity ?? it.approvedQuantity ?? 0), 0);
+        return totalRemaining > 0 && group.totalQty > 0;
+      })
+      .sort((a, b) => {
+        const numA = parseInt((a.orderNumber || "").replace(/\D/g, "")) || 0;
+        const numB = parseInt((b.orderNumber || "").replace(/\D/g, "")) || 0;
+        if (numA && numB && numA !== numB) return numB - numA;
+        return (b.orderNumber || "").localeCompare(a.orderNumber || "");
+      });
   }, [filteredPendingItems]);
 
   // Remaining Items (Partially Dispatched)

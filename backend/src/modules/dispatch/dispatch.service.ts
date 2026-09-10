@@ -687,19 +687,51 @@ export class DispatchService {
 
         // Update WorkOrder status to DISPATCHED
         for (const item of dto.items) {
+          const woConditions: any[] = [];
+          if (item.workOrderIds?.length) {
+            woConditions.push({ id: { in: item.workOrderIds } });
+          }
+          if (item.salesOrderItemId) {
+            woConditions.push({ salesOrderItemId: item.salesOrderItemId });
+          }
+
           const wos = await tx.workOrder.findMany({
             where: {
-              salesOrderItemId: item.salesOrderItemId,
-              status: 'READY_FOR_DISPATCH',
-              ...(item.workOrderIds?.length
-                ? { id: { in: item.workOrderIds } }
-                : {}),
+              OR: woConditions.length > 0 ? woConditions : [{ salesOrderItemId: item.salesOrderItemId }],
+              status: { not: 'DISPATCHED' },
             },
           });
           for (const wo of wos) {
             await tx.workOrder.update({
               where: { id: wo.id },
-              data: { status: 'DISPATCHED' },
+              data: {
+                status: 'DISPATCHED',
+                productionStatus: 'DISPATCHED',
+                dispatchedAt: new Date(),
+                dispatchedById: userId,
+              },
+            });
+          }
+
+          // Also update finished goods records
+          const fgConditions: any[] = [];
+          if (wos.length > 0) {
+            fgConditions.push({ workOrderId: { in: wos.map((w) => w.id) } });
+          }
+          const pId = item.productId || soItemsMap.get(item.salesOrderItemId)?.productId;
+          if (pId && so?.id) {
+            fgConditions.push({ salesOrderId: so.id, productId: pId });
+          }
+          if (fgConditions.length > 0) {
+            await tx.finishedGoods.updateMany({
+              where: {
+                OR: fgConditions,
+                status: { not: 'DISPATCHED' },
+              },
+              data: {
+                status: 'DISPATCHED',
+                availableQuantity: 0,
+              },
             });
           }
         }
@@ -752,10 +784,36 @@ export class DispatchService {
           },
         });
 
-        await tx.salesOrder.update({
-          where: { id: dto.salesOrderId },
-          data: { status: 'READY_FOR_DISPATCH' },
+        // Check if all items in SO are now fulfilled
+        const soWithItems = await tx.salesOrder.findUnique({
+          where: { id: so.id },
+          include: {
+            items: {
+              include: {
+                dispatchItems: {
+                  include: { dispatch: true },
+                },
+              },
+            },
+          },
         });
+
+        let allItemsFulfilled = false;
+        if (soWithItems && Array.isArray(soWithItems.items) && soWithItems.items.length > 0) {
+          allItemsFulfilled = soWithItems.items.every((si) => {
+            const totalDispatched = (si.dispatchItems || [])
+              .filter((di: any) => !di.dispatch || !['CANCELLED', 'REJECTED'].includes(di.dispatch.status))
+              .reduce((sum: number, di: any) => sum + Number(di.quantity || 0), 0);
+            return totalDispatched >= Number(si.orderedQuantity || 0);
+          });
+        }
+
+        if (allItemsFulfilled) {
+          await tx.salesOrder.update({
+            where: { id: dto.salesOrderId },
+            data: { status: 'COMPLETED' },
+          });
+        }
 
         console.log(
           '[DISPATCH 10] Dispatch transaction committed successfully:',
