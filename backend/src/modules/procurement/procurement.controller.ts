@@ -269,6 +269,11 @@ export class ProcurementController {
     const primaryIndentId = d.items?.[0]?.indentId || d.indentId || '';
     return this.service.createPO(primaryIndentId, d, r.user?.sub);
   }
+  @Post('admin/sync-schema')
+  @RequirePermissions('procurement.purchase_orders.create')
+  syncSchema() {
+    return this.service.syncSchema();
+  }
   @Get('purchase-orders/:id/closure-status')
   @RequirePermissions('procurement.purchase_orders.read')
   closureStatus(@Param('id') id: string) {
