@@ -218,7 +218,7 @@ export class DispatchService {
     try {
       const result = await this.prisma.$transaction(async (tx) => {
         console.log('[DISPATCH 01] Load sales order:', dto.salesOrderId);
-        const so = await tx.salesOrder.findUnique({
+        let so = await tx.salesOrder.findUnique({
           where: { id: dto.salesOrderId },
           include: {
             customer: true,
@@ -232,6 +232,28 @@ export class DispatchService {
             workflowState: true,
           },
         });
+        if (!so) {
+          so = await tx.salesOrder.findFirst({
+            where: {
+              OR: [
+                { id: dto.salesOrderId },
+                { orderNumber: dto.salesOrderId },
+                { orderNumber: { equals: dto.salesOrderId, mode: 'insensitive' } },
+              ],
+            },
+            include: {
+              customer: true,
+              items: {
+                include: {
+                  dispatchItems: {
+                    include: { dispatch: true },
+                  },
+                },
+              },
+              workflowState: true,
+            },
+          });
+        }
         if (!so) throw new NotFoundException('Sales Order not found');
 
         console.log('[DISPATCH 02] Generate dispatch sequence number');
@@ -249,7 +271,20 @@ export class DispatchService {
         const invoiceLines: any[] = [];
 
         for (const item of dto.items) {
-          const soItem = soItemsMap.get(item.salesOrderItemId);
+          let soItem = soItemsMap.get(item.salesOrderItemId);
+          if (!soItem && item.productId) {
+            soItem = so.items.find((si) => si.productId === item.productId);
+          }
+          if (!soItem && so.items.length === 1) {
+            soItem = so.items[0];
+          }
+          if (!soItem) {
+            soItem = so.items.find(
+              (si) =>
+                si.id.toLowerCase() === String(item.salesOrderItemId).toLowerCase() ||
+                String(item.salesOrderItemId).toLowerCase().includes(si.id.toLowerCase()),
+            );
+          }
           if (!soItem) {
             throw new BadRequestException(
               `Order item ${item.salesOrderItemId} does not belong to this order`,
@@ -1356,7 +1391,7 @@ export class DispatchService {
           orderRow.items.push({
             allocationId: `wo-${wo.id}`,
             workOrderId: wo.id,
-            salesOrderItemId: wo.salesOrderItemId,
+            salesOrderItemId: wo.salesOrderItemId || wo.salesOrderItem?.id || null,
             productId: product?.id || (wo as any).productId || '',
             productCode:
               wo.salesOrderItem?.productCodeSnapshot ||
@@ -1461,6 +1496,8 @@ export class DispatchService {
             allocationId: `fg-${fg.id}`,
             fgId: fg.id,
             workOrderId: fg.workOrderId,
+            salesOrderItemId:
+              wo?.salesOrderItemId || wo?.salesOrderItem?.id || null,
             productId: product?.id || (fg as any).productId || '',
             productCode: product?.sku || product?.publicId || '',
             productName: product?.name || 'Finished Product',

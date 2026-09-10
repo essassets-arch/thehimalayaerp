@@ -702,7 +702,16 @@ export default function CreateDispatchPage() {
         seenWorkOrderKeys.add(woKey.toLowerCase());
         if (item?.id) seenWorkOrderKeys.add(String(item.id).toLowerCase());
 
+        const resolvedSoItemId =
+          item?.id ||
+          wo.salesOrderItemId ||
+          wo.salesOrderItem?.id ||
+          (matchedSo?.items?.find((si: any) => si.productId === (item?.productId || wo.productId))?.id) ||
+          (salesOrder?.items?.find((si: any) => si.productId === (item?.productId || wo.productId))?.id) ||
+          wo.id;
+
         list.push({
+          ...wo,
           id: woKey,
           workOrderNumber: wo.workOrderNumber || salesOrder?.orderNumber || "WO-DISPATCH",
           quantity: remaining,
@@ -710,7 +719,7 @@ export default function CreateDispatchPage() {
           dispatchedQuantity: alreadyDispatched,
           remainingQuantity: remaining,
           status: "READY_FOR_DISPATCH",
-          salesOrderItemId: item?.id || wo.salesOrderItemId || wo.id,
+          salesOrderItemId: resolvedSoItemId,
           productionPlan: {
             id: `pp-${salesOrder?.id || wo.id}`,
             salesOrder: {
@@ -722,7 +731,7 @@ export default function CreateDispatchPage() {
             },
           },
           salesOrderItem: {
-            id: item?.id || wo.salesOrderItemId || wo.id,
+            id: resolvedSoItemId,
             productId: item?.productId || wo.productId || "",
             productNameSnapshot: prodName,
             orderedQuantity: totalOrdered,
@@ -730,7 +739,6 @@ export default function CreateDispatchPage() {
             product: { ...prodObj, dispatchCategory: dCat },
           },
           qcInspections: [{ approvedQuantity: remaining, approvedAt: new Date().toISOString(), createdAt: new Date().toISOString() }],
-          ...wo,
         } as any);
       });
 
@@ -756,7 +764,16 @@ export default function CreateDispatchPage() {
         const prodObj = fg.product || productsMap.get(fg.productId) || productsMap.get(wo?.salesOrderItem?.productId);
         const dCat = isTradingProduct(fg.product || fg, productsMap) ? "D2" : (prodObj?.dispatchCategory || "D1");
 
+        const resolvedFgItemId =
+          fg.salesOrderItemId ||
+          wo?.salesOrderItemId ||
+          wo?.salesOrderItem?.id ||
+          (matchedSo?.items?.find((si: any) => si.productId === (fg.productId || wo?.productId))?.id) ||
+          (salesOrder?.items?.find((si: any) => si.productId === (fg.productId || wo?.productId))?.id) ||
+          fg.id;
+
         list.push({
+          ...fg,
           id: fgKey,
           workOrderNumber: fg.jobNo || salesOrder?.orderNumber || "WO-FG",
           quantity: remaining,
@@ -764,7 +781,7 @@ export default function CreateDispatchPage() {
           dispatchedQuantity: alreadyDispatched,
           remainingQuantity: remaining,
           status: "READY_FOR_DISPATCH",
-          salesOrderItemId: fg.salesOrderItemId || wo?.salesOrderItemId || fg.id,
+          salesOrderItemId: resolvedFgItemId,
           productionPlan: {
             id: `pp-${salesOrder?.id || fg.id}`,
             salesOrder: {
@@ -776,7 +793,7 @@ export default function CreateDispatchPage() {
             },
           },
           salesOrderItem: {
-            id: fg.salesOrderItemId || wo?.salesOrderItemId || fg.id,
+            id: resolvedFgItemId,
             productId: fg.productId || wo?.salesOrderItem?.productId || "",
             productNameSnapshot: fg.productName || "Finished Product",
             orderedQuantity: totalOrdered,
@@ -784,7 +801,6 @@ export default function CreateDispatchPage() {
             product: { ...prodObj, dispatchCategory: dCat },
           },
           qcInspections: [{ approvedQuantity: remaining, approvedAt: new Date().toISOString(), createdAt: new Date().toISOString() }],
-          ...fg,
         } as any);
       });
 
@@ -798,11 +814,18 @@ export default function CreateDispatchPage() {
 
         items.forEach((qItem: any) => {
           const qty = Number(qItem.approvedQuantity ?? qItem.dispatchableQuantity ?? qItem.reservedQuantity ?? 1);
-          const qKey = `alloc-${qItem.allocationId || qItem.id || Math.random()}`;
+          const qKey = `alloc-${qItem.allocationId || qItem.id || qItem.workOrderId || Math.random()}`;
           if (qItem.salesOrderItemId && seenWorkOrderKeys.has(String(qItem.salesOrderItemId).toLowerCase())) return;
 
           const prodObj = productsMap.get(qItem.productId || "");
           const dCat = isTradingProduct(qItem, productsMap) ? "D2" : (prodObj?.dispatchCategory || "D2");
+
+          const resolvedQItemId =
+            qItem.salesOrderItemId ||
+            (matchedSo?.items?.find((si: any) => si.id === qItem.salesOrderItemId || (qItem.productId && si.productId === qItem.productId))?.id) ||
+            (matchedSo?.items?.length === 1 ? matchedSo.items[0].id : null) ||
+            qItem.id ||
+            qKey;
 
           list.push({
             id: qKey,
@@ -812,7 +835,7 @@ export default function CreateDispatchPage() {
             dispatchedQuantity: 0,
             remainingQuantity: qty,
             status: "READY_FOR_DISPATCH",
-            salesOrderItemId: qItem.salesOrderItemId || qItem.id,
+            salesOrderItemId: resolvedQItemId,
             productionPlan: {
               id: `pp-${qOrder.salesOrderId || matchedSo?.id || 'queue'}`,
               salesOrder: {
@@ -824,7 +847,7 @@ export default function CreateDispatchPage() {
               },
             },
             salesOrderItem: {
-              id: qItem.salesOrderItemId || qItem.id,
+              id: resolvedQItemId,
               productId: qItem.productId || "",
               productNameSnapshot: qItem.productName || "Direct Dispatch Item",
               orderedQuantity: qty,
@@ -911,34 +934,45 @@ export default function CreateDispatchPage() {
         });
 
         if (!hasMatchedItem) {
-          const fallbackId = salesOrderId || orderNumber || requestedWorkOrderIds[0] || "fallback-1";
-          const fallbackOrderNumber = orderNumber || "SO-DISPATCH";
-          const fallbackAddr = deliveryAddressParam && deliveryAddressParam.trim() && deliveryAddressParam !== "—" ? deliveryAddressParam.trim() : "Consignee Delivery Location";
+          const matchedFallbackSo = combinedSalesOrders.find((so: any) =>
+            (salesOrderId && (so.id === salesOrderId || String(so.id).toLowerCase() === String(salesOrderId).toLowerCase())) ||
+            (orderNumber && normalizeKey(so.orderNumber) === normalizeKey(orderNumber))
+          );
+          const firstSoItem = matchedFallbackSo?.items?.[0] || matchedFallbackSo?.orderItems?.[0];
+          const fallbackId = matchedFallbackSo?.id || salesOrderId || orderNumber || requestedWorkOrderIds[0] || "fallback-1";
+          const fallbackOrderNumber = matchedFallbackSo?.orderNumber || orderNumber || "SO-DISPATCH";
+          const fallbackAddr = deliveryAddressParam && deliveryAddressParam.trim() && deliveryAddressParam !== "—"
+            ? deliveryAddressParam.trim()
+            : formatAddress(matchedFallbackSo, matchedFallbackSo?.customer) || "Consignee Delivery Location";
+          const fallbackItemId = salesOrderItemId || firstSoItem?.id || `so-item-${fallbackId}`;
+          const fallbackProdName = firstSoItem?.productNameSnapshot || firstSoItem?.product?.name || firstSoItem?.name || "Consignment Cargo Items";
+          const fallbackProdId = firstSoItem?.productId || firstSoItem?.product?.id || "";
+
           list.unshift({
             id: `fallback-${fallbackId}`,
             workOrderNumber: fallbackOrderNumber,
             quantity: 1,
-            orderedQuantity: 1,
+            orderedQuantity: Number(firstSoItem?.orderedQuantity || 1),
             dispatchedQuantity: 0,
             remainingQuantity: 1,
             status: "READY_FOR_DISPATCH",
-            salesOrderItemId: salesOrderItemId || `so-item-${fallbackId}`,
+            salesOrderItemId: fallbackItemId,
             productionPlan: {
               id: `pp-${fallbackId}`,
               salesOrder: {
                 id: fallbackId,
                 orderNumber: fallbackOrderNumber,
                 shippingAddress: fallbackAddr,
-                customer: { id: "cust-direct", companyName: "Consignee Client" },
+                customer: matchedFallbackSo?.customer || { id: "cust-direct", companyName: resolveCustomerName(matchedFallbackSo) || "Consignee Client" },
               },
             },
             salesOrderItem: {
-              id: salesOrderItemId || `so-item-${fallbackId}`,
-              productId: "",
-              productNameSnapshot: "Consignment Cargo Items",
-              orderedQuantity: 1,
-              unitPrice: 0,
-              product: { name: "Consignment Cargo Items", dispatchCategory: "D1" },
+              id: fallbackItemId,
+              productId: fallbackProdId,
+              productNameSnapshot: fallbackProdName,
+              orderedQuantity: Number(firstSoItem?.orderedQuantity || 1),
+              unitPrice: Number(firstSoItem?.unitPrice || 0),
+              product: { ...(firstSoItem?.product || {}), name: fallbackProdName, dispatchCategory: "D1" },
             },
             qcInspections: [{ approvedQuantity: 1, approvedAt: new Date().toISOString(), createdAt: new Date().toISOString() }],
           });
@@ -1508,8 +1542,8 @@ export default function CreateDispatchPage() {
       return;
     }
     for (const selected of selectedWorkOrders) {
-      const quantity = Number(dispatchQuantities[selected.id] || 0);
-      const maximum = availableQuantity(selected);
+      const quantity = Number(dispatchQuantities[selected.id] ?? dispatchQuantities[cleanWorkOrderId(selected.id)] ?? availableQuantity(selected) ?? 1);
+      const maximum = Math.max(1, availableQuantity(selected));
       if (quantity <= 0 || quantity > maximum) {
         toast.error(
           `${selected.workOrderNumber}: quantity must be between 1 and ${maximum}`,
@@ -1520,19 +1554,34 @@ export default function CreateDispatchPage() {
 
     try {
       const orderGroups = selectedWorkOrders.reduce((groups, selected) => {
-        const selectedSalesOrder = selected.productionPlan?.salesOrder;
-        if (!selectedSalesOrder?.id) return groups;
-        const group = groups.get(selectedSalesOrder.id) || {
+        let selectedSalesOrder = selected.productionPlan?.salesOrder;
+        const soId = selectedSalesOrder?.id || salesOrderId || (selected as any).salesOrderId || "order-direct";
+        if (!selectedSalesOrder?.id) {
+          selectedSalesOrder = {
+            id: soId,
+            orderNumber: selectedSalesOrder?.orderNumber || orderNumber || (selected as any).salesOrderNumber || selected.workOrderNumber || "SO-DISPATCH",
+            requestedDeliveryDate: selectedSalesOrder?.requestedDeliveryDate,
+            freightAmount: selectedSalesOrder?.freightAmount,
+            shippingAddress: deliveryAddresses[soId] || deliveryAddressParam,
+            customer: selectedSalesOrder?.customer || (selected as any).customer,
+          } as any;
+        }
+        const group = groups.get(soId) || {
           salesOrder: selectedSalesOrder,
           workOrders: [] as WorkOrder[],
         };
         group.workOrders.push(selected);
-        groups.set(selectedSalesOrder.id, group);
+        groups.set(soId, group);
         return groups;
       }, new Map<string, { salesOrder: SalesOrder; workOrders: WorkOrder[] }>());
 
       for (const group of orderGroups.values()) {
-        const groupAddress = deliveryAddresses[group.salesOrder.id] || "";
+        const groupAddress =
+          deliveryAddresses[group.salesOrder.id] ||
+          deliveryAddresses[group.salesOrder.orderNumber] ||
+          formatAddress(group.salesOrder, group.salesOrder.customer) ||
+          deliveryAddressParam ||
+          "";
         if (!groupAddress.trim()) {
           await Swal.fire({
             icon: "warning",
@@ -1569,23 +1618,61 @@ export default function CreateDispatchPage() {
       for (const group of orderGroups.values()) {
         const consolidatedItems = Array.from(
           group.workOrders.reduce((items, selected) => {
-            const itemId = selected.salesOrderItem?.id || selected.salesOrderItemId;
+            const itemId =
+              selected.salesOrderItem?.id ||
+              selected.salesOrderItemId ||
+              (group.salesOrder as any)?.items?.find((si: any) => si.productId === (selected.salesOrderItem?.productId || (selected as any).productId))?.id ||
+              (group.salesOrder as any)?.items?.[0]?.id ||
+              selected.id;
             if (!itemId) return items;
             const current = items.get(itemId) || {
               salesOrderItemId: itemId,
-              productId: selected.salesOrderItem?.productId,
-              productName: selected.salesOrderItem?.productNameSnapshot,
+              productId: selected.salesOrderItem?.productId || (selected as any).productId,
+              productName: selected.salesOrderItem?.productNameSnapshot || (selected as any).productName,
               quantity: 0,
               workOrderIds: [] as string[],
             };
-            current.quantity += Number(dispatchQuantities[selected.id]);
+            const rawQty = dispatchQuantities[selected.id] ?? dispatchQuantities[cleanWorkOrderId(selected.id)] ?? availableQuantity(selected) ?? 1;
+            const parsedQty = Number(rawQty);
+            current.quantity += (!isNaN(parsedQty) && parsedQty > 0) ? parsedQty : 1;
             if (selected.id) current.workOrderIds.push(selected.id);
             items.set(itemId, current);
             return items;
           }, new Map<string, { salesOrderItemId: string; productId?: string; productName?: string; quantity: number; workOrderIds: string[] }>())
           .values(),
         ).filter((item) => item.quantity > 0);
-        const groupAddress = deliveryAddresses[group.salesOrder.id] || formatAddress(group.salesOrder, group.salesOrder.customer) || "";
+
+        if (consolidatedItems.length === 0 && group.workOrders.length > 0) {
+          group.workOrders.forEach((wo) => {
+            const fallbackItemId =
+              wo.salesOrderItem?.id ||
+              wo.salesOrderItemId ||
+              (group.salesOrder as any)?.items?.[0]?.id ||
+              wo.id;
+            const rawQty = dispatchQuantities[wo.id] ?? dispatchQuantities[cleanWorkOrderId(wo.id)] ?? availableQuantity(wo) ?? 1;
+            const parsedQty = Number(rawQty);
+            const qty = (!isNaN(parsedQty) && parsedQty > 0) ? parsedQty : 1;
+            consolidatedItems.push({
+              salesOrderItemId: fallbackItemId,
+              productId: wo.salesOrderItem?.productId || (wo as any).productId,
+              productName: wo.salesOrderItem?.productNameSnapshot || (wo as any).productName,
+              quantity: qty,
+              workOrderIds: wo.id ? [wo.id] : [],
+            });
+          });
+        }
+
+        if (consolidatedItems.length === 0) {
+          toast.error(`No dispatch items could be determined for Order #${group.salesOrder.orderNumber}. Please ensure a product and quantity > 0 are selected.`);
+          return;
+        }
+
+        const groupAddress =
+          deliveryAddresses[group.salesOrder.id] ||
+          deliveryAddresses[group.salesOrder.orderNumber] ||
+          formatAddress(group.salesOrder, group.salesOrder.customer) ||
+          deliveryAddressParam ||
+          "";
 
         const payload: Record<string, any> = {
           salesOrderId: group.salesOrder.id,

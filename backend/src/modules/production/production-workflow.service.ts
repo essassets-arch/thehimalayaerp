@@ -1577,6 +1577,8 @@ export class ProductionWorkflowService {
           productId: wo.productId || item?.productId || 'UNKNOWN_PROD',
           salesOrderId: so?.id || null,
           salesOrderNumber: so?.orderNumber || null,
+          salesOrderItemId: wo.salesOrderItemId || item?.id || null,
+          salesOrderItem: item || null,
           quantity: Number(qcApprovedQty),
           availableQuantity: Number(qcApprovedQty),
           allocatedQuantity: 0,
@@ -1630,6 +1632,8 @@ export class ProductionWorkflowService {
         productionPlanId: wo?.productionPlanId,
         salesOrderId: entry.salesOrderId || so?.id || null,
         salesOrderNumber: so?.orderNumber || (entry as any).salesOrderNumber || null,
+        salesOrderItemId: wo?.salesOrderItemId || wo?.salesOrderItem?.id || entry.salesOrderItemId || null,
+        salesOrderItem: wo?.salesOrderItem || null,
         customerName:
           leadCustomerName ||
           customer?.companyName ||

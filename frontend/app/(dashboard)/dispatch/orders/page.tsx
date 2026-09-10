@@ -899,6 +899,7 @@ export default function DispatchOrdersPage() {
             isPartiallyDispatched: Boolean(orderHasPriorDispatches),
             workOrderId: fg.workOrderId || fg.id,
             salesOrderId: salesOrder?.id || matchedSo?.id,
+            salesOrderItemId: fg.salesOrderItemId || wo?.salesOrderItemId || fg.workOrder?.salesOrderItemId || fg.workOrder?.salesOrderItem?.id || undefined,
             workOrderNumber: fg.jobNo,
             productId: fg.productId || wo?.salesOrderItem?.productId || fg.workOrder?.salesOrderItem?.productId,
             dispatchCategory:
@@ -976,6 +977,7 @@ export default function DispatchOrdersPage() {
             isPartiallyDispatched,
             workOrderId: wo.id,
             salesOrderId: salesOrder?.id || matchedSo?.id,
+            salesOrderItemId: item?.id || wo.salesOrderItemId || wo.salesOrderItem?.id || undefined,
             workOrderNumber: wo.workOrderNumber,
             productId: wo.salesOrderItem?.productId || wo.productId,
             dispatchCategory: isTradingProduct(wo.salesOrderItem || wo, productsMap)
@@ -1336,6 +1338,12 @@ export default function DispatchOrdersPage() {
       .filter((id): id is string => Boolean(id && !id.includes("/")));
     if (woIds.length > 0) {
       params.set("workOrderIds", woIds.join(","));
+    }
+    const soItemIds = group.items
+      .map((it) => it.salesOrderItemId)
+      .filter((id): id is string => Boolean(id && !id.includes("/")));
+    if (soItemIds.length > 0) {
+      params.set("salesOrderItemId", soItemIds[0]);
     }
     if (group.deliveryAddress && group.deliveryAddress !== "—" && group.deliveryAddress !== "N/A" && group.deliveryAddress !== "Factory Staging Area") {
       params.set("deliveryAddress", group.deliveryAddress);
