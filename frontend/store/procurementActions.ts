@@ -115,14 +115,42 @@ export async function syncProcurementData() {
     rate: 0,
   }));
 
+  const normalizedPurchaseOrders = purchaseOrders.map((po: any) => {
+    const vName = po.supplier?.name || po.snapshot?.vendorName || po.vendorName || po.supplierName || '—';
+    const vId = po.supplier?.publicId || po.supplier?.id || po.supplierId || po.vendorId || '—';
+    return {
+      ...po,
+      vendorName: vName,
+      supplierName: vName,
+      vendorId: vId,
+      supplierId: po.supplierId || po.supplier?.id || vId,
+      snapshot: {
+        ...(po.snapshot || {}),
+        vendorName: vName,
+        supplierName: vName,
+      },
+    };
+  });
+
+  const normalizedGRNs = goodsReceiptNotes.map((grn: any) => {
+    const vName = grn.purchaseOrder?.supplier?.name || grn.purchaseOrder?.snapshot?.vendorName || grn.vendorName || grn.supplierName || '—';
+    const vId = grn.purchaseOrder?.supplier?.publicId || grn.purchaseOrder?.supplier?.id || grn.vendorId || '—';
+    return {
+      ...grn,
+      vendorName: vName,
+      supplierName: vName,
+      vendorId: vId,
+    };
+  });
+
   const store = useERPStore.getState();
   const latestState = store.state;
 
   store.setState({
     ...latestState,
     purchaseIndents: materialIndents,
-    purchaseOrders,
-    goodsReceipts: goodsReceiptNotes,
+    purchaseOrders: normalizedPurchaseOrders,
+    goodsReceipts: normalizedGRNs,
     vendorInvoices,
     vendorPayments,
     materialRejections,
@@ -134,8 +162,9 @@ export async function syncProcurementData() {
     procurement: {
       ...(latestState.procurement || {}),
       materialIndents,
-      purchaseOrders,
-      goodsReceiptNotes
+      purchaseOrders: normalizedPurchaseOrders,
+      goodsReceiptNotes: normalizedGRNs,
+      suppliers,
     }
   });
 }
@@ -355,7 +384,8 @@ export async function createPurchaseOrder(indentId: string, poData: any, actorNa
     indentId: indentId,
     purchaseIndentId: indentId,
     purchaseIndent: matchedIndent || null,
-    vendorName: poData.vendorName || poData.supplierName || 'Selected Vendor',
+    vendorName: poData.vendorName || poData.supplierName || '—',
+    supplierName: poData.supplierName || poData.vendorName || '—',
     vendorId: poData.vendorId || poData.supplierId,
     supplierId: poData.supplierId || poData.vendorId,
     status: localStatus,
@@ -388,9 +418,17 @@ export async function createPurchaseOrder(indentId: string, poData: any, actorNa
     return newPO;
   }
 
+  const finalVendorName = (poData.vendorName || poData.supplierName || '').trim();
   const payload = {
     supplierId: poData.supplierId || poData.vendorId,
     vendorId: poData.vendorId || poData.supplierId,
+    supplierName: finalVendorName,
+    vendorName: finalVendorName,
+    snapshot: {
+      ...(poData.snapshot || {}),
+      vendorName: finalVendorName,
+      supplierName: finalVendorName,
+    },
     totalAmount: totalAmountNum,
     freight: Number(poData.freight || 0),
     otherCharges: Number(poData.otherCharges || 0),
@@ -701,6 +739,16 @@ export async function approveGoodsReceiptNote(grnId: string, remarks: string = '
 
 export async function approveGRN(grnId: string, actorName: string) {
   return approveGoodsReceiptNote(grnId, 'Approved by Finance Audit', actorName);
+}
+
+export async function rejectGRN(grnId: string, reason: string) {
+  if (!reason || !reason.trim()) throw new Error('A rejection reason is required.');
+  const res = await procurementRequest<any>(`grns/${grnId}/reject`, 'POST', {
+    reason: reason.trim(),
+    remarks: reason.trim(),
+  });
+  await syncProcurementData();
+  return res;
 }
 
 // ---------------------------------------------------------

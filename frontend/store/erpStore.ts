@@ -3169,7 +3169,7 @@ export const useERPStore = create((set: any, get: any) => ({
       poNumber: poData.poNumber || poId,
       indentId,
       vendorId: poData.vendorId || 'VEND-' + Date.now(),
-      vendorName: poData.vendorName || 'Selected Vendor',
+      vendorName: poData.vendorName || poData.supplierName || '—',
       expectedDeliveryDate: poData.expectedDeliveryDate || poData.expectedDate || '',
       paymentTerms: poData.paymentTerms || '30 Days Net',
       subtotal,

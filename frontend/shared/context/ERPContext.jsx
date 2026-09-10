@@ -257,7 +257,33 @@ export const useERP = () => {
       let analysisRequests = latestState.analysisRequests || [];
       let reminders = (fetchedReminders && fetchedReminders.length > 0) ? fetchedReminders : (latestState.reminders || []);
 
-      // Live backend state is the sole source of truth; no LocalStorage fallbacks.
+      const normalizedPurchaseOrders = purchaseOrders.map(po => {
+        const vName = po.supplier?.name || po.snapshot?.vendorName || po.vendorName || po.supplierName || '—';
+        const vId = po.supplier?.publicId || po.supplier?.id || po.supplierId || po.vendorId || '—';
+        return {
+          ...po,
+          vendorName: vName,
+          supplierName: vName,
+          vendorId: vId,
+          supplierId: po.supplierId || po.supplier?.id || vId,
+          snapshot: {
+            ...(po.snapshot || {}),
+            vendorName: vName,
+            supplierName: vName,
+          }
+        };
+      });
+
+      const normalizedGRNs = goodsReceiptNotes.map(grn => {
+        const vName = grn.purchaseOrder?.supplier?.name || grn.purchaseOrder?.snapshot?.vendorName || grn.vendorName || grn.supplierName || '—';
+        const vId = grn.purchaseOrder?.supplier?.publicId || grn.purchaseOrder?.supplier?.id || grn.vendorId || '—';
+        return {
+          ...grn,
+          vendorName: vName,
+          supplierName: vName,
+          vendorId: vId,
+        };
+      });
 
       const nextState = {
         ...latestState,
@@ -268,8 +294,8 @@ export const useERP = () => {
         vendorReturns,
         analysisRequests,
         purchaseIndents: materialIndents,
-        purchaseOrders,
-        goodsReceipts: goodsReceiptNotes,
+        purchaseOrders: normalizedPurchaseOrders,
+        goodsReceipts: normalizedGRNs,
         vendorInvoices,
         vendorPayments,
         rawInventory,
@@ -281,8 +307,9 @@ export const useERP = () => {
         procurement: {
           ...currentProcurement,
           materialIndents,
-          purchaseOrders,
-          goodsReceiptNotes
+          purchaseOrders: normalizedPurchaseOrders,
+          goodsReceiptNotes: normalizedGRNs,
+          suppliers
         },
         // Sales is local-canonical. Never hydrate it from the legacy mock API.
         sales: {

@@ -12968,6 +12968,7 @@ body, #root, .app-container {
   }
 
   .raw-inv-action-btn,
+  .raw-btn-log,
   .raw-btn-in,
   .raw-btn-out,
   .raw-btn-adj,
@@ -12989,6 +12990,7 @@ body, #root, .app-container {
   }
 
   .raw-inv-action-btn:active,
+  .raw-btn-log:active,
   .raw-btn-in:active,
   .raw-btn-out:active,
   .raw-btn-adj:active,
@@ -16945,7 +16947,8 @@ body, #root, .app-container {
    STORE RAW INVENTORY REDESIGN & RESPONSIVE PRECISION (0,0)
    ========================================================= */
 
-/* Action Buttons: + In, - Out, Adj, Edit (Desktop Table & Modals) */
+/* Action Buttons: Log, + In, - Out, Adj, Edit (Desktop Table & Modals) */
+.raw-btn-log,
 .raw-btn-in,
 .raw-btn-out,
 .raw-btn-adj,
@@ -16969,11 +16972,25 @@ body, #root, .app-container {
   text-decoration: none !important;
 }
 
+.raw-btn-log:active,
 .raw-btn-in:active,
 .raw-btn-out:active,
 .raw-btn-adj:active,
 .raw-btn-edit:active {
   transform: scale(0.96) !important;
+}
+
+/* Log: Vibrant Indigo / Violet Action */
+.raw-btn-log {
+  background: #f5f3ff !important;
+  color: #6d28d9 !important;
+  border: 1.5px solid #ddd6fe !important;
+}
+.raw-btn-log:hover {
+  background: #6d28d9 !important;
+  color: #ffffff !important;
+  border-color: #6d28d9 !important;
+  box-shadow: 0 3px 10px rgba(109, 40, 217, 0.25) !important;
 }
 
 /* + In: Emerald Action */

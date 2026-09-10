@@ -108,7 +108,7 @@ export default function PurchaseApproval() {
       const total = Number(po.totalAmount || po.grandTotal || po.value || 0);
       const matchesSearch = 
         (po.poNumber || po.publicId || po.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (po.vendorName || po.supplier?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (po.supplier?.name || po.vendorName || po.snapshot?.vendorName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (po.purchaseIndent?.publicId || po.purchaseIndent?.indentNo || po.purchaseIndentId || po.indentId || '').toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
@@ -156,7 +156,7 @@ export default function PurchaseApproval() {
         <div style="text-align: left; font-size: 13px; color: #475569; margin-bottom: 12px;">
           <div><strong>PO Ref:</strong> ${po.poNumber || po.publicId || po.id}</div>
           <div><strong>Amount:</strong> ₹${Number(po.totalAmount || po.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-          <div><strong>Vendor:</strong> ${po.vendorName || po.supplier?.name || 'N/A'}</div>
+          <div><strong>Vendor:</strong> ${po.supplier?.name || po.vendorName || po.snapshot?.vendorName || 'N/A'}</div>
         </div>
       `,
       input: 'textarea',
@@ -192,6 +192,7 @@ export default function PurchaseApproval() {
         <div style="text-align: left; font-size: 13px; color: #475569; margin-bottom: 12px;">
           <div><strong>PO Ref:</strong> ${po.poNumber || po.publicId || po.id}</div>
           <div><strong>Amount:</strong> ₹${Number(po.totalAmount || po.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+          <div><strong>Vendor:</strong> ${po.supplier?.name || po.vendorName || po.snapshot?.vendorName || 'N/A'}</div>
         </div>
       `,
       input: 'textarea',
@@ -445,7 +446,7 @@ export default function PurchaseApproval() {
                 accessor: 'vendorName',
                 render: row => (
                   <div>
-                    <div style={{ fontWeight: 700, color: '#2F4375' }}>{row.vendorName || row.supplier?.name || 'Selected Vendor'}</div>
+                    <div style={{ fontWeight: 700, color: '#2F4375' }}>{row.supplier?.name || row.vendorName || row.snapshot?.vendorName || '—'}</div>
                     <div style={{ fontSize: '11px', color: '#94A3B8' }}>{row.supplier?.contact || row.supplier?.email || '—'}</div>
                   </div>
                 )
@@ -481,6 +482,15 @@ export default function PurchaseApproval() {
                 header: 'Status',
                 accessor: 'status',
                 render: row => <StatusBadge status={row.status} />
+              },
+              {
+                header: 'Remarks',
+                accessor: 'orderRemarks',
+                render: row => (
+                  <span style={{ fontSize: '12px', color: '#475569' }}>
+                    {row.orderRemarks || row.snapshot?.plantHeadApprovalRemarks || row.snapshot?.approvalRemarks || row.superAdminRemarks || row.rejectionReason || '—'}
+                  </span>
+                )
               },
               {
                 header: 'Created Date',
@@ -591,9 +601,9 @@ export default function PurchaseApproval() {
                 <div>
                   <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Vendor</div>
                   <div style={{ fontSize: '14px', fontWeight: 800, color: '#1E293B', marginTop: '2px' }}>
-                    {selectedPO.vendorName || selectedPO.supplier?.name || 'Selected Vendor'}
+                    {selectedPO.supplier?.name || selectedPO.vendorName || selectedPO.snapshot?.vendorName || '—'}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#94A3B8' }}>GSTIN: {selectedPO.supplier?.gstin || selectedPO.gstin || '27AADCS1234F1Z8'}</div>
+                  <div style={{ fontSize: '11px', color: '#94A3B8' }}>GSTIN: {selectedPO.supplier?.gstin || selectedPO.gstin || 'Registered Supplier'}</div>
                 </div>
 
                 <div>

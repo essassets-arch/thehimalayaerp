@@ -84,6 +84,32 @@ export class InventoryController {
     'planthead.read',
     'plant-head.read',
   )
+  @Get('material-log/:identifier')
+  getMaterialMovementLog(
+    @CurrentUser() user: any,
+    @Param('identifier') identifier: string,
+  ) {
+    return this.inventoryService.getMaterialMovementLog(
+      user.companyId,
+      identifier,
+    );
+  }
+
+  @RequirePermissions(
+    'inventory.inventory.read',
+    'store.inventory.read',
+    'store.read',
+    'store.view',
+    'store.materials.read',
+    'store.rawinventory.read',
+    'inventory.read',
+    'inventory.stock.read',
+    'store.dashboard.read',
+    'logistics.dispatches.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+  )
   @Get('stock-levels')
   getStockLevels(
     @CurrentUser() user: any,

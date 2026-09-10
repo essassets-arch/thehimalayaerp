@@ -34,8 +34,9 @@ export default function VendorManagement() {
   const fetchVendors = async () => {
     setIsLoading(true);
     try {
-      const data = await purchaseService.getVendors();
-      setVendors(data || []);
+      const res = await purchaseService.getVendors();
+      const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      setVendors(list || []);
     } catch (err) {
       console.error('Fetch vendors error:', err);
       Swal.fire('Error', err.message || 'Failed to load vendors', 'error');
@@ -84,7 +85,8 @@ export default function VendorManagement() {
 
   const handleInspect = async (vendor) => {
     try {
-      const detailed = await purchaseService.getVendorById(vendor.id);
+      const res = await purchaseService.getVendorById(vendor.id);
+      const detailed = res?.data || res || vendor;
       setSelectedVendorDetail(detailed);
     } catch (err) {
       Swal.fire('Error', 'Failed to fetch vendor profile details', 'error');

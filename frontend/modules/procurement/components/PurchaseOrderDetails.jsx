@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { Calendar, Building2, MapPin } from 'lucide-react';
 
@@ -25,8 +25,8 @@ export function PurchaseOrderDetails({ po }) {
     <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', overflow: 'hidden', marginBottom: '24px' }}>
       <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0' }}>Purchase Order: {po.poNumber || po.id}</h2>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Ref Indent: {po.indentId || 'N/A'}</p>
+          <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px 0' }}>Purchase Order: {po.poNumber || po.publicId || po.id}</h2>
+          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Ref Indent: {po.purchaseIndent?.publicId || po.indentRef || po.purchaseIndentId || po.indentId || 'N/A'}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <ProcurementStatusBadge status={po.status} />
@@ -39,7 +39,7 @@ export function PurchaseOrderDetails({ po }) {
             <Building2 size={16} />
             Vendor Information
           </div>
-          <p style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: 0 }}>{po.vendorDisplayName || po.vendorName || po.supplier?.name}</p>
+          <p style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: 0 }}>{po.supplier?.name || po.vendorName || po.snapshot?.vendorName || po.vendorDisplayName || 'N/A'}</p>
         </div>
 
         <div style={{ flex: '1 1 250px', minWidth: '250px' }}>

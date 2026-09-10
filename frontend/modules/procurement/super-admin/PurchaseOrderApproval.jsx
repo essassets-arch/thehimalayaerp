@@ -135,7 +135,7 @@ export default function PurchaseOrderApproval() {
                       {formatDate(po.createdAt)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{po.supplier?.name || po.vendorDisplayName || po.vendorName || 'Supplier'}</div>
+                      <div className="text-sm font-medium text-gray-900">{po.supplier?.name || po.vendorName || po.snapshot?.vendorName || po.vendorDisplayName || 'Supplier'}</div>
                       <div className="text-xs text-gray-500">{(po.items || []).length} items</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 text-right">

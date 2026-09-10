@@ -262,10 +262,10 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
           <div className="po-pdf-meta-grid">
             <div style={{ background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '10px', padding: '14px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>VENDOR / SUPPLIER DETAILS</div>
-              <div style={{ fontSize: '15px', fontWeight: 900, color: '#24345C' }}>{po.vendorName || 'Global Tech Suppliers'}</div>
-              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '4px', fontWeight: 600 }}>Vendor Code: {po.vendorId || 'V-002'}</div>
+              <div style={{ fontSize: '15px', fontWeight: 900, color: '#24345C' }}>{po.vendorName || po.supplier?.name || po.snapshot?.vendorName || '—'}</div>
+              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '4px', fontWeight: 600 }}>Vendor Code: {po.vendorId || po.supplier?.publicId || po.supplierId || '—'}</div>
               <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>Payment Terms: {po.paymentTerms || '30 Days Net'}</div>
-              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>GST Registration: Authorized Supplier</div>
+              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>GSTIN: {po.supplier?.gstin || po.gstin || 'Registered Supplier'}</div>
             </div>
             <div style={{ background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '10px', padding: '14px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>SHIPPING & DELIVERY SCHEDULE</div>
@@ -531,7 +531,7 @@ export default function StorePortal() {
   const [materialQty, setMaterialQty] = useState('');
   const [poNotes, setPoNotes] = useState('');
   const [poExpectedDate, setPoExpectedDate] = useState('');
-  const [activeTab, setActiveTab] = useState(tabParam || 'Create Request');
+  const [activeTab, setActiveTab] = useState(tabParam || 'Verify Delivery');
 
   useEffect(() => {
     if (tabParam) {
@@ -674,6 +674,35 @@ export default function StorePortal() {
   const [showEditMaterialModal, setShowEditMaterialModal] = useState(false);
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const [selectedInventoryItem, setSelectedInventoryItem] = useState(null);
+
+  // Store Inventory Movement History Log Modal state
+  const [showMaterialLogModal, setShowMaterialLogModal] = useState(false);
+  const [selectedLogMaterial, setSelectedLogMaterial] = useState(null);
+  const [materialLogData, setMaterialLogData] = useState(null);
+  const [loadingMaterialLog, setLoadingMaterialLog] = useState(false);
+  const [selectedLogDetail, setSelectedLogDetail] = useState(null);
+
+  const fetchMaterialLog = useCallback(async (matItem) => {
+    if (!matItem) return;
+    try {
+      setLoadingMaterialLog(true);
+      const queryId = matItem.id || matItem.material;
+      const res = await apiClient.get(`/inventory/material-log/${encodeURIComponent(queryId)}`);
+      const data = res?.data?.data || res?.data || null;
+      setMaterialLogData(data);
+    } catch (err) {
+      console.error('Failed to fetch material log:', err);
+    } finally {
+      setLoadingMaterialLog(false);
+    }
+  }, []);
+
+  const handleOpenMaterialLog = (matItem) => {
+    setSelectedLogMaterial(matItem);
+    setSelectedLogDetail(null);
+    setShowMaterialLogModal(true);
+    fetchMaterialLog(matItem);
+  };
 
   // Add Material Form fields
   const [matCode, setMatCode] = useState('');
@@ -855,10 +884,11 @@ export default function StorePortal() {
   }, [rawSearchQuery]);
 
   useEffect(() => {
-    const currentParams = new URLSearchParams(location.search);
-    const currentTab = currentParams.get('tab');
-    setActiveTab(currentTab || 'PO List');
-  }, [location.search]);
+    const urlTab = tabParam || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null);
+    if (urlTab) {
+      setActiveTab(urlTab);
+    }
+  }, [tabParam]);
 
   // Reset selected PO when switching tabs to ensure the full list table is displayed first
   useEffect(() => {
@@ -881,7 +911,7 @@ export default function StorePortal() {
         grnNumber: grnId,
         purchaseOrderId: poId,
         poNumber: poNum,
-        vendorName: poRow.vendorName || 'Selected Vendor',
+        vendorName: poRow.vendorName || poRow.supplier?.name || poRow.snapshot?.vendorName || '—',
         receivedDate: timestamp.split('T')[0],
         receivedQuantity: Number(poRow.orderedQty || poRow.quantity || 1605),
         acceptedQuantity: Number(poRow.orderedQty || poRow.quantity || 1605),
@@ -898,7 +928,7 @@ export default function StorePortal() {
         id: payId,
         purchaseOrderId: poId,
         poNumber: poNum,
-        vendorName: poRow.vendorName || 'Selected Vendor',
+        vendorName: poRow.vendorName || poRow.supplier?.name || poRow.snapshot?.vendorName || '—',
         amount: poRow.grandTotal || poRow.totalAmount || 564250,
         status: 'PAYMENT_COMPLETED',
         paymentMethod: 'NEFT / RTGS Transfer',
@@ -1966,6 +1996,7 @@ export default function StorePortal() {
                       </td>
                       <td className="raw-table-actions-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '250px', width: '250px' }}>
                         <div className="raw-table-actions-group" style={{ display: 'inline-flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+                          <button type="button" className="raw-btn-log" onClick={(e) => { e.stopPropagation(); handleOpenMaterialLog(item); }} title="View Inventory Log">Log</button>
                           <button type="button" className="raw-btn-in" onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }} title="Quick Stock In">+ In</button>
                           <button type="button" className="raw-btn-out" onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }} title="Quick Stock Out">- Out</button>
                           <button type="button" className="raw-btn-adj" onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }} title="Adjust Stock">Adj</button>
@@ -2034,8 +2065,16 @@ export default function StorePortal() {
                     </div>
                   </div>
 
-                  {/* Bottom Row: 4 Action Buttons */}
+                  {/* Bottom Row: Action Buttons */}
                   <div className="raw-inv-card-actions-row" style={{ width: '100%', boxSizing: 'border-box' }}>
+                    <button
+                      type="button"
+                      className="raw-btn-log"
+                      onClick={(e) => { e.stopPropagation(); handleOpenMaterialLog(item); }}
+                      title="View Inventory Log"
+                    >
+                      Log
+                    </button>
                     <button
                       type="button"
                       className="raw-btn-in"
@@ -2115,6 +2154,375 @@ export default function StorePortal() {
                   Record Stock In Receipt
                 </button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: Store Inventory Movement History Log */}
+        {showMaterialLogModal && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(5px)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 1200,
+              padding: '16px',
+              boxSizing: 'border-box'
+            }}
+            onClick={() => { setShowMaterialLogModal(false); setSelectedLogDetail(null); }}
+          >
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '16px',
+                border: '1px solid #e2e8f0',
+                width: '1080px',
+                maxWidth: '96vw',
+                maxHeight: '90vh',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                position: 'relative'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Top Header */}
+              <div
+                style={{
+                  padding: '20px 24px',
+                  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '16px',
+                  borderBottom: '1px solid #334155'
+                }}
+              >
+                <div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '2px 8px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', fontSize: '11px', fontWeight: '800', letterSpacing: '0.4px', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    <Layers size={13} /> Store Live Ledger • Movement History
+                  </div>
+                  <h3 style={{ fontSize: '20px', fontWeight: '900', margin: 0, color: '#f8fafc', letterSpacing: '-0.3px' }}>
+                    Inventory Log — {materialLogData?.material?.name && materialLogData.material.name !== materialLogData.material.id ? materialLogData.material.name : (selectedLogMaterial?.material || selectedLogMaterial?.name || 'Material')}
+                  </h3>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px', fontWeight: '500' }}>
+                    Code: <strong style={{ color: '#cbd5e1', fontFamily: 'monospace' }}>{materialLogData?.material?.code && materialLogData.material.code !== '—' ? materialLogData.material.code : (selectedLogMaterial?.code || '—')}</strong> • Category: {materialLogData?.material?.category || selectedLogMaterial?.category || 'Raw Material'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      padding: '6px 14px',
+                      borderRadius: '10px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-end'
+                    }}
+                  >
+                    <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', color: '#34d399', letterSpacing: '0.4px' }}>
+                      Current Stock
+                    </span>
+                    <span style={{ fontSize: '18px', fontWeight: '900', color: '#10b981' }}>
+                      {(materialLogData?.currentStock ?? selectedLogMaterial?.stock ?? 0).toLocaleString()} {materialLogData?.material?.unit || selectedLogMaterial?.unit || 'PCS'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fetchMaterialLog(selectedLogMaterial)}
+                    title="Refresh log"
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <RotateCw size={15} className={loadingMaterialLog ? 'animate-spin' : ''} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowMaterialLogModal(false); setSelectedLogDetail(null); }}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'rgba(255, 255, 255, 0.12)',
+                      border: 'none',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      fontSize: '16px'
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body: Table */}
+              <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+                {loadingMaterialLog ? (
+                  <div style={{ textAlign: 'center', padding: '48px 0', color: '#64748b', fontWeight: '600' }}>
+                    <RotateCw size={24} className="animate-spin" style={{ margin: '0 auto 12px auto', color: '#2563eb' }} />
+                    Loading movement history records...
+                  </div>
+                ) : !materialLogData?.history || materialLogData.history.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '48px 0', color: '#64748b' }}>
+                    <Package size={32} style={{ margin: '0 auto 10px auto', color: '#94a3b8' }} />
+                    <p style={{ margin: 0, fontWeight: '700', fontSize: '15px' }}>No stock movement transactions found.</p>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#94a3b8' }}>
+                      Deliveries verified at the gate or quick receipts will populate this ledger.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.4px' }}>
+                          <th style={{ padding: '12px 14px' }}>Date / Time</th>
+                          <th style={{ padding: '12px 14px', textAlign: 'center' }}>Type</th>
+                          <th style={{ padding: '12px 14px', textAlign: 'right' }}>Quantity</th>
+                          <th style={{ padding: '12px 14px', textAlign: 'right' }}>Balance</th>
+                          <th style={{ padding: '12px 14px' }}>Source</th>
+                          <th style={{ padding: '12px 14px' }}>PO Reference</th>
+                          <th style={{ padding: '12px 14px' }}>GRN Reference</th>
+                          <th style={{ padding: '12px 14px' }}>User</th>
+                          <th style={{ padding: '12px 14px', textAlign: 'center' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {materialLogData.history.map((entry, idx) => {
+                          const isIN = entry.type === 'IN';
+                          const isSelected = selectedLogDetail?.id === entry.id;
+                          return (
+                            <tr
+                              key={entry.id || idx}
+                              style={{
+                                borderBottom: '1px solid #f1f5f9',
+                                background: isSelected ? '#eff6ff' : (idx % 2 === 0 ? '#ffffff' : '#fafafa'),
+                                transition: 'background 0.15s ease'
+                              }}
+                            >
+                              <td style={{ padding: '12px 14px', color: '#334155', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                                {entry.dateTime ? new Date(entry.dateTime).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                              </td>
+                              <td style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    fontWeight: '900',
+                                    background: isIN ? '#dcfce7' : '#fee2e2',
+                                    color: isIN ? '#166534' : '#991b1b',
+                                    border: `1px solid ${isIN ? '#bbf7d0' : '#fecaca'}`
+                                  }}
+                                >
+                                  {entry.type}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: isIN ? '#059669' : '#dc2626', whiteSpace: 'nowrap' }}>
+                                {isIN ? '+' : '-'}{entry.quantity} {entry.unit || 'PCS'}
+                              </td>
+                              <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: '800', color: '#0f172a', whiteSpace: 'nowrap' }}>
+                                {entry.balance} {entry.unit || 'PCS'}
+                              </td>
+                              <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '2px 8px',
+                                    borderRadius: '5px',
+                                    fontSize: '11px',
+                                    fontWeight: '700',
+                                    background: entry.source === 'Verify Delivery' ? '#e0e7ff' : '#f1f5f9',
+                                    color: entry.source === 'Verify Delivery' ? '#3730a3' : '#475569',
+                                    border: `1px solid ${entry.source === 'Verify Delivery' ? '#c7d2fe' : '#e2e8f0'}`
+                                  }}
+                                >
+                                  {entry.source === 'Verify Delivery' ? '⚡ Verify Delivery' : entry.source}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 14px', fontWeight: '700', color: '#2563eb', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                                {entry.poNumber || '—'}
+                              </td>
+                              <td style={{ padding: '12px 14px', fontWeight: '700', color: '#475569', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                                {entry.grnNumber || '—'}
+                              </td>
+                              <td style={{ padding: '12px 14px', color: '#475569', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                                {entry.user || entry.performedBy || 'Store User'}
+                              </td>
+                              <td style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedLogDetail(isSelected ? null : entry)}
+                                  style={{
+                                    background: isSelected ? '#1e293b' : '#f1f5f9',
+                                    color: isSelected ? '#ffffff' : '#334155',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '6px',
+                                    padding: '4px 10px',
+                                    fontSize: '11px',
+                                    fontWeight: '800',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  {isSelected ? 'Hide Details' : 'Details'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Sub-Panel: Detailed View for selected row */}
+                {selectedLogDetail && (
+                  <div
+                    style={{
+                      marginTop: '16px',
+                      background: '#f8fafc',
+                      border: '1.5px solid #cbd5e1',
+                      borderRadius: '12px',
+                      padding: '18px',
+                      animation: 'fadeIn 0.2s ease-in-out'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: '900', fontSize: '13.5px', color: '#0f172a' }}>
+                          Transaction Audit Details
+                        </span>
+                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', background: selectedLogDetail.type === 'IN' ? '#dcfce7' : '#fee2e2', color: selectedLogDetail.type === 'IN' ? '#166534' : '#991b1b', fontWeight: '800' }}>
+                          Movement: {selectedLogDetail.type} ({selectedLogDetail.quantity} {selectedLogDetail.unit})
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLogDetail(null)}
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', fontWeight: '800' }}
+                      >
+                        ✕ Close Details
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', fontSize: '12.5px' }}>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Source</span>
+                        <div style={{ fontWeight: '800', color: '#1e293b', marginTop: '2px' }}>{selectedLogDetail.source}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Material</span>
+                        <div style={{ fontWeight: '800', color: '#0f766e', marginTop: '2px' }}>{selectedLogDetail.material}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>PO Number</span>
+                        <div style={{ fontWeight: '800', color: '#2563eb', fontFamily: 'monospace', marginTop: '2px' }}>{selectedLogDetail.poNumber || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>GRN Number</span>
+                        <div style={{ fontWeight: '800', color: '#0f172a', fontFamily: 'monospace', marginTop: '2px' }}>{selectedLogDetail.grnNumber || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Delivered Quantity</span>
+                        <div style={{ fontWeight: '800', color: '#059669', marginTop: '2px' }}>{selectedLogDetail.quantity} {selectedLogDetail.unit}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Previous Stock</span>
+                        <div style={{ fontWeight: '800', color: '#64748b', marginTop: '2px' }}>{selectedLogDetail.previousStock} {selectedLogDetail.unit}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>New Stock Balance</span>
+                        <div style={{ fontWeight: '900', color: '#0f172a', marginTop: '2px' }}>{selectedLogDetail.newStock} {selectedLogDetail.unit}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Performed By</span>
+                        <div style={{ fontWeight: '800', color: '#334155', marginTop: '2px' }}>{selectedLogDetail.user || 'Store User'}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Delivery Challan / Invoice</span>
+                        <div style={{ fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>{selectedLogDetail.details?.deliveryChallanNumber || selectedLogDetail.details?.invoiceNumber || '—'}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Vehicle / Truck Number</span>
+                        <div style={{ fontWeight: '700', color: '#1e293b', marginTop: '2px' }}>{selectedLogDetail.details?.vehicleNumber || '—'}</div>
+                      </div>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Store Inspection Notes & Remarks</span>
+                        <div style={{ fontWeight: '600', color: '#334155', marginTop: '2px', background: '#ffffff', padding: '8px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                          {selectedLogDetail.details?.inspectionNotes || 'No inspection notes recorded.'}
+                        </div>
+                      </div>
+                      {selectedLogDetail.details?.attachments && selectedLogDetail.details.attachments.length > 0 && (
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Supporting Documents</span>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                            {selectedLogDetail.details.attachments.map((att, aIdx) => (
+                              <a
+                                key={aIdx}
+                                href={typeof att === 'string' ? att : att.url || '#'}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11.5px', color: '#2563eb', textDecoration: 'none', fontWeight: '700' }}
+                              >
+                                📎 {typeof att === 'string' ? `Document ${aIdx + 1}` : att.name || `Document ${aIdx + 1}`}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{ padding: '14px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => { setShowMaterialLogModal(false); setSelectedLogDetail(null); }}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '8px',
+                    background: '#1e293b',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: '800',
+                    fontSize: '12.5px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Close Log
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -5005,7 +5413,6 @@ export default function StorePortal() {
 
   const renderPOWorkspace = () => {
     const tabs = [
-      { label: 'Create Request',          icon: '📋' },
       { label: 'Verify Delivery',          icon: '✅' },
       { label: 'Delivery History',         icon: '📦' },
       { label: 'GRN History',              icon: '🧾' },
@@ -5017,6 +5424,16 @@ export default function StorePortal() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+        <style>{`
+          @media (max-width: 768px) {
+            .store-po-workspace-header {
+              padding: 16px 14px 12px 14px !important;
+            }
+            .store-po-workspace-content {
+              padding: 14px 8px !important;
+            }
+          }
+        `}</style>
 
         {/* ── Header ── */}
         <div className="store-po-workspace-header" style={{
@@ -5060,7 +5477,7 @@ export default function StorePortal() {
           }}
         >
           {tabs.map(({ label, icon }) => {
-            const isActive = activeTab === label || (!tabs.map(t => t.label).includes(activeTab) && label === 'Create Request');
+            const isActive = activeTab === label || (!tabs.map(t => t.label).includes(activeTab) && label === 'Verify Delivery');
             return (
               <button
                 key={label}
@@ -5104,8 +5521,7 @@ export default function StorePortal() {
           padding: '28px 24px',
           boxShadow: '0 4px 20px rgba(47, 67, 117, 0.06)',
         }}>
-          {(!activeTab || activeTab === 'Create Request')   && <CreateMaterialIndent />}
-          {activeTab === 'Verify Delivery'                  && <VerifyPODelivery />}
+          {(!activeTab || activeTab === 'Verify Delivery')  && <VerifyPODelivery />}
           {activeTab === 'Delivery History'                 && <DeliveryHistory />}
           {activeTab === 'GRN History'                      && <GoodsReceiptNote />}
           {activeTab === 'Material Rejections'              && <MaterialRejections />}
@@ -5160,8 +5576,8 @@ export default function StorePortal() {
   <div class="grid">
     <div class="box">
       <div class="box-title">Vendor & Supplier Details</div>
-      <div style="font-size: 16px; font-weight: 800; color: #24345C;">${po.vendorName || 'Vendor'}</div>
-      <div style="font-size: 13px; color: #475569; margin-top: 4px;">GSTIN: ${po.gstin || '27AADCS1234F1Z8'}</div>
+      <div style="font-size: 16px; font-weight: 800; color: #24345C;">${po.vendorName || po.supplier?.name || po.snapshot?.vendorName || '—'}</div>
+      <div style="font-size: 13px; color: #475569; margin-top: 4px;">GSTIN: ${po.supplier?.gstin || po.gstin || 'Registered Supplier'}</div>
     </div>
     <div class="box" style="background: #e0f2fe; border-color: #bae6fd;">
       <div class="box-title" style="color: #0369a1;">Logistics & Receiving Dock Info</div>

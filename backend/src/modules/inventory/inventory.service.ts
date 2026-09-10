@@ -27,34 +27,85 @@ export class InventoryService {
       throw new NotFoundException('Product / Material identifier is required');
     }
 
-    // Check if item exists in RawMaterial model (by id, sku, or name)
-    const rawMaterial = await this.prisma.rawMaterial.findFirst({
-      where: {
-        companyId,
-        OR: [
-          { id: itemQuery },
-          { sku: itemQuery },
-          { name: { equals: itemQuery, mode: 'insensitive' } },
-        ],
-      },
-    });
-
-    if (rawMaterial) {
-      rawMaterialId = rawMaterial.id;
-    } else {
-      const product = await this.prisma.product.findFirst({
+    // Check if item exists in RawMaterial or Product model (by id, sku, or name)
+    let [rawMaterial, product] = await Promise.all([
+      this.prisma.rawMaterial.findFirst({
         where: {
           companyId,
           OR: [
             { id: itemQuery },
             { sku: itemQuery },
+            { publicId: itemQuery },
             { name: { equals: itemQuery, mode: 'insensitive' } },
           ],
         },
-      });
-      if (!product) throw new NotFoundException('Product / Material not found');
-      productId = product.id;
+      }),
+      this.prisma.product.findFirst({
+        where: {
+          companyId,
+          OR: [
+            { id: itemQuery },
+            { sku: itemQuery },
+            { publicId: itemQuery },
+            { name: { equals: itemQuery, mode: 'insensitive' } },
+          ],
+        },
+      }),
+    ]);
+
+    // Fallback: search without company constraint if not found (for global / seeded catalog)
+    if (!rawMaterial && !product) {
+      [rawMaterial, product] = await Promise.all([
+        this.prisma.rawMaterial.findFirst({
+          where: {
+            OR: [
+              { id: itemQuery },
+              { sku: itemQuery },
+              { publicId: itemQuery },
+              { name: { equals: itemQuery, mode: 'insensitive' } },
+            ],
+          },
+        }),
+        this.prisma.product.findFirst({
+          where: {
+            OR: [
+              { id: itemQuery },
+              { sku: itemQuery },
+              { publicId: itemQuery },
+              { name: { equals: itemQuery, mode: 'insensitive' } },
+            ],
+          },
+        }),
+      ]);
     }
+
+    // Pair up Product and RawMaterial by SKU or name so both IDs are populated
+    if (rawMaterial && !product) {
+      product = await this.prisma.product.findFirst({
+        where: {
+          OR: [
+            { sku: rawMaterial.sku },
+            { name: { equals: rawMaterial.name, mode: 'insensitive' } },
+          ],
+        },
+      });
+    } else if (product && !rawMaterial) {
+      rawMaterial = await this.prisma.rawMaterial.findFirst({
+        where: {
+          OR: [
+            { sku: product.sku },
+            { name: { equals: product.name, mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
+
+    if (!rawMaterial && !product) {
+      throw new NotFoundException('Product / Material not found');
+    }
+
+    rawMaterialId = rawMaterial?.id || null;
+    productId = product?.id || null;
 
     // Verify warehouse exists or fallback to default company warehouse
     let warehouse: any = null;
@@ -973,5 +1024,409 @@ export class InventoryService {
     }
 
     return mapped;
+  }
+
+  /**
+   * Store Only: Get comprehensive material movement history ledger
+   * Tracks verified deliveries, receipts, issues, adjustments, and running balances.
+   */
+  async getMaterialMovementLog(companyId: string, materialIdentifier: string) {
+    if (!materialIdentifier) {
+      throw new NotFoundException('Material identifier is required');
+    }
+
+    const cleanId = (materialIdentifier || '')
+      .replace(/^rm-/, '')
+      .replace(/^prod-/, '');
+
+    // 1. Find the target RawMaterial and Product
+    let [rawMaterial, product] = await Promise.all([
+      this.prisma.rawMaterial.findFirst({
+        where: {
+          companyId,
+          OR: [
+            { id: materialIdentifier },
+            { id: cleanId },
+            { sku: materialIdentifier },
+            { sku: cleanId },
+            { publicId: materialIdentifier },
+            { name: { equals: materialIdentifier, mode: 'insensitive' } },
+          ],
+        },
+      }),
+      this.prisma.product.findFirst({
+        where: {
+          companyId,
+          OR: [
+            { id: materialIdentifier },
+            { id: cleanId },
+            { sku: materialIdentifier },
+            { sku: cleanId },
+            { publicId: materialIdentifier },
+            { name: { equals: materialIdentifier, mode: 'insensitive' } },
+          ],
+        },
+      }),
+    ]);
+
+    // Fallback: search without company constraint if not found (for global / seeded catalog)
+    if (!rawMaterial && !product) {
+      [rawMaterial, product] = await Promise.all([
+        this.prisma.rawMaterial.findFirst({
+          where: {
+            OR: [
+              { id: materialIdentifier },
+              { id: cleanId },
+              { sku: materialIdentifier },
+              { sku: cleanId },
+              { publicId: materialIdentifier },
+              { name: { equals: materialIdentifier, mode: 'insensitive' } },
+            ],
+          },
+        }),
+        this.prisma.product.findFirst({
+          where: {
+            OR: [
+              { id: materialIdentifier },
+              { id: cleanId },
+              { sku: materialIdentifier },
+              { sku: cleanId },
+              { publicId: materialIdentifier },
+              { name: { equals: materialIdentifier, mode: 'insensitive' } },
+            ],
+          },
+        }),
+      ]);
+    }
+
+    // Pair up Product and RawMaterial by SKU or name so both IDs are recognized
+    if (rawMaterial && !product) {
+      product = await this.prisma.product.findFirst({
+        where: {
+          OR: [
+            { sku: rawMaterial.sku },
+            { name: { equals: rawMaterial.name, mode: 'insensitive' } },
+          ],
+        },
+      });
+    } else if (product && !rawMaterial) {
+      rawMaterial = await this.prisma.rawMaterial.findFirst({
+        where: {
+          OR: [
+            { sku: product.sku },
+            { name: { equals: product.name, mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
+
+    const targetMaterialName = rawMaterial?.name || product?.name || materialIdentifier;
+    const targetUnit = rawMaterial?.unit || product?.unit || 'PCS';
+    const targetCode = rawMaterial?.sku || product?.sku || rawMaterial?.publicId || product?.publicId || '—';
+
+    // Target IDs to query across InventoryTransaction & StockHistory
+    const targetIds = Array.from(
+      new Set(
+        [
+          rawMaterial?.id,
+          product?.id,
+          materialIdentifier,
+          cleanId,
+        ].filter(Boolean) as string[],
+      ),
+    );
+
+    // 2. Query all InventoryTransactions for this material
+    const transactions = await this.prisma.inventoryTransaction.findMany({
+      where: {
+        companyId,
+        OR: [
+          { productId: { in: targetIds } },
+          { rawMaterialId: { in: targetIds } },
+        ],
+      },
+      orderBy: { createdAt: 'asc' }, // Oldest first to calculate running balance
+      include: {
+        warehouse: { select: { name: true } },
+      },
+    });
+
+    // 3. Query all StockHistory records for this material
+    const stockHistories = await this.prisma.stockHistory.findMany({
+      where: {
+        companyId,
+        productId: { in: targetIds },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const shBySourceId = new Map(stockHistories.map((sh) => [sh.sourceId, sh]));
+    const shByRef = new Map(stockHistories.map((sh) => [sh.referenceNumber, sh]));
+
+    // 4. Find all GRNs and POs related to these transactions
+    const refIds = Array.from(
+      new Set(
+        [
+          ...transactions.map((t) => t.referenceId),
+          ...stockHistories.map((sh) => sh.referenceNumber),
+          ...stockHistories.map((sh) => sh.sourceId),
+        ].filter(Boolean) as string[],
+      ),
+    );
+
+    const [pos, grns] = await Promise.all([
+      refIds.length > 0
+        ? this.prisma.purchaseOrder.findMany({
+            where: {
+              companyId,
+              OR: [
+                { poNumber: { in: refIds } },
+                { poNo: { in: refIds } },
+                { draftPoNo: { in: refIds } },
+                { publicId: { in: refIds } },
+                { id: { in: refIds } },
+              ],
+            },
+            include: {
+              supplier: true,
+              grns: true,
+            },
+          })
+        : [],
+      refIds.length > 0
+        ? this.prisma.goodsReceiptNote.findMany({
+            where: {
+              companyId,
+              OR: [
+                { id: { in: refIds } },
+                { grnNumber: { in: refIds } },
+                { publicId: { in: refIds } },
+              ],
+            },
+            include: {
+              purchaseOrder: { include: { supplier: true } },
+            },
+          })
+        : [],
+    ]);
+
+    const poMap = new Map<string, any>();
+    for (const po of pos) {
+      if (po.id) poMap.set(po.id, po);
+      if (po.poNumber) poMap.set(po.poNumber, po);
+      if (po.publicId) poMap.set(po.publicId, po);
+      if (po.poNo) poMap.set(po.poNo, po);
+    }
+
+    const grnMap = new Map<string, any>();
+    for (const g of grns) {
+      if (g.id) grnMap.set(g.id, g);
+      if (g.grnNumber) grnMap.set(g.grnNumber, g);
+      if (g.publicId) grnMap.set(g.publicId, g);
+    }
+    const grnsByPoId = new Map<string, any[]>();
+    for (const g of grns) {
+      if (g.purchaseOrderId) {
+        if (!grnsByPoId.has(g.purchaseOrderId)) grnsByPoId.set(g.purchaseOrderId, []);
+        grnsByPoId.get(g.purchaseOrderId)!.push(g);
+      }
+    }
+    for (const po of pos) {
+      if (po.grns && po.grns.length > 0) {
+        if (!grnsByPoId.has(po.id)) grnsByPoId.set(po.id, []);
+        for (const g of po.grns) {
+          grnMap.set(g.id, g);
+          if (g.grnNumber) grnMap.set(g.grnNumber, g);
+          grnsByPoId.get(po.id)!.push(g);
+        }
+      }
+    }
+
+    // 5. Look up users for actors
+    const actorIds = Array.from(
+      new Set(
+        [
+          ...stockHistories.map((sh) => sh.actor),
+          ...grns.map((g) => g.receivedById),
+        ].filter(Boolean) as string[],
+      ),
+    );
+    const users =
+      actorIds.length > 0
+        ? await this.prisma.user.findMany({
+            where: { id: { in: actorIds as string[] } },
+            select: { id: true, name: true, email: true },
+          })
+        : [];
+    const userMap = new Map(users.map((u) => [u.id, u.name || u.email]));
+
+    // 6. Build the chronological ledger entries
+    let runningBalance = 0;
+    const historyEntries: any[] = [];
+
+    for (const tx of transactions) {
+      const typeUpper = (tx.type || '').toUpperCase().trim();
+      const isIN = [
+        'IN',
+        'PURCHASE_RECEIPT',
+        'OPENING_STOCK',
+        'QUICK_STOCK_IN',
+        'STOCK IN',
+        'STOCK_IN',
+        'PURCHASE_DELIVERY',
+        'VERIFY DELIVERY',
+        'VERIFY_DELIVERY',
+      ].includes(typeUpper);
+      const isOUT = ['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(typeUpper);
+
+      const qty = Number(tx.quantity || 0);
+      const previousStock = runningBalance;
+      if (isIN || typeUpper === 'ADJUSTMENT') {
+        runningBalance += qty;
+      } else if (isOUT) {
+        runningBalance -= qty;
+      }
+      const newStock = runningBalance;
+
+      // Find matching StockHistory
+      const sh = shBySourceId.get(tx.id) || shByRef.get(tx.referenceId || '');
+
+      // Identify source type
+      const refType = tx.referenceType || sh?.sourceType || '';
+      const isVerifyDelivery =
+        refType === 'Verify Delivery' ||
+        refType === 'PURCHASE_DELIVERY' ||
+        typeUpper === 'PURCHASE_DELIVERY' ||
+        (tx.referenceId && (tx.referenceId.startsWith('PO-') || tx.referenceId.startsWith('po-')));
+
+      let source = 'Existing Store transaction';
+      if (isVerifyDelivery) source = 'Verify Delivery';
+      else if (refType === 'QUICK_STOCK_IN') source = 'Quick Stock In';
+      else if (refType === 'QUICK_STOCK_OUT') source = 'Quick Stock Out';
+      else if (refType === 'OPENING_STOCK') source = 'Opening Stock';
+      else if (refType === 'MANUAL_RECEIPT') source = 'Manual Stock In';
+      else if (refType === 'ADJUSTMENT' || typeUpper === 'ADJUSTMENT') source = 'Stock Adjustment';
+      else if (refType) source = refType;
+
+      // Find PO and GRN details
+      let matchedPo = poMap.get(tx.referenceId || '');
+      let matchedGrn = sh?.sourceId ? grnMap.get(sh.sourceId) : null;
+      if (!matchedGrn && matchedPo) {
+        const poGrns = grnsByPoId.get(matchedPo.id) || [];
+        if (poGrns.length > 0) {
+          matchedGrn = poGrns[poGrns.length - 1]; // latest
+        }
+      }
+      if (matchedGrn && !matchedPo && matchedGrn.purchaseOrderId) {
+        matchedPo = poMap.get(matchedGrn.purchaseOrderId) || matchedGrn.purchaseOrder;
+      }
+
+      const poNumber =
+        matchedPo?.poNumber ||
+        matchedPo?.poNo ||
+        matchedPo?.publicId ||
+        (isVerifyDelivery ? tx.referenceId : null) ||
+        sh?.referenceNumber ||
+        '—';
+
+      const grnNumber =
+        matchedGrn?.grnNumber ||
+        matchedGrn?.publicId ||
+        (sh?.sourceId && sh.sourceId.startsWith('GRN') ? sh.sourceId : null) ||
+        '—';
+
+      // User / actor
+      const actorIdOrName =
+        matchedGrn?.snapshot?.confirmedByName ||
+        sh?.actor ||
+        matchedGrn?.receivedById;
+      let userName =
+        actorIdOrName && userMap.has(actorIdOrName)
+          ? userMap.get(actorIdOrName)
+          : null;
+      if (!userName && actorIdOrName && /^[0-9a-f-]{36}$/i.test(actorIdOrName)) {
+        const u = await this.prisma.user.findUnique({
+          where: { id: actorIdOrName },
+          select: { name: true, email: true },
+        });
+        if (u) {
+          userName = u.name || u.email;
+          userMap.set(actorIdOrName, userName);
+        }
+      }
+      if (!userName) userName = actorIdOrName || 'Store User';
+
+      const challan =
+        matchedGrn?.snapshot?.deliveryChallanNumber ||
+        matchedGrn?.snapshot?.challanNumber ||
+        '—';
+      const vehicle = matchedGrn?.snapshot?.vehicleNumber || '—';
+      const inspectionNotes =
+        matchedGrn?.snapshot?.remarks ||
+        sh?.remarks ||
+        (tx as any).remarks ||
+        '—';
+      const attachments = matchedGrn?.snapshot?.attachments || [];
+      const invoiceNumber = matchedGrn?.snapshot?.invoiceNumber || '—';
+
+      historyEntries.push({
+        id: tx.id,
+        dateTime: tx.createdAt,
+        type: isOUT ? 'OUT' : 'IN',
+        movementType: isOUT ? 'OUT' : 'IN',
+        quantity: qty,
+        quantityFormatted: `${isOUT ? '-' : '+'}${qty} ${targetUnit}`,
+        balance: newStock,
+        balanceFormatted: `${newStock} ${targetUnit}`,
+        previousStock,
+        newStock,
+        deliveredQuantity: qty,
+        source,
+        poNumber,
+        grnNumber,
+        user: userName,
+        performedBy: userName,
+        material: targetMaterialName,
+        materialCode: targetCode,
+        unit: targetUnit,
+        warehouse: tx.warehouse?.name || 'Main Store',
+        details: {
+          movementType: isOUT ? 'OUT' : 'IN',
+          quantity: `${qty} ${targetUnit}`,
+          source,
+          material: targetMaterialName,
+          materialCode: targetCode,
+          poNumber,
+          grnNumber,
+          deliveredQuantity: `${qty} ${targetUnit}`,
+          previousStock: `${previousStock} ${targetUnit}`,
+          newStock: `${newStock} ${targetUnit}`,
+          performedBy: userName,
+          dateTime: tx.createdAt,
+          deliveryChallanNumber: challan,
+          invoiceNumber,
+          vehicleNumber: vehicle,
+          inspectionNotes,
+          attachments,
+        },
+      });
+    }
+
+    // Sort descending (latest first) for display
+    historyEntries.reverse();
+
+    return {
+      material: {
+        id: rawMaterial?.id || product?.id || materialIdentifier,
+        name: targetMaterialName,
+        code: targetCode,
+        unit: targetUnit,
+        category: rawMaterial?.category || product?.category || 'Raw Material',
+      },
+      currentStock: runningBalance,
+      currentStockFormatted: `${runningBalance} ${targetUnit}`,
+      totalMovements: historyEntries.length,
+      history: historyEntries,
+    };
   }
 }

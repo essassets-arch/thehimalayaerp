@@ -337,7 +337,8 @@ export default function FinancePortal({ initialView, forceView }) {
 
   useEffect(() => {
     void refreshPurchaseOrders();
-  }, []);
+    void syncData();
+  }, [activeTab]);
 
   const resolveIndentDisplayId = useCallback((rowOrId, purchaseIndentObj) => {
     if (!rowOrId && !purchaseIndentObj) return 'N/A';
@@ -391,27 +392,22 @@ export default function FinancePortal({ initialView, forceView }) {
   const fetchVendors = async () => {
     try {
       const res = await apiClient.get('/purchase/vendors');
-      if (res.success && res.data) {
-        setVendors(res.data);
-        if (res.data.length > 0) {
-          setSelectedVendorId(String(res.data[0].id));
-        }
-      } else {
-        const body = res.data || res;
-        setVendors(body || []);
-        if (body && body.length > 0) {
-          setSelectedVendorId(String(body[0].id));
-        }
+      let vendorList = [];
+      const raw = res?.data?.data || res?.data || res;
+      if (Array.isArray(raw)) {
+        vendorList = raw;
+      }
+      setVendors(vendorList);
+      if (vendorList.length > 0 && !selectedVendorId) {
+        setSelectedVendorId(String(vendorList[0].id));
       }
     } catch (err) {
-      console.warn('Failed to fetch vendors:', err.message);
+      console.warn('Failed to fetch vendors:', err?.message || err);
     }
   };
 
   useEffect(() => {
-    if (activeTab === 'Create PO') {
-      fetchVendors();
-    }
+    fetchVendors();
   }, [activeTab]);
 
 
@@ -2052,7 +2048,10 @@ export default function FinancePortal({ initialView, forceView }) {
             {selectedIndentItems.length > 0 && (
               <button
                 type="button"
-                onClick={() => setSelectedIndentItems([])}
+                onClick={() => {
+                  setSelectedIndentItems([]);
+                  setPoRates({});
+                }}
                 style={{
                   padding: '9px 16px',
                   borderRadius: '8px',
@@ -2288,10 +2287,12 @@ export default function FinancePortal({ initialView, forceView }) {
 
     const uniqueSelectedIndents = Array.from(new Set(selectedIndentItems.map(i => i.indentPublicId || i.indentId)));
 
+    // Material subtotal accurately sums all selected item rows based on entered rates
     const displaySubtotal = selectedIndentItems.reduce((sum, it) => {
       const itemKey = it.indentItemId || it.id;
       const qty = Number(it.approvedQty ?? it.quantity ?? 0);
-      const rate = Number(poRates[itemKey] ?? poRates[it.materialName] ?? addMatRate ?? 0);
+      const rawVal = poRates[itemKey];
+      const rate = (rawVal !== undefined && rawVal !== '') ? Number(rawVal) : 0;
       return sum + (qty * rate);
     }, 0);
     const isGstEnabled = hasGst === true;
@@ -2302,10 +2303,23 @@ export default function FinancePortal({ initialView, forceView }) {
 
     const handleGeneratePO = async (e) => {
       e.preventDefault();
+
+      // Ensure every item has a valid material rate entered (> 0)
+      const missingRateItem = selectedIndentItems.find(it => {
+        const itemKey = it.indentItemId || it.id;
+        const raw = poRates[itemKey];
+        return raw === undefined || raw === '' || isNaN(Number(raw)) || Number(raw) <= 0;
+      });
+      if (missingRateItem) {
+        showToast(`Please enter a valid Material Rate (> 0) for "${missingRateItem.materialName}".`);
+        return;
+      }
+
       const itemsPayload = selectedIndentItems.map(it => {
         const itemKey = it.indentItemId || it.id;
         const qty = Number(it.approvedQty ?? it.quantity ?? 0);
-        const rate = Number(poRates[itemKey] ?? poRates[it.materialName] ?? addMatRate ?? 0);
+        const rawVal = poRates[itemKey];
+        const rate = (rawVal !== undefined && rawVal !== '') ? Number(rawVal) : 0;
         return {
           indentId: it.indentId,
           indentPublicId: it.indentPublicId,
@@ -2333,11 +2347,18 @@ export default function FinancePortal({ initialView, forceView }) {
         };
       });
 
+      const finalVendorName = (supplierName || '').trim();
+      if (!finalVendorName) {
+        showToast('Please select or enter a Vendor Name.');
+        return;
+      }
+
       const poPayload = {
         id: 'PO-DRAFT-' + Date.now(),
-        supplierId: selectedVendorId || 'e97ffbef-9a6f-4439-815b-242398f45e5d',
-        vendorId: selectedVendorId,
-        vendorName: supplierName || 'Selected Vendor',
+        supplierId: selectedVendorId || undefined,
+        vendorId: selectedVendorId || undefined,
+        supplierName: finalVendorName,
+        vendorName: finalVendorName,
         paymentTerms: poPaymentTerms || '30 Days Net',
         expectedDeliveryDate: poExpectedDate,
         expectedDate: poExpectedDate,
@@ -2351,6 +2372,9 @@ export default function FinancePortal({ initialView, forceView }) {
         transportationCost: Number(poFreight || 0),
         selectedIndents: uniqueIndentsList,
         purchaseIndent: serverPurchaseIndents.find(i => i.id === primaryIndentId) || null,
+        snapshot: {
+          vendorName: finalVendorName
+        }
       };
 
       try {
@@ -2367,6 +2391,7 @@ export default function FinancePortal({ initialView, forceView }) {
         }
 
         setSelectedIndentItems([]);
+        setPoRates({});
 
         if (displayTotal <= 10000) {
           showToast(`PO created & directly approved (₹${displayTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). No approval step required!`, 'success');
@@ -2423,9 +2448,10 @@ export default function FinancePortal({ initialView, forceView }) {
               </div>
               {selectedIndentItems.map((it, idx) => {
                 const itemKey = it.indentItemId || it.id;
-                const itemEstRate = Number(it.estimatedUnitRate || it.product?.unitPrice || it.unitPrice || it.rate || 0);
-                const rateVal = poRates[itemKey] ?? poRates[it.materialName] ?? (itemEstRate > 0 ? itemEstRate : (addMatRate ?? ''));
-                const lineTotal = Number(it.approvedQty || 0) * Number(rateVal || 0);
+                // Rates must start completely empty so Finance enters the quoted rate
+                const rawVal = poRates[itemKey];
+                const rateVal = rawVal !== undefined ? rawVal : '';
+                const lineTotal = Number(it.approvedQty || 0) * (rateVal === '' ? 0 : Number(rateVal || 0));
 
                 return (
                   <div key={itemKey || idx} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px 150px 130px 40px', padding: '12px 16px', borderBottom: idx < selectedIndentItems.length - 1 ? '1px solid #f1f5f9' : 'none', alignItems: 'center', fontSize: '13.5px' }}>
@@ -2453,8 +2479,7 @@ export default function FinancePortal({ initialView, forceView }) {
                           const val = e.target.value;
                           setPoRates(prev => ({
                             ...prev,
-                            [itemKey]: val,
-                            [it.materialName]: val
+                            [itemKey]: val
                           }));
                         }}
                         style={{ width: '120px', padding: '7px 10px', border: '1.5px solid #D6E2F0', borderRadius: '8px', fontSize: '13.5px', fontWeight: 700, color: '#24345C', textAlign: 'right', background: '#F5FAFE', outline: 'none' }}
@@ -2469,6 +2494,11 @@ export default function FinancePortal({ initialView, forceView }) {
                         title="Remove item from PO"
                         onClick={() => {
                           setSelectedIndentItems(prev => prev.filter(p => (p.indentItemId || p.id) !== itemKey));
+                          setPoRates(prev => {
+                            const next = { ...prev };
+                            delete next[itemKey];
+                            return next;
+                          });
                         }}
                         style={{ border: 'none', background: 'transparent', color: '#EF4444', cursor: 'pointer', padding: '4px' }}
                       >
@@ -2494,7 +2524,8 @@ export default function FinancePortal({ initialView, forceView }) {
                 onChange={e => {
                   const val = e.target.value;
                   setSupplierName(val);
-                  const s = suppliers.find(sup => sup.name === val);
+                  const activeList = vendors.length > 0 ? vendors : suppliers;
+                  const s = activeList.find(sup => (sup.name || sup.vendor_name || '').toLowerCase() === val.toLowerCase().trim());
                   if (s) {
                     setSelectedVendorId(s.id);
                   } else {
@@ -2504,8 +2535,8 @@ export default function FinancePortal({ initialView, forceView }) {
                 style={{ width: '100%', padding: '11px 14px', border: '1px solid #D6E2F0', borderRadius: '8px', fontSize: '14px', fontWeight: 600, color: '#24345C', background: '#ffffff', outline: 'none' }}
               />
               <datalist id="vendor-options">
-                {suppliers.map(s => (
-                  <option key={s.id} value={s.name} />
+                {(vendors.length > 0 ? vendors : suppliers).map(s => (
+                  <option key={s.id || s.publicId} value={s.name || s.vendor_name} />
                 ))}
               </datalist>
             </div>
@@ -2716,9 +2747,14 @@ export default function FinancePortal({ initialView, forceView }) {
   };
 
   const renderDraftPOsTab = () => {
+    const livePOs = Array.from(new Map(
+      [...purchaseOrders, ...(serverPurchaseOrdersLoaded ? serverPurchaseOrders : [])]
+        .filter(Boolean)
+        .map(po => [po.id || po.publicId || po.poNumber, po]),
+    ).values());
     // Drafts and pending approval POs
-    const draftPOs = purchaseOrders.filter(po => ['DRAFT', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL', 'PLANT_HEAD_PURCHASE_REJECTED', 'SUPER_ADMIN_REJECTED'].includes(po.status));
-    const historyPOs = purchaseOrders.filter(po => ['PENDING_PLANT_HEAD_PURCHASE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL', 'PLANT_HEAD_PURCHASE_APPROVED', 'SUPER_ADMIN_APPROVED', 'FINANCE_APPROVED'].includes(po.status));
+    const draftPOs = livePOs.filter(po => ['DRAFT', 'PENDING_PLANT_HEAD_PURCHASE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL', 'PLANT_HEAD_PURCHASE_REJECTED', 'SUPER_ADMIN_REJECTED'].includes(po.status));
+    const historyPOs = livePOs.filter(po => ['PENDING_PLANT_HEAD_PURCHASE_APPROVAL', 'PENDING_SUPER_ADMIN_APPROVAL', 'PLANT_HEAD_PURCHASE_APPROVED', 'SUPER_ADMIN_APPROVED', 'FINANCE_APPROVED'].includes(po.status));
 
     const displayedPOs = draftPOsSubTab === 'Pending Drafts' ? draftPOs : historyPOs;
 
@@ -2761,7 +2797,7 @@ export default function FinancePortal({ initialView, forceView }) {
           columns={[
             { header: 'PO ID', accessor: 'id', render: row => <strong>{row.poNumber || row.publicId || row.id}</strong> },
             { header: 'Indent ID', accessor: 'purchaseIndentId', render: row => resolveIndentDisplayId(row) },
-            { header: 'Vendor', accessor: 'vendorName', render: row => row.vendorName || row.supplier?.name || 'N/A' },
+            { header: 'Vendor', accessor: 'vendorName', render: row => row.supplier?.name || row.vendorName || row.snapshot?.vendorName || 'N/A' },
             {
               header: 'Amount', accessor: 'totalAmount', render: row => {
                 const val = Number(row.totalAmount || row.grandTotal || 0);
@@ -2769,7 +2805,11 @@ export default function FinancePortal({ initialView, forceView }) {
               }
             },
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> },
-            { header: 'Remarks', accessor: 'rejectionReason' }
+            {
+              header: 'Remarks',
+              accessor: 'orderRemarks',
+              render: row => <span style={{ fontSize: '12px', color: '#475569' }}>{row.orderRemarks || row.snapshot?.plantHeadApprovalRemarks || row.snapshot?.approvalRemarks || row.superAdminRemarks || row.superAdminRejectionReason || row.rejectionReason || '—'}</span>
+            }
           ]}
           data={displayedPOs}
           actions={row => {
@@ -2827,7 +2867,7 @@ export default function FinancePortal({ initialView, forceView }) {
 
   const renderApprovedPOsTab = () => {
     const livePOs = Array.from(new Map(
-      [...(serverPurchaseOrdersLoaded ? serverPurchaseOrders : purchaseOrders)]
+      [...purchaseOrders, ...(serverPurchaseOrdersLoaded ? serverPurchaseOrders : [])]
         .filter(Boolean)
         .map(po => [po.id || po.publicId || po.poNumber, po]),
     ).values());
@@ -2869,7 +2909,7 @@ export default function FinancePortal({ initialView, forceView }) {
   <div class="header">
     <div>
       <h1 class="title">PURCHASE ORDER</h1>
-      <div class="po-ref">${po.poNumber || po.id}</div>
+      <div class="po-ref">${po.poNumber || po.publicId || po.id}</div>
     </div>
     <div class="meta">
       <div><strong>Order Date:</strong> ${new Date(po.createdAt || Date.now()).toLocaleDateString()}</div>
@@ -2881,9 +2921,9 @@ export default function FinancePortal({ initialView, forceView }) {
   <div class="grid">
     <div class="box">
       <div class="box-title">Vendor & Supplier Details</div>
-      <div style="font-size: 16px; font-weight: 800; color: #24345C;">${po.vendorName || 'Vendor'}</div>
-      <div style="font-size: 13px; color: #475569; margin-top: 4px;">GSTIN: ${po.gstin || '27AADCS1234F1Z8'}</div>
-      <div style="font-size: 13px; color: #475569;">Email: orders@${(po.vendorName || 'vendor').toLowerCase().replace(/[^a-z]/g, '')}.com</div>
+      <div style="font-size: 16px; font-weight: 800; color: #24345C;">${po.supplier?.name || po.vendorName || po.snapshot?.vendorName || '—'}</div>
+      <div style="font-size: 13px; color: #475569; margin-top: 4px;">GSTIN: ${po.supplier?.gstin || po.gstin || 'Registered Supplier'}</div>
+      <div style="font-size: 13px; color: #475569;">${po.supplier?.email ? `Email: ${po.supplier.email}` : (po.supplier?.phone ? `Phone: ${po.supplier.phone}` : '')}</div>
     </div>
     <div class="box" style="background: #f0fdf4; border-color: #bbf7d0;">
       <div class="box-title" style="color: #15803d;">Approval Authorization</div>
@@ -3003,7 +3043,7 @@ export default function FinancePortal({ initialView, forceView }) {
           columns={[
             { header: 'PO Draft ID', accessor: 'id', render: row => <strong style={{ color: '#24345C' }}>{row.poNumber || row.publicId || row.id}</strong> },
             { header: 'Indent Ref', accessor: 'purchaseIndentId', render: row => <span style={{ background: '#f0f9ff', color: '#0284c7', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, border: '1px solid #bae6fd' }}>{resolveIndentDisplayId(row)}</span> },
-            { header: 'Vendor Name', accessor: 'vendorName', render: row => <strong style={{ color: '#334155' }}>{row.supplier?.name || row.vendorName || 'Vendor'}</strong> },
+            { header: 'Vendor Name', accessor: 'vendorName', render: row => <strong style={{ color: '#334155' }}>{row.supplier?.name || row.vendorName || row.snapshot?.vendorName || 'Vendor'}</strong> },
             {
               header: 'Grand Total', accessor: 'grandTotal', render: row => {
                 const freightVal = Number(row.freight || 0);
@@ -3038,7 +3078,12 @@ export default function FinancePortal({ initialView, forceView }) {
                 return <span style={{ fontSize: '11px', fontWeight: 800, color: '#4F46E5', background: '#EEF2FF', padding: '3px 8px', borderRadius: '6px', border: '1px solid #C7D2FE' }}>👑 Super Admin (&gt; ₹15k)</span>;
               }
             },
-            { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }
+            { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> },
+            {
+              header: 'Remarks',
+              accessor: 'orderRemarks',
+              render: row => <span style={{ fontSize: '12px', color: '#475569' }}>{row.orderRemarks || row.snapshot?.plantHeadApprovalRemarks || row.snapshot?.approvalRemarks || row.superAdminRemarks || '—'}</span>
+            }
           ]}
           data={displayedPOs}
           actions={row => approvedPOsSubTab === 'Approved' ? (
@@ -3081,7 +3126,7 @@ export default function FinancePortal({ initialView, forceView }) {
             >
               <div style={{ background: '#24345C', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff' }}>
                 <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#ffffff' }}>Purchase Order PDF Preview ({selectedApprovedPO.id})</h3>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#ffffff' }}>Purchase Order PDF Preview ({selectedApprovedPO.poNumber || selectedApprovedPO.publicId || selectedApprovedPO.id})</h3>
                   <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '3px' }}>Indent Ref: {resolveIndentDisplayId(selectedApprovedPO)} • Status: {selectedApprovedPO.status}</div>
                 </div>
                 <button onClick={() => setShowPOPdfModal(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#ffffff', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px' }}>✕</button>
@@ -3091,7 +3136,7 @@ export default function FinancePortal({ initialView, forceView }) {
                 <div style={{ borderBottom: '2px solid #DCE5F0', paddingBottom: '20px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#24345C', margin: 0 }}>PURCHASE ORDER</h2>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#0284c7', marginTop: '4px' }}>{selectedApprovedPO.poNumber || selectedApprovedPO.id}</div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#0284c7', marginTop: '4px' }}>{selectedApprovedPO.poNumber || selectedApprovedPO.publicId || selectedApprovedPO.id}</div>
                   </div>
                   <div style={{ textAlign: 'right', fontSize: '13px', color: '#5E6B82' }}>
                     <div><strong>Order Date:</strong> {new Date(selectedApprovedPO.createdAt || Date.now()).toLocaleDateString()}</div>
@@ -3102,9 +3147,9 @@ export default function FinancePortal({ initialView, forceView }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
                   <div style={{ background: '#F5FAFE', padding: '16px', borderRadius: '12px', border: '1px solid #DCE5F0' }}>
                     <div style={{ fontSize: '12px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase' }}>Vendor & GST Details</div>
-                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#24345C', marginTop: '6px' }}>{selectedApprovedPO.vendorName || 'Vendor'}</div>
-                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>GSTIN: {selectedApprovedPO.gstin || '27AADCS1234F1Z8'}</div>
-                    <div style={{ fontSize: '13px', color: '#475569' }}>Email: orders@{selectedApprovedPO.vendorName?.toLowerCase().replace(/[^a-z]/g, '') || 'vendor'}.com</div>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#24345C', marginTop: '6px' }}>{selectedApprovedPO.supplier?.name || selectedApprovedPO.vendorName || selectedApprovedPO.snapshot?.vendorName || '—'}</div>
+                    <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px' }}>GSTIN: {selectedApprovedPO.supplier?.gstin || selectedApprovedPO.gstin || 'Registered Supplier'}</div>
+                    <div style={{ fontSize: '13px', color: '#475569' }}>{selectedApprovedPO.supplier?.email ? `Email: ${selectedApprovedPO.supplier.email}` : (selectedApprovedPO.supplier?.phone ? `Phone: ${selectedApprovedPO.supplier.phone}` : '')}</div>
                   </div>
 
                   <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
@@ -3182,8 +3227,12 @@ export default function FinancePortal({ initialView, forceView }) {
             >
               <div style={{ background: '#24345C', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#ffffff' }}>
                 <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#ffffff' }}>Place Order Manually — {selectedApprovedPO.id}</h3>
-                  <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '3px' }}>Vendor: {selectedApprovedPO.vendorName} • Total: ₹{selectedApprovedPO.grandTotal?.toLocaleString()}</div>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#ffffff' }}>
+                    Place Order Manually — {selectedApprovedPO.poNumber || selectedApprovedPO.publicId || selectedApprovedPO.draftPoNo || selectedApprovedPO.id}
+                  </h3>
+                  <div style={{ fontSize: '13px', color: '#8893A7', marginTop: '3px' }}>
+                    Vendor: <strong style={{ color: '#ffffff' }}>{selectedApprovedPO.supplier?.name || selectedApprovedPO.vendorName || selectedApprovedPO.snapshot?.vendorName || 'Vendor'}</strong> • Total: <strong style={{ color: '#4ade80' }}>₹{Number(selectedApprovedPO.totalAmount ?? selectedApprovedPO.grandTotal ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                  </div>
                 </div>
                 <button onClick={() => setShowPlaceOrderModal(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#ffffff', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px' }}>✕</button>
               </div>
@@ -3287,9 +3336,9 @@ export default function FinancePortal({ initialView, forceView }) {
         )}
         <DataTable
           columns={[
-            { header: 'Official PO Ref', accessor: 'poNumber', render: row => <strong style={{ color: 'var(--color-primary)' }}>{row.poNumber || row.id}</strong> },
+            { header: 'Official PO Ref', accessor: 'poNumber', render: row => <strong style={{ color: 'var(--color-primary)' }}>{row.poNumber || row.publicId || row.id}</strong> },
             { header: 'Indent Ref', accessor: 'purchaseIndentId', render: row => resolveIndentDisplayId(row) },
-            { header: 'Vendor', accessor: 'vendorName', render: row => row.vendorName || row.supplier?.name || 'N/A' },
+            { header: 'Vendor', accessor: 'vendorName', render: row => row.supplier?.name || row.vendorName || row.snapshot?.vendorName || 'N/A' },
             { header: 'Date Created', accessor: 'createdAt', render: row => new Date(row.createdAt).toLocaleDateString() },
             { header: 'Status', accessor: 'status', render: row => <StatusBadge status={row.status} /> }
           ]}

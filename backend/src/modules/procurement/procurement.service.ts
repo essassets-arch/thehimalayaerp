@@ -55,6 +55,7 @@ const GRN: Record<string, string[]> = {
   submit: ['DRAFT', 'RETURNED_TO_STORE'],
   'audit-approve': ['PENDING_FINANCE_AUDIT'],
   return: ['PENDING_FINANCE_AUDIT'],
+  reject: ['PENDING_FINANCE_AUDIT'],
 };
 const MONEY = (v: unknown) =>
   new Prisma.Decimal((v as Prisma.Decimal.Value) || 0);
@@ -182,6 +183,11 @@ export class ProcurementService {
           { poNumber: { contains: search, mode: 'insensitive' } },
           { grnNumber: { contains: search, mode: 'insensitive' } },
         ];
+        if (entity === 'purchaseOrder') {
+          where.OR.push({
+            supplier: { name: { contains: search, mode: 'insensitive' } },
+          });
+        }
       }
     }
 
@@ -211,12 +217,34 @@ export class ProcurementService {
       purchaseIndent: { items: { include: { product: true } } },
       purchaseOrder: {
         items: { include: { product: true } },
-        supplier: { select: { id: true, name: true } },
+        supplier: {
+          select: {
+            id: true,
+            publicId: true,
+            name: true,
+            email: true,
+            phone: true,
+            gstin: true,
+            contact: true,
+          },
+        },
       },
       goodsReceiptNote: {
         items: { include: { product: true } },
         purchaseOrder: {
-          include: { supplier: { select: { id: true, name: true } } },
+          include: {
+            supplier: {
+              select: {
+                id: true,
+                publicId: true,
+                name: true,
+                email: true,
+                phone: true,
+                gstin: true,
+                contact: true,
+              },
+            },
+          },
         },
       },
     };
@@ -232,7 +260,30 @@ export class ProcurementService {
       }),
       model.count({ where }),
     ]);
-    return { data, meta: { page: Number(page), limit: Number(limit), total } };
+
+    const mappedData = data.map((item: any) => {
+      if (entity === 'purchaseOrder') {
+        const vName = item.supplier?.name || (item.snapshot as any)?.vendorName || '';
+        return {
+          ...item,
+          vendorName: vName,
+          supplierName: vName,
+          vendorId: item.supplier?.publicId || item.supplierId,
+        };
+      }
+      if (entity === 'goodsReceiptNote') {
+        const vName = item.purchaseOrder?.supplier?.name || (item.purchaseOrder?.snapshot as any)?.vendorName || '';
+        return {
+          ...item,
+          vendorName: vName,
+          supplierName: vName,
+          vendorId: item.purchaseOrder?.supplier?.publicId || item.purchaseOrder?.supplierId,
+        };
+      }
+      return item;
+    });
+
+    return { data: mappedData, meta: { page: Number(page), limit: Number(limit), total } };
   }
   async history(entityType: string, entityId: string) {
     const rows = await this.prisma.auditLog.findMany({
@@ -372,7 +423,13 @@ export class ProcurementService {
       }),
       this.prisma.purchaseOrder.count({ where }),
     ]);
-    return { data, meta: { page, limit, total } };
+    const mappedData = data.map((po: any) => ({
+      ...po,
+      vendorName: po.supplier?.name || (po.snapshot as any)?.vendorName || '',
+      supplierName: po.supplier?.name || (po.snapshot as any)?.vendorName || '',
+      vendorId: po.supplier?.publicId || po.supplierId,
+    }));
+    return { data: mappedData, meta: { page, limit, total } };
   }
 
   async plantHeadPurchaseQueue(companyId: string | undefined, query: any) {
@@ -395,7 +452,13 @@ export class ProcurementService {
       }),
       this.prisma.purchaseOrder.count({ where }),
     ]);
-    return { data, meta: { page, limit, total } };
+    const mappedData = data.map((po: any) => ({
+      ...po,
+      vendorName: po.supplier?.name || (po.snapshot as any)?.vendorName || '',
+      supplierName: po.supplier?.name || (po.snapshot as any)?.vendorName || '',
+      vendorId: po.supplier?.publicId || po.supplierId,
+    }));
+    return { data: mappedData, meta: { page, limit, total } };
   }
 
   async plantHeadPurchaseHistory(companyId: string | undefined, query: any) {
@@ -432,7 +495,13 @@ export class ProcurementService {
       }),
       this.prisma.purchaseOrder.count({ where }),
     ]);
-    return { data, meta: { page, limit, total } };
+    const mappedData = data.map((po: any) => ({
+      ...po,
+      vendorName: po.supplier?.name || (po.snapshot as any)?.vendorName || '',
+      supplierName: po.supplier?.name || (po.snapshot as any)?.vendorName || '',
+      vendorId: po.supplier?.publicId || po.supplierId,
+    }));
+    return { data: mappedData, meta: { page, limit, total } };
   }
 
   async financeEligibleIndents(companyId: string | undefined, query: any) {
@@ -579,7 +648,7 @@ export class ProcurementService {
             ],
           },
           include: {
-            items: true,
+            items: { include: { product: true } },
             supplier: true,
             grns: { include: { items: true } },
           },
@@ -735,15 +804,50 @@ export class ProcurementService {
               (x: any) =>
                 x.id === input.purchaseOrderItemId ||
                 x.productId === input.productId ||
+                (x.materialCodeSnapshot &&
+                  x.materialCodeSnapshot === input.materialCode) ||
+                (x.materialNameSnapshot &&
+                  x.materialNameSnapshot.toLowerCase() ===
+                    (input.materialName || '').toLowerCase()) ||
+                (x.product?.name &&
+                  x.product.name.toLowerCase() ===
+                    (input.materialName || '').toLowerCase()) ||
                 (x.materialCode && x.materialCode === input.materialCode) ||
                 (x.materialName &&
                   x.materialName.toLowerCase() ===
                     (input.materialName || '').toLowerCase()),
             ) || po.items?.[0];
 
+          const itemName =
+            poItem?.materialNameSnapshot ||
+            poItem?.product?.name ||
+            poItem?.materialName ||
+            input.materialName ||
+            'item';
+
+          // Strict remaining quantity validation to prevent over-delivery
+          if (poItem) {
+            const orderedQty = Number(poItem.quantity ?? 0);
+            const alreadyReceived = Number(poItem.receivedQuantity ?? 0);
+            const remainingQty = Math.max(0, orderedQty - alreadyReceived);
+            if (deliveredNum > remainingQty) {
+              throw new BadRequestException(
+                `Delivered quantity (${deliveredNum}) exceeds remaining unfulfilled quantity (${remainingQty}) for ${itemName}. Over-delivery is not allowed.`,
+              );
+            }
+          }
+
           const searchId = poItem?.productId || input.productId;
-          const searchCode = input.materialCode || poItem?.materialCode;
-          const searchName = input.materialName || poItem?.materialName;
+          const searchCode =
+            input.materialCode ||
+            poItem?.materialCodeSnapshot ||
+            poItem?.product?.sku ||
+            poItem?.materialCode;
+          const searchName =
+            input.materialName ||
+            poItem?.materialNameSnapshot ||
+            poItem?.product?.name ||
+            poItem?.materialName;
 
           // Find or sync in RawMaterial & Product catalogs
           let rawMaterial: any = null;
@@ -848,12 +952,17 @@ export class ProcurementService {
 
           if (!rawMaterial && !product) {
             const randomId = this.id('RM');
+            let candidateSku = matSku;
+            const existingRmWithSku = await tx.rawMaterial.findFirst({ where: { sku: candidateSku } });
+            if (existingRmWithSku) {
+              candidateSku = `${candidateSku}-${Date.now().toString().slice(-4)}`;
+            }
             rawMaterial = await tx.rawMaterial.create({
               data: {
                 publicId: randomId,
                 companyId: po.companyId,
                 name: matName,
-                sku: matSku,
+                sku: candidateSku,
                 category: 'Raw Material',
                 unit: matUnit,
                 minimumStock: 0,
@@ -864,7 +973,7 @@ export class ProcurementService {
                 publicId: this.id('PROD'),
                 companyId: po.companyId,
                 name: matName,
-                sku: matSku,
+                sku: candidateSku,
                 category: 'Raw Material',
                 productType: 'RAW_MATERIAL',
                 unit: matUnit,
@@ -874,15 +983,22 @@ export class ProcurementService {
             });
           } else if (rawMaterial && !product) {
             product = await tx.product.findFirst({
-              where: { companyId: po.companyId, sku: rawMaterial.sku },
+              where: {
+                OR: [
+                  { companyId: po.companyId, sku: rawMaterial.sku },
+                  { sku: rawMaterial.sku },
+                  { name: { equals: rawMaterial.name, mode: 'insensitive' } },
+                ],
+              },
             });
             if (!product) {
+              const skuToUse = rawMaterial.sku ? `${rawMaterial.sku}-${Date.now().toString().slice(-4)}` : matSku;
               product = await tx.product.create({
                 data: {
                   publicId: this.id('PROD'),
                   companyId: po.companyId,
                   name: rawMaterial.name,
-                  sku: rawMaterial.sku || matSku,
+                  sku: skuToUse,
                   category: rawMaterial.category || 'Raw Material',
                   productType: 'RAW_MATERIAL',
                   unit: rawMaterial.unit || matUnit,
@@ -893,15 +1009,22 @@ export class ProcurementService {
             }
           } else if (product && !rawMaterial) {
             rawMaterial = await tx.rawMaterial.findFirst({
-              where: { companyId: po.companyId, sku: product.sku },
+              where: {
+                OR: [
+                  { companyId: po.companyId, sku: product.sku },
+                  { sku: product.sku },
+                  { name: { equals: product.name, mode: 'insensitive' } },
+                ],
+              },
             });
             if (!rawMaterial) {
+              const skuToUse = product.sku ? `${product.sku}-${Date.now().toString().slice(-4)}` : matSku;
               rawMaterial = await tx.rawMaterial.create({
                 data: {
                   publicId: this.id('RM'),
                   companyId: po.companyId,
                   name: product.name,
-                  sku: product.sku || matSku,
+                  sku: skuToUse,
                   category: product.category || 'Raw Material',
                   unit: product.unit || matUnit,
                   minimumStock: product.minimumStock || 0,
@@ -1000,7 +1123,8 @@ export class ProcurementService {
           }
         }
 
-        // 6. Create Goods Receipt Note marked as VERIFIED
+        // 6. Create Goods Receipt Note with PENDING_FINANCE_AUDIT status.
+        // Inventory has already been posted above; Finance audit will close the PO/Indent.
         const grn = await tx.goodsReceiptNote.create({
           data: {
             publicId: grnNo,
@@ -1009,18 +1133,23 @@ export class ProcurementService {
             purchaseOrderId: po.id,
             warehouseId,
             receivedById: validActorId,
-            status: 'VERIFIED',
+            status: 'PENDING_FINANCE_AUDIT',
+            // inventoryPostedAt is set here to record when inventory was first posted.
+            // Finance audit-approve must NOT re-add inventory; it only closes PO/Indent.
             inventoryPostedAt: new Date(),
             receivedAt: dto.deliveryDate
               ? new Date(dto.deliveryDate)
               : new Date(),
             snapshot: {
               invoiceNumber: dto.invoiceNumber,
-              deliveryChallanNumber: dto.deliveryChallanNumber,
+              deliveryChallanNumber: dto.deliveryChallanNumber || dto.challanNumber || null,
+              vehicleNumber: dto.vehicleNumber || null,
               remarks: dto.remarks,
               attachments: dto.attachments || [],
               isReplacement: Boolean(dto.isReplacement),
               materialRejectionId: dto.materialRejectionId || null,
+              confirmedByName: dto.confirmedByName || null,
+              confirmedAt: new Date().toISOString(),
             },
             items: { create: grnItems },
           },
@@ -1040,7 +1169,7 @@ export class ProcurementService {
                 type: 'IN',
                 quantity: itemStock.acceptedQuantity,
                 referenceId: po.poNumber || po.publicId || po.id,
-                referenceType: 'PURCHASE_DELIVERY',
+                referenceType: 'Verify Delivery',
               },
             });
 
@@ -1052,15 +1181,15 @@ export class ProcurementService {
                   itemStock.productId || itemStock.rawMaterialId || 'PROD',
                 quantity: itemStock.acceptedQuantity,
                 event: 'STOCK_IN',
-                actor: validActorId || 'Store Operator',
+                actor: dto.confirmedByName || validActorId || 'Store User',
                 beforeQuantity: MONEY(itemStock.balanceBefore),
                 afterQuantity: MONEY(itemStock.balanceAfter),
                 beforeAvailableQuantity: MONEY(itemStock.balanceBefore),
                 afterAvailableQuantity: MONEY(itemStock.balanceAfter),
-                sourceType: 'PURCHASE_DELIVERY',
+                sourceType: 'Verify Delivery',
                 sourceId: grn.id,
                 referenceNumber: po.poNumber || po.publicId || po.id,
-                remarks: `Purchase Delivery Verified: ${itemStock.acceptedNum} ${itemStock.unit} received for PO ${po.poNumber || po.publicId || po.id}`,
+                remarks: dto.remarks || itemStock.inspectionRemarks || `Purchase Delivery Verified: ${itemStock.acceptedNum} ${itemStock.unit} received for PO ${po.poNumber || po.publicId || po.id}`,
               },
             });
           }
@@ -1080,23 +1209,37 @@ export class ProcurementService {
 
         // 9. Update Purchase Order Items received/accepted quantities
         for (const item of grn.items) {
-          await tx.purchaseOrderItem.updateMany({
-            where: { purchaseOrderId: po.id, productId: item.productId },
-            data: {
-              receivedQuantity: { increment: item.receivedQuantity },
-              acceptedQuantity: { increment: item.acceptedQuantity },
-            },
-          });
+          if (item.purchaseOrderItemId) {
+            await tx.purchaseOrderItem.update({
+              where: { id: item.purchaseOrderItemId },
+              data: {
+                receivedQuantity: { increment: item.receivedQuantity },
+                acceptedQuantity: { increment: item.acceptedQuantity },
+              },
+            });
+          } else {
+            await tx.purchaseOrderItem.updateMany({
+              where: { purchaseOrderId: po.id, productId: item.productId },
+              data: {
+                receivedQuantity: { increment: item.receivedQuantity },
+                acceptedQuantity: { increment: item.acceptedQuantity },
+              },
+            });
+          }
         }
 
-        // 10. Update PO status
+        // 10. Update PO status — keep PO open until Finance audit-approve closes it.
+        // DELIVERY_PENDING_FINANCE_AUDIT = all items received, awaiting Finance audit.
+        // PARTIALLY_DELIVERED = some items still outstanding.
         const latestItems = await tx.purchaseOrderItem.findMany({
           where: { purchaseOrderId: po.id },
         });
-        const complete = latestItems.every((i) =>
+        const allItemsReceived = latestItems.every((i) =>
           MONEY(i.receivedQuantity).gte(i.quantity),
         );
-        const status = complete ? 'FULLY_RECEIVED' : 'PARTIALLY_DELIVERED';
+        const status = allItemsReceived
+          ? 'DELIVERY_PENDING_FINANCE_AUDIT'
+          : 'PARTIALLY_DELIVERED';
         const updated = await tx.purchaseOrder.update({
           where: { id: po.id },
           data: { status, version: { increment: 1 } },
@@ -1731,10 +1874,15 @@ export class ProcurementService {
       const primaryIndent = uniqueIndents[0];
       const companyId = primaryIndent.companyId;
 
-      // 3. Supplier resolution
+      // 3. Dynamic Supplier resolution
       let supplierId = dto.supplierId || dto.vendorId;
+      let candidateName = (dto.supplierName || dto.vendorName || dto.vendor || dto.supplier || dto.snapshot?.vendorName || '').trim();
+      if (candidateName === 'Selected Vendor' || candidateName === 'Default Supplier' || candidateName === 'Default Vendor') {
+        candidateName = '';
+      }
       let supplierExists: any = null;
-      if (supplierId) {
+
+      if (supplierId && supplierId !== 'e97ffbef-9a6f-4439-815b-242398f45e5d') {
         supplierExists = await tx.supplier.findFirst({
           where: {
             OR: [
@@ -1746,23 +1894,55 @@ export class ProcurementService {
           },
         });
       }
+
+      if (!supplierExists && candidateName) {
+        supplierExists = await tx.supplier.findFirst({
+          where: {
+            name: { equals: candidateName, mode: 'insensitive' },
+            isActive: true,
+          },
+        });
+      }
+
       if (supplierExists) {
         supplierId = supplierExists.id;
-      } else {
-        let defaultSupplier = await tx.supplier.findFirst({
-          where: { companyId, isActive: true },
+      } else if (candidateName) {
+        supplierExists = await tx.supplier.create({
+          data: {
+            publicId: this.id('SUP'),
+            companyId,
+            name: candidateName,
+          },
         });
-        if (!defaultSupplier) {
-          defaultSupplier = await tx.supplier.create({
+        supplierId = supplierExists.id;
+      } else {
+        let fallbackSupplier = await tx.supplier.findFirst({
+          where: {
+            companyId,
+            isActive: true,
+            name: { notIn: ['Default Supplier', 'Default Vendor'] },
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (!fallbackSupplier) {
+          fallbackSupplier = await tx.supplier.findFirst({
+            where: { companyId, isActive: true },
+          });
+        }
+        if (fallbackSupplier) {
+          supplierId = fallbackSupplier.id;
+          supplierExists = fallbackSupplier;
+        } else {
+          fallbackSupplier = await tx.supplier.create({
             data: {
               publicId: this.id('SUP'),
               companyId,
-              name: dto.supplierName || dto.vendorName || 'Default Supplier',
+              name: 'General Material Supplier',
             },
           });
+          supplierId = fallbackSupplier.id;
+          supplierExists = fallbackSupplier;
         }
-        supplierId = defaultSupplier.id;
-        supplierExists = defaultSupplier;
       }
 
       // 4. Draft PO Number Generation
@@ -1890,7 +2070,9 @@ export class ProcurementService {
         gstPercent: itemsToCreate[0]?.gstPercent?.toNumber() || 18,
         freight: freight.toNumber(),
         grandTotal: grandTotal.toNumber(),
-        vendorName: supplierExists?.name || 'Default Vendor',
+        vendorName: supplierExists?.name || candidateName || 'Vendor',
+        supplierName: supplierExists?.name || candidateName || 'Vendor',
+        vendorCode: supplierExists?.publicId || '',
         selectedIndents: uniqueIndents.map((ind) => ({
           id: ind.id,
           publicId: ind.publicId,
@@ -2143,6 +2325,7 @@ export class ProcurementService {
         }
       }
 
+      const existingSnapshot = typeof row.snapshot === 'object' && row.snapshot ? row.snapshot : {};
       const updateData: any = {
         status,
         version: { increment: 1 },
@@ -2151,6 +2334,11 @@ export class ProcurementService {
           (action === 'submit' && totalVal <= 10000)) && {
           superAdminApprovedById: actorId || null,
           superAdminApprovedAt: new Date(),
+          orderRemarks: (dto.remarks && dto.remarks.trim()) || row.orderRemarks || null,
+          snapshot: {
+            ...existingSnapshot,
+            ...(dto.remarks ? { plantHeadApprovalRemarks: dto.remarks.trim(), approvalRemarks: dto.remarks.trim() } : {})
+          },
         }),
         ...((action === 'reject' || action === 'plant-head-reject') && {
           superAdminRejectedById: actorId || null,
@@ -2160,6 +2348,7 @@ export class ProcurementService {
         ...(action === 'issue' && {
           poNo: finalPoNo,
           poNumber: finalPoNo,
+          publicId: finalPoNo,
           orderedById: actorId || null,
           orderedAt: new Date(),
           expectedDeliveryDate: dto.expectedDeliveryDate
@@ -2167,7 +2356,7 @@ export class ProcurementService {
             : row.expectedDeliveryDate,
           vendorOrderReference:
             dto.vendorOrderReference || dto.vendorAcknowledgementNumber || null,
-          orderRemarks: dto.remarks || dto.financeRemarks || null,
+          orderRemarks: (dto.remarks && dto.remarks.trim()) || (dto.financeRemarks && dto.financeRemarks.trim()) || row.orderRemarks || null,
         }),
       };
 
@@ -2369,12 +2558,27 @@ export class ProcurementService {
         );
       }
 
-      if (action === 'audit-approve' && row.inventoryPostedAt) return row;
+      if (action === 'reject') {
+        if (!dto.reason && !dto.remarks) {
+          throw new BadRequestException(
+            'A rejection reason is required to reject this delivery audit.',
+          );
+        }
+        if (row.status !== 'PENDING_FINANCE_AUDIT') {
+          throw new BadRequestException(
+            'GRN can only be rejected while in PENDING_FINANCE_AUDIT status',
+          );
+        }
+      }
+
+      // Guard: if inventory was already posted and GRN already approved, skip idempotently
+      if (action === 'audit-approve' && row.financeAuditedAt) return row;
 
       const status: any = {
         submit: 'PENDING_FINANCE_AUDIT',
         return: 'RETURNED_TO_STORE',
         'audit-approve': 'FINANCE_AUDIT_APPROVED',
+        reject: 'FINANCE_AUDIT_REJECTED',
       }[action];
 
       const updated = await tx.goodsReceiptNote.update({
@@ -2383,9 +2587,20 @@ export class ProcurementService {
           status,
           version: { increment: 1 },
           ...(action === 'audit-approve' && {
-            inventoryPostedAt: new Date(),
+            // inventoryPostedAt was already set at Store verification time; we update
+            // financeAuditedAt/By here to record who approved at what time.
             financeAuditedById: actorId || null,
             financeAuditedAt: new Date(),
+          }),
+          ...(action === 'reject' && {
+            financeAuditedById: actorId || null,
+            financeAuditedAt: new Date(),
+            snapshot: {
+              ...(row.snapshot as object || {}),
+              rejectionReason: dto.reason || dto.remarks,
+              rejectedAt: new Date().toISOString(),
+              rejectedById: actorId || null,
+            },
           }),
         },
         include: { items: true },
@@ -2398,37 +2613,12 @@ export class ProcurementService {
           include: { items: true },
         });
 
+        // NOTE: Inventory was already posted at the time of Store delivery confirmation
+        // (verifyDelivery sets inventoryPostedAt and creates the InventoryTransaction/StockHistory).
+        // We must NOT add inventory again here to prevent double-posting.
+        // We only stamp financeApprovedQuantity on each item for audit record-keeping.
         for (const i of updated.items) {
           if (MONEY(i.acceptedQuantity).lte(0)) continue;
-
-          const product = await tx.product.findUnique({
-            where: { id: i.productId },
-          });
-          let rawMaterialId: string | null = null;
-          if (product?.sku) {
-            const rm = await tx.rawMaterial.findFirst({
-              where: { sku: product.sku },
-            });
-            if (rm) {
-              rawMaterialId = rm.id;
-            }
-          }
-
-          // Create InventoryTransaction IN ledger movement
-          await tx.inventoryTransaction.create({
-            data: {
-              companyId: updated.companyId,
-              warehouseId: updated.warehouseId,
-              productId: i.productId,
-              rawMaterialId,
-              type: 'IN',
-              quantity: MONEY(i.acceptedQuantity),
-              referenceId: poId,
-              referenceType: 'PURCHASE_ORDER',
-            },
-          });
-
-          // Update GoodsReceiptNoteItem with financeApprovedQuantity
           await tx.goodsReceiptNoteItem.update({
             where: { id: i.id },
             data: { financeApprovedQuantity: MONEY(i.acceptedQuantity) },
@@ -2460,21 +2650,26 @@ export class ProcurementService {
             include: { items: true },
           });
 
-          // Accumulate accepted quantities by product ID
-          const acceptedQtyMap = new Map<string, number>();
+          // Accumulate accepted quantities by purchaseOrderItemId and productId
+          const acceptedByPoItemId = new Map<string, number>();
+          const acceptedByProdId = new Map<string, number>();
           for (const g of approvedGrns) {
             for (const gi of g.items) {
-              const prev = acceptedQtyMap.get(gi.productId) || 0;
-              acceptedQtyMap.set(
-                gi.productId,
-                prev + Number(gi.acceptedQuantity || 0),
-              );
+              const qty = Number(gi.acceptedQuantity || 0);
+              if (gi.purchaseOrderItemId) {
+                const prev = acceptedByPoItemId.get(gi.purchaseOrderItemId) || 0;
+                acceptedByPoItemId.set(gi.purchaseOrderItemId, prev + qty);
+              }
+              if (gi.productId) {
+                const prev = acceptedByProdId.get(gi.productId) || 0;
+                acceptedByProdId.set(gi.productId, prev + qty);
+              }
             }
           }
 
           let poCompleted = true;
           for (const item of po.items) {
-            const accepted = acceptedQtyMap.get(item.productId) || 0;
+            const accepted = (acceptedByPoItemId.get(item.id) ?? acceptedByProdId.get(item.productId)) || 0;
             const ordered = Number(item.quantity) || 0;
             if (accepted < ordered) {
               poCompleted = false;
@@ -2504,6 +2699,27 @@ export class ProcurementService {
           }
         }
       }
+
+      // Handle Finance rejection: PO/Indent stay open, return to PARTIALLY_DELIVERED or previous status
+      if (action === 'reject') {
+        const poId = updated.purchaseOrderId;
+        const po = await tx.purchaseOrder.findUnique({ where: { id: poId }, include: { items: true } });
+        if (po && (po.status === 'DELIVERY_PENDING_FINANCE_AUDIT' || po.status === 'FULLY_RECEIVED')) {
+          // Revert PO to PARTIALLY_DELIVERED so Store can re-verify
+          const allItemsReceived = po.items.every((i: any) => MONEY(i.receivedQuantity).gte(i.quantity));
+          await tx.purchaseOrder.update({
+            where: { id: poId },
+            data: { status: allItemsReceived ? 'PARTIALLY_DELIVERED' : 'PARTIALLY_DELIVERED', version: { increment: 1 } },
+          });
+          if (po.purchaseIndentId) {
+            await tx.purchaseIndent.update({
+              where: { id: po.purchaseIndentId },
+              data: { status: 'PARTIALLY_DELIVERED', version: { increment: 1 } },
+            });
+          }
+        }
+      }
+
       await tx.gRNStatusHistory.create({
         data: {
           goodsReceiptNoteId: id,
