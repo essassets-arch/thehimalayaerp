@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import {
@@ -41,6 +41,7 @@ import styles from "./delivery.module.css";
 /* ── Types ───────────────────────────────────────────────────────────── */
 interface Customer {
   companyName: string;
+  name?: string;
   address?: string;
   phone?: string;
   contactPhone?: string;
@@ -52,7 +53,13 @@ interface Customer {
 interface SalesOrder {
   id?: string;
   orderNumber: string;
-  customer: Customer;
+  customer?: Customer;
+  customerName?: string;
+  salesExecutive?: any;
+  salesperson?: string;
+  salespersonName?: string;
+  salesPersonName?: string;
+  salesExecutiveName?: string;
   totalAmount?: number | string;
   items?: any[];
   shippingAddress?: any;
@@ -119,6 +126,229 @@ function normalizeDispatchCategory(cat?: string | null): 'D1' | 'D2' | null {
   return null;
 }
 
+function normalizeKey(str?: string | null): string {
+  if (!str) return "";
+  return String(str).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+const SEEDED_SALES_USER_MAP: Record<string, string> = {
+  // UUIDs
+  "60ebaa59-d897-4009-b695-1f92e0dfcb6b": "Sales 1",
+  "886236b2-6503-4f9e-a89c-482ee4e5f238": "Sales 2",
+  "76840742-fa33-4f38-8fa9-939eec4d57c7": "Sales 3",
+  "17ee88e7-73d8-4f51-b0db-b873ff665c58": "Sales 4",
+  "40c4984a-fafe-4f01-a2c6-d97157bc8c23": "Sales Five",
+  "2ba631e3-09fd-49e7-8a9e-386cc227a81e": "Sales Six",
+  "b4e35bef-3ee6-4a56-9e33-bb79791b2170": "Sales Seven",
+  "7c3a3b46-e26c-4404-96e9-63b83b86c460": "SuperSales 1",
+  "cbdb5de9-d79d-48d7-b917-30d7b50f8ad3": "SuperSales 2",
+  "6007bc63-eeb6-4e49-a3b1-f5d77be8734c": "Sales Eleven",
+  "95d8c289-5341-4a96-98ca-47b690745f98": "Jyoti (Sales 12)",
+  "e234eab6-4e7e-4d0e-97d9-56766004f357": "Sales Thirteen",
+  "5f20dc83-3a53-4346-9b9a-c508bb0d0147": "Sales Fourteen",
+  "6b986c85-e846-4b8b-9df6-c80d3d989160": "Trushna G",
+  "5dbef6b2-9b73-4322-b4ac-50af45924cb6": "Moksha N",
+  "8866c877-18cc-4ffa-b850-fcd568d12238": "Abbas B",
+  "6583105f-5e9a-408d-81ab-8baca70219c6": "Hussain T",
+  "3b3c4d40-94ec-4824-933c-260ebb2660e8": "Sana R",
+  "a380ddcf-78e5-44b9-9be6-41e4b01a1f49": "Ravikant T",
+  "90917af7-b7bd-454a-871b-95ff1e34dc36": "Sales Manager",
+
+  // Emails
+  "sales1@himalayaerp.com": "Sales 1",
+  "sales2@himalayaerp.com": "Sales 2",
+  "sales3@himalayaerp.com": "Sales 3",
+  "sales4@himalayaerp.com": "Sales 4",
+  "sales5@himalayaerp.com": "Sales Five",
+  "sales6@himalayaerp.com": "Sales Six",
+  "sales7@himalayaerp.com": "Sales Seven",
+  "supersales1@himalayaerp.com": "SuperSales 1",
+  "supersales2@himalayaerp.com": "SuperSales 2",
+  "sales11@himalayaerp.com": "Sales Eleven",
+  "sales12@himalayaerp.com": "Jyoti (Sales 12)",
+  "sales13@himalayaerp.com": "Sales Thirteen",
+  "sales14@himalayaerp.com": "Sales Fourteen",
+  "trushna.g@himalayaerp.com": "Trushna G",
+  "moksha.n@himalayaerp.com": "Moksha N",
+  "abbas.b@himalayaerp.com": "Abbas B",
+  "hussain.t@himalayaerp.com": "Hussain T",
+  "sana.r@himalayaerp.com": "Sana R",
+  "ravikant.t@himalayaerp.com": "Ravikant T",
+
+  // Aliases
+  "sales1": "Sales 1",
+  "sales2": "Sales 2",
+  "sales3": "Sales 3",
+  "sales4": "Sales 4",
+  "sales5": "Sales Five",
+  "sales6": "Sales Six",
+  "sales7": "Sales Seven",
+  "supersales1": "SuperSales 1",
+  "supersales2": "SuperSales 2",
+};
+
+function isValidCustomerName(name?: any): boolean {
+  if (!name || typeof name !== "string") return false;
+  const t = name.trim();
+  if (
+    !t ||
+    t === "—" ||
+    t === "-" ||
+    t === "N/A" ||
+    t === "null" ||
+    t === "undefined" ||
+    t === "Consignee Client" ||
+    t === "Client Consignee" ||
+    t === "Customer Designated Delivery Site" ||
+    t === "Customer Delivery Site" ||
+    t === "Production Dispatch" ||
+    t === "Factory Finished Goods"
+  ) {
+    return false;
+  }
+  if (t.startsWith("usr_") || t.startsWith("user_") || t.startsWith("USR-")) return false;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t)) return false;
+  return true;
+}
+
+function resolveCustomerName(entity?: any, ...fallbackEntities: any[]): string {
+  const allEntities = [entity, ...fallbackEntities].filter(Boolean);
+  for (const obj of allEntities) {
+    if (!obj || typeof obj !== "object") continue;
+
+    const directCandidates = [
+      obj.customer?.companyName,
+      obj.customer?.name,
+      obj.salesOrder?.customer?.companyName,
+      obj.salesOrder?.customer?.name,
+      obj.salesOrder?.customerName,
+      obj.customerName,
+      obj.companyName,
+      obj.clientName,
+      obj.consigneeName,
+      obj.sourceQuotation?.customer?.companyName,
+      obj.sourceQuotation?.customerName,
+      obj.sourceQuotation?.lead?.companyName,
+      obj.quotation?.customer?.companyName,
+      obj.quotation?.customerName,
+      obj.quotation?.lead?.companyName,
+      obj.lead?.companyName,
+      obj.lead?.projectName,
+      obj.salesOrder?.quotation?.customer?.companyName,
+      obj.salesOrder?.quotation?.customerName,
+      obj.salesOrder?.quotation?.lead?.companyName,
+      obj.salesOrder?.sourceQuotation?.customer?.companyName,
+      obj.salesOrder?.sourceQuotation?.customerName,
+      obj.salesOrder?.sourceQuotation?.lead?.companyName,
+      obj.salesOrder?.lead?.companyName,
+      obj.salesOrder?.lead?.projectName,
+      obj.workOrder?.productionPlan?.salesOrder?.customer?.companyName,
+      obj.workOrder?.productionPlan?.salesOrder?.customerName,
+      obj.workOrder?.customer?.companyName,
+    ];
+
+    for (const cand of directCandidates) {
+      if (isValidCustomerName(cand)) {
+        return String(cand).trim();
+      }
+    }
+  }
+
+  return "Consignee Client";
+}
+
+function isValidSalesPersonName(name?: any): boolean {
+  if (!name || typeof name !== "string") return false;
+  const t = name.trim();
+  if (!t || t === "—" || t === "N/A" || t === "null" || t === "undefined" || t === "Sales Executive") return false;
+  if (t.startsWith("usr_") || t.startsWith("user_") || t.startsWith("USR-")) return false;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t)) return false;
+  return true;
+}
+
+function resolveSalesPersonName(entity?: any, ...fallbackEntities: any[]): string {
+  const allEntities = [entity, ...fallbackEntities].filter(Boolean);
+  let userMap: Map<string, string> | undefined = undefined;
+
+  for (const obj of allEntities) {
+    if (obj instanceof Map) {
+      userMap = obj;
+      continue;
+    }
+    if (!obj || typeof obj !== "object") continue;
+
+    const execObj =
+      obj.salesExecutive ||
+      obj.salesOrder?.salesExecutive ||
+      obj.quotation?.salesExecutive ||
+      obj.quotation?.lead?.salesExecutive ||
+      obj.sourceQuotation?.salesExecutive ||
+      obj.sourceQuotation?.lead?.salesExecutive ||
+      obj.productionPlan?.salesOrder?.salesExecutive ||
+      obj.productionPlan?.salesOrder?.quotation?.lead?.salesExecutive ||
+      obj.productionPlan?.salesOrder?.sourceQuotation?.lead?.salesExecutive ||
+      obj.createdBy ||
+      obj.salesOrder?.createdBy ||
+      obj.customer?.salesExecutive;
+
+    if (execObj && typeof execObj === "object") {
+      const name = execObj.name ? String(execObj.name).trim() : "";
+      if (isValidSalesPersonName(name)) return name;
+
+      const email = execObj.email ? String(execObj.email).trim().toLowerCase() : "";
+      if (email && SEEDED_SALES_USER_MAP[email]) return SEEDED_SALES_USER_MAP[email];
+      if (email && userMap?.has(email)) return userMap.get(email)!;
+
+      const id = execObj.id ? String(execObj.id).trim().toLowerCase() : "";
+      if (id && SEEDED_SALES_USER_MAP[id]) return SEEDED_SALES_USER_MAP[id];
+      if (id && userMap?.has(id)) return userMap.get(id)!;
+    }
+
+    const candidates = [
+      obj.salesperson,
+      obj.salespersonName,
+      obj.salesPersonName,
+      obj.salesPerson,
+      typeof obj.salesExecutive === "string" ? obj.salesExecutive : null,
+      obj.salesExecutiveName,
+      obj.salesRep,
+      obj.createdByName,
+      obj.salesOrder?.salesperson,
+      obj.salesOrder?.salespersonName,
+      obj.salesOrder?.salesPersonName,
+      obj.salesOrder?.salesExecutiveName,
+      obj.quotation?.salesperson,
+      obj.quotation?.salesPersonName,
+      obj.quotation?.salesExecutiveName,
+      obj.quotation?.lead?.salesExecutive?.name,
+      obj.sourceQuotation?.salesperson,
+      obj.sourceQuotation?.salesPersonName,
+      obj.sourceQuotation?.salespersonName,
+      obj.sourceQuotation?.createdByName,
+      obj.productionPlan?.salesOrder?.salesperson,
+      obj.productionPlan?.salesOrder?.salesExecutiveName,
+      obj.productionPlan?.salesOrder?.quotation?.lead?.salesExecutive?.name,
+      obj.salesExecutiveId,
+      obj.salesOrder?.salesExecutiveId,
+      obj.createdById,
+    ];
+
+    for (const cand of candidates) {
+      if (!cand) continue;
+      const val = String(cand).trim();
+      if (!val) continue;
+      const lower = val.toLowerCase();
+      if (SEEDED_SALES_USER_MAP[val]) return SEEDED_SALES_USER_MAP[val];
+      if (SEEDED_SALES_USER_MAP[lower]) return SEEDED_SALES_USER_MAP[lower];
+      if (userMap?.has(lower)) return userMap.get(lower)!;
+      if (userMap?.has(val)) return userMap.get(val)!;
+      if (isValidSalesPersonName(val)) return val;
+    }
+  }
+
+  return "Sales Executive";
+}
+
 export default function DeliveryRunPage() {
   const queryClient = useQueryClient();
   const pathname = usePathname();
@@ -179,6 +409,97 @@ export default function DeliveryRunPage() {
     refetchInterval: 30000,
   });
 
+  // Query: Users Map for sales executive lookup
+  const { data: usersMap = new Map<string, string>() } = useQuery<Map<string, string>>({
+    queryKey: ["users-master-sales-map"],
+    queryFn: async () => {
+      try {
+        const res = await backendFetch<any>("/api/backend/users?limit=1000");
+        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : Array.isArray(res?.users) ? res.users : [];
+        const map = new Map<string, string>();
+        list.forEach((u: any) => {
+          if (u.id && u.name) map.set(String(u.id).toLowerCase(), String(u.name).trim());
+          if (u.email && u.name) map.set(String(u.email).toLowerCase(), String(u.name).trim());
+          if (u.username && u.name) map.set(String(u.username).toLowerCase(), String(u.name).trim());
+        });
+        return map;
+      } catch {
+        return new Map();
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Query: Sales Orders Map for accurate customer and sales person lookup
+  const { data: salesOrdersMap = new Map<string, any>() } = useQuery<Map<string, any>>({
+    queryKey: ["sales-orders-master-map"],
+    queryFn: async () => {
+      try {
+        const res = await backendFetch<any>("/api/backend/sales/orders?limit=1000");
+        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+        const map = new Map<string, any>();
+        list.forEach((so: any) => {
+          if (!so) return;
+          if (so.id) map.set(String(so.id).toLowerCase(), so);
+          if (so.orderNumber) {
+            map.set(String(so.orderNumber).toLowerCase(), so);
+            map.set(normalizeKey(so.orderNumber), so);
+          }
+        });
+        return map;
+      } catch {
+        return new Map();
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const getResolvedMetadata = useCallback(
+    (item?: Dispatch | null) => {
+      if (!item) return { customerName: "Consignee Client", salesPersonName: "Sales Executive", matchedSo: null };
+      const soId = String(item.salesOrder?.id || (item as any).salesOrderId || "").toLowerCase();
+      const soNumber = String(item.salesOrder?.orderNumber || (item as any).orderNumber || "");
+      const matchedSo =
+        salesOrdersMap.get(soId) ||
+        salesOrdersMap.get(normalizeKey(soNumber)) ||
+        salesOrdersMap.get(soNumber.toLowerCase());
+
+      let localMeta: any = null;
+      if (typeof window !== "undefined") {
+        try {
+          const rawMeta = localStorage.getItem("himalaya_dispatches_full_metadata");
+          if (rawMeta) {
+            const parsed = JSON.parse(rawMeta);
+            localMeta =
+              parsed[soId] ||
+              parsed[normalizeKey(soNumber)] ||
+              parsed[soNumber.toLowerCase()] ||
+              parsed[String(item.dispatchNo || "").toLowerCase()] ||
+              parsed[normalizeKey(item.dispatchNo)];
+          }
+        } catch {}
+      }
+
+      const customerName = resolveCustomerName(
+        item.salesOrder,
+        matchedSo,
+        localMeta,
+        item
+      );
+
+      const salesPersonName = resolveSalesPersonName(
+        item.salesOrder,
+        matchedSo,
+        localMeta,
+        usersMap,
+        item
+      );
+
+      return { customerName, salesPersonName, matchedSo };
+    },
+    [salesOrdersMap, usersMap]
+  );
+
   // Clean up object URLs on unmount
   useEffect(() => {
     return () => {
@@ -225,16 +546,22 @@ export default function DeliveryRunPage() {
     if (!search.trim()) return sorted;
     const lower = search.toLowerCase();
     return sorted.filter(
-      (d) =>
-        d.dispatchNo?.toLowerCase().includes(lower) ||
-        d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
-        d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
-        d.driverName?.toLowerCase().includes(lower) ||
-        d.driverPhone?.toLowerCase().includes(lower) ||
-        d.vehicleNumber?.toLowerCase().includes(lower) ||
-        d.deliveryAddress?.toLowerCase().includes(lower)
+      (d) => {
+        const meta = getResolvedMetadata(d);
+        return (
+          d.dispatchNo?.toLowerCase().includes(lower) ||
+          d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+          d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
+          meta.customerName.toLowerCase().includes(lower) ||
+          meta.salesPersonName.toLowerCase().includes(lower) ||
+          d.driverName?.toLowerCase().includes(lower) ||
+          d.driverPhone?.toLowerCase().includes(lower) ||
+          d.vehicleNumber?.toLowerCase().includes(lower) ||
+          d.deliveryAddress?.toLowerCase().includes(lower)
+        );
+      }
     );
-  }, [dispatches, search, isDispatch2]);
+  }, [dispatches, search, isDispatch2, getResolvedMetadata]);
 
   // Filter History Dispatches
   const filteredHistoryDispatches = useMemo(() => {
@@ -257,16 +584,22 @@ export default function DeliveryRunPage() {
     if (!search.trim()) return sorted;
     const lower = search.toLowerCase();
     return sorted.filter(
-      (d) =>
-        d.dispatchNo?.toLowerCase().includes(lower) ||
-        d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
-        d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
-        d.receivedBy?.toLowerCase().includes(lower) ||
-        d.receiverPhone?.toLowerCase().includes(lower) ||
-        d.driverName?.toLowerCase().includes(lower) ||
-        d.vehicleNumber?.toLowerCase().includes(lower)
+      (d) => {
+        const meta = getResolvedMetadata(d);
+        return (
+          d.dispatchNo?.toLowerCase().includes(lower) ||
+          d.salesOrder?.orderNumber?.toLowerCase().includes(lower) ||
+          d.salesOrder?.customer?.companyName?.toLowerCase().includes(lower) ||
+          meta.customerName.toLowerCase().includes(lower) ||
+          meta.salesPersonName.toLowerCase().includes(lower) ||
+          d.receivedBy?.toLowerCase().includes(lower) ||
+          d.receiverPhone?.toLowerCase().includes(lower) ||
+          d.driverName?.toLowerCase().includes(lower) ||
+          d.vehicleNumber?.toLowerCase().includes(lower)
+        );
+      }
     );
-  }, [historyDispatches, search, isDispatch2]);
+  }, [historyDispatches, search, isDispatch2, getResolvedMetadata]);
 
   // Modal Handlers
   const openModal = (dispatchItem: Dispatch) => {
@@ -399,21 +732,25 @@ export default function DeliveryRunPage() {
     const items = isDelivery ? activeDeliveryQueue : filteredHistoryDispatches;
     if (!items.length) return;
 
-    const rows = items.map((d) => ({
-      "Dispatch #": formatCleanNo(d.dispatchNo),
-      "Sales Order #": formatCleanNo(d.salesOrder?.orderNumber),
-      Customer: d.salesOrder?.customer?.companyName || "—",
-      "Delivery Address": d.deliveryAddress || "—",
-      Driver: d.driverName || "—",
-      "Driver Phone": d.driverPhone || "—",
-      "Vehicle Number": d.vehicleNumber || "—",
-      Transporter: d.transporterName || "—",
-      "Received By": d.receivedBy || "—",
-      "Receiver Mobile": d.receiverPhone || "—",
-      "Delivered Timestamp": d.deliveredAt ? new Date(d.deliveredAt).toLocaleString("en-IN") : "—",
-      "POD Image URL": d.podUrl || "—",
-      Status: d.status,
-    }));
+    const rows = items.map((d) => {
+      const meta = getResolvedMetadata(d);
+      return {
+        "Dispatch #": formatCleanNo(d.dispatchNo),
+        "Sales Order #": formatCleanNo(d.salesOrder?.orderNumber),
+        Customer: meta.customerName || "—",
+        "Sales Person": meta.salesPersonName || "—",
+        "Delivery Address": d.deliveryAddress || "—",
+        Driver: d.driverName || "—",
+        "Driver Phone": d.driverPhone || "—",
+        "Vehicle Number": d.vehicleNumber || "—",
+        Transporter: d.transporterName || "—",
+        "Received By": d.receivedBy || "—",
+        "Receiver Mobile": d.receiverPhone || "—",
+        "Delivered Timestamp": d.deliveredAt ? new Date(d.deliveredAt).toLocaleString("en-IN") : "—",
+        "POD Image URL": d.podUrl || "—",
+        Status: d.status,
+      };
+    });
 
     const headers = Object.keys(rows[0]);
     const csv = [
@@ -702,6 +1039,7 @@ export default function DeliveryRunPage() {
                       {activeDeliveryQueue.map((item) => {
                         const cleanDispNo = formatCleanNo(item.dispatchNo);
                         const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
+                        const meta = getResolvedMetadata(item);
 
                         return (
                           <tr key={item.id}>
@@ -733,8 +1071,29 @@ export default function DeliveryRunPage() {
                             <td>
                               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                 <span style={{ fontWeight: 700, color: "#0f172a", fontSize: "13.5px" }}>
-                                  {item.salesOrder?.customer?.companyName || "Consignee Client"}
+                                  {meta.customerName}
                                 </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 3.5,
+                                      fontSize: "11px",
+                                      fontWeight: 600,
+                                      color: "#0369a1",
+                                      background: "#f0f9ff",
+                                      border: "1px solid #bae6fd",
+                                      borderRadius: 4,
+                                      padding: "1px 6px",
+                                      width: "max-content",
+                                    }}
+                                    title={`Sales Person / Executive: ${meta.salesPersonName}`}
+                                  >
+                                    <User size={10} color="#0284c7" />
+                                    <span>Sales: {meta.salesPersonName}</span>
+                                  </span>
+                                </div>
                                 {item.deliveryAddress && (
                                   <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#64748b", fontSize: "12px" }} title={item.deliveryAddress}>
                                     <MapPin size={12} color="#f59e0b" style={{ flexShrink: 0 }} />
@@ -803,6 +1162,7 @@ export default function DeliveryRunPage() {
                   {activeDeliveryQueue.map((item) => {
                     const cleanDispNo = formatCleanNo(item.dispatchNo);
                     const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
+                    const meta = getResolvedMetadata(item);
 
                     return (
                       <div key={item.id} className={styles.mobileCard}>
@@ -820,10 +1180,29 @@ export default function DeliveryRunPage() {
                           </div>
                           <div>
                             <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                              {item.salesOrder?.customer?.companyName || "Consignee Client"}
+                              {meta.customerName}
                             </div>
-                            <div style={{ fontSize: "11.5px", color: "#64748b" }}>
-                              Order #{cleanSoNo}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                              <span style={{ fontSize: "11.5px", color: "#64748b" }}>
+                                Order #{cleanSoNo}
+                              </span>
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 3,
+                                  fontSize: "10.5px",
+                                  fontWeight: 600,
+                                  color: "#0369a1",
+                                  background: "#f0f9ff",
+                                  border: "1px solid #bae6fd",
+                                  borderRadius: 4,
+                                  padding: "1px 5px",
+                                }}
+                              >
+                                <User size={10} color="#0284c7" />
+                                <span>Sales: {meta.salesPersonName}</span>
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -920,6 +1299,7 @@ export default function DeliveryRunPage() {
                         {filteredHistoryDispatches.map((item) => {
                           const cleanDispNo = formatCleanNo(item.dispatchNo);
                           const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
+                          const meta = getResolvedMetadata(item);
                           const totalQty = (item.items || []).reduce((sum, it) => sum + Number(it.quantity || 0), 0);
                           const primaryUnit = item.items?.[0]?.salesOrderItem?.unit || "PCS";
                           const lrDisplay = item.lrNumber || item.ewayBillNumber || item.invoiceNumber || null;
@@ -951,8 +1331,29 @@ export default function DeliveryRunPage() {
                               <td>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                                   <span style={{ fontWeight: 700, color: "#0f172a" }}>
-                                    {item.salesOrder?.customer?.companyName || "Consignee Client"}
+                                    {meta.customerName}
                                   </span>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 3,
+                                        fontSize: "10.5px",
+                                        fontWeight: 600,
+                                        color: "#0369a1",
+                                        background: "#f0f9ff",
+                                        border: "1px solid #bae6fd",
+                                        borderRadius: 4,
+                                        padding: "1px 5px",
+                                        width: "max-content",
+                                      }}
+                                      title={`Sales Person: ${meta.salesPersonName}`}
+                                    >
+                                      <User size={10} color="#0284c7" />
+                                      <span>Sales: {meta.salesPersonName}</span>
+                                    </span>
+                                  </div>
                                   {item.deliveryAddress && (
                                     <span style={{ fontSize: "11px", color: "#64748b", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.deliveryAddress}>
                                       📍 {item.deliveryAddress}
@@ -1084,6 +1485,7 @@ export default function DeliveryRunPage() {
                     {filteredHistoryDispatches.map((item) => {
                       const cleanDispNo = formatCleanNo(item.dispatchNo);
                       const cleanSoNo = formatCleanNo(item.salesOrder?.orderNumber);
+                      const meta = getResolvedMetadata(item);
                       const totalQty = (item.items || []).reduce((sum, it) => sum + Number(it.quantity || 0), 0);
                       const primaryUnit = item.items?.[0]?.salesOrderItem?.unit || "PCS";
                       const lrDisplay = item.lrNumber || item.ewayBillNumber || item.invoiceNumber || null;
@@ -1106,7 +1508,27 @@ export default function DeliveryRunPage() {
                           </div>
 
                           <div className={styles.cardCompany}>
-                            {item.salesOrder?.customer?.companyName || "Consignee Client"}
+                            {meta.customerName}
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "2px 0 6px 0" }}>
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 3.5,
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                color: "#0369a1",
+                                background: "#f0f9ff",
+                                border: "1px solid #bae6fd",
+                                borderRadius: 4,
+                                padding: "1px 6px",
+                              }}
+                            >
+                              <User size={10} color="#0284c7" />
+                              <span>Sales: {meta.salesPersonName}</span>
+                            </span>
                           </div>
 
                           {item.deliveryAddress && (
@@ -1215,28 +1637,40 @@ export default function DeliveryRunPage() {
             <form onSubmit={handleConfirmDelivery}>
               <div className={styles.modalBody}>
                 {/* Order Summary Box */}
-                <div className={styles.modalOrderSummary}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px" }}>
-                    <span style={{ color: "#64748b" }}>Consignee:</span>
-                    <span style={{ fontWeight: 800, color: "#0f172a" }}>
-                      {selectedDispatch.salesOrder?.customer?.companyName || "Client Consignee"}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px" }}>
-                    <span style={{ color: "#64748b" }}>Sales Order:</span>
-                    <span style={{ fontWeight: 700, fontFamily: "monospace", color: "#2563eb" }}>
-                      #{formatCleanNo(selectedDispatch.salesOrder?.orderNumber)}
-                    </span>
-                  </div>
-                  {selectedDispatch.deliveryAddress && (
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", borderTop: "1px dashed #e2e8f0", paddingTop: 6 }}>
-                      <span style={{ color: "#64748b" }}>Destination:</span>
-                      <span style={{ fontWeight: 500, color: "#334155", maxWidth: "65%", textAlign: "right" }}>
-                        {selectedDispatch.deliveryAddress}
-                      </span>
+                {(() => {
+                  const selectedMeta = getResolvedMetadata(selectedDispatch);
+                  return (
+                    <div className={styles.modalOrderSummary}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px" }}>
+                        <span style={{ color: "#64748b" }}>Consignee / Customer:</span>
+                        <span style={{ fontWeight: 800, color: "#0f172a" }}>
+                          {selectedMeta.customerName}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px" }}>
+                        <span style={{ color: "#64748b" }}>Sales Person:</span>
+                        <span style={{ fontWeight: 700, color: "#0369a1", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <User size={12} color="#0284c7" />
+                          {selectedMeta.salesPersonName}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px" }}>
+                        <span style={{ color: "#64748b" }}>Sales Order:</span>
+                        <span style={{ fontWeight: 700, fontFamily: "monospace", color: "#2563eb" }}>
+                          #{formatCleanNo(selectedDispatch.salesOrder?.orderNumber)}
+                        </span>
+                      </div>
+                      {selectedDispatch.deliveryAddress && (
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", borderTop: "1px dashed #e2e8f0", paddingTop: 6 }}>
+                          <span style={{ color: "#64748b" }}>Destination:</span>
+                          <span style={{ fontWeight: 500, color: "#334155", maxWidth: "65%", textAlign: "right" }}>
+                            {selectedDispatch.deliveryAddress}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
 
                 {/* Receiver Name */}
                 <div className={styles.formGroup}>
@@ -1416,30 +1850,42 @@ export default function DeliveryRunPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
                   
                   {/* Card 1: Consignee & Site */}
-                  <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-                      <Building2 size={14} color="#2563eb" /> Customer & Delivery Destination
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div>
-                        <span style={{ fontSize: 11, color: "#64748b", display: "block" }}>Customer / Consignee:</span>
-                        <strong style={{ fontSize: 14, color: "#0f172a" }}>
-                          {viewingHistoryItem.salesOrder?.customer?.companyName || "Consignee Client"}
-                        </strong>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: 11, color: "#64748b", display: "block" }}>Destination Site Address:</span>
-                        <span style={{ fontSize: 12.5, color: "#334155", lineHeight: 1.4 }}>
-                          📍 {viewingHistoryItem.deliveryAddress || viewingHistoryItem.salesOrder?.customer?.address || "Factory Staging Area / Site Delivery"}
-                        </span>
-                      </div>
-                      {viewingHistoryItem.specialInstructions && (
-                        <div style={{ borderTop: "1px dashed #e2e8f0", paddingTop: 6, fontSize: 11.5, color: "#475569" }}>
-                          <strong>Notes:</strong> {viewingHistoryItem.specialInstructions}
+                  {(() => {
+                    const historyMeta = getResolvedMetadata(viewingHistoryItem);
+                    return (
+                      <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+                          <Building2 size={14} color="#2563eb" /> Customer & Delivery Destination
                         </div>
-                      )}
-                    </div>
-                  </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div>
+                            <span style={{ fontSize: 11, color: "#64748b", display: "block" }}>Customer / Consignee:</span>
+                            <strong style={{ fontSize: 14, color: "#0f172a" }}>
+                              {historyMeta.customerName}
+                            </strong>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: 11, color: "#64748b", display: "block" }}>Sales Executive / Rep:</span>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 2, background: "#f0f9ff", border: "1px solid #bae6fd", padding: "2px 8px", borderRadius: 4, color: "#0369a1", fontWeight: 700, fontSize: "12px" }}>
+                              <User size={12} color="#0284c7" />
+                              <span>{historyMeta.salesPersonName}</span>
+                            </div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: 11, color: "#64748b", display: "block" }}>Destination Site Address:</span>
+                            <span style={{ fontSize: 12.5, color: "#334155", lineHeight: 1.4 }}>
+                              📍 {viewingHistoryItem.deliveryAddress || viewingHistoryItem.salesOrder?.customer?.address || "Factory Staging Area / Site Delivery"}
+                            </span>
+                          </div>
+                          {viewingHistoryItem.specialInstructions && (
+                            <div style={{ borderTop: "1px dashed #e2e8f0", paddingTop: 6, fontSize: 11.5, color: "#475569" }}>
+                              <strong>Notes:</strong> {viewingHistoryItem.specialInstructions}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Card 2: Driver, Vehicle & LR Logistics */}
                   <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>

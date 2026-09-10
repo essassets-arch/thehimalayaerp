@@ -101,6 +101,7 @@ export class DispatchService {
         salesOrder: {
           include: {
             customer: true,
+            salesExecutive: { select: { id: true, name: true, email: true } },
             sourceQuotation: { include: { lead: true } },
             quotation: { include: { lead: true } },
           },
@@ -186,6 +187,7 @@ export class DispatchService {
         salesOrder: {
           include: {
             customer: true,
+            salesExecutive: { select: { id: true, name: true, email: true } },
             sourceQuotation: { include: { lead: true } },
             quotation: { include: { lead: true } },
           },
@@ -233,16 +235,20 @@ export class DispatchService {
           },
         });
         if (!so) {
+          const ordNo = (dto as any).orderNumber ? String((dto as any).orderNumber).trim() : '';
+          const soKey = String(dto.salesOrderId || '').trim();
           so = await tx.salesOrder.findFirst({
             where: {
               OR: [
-                { id: dto.salesOrderId },
-                { orderNumber: dto.salesOrderId },
-                { orderNumber: { equals: dto.salesOrderId, mode: 'insensitive' } },
+                { id: soKey },
+                { orderNumber: soKey },
+                { orderNumber: { equals: soKey, mode: 'insensitive' } },
+                ...(ordNo ? [{ orderNumber: ordNo }, { orderNumber: { equals: ordNo, mode: 'insensitive' as any } }] : []),
               ],
             },
             include: {
               customer: true,
+              salesExecutive: { select: { id: true, name: true, email: true } },
               items: {
                 include: {
                   dispatchItems: {
@@ -636,7 +642,7 @@ export class DispatchService {
         const dispatch = await tx.dispatch.create({
           data: {
             dispatchNo,
-            salesOrderId: dto.salesOrderId,
+            salesOrderId: so.id,
             dispatchCategory: detectedCategory,
             status: 'IN_TRANSIT',
             isSubmitted: false,
@@ -1148,7 +1154,12 @@ export class DispatchService {
   async getFinishedGoodsHistory() {
     const dispatches = await this.prisma.dispatch.findMany({
       include: {
-        salesOrder: { include: { customer: true } },
+        salesOrder: {
+          include: {
+            customer: true,
+            salesExecutive: { select: { id: true, name: true, email: true } },
+          },
+        },
         items: {
           include: {
             salesOrderItem: {
@@ -1306,6 +1317,7 @@ export class DispatchService {
         salesOrder: {
           include: {
             customer: true,
+            salesExecutive: { select: { id: true, name: true, email: true } },
             items: { include: { product: true } },
           },
         },
@@ -1349,6 +1361,8 @@ export class DispatchService {
           salesOrderId: alloc.salesOrderId,
           batchId: product?.sku || 'FG-STOCK',
           customerName: alloc.salesOrder.customer.companyName,
+          salesperson: alloc.salesOrder.salesExecutive?.name || 'Sales Executive',
+          salesExecutive: alloc.salesOrder.salesExecutive,
           deliveryAddress:
             typeof alloc.salesOrder.shippingAddress === 'string'
               ? alloc.salesOrder.shippingAddress
@@ -1387,7 +1401,14 @@ export class DispatchService {
         include: {
           salesOrderItem: { include: { product: true } },
           productionPlan: {
-            include: { salesOrder: { include: { customer: true } } },
+            include: {
+              salesOrder: {
+                include: {
+                  customer: true,
+                  salesExecutive: { select: { id: true, name: true, email: true } },
+                },
+              },
+            },
           },
         },
       });
@@ -1428,6 +1449,8 @@ export class DispatchService {
               customer?.companyName ||
               (customer as any)?.name ||
               'Production Dispatch',
+            salesperson: salesOrder?.salesExecutive?.name || 'Sales Executive',
+            salesExecutive: salesOrder?.salesExecutive,
             deliveryAddress:
               typeof salesOrder?.shippingAddress === 'string'
                 ? salesOrder.shippingAddress
@@ -1486,7 +1509,14 @@ export class DispatchService {
             include: {
               salesOrderItem: { include: { product: true } },
               productionPlan: {
-                include: { salesOrder: { include: { customer: true } } },
+                include: {
+                  salesOrder: {
+                    include: {
+                      customer: true,
+                      salesExecutive: { select: { id: true, name: true, email: true } },
+                    },
+                  },
+                },
               },
             },
           },
@@ -1532,6 +1562,8 @@ export class DispatchService {
               customer?.companyName ||
               (customer as any)?.name ||
               'Factory Finished Goods',
+            salesperson: salesOrder?.salesExecutive?.name || 'Sales Executive',
+            salesExecutive: salesOrder?.salesExecutive,
             deliveryAddress:
               typeof salesOrder?.shippingAddress === 'string'
                 ? salesOrder.shippingAddress

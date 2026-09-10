@@ -38,6 +38,10 @@ export class CreateDispatchDto {
   @IsString()
   salesOrderId: string;
 
+  @IsOptional()
+  @IsString()
+  orderNumber?: string;
+
   @IsNotEmpty()
   @IsString()
   deliveryAddress: string;

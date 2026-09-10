@@ -459,6 +459,7 @@ export class ProductionWorkflowService {
               salesOrder: {
                 include: {
                   customer: true,
+                  salesExecutive: { select: { id: true, name: true, email: true } },
                   quotation: { include: { lead: true } },
                   sourceQuotation: { include: { lead: true } },
                 },
@@ -501,6 +502,7 @@ export class ProductionWorkflowService {
               salesOrder: {
                 include: {
                   customer: true,
+                  salesExecutive: { select: { id: true, name: true, email: true } },
                   quotation: { include: { lead: true } },
                   sourceQuotation: { include: { lead: true } },
                 },
@@ -643,6 +645,7 @@ export class ProductionWorkflowService {
               salesOrder: {
                 include: {
                   customer: true,
+                  salesExecutive: { select: { id: true, name: true, email: true } },
                   quotation: { include: { lead: true } },
                   sourceQuotation: { include: { lead: true } },
                 },
@@ -1520,6 +1523,7 @@ export class ProductionWorkflowService {
                 salesOrder: {
                   include: {
                     customer: true,
+                    salesExecutive: { select: { id: true, name: true, email: true } },
                     quotation: { include: { lead: true } },
                     sourceQuotation: { include: { lead: true } },
                   },
@@ -1545,6 +1549,7 @@ export class ProductionWorkflowService {
             salesOrder: {
               include: {
                 customer: true,
+                salesExecutive: { select: { id: true, name: true, email: true } },
                 quotation: { include: { lead: true } },
                 sourceQuotation: { include: { lead: true } },
               },

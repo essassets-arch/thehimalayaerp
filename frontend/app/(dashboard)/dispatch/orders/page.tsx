@@ -122,6 +122,7 @@ export interface UnifiedPendingDispatchItem {
   itemType: "WORK_ORDER" | "TRADING_SALES_ORDER";
   orderNumber: string;
   customerName: string;
+  salesPersonName?: string;
   projectName?: string;
   deliveryAddress: string;
   productName: string;
@@ -143,6 +144,7 @@ interface PendingOrderGroup {
   orderKey: string;
   orderNumber: string;
   customerName: string;
+  salesPersonName?: string;
   projectName?: string;
   deliveryAddress: string;
   salesOrderId?: string;
@@ -320,6 +322,167 @@ function resolveProjectName(entity?: any, ...fallbackEntities: any[]): string {
     }
   }
   return "";
+}
+
+const SEEDED_SALES_USER_MAP: Record<string, string> = {
+  // UUIDs from Seed and DB
+  "a286d9a7-07ca-4123-9431-9a4e16747d3b": "Sales 1",
+  "a7809e00-c2d1-494d-8731-83ef09f92da8": "Sales 2",
+  "9eb5887b-1af8-460f-ba9d-4ef757d83223": "Sales 3",
+  "36657a96-18f8-41ad-abcd-b45f0f39d896": "Sales 4",
+  "f4d7db21-43d3-463c-a117-9f4a116b26af": "Sales Five",
+  "226c7089-c88d-4cb7-9782-26e5e231fa6c": "Sales Six",
+  "1e7cc3df-f88c-4c20-9251-a88673a70fbc": "Sales Seven",
+  "2d9982c3-7c79-4b08-bcbc-5aec1e91a20f": "SuperSales 1",
+  "27f469e1-1fba-460d-a948-922d51af8ec7": "SuperSales 2",
+
+  // Real Database UUIDs
+  "154d8fbf-9a4e-4668-bf61-179da81d04be": "Sales 1",
+  "31534e9b-724f-47bd-8e40-97462f603aeb": "Sales 2",
+  "a3dd0133-c260-4c91-bac5-7e229d1d3671": "Sales 3",
+  "bc833bfd-ce00-4515-ac81-4e973b7f289c": "Sales 4",
+  "2c1961cd-7e40-4736-92ba-a0f982ee9558": "Sales Five",
+  "2ba631e3-09fd-49e7-8a9e-386cc227a81e": "Sales Six",
+  "b4e35bef-3ee6-4a56-9e33-bb79791b2170": "Sales Seven",
+  "7c3a3b46-e26c-4404-96e9-63b83b86c460": "SuperSales 1",
+  "cbdb5de9-d79d-48d7-b917-30d7b50f8ad3": "SuperSales 2",
+  "6007bc63-eeb6-4e49-a3b1-f5d77be8734c": "Sales Eleven",
+  "95d8c289-5341-4a96-98ca-47b690745f98": "Jyoti (Sales 12)",
+  "e234eab6-4e7e-4d0e-97d9-56766004f357": "Sales Thirteen",
+  "5f20dc83-3a53-4346-9b9a-c508bb0d0147": "Sales Fourteen",
+  "6b986c85-e846-4b8b-9df6-c80d3d989160": "Trushna G",
+  "5dbef6b2-9b73-4322-b4ac-50af45924cb6": "Moksha N",
+  "8866c877-18cc-4ffa-b850-fcd568d12238": "Abbas B",
+  "6583105f-5e9a-408d-81ab-8baca70219c6": "Hussain T",
+  "3b3c4d40-94ec-4824-933c-260ebb2660e8": "Sana R",
+  "a380ddcf-78e5-44b9-9be6-41e4b01a1f49": "Ravikant T",
+  "90917af7-b7bd-454a-871b-95ff1e34dc36": "Sales Manager",
+
+  // Emails
+  "sales1@himalayaerp.com": "Sales 1",
+  "sales2@himalayaerp.com": "Sales 2",
+  "sales3@himalayaerp.com": "Sales 3",
+  "sales4@himalayaerp.com": "Sales 4",
+  "sales5@himalayaerp.com": "Sales Five",
+  "sales6@himalayaerp.com": "Sales Six",
+  "sales7@himalayaerp.com": "Sales Seven",
+  "supersales1@himalayaerp.com": "SuperSales 1",
+  "supersales2@himalayaerp.com": "SuperSales 2",
+  "sales11@himalayaerp.com": "Sales Eleven",
+  "sales12@himalayaerp.com": "Jyoti (Sales 12)",
+  "sales13@himalayaerp.com": "Sales Thirteen",
+  "sales14@himalayaerp.com": "Sales Fourteen",
+  "trushna.g@himalayaerp.com": "Trushna G",
+  "moksha.n@himalayaerp.com": "Moksha N",
+  "abbas.b@himalayaerp.com": "Abbas B",
+  "hussain.t@himalayaerp.com": "Hussain T",
+  "sana.r@himalayaerp.com": "Sana R",
+  "ravikant.t@himalayaerp.com": "Ravikant T",
+
+  // Aliases
+  "sales1": "Sales 1",
+  "sales2": "Sales 2",
+  "sales3": "Sales 3",
+  "sales4": "Sales 4",
+  "sales5": "Sales Five",
+  "sales6": "Sales Six",
+  "sales7": "Sales Seven",
+  "supersales1": "SuperSales 1",
+  "supersales2": "SuperSales 2",
+};
+
+function isValidSalesPersonName(name?: any): boolean {
+  if (!name || typeof name !== "string") return false;
+  const t = name.trim();
+  if (!t || t === "—" || t === "N/A" || t === "null" || t === "undefined" || t === "Sales Executive") return false;
+  if (t.startsWith("usr_") || t.startsWith("user_") || t.startsWith("USR-")) return false;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t)) return false;
+  return true;
+}
+
+function resolveSalesPersonName(entity?: any, ...fallbackEntities: any[]): string {
+  const allEntities = [entity, ...fallbackEntities].filter(Boolean);
+  let userMap: Map<string, string> | undefined = undefined;
+
+  for (const obj of allEntities) {
+    if (obj instanceof Map) {
+      userMap = obj;
+      continue;
+    }
+    if (!obj || typeof obj !== "object") continue;
+
+    // 1. Direct salesExecutive object
+    const execObj =
+      obj.salesExecutive ||
+      obj.salesOrder?.salesExecutive ||
+      obj.quotation?.salesExecutive ||
+      obj.quotation?.lead?.salesExecutive ||
+      obj.sourceQuotation?.salesExecutive ||
+      obj.sourceQuotation?.lead?.salesExecutive ||
+      obj.productionPlan?.salesOrder?.salesExecutive ||
+      obj.productionPlan?.salesOrder?.quotation?.lead?.salesExecutive ||
+      obj.productionPlan?.salesOrder?.sourceQuotation?.lead?.salesExecutive ||
+      obj.createdBy ||
+      obj.salesOrder?.createdBy ||
+      obj.customer?.salesExecutive;
+
+    if (execObj && typeof execObj === "object") {
+      const name = execObj.name ? String(execObj.name).trim() : "";
+      if (isValidSalesPersonName(name)) return name;
+
+      const email = execObj.email ? String(execObj.email).trim().toLowerCase() : "";
+      if (email && SEEDED_SALES_USER_MAP[email]) return SEEDED_SALES_USER_MAP[email];
+      if (email && userMap?.has(email)) return userMap.get(email)!;
+
+      const id = execObj.id ? String(execObj.id).trim().toLowerCase() : "";
+      if (id && SEEDED_SALES_USER_MAP[id]) return SEEDED_SALES_USER_MAP[id];
+      if (id && userMap?.has(id)) return userMap.get(id)!;
+    }
+
+    // 2. Candidate fields
+    const candidates = [
+      obj.salesperson,
+      obj.salespersonName,
+      obj.salesPersonName,
+      obj.salesPerson,
+      typeof obj.salesExecutive === "string" ? obj.salesExecutive : null,
+      obj.salesExecutiveName,
+      obj.salesRep,
+      obj.createdByName,
+      obj.salesOrder?.salesperson,
+      obj.salesOrder?.salespersonName,
+      obj.salesOrder?.salesPersonName,
+      obj.salesOrder?.salesExecutiveName,
+      obj.quotation?.salesperson,
+      obj.quotation?.salesPersonName,
+      obj.quotation?.salesExecutiveName,
+      obj.quotation?.lead?.salesExecutive?.name,
+      obj.sourceQuotation?.salesperson,
+      obj.sourceQuotation?.salesPersonName,
+      obj.sourceQuotation?.salespersonName,
+      obj.sourceQuotation?.createdByName,
+      obj.productionPlan?.salesOrder?.salesperson,
+      obj.productionPlan?.salesOrder?.salesExecutiveName,
+      obj.productionPlan?.salesOrder?.quotation?.lead?.salesExecutive?.name,
+      obj.salesExecutiveId,
+      obj.salesOrder?.salesExecutiveId,
+      obj.createdById,
+    ];
+
+    for (const cand of candidates) {
+      if (!cand) continue;
+      const val = String(cand).trim();
+      if (!val) continue;
+      const lower = val.toLowerCase();
+      if (SEEDED_SALES_USER_MAP[val]) return SEEDED_SALES_USER_MAP[val];
+      if (SEEDED_SALES_USER_MAP[lower]) return SEEDED_SALES_USER_MAP[lower];
+      if (userMap?.has(lower)) return userMap.get(lower)!;
+      if (userMap?.has(val)) return userMap.get(val)!;
+      if (isValidSalesPersonName(val)) return val;
+    }
+  }
+
+  return "Sales Executive";
 }
 
 function formatAddressValue(value?: any): string {
@@ -600,6 +763,33 @@ export default function DispatchOrdersPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Query 0b: Users Map for sales executive lookup
+  const { data: usersMap = new Map<string, string>() } = useQuery<Map<string, string>>({
+    queryKey: ["users-master-sales-map"],
+    queryFn: async () => {
+      try {
+        const res = await backendFetch<any>("/api/backend/users?limit=1000");
+        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : Array.isArray(res?.users) ? res.users : [];
+        const map = new Map<string, string>();
+        list.forEach((u: any) => {
+          if (u.id && u.name) {
+            map.set(String(u.id).toLowerCase(), String(u.name).trim());
+          }
+          if (u.email && u.name) {
+            map.set(String(u.email).toLowerCase(), String(u.name).trim());
+          }
+          if (u.username && u.name) {
+            map.set(String(u.username).toLowerCase(), String(u.name).trim());
+          }
+        });
+        return map;
+      } catch {
+        return new Map();
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Query 1: Pending Queue items
   const {
     data: pendingItems = [],
@@ -841,6 +1031,7 @@ export default function DispatchOrdersPage() {
         const matchedSo = salesOrdersMap.get(soKey) || salesOrdersMap.get(normalizeKey(qOrder.orderNo || qOrder.orderId));
         const customerName = resolveCustomerName(qOrder, matchedSo, qOrder.customer);
         const projectName = resolveProjectName(qOrder, matchedSo, qOrder.customer);
+        const salesPersonName = resolveSalesPersonName(qOrder, matchedSo, qOrder.customer, usersMap);
         const deliveryAddress = formatAddress(qOrder, qOrder.customer, matchedSo) || "—";
         const items = Array.isArray(qOrder.items) ? qOrder.items : [];
         const soKeyNorm = normalizeKey(qOrder.orderNo || qOrder.orderId);
@@ -864,6 +1055,7 @@ export default function DispatchOrdersPage() {
             itemType: "TRADING_SALES_ORDER",
             orderNumber: qOrder.orderNo || qOrder.orderId || "SO-DIRECT",
             customerName,
+            salesPersonName,
             projectName,
             deliveryAddress,
             productName: qItem.productName || "Direct Dispatch Item",
@@ -906,6 +1098,7 @@ export default function DispatchOrdersPage() {
         const address = formatAddress(salesOrder, customer, fg, matchedSo);
         const customerName = resolveCustomerName(salesOrder, matchedSo, fg, customer, wo);
         const projectName = resolveProjectName(salesOrder, matchedSo, fg, customer, wo);
+        const salesPersonName = resolveSalesPersonName(salesOrder, matchedSo, fg, wo, customer, usersMap);
         const soKeyNorm = normalizeKey(fg.jobNo || salesOrder?.orderNumber);
         const soIdLower = String(salesOrder?.id || matchedSo?.id || fg.salesOrderId || "").toLowerCase();
         const pIdLower = String(fg.productId || wo?.salesOrderItem?.productId || "").toLowerCase();
@@ -927,6 +1120,7 @@ export default function DispatchOrdersPage() {
           itemType: "WORK_ORDER",
           orderNumber: fg.jobNo || salesOrder?.orderNumber || "WO-FG",
           customerName,
+          salesPersonName,
           projectName,
           deliveryAddress: address || "—",
           productName: fg.productName || "Finished Product",
@@ -1014,6 +1208,7 @@ export default function DispatchOrdersPage() {
 
         const customerName = resolveCustomerName(salesOrder, matchedSo, customer, wo);
         const projectName = resolveProjectName(salesOrder, matchedSo, customer, wo);
+        const salesPersonName = resolveSalesPersonName(salesOrder, matchedSo, wo, customer, usersMap);
 
         const orderHasPriorDispatches = ordersWithPriorDispatches.has(soKeyNorm) || (soIdLower ? ordersWithPriorDispatches.has(soIdLower) : false);
         const isPartiallyDispatched = (alreadyDispatched > 0 && remaining > 0) || (orderHasPriorDispatches && remaining > 0);
@@ -1023,6 +1218,7 @@ export default function DispatchOrdersPage() {
           itemType: "WORK_ORDER",
           orderNumber: soNumber,
           customerName,
+          salesPersonName,
           projectName,
           deliveryAddress: address || "—",
           productName: prodName,
@@ -1054,6 +1250,7 @@ export default function DispatchOrdersPage() {
 
         const customerName = resolveCustomerName(so, so.customer);
         const projectName = resolveProjectName(so, so.customer);
+        const salesPersonName = resolveSalesPersonName(so, so.customer, usersMap);
         const address = formatAddress(so, so.customer);
 
         const items = Array.isArray(so.items) ? so.items : Array.isArray(so.orderItems) ? so.orderItems : [];
@@ -1087,6 +1284,7 @@ export default function DispatchOrdersPage() {
               itemType: isTradingProduct(item, productsMap) ? "TRADING_SALES_ORDER" : "WORK_ORDER",
               orderNumber: orderNo || "N/A",
               customerName,
+              salesPersonName,
               projectName,
               deliveryAddress: address,
               productName: item.productNameSnapshot || item.productName || item.name || "Product Cargo",
@@ -1149,6 +1347,12 @@ export default function DispatchOrdersPage() {
           ? existing.customerName
           : incoming.customerName || existing.customerName || "Consignee Client";
 
+        const salesPersonName = isValidSalesPersonName(incoming.salesPersonName)
+          ? incoming.salesPersonName
+          : isValidSalesPersonName(existing.salesPersonName)
+          ? existing.salesPersonName
+          : incoming.salesPersonName || existing.salesPersonName || "Sales Executive";
+
         const projectName = (incoming.projectName && incoming.projectName.trim().length > 1)
           ? incoming.projectName
           : existing.projectName || "";
@@ -1165,6 +1369,7 @@ export default function DispatchOrdersPage() {
           ...incoming,
           deliveryAddress,
           customerName,
+          salesPersonName,
           projectName,
           salesOrderId: incoming.salesOrderId || existing.salesOrderId,
           salesOrderItemId: incoming.salesOrderItemId || existing.salesOrderItemId,
@@ -1238,6 +1443,7 @@ export default function DispatchOrdersPage() {
       return (
         item.orderNumber.toLowerCase().includes(lower) ||
         item.customerName.toLowerCase().includes(lower) ||
+        (item.salesPersonName && item.salesPersonName.toLowerCase().includes(lower)) ||
         (item.projectName && item.projectName.toLowerCase().includes(lower)) ||
         item.productName.toLowerCase().includes(lower) ||
         item.deliveryAddress.toLowerCase().includes(lower) ||
@@ -1272,6 +1478,9 @@ export default function DispatchOrdersPage() {
         if (!isValidCustomerName(existing.customerName) && isValidCustomerName(item.customerName)) {
           existing.customerName = item.customerName;
         }
+        if ((!existing.salesPersonName || !isValidSalesPersonName(existing.salesPersonName)) && isValidSalesPersonName(item.salesPersonName)) {
+          existing.salesPersonName = item.salesPersonName;
+        }
         if (!existing.projectName && item.projectName) {
           existing.projectName = item.projectName;
         }
@@ -1284,6 +1493,7 @@ export default function DispatchOrdersPage() {
           orderKey: key,
           orderNumber: item.orderNumber,
           customerName: item.customerName,
+          salesPersonName: item.salesPersonName || "Sales Executive",
           projectName: item.projectName,
           deliveryAddress: item.deliveryAddress,
           salesOrderId: item.salesOrderId,
@@ -1422,6 +1632,7 @@ export default function DispatchOrdersPage() {
       const exportRows = targetItems.map((item) => ({
         "Order Number": item.orderNumber,
         "Customer": item.customerName,
+        "Sales Person": item.salesPersonName || "Sales Executive",
         "Project": item.projectName || "—",
         "Delivery Address": item.deliveryAddress,
         "Product Item": item.productName,
@@ -1451,6 +1662,7 @@ export default function DispatchOrdersPage() {
         "Dispatch Gate Pass": (d.dispatchNo || "").replace(/\s+/g, ""),
         "Sales Order": d.salesOrder?.orderNumber || "—",
         "Customer": resolveCustomerName(d.salesOrder, d),
+        "Sales Person": resolveSalesPersonName(d.salesOrder, d, usersMap) || "Sales Executive",
         "Received By": d.receivedBy || "—",
         "Receiver Mobile": d.receiverPhone || "—",
         "Driver": d.driverName || "—",
@@ -1753,6 +1965,27 @@ export default function DispatchOrdersPage() {
                           </div>
                         </div>
 
+                        {/* Sales Person Badge */}
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            padding: "4px 9px",
+                            borderRadius: 6,
+                            background: isDispatch2 ? "rgba(16, 185, 129, 0.08)" : "rgba(14, 165, 233, 0.08)",
+                            border: isDispatch2 ? "1px solid rgba(16, 185, 129, 0.25)" : "1px solid rgba(14, 165, 233, 0.25)",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            color: isDispatch2 ? "#047857" : "#0369a1",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={`Sales Owner: ${group.salesPersonName || "Sales Executive"}`}
+                        >
+                          <User size={12} color={isDispatch2 ? "#059669" : "#0284c7"} style={{ flexShrink: 0 }} />
+                          <span>Sales: {group.salesPersonName || "Sales Executive"}</span>
+                        </div>
+
                         {/* Destination Address */}
                         <div className={styles.destinationBadge} title={group.deliveryAddress}>
                           <MapPin size={13} color="#2563eb" style={{ flexShrink: 0 }} />
@@ -2017,6 +2250,27 @@ export default function DispatchOrdersPage() {
                               </span>
                             )}
                           </div>
+                        </div>
+
+                        {/* Sales Person Badge */}
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            padding: "4px 9px",
+                            borderRadius: 6,
+                            background: "#fffbeb",
+                            border: "1px solid #fde68a",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            color: "#92400e",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={`Sales Owner: ${group.salesPersonName || "Sales Executive"}`}
+                        >
+                          <User size={12} color="#d97706" style={{ flexShrink: 0 }} />
+                          <span>Sales: {group.salesPersonName || "Sales Executive"}</span>
                         </div>
 
                         <div className={styles.destinationBadge} title={group.deliveryAddress}>
@@ -2317,7 +2571,7 @@ export default function DispatchOrdersPage() {
                             </span>
                           </td>
 
-                          {/* Customer */}
+                          {/* Customer & Sales Person */}
                           <td>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <div
@@ -2338,21 +2592,37 @@ export default function DispatchOrdersPage() {
                               >
                                 {(resolveCustomerName(dispatchItem.salesOrder, dispatchItem) || "C")[0]}
                               </div>
-                              <span
-                                style={{
-                                  fontWeight: 700,
-                                  color: "#0f172a",
-                                  fontSize: 13,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                  display: "block",
-                                  maxWidth: 160,
-                                }}
-                                title={resolveCustomerName(dispatchItem.salesOrder, dispatchItem)}
-                              >
-                                {resolveCustomerName(dispatchItem.salesOrder, dispatchItem)}
-                              </span>
+                              <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                                <span
+                                  style={{
+                                    fontWeight: 700,
+                                    color: "#0f172a",
+                                    fontSize: 13,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    display: "block",
+                                    maxWidth: 160,
+                                  }}
+                                  title={resolveCustomerName(dispatchItem.salesOrder, dispatchItem)}
+                                >
+                                  {resolveCustomerName(dispatchItem.salesOrder, dispatchItem)}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: "#0284c7",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 3,
+                                  }}
+                                  title={`Sales Person: ${resolveSalesPersonName(dispatchItem.salesOrder, dispatchItem, usersMap)}`}
+                                >
+                                  <User size={10} color="#0284c7" />
+                                  {resolveSalesPersonName(dispatchItem.salesOrder, dispatchItem, usersMap)}
+                                </span>
+                              </div>
                             </div>
                           </td>
 

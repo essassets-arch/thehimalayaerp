@@ -1710,6 +1710,7 @@ export default function CreateDispatchPage() {
 
         const payload: Record<string, any> = {
           salesOrderId: group.salesOrder.id,
+          orderNumber: group.salesOrder.orderNumber,
           deliveryAddress: groupAddress,
           dispatchCategory: isDispatch2 ? "D2" : "D1",
           totalWeight: Number(totalWeight) || 0,
