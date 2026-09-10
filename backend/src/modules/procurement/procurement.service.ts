@@ -1949,17 +1949,65 @@ export class ProcurementService {
       const currentYear = new Date().getFullYear();
       const seqKey = `${companyId}_PURCHASE_ORDER_DRAFT_${currentYear}`;
       const prefix = `PO-DRAFT-${currentYear}-`;
+
+      // Scan highest existing draft number to prevent sequence lagging
+      const allMatchingDrafts = await tx.purchaseOrder.findMany({
+        where: {
+          OR: [
+            { draftPoNo: { startsWith: prefix } },
+            { poNumber: { startsWith: prefix } },
+            { publicId: { startsWith: prefix } },
+            { poNo: { startsWith: prefix } },
+          ],
+        },
+        select: { draftPoNo: true, poNumber: true, publicId: true, poNo: true },
+      });
+
+      let maxDraftNum = 0;
+      for (const p of allMatchingDrafts) {
+        for (const val of [p.draftPoNo, p.poNumber, p.publicId, p.poNo]) {
+          if (val && val.startsWith(prefix)) {
+            const numPart = parseInt(val.replace(prefix, ''), 10);
+            if (!isNaN(numPart) && numPart > maxDraftNum) {
+              maxDraftNum = numPart;
+            }
+          }
+        }
+      }
+
+      if (maxDraftNum > 0) {
+        const currentSeq = await tx.idSequence.findUnique({
+          where: { key: seqKey },
+        });
+        if (!currentSeq || currentSeq.nextValue <= maxDraftNum) {
+          await tx.idSequence.upsert({
+            where: { key: seqKey },
+            update: { nextValue: maxDraftNum + 1 },
+            create: { key: seqKey, nextValue: maxDraftNum + 1 },
+          });
+        }
+      }
+
       let draftPoNo = '';
       let isUnique = false;
-      while (!isUnique) {
+      let attempts = 0;
+      while (!isUnique && attempts < 100) {
+        attempts++;
         draftPoNo = await this.sequenceService.generateNextWithTx(
           tx,
           seqKey,
           prefix,
           6,
         );
-        const existing = await tx.purchaseOrder.findUnique({
-          where: { publicId: draftPoNo },
+        const existing = await tx.purchaseOrder.findFirst({
+          where: {
+            OR: [
+              { publicId: draftPoNo },
+              { draftPoNo },
+              { poNumber: draftPoNo },
+              { poNo: draftPoNo },
+            ],
+          },
         });
         if (!existing) {
           isUnique = true;
@@ -2305,22 +2353,77 @@ export class ProcurementService {
 
       let finalPoNo: string | undefined = undefined;
       if (action === 'issue') {
-        const currentYear = new Date().getFullYear();
-        const seqKey = `${row.companyId}_PURCHASE_ORDER_${currentYear}`;
-        const prefix = `PO-${currentYear}-`;
-        let isUnique = false;
-        while (!isUnique) {
-          finalPoNo = await this.sequenceService.generateNextWithTx(
-            tx,
-            seqKey,
-            prefix,
-            6,
-          );
-          const existing = await tx.purchaseOrder.findUnique({
-            where: { publicId: finalPoNo },
+        // If the PO already has an issued official PO number, keep it
+        if (row.poNo && !row.poNo.startsWith('PO-DRAFT-') && !row.poNo.startsWith('DRAFT-')) {
+          finalPoNo = row.poNo;
+        } else {
+          const currentYear = new Date().getFullYear();
+          const seqKey = `${row.companyId}_PURCHASE_ORDER_${currentYear}`;
+          const prefix = `PO-${currentYear}-`;
+
+          // 1. Scan for the highest number already in use to prevent sequence lagging
+          const allMatching = await tx.purchaseOrder.findMany({
+            where: {
+              OR: [
+                { poNo: { startsWith: prefix } },
+                { poNumber: { startsWith: prefix } },
+                { publicId: { startsWith: prefix } },
+                { draftPoNo: { startsWith: prefix } },
+              ],
+            },
+            select: { poNo: true, poNumber: true, publicId: true, draftPoNo: true },
           });
-          if (!existing) {
-            isUnique = true;
+
+          let maxNum = 0;
+          for (const p of allMatching) {
+            for (const val of [p.poNo, p.poNumber, p.publicId, p.draftPoNo]) {
+              if (val && val.startsWith(prefix)) {
+                const numPart = parseInt(val.replace(prefix, ''), 10);
+                if (!isNaN(numPart) && numPart > maxNum) {
+                  maxNum = numPart;
+                }
+              }
+            }
+          }
+
+          if (maxNum > 0) {
+            const currentSeq = await tx.idSequence.findUnique({
+              where: { key: seqKey },
+            });
+            if (!currentSeq || currentSeq.nextValue <= maxNum) {
+              await tx.idSequence.upsert({
+                where: { key: seqKey },
+                update: { nextValue: maxNum + 1 },
+                create: { key: seqKey, nextValue: maxNum + 1 },
+              });
+            }
+          }
+
+          // 2. Loop until a collision-free number across ALL unique identifier columns is found
+          let isUnique = false;
+          let attempts = 0;
+          while (!isUnique && attempts < 100) {
+            attempts++;
+            finalPoNo = await this.sequenceService.generateNextWithTx(
+              tx,
+              seqKey,
+              prefix,
+              6,
+            );
+            const existing = await tx.purchaseOrder.findFirst({
+              where: {
+                OR: [
+                  { publicId: finalPoNo },
+                  { poNo: finalPoNo },
+                  { poNumber: finalPoNo },
+                  { draftPoNo: finalPoNo },
+                ],
+                NOT: { id: row.id },
+              },
+            });
+            if (!existing) {
+              isUnique = true;
+            }
           }
         }
       }
