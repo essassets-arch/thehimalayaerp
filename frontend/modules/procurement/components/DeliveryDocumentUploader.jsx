@@ -6,7 +6,7 @@ export function DeliveryDocumentUploader({ entityId, entityType, onUploadComplet
   const [isUploading, setIsUploading] = useState(false);
   const [documents, setDocuments] = useState([]);
 
-  const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+  const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
   const ALLOWED_EXTS = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
 
   const handleFileUpload = (e) => {
@@ -28,8 +28,8 @@ export function DeliveryDocumentUploader({ entityId, entityType, onUploadComplet
       if (f.size > MAX_SIZE_BYTES) {
         Swal.fire({
           icon: 'warning',
-          title: 'File Exceeds 10MB Limit',
-          text: `"${f.name}" is ${(f.size / (1024 * 1024)).toFixed(2)} MB. Maximum allowed size is 10 MB.`,
+          title: 'File Exceeds 50MB Limit',
+          text: `"${f.name}" is ${(f.size / (1024 * 1024)).toFixed(2)} MB. Maximum allowed size is 50 MB.`,
           confirmButtonColor: '#2563eb'
         });
         continue;
@@ -126,7 +126,7 @@ export function DeliveryDocumentUploader({ entityId, entityType, onUploadComplet
             <p style={{ margin: '0 0 4px 0', fontSize: '13.5px', color: '#64748b' }}>
               <span style={{ fontWeight: 700, color: '#2563eb' }}>Click to upload</span> or drag and drop
             </p>
-            <p style={{ margin: 0, fontSize: '11.5px', color: '#94a3b8' }}>PDF, JPG, PNG (Max 10MB per file)</p>
+            <p style={{ margin: 0, fontSize: '11.5px', color: '#94a3b8' }}>PDF, JPG, PNG (Max 50MB per file)</p>
           </div>
           <input
             type="file"

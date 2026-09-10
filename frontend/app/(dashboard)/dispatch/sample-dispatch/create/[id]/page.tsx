@@ -18,10 +18,51 @@ import {
   Layers,
   ArrowLeft,
   Check,
+  MapPin,
+  Mail,
+  Info,
+  Tag,
 } from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
 import { isTradingProduct } from '@/shared/utils/dispatchCategory';
 import styles from './create-sample.module.css';
+
+// Helper to format addresses cleanly without raw JSON or fallback strings
+function formatAddress(addr: any): string {
+  if (!addr) return '';
+  if (typeof addr === 'string') {
+    const trimmed = addr.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        return formatAddress(JSON.parse(trimmed));
+      } catch {
+        return trimmed;
+      }
+    }
+    if (trimmed.toLowerCase() === 'see lead/customer address') return '';
+    return trimmed;
+  }
+  if (typeof addr === 'object') {
+    const parts: string[] = [];
+    const line1 = addr.line1 || addr.addressLine1 || addr.street || addr.address || '';
+    const line2 = addr.line2 || addr.addressLine2 || addr.landmark || '';
+    const city = addr.city || '';
+    const state = addr.state || '';
+    const pincode = addr.pincode || addr.postalCode || addr.zipCode || '';
+    const country = addr.country || '';
+
+    if (line1) parts.push(line1);
+    if (line2) parts.push(line2);
+    if (city) parts.push(city);
+    if (state && pincode) parts.push(`${state} - ${pincode}`);
+    else if (state) parts.push(state);
+    else if (pincode) parts.push(pincode);
+    if (country && country.toLowerCase() !== 'india') parts.push(country);
+
+    return parts.filter(Boolean).join(', ');
+  }
+  return '';
+}
 
 export default function CreateSampleDispatchPage() {
   const router = useRouter();
@@ -58,13 +99,56 @@ export default function CreateSampleDispatchPage() {
   const [dispatchDate, setDispatchDate] = useState(() => {
     return new Date().toISOString().split('T')[0];
   });
-  const [cost, setCost] = useState('500.00');
+  const [cost, setCost] = useState('0.00');
   const [attachedFile, setAttachedFile] = useState<{ name: string; size: string; dataUrl: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Validation States
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  // Computed Items & Reference Details
+  const allItems: any[] = useMemo(() => {
+    if (!sampleDetails) return [];
+    return sampleDetails.items || sampleDetails.products || sampleDetails.sampleItems || [];
+  }, [sampleDetails]);
+
+  const targetConsignmentItems = useMemo(() => {
+    if (allItems.length === 0) return [];
+    return allItems.filter((it: any) => (isDispatch2 ? isTradingProduct(it) : !isTradingProduct(it)));
+  }, [allItems, isDispatch2]);
+
+  const otherPortalItems = useMemo(() => {
+    if (allItems.length === 0) return [];
+    return allItems.filter((it: any) => (isDispatch2 ? !isTradingProduct(it) : isTradingProduct(it)));
+  }, [allItems, isDispatch2]);
+
+  const displayedItems = targetConsignmentItems.length > 0 ? targetConsignmentItems : allItems;
+
+  const contactPerson =
+    sampleDetails?.contactPerson ||
+    sampleDetails?.lead?.contactPerson ||
+    sampleDetails?.customer?.contactPerson ||
+    '';
+  const contactPhone =
+    sampleDetails?.contactPhone ||
+    sampleDetails?.phone ||
+    sampleDetails?.lead?.phone ||
+    sampleDetails?.customer?.phone ||
+    '';
+  const contactEmail =
+    sampleDetails?.email ||
+    sampleDetails?.lead?.email ||
+    sampleDetails?.customer?.email ||
+    '';
+  const salesExecutive =
+    sampleDetails?.salesExecutiveName ||
+    sampleDetails?.salesExecutive?.name ||
+    sampleDetails?.lead?.salesExecutive?.name ||
+    '';
+  const leadNumber =
+    sampleDetails?.lead?.leadNumber ||
+    (String(soNumber).includes('LEAD') ? soNumber : null);
 
   // If specific ID is passed, fetch its details
   useEffect(() => {
@@ -99,23 +183,35 @@ export default function CreateSampleDispatchPage() {
               sample.companyName ||
               sample.leadName ||
               sample.lead?.companyName ||
+              sample.customer?.companyName ||
               'Lead / Customer';
             setCustomer(custName);
 
             const addr =
-              sample.address ||
-              sample.deliveryAddress ||
-              sample.lead?.address ||
-              sample.customer?.address ||
-              'See Lead/Customer address';
+              formatAddress(sample.deliveryAddress) ||
+              formatAddress(sample.address) ||
+              formatAddress(sample.lead?.address) ||
+              formatAddress(sample.customer?.shippingAddress) ||
+              formatAddress(sample.customer?.billingAddress) ||
+              '';
             setAddress(addr);
 
-            if (sample.transportCost !== undefined && sample.transportCost !== null) {
-              setFetchedCost(Number(sample.transportCost).toFixed(2));
-              setCost(Number(sample.transportCost).toFixed(2));
-            } else if (sample.transportationCost !== undefined && sample.transportationCost !== null) {
-              setFetchedCost(Number(sample.transportationCost).toFixed(2));
-              setCost(Number(sample.transportationCost).toFixed(2));
+            const tc =
+              sample.transportCost != null && !isNaN(Number(sample.transportCost))
+                ? Number(sample.transportCost)
+                : sample.transportationCost != null && !isNaN(Number(sample.transportationCost))
+                ? Number(sample.transportationCost)
+                : sample.lead?.transportationCost != null && !isNaN(Number(sample.lead.transportationCost))
+                ? Number(sample.lead.transportationCost)
+                : sample.lead?.expectedTransportationCost != null && !isNaN(Number(sample.lead.expectedTransportationCost))
+                ? Number(sample.lead.expectedTransportationCost)
+                : 0;
+
+            setFetchedCost(tc.toFixed(2));
+            setCost(tc.toFixed(2));
+
+            if (sample.lead?.remarks) {
+              setRemarks(sample.lead.remarks);
             }
 
             if (sample.status === 'RETURN_REQUESTED' || sample.retrievalStatus === 'Requested') {
@@ -136,7 +232,13 @@ export default function CreateSampleDispatchPage() {
           const res = await backendFetch<any[]>('/api/backend/sales/samples', { cacheTtlMs: 0 });
           const dataArray = Array.isArray(res) ? res : (res as any)?.data || [];
           const pending = dataArray
-            .filter((s: any) => (isDispatch2 ? isTradingProduct(s) : !isTradingProduct(s)))
+            .filter((s: any) => {
+              const sItems = s.items || s.products || s.sampleItems || [];
+              if (sItems.length > 0) {
+                return sItems.some((it: any) => (isDispatch2 ? isTradingProduct(it) : !isTradingProduct(it)));
+              }
+              return isDispatch2 ? isTradingProduct(s) : !isTradingProduct(s);
+            })
             .filter(
               (s: any) =>
                 s.status === 'CREATED' ||
@@ -162,22 +264,41 @@ export default function CreateSampleDispatchPage() {
       setAddress('');
       setSelectedOrders([]);
       setFetchedCost('0.00');
+      setCost('0.00');
+      setSampleDetails(null);
     } else {
       setSelectedPendingId(s.id);
       setSampleDetails(s);
       const num = s.sampleNumber || s.sampleId || (s.id ? `SMP-${String(s.id).slice(0, 6)}` : 'SMP-NEW');
       setSoNumber(num);
-      const custName = s.customer || s.customerName || s.companyName || s.leadName || s.lead?.companyName || 'Customer';
+      const custName = s.customer || s.customerName || s.companyName || s.leadName || s.lead?.companyName || s.customer?.companyName || 'Customer';
       setCustomer(custName);
-      const addr = s.address || s.deliveryAddress || s.lead?.address || s.customer?.address || 'See Lead/Customer address';
+      const addr =
+        formatAddress(s.deliveryAddress) ||
+        formatAddress(s.address) ||
+        formatAddress(s.lead?.address) ||
+        formatAddress(s.customer?.shippingAddress) ||
+        formatAddress(s.customer?.billingAddress) ||
+        '';
       setAddress(addr);
       setSelectedOrders([num]);
-      if (s.transportCost !== undefined && s.transportCost !== null) {
-        setFetchedCost(Number(s.transportCost).toFixed(2));
-        setCost(Number(s.transportCost).toFixed(2));
-      } else if (s.transportationCost !== undefined && s.transportationCost !== null) {
-        setFetchedCost(Number(s.transportationCost).toFixed(2));
-        setCost(Number(s.transportationCost).toFixed(2));
+
+      const tc =
+        s.transportCost != null && !isNaN(Number(s.transportCost))
+          ? Number(s.transportCost)
+          : s.transportationCost != null && !isNaN(Number(s.transportationCost))
+          ? Number(s.transportationCost)
+          : s.lead?.transportationCost != null && !isNaN(Number(s.lead.transportationCost))
+          ? Number(s.lead.transportationCost)
+          : s.lead?.expectedTransportationCost != null && !isNaN(Number(s.lead.expectedTransportationCost))
+          ? Number(s.lead.expectedTransportationCost)
+          : 0;
+
+      setFetchedCost(tc.toFixed(2));
+      setCost(tc.toFixed(2));
+
+      if (s.lead?.remarks) {
+        setRemarks(s.lead.remarks);
       }
     }
   };
@@ -518,29 +639,188 @@ export default function CreateSampleDispatchPage() {
                 </div>
               </div>
             ) : (
-              <div className={styles.grid2}>
-                <div className={styles.field}>
-                  <label className={styles.label}>
-                    {isReturn ? 'Sample to be Collected' : 'Sample Order'}
-                  </label>
-                  <div className={styles.readOnlyBox}>
-                    <span>{soNumber} {customer ? `— ${customer}` : ''}</span>
-                    <span className={styles.badgeHighlight}>Verified</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className={styles.refDetailsGrid}>
+                  {/* Card 1: Sample & Lead Order References */}
+                  <div className={styles.refDetailCard}>
+                    <div className={styles.refDetailCardTitle}>
+                      <Package size={14} color="#2563eb" /> Sample Order &amp; Linked Lead
+                    </div>
+                    <div className={styles.refDetailCardMain} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span>{soNumber}</span>
+                      <span className={styles.badgeHighlight}>Verified</span>
+                      {leadNumber && (
+                        <span style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1', padding: '2px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700 }}>
+                          {leadNumber}
+                        </span>
+                      )}
+                    </div>
+                    {salesExecutive && (
+                      <div className={styles.refDetailCardSub}>
+                        <User size={13} color="#64748b" />
+                        <span>Salesperson: <strong>{salesExecutive}</strong></span>
+                      </div>
+                    )}
                   </div>
-                </div>
 
-                <div className={styles.field}>
-                  <label className={styles.label}>
-                    {isReturn ? 'Collecting From' : 'Shipping To'}
-                  </label>
-                  <div className={styles.readOnlyBox}>
-                    <span>{address || 'See Lead/Customer address'}</span>
-                    <Building2 size={16} color="#64748b" />
+                  {/* Card 2: Customer & Delivery Address */}
+                  <div className={styles.refDetailCard}>
+                    <div className={styles.refDetailCardTitle}>
+                      <Building2 size={14} color="#2563eb" /> Destination Customer &amp; Site
+                    </div>
+                    <div className={styles.refDetailCardMain}>
+                      {customer || 'Lead Customer'}
+                    </div>
+                    <div className={styles.refDetailCardSub} style={{ color: address ? '#334155' : '#94a3b8' }}>
+                      <MapPin size={14} color="#ef4444" style={{ flexShrink: 0 }} />
+                      <span>{address || 'Delivery address not specified on lead'}</span>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Contact Details */}
+                  <div className={styles.refDetailCard}>
+                    <div className={styles.refDetailCardTitle}>
+                      <User size={14} color="#2563eb" /> Contact Person &amp; Phone
+                    </div>
+                    <div className={styles.refDetailCardMain}>
+                      {contactPerson || 'Site Incharge / Representative'}
+                    </div>
+                    <div className={styles.refDetailCardSub}>
+                      {contactPhone ? (
+                        <a
+                          href={`tel:${contactPhone}`}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#2563eb', textDecoration: 'none', fontWeight: 600 }}
+                        >
+                          <Phone size={13} /> {contactPhone}
+                        </a>
+                      ) : (
+                        <span style={{ color: '#94a3b8' }}>Phone not provided</span>
+                      )}
+                      {contactEmail && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#64748b' }}>
+                          <Mail size={13} /> {contactEmail}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card 4: Dispatch Logistics Portal */}
+                  <div className={styles.refDetailCard}>
+                    <div className={styles.refDetailCardTitle}>
+                      <Truck size={14} color="#2563eb" /> Consignment Logistics Routing
+                    </div>
+                    <div className={styles.refDetailCardMain} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className={isDispatch2 ? styles.badgeD2 : styles.badgeD1}>
+                        {isDispatch2 ? 'Dispatch 2 — Trading / Sahad Dispatch' : 'Dispatch 1 — Factory Plant Dispatch'}
+                      </span>
+                    </div>
+                    <div className={styles.refDetailCardSub}>
+                      <span>Restricted to <strong>{isDispatch2 ? 'Category 2 (Trading Products)' : 'Category 1 (Manufacturing FRP Products)'}</strong></span>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Section 1.5: Commercial Sample Products & Specifications */}
+          {!isNew && displayedItems.length > 0 && (
+            <div className={styles.sectionCard}>
+              <div className={styles.sectionHeader}>
+                <div className={styles.sectionIcon}>
+                  <Package size={18} />
+                </div>
+                <div>
+                  <h2 className={styles.sectionTitle}>Commercial Sample Products &amp; Specifications</h2>
+                  <div className={styles.sectionDescription}>
+                    Requested sample items, technical specifications, colour, size and classification
+                  </div>
+                </div>
+              </div>
+
+              {otherPortalItems.length > 0 && (
+                <div className={styles.mixedBanner}>
+                  <Info size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <strong>Mixed Order Notice:</strong> This sample request contains {displayedItems.length} item(s) for{' '}
+                    <strong>{isDispatch2 ? 'Dispatch 2 (Trading)' : 'Dispatch 1 (Manufacturing)'}</strong> and{' '}
+                    {otherPortalItems.length} item(s) ({otherPortalItems.map((it: any) => it.productName || it.name || 'Item').join(', ')}) that are handled separately via{' '}
+                    <strong>{isDispatch2 ? 'Dispatch 1 (Factory Dispatch)' : 'Dispatch 2 (Sahad Dispatch)'}</strong>.
+                  </div>
+                </div>
+              )}
+
+              <div className={styles.productTableContainer}>
+                <table className={styles.productTable}>
+                  <thead>
+                    <tr>
+                      <th>Product &amp; Code</th>
+                      <th>Portal / Type</th>
+                      <th style={{ textAlign: 'center' }}>Qty</th>
+                      <th>Colour</th>
+                      <th>Size</th>
+                      <th>Capacity / Class</th>
+                      <th>Specifications</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedItems.map((item: any, idx: number) => {
+                      const itIsTrading = isTradingProduct(item);
+                      const pName = item.productName || item.product?.name || item.name || item.specifications || 'Sample Product';
+                      const pSku = item.sku || item.product?.sku || item.productCode || '—';
+                      const color = item.color || item.leadItem?.color || '—';
+                      const size = item.size || item.product?.size || item.leadItem?.size || '—';
+                      const capacity = item.capacity || item.product?.capacity || item.leadItem?.capacity || '—';
+                      const specs = item.specifications || item.leadItem?.specification || '—';
+
+                      return (
+                        <tr key={item.id || idx}>
+                          <td>
+                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{pName}</div>
+                            {pSku && pSku !== '—' && (
+                              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>SKU: {pSku}</div>
+                            )}
+                          </td>
+                          <td>
+                            <span className={itIsTrading ? styles.badgeD2 : styles.badgeD1}>
+                              {itIsTrading ? 'Trading (D2)' : 'Manufacturing (D1)'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: 800, color: '#2563eb' }}>
+                            {item.quantity || 1} {item.unit || 'Pcs'}
+                          </td>
+                          <td>
+                            {color !== '—' ? (
+                              <span className={styles.specChip} style={{ textTransform: 'uppercase' }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: String(color).toLowerCase() === 'grey' ? '#94a3b8' : String(color).toLowerCase() === 'black' ? '#0f172a' : '#3b82f6', display: 'inline-block' }} />
+                                {color}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#94a3b8' }}>—</span>
+                            )}
+                          </td>
+                          <td>
+                            {size !== '—' ? <span className={styles.specChip}>{size}</span> : <span style={{ color: '#94a3b8' }}>—</span>}
+                          </td>
+                          <td>
+                            {capacity !== '—' ? <span className={styles.specChip}>{capacity}</span> : <span style={{ color: '#94a3b8' }}>—</span>}
+                          </td>
+                          <td style={{ maxWidth: 320, fontSize: 12, color: '#475569', lineHeight: 1.4 }}>
+                            {specs}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', borderRadius: 8, fontSize: 13, color: '#475569' }}>
+                <span>Total Items: <strong>{displayedItems.length}</strong></span>
+                <span>Total Consignment Quantity: <strong style={{ color: '#2563eb', fontSize: 14 }}>{displayedItems.reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0)} Pcs</strong></span>
+              </div>
+            </div>
+          )}
 
           {/* Section 2: Transport Details */}
           <div className={styles.sectionCard}>
@@ -743,7 +1023,7 @@ export default function CreateSampleDispatchPage() {
               <div className={styles.field}>
                 <label className={styles.label}>Fetched Transport Cost (₹)</label>
                 <div className={styles.readOnlyBox}>
-                  <span>₹{fetchedCost}</span>
+                  <span>₹{Number(fetchedCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                   <DollarSign size={15} color="#10b981" />
                 </div>
               </div>

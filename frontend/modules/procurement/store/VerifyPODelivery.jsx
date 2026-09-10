@@ -2111,7 +2111,7 @@ export default function VerifyPODelivery() {
                   </span>
                 ) : (
                   <span style={{ fontSize: '11px', color: '#DC2626', fontWeight: 600 }}>
-                    Mandatory (PDF, JPG, PNG - Max 10MB)
+                    Mandatory (PDF, JPG, PNG - Max 50MB)
                   </span>
                 )}
               </div>

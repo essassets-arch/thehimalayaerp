@@ -1001,7 +1001,11 @@ export class ProcurementService {
               },
             });
             if (!product) {
-              const skuToUse = rawMaterial.sku ? `${rawMaterial.sku}-${Date.now().toString().slice(-4)}` : matSku;
+              let skuToUse = rawMaterial.sku || matSku;
+              const existingProd = await tx.product.findFirst({ where: { sku: skuToUse } });
+              if (existingProd) {
+                skuToUse = `${skuToUse}-${Date.now().toString().slice(-4)}`;
+              }
               product = await tx.product.create({
                 data: {
                   publicId: this.id('PROD'),
@@ -1027,7 +1031,11 @@ export class ProcurementService {
               },
             });
             if (!rawMaterial) {
-              const skuToUse = product.sku ? `${product.sku}-${Date.now().toString().slice(-4)}` : matSku;
+              let skuToUse = product.sku || matSku;
+              const existingRm = await tx.rawMaterial.findFirst({ where: { sku: skuToUse } });
+              if (existingRm) {
+                skuToUse = `${skuToUse}-${Date.now().toString().slice(-4)}`;
+              }
               rawMaterial = await tx.rawMaterial.create({
                 data: {
                   publicId: this.id('RM'),

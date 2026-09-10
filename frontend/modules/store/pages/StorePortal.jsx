@@ -587,7 +587,17 @@ export default function StorePortal() {
       const stocks = Array.isArray(stockRes?.data) ? stockRes.data : (stockRes?.data?.data || []);
       
       const enriched = products.map(p => {
-        const stockItem = stocks.find(s => s.productId === p.id || s.rawMaterialId === p.id || (p.sku && s.sku === p.sku));
+        const pSku = (p.sku || p.code || '').trim().toLowerCase();
+        const pName = (p.name || p.material || '').trim().toLowerCase();
+        const stockItem = stocks.find(s => {
+          if (s.productId && (s.productId === p.id || s.productId === p.productId)) return true;
+          if (s.rawMaterialId && (s.rawMaterialId === p.id || s.rawMaterialId === p.rawMaterialId)) return true;
+          const sSku = (s.sku || '').trim().toLowerCase();
+          if (pSku && sSku && pSku === sSku) return true;
+          const sName = (s.name || '').trim().toLowerCase();
+          if (pName && sName && pName === sName) return true;
+          return false;
+        });
         const qty = stockItem ? Number(stockItem.quantity) : 0;
         const min = Number(p.minimumStock) || 0;
         let status;

@@ -186,6 +186,13 @@ export class SamplesService {
         }),
       );
 
+      const transportCost =
+        createSampleDto.transportCost != null && createSampleDto.transportCost !== ''
+          ? Number(createSampleDto.transportCost)
+          : createSampleDto.transportationCost != null && createSampleDto.transportationCost !== ''
+          ? Number(createSampleDto.transportationCost)
+          : null;
+
       const sample = await tx.sampleRequest.create({
         data: {
           sampleNumber,
@@ -193,6 +200,7 @@ export class SamplesService {
           leadId: validLeadId,
           customerId: validCustomerId,
           salesExecutiveId,
+          transportCost,
           expectedDeliveryDate:
             createSampleDto.expectedDeliveryDate &&
             !isNaN(new Date(createSampleDto.expectedDeliveryDate).getTime())
@@ -217,12 +225,49 @@ export class SamplesService {
         include: {
           items: {
             include: {
-              product: { select: { id: true, name: true, sku: true, category: true, productType: true, dispatchCategory: true } },
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  category: true,
+                  productType: true,
+                  dispatchCategory: true,
+                  size: true,
+                  capacity: true,
+                  unit: true,
+                  unitPrice: true,
+                },
+              },
             },
           },
           salesExecutive: { select: { id: true, name: true, email: true } },
-          lead: { select: { id: true, companyName: true, leadNumber: true, contactPerson: true, phone: true } },
-          customer: { select: { id: true, companyName: true, customerCode: true, contactPerson: true, phone: true } },
+          lead: {
+            select: {
+              id: true,
+              companyName: true,
+              leadNumber: true,
+              contactPerson: true,
+              phone: true,
+              email: true,
+              address: true,
+              detailedItems: true,
+              remarks: true,
+              salesExecutive: { select: { id: true, name: true, email: true } },
+            },
+          },
+          customer: {
+            select: {
+              id: true,
+              companyName: true,
+              customerCode: true,
+              contactPerson: true,
+              phone: true,
+              email: true,
+              shippingAddress: true,
+              billingAddress: true,
+            },
+          },
         },
       });
 
@@ -257,7 +302,20 @@ export class SamplesService {
         salesExecutive: { select: { id: true, name: true, email: true } },
         items: {
           include: {
-            product: { select: { id: true, name: true, sku: true, category: true, productType: true, dispatchCategory: true } },
+            product: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+                category: true,
+                productType: true,
+                dispatchCategory: true,
+                size: true,
+                capacity: true,
+                unit: true,
+                unitPrice: true,
+              },
+            },
           },
         },
         lead: {
@@ -265,11 +323,26 @@ export class SamplesService {
             id: true,
             companyName: true,
             leadNumber: true,
+            contactPerson: true,
+            phone: true,
+            email: true,
+            address: true,
+            detailedItems: true,
+            remarks: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
           },
         },
         customer: {
-          select: { id: true, companyName: true, customerCode: true },
+          select: {
+            id: true,
+            companyName: true,
+            customerCode: true,
+            contactPerson: true,
+            phone: true,
+            email: true,
+            shippingAddress: true,
+            billingAddress: true,
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -295,7 +368,20 @@ export class SamplesService {
         salesExecutive: { select: { id: true, name: true, email: true } },
         items: {
           include: {
-            product: { select: { id: true, name: true, sku: true, category: true, productType: true, dispatchCategory: true } },
+            product: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+                category: true,
+                productType: true,
+                dispatchCategory: true,
+                size: true,
+                capacity: true,
+                unit: true,
+                unitPrice: true,
+              },
+            },
           },
         },
         lead: {
@@ -303,11 +389,26 @@ export class SamplesService {
             id: true,
             companyName: true,
             leadNumber: true,
+            contactPerson: true,
+            phone: true,
+            email: true,
+            address: true,
+            detailedItems: true,
+            remarks: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
           },
         },
         customer: {
-          select: { id: true, companyName: true, customerCode: true },
+          select: {
+            id: true,
+            companyName: true,
+            customerCode: true,
+            contactPerson: true,
+            phone: true,
+            email: true,
+            shippingAddress: true,
+            billingAddress: true,
+          },
         },
         histories: {
           orderBy: { createdAt: 'desc' },
@@ -329,7 +430,20 @@ export class SamplesService {
           salesExecutive: { select: { id: true, name: true, email: true } },
           items: {
             include: {
-              product: { select: { id: true, name: true, sku: true, category: true, productType: true, dispatchCategory: true } },
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  category: true,
+                  productType: true,
+                  dispatchCategory: true,
+                  size: true,
+                  capacity: true,
+                  unit: true,
+                  unitPrice: true,
+                },
+              },
             },
           },
           lead: {
@@ -337,11 +451,26 @@ export class SamplesService {
               id: true,
               companyName: true,
               leadNumber: true,
+              contactPerson: true,
+              phone: true,
+              email: true,
+              address: true,
+              detailedItems: true,
+              remarks: true,
               salesExecutive: { select: { id: true, name: true, email: true } },
             },
           },
           customer: {
-            select: { id: true, companyName: true, customerCode: true },
+            select: {
+              id: true,
+              companyName: true,
+              customerCode: true,
+              contactPerson: true,
+              phone: true,
+              email: true,
+              shippingAddress: true,
+              billingAddress: true,
+            },
           },
           histories: {
             orderBy: { createdAt: 'desc' },

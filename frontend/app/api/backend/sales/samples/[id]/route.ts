@@ -11,8 +11,12 @@ export async function GET(
 ) {
   const { id } = await context.params;
   const url = new URL(request.url);
-  const authHeader = request.headers.get('Authorization');
-  const token = authHeader ? authHeader.split(' ')[1] : undefined;
+  const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
+  const token =
+    authHeader?.replace(/^Bearer\s+/i, '') ||
+    request.cookies.get('accessToken')?.value ||
+    request.cookies.get('token')?.value ||
+    request.cookies.get('himalaya_token')?.value;
 
   return forwardBackendRequest({
     token,
@@ -20,6 +24,9 @@ export async function GET(
     method: 'GET',
     query: url.searchParams,
     requestId: request.headers.get('x-request-id') ?? undefined,
+    headers: {
+      ...(request.headers.get('x-company-id') ? { 'x-company-id': request.headers.get('x-company-id')! } : {}),
+    },
   });
 }
 
@@ -28,9 +35,13 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-  const authHeader = request.headers.get('Authorization');
-  const token = authHeader ? authHeader.split(' ')[1] : undefined;
-  const idempotencyKey = request.headers.get('Idempotency-Key');
+  const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
+  const token =
+    authHeader?.replace(/^Bearer\s+/i, '') ||
+    request.cookies.get('accessToken')?.value ||
+    request.cookies.get('token')?.value ||
+    request.cookies.get('himalaya_token')?.value;
+  const idempotencyKey = request.headers.get('Idempotency-Key') || request.headers.get('idempotency-key');
 
   const body = await request.json().catch(() => ({}));
 
@@ -39,7 +50,10 @@ export async function PATCH(
     path: `/sales/samples/${id}`,
     method: 'PATCH',
     body,
-    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    headers: {
+      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+      ...(request.headers.get('x-company-id') ? { 'x-company-id': request.headers.get('x-company-id')! } : {}),
+    },
     requestId: request.headers.get('x-request-id') ?? undefined,
   });
 }

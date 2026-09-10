@@ -279,7 +279,48 @@ export class InventoryService {
       }
     }
 
-    return Array.from(stockMap.values());
+    const rawStockLevels = Array.from(stockMap.values());
+    if (rawStockLevels.length === 0) {
+      return [];
+    }
+
+    const allIds = Array.from(
+      new Set(
+        rawStockLevels
+          .flatMap((s) => [s.productId, s.rawMaterialId])
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    );
+
+    const [products, rawMaterials] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { id: { in: allIds } },
+        select: { id: true, name: true, sku: true, unit: true, category: true },
+      }),
+      this.prisma.rawMaterial.findMany({
+        where: { id: { in: allIds } },
+        select: { id: true, name: true, sku: true, unit: true, category: true },
+      }),
+    ]);
+
+    const prodMap = new Map(products.map((p) => [p.id, p]));
+    const rmMap = new Map(rawMaterials.map((r) => [r.id, r]));
+
+    return rawStockLevels.map((item) => {
+      const p = prodMap.get(item.productId);
+      const rm = item.rawMaterialId
+        ? rmMap.get(item.rawMaterialId)
+        : rmMap.get(item.productId);
+      const sku = p?.sku || rm?.sku || null;
+      const name = p?.name || rm?.name || null;
+      const unit = p?.unit || rm?.unit || null;
+      return {
+        ...item,
+        sku,
+        name,
+        unit,
+      };
+    });
   }
 
   async getTransactions(

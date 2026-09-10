@@ -15,7 +15,7 @@ import MyProfileView from '../../../shared/components/MyProfileView';
 import { financeService } from '../../../services/finance.service';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
-import { FileText, ChevronRight, Edit2, CheckCircle2, XCircle, AlertTriangle, Check, X, Calendar, Download, RefreshCw, Trash2, Layers, Box } from 'lucide-react';
+import { FileText, ChevronRight, Edit2, CheckCircle2, XCircle, AlertTriangle, Check, X, Calendar, Download, RefreshCw, Trash2, Layers, Box, Loader2 } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { apiClient } from '../../../lib/apiClient';
 import { backendFetch } from '../../../lib/backendFetch';
@@ -200,6 +200,7 @@ export default function FinancePortal({ initialView, forceView }) {
   // Approved PO Manual Placement State
   const [selectedApprovedPO, setSelectedApprovedPO] = useState(null);
   const [showPlaceOrderModal, setShowPlaceOrderModal] = useState(false);
+  const [isPlacingManualOrder, setIsPlacingManualOrder] = useState(false);
   const [showPOPdfModal, setShowPOPdfModal] = useState(false);
   const [orderMethod, setOrderMethod] = useState('Email');
   const [ackNumber, setAckNumber] = useState('');
@@ -2997,7 +2998,7 @@ export default function FinancePortal({ initialView, forceView }) {
 
     const handleConfirmManualOrder = async (e) => {
       e.preventDefault();
-      if (!selectedApprovedPO) return;
+      if (!selectedApprovedPO || isPlacingManualOrder) return;
 
       const payload = {
         expectedDeliveryDate,
@@ -3005,6 +3006,7 @@ export default function FinancePortal({ initialView, forceView }) {
         remarks: financeRemarks
       };
 
+      setIsPlacingManualOrder(true);
       try {
         const orderedPO = await issuePurchaseOrder(selectedApprovedPO.id, payload);
         await syncData();
@@ -3017,6 +3019,8 @@ export default function FinancePortal({ initialView, forceView }) {
         setFinanceRemarks('');
       } catch (error) {
         showToast(error?.message || 'Unable to place the order.');
+      } finally {
+        setIsPlacingManualOrder(false);
       }
     };
 
@@ -3234,7 +3238,14 @@ export default function FinancePortal({ initialView, forceView }) {
                     Vendor: <strong style={{ color: '#ffffff' }}>{selectedApprovedPO.supplier?.name || selectedApprovedPO.vendorName || selectedApprovedPO.snapshot?.vendorName || 'Vendor'}</strong> • Total: <strong style={{ color: '#4ade80' }}>₹{Number(selectedApprovedPO.totalAmount ?? selectedApprovedPO.grandTotal ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                   </div>
                 </div>
-                <button onClick={() => setShowPlaceOrderModal(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#ffffff', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+                <button
+                  type="button"
+                  disabled={isPlacingManualOrder}
+                  onClick={() => !isPlacingManualOrder && setShowPlaceOrderModal(false)}
+                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#ffffff', width: '34px', height: '34px', borderRadius: '50%', cursor: isPlacingManualOrder ? 'not-allowed' : 'pointer', fontSize: '16px', opacity: isPlacingManualOrder ? 0.6 : 1 }}
+                >
+                  ✕
+                </button>
               </div>
 
               <form onSubmit={handleConfirmManualOrder} style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'grid', gap: '18px' }}>
@@ -3243,9 +3254,10 @@ export default function FinancePortal({ initialView, forceView }) {
                   <input
                     type="date"
                     required
+                    disabled={isPlacingManualOrder}
                     value={expectedDeliveryDate}
                     onChange={e => setExpectedDeliveryDate(e.target.value)}
-                    style={{ width: '100%', padding: '10px', border: '2px solid #0284c7', borderRadius: '8px', fontSize: '14px', fontWeight: 700 }}
+                    style={{ width: '100%', padding: '10px', border: '2px solid #0284c7', borderRadius: '8px', fontSize: '14px', fontWeight: 700, opacity: isPlacingManualOrder ? 0.7 : 1 }}
                   />
                 </div>
 
@@ -3257,9 +3269,42 @@ export default function FinancePortal({ initialView, forceView }) {
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px', borderTop: '1px solid #DCE5F0', paddingTop: '16px' }}>
-                  <button type="button" onClick={() => setShowPlaceOrderModal(false)} style={{ padding: '11px 22px', border: '1.5px solid #D6E2F0', background: '#ffffff', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-                  <button type="submit" style={{ padding: '11px 28px', border: 'none', background: '#16a34a', color: '#ffffff', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)' }}>
-                    <Check size={18} /> Confirm & Place Order
+                  <button
+                    type="button"
+                    disabled={isPlacingManualOrder}
+                    onClick={() => setShowPlaceOrderModal(false)}
+                    style={{ padding: '11px 22px', border: '1.5px solid #D6E2F0', background: '#ffffff', borderRadius: '8px', fontWeight: 700, cursor: isPlacingManualOrder ? 'not-allowed' : 'pointer', opacity: isPlacingManualOrder ? 0.6 : 1 }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPlacingManualOrder}
+                    style={{
+                      padding: '11px 28px',
+                      border: 'none',
+                      background: isPlacingManualOrder ? '#059669' : '#16a34a',
+                      color: '#ffffff',
+                      borderRadius: '8px',
+                      fontWeight: 800,
+                      cursor: isPlacingManualOrder ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: isPlacingManualOrder ? 'none' : '0 4px 12px rgba(22, 163, 74, 0.3)',
+                      transition: 'all 0.2s ease',
+                      opacity: isPlacingManualOrder ? 0.9 : 1
+                    }}
+                  >
+                    {isPlacingManualOrder ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" /> Placing Order...
+                      </>
+                    ) : (
+                      <>
+                        <Check size={18} /> Confirm & Place Order
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

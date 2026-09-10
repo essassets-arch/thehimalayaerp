@@ -89,6 +89,43 @@ function SampleDispatchListContent() {
     }
   }, [searchParams]);
 
+  // Helper to format addresses cleanly without raw JSON or fallback strings
+  const formatAddress = (addr: any): string => {
+    if (!addr) return '';
+    if (typeof addr === 'string') {
+      const trimmed = addr.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try {
+          return formatAddress(JSON.parse(trimmed));
+        } catch {
+          return trimmed;
+        }
+      }
+      if (trimmed.toLowerCase() === 'see lead/customer address') return '';
+      return trimmed;
+    }
+    if (typeof addr === 'object') {
+      const parts: string[] = [];
+      const line1 = addr.line1 || addr.addressLine1 || addr.street || addr.address || '';
+      const line2 = addr.line2 || addr.addressLine2 || addr.landmark || '';
+      const city = addr.city || '';
+      const state = addr.state || '';
+      const pincode = addr.pincode || addr.postalCode || addr.zipCode || '';
+      const country = addr.country || '';
+
+      if (line1) parts.push(line1);
+      if (line2) parts.push(line2);
+      if (city) parts.push(city);
+      if (state && pincode) parts.push(`${state} - ${pincode}`);
+      else if (state) parts.push(state);
+      else if (pincode) parts.push(pincode);
+      if (country && country.toLowerCase() !== 'india') parts.push(country);
+
+      return parts.filter(Boolean).join(', ');
+    }
+    return '';
+  };
+
   // Fetch real samples from the backend
   const loadSamples = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -98,13 +135,9 @@ function SampleDispatchListContent() {
       const res = await backendFetch<any[]>('/api/backend/sales/samples', { cacheTtlMs: 0 });
       const dataArray = Array.isArray(res) ? res : (res as any)?.data || [];
 
-      // Filter by Category: D1 (Manufacturing) vs D2 (Trading)
-      const categoryFiltered = dataArray.filter((sample: any) => {
-        const isTrading = isTradingProduct(sample);
-        return isDispatch2 ? isTrading : !isTrading;
-      });
+      const mappedList: SampleDispatchItem[] = [];
 
-      const mappedList: SampleDispatchItem[] = categoryFiltered.map((sample: any) => {
+      for (const sample of dataArray) {
         const rawStatus = String(sample.status || '').toUpperCase();
         const rawDispatch = String(sample.dispatchStatus || '').toUpperCase();
 
@@ -146,18 +179,45 @@ function SampleDispatchListContent() {
           deliveryState = isReturn ? 'Pick-up Requested' : 'Pending Dispatch';
         }
 
-        const primaryItem = sample.items?.[0] || sample.products?.[0];
-        const productName =
-          sample.product ||
-          sample.productName ||
-          primaryItem?.product?.name ||
-          primaryItem?.specifications ||
-          'Sample Product';
+        const allItems: any[] = sample.items || sample.products || sample.sampleItems || [];
 
-        const totalQty =
-          Number(sample.quantity) ||
-          (sample.items || []).reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0) ||
-          1;
+        // Partition items into D1 (Manufacturing) and D2 (Trading)
+        let relevantItems: any[] = [];
+        if (allItems.length > 0) {
+          relevantItems = allItems.filter((it: any) => {
+            const itIsTrading = isTradingProduct(it);
+            return isDispatch2 ? itIsTrading : !itIsTrading;
+          });
+
+          // If this sample has 0 items matching the current portal (D1 vs D2), SKIP IT!
+          if (relevantItems.length === 0) {
+            continue;
+          }
+        } else {
+          // Fallback if no items array
+          const sampleIsTrading = isTradingProduct(sample);
+          if (isDispatch2 !== sampleIsTrading) {
+            continue;
+          }
+        }
+
+        // Compute product display string and total approved quantity STRICTLY for this portal!
+        let productName = '';
+        let totalQty = 0;
+
+        if (relevantItems.length > 0) {
+          productName = relevantItems
+            .map((it: any) => {
+              const name = it.product?.name || it.productName || it.name || it.specifications || 'Item';
+              const qty = it.quantity || 1;
+              return `${name} (${qty} Pcs)`;
+            })
+            .join(', ');
+          totalQty = relevantItems.reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
+        } else {
+          productName = sample.product || sample.productName || 'Sample Product';
+          totalQty = Number(sample.quantity) || 1;
+        }
 
         const customerName =
           sample.customer ||
@@ -168,16 +228,14 @@ function SampleDispatchListContent() {
           'Customer';
 
         const address =
-          sample.address ||
-          sample.deliveryAddress ||
-          sample.lead?.address ||
-          sample.customer?.address ||
+          formatAddress(sample.deliveryAddress) ||
+          formatAddress(sample.address) ||
+          formatAddress(sample.lead?.address) ||
+          formatAddress(sample.customer?.shippingAddress) ||
+          formatAddress(sample.customer?.billingAddress) ||
           'See Lead/Customer address';
 
-        const isTrading = isTradingProduct(sample);
-        const dispatchCategory = sample.dispatchCategory || (isTrading ? 'D2' : 'D1');
-
-        return {
+        mappedList.push({
           id: `req-${sample.id}`,
           cleanId: sample.id,
           orderNo: sample.sampleNumber || sample.sampleId || `SMP-${String(sample.id).slice(0, 6)}`,
@@ -194,12 +252,12 @@ function SampleDispatchListContent() {
           driverName: sample.driverName || sample.dispatchDetails?.driverName,
           dispatchDate: sample.dispatchDate || sample.dispatchDetails?.dispatchDate,
           proofOfDelivery: sample.proofOfDelivery || sample.podImage || sample.dispatchDetails?.proofOfDelivery || undefined,
-          category: sample.category || primaryItem?.product?.category,
-          productType: sample.productType || primaryItem?.product?.productType,
-          dispatchCategory,
-          isTrading,
-        };
-      });
+          category: sample.category,
+          productType: isDispatch2 ? 'TRADING' : 'MANUFACTURING',
+          dispatchCategory: isDispatch2 ? 'D2' : 'D1',
+          isTrading: isDispatch2,
+        });
+      }
 
       setRequests(mappedList);
     } catch (err) {
@@ -750,7 +808,7 @@ function SampleDispatchListContent() {
                               <button
                                 type="button"
                                 title="Edit Logistics Consignment"
-                                onClick={() => router.push(`/dispatch/sample-dispatch/create/${req.id}`)}
+                                onClick={() => router.push(`${basePath}/sample-dispatch/create/${req.id}`)}
                                 style={{
                                   background: '#f8fafc',
                                   color: '#475569',
