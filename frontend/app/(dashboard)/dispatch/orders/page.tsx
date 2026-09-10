@@ -691,8 +691,7 @@ export default function DispatchOrdersPage() {
       const isDispatchedStatus = (st: any) => {
         const s = String(st || "").toUpperCase();
         return (
-          ["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "PENDING_DISPATCH", "PENDING", "COMPLETED"].includes(s) ||
-          (!["CANCELLED", "REJECTED", "DRAFT"].includes(s) && s.length > 0)
+          ["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "COMPLETED"].includes(s)
         );
       };
 
@@ -731,6 +730,24 @@ export default function DispatchOrdersPage() {
         }
       });
 
+      if (rawActiveDispatches.length === 0 && typeof window !== "undefined") {
+        try {
+          const rawTracker = localStorage.getItem("himalaya_dispatched_items_tracker");
+          if (rawTracker) {
+            const tracker = JSON.parse(rawTracker);
+            Object.entries(tracker).forEach(([k, v]) => {
+              const q = Number(v || 0);
+              if (q > 0) {
+                const lowerK = k.toLowerCase();
+                dispatchedBySalesOrderItem.set(lowerK, Math.max(dispatchedBySalesOrderItem.get(lowerK) || 0, q));
+                dispatchedByWorkOrder.set(lowerK, Math.max(dispatchedByWorkOrder.get(lowerK) || 0, q));
+                dispatchedBySalesOrderProduct.set(lowerK, Math.max(dispatchedBySalesOrderProduct.get(lowerK) || 0, q));
+              }
+            });
+          }
+        } catch {}
+      }
+
       if (typeof window !== "undefined") {
         try {
           const rawFullMeta = localStorage.getItem("himalaya_dispatches_full_metadata");
@@ -747,20 +764,6 @@ export default function DispatchOrdersPage() {
               if (entry?.orderId) {
                 ordersWithPriorDispatches.add(entry.orderId.toLowerCase());
                 ordersWithPriorDispatches.add(normalizeKey(entry.orderId));
-              }
-            });
-          }
-
-          const rawTracker = localStorage.getItem("himalaya_dispatched_items_tracker");
-          if (rawTracker) {
-            const tracker = JSON.parse(rawTracker);
-            Object.entries(tracker).forEach(([k, v]) => {
-              const q = Number(v || 0);
-              if (q > 0) {
-                const lowerK = k.toLowerCase();
-                dispatchedBySalesOrderItem.set(lowerK, Math.max(dispatchedBySalesOrderItem.get(lowerK) || 0, q));
-                dispatchedByWorkOrder.set(lowerK, Math.max(dispatchedByWorkOrder.get(lowerK) || 0, q));
-                dispatchedBySalesOrderProduct.set(lowerK, Math.max(dispatchedBySalesOrderProduct.get(lowerK) || 0, q));
               }
             });
           }

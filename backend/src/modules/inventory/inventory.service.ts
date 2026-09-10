@@ -340,7 +340,7 @@ export class InventoryService {
       let status: string;
       if (currentStock <= 0) {
         status = 'OUT_OF_STOCK';
-      } else if (currentStock <= minimumStock) {
+      } else if (minimumStock > 0 && currentStock < minimumStock) {
         status = 'LOW_STOCK';
       } else {
         status = 'IN_STOCK';
@@ -359,8 +359,8 @@ export class InventoryService {
       };
     });
 
-    // Return only items that are at or below minimum stock (LOW_STOCK + OUT_OF_STOCK)
-    return result.filter((m) => m.currentStock <= m.minimumStock);
+    // Return only items that are below minimum stock (LOW_STOCK + OUT_OF_STOCK)
+    return result.filter((m) => m.currentStock < m.minimumStock);
   }
 
   async updateItemBalance(id: string, balance: number) {

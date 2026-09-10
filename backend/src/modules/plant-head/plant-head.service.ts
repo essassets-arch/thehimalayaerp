@@ -1517,7 +1517,7 @@ export class PlantHeadService {
 
     const lowStockCount = inventoryItems.filter(
       (item: any) =>
-        Number(item.balance || item.availableQuantity || 0) <=
+        Number(item.balance || item.availableQuantity || 0) <
         Number(item.minStock || 30),
     ).length;
 
@@ -1574,7 +1574,7 @@ export class PlantHeadService {
         stock,
         minStock,
         valuation: stock * price,
-        status: stock <= minStock ? 'Low Stock' : 'Optimal',
+        status: stock < minStock ? 'Low Stock' : 'Optimal',
       };
     });
 

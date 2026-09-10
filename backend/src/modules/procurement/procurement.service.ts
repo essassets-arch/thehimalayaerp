@@ -419,6 +419,7 @@ export class ProcurementService {
           supplier: true,
           items: { include: { product: true } },
           purchaseIndent: { include: { requestedBy: true } },
+          grns: { include: { items: true } },
         },
       }),
       this.prisma.purchaseOrder.count({ where }),
@@ -428,6 +429,7 @@ export class ProcurementService {
       vendorName: po.supplier?.name || (po.snapshot as any)?.vendorName || '',
       supplierName: po.supplier?.name || (po.snapshot as any)?.vendorName || '',
       vendorId: po.supplier?.publicId || po.supplierId,
+      grns: po.grns || [],
     }));
     return { data: mappedData, meta: { page, limit, total } };
   }
@@ -681,11 +683,18 @@ export class ProcurementService {
 
         // 3. Idempotency Check: Prevent duplicate delivery verification with the same Challan, Invoice or Idempotency Key (ignoring empty strings)
         const cleanChallan =
-          typeof dto.deliveryChallanNumber === 'string'
-            ? dto.deliveryChallanNumber.trim()
-            : '';
+          (typeof dto.deliveryChallanNumber === 'string' && dto.deliveryChallanNumber.trim()) ||
+          (typeof dto.challanNumber === 'string' && dto.challanNumber.trim()) ||
+          (typeof dto.challanNo === 'string' && dto.challanNo.trim()) ||
+          '';
         const cleanInvoice =
-          typeof dto.invoiceNumber === 'string' ? dto.invoiceNumber.trim() : '';
+          (typeof dto.invoiceNumber === 'string' && dto.invoiceNumber.trim()) ||
+          (typeof dto.vendorInvoiceNo === 'string' && dto.vendorInvoiceNo.trim()) ||
+          '';
+        const cleanVehicle =
+          (typeof dto.vehicleNumber === 'string' && dto.vehicleNumber.trim()) ||
+          (typeof dto.truckNumber === 'string' && dto.truckNumber.trim()) ||
+          '';
         const idempotencyKey =
           typeof dto.idempotencyKey === 'string'
             ? dto.idempotencyKey.trim()

@@ -509,7 +509,7 @@ export class SuperAdminService {
           status: 'Stock-out',
           badge: 'badge-danger',
         });
-      } else if (stock > 0 && stock <= minStock) {
+      } else if (stock > 0 && stock < minStock) {
         lowStockItems++;
         lowStockAlertList.push({
           name: p.name,
@@ -4301,7 +4301,7 @@ export class SuperAdminService {
         if (currentStock <= 0) {
           stockStatus = 'OUT_OF_STOCK';
           outOfStockCount++;
-        } else if (currentStock <= minStock) {
+        } else if (currentStock < minStock) {
           stockStatus = 'LOW_STOCK';
           lowStockCount++;
         } else {
@@ -5029,7 +5029,7 @@ export class SuperAdminService {
     rawMaterials.forEach((m: any) => {
       const stock = totalStockMap.get(m.id) ?? 0;
       const minStock = Number(m.minimumStock ?? 0);
-      if (stock <= minStock) lowStockAlerts++;
+      if (minStock > 0 && stock < minStock) lowStockAlerts++;
       rawInventoryValue += Math.max(0, stock) * 100;
     });
 

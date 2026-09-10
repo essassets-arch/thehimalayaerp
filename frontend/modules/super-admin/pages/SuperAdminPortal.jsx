@@ -6270,7 +6270,7 @@ export default function SuperAdminPortal() {
   // 11. BUSINESS REPORTS
   const renderBusinessReports = () => {
     const rawStockCount = (state.rawInventory || []).length;
-    const lowStockCount = (state.rawInventory || []).filter(i => i.stock <= i.reorderLevel).length;
+    const lowStockCount = (state.rawInventory || []).filter(i => i.stock < i.reorderLevel).length;
     const totalPaymentsCollected = payments.filter(p => p.status === 'Paid').reduce((sum, p) => sum + p.totalAmount, 0);
 
     const row = (label, value, color) => (

@@ -30,7 +30,7 @@ export default function StoreDept({ state, deptEmployee, setDeptEmployee, onBack
   }, 0);
 
   const lowStockItems = (state.rawInventory || []).filter(
-    item => item.stock <= item.reorderLevel
+    item => item.stock < item.reorderLevel
   );
 
   const pendingPOs = state.purchaseOrders?.filter(po => po.status === 'REQUESTED' || po.status === 'APPROVED').length || 0;

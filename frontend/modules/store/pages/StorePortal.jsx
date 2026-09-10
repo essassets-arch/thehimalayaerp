@@ -593,7 +593,7 @@ export default function StorePortal() {
         let status;
         if (qty <= 0) {
           status = 'Out of Stock';
-        } else if (min > 0 && qty <= min) {
+        } else if (min > 0 && qty < min) {
           status = 'Low Stock';
         } else {
           status = 'In Stock';
@@ -1615,7 +1615,7 @@ export default function StorePortal() {
           
           let statusText = 'IN STOCK';
           if (stock <= 0) statusText = 'OUT OF STOCK';
-          else if (stock <= minStock) statusText = 'LOW STOCK';
+          else if (stock < minStock) statusText = 'LOW STOCK';
 
           return [
             `"${item.code || ''}"`,
@@ -1956,7 +1956,7 @@ export default function StorePortal() {
               ) : (
                 paginatedRawInvItems.map(item => {
                   const isOutOfStock = (item.stock ?? 0) <= 0;
-                  const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) <= (item.reorderLevel ?? item.minStock ?? 0);
+                  const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) < (item.reorderLevel ?? item.minStock ?? 0);
                   let statusText = 'IN STOCK';
                   let badgeColor = 'green';
                   if (isOutOfStock) { statusText = 'OUT OF STOCK'; badgeColor = 'red'; }
@@ -2020,7 +2020,7 @@ export default function StorePortal() {
           ) : (
             paginatedRawInvItems.map(item => {
               const isOutOfStock = (item.stock ?? 0) <= 0;
-              const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) <= (item.reorderLevel ?? item.minStock ?? 0);
+              const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) < (item.reorderLevel ?? item.minStock ?? 0);
               let statusText = 'IN STOCK';
               let badgeColor = 'green';
               if (isOutOfStock) { statusText = 'OUT OF STOCK'; badgeColor = 'red'; }
@@ -3033,7 +3033,7 @@ export default function StorePortal() {
     const mappedInventory = dbRawInventory;
 
     const outOfStockItemsAll = mappedInventory.filter(item => (Number(item.stock) || 0) <= 0);
-    const lowStockItemsOnlyAll = mappedInventory.filter(item => (Number(item.stock) || 0) > 0 && Number(item.stock) <= Number(item.reorderLevel ?? item.minStock ?? 0));
+    const lowStockItemsOnlyAll = mappedInventory.filter(item => (Number(item.stock) || 0) > 0 && Number(item.stock) < Number(item.reorderLevel ?? item.minStock ?? 0));
     const allAlertItemsAll = [...outOfStockItemsAll, ...lowStockItemsOnlyAll];
 
     const lsQuery = (lowStockSearch || '').toLowerCase();
@@ -3083,7 +3083,7 @@ export default function StorePortal() {
     }, [dbRawInventory]);
 
     const lowStockCatalog = useMemo(() => {
-      return smartSearchCatalog.filter(i => i.stock <= i.minStock);
+      return smartSearchCatalog.filter(i => i.stock < i.minStock);
     }, [smartSearchCatalog]);
 
     const filteredSmartCatalog = useMemo(() => {
@@ -4074,7 +4074,7 @@ export default function StorePortal() {
                         filteredSmartCatalog.map(prod => {
                           const added = bulkIndentItems.some(i => i.material === prod.material || i.id === prod.id);
                           const isOutOfStock = prod.stock <= 0;
-                          const isLowStock = prod.stock > 0 && prod.stock <= prod.minStock;
+                          const isLowStock = prod.stock > 0 && prod.stock < prod.minStock;
                           return (
                             <div
                               key={prod.id || prod.code}

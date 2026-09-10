@@ -638,7 +638,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
         let status;
         if (qty <= 0) {
           status = 'Out of Stock';
-        } else if (min > 0 && qty <= min) {
+        } else if (min > 0 && qty < min) {
           status = 'Low Stock';
         } else {
           status = 'In Stock';
@@ -4931,7 +4931,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
           
           let statusText = 'IN STOCK';
           if (stock <= 0) statusText = 'OUT OF STOCK';
-          else if (stock <= minStock) statusText = 'LOW STOCK';
+          else if (stock < minStock) statusText = 'LOW STOCK';
 
           return [
             `"${item.code || ''}"`,
@@ -5125,7 +5125,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
               ) : (
                 paginatedRawInvItems.map(item => {
                   const isOutOfStock = (item.stock ?? 0) <= 0;
-                  const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) <= (item.reorderLevel ?? item.minStock ?? 0);
+                  const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) < (item.reorderLevel ?? item.minStock ?? 0);
 
                   let statusText = 'IN STOCK';
                   let badgeColor = 'green';
@@ -5221,7 +5221,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
           ) : (
             paginatedRawInvItems.map(item => {
               const isOutOfStock = (item.stock ?? 0) <= 0;
-              const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) <= (item.reorderLevel ?? item.minStock ?? 0);
+              const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) < (item.reorderLevel ?? item.minStock ?? 0);
               let statusText = 'IN STOCK';
               let badgeColor = 'green';
               if (isOutOfStock) { statusText = 'OUT OF STOCK'; badgeColor = 'red'; }

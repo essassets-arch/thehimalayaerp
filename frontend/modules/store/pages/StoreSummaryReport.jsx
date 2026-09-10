@@ -83,7 +83,7 @@ export const StoreSummaryReport = () => {
             currentStock: currentStock,
             stockValue: currentStock * unitPrice,
             minStockLevel: minStock,
-            status: currentStock <= minStock ? (currentStock <= 0 ? 'Out of Stock' : 'Low Stock') : 'In Stock'
+            status: currentStock < minStock ? (currentStock <= 0 ? 'Out of Stock' : 'Low Stock') : 'In Stock'
           };
         });
       } else {
@@ -240,7 +240,7 @@ export const StoreSummaryReport = () => {
   const summaryMetrics = useMemo(() => {
     const totalRawCount = inventoryList.length;
     const totalVal = inventoryList.reduce((sum, item) => sum + (Number(item.stockValue) || 0), 0);
-    const lowStockCount = inventoryList.filter(item => item.currentStock <= item.minStockLevel).length;
+    const lowStockCount = inventoryList.filter(item => item.currentStock < item.minStockLevel).length;
 
     const totalIndentsCount = filteredIndents.length;
     const pendingIndents = filteredIndents.filter(i => getLabel(i.status).includes('Pending')).length;
@@ -302,7 +302,7 @@ export const StoreSummaryReport = () => {
 
   // ── Low Stock Filtered Items ──
   const lowStockItems = useMemo(() => {
-    return inventoryList.filter(item => item.currentStock <= item.minStockLevel);
+    return inventoryList.filter(item => item.currentStock < item.minStockLevel);
   }, [inventoryList]);
 
   // ── Refresh Handler ──
@@ -768,15 +768,15 @@ export const StoreSummaryReport = () => {
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{(item.openingStock ?? 0).toLocaleString()}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#10b981', fontWeight: '700' }}>+{(item.receivedQty ?? 0).toLocaleString()}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ef4444', fontWeight: '700' }}>-{(item.issuedQty ?? 0).toLocaleString()}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: item.currentStock <= item.minStockLevel ? '#dc2626' : '#0f172a' }}>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: item.currentStock < item.minStockLevel ? '#dc2626' : '#0f172a' }}>
                     {(item.currentStock ?? 0).toLocaleString()}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800' }}>₹{(item.stockValue ?? 0).toLocaleString('en-IN')}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{(item.minStockLevel ?? 0).toLocaleString()}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <span style={{
-                      background: item.currentStock <= item.minStockLevel ? '#fee2e2' : '#dcfce7',
-                      color: item.currentStock <= item.minStockLevel ? '#b91c1c' : '#15803d',
+                      background: item.currentStock < item.minStockLevel ? '#fee2e2' : '#dcfce7',
+                      color: item.currentStock < item.minStockLevel ? '#b91c1c' : '#15803d',
                       padding: '3px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800'
                     }}>
                       {getLabel(item.status)}
@@ -796,7 +796,7 @@ export const StoreSummaryReport = () => {
             </div>
           ) : (
             inventoryList.map((item, idx) => {
-            const isLow = item.currentStock <= item.minStockLevel;
+            const isLow = item.currentStock < item.minStockLevel;
             return (
               <div
                 key={idx}

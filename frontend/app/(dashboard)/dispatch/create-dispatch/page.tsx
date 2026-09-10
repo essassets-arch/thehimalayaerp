@@ -400,22 +400,22 @@ function isTradingProduct(item: any, productsMap: Map<string, any>): boolean {
 }
 
 function availableQuantity(workOrder: WorkOrder): number {
-  if (workOrder.remainingQuantity !== undefined) {
-    return Math.max(0, Number(workOrder.remainingQuantity));
-  }
   const item = workOrder.salesOrderItem;
-  const alreadyDispatched =
-    item?.dispatchItems?.reduce(
-      (sum, dispatchItem) => sum + Number(dispatchItem.quantity),
-      0,
-    ) || 0;
   const ordered = Number(item?.orderedQuantity || workOrder.orderedQuantity || workOrder.quantity || 1);
+  const alreadyDispatched = Number(workOrder.dispatchedQuantity || 0);
   const remainingOrder = Math.max(0, ordered - alreadyDispatched);
 
+  if (workOrder.remainingQuantity !== undefined && Number(workOrder.remainingQuantity) > 0) {
+    return Number(workOrder.remainingQuantity);
+  }
+  if (remainingOrder > 0) {
+    return remainingOrder;
+  }
   const approved = Number(
-    workOrder.qcInspections?.[0]?.approvedQuantity ?? workOrder.quantity ?? remainingOrder
+    workOrder.qcInspections?.[0]?.approvedQuantity ?? workOrder.quantity ?? 0
   );
-  return approved > 0 ? approved : remainingOrder;
+  if (approved > 0) return approved;
+  return ordered > 0 ? ordered : 1;
 }
 
 const EMPTY_ARRAY: any[] = [];
@@ -546,8 +546,7 @@ export default function CreateDispatchPage() {
       rawDispatches.forEach((d: any) => {
         const st = String(d.status || "").toUpperCase();
         if (
-          ["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "PENDING_DISPATCH", "PENDING", "COMPLETED"].includes(st) ||
-          (!["CANCELLED", "REJECTED", "DRAFT"].includes(st) && st.length > 0)
+          ["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "COMPLETED"].includes(st)
         ) {
           if (Array.isArray(d.items)) {
             d.items.forEach((it: any) => {
@@ -574,7 +573,8 @@ export default function CreateDispatchPage() {
         }
       });
 
-      if (typeof window !== "undefined") {
+      // Only use client-side tracker if no server dispatches exist (demo/offline mode)
+      if (rawDispatches.length === 0 && typeof window !== "undefined") {
         try {
           const rawTracker = localStorage.getItem("himalaya_dispatched_items_tracker");
           if (rawTracker) {
@@ -685,7 +685,17 @@ export default function CreateDispatchPage() {
           (wo.id ? dispatchedByWorkOrder.get(String(wo.id).toLowerCase()) : 0) ||
           0;
         const alreadyDispatched = Math.max(fromDispatchItems, fromDispatches);
-        const remaining = Math.max(0, totalOrdered - alreadyDispatched);
+        let remaining = Math.max(0, totalOrdered - alreadyDispatched);
+        if (remaining <= 0) {
+          const hasConfirmedFullDispatch = rawDispatches.some((d: any) => {
+            const st = String(d.status || "").toUpperCase();
+            if (!["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "COMPLETED"].includes(st)) return false;
+            return d.items?.some((it: any) => (it.workOrderId === wo.id || (item?.id && it.salesOrderItemId === item.id)) && Number(it.quantity || 0) >= totalOrdered);
+          });
+          if (!hasConfirmedFullDispatch) {
+            remaining = totalOrdered;
+          }
+        }
 
         const prodName =
           wo.salesOrderItem?.productNameSnapshot ||
@@ -755,7 +765,17 @@ export default function CreateDispatchPage() {
         const qtyVal = fg.availableQuantity ?? fg.quantity ?? 1;
         const totalOrdered = typeof qtyVal === "number" ? qtyVal : parseFloat(String(qtyVal)) || 1;
         const alreadyDispatched = (fg.id ? dispatchedByWorkOrder.get(String(fg.id).toLowerCase()) : 0) || 0;
-        const remaining = Math.max(0, totalOrdered - alreadyDispatched);
+        let remaining = Math.max(0, totalOrdered - alreadyDispatched);
+        if (remaining <= 0) {
+          const hasConfirmedFullDispatch = rawDispatches.some((d: any) => {
+            const st = String(d.status || "").toUpperCase();
+            if (!["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "COMPLETED"].includes(st)) return false;
+            return d.items?.some((it: any) => it.workOrderId === fg.id && Number(it.quantity || 0) >= totalOrdered);
+          });
+          if (!hasConfirmedFullDispatch) {
+            remaining = totalOrdered;
+          }
+        }
 
         const fgKey = `fg-${fg.id || fg.workOrderId}`;
         if (seenWorkOrderKeys.has(fgKey.toLowerCase()) || (fg.workOrderId && seenWorkOrderKeys.has(String(fg.workOrderId).toLowerCase()))) return;
@@ -876,7 +896,17 @@ export default function CreateDispatchPage() {
             (so.orderNumber && item.productId ? dispatchedBySalesOrderProduct.get(`${normalizeKey(so.orderNumber)}_${String(item.productId).toLowerCase()}`) : 0) ||
             0;
           const alreadyDispatched = Math.max(fromDispatchItems, fromDispatches);
-          const remaining = Math.max(0, totalOrdered - alreadyDispatched);
+          let remaining = Math.max(0, totalOrdered - alreadyDispatched);
+          if (remaining <= 0) {
+            const hasConfirmedFullDispatch = rawDispatches.some((d: any) => {
+              const st = String(d.status || "").toUpperCase();
+              if (!["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "SHIPPED", "DISPATCHED", "COMPLETED"].includes(st)) return false;
+              return d.items?.some((it: any) => ((item.id && it.salesOrderItemId === item.id) || (item.productId && it.productId === item.productId)) && Number(it.quantity || 0) >= totalOrdered);
+            });
+            if (!hasConfirmedFullDispatch) {
+              remaining = totalOrdered;
+            }
+          }
 
           const alreadyExists = list.some(
             (wo) =>
@@ -1136,7 +1166,8 @@ export default function CreateDispatchPage() {
     const qtys: Record<string, number> = {};
     filteredWorkOrders.forEach((m) => {
       const rem = availableQuantity(m);
-      qtys[m.id] = rem > 0 ? rem : 1;
+      const ord = Number(m.salesOrderItem?.orderedQuantity || m.orderedQuantity || 1);
+      qtys[m.id] = rem > 0 ? rem : ord;
     });
     setSelectedIds(ids);
     setDispatchQuantities(qtys);
@@ -1416,7 +1447,7 @@ export default function CreateDispatchPage() {
         ...current,
         [candidate.id]: current[candidate.id] && current[candidate.id] > 0
           ? current[candidate.id]
-          : (availableQuantity(candidate) > 0 ? availableQuantity(candidate) : 1),
+          : (availableQuantity(candidate) > 0 ? availableQuantity(candidate) : Number(candidate.salesOrderItem?.orderedQuantity || candidate.orderedQuantity || 1)),
       }));
     }
   };
@@ -1429,7 +1460,8 @@ export default function CreateDispatchPage() {
     filteredWorkOrders.forEach((wo) => {
       if (!qtys[wo.id] || qtys[wo.id] <= 0) {
         const rem = availableQuantity(wo);
-        qtys[wo.id] = rem > 0 ? rem : 1;
+        const ord = Number(wo.salesOrderItem?.orderedQuantity || wo.orderedQuantity || 1);
+        qtys[wo.id] = rem > 0 ? rem : ord;
       }
     });
     setDispatchQuantities(qtys);
@@ -1470,7 +1502,8 @@ export default function CreateDispatchPage() {
     const qtys: Record<string, number> = {};
     targetItems.forEach((item) => {
       const rem = availableQuantity(item);
-      qtys[item.id] = rem > 0 ? rem : 1;
+      const ord = Number(item.salesOrderItem?.orderedQuantity || item.orderedQuantity || 1);
+      qtys[item.id] = rem > 0 ? rem : ord;
     });
     setDispatchQuantities((current) => ({ ...current, ...qtys }));
   };
@@ -1542,9 +1575,10 @@ export default function CreateDispatchPage() {
       return;
     }
     for (const selected of selectedWorkOrders) {
-      const quantity = Number(dispatchQuantities[selected.id] ?? dispatchQuantities[cleanWorkOrderId(selected.id)] ?? availableQuantity(selected) ?? 1);
-      const maximum = Math.max(1, availableQuantity(selected));
-      if (quantity <= 0 || quantity > maximum) {
+      const rawVal = dispatchQuantities[selected.id] ?? dispatchQuantities[cleanWorkOrderId(selected.id)] ?? availableQuantity(selected) ?? 1;
+      const quantity = Number(rawVal);
+      const maximum = Math.max(availableQuantity(selected), Number(selected.salesOrderItem?.orderedQuantity || selected.orderedQuantity || 1), 1);
+      if (isNaN(quantity) || quantity <= 0 || quantity > maximum) {
         toast.error(
           `${selected.workOrderNumber}: quantity must be between 1 and ${maximum}`,
         );
@@ -1971,11 +2005,13 @@ export default function CreateDispatchPage() {
                     const candidateSalesOrder = candidate.productionPlan?.salesOrder;
                     const isSelected = selectedIds.includes(candidate.id);
                     const maximum = availableQuantity(candidate);
-                    const orderedQty = candidate.salesOrderItem?.orderedQuantity || candidate.orderedQuantity || maximum;
-                    const prodName = candidate.salesOrderItem?.productNameSnapshot || candidate.salesOrderItem?.product?.name || "Product Cargo";
-                    const prodSku = candidate.salesOrderItem?.product?.sku || (candidate as any).productCode;
-                    const dispatchQty = dispatchQuantities[candidate.id] ?? (maximum > 0 ? maximum : 1);
-                    const willRemainAfterDispatch = isSelected ? Math.max(0, maximum - dispatchQty) : maximum;
+                    const orderedQty = Number(candidate.salesOrderItem?.orderedQuantity || candidate.orderedQuantity || maximum || 1);
+                    const remainingQty = maximum > 0 ? maximum : orderedQty;
+                    const maxDispatchable = Math.max(remainingQty, orderedQty, 1);
+                    const dispatchQty = dispatchQuantities[candidate.id] !== undefined
+                      ? dispatchQuantities[candidate.id]
+                      : remainingQty;
+                    const willRemainAfterDispatch = isSelected ? Math.max(0, remainingQty - (Number(dispatchQty) || 0)) : remainingQty;
 
                     return (
                       <tr
@@ -2017,7 +2053,7 @@ export default function CreateDispatchPage() {
                           <span style={{ fontWeight: 600, color: "#475569" }}>{orderedQty}</span>
                         </td>
                         <td className={`${styles.center} ${styles.remaining}`} data-label="Remaining">
-                          <span className={styles.remainingPill}>{maximum}</span>
+                          <span className={styles.remainingPill}>{remainingQty}</span>
                         </td>
                         <td className={styles.center} data-label="Dispatch Now" onClick={(e) => e.stopPropagation()}>
                           {isSelected ? (
@@ -2025,14 +2061,34 @@ export default function CreateDispatchPage() {
                               <input
                                 type="number"
                                 min={1}
-                                max={maximum > 0 ? maximum : 1}
-                                value={dispatchQty}
+                                max={maxDispatchable}
+                                value={dispatchQuantities[candidate.id] !== undefined ? dispatchQuantities[candidate.id] : remainingQty}
                                 onChange={(event) => {
-                                  const val = Math.max(1, Math.min(maximum > 0 ? maximum : 1, Number(event.target.value) || 1));
-                                  setDispatchQuantities((current) => ({
-                                    ...current,
-                                    [candidate.id]: val,
-                                  }));
+                                  const valStr = event.target.value;
+                                  if (valStr === "") {
+                                    setDispatchQuantities((current) => ({
+                                      ...current,
+                                      [candidate.id]: "" as any,
+                                    }));
+                                    return;
+                                  }
+                                  const valNum = parseInt(valStr, 10);
+                                  if (!isNaN(valNum)) {
+                                    const clamped = Math.max(1, Math.min(maxDispatchable, valNum));
+                                    setDispatchQuantities((current) => ({
+                                      ...current,
+                                      [candidate.id]: clamped,
+                                    }));
+                                  }
+                                }}
+                                onBlur={() => {
+                                  const currentVal = Number(dispatchQuantities[candidate.id]);
+                                  if (!currentVal || isNaN(currentVal) || currentVal < 1) {
+                                    setDispatchQuantities((current) => ({
+                                      ...current,
+                                      [candidate.id]: remainingQty,
+                                    }));
+                                  }
                                 }}
                                 className={styles.qtyInput}
                               />
