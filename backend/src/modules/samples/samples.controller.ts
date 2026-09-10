@@ -78,6 +78,35 @@ export class SamplesController {
     const contactPerson = data.lead?.contactPerson || data.customer?.contactPerson || '';
     const phone = data.lead?.phone || data.customer?.phone || '';
 
+    const primaryProd = primaryItem?.product;
+    const prodCategory = primaryProd?.category || primaryItem?.category || '';
+    const prodType = primaryProd?.productType || primaryItem?.productType || '';
+    const prodDispatchCat = primaryProd?.dispatchCategory || primaryItem?.dispatchCategory || '';
+    const nameUpper = String(productName || '').toUpperCase();
+    const skuUpper = String(primaryProd?.sku || primaryItem?.sku || '').toUpperCase();
+
+    const isTrading =
+      String(prodType).toUpperCase() === 'TRADING' ||
+      String(prodDispatchCat).toUpperCase() === 'D2' ||
+      ['COVERBLOCK', 'FRC COVER', 'RCC PIPE', 'OTHERS', 'TRADING'].includes(String(prodCategory).toUpperCase()) ||
+      nameUpper.startsWith('WCB') ||
+      nameUpper.startsWith('PCB') ||
+      nameUpper.startsWith('HTCB') ||
+      nameUpper.startsWith('DTCB') ||
+      nameUpper.startsWith('MCB') ||
+      nameUpper.startsWith('BTCB') ||
+      nameUpper.startsWith('FRC') ||
+      nameUpper.startsWith('RCC') ||
+      nameUpper.includes('COVERBLOCK') ||
+      nameUpper.includes('COVER BLOCK') ||
+      nameUpper.includes('FRC COVER') ||
+      nameUpper.includes('RCC PIPE') ||
+      skuUpper.startsWith('WCB') ||
+      skuUpper.startsWith('PCB') ||
+      skuUpper.startsWith('FRC') ||
+      skuUpper.startsWith('RCC');
+
+    const dispatchCategory = prodDispatchCat || (isTrading ? 'D2' : 'D1');
     const dispatchStatus = data.dispatchStatus || (data.deliveredAt ? 'Delivered' : data.dispatchDate ? 'In Transit' : 'Pending Dispatch');
 
     return {
@@ -98,6 +127,10 @@ export class SamplesController {
       deliveredDate: data.deliveredAt,
       sampleItems: data.items,
       products: data.items,
+      category: prodCategory,
+      productType: prodType || (isTrading ? 'TRADING' : 'MANUFACTURING'),
+      dispatchCategory,
+      isTrading,
     };
   }
 

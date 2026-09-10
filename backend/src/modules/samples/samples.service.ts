@@ -217,7 +217,7 @@ export class SamplesService {
         include: {
           items: {
             include: {
-              product: { select: { id: true, name: true, sku: true } },
+              product: { select: { id: true, name: true, sku: true, category: true, productType: true, dispatchCategory: true } },
             },
           },
           salesExecutive: { select: { id: true, name: true, email: true } },
@@ -257,7 +257,7 @@ export class SamplesService {
         salesExecutive: { select: { id: true, name: true, email: true } },
         items: {
           include: {
-            product: { select: { id: true, name: true, sku: true } },
+            product: { select: { id: true, name: true, sku: true, category: true, productType: true, dispatchCategory: true } },
           },
         },
         lead: {
@@ -295,7 +295,7 @@ export class SamplesService {
         salesExecutive: { select: { id: true, name: true, email: true } },
         items: {
           include: {
-            product: { select: { id: true, name: true, sku: true } },
+            product: { select: { id: true, name: true, sku: true, category: true, productType: true, dispatchCategory: true } },
           },
         },
         lead: {
@@ -329,7 +329,7 @@ export class SamplesService {
           salesExecutive: { select: { id: true, name: true, email: true } },
           items: {
             include: {
-              product: { select: { id: true, name: true, sku: true } },
+              product: { select: { id: true, name: true, sku: true, category: true, productType: true, dispatchCategory: true } },
             },
           },
           lead: {

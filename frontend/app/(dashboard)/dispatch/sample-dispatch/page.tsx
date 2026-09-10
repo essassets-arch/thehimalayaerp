@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
   PackageOpen,
@@ -20,9 +20,11 @@ import {
   FileCheck,
   ExternalLink,
   Eye,
+  ShieldCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { backendFetch } from '@/lib/backendFetch';
+import { isTradingProduct, getDispatchCategory } from '@/shared/utils/dispatchCategory';
 import {
   DispatchPageShell,
   DispatchPageHeader,
@@ -48,11 +50,20 @@ interface SampleDispatchItem {
   driverName?: string;
   dispatchDate?: string;
   proofOfDelivery?: string;
+  category?: string;
+  productType?: string;
+  dispatchCategory?: string;
+  isTrading?: boolean;
 }
 
 function SampleDispatchListContent() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const isDispatch2 = pathname?.startsWith('/dispatch-2') || searchParams?.get('mode') === 'DISPATCH_2';
+  const basePath = isDispatch2 ? '/dispatch-2' : '/dispatch';
+  const targetCategory = isDispatch2 ? 'D2' : 'D1';
+
   const [filter, setFilter] = useState('pending');
   const [search, setSearch] = useState('');
   const [requests, setRequests] = useState<SampleDispatchItem[]>([]);
@@ -87,7 +98,13 @@ function SampleDispatchListContent() {
       const res = await backendFetch<any[]>('/api/backend/sales/samples', { cacheTtlMs: 0 });
       const dataArray = Array.isArray(res) ? res : (res as any)?.data || [];
 
-      const mappedList: SampleDispatchItem[] = dataArray.map((sample: any) => {
+      // Filter by Category: D1 (Manufacturing) vs D2 (Trading)
+      const categoryFiltered = dataArray.filter((sample: any) => {
+        const isTrading = isTradingProduct(sample);
+        return isDispatch2 ? isTrading : !isTrading;
+      });
+
+      const mappedList: SampleDispatchItem[] = categoryFiltered.map((sample: any) => {
         const rawStatus = String(sample.status || '').toUpperCase();
         const rawDispatch = String(sample.dispatchStatus || '').toUpperCase();
 
@@ -157,6 +174,9 @@ function SampleDispatchListContent() {
           sample.customer?.address ||
           'See Lead/Customer address';
 
+        const isTrading = isTradingProduct(sample);
+        const dispatchCategory = sample.dispatchCategory || (isTrading ? 'D2' : 'D1');
+
         return {
           id: `req-${sample.id}`,
           cleanId: sample.id,
@@ -174,6 +194,10 @@ function SampleDispatchListContent() {
           driverName: sample.driverName || sample.dispatchDetails?.driverName,
           dispatchDate: sample.dispatchDate || sample.dispatchDetails?.dispatchDate,
           proofOfDelivery: sample.proofOfDelivery || sample.podImage || sample.dispatchDetails?.proofOfDelivery || undefined,
+          category: sample.category || primaryItem?.product?.category,
+          productType: sample.productType || primaryItem?.product?.productType,
+          dispatchCategory,
+          isTrading,
         };
       });
 
@@ -188,11 +212,11 @@ function SampleDispatchListContent() {
 
   useEffect(() => {
     void loadSamples();
-  }, []);
+  }, [isDispatch2]);
 
   const setUrlFilter = (newFilter: string) => {
     setFilter(newFilter);
-    router.push(`/dispatch/sample-dispatch?status=${newFilter}`);
+    router.push(`${basePath}/sample-dispatch?status=${newFilter}`);
   };
 
   // State transitions: Directly confirm delivery
@@ -317,9 +341,11 @@ function SampleDispatchListContent() {
     <DispatchPageShell>
       {/* ── Page Header ── */}
       <DispatchPageHeader
-        title="Sample Dispatch & Logistics"
-        description="Manage commercial sample dispatch pipelines, driver assignments, vehicle consignments, and live delivery proofs."
-        eyebrow="Logistics Operations"
+        title={isDispatch2 ? "Sample Dispatch & Logistics (Trading Products)" : "Sample Dispatch & Logistics (Manufacturing Products)"}
+        description={isDispatch2 
+          ? "Manage commercial sample dispatch pipelines, driver assignments, vehicle consignments, and live delivery proofs for Sahad (Trading / D2) products." 
+          : "Manage commercial sample dispatch pipelines, driver assignments, vehicle consignments, and live delivery proofs for Factory (Manufacturing / D1) products."}
+        eyebrow={isDispatch2 ? "Sahad Dispatch · Category 2" : "Factory Dispatch · Category 1"}
         icon={PackageOpen}
         stats={[
           {
@@ -541,7 +567,7 @@ function SampleDispatchListContent() {
             </button>
 
             <Link
-              href="/dispatch/sample-dispatch/create/new"
+              href={`${basePath}/sample-dispatch/create/new`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -675,7 +701,7 @@ function SampleDispatchListContent() {
                           {req.status === 'pending' && (
                             <button
                               type="button"
-                              onClick={() => router.push(`/dispatch/sample-dispatch/create/${req.id}`)}
+                              onClick={() => router.push(`${basePath}/sample-dispatch/create/${req.id}`)}
                               style={{
                                 background: req.isReturn ? '#dc2626' : '#2563eb',
                                 color: '#ffffff',
@@ -903,7 +929,7 @@ function SampleDispatchListContent() {
                   {req.status === 'pending' && (
                     <button
                       type="button"
-                      onClick={() => router.push(`/dispatch/sample-dispatch/create/${req.id}`)}
+                      onClick={() => router.push(`${basePath}/sample-dispatch/create/${req.id}`)}
                       style={{
                         width: '100%',
                         background: req.isReturn ? '#dc2626' : '#2563eb',

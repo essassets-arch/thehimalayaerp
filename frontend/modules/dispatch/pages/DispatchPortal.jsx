@@ -20,11 +20,15 @@ import { PlusCircle, Box, Truck, ClipboardList, FlaskConical, ArrowRight, X, Fil
 import DispatchBillModal from '../../../shared/components/DispatchBillModal';
 import ReturnsPortal from './ReturnsPortal';
 import { backendFetch } from '../../../lib/backendFetch';
+import { isTradingProduct } from '../../../shared/utils/dispatchCategory';
 import FinishedGoodsStockView from '@/components/FinishedGoodsStockView';
 import DailyReportEntryView from '../../production/components/DailyReportEntryView';
 import DailyReportHistoryView from '../../production/components/DailyReportHistoryView';
 import DailyReportPrintView from '../../production/components/DailyReportPrintView';
 
+/**
+ * @param {{ view?: string, overrideBasePath?: string, mode?: string, [key: string]: any }} [props]
+ */
 export default function DispatchPortal({ view: propView, overrideBasePath, mode = 'DISPATCH_1' } = {}) {
   const params = useParams();
   const pathname = usePathname();
@@ -2532,16 +2536,20 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
 
   const renderSampleDispatch = () => {
     const samples = state.sales?.samples || [];
+    const userDispatchCat = isDispatch2Portal ? 'D2' : 'D1';
+    const categorizedSamples = samples.filter(sample => {
+      return userDispatchCat === 'D2' ? isTradingProduct(sample) : !isTradingProduct(sample);
+    });
 
-    // ΓöÇΓöÇ Helper to read file as base64 ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Helper to read file as base64 ──────────────────────────────────────────
     const readFileAsBase64 = (file, setter) => {
       const reader = new FileReader();
       reader.onloadend = () => setter(reader.result);
       reader.readAsDataURL(file);
     };
 
-    // ΓöÇΓöÇ Filter by dispatch_status using the new column ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-    const filteredSamples = samples.filter(sample => {
+    // ── Filter by dispatch_status using the new column ──────────────────────
+    const filteredSamples = categorizedSamples.filter(sample => {
       if (sampleFilter === 'Retrievals') return sample.retrievalStatus && sample.retrievalStatus !== 'None';
       if (sampleFilter === 'All') return true;
       if (sampleFilter === 'Pending Dispatch') return sample.dispatchStatus === 'Pending Dispatch' || (!sample.dispatchStatus && !sample.dispatchDate);
@@ -2550,7 +2558,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       return true;
     });
 
-    // ΓöÇΓöÇ Show inline Retrieval form ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Show inline Retrieval form ──────────────────────────────────────────
     if (activeRetrievalSample) {
       return (
         <div className="app-card" style={{ maxWidth: '960px', margin: '0 auto' }}>
@@ -2580,7 +2588,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       );
     }
 
-    // ΓöÇΓöÇ Show inline Dispatch Form ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Show inline Dispatch Form ──────────────────────────────────────────
     if (activeSampleDispatch) {
       return (
         <div className="app-card" style={{ maxWidth: '960px', margin: '0 auto' }}>
@@ -2636,7 +2644,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       );
     }
 
-    // ΓöÇΓöÇ Show inline Delivery Confirmation Form ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Show inline Delivery Confirmation Form ──────────────────────────────────────────
     if (activeSampleDelivery) {
       return (
         <div className="app-card" style={{ maxWidth: '960px', margin: '0 auto' }}>
@@ -2710,7 +2718,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       );
     }
 
-    // ΓöÇΓöÇ Return Dispatch Form View (if active) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // ── Return Dispatch Form View (if active) ──────────────────────────────────────────
     if (activeReturnDispatchSample) {
       return (
         <div className="app-card" style={{ maxWidth: '850px', margin: '0 auto', padding: '24px', border: '2px solid var(--color-primary)', borderRadius: '16px' }}>
@@ -3859,30 +3867,34 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
 
   const renderReplacementDispatch = () => {
     const replacementFilter = dispatchStatusParam || 'pending';
+    const userDispatchCat = isDispatch2Portal ? 'D2' : 'D1';
+    const categorizedDispatches = replacementDispatches.filter(row => {
+      return userDispatchCat === 'D2' ? isTradingProduct(row) : !isTradingProduct(row);
+    });
 
-    const pendingList = replacementDispatches.filter(row => {
+    const pendingList = categorizedDispatches.filter(row => {
       const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
       return status !== 'DISPATCHED' && status !== 'IN TRANSIT' && status !== 'DELIVERED';
     });
 
-    const inTransitList = replacementDispatches.filter(row => {
+    const inTransitList = categorizedDispatches.filter(row => {
       const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
       return status === 'DISPATCHED';
     });
 
-    const deliveredList = replacementDispatches.filter(row => {
+    const deliveredList = categorizedDispatches.filter(row => {
       const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
       return status === 'IN TRANSIT' || status === 'OUT FOR DELIVERY';
     });
 
-    const historyList = replacementDispatches.filter(row => {
+    const historyList = categorizedDispatches.filter(row => {
       const status = String(row.dispatch_status || row.status || '').toUpperCase().replace(/[_-]/g, ' ');
       return status === 'DELIVERED' || status === 'COMPLETED';
     });
 
     let filteredReplacementDispatches = [];
     if (replacementFilter === 'all' || replacementFilter === 'history') {
-      filteredReplacementDispatches = replacementDispatches;
+      filteredReplacementDispatches = categorizedDispatches;
     } else if (replacementFilter === 'delivered') {
       filteredReplacementDispatches = deliveredList;
     } else if (replacementFilter === 'in-transit') {
@@ -3896,12 +3908,16 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
         {/* Header Title */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
-              <ShieldCheck size={14} /> Replacement Logistics &amp; Fulfillment
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: isDispatch2Portal ? '#fef3c7' : '#eff6ff', color: isDispatch2Portal ? '#d97706' : '#2563eb', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
+              <ShieldCheck size={14} /> {isDispatch2Portal ? 'Sahad Dispatch · Category 2 (Trading Products)' : 'Factory Dispatch · Category 1 (Manufacturing Products)'}
             </div>
-            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: 'var(--color-text-primary)' }}>Replacement Dispatch Queue</h2>
+            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: 'var(--color-text-primary)' }}>
+              {isDispatch2Portal ? 'Replacement Dispatch Queue (Trading)' : 'Replacement Dispatch Queue (Manufacturing)'}
+            </h2>
             <p style={{ margin: '4px 0 0', color: 'var(--color-text-secondary)', fontSize: '13px' }}>
-              Manage approved customer replacements, create transport bookings with LR numbers, and verify proof of delivery.
+              {isDispatch2Portal 
+                ? 'Manage approved customer replacements, create transport bookings with LR numbers, and verify proof of delivery for Sahad Trading items.'
+                : 'Manage approved customer replacements, create transport bookings with LR numbers, and verify proof of delivery for Factory Manufacturing items.'}
             </p>
           </div>
           <button
@@ -3933,7 +3949,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             { id: 'pending', label: 'Pending Dispatch', count: pendingList.length },
             { id: 'in-transit', label: 'In Transit', count: inTransitList.length },
             { id: 'delivered', label: 'Out for Delivery / POD', count: deliveredList.length },
-            { id: 'history', label: 'All History', count: replacementDispatches.length },
+            { id: 'history', label: 'All History', count: categorizedDispatches.length },
           ].map((tab) => {
             const isActive = (dispatchStatusParam || 'pending') === tab.id;
             return (
@@ -4324,7 +4340,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       {currentView === 'history' && <div data-testid="dispatch-history-view" className="sales-portal-view">{renderDispatchHistory()}</div>}
       {currentView === 'sample-dispatch' && <div data-testid="dispatch-sample-view" className="sales-portal-view">{renderSampleDispatch()}</div>}
       {currentView === 'replacements' && <div data-testid="dispatch-replacements-view" className="sales-portal-view">{renderReplacementDispatch()}</div>}
-      {currentView === 'returns' && <div data-testid="dispatch-returns-view" className="sales-portal-view"><ReturnsPortal /></div>}
+      {currentView === 'returns' && <div data-testid="dispatch-returns-view" className="sales-portal-view"><ReturnsPortal overrideBasePath={basePath} mode={mode} /></div>}
       {currentView === 'reports' && <div data-testid="dispatch-reports-view" className="sales-portal-view">{renderReports()}</div>}
       {currentView === 'partial' && <div data-testid="dispatch-partial-view" className="sales-portal-view">{renderPartialDispatch()}</div>}
       {currentView === 'remaining' && <div data-testid="dispatch-remaining-view" className="sales-portal-view">{renderRemainingDispatch()}</div>}

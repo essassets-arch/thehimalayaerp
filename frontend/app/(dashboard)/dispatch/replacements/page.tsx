@@ -6,7 +6,7 @@ import DispatchPortal from '@/modules/dispatch/pages/DispatchPortal';
 export default function DispatchReplacementsPage() {
   return (
     <div className="w-full pb-12 pt-1 px-1 max-w-[1600px] mx-auto">
-      <DispatchPortal />
+      <DispatchPortal view="replacements" overrideBasePath="/dispatch" mode="DISPATCH_1" />
     </div>
   );
 }

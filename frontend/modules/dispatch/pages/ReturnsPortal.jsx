@@ -4,8 +4,9 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { CheckCircle2, Clock, Eye, Search, Truck, X, UploadCloud, Calendar, User, FileText, AlertCircle, ArrowRight, ShieldCheck, Image as ImageIcon, Trash2, PackageCheck, Loader2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { backendFetch } from '../../../lib/backendFetch';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { returnTabs } from '../../../store/domains/dispatch/dispatchSelectors';
+import { isTradingProduct } from '../../../shared/utils/dispatchCategory';
 
 const statusColors = {
   RETURN_REQUESTED: ['#FEF3C7', '#D97706'],
@@ -22,9 +23,15 @@ const STATUS_TAB_MAP = {
   delivered: 'received',
 };
 
-export default function ReturnsPortal() {
+/**
+ * @param {{ overrideBasePath?: string, mode?: string, [key: string]: any }} [props]
+ */
+export default function ReturnsPortal({ overrideBasePath, mode = 'DISPATCH_1' } = {}) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const isDispatch2Portal = overrideBasePath === '/dispatch-2' || pathname?.startsWith('/dispatch-2') || mode === 'DISPATCH_2';
+  const basePath = overrideBasePath ?? (isDispatch2Portal ? '/dispatch-2' : '/dispatch');
   const initialStatusTab = STATUS_TAB_MAP[searchParams?.get('status')];
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +72,9 @@ export default function ReturnsPortal() {
   };
 
   const rows = useMemo(() => requests
+    .filter((request) => {
+      return isDispatch2Portal ? isTradingProduct(request) : !isTradingProduct(request);
+    })
     .map((request) => {
       const rawOrderNo = request.salesOrder?.orderNumber || request.salesOrder?.orderNo || request.orderNumber || request.orderNo;
       return {
@@ -113,11 +123,16 @@ export default function ReturnsPortal() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: isDispatch2Portal ? '#fef3c7' : '#eff6ff', color: isDispatch2Portal ? '#d97706' : '#2563eb', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 800, marginBottom: '6px' }}>
+            <ShieldCheck size={14} /> {isDispatch2Portal ? 'Sahad Dispatch · Category 2 (Trading Products)' : 'Factory Dispatch · Category 1 (Manufacturing Products)'}
+          </div>
           <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: 'var(--color-text-primary, #0F172A)' }}>
-            Return Pickup & History
+            {isDispatch2Portal ? 'Return Pickup & History (Trading Products)' : 'Return Pickup & History (Manufacturing Products)'}
           </h2>
           <p style={{ margin: '4px 0 0', color: 'var(--color-text-secondary, #64748B)', fontSize: '13px' }}>
-            Coordinate reverse logistics, track driver pickups, and confirm factory receipts with delivery proof.
+            {isDispatch2Portal
+              ? 'Coordinate reverse logistics, track driver pickups, and confirm warehouse receipts for Sahad Trading items (Coverblocks, FRC, RCC).'
+              : 'Coordinate reverse logistics, track driver pickups, and confirm factory receipts for Factory Manufacturing items (FRP covers, gratings).'}
           </p>
         </div>
         <button
@@ -170,7 +185,7 @@ export default function ReturnsPortal() {
                   const query = new URLSearchParams(searchParams?.toString() || '');
                   query.delete('status');
                   query.set('tab', tab.key);
-                  router.replace(`/dispatch/returns?${query.toString()}`, { scroll: false });
+                  router.replace(`${basePath}/returns?${query.toString()}`, { scroll: false });
                 }}
                 style={{
                   padding: '8px 14px',

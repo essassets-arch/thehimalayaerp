@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useId, useMemo } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Truck,
@@ -20,11 +20,15 @@ import {
   Check,
 } from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
+import { isTradingProduct } from '@/shared/utils/dispatchCategory';
 import styles from './create-sample.module.css';
 
 export default function CreateSampleDispatchPage() {
   const router = useRouter();
   const params = useParams();
+  const pathname = usePathname();
+  const isDispatch2 = pathname?.startsWith('/dispatch-2');
+  const basePath = isDispatch2 ? '/dispatch-2' : '/dispatch';
   const rawId = (params?.id as string) || 'new';
 
   const isNew = rawId === 'new';
@@ -131,14 +135,16 @@ export default function CreateSampleDispatchPage() {
         try {
           const res = await backendFetch<any[]>('/api/backend/sales/samples', { cacheTtlMs: 0 });
           const dataArray = Array.isArray(res) ? res : (res as any)?.data || [];
-          const pending = dataArray.filter(
-            (s: any) =>
-              s.status === 'CREATED' ||
-              s.status === 'PENDING' ||
-              s.status === 'PENDING_DISPATCH' ||
-              s.status === 'RETURN_REQUESTED' ||
-              s.dispatchStatus === 'Pending Dispatch'
-          );
+          const pending = dataArray
+            .filter((s: any) => (isDispatch2 ? isTradingProduct(s) : !isTradingProduct(s)))
+            .filter(
+              (s: any) =>
+                s.status === 'CREATED' ||
+                s.status === 'PENDING' ||
+                s.status === 'PENDING_DISPATCH' ||
+                s.status === 'RETURN_REQUESTED' ||
+                s.dispatchStatus === 'Pending Dispatch'
+            );
           setPendingSamplesList(pending);
         } catch (e) {
           console.warn('Failed to fetch pending samples:', e);
@@ -374,7 +380,7 @@ export default function CreateSampleDispatchPage() {
           ? 'Return pick-up consignment confirmed & marked In Transit!'
           : 'Sample Dispatch consignment booked successfully and moved to In Transit!'
       );
-      router.push('/dispatch/sample-dispatch?status=in-transit');
+      router.push(`${basePath}/sample-dispatch?status=in-transit`);
     } catch (err: any) {
       console.error(err);
       toast.error(err?.message || 'Failed to record sample dispatch');
@@ -417,7 +423,7 @@ export default function CreateSampleDispatchPage() {
             <button
               type="button"
               className={styles.btnCancel}
-              onClick={() => router.push('/dispatch/sample-dispatch')}
+              onClick={() => router.push(`${basePath}/sample-dispatch`)}
               style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#fff', borderColor: 'rgba(255, 255, 255, 0.2)' }}
             >
               <ArrowLeft size={16} style={{ display: 'inline', marginRight: 6 }} />
@@ -815,7 +821,7 @@ export default function CreateSampleDispatchPage() {
           <button
             type="button"
             className={styles.btnCancel}
-            onClick={() => router.push('/dispatch/sample-dispatch')}
+            onClick={() => router.push(`${basePath}/sample-dispatch`)}
             disabled={submitting}
           >
             Cancel
