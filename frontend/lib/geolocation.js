@@ -15,18 +15,6 @@ export async function getCurrentDeviceLocation(options = {}) {
     throw new Error('Geolocation is not available in server context.');
   }
 
-  // 1. Proactively trigger native Flutter APK permission prompt if running in InAppWebView
-  const w = window;
-  if (w.flutter_inappwebview && typeof w.flutter_inappwebview.callHandler === 'function') {
-    try {
-      await w.flutter_inappwebview.callHandler('requestLocation');
-    } catch (_) {}
-  }
-
-  if (!('geolocation' in navigator)) {
-    throw new Error('Geolocation is not supported by your browser.');
-  }
-
   const isTest = typeof window !== 'undefined' && window.__PLAYWRIGHT_TEST__;
   const maxAge = isTest ? 60000 : (options?.maxAgeSeconds ? options.maxAgeSeconds * 1000 : 0);
 
@@ -48,33 +36,90 @@ export async function getCurrentDeviceLocation(options = {}) {
   };
 
   const formatError = (err) => {
+    console.log('[Location] final failure:', err?.code || err);
+    if (err && (err.code === 'LOCATION_SERVICES_DISABLED' || err.message === 'LOCATION_SERVICES_DISABLED')) {
+      return new Error('Location services are turned off. Please enable Location/GPS and try again.');
+    }
     if (err && err.code === 1) {
-      return new Error('Location permission was denied. Please allow location access in your device/app settings and try again.');
+      return new Error('Location permission was denied. Please allow location access and try again.');
     }
     if (err && err.code === 2) {
-      return new Error('Unable to determine your current location. Please turn on Location/GPS on your device and try again.');
+      return new Error('Unable to determine your current location. Please check Location/GPS and try again.');
     }
     if (err && err.code === 3) {
-      return new Error('Location request timed out. Please ensure Location/GPS is enabled and try again.');
+      return new Error('Location request timed out. Please try again.');
     }
-    return new Error(err?.message || 'Unable to determine your current location. Please turn on Location/GPS on your device and try again.');
+    return new Error(err?.message || 'Unable to determine your current location. Please check Location/GPS and try again.');
   };
+
+  // 1. Proactively inspect and utilize native Android APK bridge if available
+  const w = window;
+  if (w.flutter_inappwebview && typeof w.flutter_inappwebview.callHandler === 'function') {
+    console.log('[Location] native bridge detected');
+    console.log('[Location] requesting native permission');
+    try {
+      const bridgeRes = await w.flutter_inappwebview.callHandler('requestLocation');
+      console.log('[Location] native location result:', bridgeRes);
+      if (bridgeRes) {
+        console.log('[Location] permission status:', bridgeRes.status || bridgeRes.granted);
+        console.log('[Location] location services status:', bridgeRes.serviceEnabled);
+
+        if (bridgeRes.serviceEnabled === false) {
+          throw formatError({ code: 'LOCATION_SERVICES_DISABLED' });
+        }
+
+        if (bridgeRes.granted === false || bridgeRes.status === 'denied' || bridgeRes.status === 'permanentlyDenied') {
+          throw formatError({ code: 1 });
+        }
+
+        if (bridgeRes.latitude != null && bridgeRes.longitude != null && !isNaN(Number(bridgeRes.latitude)) && !isNaN(Number(bridgeRes.longitude))) {
+          const lat = Number(bridgeRes.latitude);
+          const lng = Number(bridgeRes.longitude);
+          const accuracy = bridgeRes.accuracy != null ? Number(bridgeRes.accuracy) : 15;
+          console.log('[Location] latitude:', lat);
+          console.log('[Location] longitude:', lng);
+          console.log('[Location] accuracy:', accuracy);
+
+          return formatResult({
+            coords: {
+              latitude: lat,
+              longitude: lng,
+              accuracy: accuracy
+            },
+            timestamp: Date.now()
+          });
+        }
+      }
+    } catch (bridgeErr) {
+      if (bridgeErr && (bridgeErr.message?.includes('Location services are turned off') || bridgeErr.message?.includes('Location permission was denied'))) {
+        throw bridgeErr;
+      }
+      console.warn('[Location] native bridge call warning:', bridgeErr);
+    }
+  }
+
+  if (!('geolocation' in navigator)) {
+    throw new Error('Geolocation is not supported by your browser.');
+  }
+
+  console.log('[Location] browser geolocation started');
 
   return new Promise((resolve, reject) => {
     // STAGE 1: High accuracy GPS
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve(formatResult(pos)),
       (err) => {
+        console.log('[Location] high accuracy failed:', err?.code, err?.message);
         // Fallback to STAGE 2 for POSITION_UNAVAILABLE (2) or TIMEOUT (3).
         // DO NOT fallback for PERMISSION_DENIED (1).
         if (err && (err.code === 2 || err.code === 3)) {
-          console.warn('[geolocation] High accuracy GPS timed out or unavailable, retrying with standard network accuracy (Stage 2)...');
+          console.log('[Location] standard accuracy fallback started');
           navigator.geolocation.getCurrentPosition(
             (pos2) => resolve(formatResult(pos2)),
             (err2) => reject(formatError(err2)),
             {
               enableHighAccuracy: false,
-              timeout: 10000,
+              timeout: 15000,
               maximumAge: isTest ? 60000 : 30000
             }
           );

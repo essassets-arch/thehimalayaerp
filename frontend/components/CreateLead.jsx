@@ -483,12 +483,53 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
     setLocationStatus('locating');
 
-    // 1. If running inside mobile APK wrapper, proactively trigger native Android permission prompt
+    let nativeCoordsAcquired = false;
+
+    // 1. Proactively inspect and utilize native Android APK bridge if available
     if (typeof window !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+      console.log('[Location] native bridge detected');
+      console.log('[Location] requesting native permission');
       try {
-        await window.flutter_inappwebview.callHandler('requestLocation');
+        const bridgeRes = await window.flutter_inappwebview.callHandler('requestLocation');
+        console.log('[Location] native location result:', bridgeRes);
+        if (bridgeRes) {
+          console.log('[Location] permission status:', bridgeRes.status || bridgeRes.granted);
+          console.log('[Location] location services status:', bridgeRes.serviceEnabled);
+
+          // Check if Location Services are disabled on Android device
+          if (bridgeRes.serviceEnabled === false) {
+            handleFinalError({ code: 'LOCATION_SERVICES_DISABLED' });
+            return;
+          }
+
+          // Check if runtime permission was denied
+          if (bridgeRes.granted === false || bridgeRes.status === 'denied' || bridgeRes.status === 'permanentlyDenied') {
+            handleFinalError({ code: 1 }); // PERMISSION_DENIED
+            return;
+          }
+
+          // Check if native bridge directly provided valid Android device coordinates
+          if (bridgeRes.latitude != null && bridgeRes.longitude != null && !isNaN(Number(bridgeRes.latitude)) && !isNaN(Number(bridgeRes.longitude))) {
+            const lat = Number(bridgeRes.latitude);
+            const lng = Number(bridgeRes.longitude);
+            const accuracy = bridgeRes.accuracy != null ? Number(bridgeRes.accuracy) : 15;
+            console.log('[Location] latitude:', lat);
+            console.log('[Location] longitude:', lng);
+            console.log('[Location] accuracy:', accuracy);
+
+            nativeCoordsAcquired = true;
+            await onPositionSuccess({
+              coords: {
+                latitude: lat,
+                longitude: lng,
+                accuracy: accuracy
+              }
+            });
+            return;
+          }
+        }
       } catch (bridgeErr) {
-        console.warn('[APK Bridge] requestLocation warning:', bridgeErr);
+        console.warn('[Location] native bridge call warning:', bridgeErr);
       }
     }
 
@@ -626,14 +667,17 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
     };
 
     const handleFinalError = (error) => {
+      console.log('[Location] final failure:', error?.code || error);
       setLocationStatus('idle');
-      let errorMsg = 'Unable to determine your current location. Please turn on Location/GPS on your device and try again.';
-      if (error && error.code === 1) { // PERMISSION_DENIED
-        errorMsg = 'Location permission was denied. Please allow location access in your device/app settings and try again.';
+      let errorMsg = 'Unable to determine your current location. Please check Location/GPS and try again.';
+      if (error && (error.code === 'LOCATION_SERVICES_DISABLED' || error.message === 'LOCATION_SERVICES_DISABLED')) {
+        errorMsg = 'Location services are turned off. Please enable Location/GPS and try again.';
+      } else if (error && error.code === 1) { // PERMISSION_DENIED
+        errorMsg = 'Location permission was denied. Please allow location access and try again.';
       } else if (error && error.code === 2) { // POSITION_UNAVAILABLE
-        errorMsg = 'Unable to determine your current location. Please turn on Location/GPS on your device and try again.';
+        errorMsg = 'Unable to determine your current location. Please check Location/GPS and try again.';
       } else if (error && error.code === 3) { // TIMEOUT
-        errorMsg = 'Location request timed out. Please ensure Location/GPS is enabled and try again.';
+        errorMsg = 'Location request timed out. Please try again.';
       }
 
       Swal.fire({
@@ -646,20 +690,23 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
     const isTest = typeof window !== 'undefined' && window.__PLAYWRIGHT_TEST__;
 
+    console.log('[Location] browser geolocation started');
+
     // STAGE 1: Request high-accuracy location
     navigator.geolocation.getCurrentPosition(
       onPositionSuccess,
       (error) => {
+        console.log('[Location] high accuracy failed:', error?.code, error?.message);
         // Fallback to STAGE 2 for POSITION_UNAVAILABLE (2) or TIMEOUT (3).
         // DO NOT fallback for PERMISSION_DENIED (1).
         if (error && (error.code === 2 || error.code === 3)) {
-          console.warn('High accuracy GPS timed out or unavailable, retrying with standard network accuracy (Stage 2)...');
+          console.log('[Location] standard accuracy fallback started');
           navigator.geolocation.getCurrentPosition(
             onPositionSuccess,
             handleFinalError,
             {
               enableHighAccuracy: false,
-              timeout: 10000,
+              timeout: 15000,
               maximumAge: isTest ? 60000 : 30000
             }
           );
