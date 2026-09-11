@@ -718,8 +718,16 @@ export default function OrdersView({
     return parts.join(', ') || '';
   };
 
-  const clientAddress = clientLead ? renderAddress(clientLead.address) : (clientCustomer ? clientCustomer.address : 'Andheri, Mumbai (Default Address)');
-  const clientGST = clientLead?.gstNumber || '27ABCDE4321G2Z8';
+  const clientAddress = clientLead
+    ? renderAddress(clientLead.address)
+    : (clientCustomer
+      ? renderAddress(clientCustomer.billingAddress || clientCustomer.shippingAddress || clientCustomer.address)
+      : (currentDetailsOrder?.deliveryAddress || currentDetailsOrder?.customerAddress || 'Address Not Specified'));
+
+  const rawClientGst = clientLead?.gstNumber || clientCustomer?.gstin || clientCustomer?.gst || currentDetailsOrder?.gstin || currentDetailsOrder?.customerGst;
+  const clientGST = (rawClientGst && String(rawClientGst).trim().toUpperCase() !== '27ABCDE4321G2Z8' && !/^\d{1,2}%?$/.test(String(rawClientGst).trim()))
+    ? String(rawClientGst).trim()
+    : 'Unregistered / Non-GST';
 
   const formatINR = (value) => {
     const num = Number(value);

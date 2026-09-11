@@ -55,35 +55,28 @@ export class LocationService {
     companyId: string,
     dto: CreateDeviceSessionDto,
   ): Promise<{ sessionId: string }> {
-    const existing = await this.prisma.deviceSession.findFirst({
-      where: {
-        userId,
-        deviceId: dto.deviceId,
-      },
-    });
-
     const now = new Date();
 
-    if (existing) {
-      const updated = await this.prisma.deviceSession.update({
-        where: { id: existing.id },
-        data: {
-          deviceType: dto.deviceType,
-          deviceModel: dto.deviceModel,
-          operatingSystem: dto.operatingSystem,
-          browser: dto.browser,
-          clientType: dto.clientType || 'WEB',
-          locationPermission:
-            dto.locationPermission || existing.locationPermission,
-          lastSeenAt: now,
-          connectedAt: now,
+    const session = await this.prisma.deviceSession.upsert({
+      where: {
+        userId_deviceId: {
+          userId,
+          deviceId: dto.deviceId,
         },
-      });
-      return { sessionId: updated.sessionId };
-    }
-
-    const created = await this.prisma.deviceSession.create({
-      data: {
+      },
+      update: {
+        deviceType: dto.deviceType,
+        deviceModel: dto.deviceModel,
+        operatingSystem: dto.operatingSystem,
+        browser: dto.browser,
+        clientType: dto.clientType || 'WEB',
+        ...(dto.locationPermission
+          ? { locationPermission: dto.locationPermission }
+          : {}),
+        lastSeenAt: now,
+        connectedAt: now,
+      },
+      create: {
         companyId,
         userId,
         deviceId: dto.deviceId,
@@ -98,7 +91,7 @@ export class LocationService {
       },
     });
 
-    return { sessionId: created.sessionId };
+    return { sessionId: session.sessionId };
   }
 
   /**

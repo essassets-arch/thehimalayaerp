@@ -470,13 +470,22 @@ export default function ProductionFloorPage() {
       total: Number(job.quantity || 1) * 2500
     }));
 
+    const rawSO = group.matchedSalesOrder || (group.items[0] as any)?.matchedSalesOrder || (group.items[0] as any)?.productionPlan?.salesOrder;
+    const cust = rawSO?.customer;
+
     const mapped = {
       orderNo: group.salesOrderNumber,
       customerName: group.customerName,
+      customer: cust || { companyName: group.customerName },
+      billingAddress: rawSO?.billingAddress || cust?.billingAddress,
+      shippingAddress: rawSO?.shippingAddress || cust?.shippingAddress,
+      address: rawSO?.billingAddress || cust?.billingAddress || rawSO?.shippingAddress || cust?.shippingAddress,
+      gstin: cust?.gstin || rawSO?.customerGstin || rawSO?.gstin,
       date: new Date().toLocaleDateString('en-GB'),
       status: activeTab === 'HISTORY' ? 'QC Pending' : 'In Production',
       productionStatus: activeTab === 'HISTORY' ? 'QC Pending' : 'In Production',
       dispatchStatus: 'Pending',
+      rawSalesOrder: rawSO,
       items: itemsList
     };
     setSelectedOrderForModal(mapped);
@@ -485,15 +494,23 @@ export default function ProductionFloorPage() {
   const handleOpenItemModal = (job: FloorWorkOrder) => {
     const rawSo = (job as any).resolvedSoNumber || job.productionPlan?.salesOrder?.orderNumber || job.workOrderNumber;
     const customerName = (job as any).resolvedCustomer || job.productionPlan?.salesOrder?.customer?.companyName || 'Standard Production';
+    const rawSO = (job as any).matchedSalesOrder || job.productionPlan?.salesOrder;
+    const cust = rawSO?.customer;
 
     const mapped = {
       ref: rawSo,
       orderNo: rawSo,
       customerName,
+      customer: cust || { companyName: customerName },
+      billingAddress: rawSO?.billingAddress || cust?.billingAddress,
+      shippingAddress: rawSO?.shippingAddress || cust?.shippingAddress,
+      address: rawSO?.billingAddress || cust?.billingAddress || rawSO?.shippingAddress || cust?.shippingAddress,
+      gstin: cust?.gstin || rawSO?.customerGstin || rawSO?.gstin,
       date: new Date().toLocaleDateString('en-GB'),
       status: job.status || 'In Production',
       productionStatus: job.status || 'In Production',
       dispatchStatus: 'Pending',
+      rawSalesOrder: rawSO,
       items: [
         {
           name: getProductName(job),

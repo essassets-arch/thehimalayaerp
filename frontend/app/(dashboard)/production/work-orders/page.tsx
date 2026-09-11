@@ -97,7 +97,7 @@ export default function WorkOrderListPage() {
     queryFn: async () => {
       const [woRes, soRes] = await Promise.allSettled([
         backendFetch<WorkOrder[]>('/api/backend/production/work-orders'),
-        backendFetch<any[]>('/api/backend/sales/orders?page=1&pageSize=200')
+        backendFetch<any[]>('/api/backend/sales/orders?page=1&pageSize=500')
       ]);
 
       const rawWorkOrders = woRes.status === 'fulfilled' && Array.isArray(woRes.value) ? woRes.value : [];
@@ -118,10 +118,13 @@ export default function WorkOrderListPage() {
             wo.orderNumber ||
             '';
 
-          const matchedSO = rawSalesOrders.find((so: any) =>
-            String(so.orderNumber || so.orderNo || so.id) === String(soNumber) ||
-            String(so.id) === String(wo.productionPlan?.salesOrderId)
-          );
+          const matchedSO =
+            wo.productionPlan?.salesOrder ||
+            wo.salesOrder ||
+            rawSalesOrders.find((so: any) =>
+              String(so.orderNumber || so.orderNo || so.id) === String(soNumber) ||
+              String(so.id) === String(wo.productionPlan?.salesOrderId)
+            );
 
           const customerName =
             wo.customerName ||
@@ -371,26 +374,44 @@ export default function WorkOrderListPage() {
       total: (wo.quantity || 1) * 2500
     }));
 
+    const rawSO = group.rawSalesOrder || (group.items[0] as any)?.matchedSalesOrder || (group.items[0] as any)?.productionPlan?.salesOrder;
+    const cust = rawSO?.customer;
+
     const mapped = {
       orderNo: group.salesOrderNumber,
       customerName: group.customerName,
+      customer: cust || { companyName: group.customerName },
+      billingAddress: rawSO?.billingAddress || cust?.billingAddress,
+      shippingAddress: rawSO?.shippingAddress || cust?.shippingAddress,
+      address: rawSO?.billingAddress || cust?.billingAddress || rawSO?.shippingAddress || cust?.shippingAddress,
+      gstin: cust?.gstin || rawSO?.customerGstin || rawSO?.gstin,
       date: group.targetDate,
       status: group.overallStatus === 'COMPLETED' ? 'Completed' : group.overallStatus === 'IN_PROGRESS' ? 'In Production' : 'Confirmed',
       productionStatus: group.overallStatus === 'COMPLETED' ? 'Completed' : group.overallStatus === 'IN_PROGRESS' ? 'In Production' : 'Pending',
       dispatchStatus: 'Pending',
+      rawSalesOrder: rawSO,
       items: itemsList
     };
     setSelectedOrderForModal(mapped);
   };
 
   const handleOpenItemModal = (wo: any) => {
+    const rawSO = wo.matchedSalesOrder || wo.productionPlan?.salesOrder;
+    const cust = rawSO?.customer;
+
     const mapped = {
       orderNo: wo.resolvedSoNumber || wo.workOrderNumber,
-      customerName: wo.resolvedCustomer || 'Standard Customer',
+      customerName: wo.resolvedCustomer || cust?.companyName || 'Standard Customer',
+      customer: cust || { companyName: wo.resolvedCustomer },
+      billingAddress: rawSO?.billingAddress || cust?.billingAddress,
+      shippingAddress: rawSO?.shippingAddress || cust?.shippingAddress,
+      address: rawSO?.billingAddress || cust?.billingAddress || rawSO?.shippingAddress || cust?.shippingAddress,
+      gstin: cust?.gstin || rawSO?.customerGstin || rawSO?.gstin,
       date: getDisplayDate(wo),
       status: wo.status || 'Active',
       productionStatus: wo.status || 'Active',
       dispatchStatus: 'Pending',
+      rawSalesOrder: rawSO,
       items: [
         {
           name: getProductName(wo),

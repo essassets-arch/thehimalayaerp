@@ -1,6 +1,9 @@
+import React, { useState, useEffect, useMemo } from 'react';
 import StatusBadge from './StatusBadge';
 import { CheckCircle, Box, Truck, PackageCheck, X } from 'lucide-react';
 import OrderTimeline from '../../components/OrderTimeline';
+import { useERPStore } from '../../store/erpStore';
+import { backendFetch } from '../../lib/backendFetch';
 
 export default function OrderDetailsModal({ order, role, onClose }) {
   if (!order) return null;
@@ -9,17 +12,166 @@ export default function OrderDetailsModal({ order, role, onClose }) {
   const isProduction = role === 'production' || role === 'plant';
 
   // Normalize data formats to support both top-level state data and custom format data
-  const orderRef = order.orderNo || order.ref || '';
-  const customerName = order.customerName || (order.customer && typeof order.customer === 'object' ? order.customer.name : order.customer) || '';
-  const date = order.date || order.orderDate || '2026-06-05';
+  const orderRef = order.orderNo || order.ref || order.salesOrderNumber || '';
+  const customerName = order.customerName || (order.customer && typeof order.customer === 'object' ? (order.customer.name || order.customer.companyName) : order.customer) || '';
+  const date = order.date || order.orderDate || (order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-GB') : '2026-06-05');
   
   const orderStatus = order.status || order.salesStatus || 'Pending';
   const productionStatus = order.productionStatus || 'Pending';
   const dispatchStatus = order.dispatchStatus || 'Pending';
 
-  // GST / Address fallback resolution
-  const gst = order.gst || (order.customer && typeof order.customer === 'object' ? order.customer.gst : '') || '27ABCDE4321G2Z8';
-  const address = (order.customer && typeof order.customer === 'object' ? order.customer.address : '') || 'Andheri, Mumbai (Default Address)';
+  // Global ERP store for cross-referencing customer / lead / order records
+  const erpState = useERPStore(s => s.state || s) || {};
+  const allOrders = useMemo(() => Array.isArray(erpState.orders) ? erpState.orders : [], [erpState.orders]);
+  const allCustomers = useMemo(() => Array.isArray(erpState.customers) ? erpState.customers : [], [erpState.customers]);
+  const allLeads = useMemo(() => Array.isArray(erpState.leads) ? erpState.leads : [], [erpState.leads]);
+
+  // Async data state in case caller only passed minimal order summary
+  const [asyncData, setAsyncData] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchFullDetails = async () => {
+      // If we already have explicit address and GST, no need for network lookup
+      if ((order.billingAddress || order.address || order.customer?.billingAddress) && (order.gstin || order.customer?.gstin)) {
+        return;
+      }
+      try {
+        if (orderRef) {
+          const res = await backendFetch(`/api/backend/sales/orders/lookup/by-number?orderNumber=${encodeURIComponent(orderRef)}`);
+          if (isMounted && res) {
+            setAsyncData(res);
+            return;
+          }
+        }
+      } catch {
+        // Soft fallback: silently continue with local store resolution
+      }
+    };
+    fetchFullDetails();
+    return () => { isMounted = false; };
+  }, [orderRef, order]);
+
+  // Address formatter
+  const resolveAddressString = (addr) => {
+    if (!addr) return '';
+    if (typeof addr === 'string') {
+      const trimmed = addr.trim();
+      if (!trimmed || trimmed.toLowerCase().includes('andheri, mumbai (default address)') || trimmed.toLowerCase() === 'andheri, mumbai') {
+        return '';
+      }
+      return trimmed;
+    }
+    if (typeof addr === 'object') {
+      const parts = [
+        addr.line1 || addr.addressLine1 || addr.street,
+        addr.line2 || addr.addressLine2,
+        addr.city || addr.district,
+        addr.state,
+        addr.country,
+        addr.pincode || addr.pinCode || addr.postalCode || addr.zipCode
+      ].filter(Boolean);
+      return parts.join(', ') || '';
+    }
+    return '';
+  };
+
+  // GSTIN formatter & validator
+  const resolveGstString = (val) => {
+    if (!val) return '';
+    const str = String(val).trim();
+    if (str.toUpperCase() === '27ABCDE4321G2Z8') return '';
+    if (/^\d{1,2}%?$/.test(str)) return ''; // tax rate e.g. 18 or 18%
+    return str;
+  };
+
+  const matchedCustomer = useMemo(() => {
+    return allCustomers.find(c =>
+      (c.id && (c.id === order.customerId || c.id === order.customer?.id)) ||
+      (c.name && customerName && c.name.toLowerCase() === customerName.toLowerCase()) ||
+      (c.companyName && customerName && c.companyName.toLowerCase() === customerName.toLowerCase())
+    );
+  }, [allCustomers, order, customerName]);
+
+  const matchedLead = useMemo(() => {
+    return allLeads.find(l =>
+      (l.id && (l.id === order.leadId || l.id === order.customer?.leadId)) ||
+      (l.companyName && customerName && l.companyName.toLowerCase() === customerName.toLowerCase())
+    );
+  }, [allLeads, order, customerName]);
+
+  const matchedOrder = useMemo(() => {
+    return allOrders.find(o =>
+      (orderRef && String(o.orderNo || o.orderNumber || o.id) === String(orderRef)) ||
+      (order.id && o.id === order.id)
+    );
+  }, [allOrders, orderRef, order]);
+
+  // Resolve dynamic address
+  const resolvedAddress =
+    resolveAddressString(order.address) ||
+    resolveAddressString(order.billingAddress) ||
+    resolveAddressString(order.shippingAddress) ||
+    resolveAddressString(order.deliveryAddress) ||
+    resolveAddressString(order.customerAddress) ||
+    resolveAddressString(order.customer?.billingAddress) ||
+    resolveAddressString(order.customer?.shippingAddress) ||
+    resolveAddressString(order.customer?.address) ||
+    resolveAddressString(order.rawSalesOrder?.billingAddress) ||
+    resolveAddressString(order.rawSalesOrder?.shippingAddress) ||
+    resolveAddressString(order.rawSalesOrder?.customer?.billingAddress) ||
+    resolveAddressString(order.rawSalesOrder?.customer?.shippingAddress) ||
+    resolveAddressString(order.rawSalesOrder?.customer?.address) ||
+    resolveAddressString(order.salesOrder?.billingAddress) ||
+    resolveAddressString(order.salesOrder?.shippingAddress) ||
+    resolveAddressString(order.salesOrder?.customer?.billingAddress) ||
+    resolveAddressString(order.salesOrder?.customer?.shippingAddress) ||
+    resolveAddressString(order.sourceQuotation?.customerAddress) ||
+    resolveAddressString(order.sourceQuotation?.billingAddress) ||
+    resolveAddressString(order.sourceQuotation?.shippingAddress) ||
+    resolveAddressString(asyncData?.billingAddress) ||
+    resolveAddressString(asyncData?.shippingAddress) ||
+    resolveAddressString(asyncData?.customer?.billingAddress) ||
+    resolveAddressString(asyncData?.customer?.shippingAddress) ||
+    resolveAddressString(asyncData?.customer?.address) ||
+    resolveAddressString(matchedOrder?.billingAddress) ||
+    resolveAddressString(matchedOrder?.shippingAddress) ||
+    resolveAddressString(matchedOrder?.deliveryAddress) ||
+    resolveAddressString(matchedOrder?.customer?.billingAddress) ||
+    resolveAddressString(matchedOrder?.customer?.shippingAddress) ||
+    resolveAddressString(matchedOrder?.customer?.address) ||
+    resolveAddressString(matchedCustomer?.billingAddress) ||
+    resolveAddressString(matchedCustomer?.shippingAddress) ||
+    resolveAddressString(matchedCustomer?.address) ||
+    resolveAddressString(matchedLead?.address) ||
+    (matchedCustomer?.city ? `${matchedCustomer.city}, ${matchedCustomer.state || 'India'}` : '') ||
+    'Address Not Specified';
+
+  // Resolve dynamic GSTIN
+  const resolvedGst =
+    resolveGstString(order.gstin) ||
+    resolveGstString(order.gstNumber) ||
+    resolveGstString(order.customerGst) ||
+    resolveGstString(order.customerGstin) ||
+    resolveGstString(order.customer?.gstin) ||
+    resolveGstString(order.customer?.gstNumber) ||
+    resolveGstString(order.customer?.gst) ||
+    resolveGstString(order.rawSalesOrder?.customer?.gstin) ||
+    resolveGstString(order.rawSalesOrder?.customer?.gstNumber) ||
+    resolveGstString(order.salesOrder?.customer?.gstin) ||
+    resolveGstString(order.sourceQuotation?.gstin) ||
+    resolveGstString(asyncData?.customer?.gstin) ||
+    resolveGstString(asyncData?.gstin) ||
+    resolveGstString(matchedOrder?.customer?.gstin) ||
+    resolveGstString(matchedOrder?.gstin) ||
+    resolveGstString(matchedCustomer?.gstin) ||
+    resolveGstString(matchedCustomer?.gstNumber) ||
+    resolveGstString(matchedCustomer?.gst) ||
+    resolveGstString(matchedLead?.gstNumber) ||
+    resolveGstString(matchedLead?.gstin) ||
+    resolveGstString(order.gst);
+
+  const displayGst = resolvedGst || 'Unregistered / Non-GST';
 
   const formatINR = (value) => {
     if (typeof value === 'string') {
@@ -110,8 +262,8 @@ export default function OrderDetailsModal({ order, role, onClose }) {
           <div>
             <p style={{ margin: 0, fontWeight: '700', color: '#5E6B82', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>Bill To:</p>
             <p style={{ margin: '4px 0 0 0', fontWeight: '800', color: '#1e293b', fontSize: '15px' }}>{customerName}</p>
-            <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '500' }}>{address}</p>
-            <p style={{ margin: '8px 0 0 0', color: '#1e293b', fontWeight: '700', fontSize: '12.5px' }}>GST: <span style={{ color: '#475569', fontWeight: '600' }}>{gst}</span></p>
+            <p style={{ margin: '4px 0 0 0', color: '#475569', fontWeight: '500', fontSize: '13.5px', lineHeight: '1.4' }}>{resolvedAddress}</p>
+            <p style={{ margin: '8px 0 0 0', color: '#1e293b', fontWeight: '700', fontSize: '12.5px' }}>GST: <span style={{ color: resolvedGst ? '#0369a1' : '#64748B', fontWeight: resolvedGst ? '700' : '500' }}>{displayGst}</span></p>
           </div>
           <div className="sheet-meta-right" style={{ display: 'grid', gridTemplateColumns: 'auto auto', columnGap: '12px', rowGap: '12px', alignItems: 'center' }}>
             <p style={{ margin: 0, textAlign: 'right', fontWeight: '700', color: '#5E6B82', fontSize: '13px' }}>Order Date:</p>

@@ -425,6 +425,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     return '';
   }, [view, location.pathname]);
 
+
   useEffect(() => {
     const fetchAnalytics = async () => {
       setIsLoadingAnalytics(true);
@@ -494,38 +495,6 @@ export default function PlantHeadPortal({ overrideView } = {}) {
           };
         });
         setDirectRawInventory(formatted);
-      }).catch(console.error);
-    } else if (currentView === 'finished-goods') {
-      backendFetch('/api/backend/production/finished-goods').then(res => {
-        const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-        const productsOnly = list.filter(item => {
-          const prod = item.product;
-          const origType = String(prod?.productType || prod?.product_type || '').toUpperCase();
-          const category = String(prod?.category || item.category || '').toLowerCase();
-          const code = String(item.productCode || item.product_code || prod?.sku || prod?.product_code || '').toUpperCase();
-          const name = String(item.productName || item.product_name || prod?.name || prod?.product_name || '').toLowerCase();
-          
-          if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') {
-            return false;
-          }
-          if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(category)) {
-            return false;
-          }
-          if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
-            return false;
-          }
-          const rawKeywords = [
-            'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
-            'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
-            'clamp', 'hammer', 'bucket', 'ghamela', 'carbon', 'pva', 'wax', 'polish', 
-            'resin', 'cobalt', 'catalyst', 'fly ash', 'admixture'
-          ];
-          if (rawKeywords.some(keyword => name.includes(keyword))) {
-            return false;
-          }
-          return true;
-        });
-        setDirectFinishedGoods(productsOnly);
       }).catch(console.error);
     } else if (currentView === 'qc-failures') {
       Promise.allSettled([
@@ -4523,157 +4492,6 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     );
   };
 
-  const renderFinishedGoods = () => {
-    const handleSendToDispatch = async (row) => {
-      try {
-        const woId = row.workOrder?.id || row.workOrderId || row.id;
-        if (!woId) throw new Error("Work Order ID missing");
-        await backendFetch(`/api/backend/production/work-orders/${woId}/send-to-dispatch`, {
-          method: "POST",
-        });
-        Swal.fire({ icon: 'success', title: 'Sent to Dispatch', text: `Finished goods sent to dispatch queue!`, timer: 1500, showConfirmButton: false });
-        backendFetch('/api/backend/production/finished-goods').then(res => {
-          const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-          const productsOnly = list.filter(item => {
-            const prod = item.product;
-            const origType = String(prod?.productType || prod?.product_type || '').toUpperCase();
-            const category = String(prod?.category || item.category || '').toLowerCase();
-            const code = String(item.productCode || item.product_code || prod?.sku || prod?.product_code || '').toUpperCase();
-            const name = String(item.productName || item.product_name || prod?.name || prod?.product_name || '').toLowerCase();
-            
-            if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') {
-              return false;
-            }
-            if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(category)) {
-              return false;
-            }
-            if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
-              return false;
-            }
-            const rawKeywords = [
-              'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
-              'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
-              'clamp', 'hammer', 'bucket', 'ghamela', 'carbon', 'pva', 'wax', 'polish', 
-              'resin', 'cobalt', 'catalyst', 'fly ash', 'admixture'
-            ];
-            if (rawKeywords.some(keyword => name.includes(keyword))) {
-              return false;
-            }
-            return true;
-          });
-          setDirectFinishedGoods(productsOnly);
-        }).catch(console.error);
-      } catch (err) {
-        Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Failed to send to dispatch' });
-      }
-    };
-
-    const totalStock = directFinishedGoods.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-    const availableStock = directFinishedGoods.reduce((sum, item) => sum + (Number(item.availableQuantity ?? item.quantity) || 0), 0);
-    const readyItemsCount = directFinishedGoods.length;
-
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#e0f2fe', color: '#0284c7', display: 'grid', placeItems: 'center' }}>
-              <Package size={22} />
-            </div>
-            <div>
-              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{totalStock.toLocaleString()}</div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Total Finished Stock Qty</div>
-            </div>
-          </div>
-
-          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#dcfce7', color: '#15803d', display: 'grid', placeItems: 'center' }}>
-              <CheckCircle2 size={22} />
-            </div>
-            <div>
-              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{availableStock.toLocaleString()}</div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Available Qty (Dispatch)</div>
-            </div>
-          </div>
-
-          <div className="app-card" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: '#f3e8ff', color: '#7e22ce', display: 'grid', placeItems: 'center' }}>
-              <Layers size={22} />
-            </div>
-            <div>
-              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--color-text-main, #0f172a)' }}>{readyItemsCount}</div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Finished Goods Count</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="app-card">
-          <div className="card-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-            <div>
-              <h2 className="card-heading" style={{ margin: 0 }}>Finished Goods Inventory Stock</h2>
-              <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
-                Factory staging area for quality approved products awaiting dispatch.
-              </p>
-            </div>
-          </div>
-
-          <DataTable
-            scrollMode={true}
-            columns={[
-              { header: 'Item Code', accessor: 'productCode', render: (row) => <strong>{row.productCode || 'FG-ITEM'}</strong> },
-              { header: 'Item Name', accessor: 'productName', render: (row) => <strong>{row.productName || 'Finished Good'}</strong> },
-              { header: 'Category', accessor: 'category', render: (row) => row.category || 'Hardware' },
-              { header: 'UOM', accessor: 'unit', render: (row) => row.unit || 'PCS' },
-              { header: 'Total Stock', accessor: 'quantity', render: (row) => <span>{row.quantity}</span> },
-              { header: 'Available Qty', accessor: 'availableQuantity', render: (row) => <strong style={{ color: '#10b981', background: '#ecfdf5', padding: '3px 8px', borderRadius: '999px', border: '1px solid #a7f3d0' }}>{row.availableQuantity ?? row.quantity}</strong> },
-              { header: 'Reserved Qty', accessor: 'reservedQuantity', render: (row) => <span style={{ color: '#64748b', background: '#f1f5f9', padding: '3px 8px', borderRadius: '999px', border: '1px solid #cbd5e1' }}>{row.quantity - (row.availableQuantity ?? row.quantity)}</span> },
-              { header: 'Stock Status', accessor: 'status', render: (row) => <StatusBadge status={row.status || 'AVAILABLE'} /> },
-            ]}
-            data={directFinishedGoods}
-            searchQuery={globalSearch}
-            searchField="productName"
-            actions={(row) => {
-              const statusUpper = String(row.status || row.productionStatus || '').toUpperCase();
-              const isAlreadySent =
-                statusUpper === 'SENT_TO_DISPATCH' ||
-                statusUpper === 'DISPATCHED' ||
-                statusUpper === 'IN_TRANSIT' ||
-                Boolean(row.dispatchedAt) ||
-                Boolean(row.sentToDispatchAt) ||
-                Boolean(row.sentToDispatchById) ||
-                Boolean(row.isSentToDispatch);
-              const key = String(row.id || row.jobNo || row.workOrderId || '');
-              const isSending = Boolean(sendingDispatchIds[key]);
-
-              if (isAlreadySent) {
-                return (
-                  <button
-                    className="action-btn"
-                    disabled
-                    style={{ background: '#64748b', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'not-allowed', opacity: 0.8, display: 'flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <Truck size={14} /> Sent to Dispatch
-                  </button>
-                );
-              }
-
-              return (
-                <button
-                  className="action-btn"
-                  disabled={isSending}
-                  style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: isSending ? 'not-allowed' : 'pointer', opacity: isSending ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '4px' }}
-                  onClick={() => handleSendToDispatch(row)}
-                >
-                  <Truck size={14} /> {isSending ? 'Sending...' : 'Send to Dispatch'}
-                </button>
-              );
-            }}
-            emptyMessage="No finished goods records currently in stock."
-          />
-        </div>
-      </div>
-    );
-  };
-
   const renderProducts = () => {
     return <ProductMasterUI role={user?.role || 'Plant Head'} />;
   };
@@ -6145,7 +5963,6 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       {currentView === 'categories' && renderCategories()}
       {(currentView === 'products-add' || currentView === 'products-edit') && renderProductFormPage()}
       {currentView === 'raw-inventory' && renderRawInventory()}
-      {currentView === 'finished-goods' && renderFinishedGoods()}
       {currentView === 'add-material' && renderAddMaterialPage()}
       {currentView === 'edit-material' && renderEditMaterialPage()}
       {currentView === 'profile' && <MyProfileView />}
@@ -6159,7 +5976,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
         <HRSOPsView roleMode="PLANT_HEAD" />
       )}
 
-      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'customer-complaints', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'finished-goods', 'add-material', 'edit-material', 'indent-approvals', 'purchase-approvals', 'profile', 'leave-approvals', 'daily-reports', 'attendance', 'sops', 'hr-sops', 'sop'].includes(currentView) && (
+      {!['dashboard', 'daily-summary', 'incoming-orders', 'planning', 'material-approvals', 'material-indents', 'replacements', 'returns', 'customer-complaints', 'production-analytics', 'dispatch-analytics', 'material-analytics', 'reports', 'qc-failures', 'products', 'categories', 'products-add', 'products-edit', 'raw-inventory', 'add-material', 'edit-material', 'indent-approvals', 'purchase-approvals', 'profile', 'leave-approvals', 'daily-reports', 'attendance', 'sops', 'hr-sops', 'sop'].includes(currentView) && (
         <ModulePlaceholder
           title="Module Not Available"
           description="This Plant Head feature is not implemented yet."

@@ -31,6 +31,10 @@ export class ProductsController {
     'inventory.inventory.create',
     'products.read',
     'inventory.stock.read',
+    'production.productionworkflow.create',
+    'production.productionworkflow.read',
+    'production.floor.create',
+    'production.floor.read',
   )
   @Post()
   create(@CurrentUser() user: any, @Body() createProductDto: CreateProductDto) {
@@ -44,6 +48,8 @@ export class ProductsController {
     'store.materials.read',
     'store.rawinventory.read',
     'inventory.stock.read',
+    'production.productionworkflow.read',
+    'production.floor.read',
   )
   @Get()
   findAll(
@@ -69,6 +75,8 @@ export class ProductsController {
     'store.materials.read',
     'store.rawinventory.read',
     'inventory.stock.read',
+    'production.productionworkflow.read',
+    'production.floor.read',
   )
   @Get(':id')
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
@@ -82,6 +90,12 @@ export class ProductsController {
     'store.update',
     'products.read',
     'inventory.stock.read',
+    'production.productionworkflow.create',
+    'production.productionworkflow.update',
+    'production.productionworkflow.read',
+    'production.floor.create',
+    'production.floor.update',
+    'production.floor.read',
   )
   @Patch(':id')
   @Put(':id')

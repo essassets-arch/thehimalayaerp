@@ -2877,7 +2877,7 @@ export default function FinancePortal({ initialView, forceView }) {
 
     const displayedPOs = approvedPOsSubTab === 'Approved' ? activePOs : historyPOs;
 
-    const handleDownloadPOPdf = (po) => {
+    const handleDownloadPOPdf = async (po) => {
       if (!po) return;
       const htmlContent = `<!DOCTYPE html>
 <html>
@@ -2977,6 +2977,21 @@ export default function FinancePortal({ initialView, forceView }) {
 </body>
 </html>`;
 
+      const printArea = document.getElementById('po-pdf-print-area');
+      if (printArea) {
+        try {
+          const { downloadElementAsPdf } = await import('../../../shared/utils/pdfGenerator');
+          const poName = po.poNumber || po.publicId || po.id;
+          const success = await downloadElementAsPdf(printArea, `Purchase_Order_${poName}.pdf`);
+          if (success) {
+            showToast(`Downloaded Purchase Order ${poName} PDF successfully.`, 'success');
+            return;
+          }
+        } catch (e) {
+          console.warn('Direct PDF export fallback:', e);
+        }
+      }
+
       const printWin = window.open('', '_blank', 'width=850,height=1100');
       if (printWin) {
         printWin.document.open();
@@ -3000,6 +3015,39 @@ export default function FinancePortal({ initialView, forceView }) {
       e.preventDefault();
       if (!selectedApprovedPO || isPlacingManualOrder) return;
 
+      const poDisplay = selectedApprovedPO.poNumber || selectedApprovedPO.publicId || selectedApprovedPO.draftPoNo || selectedApprovedPO.id;
+      const vendorName = selectedApprovedPO.supplier?.name || selectedApprovedPO.vendorName || selectedApprovedPO.snapshot?.vendorName || 'Vendor';
+      const totalFormatted = Number(selectedApprovedPO.totalAmount ?? selectedApprovedPO.grandTotal ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      const dateFormatted = expectedDeliveryDate ? new Date(expectedDeliveryDate).toLocaleDateString('en-GB') : '';
+
+      // SweetAlert2 Confirmation Dialog
+      const confirmResult = await Swal.fire({
+        title: 'Confirm & Place Order?',
+        html: `
+          <div style="text-align: left; font-size: 14px; line-height: 1.6; color: #334155;">
+            <p style="margin: 0 0 12px 0;">Are you sure you want to manually place order for <strong>${poDisplay}</strong>?</p>
+            <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 10px; padding: 14px; margin-bottom: 12px;">
+              <div style="margin-bottom: 6px;"><strong>Vendor:</strong> ${vendorName}</div>
+              <div style="margin-bottom: 6px;"><strong>Total Amount:</strong> <span style="color: #16a34a; font-weight: 800;">₹${totalFormatted}</span></div>
+              <div><strong>Expected Delivery Date:</strong> <span style="color: #0284c7; font-weight: 700;">${dateFormatted}</span></div>
+            </div>
+            <p style="color: #64748B; font-size: 12.5px; margin: 0;">
+              Confirming this will move the order status to <strong>PO_ORDERED</strong> and alert the <strong>Store team</strong> to track delivery for <strong>${dateFormatted}</strong>.
+            </p>
+          </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Confirm & Place Order',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#16a34a',
+        cancelButtonColor: '#94a3b8',
+        reverseButtons: true,
+        focusConfirm: true,
+      });
+
+      if (!confirmResult.isConfirmed) return;
+
       const payload = {
         expectedDeliveryDate,
         vendorOrderReference: ackNumber || `ACK-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -3012,13 +3060,33 @@ export default function FinancePortal({ initialView, forceView }) {
         await syncData();
         await refreshPurchaseOrders();
         const finalPONumber = orderedPO?.poNumber || orderedPO?.poNo || selectedApprovedPO.poNumber || selectedApprovedPO.publicId || selectedApprovedPO.id;
-        showToast(`PO ${finalPONumber} ordered successfully. Sent to Store for delivery tracking.`, 'success');
+        
         setShowPlaceOrderModal(false);
         setSelectedApprovedPO(null);
         setAckNumber('');
         setFinanceRemarks('');
+
+        await Swal.fire({
+          icon: 'success',
+          title: 'Order Placed Successfully!',
+          html: `
+            <div style="font-size: 14px; color: #334155; line-height: 1.6;">
+              PO <strong>${finalPONumber}</strong> has been moved to <strong>PO_ORDERED</strong>.<br/>
+              The <strong>Store team</strong> has been alerted to track delivery for <strong>${dateFormatted}</strong>.
+            </div>
+          `,
+          confirmButtonText: 'Great, Done',
+          confirmButtonColor: '#16a34a',
+        });
+        showToast(`PO ${finalPONumber} ordered successfully. Sent to Store for delivery tracking.`, 'success');
       } catch (error) {
-        showToast(error?.message || 'Unable to place the order.');
+        await Swal.fire({
+          icon: 'error',
+          title: 'Order Placement Failed',
+          text: error?.message || 'Unable to place the order.',
+          confirmButtonColor: '#ef4444',
+        });
+        showToast(error?.message || 'Unable to place the order.', 'error');
       } finally {
         setIsPlacingManualOrder(false);
       }
@@ -4125,7 +4193,43 @@ export default function FinancePortal({ initialView, forceView }) {
               const orderGrandTotal = selectedInvoiceOrder.payment?.totalAmount || selectedInvoiceOrder.totalValue || 0;
               const transportVal = selectedInvoiceOrder.transportCharge !== undefined ? selectedInvoiceOrder.transportCharge : 0;
 
-              const customerDetail = state.customers?.find(c => c.name === selectedInvoiceOrder.customerName || c.name === selectedInvoiceOrder.customer?.name) || {};
+              const customerDetail = state.customers?.find(c =>
+                c.id === selectedInvoiceOrder.customerId ||
+                c.name === selectedInvoiceOrder.customerName ||
+                c.companyName === selectedInvoiceOrder.customerName ||
+                c.name === selectedInvoiceOrder.customer?.name ||
+                c.companyName === selectedInvoiceOrder.customer?.companyName
+              ) || {};
+
+              const formatAddr = (addr) => {
+                if (!addr) return '';
+                if (typeof addr === 'string') {
+                  const trimmed = addr.trim();
+                  if (trimmed.toLowerCase().includes('andheri, mumbai')) return '';
+                  return trimmed;
+                }
+                if (typeof addr === 'object') {
+                  const parts = [addr.line1 || addr.addressLine1 || addr.street, addr.line2 || addr.addressLine2, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean);
+                  return parts.join(', ') || '';
+                }
+                return '';
+              };
+
+              const resolvedInvoiceAddress =
+                formatAddr(customerDetail.billingAddress) ||
+                formatAddr(customerDetail.shippingAddress) ||
+                formatAddr(customerDetail.address) ||
+                formatAddr(selectedInvoiceOrder.deliveryAddress) ||
+                formatAddr(selectedInvoiceOrder.billingAddress) ||
+                formatAddr(selectedInvoiceOrder.shippingAddress) ||
+                formatAddr(selectedInvoiceOrder.customerAddress) ||
+                'Address Not Specified';
+
+              const rawInvoiceGst = customerDetail.gstin || customerDetail.gstNumber || customerDetail.gst || selectedInvoiceOrder.gstin || selectedInvoiceOrder.customerGst;
+              const resolvedInvoiceGst = (rawInvoiceGst && String(rawInvoiceGst).trim().toUpperCase() !== '27ABCDE4321G2Z8' && !/^\d{1,2}%?$/.test(String(rawInvoiceGst).trim()))
+                ? String(rawInvoiceGst).trim()
+                : 'Unregistered / Non-GST';
+
               const itemsList = selectedInvoiceOrder.detailedItems || [
                 {
                   productName: selectedInvoiceOrder.products,
@@ -4305,8 +4409,8 @@ export default function FinancePortal({ initialView, forceView }) {
       <div class="details-col">
         <div class="label">Billed To:</div>
         <div class="value-bold">${selectedInvoiceOrder.customerName || selectedInvoiceOrder.customer?.name}</div>
-        <div class="value-normal">${customerDetail.address || 'Andheri, Mumbai'}</div>
-        <div class="value-normal">GST: ${customerDetail.gst || '27ABCDE4321G2Z8'}</div>
+        <div class="value-normal">${resolvedInvoiceAddress}</div>
+        <div class="value-normal">GST: ${resolvedInvoiceGst}</div>
       </div>
       <div class="details-col details-col-right">
         <div class="value-normal"><strong>Invoice Date:</strong> ${selectedInvoiceOrder.date || '2026-06-06'}</div>
@@ -4387,8 +4491,8 @@ export default function FinancePortal({ initialView, forceView }) {
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', marginBottom: '6px', letterSpacing: '0.5px' }}>Billed To:</div>
                       <div style={{ fontSize: '16px', fontWeight: '800', color: '#24345C' }}>{selectedInvoiceOrder.customerName || selectedInvoiceOrder.customer?.name}</div>
-                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px', lineHeight: '1.4' }}>{customerDetail.address || 'Andheri, Mumbai'}</div>
-                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '2px' }}>GST: {customerDetail.gst || '27ABCDE4321G2Z8'}</div>
+                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px', lineHeight: '1.4' }}>{resolvedInvoiceAddress}</div>
+                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '2px' }}>GST: {resolvedInvoiceGst}</div>
                     </div>
                     <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px', color: '#475569' }}>
                       <div><strong>Invoice Date:</strong> {selectedInvoiceOrder.date || '2026-06-06'}</div>

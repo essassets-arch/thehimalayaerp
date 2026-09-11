@@ -8161,7 +8161,44 @@ export default function SuperAdminPortal() {
               const orderGrandTotal = selectedInvoice.totalAmount || targetOrder.totalValue || 0;
               const transportVal = targetOrder.transportCharge !== undefined ? targetOrder.transportCharge : 0;
 
-              const customerDetail = state.customers?.find(c => c.name === selectedInvoice.customerName || c.name === targetOrder.customerName || c.name === targetOrder.customer?.name) || {};
+              const customerDetail = state.customers?.find(c =>
+                c.id === targetOrder.customerId ||
+                c.id === selectedInvoice.customerId ||
+                c.name === selectedInvoice.customerName ||
+                c.companyName === selectedInvoice.customerName ||
+                c.name === targetOrder.customerName ||
+                c.companyName === targetOrder.customerName
+              ) || {};
+
+              const formatAddr = (addr) => {
+                if (!addr) return '';
+                if (typeof addr === 'string') {
+                  const trimmed = addr.trim();
+                  if (trimmed.toLowerCase().includes('andheri, mumbai')) return '';
+                  return trimmed;
+                }
+                if (typeof addr === 'object') {
+                  const parts = [addr.line1 || addr.addressLine1 || addr.street, addr.line2 || addr.addressLine2, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean);
+                  return parts.join(', ') || '';
+                }
+                return '';
+              };
+
+              const resolvedInvoiceAddress =
+                formatAddr(customerDetail.billingAddress) ||
+                formatAddr(customerDetail.shippingAddress) ||
+                formatAddr(customerDetail.address) ||
+                formatAddr(targetOrder.deliveryAddress) ||
+                formatAddr(targetOrder.billingAddress) ||
+                formatAddr(targetOrder.shippingAddress) ||
+                formatAddr(targetOrder.customerAddress) ||
+                'Address Not Specified';
+
+              const rawInvoiceGst = customerDetail.gstin || customerDetail.gstNumber || customerDetail.gst || targetOrder.gstin || targetOrder.customerGst;
+              const resolvedInvoiceGst = (rawInvoiceGst && String(rawInvoiceGst).trim().toUpperCase() !== '27ABCDE4321G2Z8' && !/^\d{1,2}%?$/.test(String(rawInvoiceGst).trim()))
+                ? String(rawInvoiceGst).trim()
+                : 'Unregistered / Non-GST';
+
               const itemsList = targetOrder.detailedItems || [
                 {
                   productName: targetOrder.products || 'Concrete Supply',
@@ -8348,8 +8385,8 @@ export default function SuperAdminPortal() {
       <div class="details-col">
         <div class="label">Billed To:</div>
         <div class="value-bold">${selectedInvoice.customerName}</div>
-        <div class="value-normal">${customerDetail.address || 'Registered Client Partner'}</div>
-        <div class="value-normal">GST: ${customerDetail.gst || '27ABCDE4321G2Z8'}</div>
+        <div class="value-normal">${resolvedInvoiceAddress}</div>
+        <div class="value-normal">GST: ${resolvedInvoiceGst}</div>
       </div>
       <div class="details-col details-col-right">
         <div class="value-normal"><strong>Invoice Date:</strong> ${selectedInvoice.date || '2026-06-06'}</div>
@@ -8438,8 +8475,8 @@ export default function SuperAdminPortal() {
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: '800', color: '#5E6B82', marginBottom: '6px', letterSpacing: '0.5px' }}>Billed To:</div>
                       <div style={{ fontSize: '16px', fontWeight: '800', color: '#24345C' }}>{selectedInvoice.customerName}</div>
-                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px', lineHeight: '1.4' }}>{customerDetail.address || 'Registered Client Partner'}</div>
-                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '2px' }}>GST: {customerDetail.gst || '27ABCDE4321G2Z8'}</div>
+                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '4px', lineHeight: '1.4' }}>{resolvedInvoiceAddress}</div>
+                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '2px' }}>GST: {resolvedInvoiceGst}</div>
                     </div>
                     <div className="invoice-meta-right" style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px', color: '#475569' }}>
                       <div><strong>Invoice Date:</strong> {selectedInvoice.date || '2026-06-06'}</div>

@@ -10,6 +10,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
 import { SequenceService } from '../../common/sequence/sequence.service';
+import { isCatalogProduct, getCatalogProductsPrismaWhere } from '../products/catalog-product.filter';
 
 @Injectable()
 export class ProductionWorkflowService {
@@ -2014,6 +2015,211 @@ export class ProductionWorkflowService {
     });
 
     return enrichedList;
+  }
+
+  async getAllStock(companyId?: string, userId?: string, role?: string) {
+    const activeProductsWhere = getCatalogProductsPrismaWhere(companyId);
+
+    let rawProducts = await this.prisma.product.findMany({
+      where: activeProductsWhere,
+      orderBy: { name: 'asc' },
+    });
+
+    if (rawProducts.length === 0 && companyId) {
+      rawProducts = await this.prisma.product.findMany({
+        where: getCatalogProductsPrismaWhere(),
+        orderBy: { name: 'asc' },
+      });
+    }
+
+    const catalogProducts = rawProducts.filter(isCatalogProduct);
+    const productIds = catalogProducts.map((p) => p.id);
+
+    const [
+      fgGroups,
+      stockHistoryGroups,
+      openingTransactions,
+      prodReportGroups,
+      dispatchReportGroups,
+    ] = await Promise.all([
+      this.prisma.finishedGoods.groupBy({
+        by: ['productId'],
+        where: { productId: { in: productIds } },
+        _sum: {
+          quantity: true,
+          availableQuantity: true,
+          reservedQuantity: true,
+        },
+      }),
+      this.prisma.stockHistory.groupBy({
+        by: ['productId', 'event'],
+        where: {
+          productId: { in: productIds },
+          NOT: {
+            OR: [
+              { sourceType: { in: ['OPENING_STOCK', 'OPENING', 'INITIAL_STOCK'] } },
+              { referenceNumber: { in: ['OPENING_STOCK', 'OPENING', 'INITIAL_STOCK'] } },
+            ],
+          },
+
+        },
+        _sum: {
+          quantity: true,
+        },
+      }),
+      this.prisma.inventoryTransaction.groupBy({
+        by: ['productId'],
+        where: {
+          productId: { in: productIds },
+          OR: [
+            { type: { in: ['OPENING_STOCK', 'OPENING', 'INITIAL_STOCK'] } },
+            { referenceType: { in: ['OPENING_STOCK', 'OPENING', 'INITIAL_STOCK'] } },
+          ],
+        },
+        _sum: {
+          quantity: true,
+        },
+      }),
+      this.prisma.productionDailyReportItem.groupBy({
+        by: ['productId'],
+        where: {
+          productId: { in: productIds },
+          report: { status: { in: ['SUBMITTED', 'APPROVED', 'POSTED'] } },
+        },
+        _sum: {
+          setQty: true,
+          extraCoverQty: true,
+          extraFrameQty: true,
+        },
+      }),
+      this.prisma.dispatchDailyReportItem.groupBy({
+        by: ['productId'],
+        where: {
+          productId: { in: productIds },
+          report: { status: { in: ['SUBMITTED', 'APPROVED', 'POSTED'] } },
+        },
+        _sum: {
+          setQty: true,
+          extraCoverQty: true,
+          extraFrameQty: true,
+        },
+      }),
+    ]);
+
+    const fgMap = new Map<string, { quantity: number; availableQuantity: number; reservedQuantity: number }>();
+    for (const fg of fgGroups) {
+      if (!fg.productId) continue;
+      fgMap.set(fg.productId, {
+        quantity: Number(fg._sum.quantity || 0),
+        availableQuantity: Number(fg._sum.availableQuantity || 0),
+        reservedQuantity: Number(fg._sum.reservedQuantity || 0),
+      });
+    }
+
+    const historyMap = new Map<string, Map<string, number>>();
+    for (const sh of stockHistoryGroups) {
+      if (!sh.productId) continue;
+      if (!historyMap.has(sh.productId)) {
+        historyMap.set(sh.productId, new Map());
+      }
+      historyMap.get(sh.productId)!.set(sh.event, Number(sh._sum.quantity || 0));
+    }
+
+    const openingMap = new Map<string, number>();
+    for (const ot of openingTransactions) {
+      if (!ot.productId) continue;
+      openingMap.set(ot.productId, Number(ot._sum.quantity || 0));
+    }
+
+    const prodReportMap = new Map<string, { setQty: number; extraCoverQty: number; extraFrameQty: number }>();
+    for (const pr of prodReportGroups) {
+      if (!pr.productId) continue;
+      prodReportMap.set(pr.productId, {
+        setQty: Number(pr._sum.setQty || 0),
+        extraCoverQty: Number(pr._sum.extraCoverQty || 0),
+        extraFrameQty: Number(pr._sum.extraFrameQty || 0),
+      });
+    }
+
+    const dispatchReportMap = new Map<string, { setQty: number; extraCoverQty: number; extraFrameQty: number }>();
+    for (const dr of dispatchReportGroups) {
+      if (!dr.productId) continue;
+      dispatchReportMap.set(dr.productId, {
+        setQty: Number(dr._sum.setQty || 0),
+        extraCoverQty: Number(dr._sum.extraCoverQty || 0),
+        extraFrameQty: Number(dr._sum.extraFrameQty || 0),
+      });
+    }
+
+    const items = catalogProducts.map((p) => {
+      const pId = p.id;
+      const fg = fgMap.get(pId) || { quantity: 0, availableQuantity: 0, reservedQuantity: 0 };
+      const shEvents = historyMap.get(pId) || new Map();
+      const pdr = prodReportMap.get(pId) || { setQty: 0, extraCoverQty: 0, extraFrameQty: 0 };
+      const ddr = dispatchReportMap.get(pId) || { setQty: 0, extraCoverQty: 0, extraFrameQty: 0 };
+
+      // Opening stock from authoritative opening transaction source (never double-counted)
+      const openingStock = openingMap.get(pId) || 0;
+
+      // Production In: production daily reports + production/stock-in history (excluding opening stock)
+      const reportProdIn = pdr.setQty;
+      const shProdIn = (shEvents.get('PRODUCTION_IN') || 0) + (shEvents.get('STOCK_IN') || 0);
+      const productionIn = (reportProdIn + shProdIn > 0)
+        ? (reportProdIn + shProdIn)
+        : (openingStock > 0 ? 0 : fg.quantity);
+
+      // Extra Cover and Extra Frame remain separate from normal sets
+      const shExtraCover = (shEvents.get('EXTRA_COVER_IN') || 0) - (shEvents.get('EXTRA_COVER_REVERSAL') || 0);
+      const extraCover = Math.max(0, pdr.extraCoverQty - ddr.extraCoverQty + shExtraCover);
+
+      const shExtraFrame = (shEvents.get('EXTRA_FRAME_IN') || 0) - (shEvents.get('EXTRA_FRAME_REVERSAL') || 0);
+      const extraFrame = Math.max(0, pdr.extraFrameQty - ddr.extraFrameQty + shExtraFrame);
+
+      // Dispatch Out: dispatch daily reports or dispatch out transactions
+      const reportDispatchOut = ddr.setQty;
+      const shDispatchOut = Math.abs(shEvents.get('DISPATCH_OUT') || 0);
+      const dispatchOut = Math.max(reportDispatchOut, shDispatchOut);
+
+      // Reserved quantity
+      const reservedQty = Math.max(0, fg.reservedQuantity);
+
+      // Available = Opening Stock + Production In + Extra Cover + Extra Frame - Dispatch Out - Reserved Qty
+      const rawAvailable = openingStock + productionIn + extraCover + extraFrame - dispatchOut - reservedQty;
+      const availableStock = rawAvailable > 0 ? rawAvailable : 0;
+      const status = availableStock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK';
+
+      return {
+        id: p.id,
+        productId: p.id,
+        itemCode: p.sku || p.publicId || '-',
+        productCode: p.sku || p.publicId || '-',
+        name: p.name,
+        productName: p.name,
+        category: p.category || 'Manufactured',
+        productType: p.productType || 'MANUFACTURING',
+        brand: p.brand || 'HIMALAYA',
+        unit: (p.unit || 'PCS').toUpperCase(),
+        dispatchCategory: p.dispatchCategory || 'D1',
+        openingStock,
+        productionIn,
+        extraCover,
+        extraFrame,
+        dispatchOut,
+        reservedQty,
+        reservedQuantity: reservedQty,
+        availableStock,
+        availableQuantity: availableStock,
+        quantity: availableStock + reservedQty,
+        status,
+        isActive: p.isActive !== false,
+        receivedAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
+      };
+    });
+
+    return {
+      items,
+      total: items.length,
+    };
   }
 
   async createFinishedGoods(dto: any, userId?: string) {

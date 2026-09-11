@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Boxes, Search, Plus, X, Lock, History, PackageCheck } from "lucide-react";
+import { Boxes, Search, Plus, X, Lock, History, PackageCheck, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import Swal from "sweetalert2";
 
@@ -83,6 +83,8 @@ export default function FinishedGoodsStockView({
   }, []);
   const [search, setSearch] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editRow, setEditRow] = useState<StockRow | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [customUnit, setCustomUnit] = useState("");
   const [isCustomUnitActive, setIsCustomUnitActive] = useState(false);
@@ -120,28 +122,44 @@ export default function FinishedGoodsStockView({
     }
   };
 
-  // Modal Form State (Only used when readOnly === false)
-  const [formData, setFormData] = useState({
-    productName: "",
-    jobNo: "",
-    quantity: "100",
-    availableQuantity: "100",
+  // Add Product Form State
+  const [addFormData, setAddFormData] = useState({
+    name: "",
+    sku: "",
+    category: "FRP Manhole Covers",
+    productType: "MANUFACTURING",
     unit: "PCS",
-    productionLine: "Line A - Finishing & Assembly",
-    status: "AVAILABLE",
-    customerName: "Internal Stock / Global Logistics",
-    remarks: "",
-    date: new Date().toISOString().split("T")[0],
+    brand: "HIMALAYA",
+    dispatchCategory: "D1",
+    openingStock: "0",
+  });
+
+  // Edit Product Form State
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    sku: "",
+    category: "FRP Manhole Covers",
+    productType: "MANUFACTURING",
+    unit: "PCS",
+    brand: "HIMALAYA",
+    dispatchCategory: "D1",
   });
 
   const queryClient = useQueryClient();
 
-  // Fetch finished goods stock from NestJS PostgreSQL backend (Canonical Data Source)
+  // Fetch production all-stock from NestJS PostgreSQL backend (Canonical Data Source)
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["finished-goods-all-stock"],
     queryFn: async () => {
-      const payload = await backendFetch<any>("/api/backend/production/finished-goods", { cacheTtlMs: 0 });
-      return Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+      const payload = await backendFetch<any>("/api/backend/production/all-stock", { cacheTtlMs: 0 });
+      const items = Array.isArray(payload?.items)
+        ? payload.items
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload)
+        ? payload
+        : [];
+      return items;
     },
     staleTime: 0,
     refetchOnMount: "always",
@@ -159,90 +177,76 @@ export default function FinishedGoodsStockView({
 
   const allItems: StockRow[] = useMemo(() => {
     if (!Array.isArray(data)) return [];
-    return data
-      .map((item: any) => {
-        const quantity = Number(item.quantity ?? 0);
-        const availableQuantity = Number(item.availableQuantity ?? item.quantity ?? 0);
-        const reservedQuantity = Number(item.reservedQuantity ?? 0);
-        const openingStock = Number(item.openingStock ?? 0);
-        const productionIn = Number(item.productionIn ?? 0);
-        const extraCover = Number(item.extraCover ?? 0);
-        const extraFrame = Number(item.extraFrame ?? 0);
-        const dispatchOut = Number(item.dispatchOut ?? 0);
+    return data.map((item: any) => {
+      const openingStock = Number(item.openingStock ?? 0);
+      const productionIn = Number(item.productionIn ?? 0);
+      const extraCover = Number(item.extraCover ?? 0);
+      const extraFrame = Number(item.extraFrame ?? 0);
+      const dispatchOut = Number(item.dispatchOut ?? 0);
+      const reservedQuantity = Number(item.reservedQty ?? item.reservedQuantity ?? 0);
 
-        const productObj = item.product || item.workOrder?.salesOrderItem?.product;
-        const productType = productObj?.productType || item.productType || "MANUFACTURING";
-        const brand = productObj?.brand || item.brand || "HIMALAYA";
-        const gstRate = productObj?.gstRate ? `${Number(productObj.gstRate)}%` : item.gstRate ? `${Number(item.gstRate)}%` : "18%";
-        
-        let rawDispatchCategory = productObj?.dispatchCategory || item.dispatchCategory || "D1";
-        if (rawDispatchCategory === "DISPATCH 1" || rawDispatchCategory === "DISPATCH_1") {
-          rawDispatchCategory = "D1";
-        } else if (rawDispatchCategory === "DISPATCH 2" || rawDispatchCategory === "DISPATCH_2") {
-          rawDispatchCategory = "D2";
-        }
-        
-        const dispatchCategory = rawDispatchCategory === "D1" 
-          ? "D1 (Dispatch 1)" 
-          : rawDispatchCategory === "D2" 
-          ? "D2 (Dispatch 2)" 
-          : rawDispatchCategory;
+      // Available stock formula from authoritative contract:
+      // Available = Opening Stock + Production In + Extra Cover + Extra Frame - Dispatch Out - Reserved Qty
+      const rawAvailable = Number(
+        item.availableStock !== undefined
+          ? item.availableStock
+          : item.availableQuantity !== undefined
+          ? item.availableQuantity
+          : openingStock + productionIn + extraCover + extraFrame - dispatchOut - reservedQuantity
+      );
+      const availableQuantity = rawAvailable > 0 ? rawAvailable : 0;
+      const quantity = availableQuantity + reservedQuantity;
 
-        return {
-          id: item.id || `fg-${Math.random()}`,
-          workOrderId: item.workOrderId || item.workOrder?.id || "",
-          jobNo: item.workOrder?.workOrderNumber || item.jobNo || item.workOrderId || "WO-STOCK",
-          productId: item.productId || item.product?.id || "",
-          productName: item.product?.name || item.productName || "Finished Goods Item",
-          productCode: item.product?.sku || item.productCode || item.product?.publicId || "FG-ITEM",
-          category: item.product?.category || item.category || "Hardware",
-          productType,
-          brand,
-          gstRate,
-          dispatchCategory,
-          customerName: item.workOrder?.productionPlan?.salesOrder?.customer?.companyName || item.customerName || "Internal Stock",
-          quantity,
-          availableQuantity,
-          reservedQuantity,
-          openingStock,
-          productionIn,
-          extraCover,
-          extraFrame,
-          dispatchOut,
-          unit: (item.unit || item.product?.unit || "PCS").toUpperCase(),
-          status: item.status || "AVAILABLE",
-          receivedAt: item.receivedAt || item.date || item.createdAt || new Date().toISOString(),
-          receivedById: item.receivedById || null,
-          workOrder: item.workOrder,
-        };
-      })
-      .filter((row: StockRow) => {
-        const origType = String(row.productType || '').toUpperCase();
-        const family = String(row.category || '').toLowerCase();
-        const code = String(row.productCode || '').toUpperCase();
-        const name = String(row.productName || '').toLowerCase();
+      const productType = item.productType || "MANUFACTURING";
+      const brand = item.brand || "HIMALAYA";
+      const gstRate = item.gstRate ? `${Number(item.gstRate)}%` : "18%";
+      
+      let rawDispatchCategory = item.dispatchCategory || "D1";
+      if (rawDispatchCategory === "DISPATCH 1" || rawDispatchCategory === "DISPATCH_1") {
+        rawDispatchCategory = "D1";
+      } else if (rawDispatchCategory === "DISPATCH 2" || rawDispatchCategory === "DISPATCH_2") {
+        rawDispatchCategory = "D2";
+      }
+      
+      const dispatchCategory = rawDispatchCategory === "D1" 
+        ? "D1 (Dispatch 1)" 
+        : rawDispatchCategory === "D2" 
+        ? "D2 (Dispatch 2)" 
+        : rawDispatchCategory;
 
-        if (origType === 'RAW_MATERIAL' || origType === 'HARDWARE') {
-          return false;
-        }
-        if (['raw material', 'hardware', 'electric', 'consumables', 'consumable'].includes(family)) {
-          return false;
-        }
-        if (code.startsWith('HCPPL') || code.startsWith('RM-') || code.startsWith('HM')) {
-          return false;
-        }
-        const rawKeywords = [
-          'cement', 'sand', 'aggregate', 'gravel', 'stone', 'pigment', 'powder', 
-          'water paper', 'brush', 'welcor', 'haksaw', 'drill', 'thappi', 'chisel', 
-          'clamp', 'hammer', 'bucket', 'ghamela', 'carbon', 'pva', 'wax', 'polish', 
-          'resin', 'cobalt', 'catalyst', 'fly ash', 'admixture'
-        ];
-        if (rawKeywords.some((keyword) => name.includes(keyword))) {
-          return false;
-        }
-        return true;
-      });
+      const isOutOfStock = availableQuantity <= 0;
+      const status = item.status || (isOutOfStock ? "OUT_OF_STOCK" : "IN_STOCK");
+
+      return {
+        id: item.id || item.productId || `fg-${Math.random()}`,
+        workOrderId: item.workOrderId || "",
+        jobNo: item.jobNo || "WO-STOCK",
+        productId: item.productId || item.id || "",
+        productName: item.name || item.productName || "Finished Goods Item",
+        productCode: item.itemCode || item.productCode || item.sku || "FG-ITEM",
+        category: item.category || "Hardware",
+        productType,
+        brand,
+        gstRate,
+        dispatchCategory,
+        customerName: item.customerName || "Internal Stock",
+        quantity,
+        availableQuantity,
+        reservedQuantity,
+        openingStock,
+        productionIn,
+        extraCover,
+        extraFrame,
+        dispatchOut,
+        unit: (item.unit || "PCS").toUpperCase(),
+        status,
+        receivedAt: item.receivedAt || item.createdAt || new Date().toISOString(),
+        receivedById: item.receivedById || null,
+        workOrder: item.workOrder,
+      };
+    });
   }, [data]);
+
 
   const filteredData = useMemo(() => {
     if (!search) return allItems;
@@ -312,61 +316,140 @@ export default function FinishedGoodsStockView({
   // ── Mutation Handlers (Only active when readOnly === false) ──
   const handleOpenAddModal = () => {
     if (readOnly) return;
-    setFormData({
-      productName: "",
-      jobNo: `WO-2026-${Math.floor(100 + Math.random() * 900)}`,
-      quantity: "100",
-      availableQuantity: "100",
+    setAddFormData({
+      name: "",
+      sku: `HCP-${Math.floor(100 + Math.random() * 900)}`,
+      category: "FRP Manhole Covers",
+      productType: "MANUFACTURING",
       unit: "PCS",
-      productionLine: "Line A - Finishing & Assembly",
-      status: "AVAILABLE",
-      customerName: "Internal Stock / Global Logistics",
-      remarks: "",
-      date: new Date().toISOString().split("T")[0],
+      brand: "HIMALAYA",
+      dispatchCategory: "D1",
+      openingStock: "0",
     });
     setCustomUnit("");
     setIsCustomUnitActive(false);
     setIsAddModalOpen(true);
   };
 
-  const handleAddFinishingProduct = async (e: React.FormEvent) => {
+  const handleAddProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (readOnly) return;
-    if (!formData.productName.trim()) {
+    if (!addFormData.name.trim()) {
       toast.error("Please enter a product name");
       return;
     }
 
     setIsSubmitting(true);
-    const autoJobNo = formData.jobNo.trim() || `WO-2026-${Math.floor(100 + Math.random() * 900)}`;
-    const finalUnit = (isCustomUnitActive ? (customUnit.trim() || "PCS") : (formData.unit || "PCS")).toUpperCase();
+    const finalUnit = (isCustomUnitActive ? (customUnit.trim() || "PCS") : (addFormData.unit || "PCS")).toUpperCase();
+    const finalSku = addFormData.sku.trim() || `FG-${Date.now().toString().slice(-6)}`;
 
     try {
-      const payload = {
-        productName: formData.productName.trim(),
-        jobNo: autoJobNo,
-        workOrderId: autoJobNo,
-        quantity: Number(formData.quantity) || 1,
-        availableQuantity: Number(formData.quantity) || 1,
+      // 1. Create Product in master catalog
+      const productPayload = {
+        name: addFormData.name.trim(),
+        sku: finalSku,
+        category: addFormData.category || "FRP Manhole Covers",
+        productType: addFormData.productType || "MANUFACTURING",
         unit: finalUnit,
-        status: "AVAILABLE",
-        customerName: formData.customerName,
-        date: formData.date,
-        receivedAt: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
+        brand: addFormData.brand || "HIMALAYA",
+        dispatchCategory: addFormData.dispatchCategory || "D1",
+        gstRate: 18,
       };
 
-      await backendFetch("/api/backend/production/finished-goods", {
+      const createdProduct: any = await backendFetch("/api/backend/products", {
         method: "POST",
-        body: payload,
+        body: productPayload,
       });
 
-      toast.success(`Added ${formData.productName} (${formData.quantity} ${finalUnit}) to Stock!`);
+      const prodId = createdProduct?.id || createdProduct?.data?.id;
+      const initialStockQty = Number(addFormData.openingStock) || 0;
+
+      // 2. If opening stock > 0, record initial stock
+      if (initialStockQty > 0 && prodId) {
+        try {
+          await backendFetch("/api/backend/production/finished-goods/stock-in", {
+            method: "POST",
+            body: {
+              productId: prodId,
+              productCode: finalSku,
+              productName: addFormData.name.trim(),
+              quantity: initialStockQty,
+              unit: finalUnit,
+              reference: "OPENING_STOCK",
+              remarks: "Initial Opening Stock",
+            },
+          });
+        } catch (stockErr: any) {
+          console.warn("[Initial Stock Warning]", stockErr);
+        }
+      }
+
+      toast.success(`Product ${addFormData.name} created successfully!`);
       queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
       queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       setIsAddModalOpen(false);
       refetch();
     } catch (err: any) {
       toast.error(err.message || "Failed to create product");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenEditModal = (row: StockRow, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (readOnly) return;
+    setEditRow(row);
+    setEditFormData({
+      name: row.productName || "",
+      sku: row.productCode || "",
+      category: row.category || "FRP Manhole Covers",
+      productType: row.productType || "MANUFACTURING",
+      unit: row.unit || "PCS",
+      brand: row.brand || "HIMALAYA",
+      dispatchCategory: row.dispatchCategory?.includes("D2") ? "D2" : "D1",
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (readOnly || !editRow) return;
+    if (!editFormData.name.trim()) {
+      toast.error("Please enter a product name");
+      return;
+    }
+
+    setIsSubmitting(true);
+    const cleanProductId = (editRow.productId || editRow.id || "")
+      .replace(/^fg-prod-/, "")
+      .replace(/^fg-wo-/, "")
+      .replace(/^fg-so-/, "");
+
+    try {
+      await backendFetch(`/api/backend/products/${cleanProductId}`, {
+        method: "PATCH",
+        body: {
+          name: editFormData.name.trim(),
+          sku: editFormData.sku.trim(),
+          category: editFormData.category,
+          productType: editFormData.productType,
+          unit: editFormData.unit,
+          brand: editFormData.brand,
+          dispatchCategory: editFormData.dispatchCategory,
+        },
+      });
+
+      toast.success(`Product ${editFormData.name} updated successfully!`);
+      queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      setIsEditModalOpen(false);
+      setEditRow(null);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update product");
     } finally {
       setIsSubmitting(false);
     }
@@ -595,10 +678,11 @@ export default function FinishedGoodsStockView({
               <span>Read Only View</span>
             </div>
           ) : (
-            <button className={styles.btnAddProduct} onClick={handleOpenAddModal}>
-              <Plus size={16} /> Add Finishing Product
+            <button id="btn-add-product" className={styles.btnAddProduct} onClick={handleOpenAddModal}>
+              <Plus size={16} /> Add Product
             </button>
           )}
+
         </div>
       </div>
 
@@ -806,6 +890,15 @@ export default function FinishedGoodsStockView({
                           <>
                             <button
                               type="button"
+                              id={`btn-edit-${row.id}`}
+                              className={`${styles.btn}`}
+                              onClick={(e) => handleOpenEditModal(row, e)}
+                              style={{ margin: 0, padding: "6px 12px", fontSize: "12px", height: "auto", display: "flex", alignItems: "center", gap: "4px", background: "#f0fdf4", border: "1px solid #86efac", color: "#166534", fontWeight: "700" }}
+                            >
+                              <Pencil size={11} /> Edit
+                            </button>
+                            <button
+                              type="button"
                               className={`${styles.btn} ${styles.btnIn}`}
                               onClick={(e) => handleQuickStockIn(row, e)}
                               style={{ margin: 0, padding: "6px 12px", fontSize: "12px", height: "auto" }}
@@ -929,6 +1022,28 @@ export default function FinishedGoodsStockView({
                             <div className={styles.actions}>
                               {!readOnly && (
                                 <>
+                                  <button
+                                    type="button"
+                                    id={`btn-edit-${row.id}`}
+                                    className={`${styles.btn}`}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      background: "#f0fdf4",
+                                      border: "1px solid #86efac",
+                                      color: "#166534",
+                                      fontSize: "11px",
+                                      padding: "4px 8px",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      fontWeight: "700",
+                                    }}
+                                    onClick={(e) => handleOpenEditModal(row, e)}
+                                    title="Edit Product Master Details"
+                                  >
+                                    <Pencil size={11} /> Edit
+                                  </button>
                                   <button
                                     type="button"
                                     className={`${styles.btn} ${styles.btnIn}`}
@@ -1396,7 +1511,7 @@ export default function FinishedGoodsStockView({
         </div>
       )}
 
-      {/* ── Add Finishing Product Modal (Only used when readOnly === false) ── */}
+      {/* ── Add Product Modal (Only used when readOnly === false) ── */}
       {!readOnly && isAddModalOpen && (
         <div className={modalStyles.modalOverlay} onClick={() => setIsAddModalOpen(false)}>
           <div className={modalStyles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -1406,8 +1521,8 @@ export default function FinishedGoodsStockView({
                   <Boxes size={20} />
                 </div>
                 <div>
-                  <h3>Add Finishing Product</h3>
-                  <p>Register a new finished good item in master inventory</p>
+                  <h3>Add Product</h3>
+                  <p>Register a new product in master catalog and initialize stock</p>
                 </div>
               </div>
               <button
@@ -1419,7 +1534,7 @@ export default function FinishedGoodsStockView({
               </button>
             </div>
 
-            <form onSubmit={handleAddFinishingProduct}>
+            <form onSubmit={handleAddProductSubmit}>
               <div className={modalStyles.modalBody}>
                 <div className={modalStyles.formGrid}>
                   <div className={modalStyles.formGroupFull}>
@@ -1428,56 +1543,91 @@ export default function FinishedGoodsStockView({
                         Product Name <span style={{ color: "#ef4444" }}>*</span>
                       </label>
                       <input
+                        id="add-product-name"
                         type="text"
                         required
-                        placeholder="e.g. Hydraulic Cylinder 50mm DB Test"
-                        value={formData.productName}
-                        onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
+                        placeholder="e.g. Himalaya FRP MHC 600x600"
+                        value={addFormData.name}
+                        onChange={(e) => setAddFormData({ ...addFormData, name: e.target.value })}
                       />
                     </div>
                   </div>
 
                   <div className={modalStyles.formGroup}>
-                    <label>Category</label>
-                    <select
-                      value={formData.productionLine}
-                      onChange={(e) => setFormData({ ...formData, productionLine: e.target.value })}
-                    >
-                      <option value="Line A - Finishing & Assembly">Hardware</option>
-                      <option value="Line B - CNC Heavy Components">Machinery Parts</option>
-                      <option value="Line C - Standard Fitting">Fittings</option>
-                    </select>
-                  </div>
-
-                  <div className={modalStyles.formGroup}>
                     <label>
-                      Date <span style={{ color: "#ef4444" }}>*</span>
+                      Item Code / SKU <span style={{ color: "#ef4444" }}>*</span>
                     </label>
                     <input
-                      type="date"
+                      id="add-product-sku"
+                      type="text"
                       required
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      placeholder="e.g. HCP-001"
+                      value={addFormData.sku}
+                      onChange={(e) => setAddFormData({ ...addFormData, sku: e.target.value })}
                     />
                   </div>
 
                   <div className={modalStyles.formGroup}>
-                    <label>
-                      Total Stock Qty <span style={{ color: "#ef4444" }}>*</span>
-                    </label>
+                    <label>Category</label>
+                    <select
+                      id="add-product-category"
+                      value={addFormData.category}
+                      onChange={(e) => setAddFormData({ ...addFormData, category: e.target.value })}
+                    >
+                      <option value="FRP Manhole Covers">FRP Manhole Covers</option>
+                      <option value="SFRC Covers">SFRC Covers</option>
+                      <option value="FRP Grating">FRP Grating</option>
+                      <option value="Water Meters">Water Meters</option>
+                      <option value="Fittings">Fittings</option>
+                      <option value="Hardware">Hardware</option>
+                      <option value="General">General</option>
+                    </select>
+                  </div>
+
+                  <div className={modalStyles.formGroup}>
+                    <label>Product Type</label>
+                    <select
+                      id="add-product-type"
+                      value={addFormData.productType}
+                      onChange={(e) => setAddFormData({ ...addFormData, productType: e.target.value })}
+                    >
+                      <option value="MANUFACTURING">Manufactured</option>
+                      <option value="TRADING">Trading</option>
+                    </select>
+                  </div>
+
+                  <div className={modalStyles.formGroup}>
+                    <label>Brand</label>
                     <input
+                      id="add-product-brand"
+                      type="text"
+                      placeholder="HIMALAYA"
+                      value={addFormData.brand}
+                      onChange={(e) => setAddFormData({ ...addFormData, brand: e.target.value })}
+                    />
+                  </div>
+
+                  <div className={modalStyles.formGroup}>
+                    <label>Dispatch Category</label>
+                    <select
+                      id="add-product-dispatch-cat"
+                      value={addFormData.dispatchCategory}
+                      onChange={(e) => setAddFormData({ ...addFormData, dispatchCategory: e.target.value })}
+                    >
+                      <option value="D1">D1 (Dispatch 1)</option>
+                      <option value="D2">D2 (Dispatch 2)</option>
+                    </select>
+                  </div>
+
+                  <div className={modalStyles.formGroup}>
+                    <label>Opening / Initial Stock</label>
+                    <input
+                      id="add-product-opening-stock"
                       type="number"
-                      required
-                      min="1"
-                      placeholder="100"
-                      value={formData.quantity}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          quantity: e.target.value,
-                          availableQuantity: e.target.value,
-                        })
-                      }
+                      min="0"
+                      placeholder="0"
+                      value={addFormData.openingStock}
+                      onChange={(e) => setAddFormData({ ...addFormData, openingStock: e.target.value })}
                     />
                   </div>
 
@@ -1487,13 +1637,14 @@ export default function FinishedGoodsStockView({
                     </label>
                     {!isCustomUnitActive ? (
                       <select
-                        value={formData.unit}
+                        id="add-product-unit"
+                        value={addFormData.unit}
                         onChange={(e) => {
                           if (e.target.value === "CUSTOM") {
                             setIsCustomUnitActive(true);
                             setCustomUnit("");
                           } else {
-                            setFormData({ ...formData, unit: e.target.value });
+                            setAddFormData({ ...addFormData, unit: e.target.value });
                           }
                         }}
                       >
@@ -1518,7 +1669,7 @@ export default function FinishedGoodsStockView({
                           type="button"
                           onClick={() => {
                             setIsCustomUnitActive(false);
-                            setFormData({ ...formData, unit: "PCS" });
+                            setAddFormData({ ...addFormData, unit: "PCS" });
                           }}
                           className={modalStyles.btnCancel}
                           style={{ padding: "0 12px", height: "38px" }}
@@ -1539,11 +1690,160 @@ export default function FinishedGoodsStockView({
                     Cancel
                   </button>
                   <button
+                    id="btn-submit-add-product"
                     type="submit"
                     disabled={isSubmitting}
                     className={modalStyles.btnSubmit}
                   >
-                    {isSubmitting ? "Adding..." : "Add Finishing Product"}
+                    {isSubmitting ? "Creating..." : "Add Product"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Product Modal (Only used when readOnly === false) ── */}
+      {!readOnly && isEditModalOpen && (
+        <div className={modalStyles.modalOverlay} onClick={() => setIsEditModalOpen(false)}>
+          <div className={modalStyles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={modalStyles.modalHeader}>
+              <div className={modalStyles.modalHeaderTitle}>
+                <div className={modalStyles.modalHeaderIcon} style={{ background: "#f0fdf4", color: "#16a34a" }}>
+                  <Pencil size={20} />
+                </div>
+                <div>
+                  <h3>Edit Product</h3>
+                  <p>Update product master details in PostgreSQL catalog</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className={modalStyles.modalClose}
+                onClick={() => setIsEditModalOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditProductSubmit}>
+              <div className={modalStyles.modalBody}>
+                <div className={modalStyles.formGrid}>
+                  <div className={modalStyles.formGroupFull}>
+                    <div className={modalStyles.formGroup}>
+                      <label>
+                        Product Name <span style={{ color: "#ef4444" }}>*</span>
+                      </label>
+                      <input
+                        id="edit-product-name"
+                        type="text"
+                        required
+                        value={editFormData.name}
+                        onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={modalStyles.formGroup}>
+                    <label>
+                      Item Code / SKU <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <input
+                      id="edit-product-sku"
+                      type="text"
+                      required
+                      value={editFormData.sku}
+                      onChange={(e) => setEditFormData({ ...editFormData, sku: e.target.value })}
+                    />
+                  </div>
+
+                  <div className={modalStyles.formGroup}>
+                    <label>Category</label>
+                    <select
+                      id="edit-product-category"
+                      value={editFormData.category}
+                      onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                    >
+                      <option value="FRP Manhole Covers">FRP Manhole Covers</option>
+                      <option value="SFRC Covers">SFRC Covers</option>
+                      <option value="FRP Grating">FRP Grating</option>
+                      <option value="Water Meters">Water Meters</option>
+                      <option value="Fittings">Fittings</option>
+                      <option value="Hardware">Hardware</option>
+                      <option value="General">General</option>
+                    </select>
+                  </div>
+
+                  <div className={modalStyles.formGroup}>
+                    <label>Product Type</label>
+                    <select
+                      id="edit-product-type"
+                      value={editFormData.productType}
+                      onChange={(e) => setEditFormData({ ...editFormData, productType: e.target.value })}
+                    >
+                      <option value="MANUFACTURING">Manufactured</option>
+                      <option value="TRADING">Trading</option>
+                    </select>
+                  </div>
+
+                  <div className={modalStyles.formGroup}>
+                    <label>Brand</label>
+                    <input
+                      id="edit-product-brand"
+                      type="text"
+                      value={editFormData.brand}
+                      onChange={(e) => setEditFormData({ ...editFormData, brand: e.target.value })}
+                    />
+                  </div>
+
+                  <div className={modalStyles.formGroup}>
+                    <label>Dispatch Category</label>
+                    <select
+                      id="edit-product-dispatch-cat"
+                      value={editFormData.dispatchCategory}
+                      onChange={(e) => setEditFormData({ ...editFormData, dispatchCategory: e.target.value })}
+                    >
+                      <option value="D1">D1 (Dispatch 1)</option>
+                      <option value="D2">D2 (Dispatch 2)</option>
+                    </select>
+                  </div>
+
+                  <div className={modalStyles.formGroup}>
+                    <label>
+                      Unit of Measure (UOM) <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <select
+                      id="edit-product-unit"
+                      value={editFormData.unit}
+                      onChange={(e) => setEditFormData({ ...editFormData, unit: e.target.value })}
+                    >
+                      <option value="PCS">PCS</option>
+                      <option value="NOS">NOS</option>
+                      <option value="SET">SET</option>
+                      <option value="BOX">BOX</option>
+                      <option value="KG">KG</option>
+                      <option value="MTR">MTR</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className={modalStyles.formActions}>
+                  <button
+                    type="button"
+                    className={modalStyles.btnCancel}
+                    onClick={() => setIsEditModalOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    id="btn-submit-edit-product"
+                    type="submit"
+                    disabled={isSubmitting}
+                    className={modalStyles.btnSubmit}
+                    style={{ background: "#16a34a" }}
+                  >
+                    {isSubmitting ? "Updating..." : "Update Product"}
                   </button>
                 </div>
               </div>

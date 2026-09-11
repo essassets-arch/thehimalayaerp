@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { isCatalogProduct, getCatalogProductsPrismaWhere } from './catalog-product.filter';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -95,6 +96,55 @@ export class ProductsService {
     userId?: string,
     role?: string,
   ) {
+    if (scope === 'catalog') {
+      const activeProductsWhere = getCatalogProductsPrismaWhere(companyId);
+
+      if (search) {
+        const rawSearch = search.trim();
+        const normalizedSearch = rawSearch.replace(/[^a-zA-Z0-9]/g, '');
+        const tokens = rawSearch.split(/\s+/).filter(Boolean);
+
+        const searchConditions: any[] = [
+          { name: { contains: rawSearch, mode: 'insensitive' } },
+          { sku: { contains: rawSearch, mode: 'insensitive' } },
+          { sku: { contains: normalizedSearch, mode: 'insensitive' } },
+          { name: { contains: normalizedSearch, mode: 'insensitive' } },
+          { category: { contains: rawSearch, mode: 'insensitive' } },
+        ];
+
+        if (tokens.length > 1) {
+          searchConditions.push({
+            AND: tokens.map((token) => ({
+              OR: [
+                { name: { contains: token, mode: 'insensitive' } },
+                { sku: { contains: token, mode: 'insensitive' } },
+                { category: { contains: token, mode: 'insensitive' } },
+              ],
+            })),
+          });
+        }
+        activeProductsWhere.OR = searchConditions;
+      }
+
+      let products = await this.prisma.product.findMany({
+        where: activeProductsWhere,
+        orderBy: { name: 'asc' },
+      });
+
+      if (products.length === 0 && companyId) {
+        const fallbackWhere: any = getCatalogProductsPrismaWhere();
+        if (activeProductsWhere.OR) {
+          fallbackWhere.OR = activeProductsWhere.OR;
+        }
+        products = await this.prisma.product.findMany({
+          where: fallbackWhere,
+          orderBy: { name: 'asc' },
+        });
+      }
+
+      return products.filter(isCatalogProduct);
+    }
+
     if (scope === 'store' || scope === 'inventory') {
       const products = await this.prisma.product.findMany({
         where: {
@@ -353,10 +403,16 @@ export class ProductsService {
       scope === 'production' ||
       scope === 'dispatch';
 
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where,
       orderBy: isDailyReportScope ? { name: 'asc' } : { createdAt: 'desc' },
     });
+
+    if (scope === 'catalog') {
+      return products.filter(isCatalogProduct);
+    }
+
+    return products;
   }
 
   async findOne(companyId: string, id: string) {

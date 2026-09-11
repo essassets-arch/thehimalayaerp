@@ -891,7 +891,6 @@ export const PlantHeadDailySummary = () => {
             {collapsedSections.finishedGoods ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
             <h3 style={{ fontSize: '16px', fontWeight: '900', color: '#0f172a', margin: 0 }}>✨ Finished Goods Stock</h3>
           </div>
-          <button onClick={() => router.push('/plant-head/finished-goods')} style={{ background: 'transparent', border: '1px solid #0284c7', color: '#0284c7', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>View All FG</button>
         </div>
 
         {!collapsedSections.finishedGoods && (

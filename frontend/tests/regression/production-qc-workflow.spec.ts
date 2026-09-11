@@ -7,7 +7,7 @@ test.describe('Production & QC Workflow Regression Suite', () => {
       '/production/completed',
       '/production/floor',
       '/plant-head/daily-reports',
-      '/plant-head/finished-goods',
+      '/production/finished-goods',
       '/qc'
     ];
 

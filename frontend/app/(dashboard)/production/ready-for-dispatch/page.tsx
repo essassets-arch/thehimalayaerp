@@ -246,16 +246,31 @@ export default function ReadyForDispatchPage() {
         job.customerName ||
         job.companyName ||
         'Consignee Client';
+      const formatAddr = (addr: any) => {
+        if (!addr) return '';
+        if (typeof addr === 'string') {
+          const trimmed = addr.trim();
+          if (trimmed.toLowerCase().includes('andheri, mumbai') || trimmed.toLowerCase() === 'plant warehouse') return '';
+          return trimmed;
+        }
+        if (typeof addr === 'object') {
+          const parts = [addr.line1 || addr.addressLine1 || addr.street, addr.line2 || addr.addressLine2, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean);
+          return parts.join(', ') || '';
+        }
+        return '';
+      };
+
       const customerAddress =
-        customerObj.address ||
-        customerObj.city ||
-        job.customerAddress ||
-        'Plant Warehouse';
-      const customerGst =
-        customerObj.gstin ||
-        customerObj.gst ||
-        job.customerGst ||
-        '27ABCDE4321G2Z8';
+        formatAddr(customerObj.billingAddress) ||
+        formatAddr(customerObj.shippingAddress) ||
+        formatAddr(customerObj.address) ||
+        formatAddr(so?.billingAddress) ||
+        formatAddr(so?.shippingAddress) ||
+        formatAddr(job.customerAddress) ||
+        'Address Not Specified';
+
+      const rawGst = customerObj.gstin || customerObj.gst || job.customerGst || so?.customerGstin;
+      const customerGst = (rawGst && String(rawGst).trim().toUpperCase() !== '27ABCDE4321G2Z8') ? String(rawGst).trim() : 'Unregistered / Non-GST';
 
       const rawDate =
         job.createdAt ||

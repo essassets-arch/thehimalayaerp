@@ -65,6 +65,20 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/super-admin/finished-goods',
+        destination: '/super-admin/dashboard',
+        permanent: false,
+      },
+      {
+        source: '/plant-head/finished-goods',
+        destination: '/plant-head/dashboard',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

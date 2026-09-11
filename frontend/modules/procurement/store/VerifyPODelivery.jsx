@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useERPStore } from '../../../store/erpStore';
 import { syncProcurementData, verifyPODelivery } from '../../../store/procurementActions';
 import { DeliveryDocumentUploader } from '../components/DeliveryDocumentUploader';
+import { POPdfPreviewModal } from '../../store/pages/StorePortal';
 import {
   Package,
   Search,
@@ -198,6 +199,7 @@ export default function VerifyPODelivery() {
   const [attachments, setAttachments] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedReplacement, setSelectedReplacement] = useState(null);
+  const [pdfPreviewPO, setPdfPreviewPO] = useState(null);
 
   // Validation States
   const [formErrors, setFormErrors] = useState({});
@@ -1125,32 +1127,58 @@ export default function VerifyPODelivery() {
                     </div>
 
                     {/* Footer CTA */}
-                    <div style={{ paddingTop: '14px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ paddingTop: '14px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
                         <Calendar size={14} color="#94A3B8" />
                         {isCompletedPO || viewTab === 'history' ? `Delivered: ${formatDate(po.updatedAt || dueDate)}` : `Due: ${formatDate(dueDate)}`}
                       </div>
 
-                      <button
-                        type="button"
-                        className="po-card-cta"
-                        style={{
-                          padding: '7px 14px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          background: isCompletedPO || viewTab === 'history' ? '#F0FDF4' : '#EFF6FF',
-                          color: isCompletedPO || viewTab === 'history' ? '#16A34A' : '#2563EB',
-                          fontWeight: 800,
-                          fontSize: '12.5px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        {isCompletedPO || viewTab === 'history' ? 'View GRN Details' : 'Receive & Verify'} <ArrowRight size={14} />
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPdfPreviewPO(po);
+                          }}
+                          style={{
+                            padding: '7px 12px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #CBD5E1',
+                            background: '#ffffff',
+                            color: '#334155',
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <FileText size={13} /> View PO PDF
+                        </button>
+
+                        <button
+                          type="button"
+                          className="po-card-cta"
+                          style={{
+                            padding: '7px 14px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            background: isCompletedPO || viewTab === 'history' ? '#F0FDF4' : '#EFF6FF',
+                            color: isCompletedPO || viewTab === 'history' ? '#16A34A' : '#2563EB',
+                            fontWeight: 800,
+                            fontSize: '12.5px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {isCompletedPO || viewTab === 'history' ? 'View GRN Details' : 'Receive & Verify'} <ArrowRight size={14} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1226,9 +1254,32 @@ export default function VerifyPODelivery() {
                           <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                             <button
                               type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPdfPreviewPO(po);
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                border: '1.5px solid #CBD5E1',
+                                background: '#ffffff',
+                                color: '#334155',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                marginRight: '8px'
+                              }}
+                            >
+                              <FileText size={13} /> PDF
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleSelectPO(po.id)}
                               style={{
-                                padding: '6px 14px',
+                                padding: '7px 16px',
                                 borderRadius: '8px',
                                 border: 'none',
                                 background: isCompletedPO || viewTab === 'history' ? '#10B981' : '#2563EB',
@@ -1624,11 +1675,33 @@ export default function VerifyPODelivery() {
                 </div>
               </div>
 
-              {selectedReplacement && (
-                <div style={{ background: '#7E22CE', color: '#ffffff', borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <RotateCcw size={14} /> REPLACEMENT RESOLUTION
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setPdfPreviewPO(selectedPO)}
+                  style={{
+                    background: 'rgba(255,255,255,0.12)',
+                    border: '1.5px solid rgba(255,255,255,0.3)',
+                    color: '#ffffff',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    fontSize: '12.5px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backdropFilter: 'blur(4px)'
+                  }}
+                >
+                  <FileText size={15} /> View / Download PO PDF
+                </button>
+                {selectedReplacement && (
+                  <div style={{ background: '#7E22CE', color: '#ffffff', borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <RotateCcw size={14} /> REPLACEMENT RESOLUTION
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 3-Column Info Cards */}
@@ -2192,6 +2265,9 @@ export default function VerifyPODelivery() {
             </button>
           </div>
         </div>
+      )}
+      {pdfPreviewPO && (
+        <POPdfPreviewModal po={pdfPreviewPO} onClose={() => setPdfPreviewPO(null)} />
       )}
     </div>
   );

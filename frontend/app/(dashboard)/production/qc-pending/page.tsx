@@ -383,10 +383,35 @@ export default function QCPendingPage() {
     const numPart = (job.workOrderNumber || job.id || '').replace(/\D/g, '').slice(-5);
     const soNo = rawSo || `SO-2026-${(numPart || '00001').padStart(5, '0')}`;
 
-    const customerObj = job.productionPlan?.salesOrder?.customer || job.salesOrder?.customer || job.customer;
+    const soObj = job.productionPlan?.salesOrder || job.salesOrder;
+    const customerObj = soObj?.customer || job.customer;
     const customerName = resolveCustomerName(job);
-    const address = customerObj?.address || customerObj?.city || job.customerAddress || 'Plant Warehouse';
-    const gst = customerObj?.gstin || customerObj?.gst || job.customerGst || '27ABCDE4321G2Z8';
+
+    const formatAddr = (addr: any) => {
+      if (!addr) return '';
+      if (typeof addr === 'string') {
+        const trimmed = addr.trim();
+        if (trimmed.toLowerCase().includes('andheri, mumbai') || trimmed.toLowerCase() === 'plant warehouse') return '';
+        return trimmed;
+      }
+      if (typeof addr === 'object') {
+        const parts = [addr.line1 || addr.addressLine1 || addr.street, addr.line2 || addr.addressLine2, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean);
+        return parts.join(', ') || '';
+      }
+      return '';
+    };
+
+    const address =
+      formatAddr(customerObj?.billingAddress) ||
+      formatAddr(customerObj?.shippingAddress) ||
+      formatAddr(customerObj?.address) ||
+      formatAddr(soObj?.billingAddress) ||
+      formatAddr(soObj?.shippingAddress) ||
+      formatAddr(job.customerAddress) ||
+      'Address Not Specified';
+
+    const rawGst = customerObj?.gstin || customerObj?.gst || job.customerGst || soObj?.customerGstin;
+    const gst = (rawGst && String(rawGst).trim().toUpperCase() !== '27ABCDE4321G2Z8') ? String(rawGst).trim() : 'Unregistered / Non-GST';
 
     const rawDate = job.createdAt || (job.productionPlan?.salesOrder as any)?.createdAt;
     const orderDate = rawDate

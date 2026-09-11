@@ -58,17 +58,63 @@ const findInventoryItem = (inventory, name) => {
   return (inventory || []).find(inv => isMaterialMatch(inv.material, name));
 };
 
-function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
+export function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
   if (!po) return null;
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const isClosed = po.status === 'CLOSED' || po.status === 'PO_CLOSED' || po.status === 'COMPLETED';
-  const lineItems = (po.items && po.items.length > 0)
-    ? po.items
-    : [{ name: po.material || 'RM-1605 High-Tensile Steel Sheets', quantity: po.orderedQty || po.quantity || 1605, unit: po.unit || 'Sheets', rate: po.rate || 350, total: (po.orderedQty || po.quantity || 1605) * (po.rate || 350) }];
 
-  const subtotal = lineItems.reduce((acc, it) => acc + Number(it.total || (it.quantity * (it.rate || 350)) || 0), 0);
-  const gst = Math.round(subtotal * 0.18);
-  const freight = Number(po.freight || 2500);
+  // Comprehensive line items resolution
+  const rawItems = (po.items && po.items.length > 0)
+    ? po.items
+    : (po.lineItems && po.lineItems.length > 0)
+      ? po.lineItems
+      : [{
+          name: po.material || po.materialName || 'Raw Material Items',
+          quantity: po.orderedQty || po.quantity || 1,
+          unit: po.unit || po.uom || 'Units',
+          rate: po.rate || po.unitPrice || 350,
+          total: (po.orderedQty || po.quantity || 1) * (po.rate || po.unitPrice || 350)
+        }];
+
+  const lineItems = rawItems.map((it, idx) => {
+    const name = it.materialNameSnapshot || it.product?.name || it.productName || it.name || it.material || `Material Item #${idx + 1}`;
+    const code = it.materialCodeSnapshot || it.product?.code || it.itemCode || it.productCode || it.hsnCode || '—';
+    const quantity = Number(it.quantity ?? it.orderedQty ?? it.qty ?? it.approvedQty ?? 0);
+    const unit = it.uomSnapshot || it.product?.unit || it.unit || it.uom || 'Units';
+    const rate = Number(it.unitPrice ?? it.unitRate ?? it.rate ?? it.price ?? 0);
+    const total = Number(it.lineTotal ?? it.total ?? it.totalPrice ?? (quantity * rate));
+    return { ...it, name, code, quantity, unit, rate, total };
+  });
+
+  const calculatedSubtotal = lineItems.reduce((acc, it) => acc + (it.total || 0), 0);
+  const subtotal = Number(po.subtotal || po.lineSubtotal || calculatedSubtotal);
+  const gst = Number(po.gstAmount || Math.round(subtotal * 0.18));
+  const freight = Number(po.freight || 0);
   const grandTotal = Number(po.grandTotal || po.totalAmount || (subtotal + gst + freight));
+
+  const vendorName = po.vendorName || po.supplier?.name || po.snapshot?.vendorName || '—';
+  const vendorCode = po.vendorId || po.supplier?.publicId || po.supplierId || '—';
+  const vendorGstin = po.supplier?.gstin || po.gstin || 'Registered Supplier';
+  const vendorContact = po.supplier?.email ? `Email: ${po.supplier.email}` : (po.supplier?.phone ? `Phone: ${po.supplier.phone}` : (po.vendorPhone || '—'));
+  const poRef = po.poNumber || po.publicId || po.draftPoNo || po.id;
+
+  const handleDownloadPdf = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const { downloadElementAsPdf } = await import('../../../shared/utils/pdfGenerator');
+      const el = document.getElementById('po-pdf-print-area');
+      if (el) {
+        await downloadElementAsPdf(el, `Purchase_Order_${poRef}.pdf`);
+      } else {
+        window.print();
+      }
+    } catch (err) {
+      console.error('PDF download error:', err);
+      window.print();
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   return (
     <div
@@ -198,6 +244,46 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
             padding-top: 14px !important;
           }
         }
+
+        @media print {
+          body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          nav, header, aside, .app-sidebar, .sidebar, .mobile-header, .mobile-bottom-nav,
+          .po-pdf-top-bar, button, .btn, .no-print, [role="navigation"], .navbar {
+            display: none !important;
+          }
+          .po-pdf-modal-overlay {
+            position: static !important;
+            padding: 0 !important;
+            background: transparent !important;
+            display: block !important;
+          }
+          .po-pdf-modal-box {
+            box-shadow: none !important;
+            border: none !important;
+            max-width: 100% !important;
+            max-height: none !important;
+            overflow: visible !important;
+            border-radius: 0 !important;
+          }
+          .po-pdf-print-body {
+            padding: 20px 24px !important;
+            overflow: visible !important;
+          }
+          .store-table-scroll-wrapper {
+            overflow: visible !important;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 12mm 15mm;
+          }
+        }
       `}</style>
       <div
         onClick={e => e.stopPropagation()}
@@ -213,12 +299,19 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
               </div>
               <div>
                 <h3 style={{ fontSize: '15px', fontWeight: 900, margin: 0, color: '#ffffff' }}>Official Purchase Order PDF Preview</h3>
-                <div style={{ fontSize: '11.5px', color: '#8893A7', marginTop: '2px' }}>Doc Ref: {po.poNumber || po.id} • Printable Format</div>
+                <div style={{ fontSize: '11.5px', color: '#8893A7', marginTop: '2px' }}>Doc Ref: {poRef} • Complete Manifest & Pricing</div>
               </div>
             </div>
             <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', color: '#ffffff', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
           </div>
           <div className="po-pdf-top-actions">
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: isGeneratingPdf ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)', opacity: isGeneratingPdf ? 0.8 : 1 }}
+            >
+              <Download size={14} /> {isGeneratingPdf ? 'Generating PDF...' : 'Download PDF'}
+            </button>
             <button
               onClick={() => window.print()}
               style={{ background: '#38bdf8', color: '#24345C', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
@@ -249,10 +342,10 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
             </div>
             <div>
               <div style={{ fontSize: '18px', fontWeight: 900, color: '#0284c7', textTransform: 'uppercase', letterSpacing: '1px' }}>PURCHASE ORDER</div>
-              <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#24345C', marginTop: '6px', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px', display: 'inline-block' }}>{po.poNumber || po.id}</div>
+              <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#24345C', marginTop: '6px', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px', display: 'inline-block' }}>{poRef}</div>
               <div style={{ marginTop: '8px' }}>
                 <span style={{ background: isClosed ? '#dcfce7' : '#ffedd5', color: isClosed ? '#166534' : '#c2410c', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 900, border: `1px solid ${isClosed ? '#bbf7d0' : '#fdba74'}` }}>
-                  {isClosed ? '✓ PO CLOSED / COMPLETED' : (po.status || 'PO_ISSUED')}
+                  {isClosed ? '✓ PO CLOSED / COMPLETED' : (po.status || 'PO_ORDERED')}
                 </span>
               </div>
             </div>
@@ -262,16 +355,17 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
           <div className="po-pdf-meta-grid">
             <div style={{ background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '10px', padding: '14px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>VENDOR / SUPPLIER DETAILS</div>
-              <div style={{ fontSize: '15px', fontWeight: 900, color: '#24345C' }}>{po.vendorName || po.supplier?.name || po.snapshot?.vendorName || '—'}</div>
-              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '4px', fontWeight: 600 }}>Vendor Code: {po.vendorId || po.supplier?.publicId || po.supplierId || '—'}</div>
+              <div style={{ fontSize: '15px', fontWeight: 900, color: '#24345C' }}>{vendorName}</div>
+              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '4px', fontWeight: 600 }}>Vendor Code: {vendorCode}</div>
               <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>Payment Terms: {po.paymentTerms || '30 Days Net'}</div>
-              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>GSTIN: {po.supplier?.gstin || po.gstin || 'Registered Supplier'}</div>
+              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>GSTIN: {vendorGstin}</div>
+              {vendorContact && <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>{vendorContact}</div>}
             </div>
             <div style={{ background: '#F5FAFE', border: '1px solid #D6E2F0', borderRadius: '10px', padding: '14px' }}>
               <div style={{ fontSize: '11px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>SHIPPING & DELIVERY SCHEDULE</div>
-              <div style={{ fontSize: '12.5px', color: '#475569' }}><strong>Order Date:</strong> {po.orderedAt || po.orderDate || po.createdAt ? new Date(po.orderedAt || po.orderDate || po.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '17 Jul 2026'}</div>
-              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '6px' }}><strong>Expected Delivery:</strong> <span style={{ color: '#0284c7', fontWeight: 800 }}>{po.expectedDeliveryDate || po.deliveryDate ? new Date(po.expectedDeliveryDate || po.deliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '17 Jul 2026 (EXPECTED TODAY)'}</span></div>
-              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '6px' }}><strong>Ship to Depot:</strong> Raw Material Store Dock #1</div>
+              <div style={{ fontSize: '12.5px', color: '#475569' }}><strong>Order Date:</strong> {po.orderedAt || po.orderDate || po.createdAt ? new Date(po.orderedAt || po.orderDate || po.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '6px' }}><strong>Expected Delivery:</strong> <span style={{ color: '#0284c7', fontWeight: 800 }}>{po.expectedDeliveryDate || po.deliveryDate ? new Date(po.expectedDeliveryDate || po.deliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Expected as per schedule'}</span></div>
+              <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '6px' }}><strong>Ship to Depot:</strong> Raw Material Store Dock #1 • Central Warehouse</div>
             </div>
           </div>
 
@@ -294,11 +388,14 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
                   {lineItems.map((it, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #DCE5F0' }}>
                       <td style={{ padding: '12px', fontSize: '12.5px', color: '#5E6B82' }}>{idx + 1}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', fontWeight: 800, color: '#24345C' }}>{it.name || it.material || 'RM-1605 High-Tensile Steel Sheets'}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', fontWeight: 900, color: '#0284c7', textAlign: 'center' }}>{it.quantity || 1605}</td>
-                      <td style={{ padding: '12px', fontSize: '12.5px', color: '#475569', textAlign: 'center' }}>{it.unit || 'Sheets'}</td>
-                      <td style={{ padding: '12px', fontSize: '12.5px', color: '#475569', textAlign: 'right' }}>₹{(Number(it.rate) || 350).toLocaleString('en-IN')}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', fontWeight: 800, color: '#24345C', textAlign: 'right' }}>₹{(Number(it.total) || (Number(it.quantity || 1605) * Number(it.rate || 350))).toLocaleString('en-IN')}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', fontWeight: 800, color: '#24345C' }}>
+                        <div>{it.name}</div>
+                        {it.code && it.code !== '—' && <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>Code: {it.code}</div>}
+                      </td>
+                      <td style={{ padding: '12px', fontSize: '13px', fontWeight: 900, color: '#0284c7', textAlign: 'center' }}>{it.quantity}</td>
+                      <td style={{ padding: '12px', fontSize: '12.5px', color: '#475569', textAlign: 'center' }}>{it.unit}</td>
+                      <td style={{ padding: '12px', fontSize: '12.5px', color: '#475569', textAlign: 'right' }}>₹{(it.rate || 0).toLocaleString('en-IN')}</td>
+                      <td style={{ padding: '12px', fontSize: '13px', fontWeight: 800, color: '#24345C', textAlign: 'right' }}>₹{(it.total || 0).toLocaleString('en-IN')}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -317,10 +414,12 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
                 <span>GST (18% Applicable):</span>
                 <span style={{ fontWeight: 700 }}>₹{gst.toLocaleString('en-IN')}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#475569' }}>
-                <span>Freight & Handling:</span>
-                <span style={{ fontWeight: 700 }}>₹{freight.toLocaleString('en-IN')}</span>
-              </div>
+              {freight > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#475569' }}>
+                  <span>Freight & Handling:</span>
+                  <span style={{ fontWeight: 700 }}>₹{freight.toLocaleString('en-IN')}</span>
+                </div>
+              )}
               <div style={{ borderTop: '1.5px solid #D6E2F0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '15.5px', fontWeight: 900, color: '#24345C' }}>
                 <span>GRAND TOTAL:</span>
                 <span style={{ color: '#0284c7' }}>₹{grandTotal.toLocaleString('en-IN')}</span>
@@ -332,9 +431,9 @@ function POPdfPreviewModal({ po, onClose, onFastTrackClose }) {
           <div style={{ marginTop: '4px', borderTop: '1px solid #DCE5F0', paddingTop: '16px' }}>
             <div style={{ fontSize: '11px', fontWeight: 800, color: '#5E6B82', textTransform: 'uppercase', marginBottom: '6px' }}>STANDARD PROCUREMENT CLAUSES</div>
             <p style={{ fontSize: '11.5px', color: '#5E6B82', lineHeight: '1.5', margin: 0 }}>
-              1. All materials supplied must adhere strictly to ASTM A1008 structural grade specifications.<br />
+              1. All materials supplied must adhere strictly to ASTM / IS structural grade specifications.<br />
               2. Deliveries must be accompanied by original Tax Invoice, Delivery Challan, and Test Certificate.<br />
-              3. Store dock inspection is mandatory. Defective or rejected quantities will be returned at vendor's risk and cost.
+              3. Store dock inspection and QC clearance is mandatory prior to final acceptance.
             </p>
           </div>
 
@@ -5546,107 +5645,7 @@ export default function StorePortal() {
 
   const handleDownloadStorePOPdf = (po) => {
     if (!po) return;
-    const htmlContent = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Store_PO_Manifest_${po.poNumber || po.id}</title>
-  <style>
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; padding: 40px; color: #24345C; margin: 0; background: #fff; }
-    .header { display: flex; justify-content: space-between; border-bottom: 3px solid #24345C; padding-bottom: 20px; margin-bottom: 24px; }
-    .title { font-size: 28px; font-weight: 900; margin: 0; color: #24345C; }
-    .po-ref { font-size: 16px; font-weight: 800; color: #0284c7; margin-top: 4px; }
-    .meta { text-align: right; font-size: 13px; color: #5E6B82; line-height: 1.6; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-    .box { padding: 16px; border-radius: 8px; border: 1px solid #DCE5F0; background: #F5FAFE; }
-    .box-title { font-size: 11px; font-weight: 800; color: #5E6B82; text-transform: uppercase; margin-bottom: 8px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-    th { background: #f1f5f9; text-align: left; padding: 12px; font-size: 12px; font-weight: 800; color: #475569; border-bottom: 2px solid #D6E2F0; }
-    td { padding: 12px; border-bottom: 1px solid #DCE5F0; font-size: 14px; }
-    .footer { clear: both; border-top: 1px solid #DCE5F0; padding-top: 24px; margin-top: 60px; display: flex; justify-content: space-between; font-size: 12px; color: #5E6B82; }
-    @media print {
-      body { padding: 0; }
-      @page { margin: 2cm; }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <h1 class="title">STORE DELIVERY MANIFEST</h1>
-      <div class="po-ref">${po.poNumber || po.id}</div>
-    </div>
-    <div class="meta">
-      <div><strong>Order Date:</strong> ${new Date(po.createdAt || Date.now()).toLocaleDateString()}</div>
-      <div><strong>Expected Delivery:</strong> ${new Date(po.expectedDeliveryDate || po.deliveryDate || Date.now()).toLocaleDateString()}</div>
-      <div><strong>Status:</strong> ${po.status}</div>
-    </div>
-  </div>
-
-  <div class="grid">
-    <div class="box">
-      <div class="box-title">Vendor & Supplier Details</div>
-      <div style="font-size: 16px; font-weight: 800; color: #24345C;">${po.vendorName || po.supplier?.name || po.snapshot?.vendorName || '—'}</div>
-      <div style="font-size: 13px; color: #475569; margin-top: 4px;">GSTIN: ${po.supplier?.gstin || po.gstin || 'Registered Supplier'}</div>
-    </div>
-    <div class="box" style="background: #e0f2fe; border-color: #bae6fd;">
-      <div class="box-title" style="color: #0369a1;">Logistics & Receiving Dock Info</div>
-      <div style="font-size: 14px; font-weight: 700; color: #0c4a6e;">Store Verification Manifest</div>
-      <div style="font-size: 13px; color: #0284c7; margin-top: 4px;">Destination: Central Warehouse Dock Bay #1</div>
-    </div>
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Material Description</th>
-        <th style="text-align: right;">Expected Quantity</th>
-        <th style="text-align: right;">Received Check</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${(po.items || []).map(i => `
-        <tr>
-          <td style="font-weight: 700;">${i.name || i.material || 'Material'}</td>
-          <td style="text-align: right; font-weight: 700; color: #0284c7;">${i.quantity || 0} ${i.unit || 'Units'}</td>
-          <td style="text-align: right; font-weight: 700; color: #5E6B82;">[ &nbsp; &nbsp; &nbsp; &nbsp; ] Verified</td>
-        </tr>
-      `).join('')}
-    </tbody>
-  </table>
-
-  <div class="footer">
-    <div>Store Receiving Officer Signature & Seal</div>
-    <div>Computer Generated Document • Store Copy</div>
-  </div>
-
-  <script>
-    window.onload = () => {
-      setTimeout(() => {
-        window.print();
-      }, 300);
-    };
-  </script>
-</body>
-</html>`;
-
-    const printWin = window.open('', '_blank', 'width=850,height=1100');
-    if (printWin) {
-      printWin.document.open();
-      printWin.document.write(htmlContent);
-      printWin.document.close();
-    } else {
-      const blob = new Blob([htmlContent], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Store_PO_Manifest_${po.id}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast(`Downloaded Store PO Manifest ${po.id} directly.`, 'info');
-    }
+    setShowStorePOPdfModal(po);
   };
 
   const renderStoreModals = () => {

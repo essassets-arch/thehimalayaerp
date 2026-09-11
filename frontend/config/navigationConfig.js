@@ -89,7 +89,6 @@ export const navigationConfig = {
 
     { id: 'products', label: 'Products', icon: Package, path: '/plant-head/products', group: 'Catalog Management' },
     { id: 'categories', label: 'Categories', icon: Grid, path: '/plant-head/categories', group: 'Catalog Management' },
-    { id: 'finished-goods', label: 'Finished Goods Inventory', icon: PackageCheck, path: '/plant-head/finished-goods', group: 'Planning Board' },
     { id: 'material-approvals', label: 'Material Approvals', icon: FileCheck, path: '/plant-head/material-approvals' },
     { id: 'indent-approvals', label: 'Indent Approvals', icon: CheckCircle, path: '/plant-head/indent-approvals' },
     { id: 'purchase-approvals', label: 'Purchase Approvals', icon: FileCheck, path: '/plant-head/purchase-approvals' },
@@ -406,7 +405,6 @@ export const navigationConfig = {
     { type: 'badge', label: 'MASTER DATA' },
     { id: 'products', label: 'Products', icon: Package, path: '/super-admin/products' },
     { id: 'categories', label: 'Categories', icon: Grid, path: '/super-admin/categories' },
-    { id: 'finished-goods', label: 'Finished Goods Inventory', icon: Boxes, path: '/super-admin/finished-goods' },
 
     { type: 'badge', label: 'ANALYTICS & REPORTS' },
     { id: 'map', label: 'Live User Map', icon: MapPin, path: '/super-admin/map' },

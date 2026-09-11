@@ -7,10 +7,10 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Production & QC Workflow', () => {
 
-  test('Plant Head Finished Goods Page Loads', async ({ page }) => {
-    await page.goto('/plant-head/finished-goods');
+  test('Production Finished Goods Page Loads', async ({ page }) => {
+    await page.goto('/production/finished-goods');
     const url = page.url();
-    expect(url).toMatch(/plant-head|login/);
+    expect(url).toMatch(/production|login/);
   });
 
   test('Production Plans Page Loads', async ({ page }) => {

@@ -128,15 +128,60 @@ export class ProductionWorkflowController {
   }
 
   // ==========================================
-  // FINISHED GOODS
+  // ALL STOCK (Canonical Product Master + Stock View)
   // ==========================================
-  @RequirePermissions('production.productionworkflow.read')
-  @Get('production/finished-goods')
-  async getFinishedGoods(@Req() req: any) {
+  @RequirePermissions(
+    'production.productionworkflow.read',
+    'production.floor.read',
+    'admin.products.read',
+    'products.read',
+  )
+  @Get('production/all-stock')
+  async getAllStock(@Req() req: any) {
     try {
       const companyId = req.headers['x-company-id'] || req.user?.companyId;
       const userId = req.user?.sub || req.user?.id;
       const role = req.user?.role;
+      const result = await this.workflowService.getAllStock(
+        companyId,
+        userId,
+        role,
+      );
+      return {
+        success: true,
+        data: result.items,
+        items: result.items,
+        total: result.total,
+      };
+    } catch (err: any) {
+      console.error('[getAllStock Error]', err);
+      return { success: false, data: [], items: [], total: 0, error: err.message };
+    }
+  }
+
+  // ==========================================
+  // FINISHED GOODS
+  // ==========================================
+  @RequirePermissions('production.productionworkflow.read')
+  @Get('production/finished-goods')
+  async getFinishedGoods(@Req() req: any, @Query('scope') scope?: string) {
+    try {
+      const companyId = req.headers['x-company-id'] || req.user?.companyId;
+      const userId = req.user?.sub || req.user?.id;
+      const role = req.user?.role;
+      if (scope === 'all-stock') {
+        const result = await this.workflowService.getAllStock(
+          companyId,
+          userId,
+          role,
+        );
+        return {
+          success: true,
+          data: result.items,
+          items: result.items,
+          total: result.total,
+        };
+      }
       const data = await this.workflowService.getFinishedGoods(
         companyId,
         userId,

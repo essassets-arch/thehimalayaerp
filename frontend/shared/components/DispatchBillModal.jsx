@@ -22,10 +22,32 @@ export default function DispatchBillModal({ dispatchRecord, orders, onClose }) {
   const dispatchStatus = dispatchRecord.status || 'Dispatch Created';
 
   // Fallback Address & GST
-  const gst = firstOrder?.gst || (firstOrder?.customer && typeof firstOrder.customer === 'object' ? firstOrder.customer.gst : '') || '27ABCDE4321G2Z8';
+  const formatAddr = (addr) => {
+    if (!addr) return '';
+    if (typeof addr === 'string') {
+      const trimmed = addr.trim();
+      if (trimmed.toLowerCase().includes('andheri, mumbai')) return '';
+      return trimmed;
+    }
+    if (typeof addr === 'object') {
+      const parts = [addr.line1 || addr.addressLine1 || addr.street, addr.line2 || addr.addressLine2, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean);
+      return parts.join(', ') || '';
+    }
+    return '';
+  };
+
+  const rawGst = firstOrder?.gstin || firstOrder?.customer?.gstin || firstOrder?.customer?.gst || firstOrder?.gst;
+  const gst = (rawGst && String(rawGst).trim().toUpperCase() !== '27ABCDE4321G2Z8' && !/^\d{1,2}%?$/.test(String(rawGst).trim()))
+    ? String(rawGst).trim()
+    : 'Unregistered / Non-GST';
+
   const address = dispatchRecord.deliveryAddress || dispatchRecord.deliveryLocation ||
-    firstOrder?.deliveryAddress ||
-    (firstOrder?.customer && typeof firstOrder.customer === 'object' ? firstOrder.customer.address : '') ||
+    formatAddr(firstOrder?.deliveryAddress) ||
+    formatAddr(firstOrder?.billingAddress) ||
+    formatAddr(firstOrder?.shippingAddress) ||
+    formatAddr(firstOrder?.customer?.billingAddress) ||
+    formatAddr(firstOrder?.customer?.shippingAddress) ||
+    formatAddr(firstOrder?.customer?.address) ||
     'Delivery address not recorded';
 
   const formatINR = (value) => {
