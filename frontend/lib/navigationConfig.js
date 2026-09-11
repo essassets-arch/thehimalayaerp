@@ -34,7 +34,6 @@ export const navigationConfig = {
     { id: 'rework', label: 'QC Failed & Reprod.', icon: RefreshCw, path: '/production/rework' },
     { id: 'testing', label: 'Testing', icon: ClipboardCheck, path: '/production/testing' },
     { id: 'all-stock', label: 'All Stock', icon: Boxes, path: '/production/all-stock' },
-    { id: 'finished-goods', label: 'Finished Goods', icon: Package, path: '/production/finished-goods' },
     { id: 'reports', label: 'Reports', icon: BarChart3, path: '/production/reports' }
   ],
   'Plant Head': [

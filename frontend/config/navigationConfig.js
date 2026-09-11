@@ -53,7 +53,6 @@ export const navigationConfig = {
     { id: 'daily-report', label: 'Daily Production Report', icon: FileText, path: '/production/daily-report' },
     { id: 'completed', label: 'Completed', icon: ClipboardCheck, path: '/production/completed' },
     { id: 'all-stock', label: 'All Stock', icon: Boxes, path: '/production/all-stock' },
-    { id: 'finished-goods', label: 'Finished Goods', icon: Package, path: '/production/finished-goods' },
 
     {
       id: 'material-workflow',
