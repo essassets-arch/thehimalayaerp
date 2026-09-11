@@ -1963,7 +1963,8 @@ export default function QuotationsView({
                     try {
                       setSharingImage(true);
                       const qNo = resolveQuotationNumber(selectedQuotation);
-                      await shareQuotationImage('quotation-printable-area', qNo, selectedQuotation.customerName);
+                      const custName = clientCustomerName || selectedQuotation.customerName || selectedQuotation.customer || selectedQuotation.partyName || '';
+                      await shareQuotationImage('quotation-printable-area', qNo, custName);
                     } catch (err) {
                       console.error('Error sharing image:', err);
                     } finally {

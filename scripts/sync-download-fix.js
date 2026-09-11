@@ -468,7 +468,8 @@ const enhancedShareHandler = `    // 1. Universal Share Handler: window.flutter_
               final fileName = (map['fileName'] ?? map['filename'] ?? 'quotation.png').toString();
               final text = (map['text'] ?? map['title'] ?? '').toString();
               final url = (map['url'] ?? '').toString();
-              final fullText = [text, url].where((s) => s.isNotEmpty).join('\\n');
+              String fullText = [text, url].where((s) => s.isNotEmpty).join('\\n');
+              fullText = fullText.replaceAll('supersales/quotations', 'sales/quotations');
 
               if (base64Data.isNotEmpty) {
                 String clean = base64Data;
@@ -487,7 +488,7 @@ const enhancedShareHandler = `    // 1. Universal Share Handler: window.flutter_
                 return {'success': true};
               }
             } else {
-              final text = args[0].toString();
+              final text = args[0].toString().replaceAll('supersales/quotations', 'sales/quotations');
               await Share.share(text);
               return {'success': true};
             }
@@ -705,6 +706,7 @@ const nativeHandlers = `
               if (args.length > 2 && args[2] != null) text = args[2].toString();
             }
           }
+          text = text.replaceAll('supersales/quotations', 'sales/quotations');
 
           if (base64Data.isNotEmpty) {
             String clean = base64Data;
@@ -737,7 +739,8 @@ const nativeHandlers = `
             final map = args[0] as Map;
             final base64Data = (map['base64'] ?? map['data'] ?? map['dataUrl'] ?? '').toString();
             final fileName = (map['fileName'] ?? map['filename'] ?? 'file').toString();
-            final text = (map['text'] ?? 'Himalaya ERP').toString();
+            String text = (map['text'] ?? 'Himalaya ERP').toString();
+            text = text.replaceAll('supersales/quotations', 'sales/quotations');
             final remoteUrl = (map['url'] ?? '').toString();
             final mimeType = map['mimeType']?.toString();
 

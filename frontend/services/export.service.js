@@ -2271,8 +2271,9 @@ export const shareQuotationImage = async (elementId, quotationNo = 'Draft', cust
   const { blob, dataUrl } = exportRes;
 
   const base64Clean = dataUrl && dataUrl.includes(',') ? dataUrl.split(',')[1] : (dataUrl || '');
-  const quotationShareUrl = 'https://thehimalaya.cloud/supersales/quotations';
-  const shareText = `Quotation #${quotationNo} for ${customerName || 'Valued Customer'}\n${quotationShareUrl}`;
+  const quotationShareUrl = 'https://thehimalaya.cloud/sales/quotations';
+  const customerLabel = customerName && customerName !== 'Customer' ? ` for ${customerName}` : (customerName ? ` for ${customerName}` : '');
+  const shareText = `Quotation #${quotationNo}${customerLabel}\n${quotationShareUrl}`;
 
   // Upload to server export endpoint to generate a permanent/temporary download link for sharing
   let absoluteShareUrl = '';
