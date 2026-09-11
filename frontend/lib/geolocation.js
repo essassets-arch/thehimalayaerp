@@ -1,3 +1,5 @@
+import { backendFetch } from './backendFetch';
+
 let lastKnownLocation = null;
 
 /**
@@ -153,7 +155,7 @@ export async function reverseGeocodeViaBackend(latitude, longitude, accuracy) {
     if (accuracy != null && accuracy > 0) {
       queryParams.set('accuracy', String(Math.round(accuracy)));
     }
-    const res = await apiClient.get(`/attendance/reverse-geocode?${queryParams.toString()}`);
+    const res = await backendFetch(`/api/backend/attendance/reverse-geocode?${queryParams.toString()}`);
 
     if (res && res.address && typeof res.address === 'string' && res.address.trim()) {
       return res.address.trim();
