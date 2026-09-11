@@ -71,6 +71,29 @@ describe('Real-Time GPS & Live User Map Certification Suite', () => {
           if (session) Object.assign(session, data);
           return Promise.resolve(session);
         }),
+        upsert: jest.fn().mockImplementation(({ where, create, update }) => {
+          let session = mockSessions.find(
+            (s) =>
+              (where.userId_deviceId &&
+                s.userId === where.userId_deviceId.userId &&
+                s.deviceId === where.userId_deviceId.deviceId) ||
+              s.id === where.id ||
+              s.sessionId === where.sessionId,
+          );
+          if (session) {
+            Object.assign(session, update);
+          } else {
+            session = {
+              id: `ds-${mockSessions.length + 1}`,
+              sessionId: `sess-${mockSessions.length + 1}`,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              ...create,
+            };
+            mockSessions.push(session);
+          }
+          return Promise.resolve(session);
+        }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       latestUserLocation: {

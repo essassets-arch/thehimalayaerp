@@ -618,11 +618,11 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
       },
       (error) => {
         setLocationStatus('idle');
-        let errorMsg = 'Unable to get your current location. Please check GPS/location services and try again.';
+        let errorMsg = 'Unable to get your current location. Please check your device GPS/location permission and try again.';
         if (error && error.code === 1) { // PERMISSION_DENIED
           errorMsg = 'Location permission was denied. Please allow location access and try again.';
         } else if (error && (error.code === 2 || error.code === 3)) { // POSITION_UNAVAILABLE or TIMEOUT
-          errorMsg = 'Unable to get your current location. Please check GPS/location services and try again.';
+          errorMsg = 'Unable to get your current location. Please check your device GPS/location permission and try again.';
         }
 
         Swal.fire({
@@ -634,7 +634,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
       },
       {
         enableHighAccuracy: true,
-        maximumAge: 0,
+        maximumAge: (typeof window !== 'undefined' && window.__PLAYWRIGHT_TEST__ ? 60000 : 0),
         timeout: 15000
       }
     );

@@ -399,73 +399,17 @@ export default function HeroBanner({
       return { ...loc, address: addr };
     } catch (err) {
       console.warn('[HeroBanner] GPS Location acquisition failed:', err?.message || err);
-      const errMsg = err?.message || 'Location access required. Please enable device GPS/Location permissions.';
+      const errMsg = err?.message || 'Unable to get your current location. Please check your device GPS/location permission and try again.';
 
-      // Check if we have recent real coordinates from storage or background tracking
-      let savedLat = null;
-      let savedLng = null;
-      let savedCoordsStr = null;
-
-      try {
-        const raw = localStorage.getItem('himalaya_last_real_location') || sessionStorage.getItem('himalaya_last_real_location');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed.latitude === 'number' && typeof parsed.longitude === 'number') {
-            savedLat = parsed.latitude;
-            savedLng = parsed.longitude;
-            savedCoordsStr = parsed.coordsStr;
-          }
-        }
-        if (!savedLat) {
-          const latStr = sessionStorage.getItem('himalaya_last_lat');
-          const lngStr = sessionStorage.getItem('himalaya_last_lng');
-          if (latStr && lngStr) {
-            const pLat = parseFloat(latStr);
-            const pLng = parseFloat(lngStr);
-            if (!isNaN(pLat) && !isNaN(pLng)) {
-              savedLat = pLat;
-              savedLng = pLng;
-              const latDir = pLat >= 0 ? 'N' : 'S';
-              const lngDir = pLng >= 0 ? 'E' : 'W';
-              savedCoordsStr = `${Math.abs(pLat).toFixed(4)}° ${latDir}, ${Math.abs(pLng).toFixed(4)}° ${lngDir}`;
-            }
-          }
-        }
-      } catch (_) {}
-
-      if (savedLat && savedLng) {
-        setLocationState(prev => ({
-          ...prev,
-          loading: false,
-          coords: prev.coords || savedCoordsStr,
-          latitude: prev.latitude || savedLat,
-          longitude: prev.longitude || savedLng,
-          accuracy: prev.accuracy || 25,
-          error: null,
-          mandatoryActive: true
-        }));
-        return { latitude: savedLat, longitude: savedLng, coordsStr: savedCoordsStr, accuracy: 25 };
-      }
-
-      setLocationState(prev => {
-        if (prev.latitude && prev.longitude) {
-          return {
-            ...prev,
-            loading: false,
-            error: null,
-            mandatoryActive: true
-          };
-        }
-        return {
-          loading: false,
-          coords: null,
-          latitude: null,
-          longitude: null,
-          accuracy: null,
-          address: null,
-          error: errMsg,
-          mandatoryActive: false
-        };
+      setLocationState({
+        loading: false,
+        coords: null,
+        latitude: null,
+        longitude: null,
+        accuracy: null,
+        address: null,
+        error: errMsg,
+        mandatoryActive: false
       });
       return null;
     }
@@ -1045,6 +989,7 @@ export default function HeroBanner({
           {!isPunchDisabled && (
             <button 
               className="hero-action-btn" 
+              data-testid="hero-biometric-punch-btn"
               title={punchStatus.isPunchedIn ? `Punched In at ${punchStatus.punchInTime || ''} - Click to Punch Out` : "Punch In with Camera Selfie"} 
               onClick={() => {
                 setShowPunchModal(true);
@@ -1620,30 +1565,16 @@ export default function HeroBanner({
                       // 1. Request fresh device GPS at punch in moment
                       let freshLoc;
                       try {
-                        freshLoc = await getCurrentDeviceLocation({ forceFresh: false, maxAgeSeconds: 120 });
+                        freshLoc = await getCurrentDeviceLocation();
                       } catch (gpsErr) {
-                        const fallbackLat = locationState.latitude || (typeof window !== 'undefined' && parseFloat(sessionStorage.getItem('himalaya_last_lat') || ''));
-                        const fallbackLng = locationState.longitude || (typeof window !== 'undefined' && parseFloat(sessionStorage.getItem('himalaya_last_lng') || ''));
-
-                        if (fallbackLat && fallbackLng && !isNaN(fallbackLat) && !isNaN(fallbackLng)) {
-                          const latDir = fallbackLat >= 0 ? 'N' : 'S';
-                          const lngDir = fallbackLng >= 0 ? 'E' : 'W';
-                          freshLoc = {
-                            latitude: fallbackLat,
-                            longitude: fallbackLng,
-                            accuracy: locationState.accuracy || 25,
-                            coordsStr: locationState.coords || `${Math.abs(fallbackLat).toFixed(4)}° ${latDir}, ${Math.abs(fallbackLng).toFixed(4)}° ${lngDir}`
-                          };
-                        } else {
-                          Swal.fire({
-                            icon: 'warning',
-                            title: 'Location Access Required',
-                            text: gpsErr.message || 'Location access required. Please enable device GPS/Location permissions to Punch In.',
-                            confirmButtonText: 'OK'
-                          });
-                          setIsPunching(false);
-                          return;
-                        }
+                        Swal.fire({
+                          icon: 'warning',
+                          title: 'Location Access Required',
+                          text: gpsErr.message || 'Unable to get your current location. Please check your device GPS/location permission and try again.',
+                          confirmButtonText: 'OK'
+                        });
+                        setIsPunching(false);
+                        return;
                       }
 
                       // 2. Server-side reverse geocoding via Google Maps integration
@@ -1733,6 +1664,7 @@ export default function HeroBanner({
                     }
                   }}
                   disabled={isPunching}
+                  data-testid="attendance-punch-in-btn"
                   className="attendance-punch-action-btn punch-in"
                 >
                   <Camera size={18} /> {isPunching ? 'Recording Punch...' : (cameraActive ? 'Take Selfie & Punch In' : 'Punch In Now')}
@@ -1744,33 +1676,19 @@ export default function HeroBanner({
                     if (isPunching) return;
                     setIsPunching(true);
                     try {
-                      // 1. Request brand NEW fresh device GPS at punch out moment
+                      // 1. Request brand NEW fresh device GPS at punch out moment independently (never reuse Punch In coordinates)
                       let freshLoc;
                       try {
-                        freshLoc = await getCurrentDeviceLocation({ forceFresh: true, maxAgeSeconds: 30 });
+                        freshLoc = await getCurrentDeviceLocation();
                       } catch (gpsErr) {
-                        const fallbackLat = locationState.latitude || (typeof window !== 'undefined' && parseFloat(sessionStorage.getItem('himalaya_last_lat') || ''));
-                        const fallbackLng = locationState.longitude || (typeof window !== 'undefined' && parseFloat(sessionStorage.getItem('himalaya_last_lng') || ''));
-
-                        if (fallbackLat && fallbackLng && !isNaN(fallbackLat) && !isNaN(fallbackLng)) {
-                          const latDir = fallbackLat >= 0 ? 'N' : 'S';
-                          const lngDir = fallbackLng >= 0 ? 'E' : 'W';
-                          freshLoc = {
-                            latitude: fallbackLat,
-                            longitude: fallbackLng,
-                            accuracy: locationState.accuracy || 25,
-                            coordsStr: locationState.coords || `${Math.abs(fallbackLat).toFixed(4)}° ${latDir}, ${Math.abs(fallbackLng).toFixed(4)}° ${lngDir}`
-                          };
-                        } else {
-                          Swal.fire({
-                            icon: 'warning',
-                            title: 'Location Access Required',
-                            text: gpsErr.message || 'Location access required. Please enable device GPS/Location permissions to Punch Out.',
-                            confirmButtonText: 'OK'
-                          });
-                          setIsPunching(false);
-                          return;
-                        }
+                        Swal.fire({
+                          icon: 'warning',
+                          title: 'Location Access Required',
+                          text: gpsErr.message || 'Unable to get your current location. Please check your device GPS/location permission and try again.',
+                          confirmButtonText: 'OK'
+                        });
+                        setIsPunching(false);
+                        return;
                       }
 
                       // 2. Server-side reverse geocoding via Google Maps integration
@@ -1838,6 +1756,7 @@ export default function HeroBanner({
                     }
                   }}
                   disabled={isPunching}
+                  data-testid="attendance-punch-out-btn"
                   className="attendance-punch-action-btn punch-out"
                 >
                   <LogOut size={18} /> {isPunching ? 'Recording Punch...' : (cameraActive ? 'Take Selfie & Punch Out' : 'Punch Out Now')}

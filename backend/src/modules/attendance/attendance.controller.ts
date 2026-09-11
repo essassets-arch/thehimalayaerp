@@ -38,7 +38,14 @@ export class AttendanceController {
       lng,
       accuracy,
     );
-    return { success: true, address, latitude: lat, longitude: lng, accuracy };
+    return {
+      success: true,
+      address,
+      formattedAddress: address,
+      latitude: lat,
+      longitude: lng,
+      accuracy,
+    };
   }
 
   @Get('me/today')

@@ -207,4 +207,183 @@ test.describe('Sales Create Lead — Dynamic Real-Time GPS Delivery Location', (
     expect(submittedPayload.address.latitude).toBeUndefined();
     expect(submittedPayload.address.longitude).toBeUndefined();
   });
+
+  test('GPS unavailable or permission denied shows error, never falls back to Ahmedabad, Gujarat or IP location', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(45000);
+
+    // Track network requests to ensure zero IP geolocation
+    const blockedHosts: string[] = [];
+    page.on('request', (req) => {
+      const url = req.url();
+      if (url.includes('bigdatacloud.net') || url.includes('ip-api.com') || url.includes('ipapi.co')) {
+        blockedHosts.push(url);
+      }
+    });
+
+    await page.addInitScript(() => {
+      localStorage.setItem('e2e_bypass_permissions', 'true');
+      sessionStorage.setItem('e2e_bypass_permissions', 'true');
+      (window as any).__PLAYWRIGHT_TEST__ = true;
+
+      // Mock geolocation error (code 1 = PERMISSION_DENIED)
+      navigator.geolocation.getCurrentPosition = function (success, error) {
+        if (error) {
+          error({
+            code: 1,
+            message: 'User denied Geolocation',
+            PERMISSION_DENIED: 1,
+            POSITION_UNAVAILABLE: 2,
+            TIMEOUT: 3,
+          } as GeolocationPositionError);
+        }
+      };
+    });
+
+    // 1. Log in as Sales Executive
+    await performRobustLogin(
+      page,
+      process.env.E2E_SALES_EXECUTIVE_EMAIL || 'sales.executive.browser@himalayaerp.test',
+      undefined,
+      /\/sales(?:\/dashboard)?(?:[/?#]|$)/,
+    );
+
+    // 2. Open Create Lead Form
+    await page.goto('/sales/leads');
+    const newLeadBtn = page.getByTestId('lead-create');
+    await expect(newLeadBtn).toBeVisible({ timeout: 10000 });
+    await newLeadBtn.click();
+    await expect(page.getByTestId('sales-create-lead-page')).toBeVisible({ timeout: 10000 });
+
+    const locationBtn = page.getByTestId('use-current-location-btn');
+    await expect(locationBtn).toBeVisible();
+
+    // 3. Click "Use Current Location" when GPS permission is denied
+    await locationBtn.click();
+
+    // 4. Verify SweetAlert error modal appears
+    const swalModal = page.locator('.swal2-modal');
+    await expect(swalModal).toBeVisible({ timeout: 5000 });
+    await expect(swalModal).toContainText(/Location permission was denied|Location Unavailable/i);
+
+    // Close Swal modal
+    const confirmBtn = page.locator('.swal2-confirm');
+    if (await confirmBtn.isVisible()) {
+      await confirmBtn.click();
+    }
+
+    // 5. Verify STRICTLY NO fallback to Ahmedabad, Gujarat, or any static address
+    const addressInput = page.getByTestId('lead-address');
+    const cityInput = page.getByTestId('lead-city');
+    const stateInput = page.getByTestId('lead-state');
+    const pincodeInput = page.getByTestId('lead-pincode');
+
+    expect(await addressInput.inputValue()).toBe('');
+    expect(await cityInput.inputValue()).toBe('');
+    expect(await stateInput.inputValue()).not.toBe('Gujarat');
+    expect(await pincodeInput.inputValue()).toBe('');
+
+    // Accuracy badge must NOT be visible
+    await expect(page.getByTestId('location-accuracy-badge')).not.toBeVisible();
+
+    // Zero IP geolocation calls
+    expect(blockedHosts).toHaveLength(0);
+
+    // 6. Manual entry remains fully functional
+    await addressInput.fill('Manual Delivery Site 404');
+    await cityInput.fill('Kolkata');
+    await stateInput.fill('West Bengal');
+    await pincodeInput.fill('700001');
+
+    await expect(addressInput).toHaveValue('Manual Delivery Site 404');
+    await expect(cityInput).toHaveValue('Kolkata');
+    await expect(stateInput).toHaveValue('West Bengal');
+    await expect(pincodeInput).toHaveValue('700001');
+  });
+
+  test('Mobile & APK environment executes 100% device GPS flow without static fallback', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(45000);
+
+    // Simulate mobile / APK viewport (Pixel 7 / Android WebView dimensions)
+    await page.setViewportSize({ width: 412, height: 915 });
+
+    await page.addInitScript(() => {
+      localStorage.setItem('e2e_bypass_permissions', 'true');
+      sessionStorage.setItem('e2e_bypass_permissions', 'true');
+      (window as any).__PLAYWRIGHT_TEST__ = true;
+      (window as any).flutter_inappwebview = true; // Mark as Flutter APK WebView environment
+
+      const originalGetCurrentPosition = navigator.geolocation.getCurrentPosition.bind(navigator.geolocation);
+      navigator.geolocation.getCurrentPosition = function (success, error, options) {
+        return originalGetCurrentPosition(
+          success,
+          error,
+          { ...options, maximumAge: options?.maximumAge === 0 ? 60000 : (options?.maximumAge ?? 60000) }
+        );
+      };
+    });
+
+    // Mock reverse geocode for Mumbai coordinates
+    await page.route('**/api/backend/location/reverse-geocode*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          formattedAddress: 'Nariman Point, Mumbai, Maharashtra 400021',
+          placeId: 'ChIJmumbai_nariman_point',
+          line1: 'Nariman Point',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          pincode: '400021',
+          country: 'India',
+          latitude: 18.9256,
+          longitude: 72.8242,
+          accuracy: 10,
+        }),
+      });
+    });
+
+    await context.grantPermissions(['geolocation', 'notifications'], { origin: 'http://localhost:3000' });
+    await context.setGeolocation({ latitude: 18.9256, longitude: 72.8242, accuracy: 10 });
+
+    // 1. Log in
+    await performRobustLogin(
+      page,
+      process.env.E2E_SALES_EXECUTIVE_EMAIL || 'sales.executive.browser@himalayaerp.test',
+      undefined,
+      /\/sales(?:\/dashboard)?(?:[/?#]|$)/,
+    );
+
+    // 2. Open Create Lead Form on Mobile Viewport
+    await page.goto('/sales/leads');
+    const newLeadBtn = page.getByTestId('lead-create');
+    await expect(newLeadBtn).toBeVisible({ timeout: 10000 });
+    await newLeadBtn.click();
+    await expect(page.getByTestId('sales-create-lead-page')).toBeVisible({ timeout: 10000 });
+
+    const locationBtn = page.getByTestId('use-current-location-btn');
+    await expect(locationBtn).toBeVisible();
+
+    // 3. Tap "Use Current Location" on mobile
+    await locationBtn.click();
+
+    // 4. Verify accuracy badge and Mumbai resolved address
+    const accuracyBadge = page.getByTestId('location-accuracy-badge');
+    await expect(accuracyBadge).toBeVisible({ timeout: 10000 });
+    await expect(accuracyBadge).toContainText('Location accuracy: ~10 m');
+    await expect(accuracyBadge).toContainText('18.92560, 72.82420');
+
+    await expect(page.getByTestId('lead-address')).toHaveValue('Nariman Point');
+    await expect(page.getByTestId('lead-city')).toHaveValue('Mumbai');
+    await expect(page.getByTestId('lead-state')).toHaveValue('Maharashtra');
+    await expect(page.getByTestId('lead-pincode')).toHaveValue('400021');
+    await expect(locationBtn).toContainText('Location captured');
+  });
 });
+

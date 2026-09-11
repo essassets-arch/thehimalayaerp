@@ -90,9 +90,15 @@ export function getKolkataDate(date: Date = new Date()): {
   return { dateStr, startOfDay, endOfDay };
 }
 
+import { LocationService } from '../location/location.service';
+import { Optional } from '@nestjs/common';
+
 @Injectable()
 export class AttendanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly locationService?: LocationService,
+  ) {}
 
   // Cache for Google Maps reverse geocoding to prevent repetitive API calls: grid of ~100m (3 decimal places)
   private geocodeCache = new Map<string, string>();
@@ -109,6 +115,24 @@ export class AttendanceService {
       isNaN(longitude)
     ) {
       return '—';
+    }
+
+    if (this.locationService) {
+      try {
+        const res = await this.locationService.reverseGeocode(
+          latitude,
+          longitude,
+          accuracy,
+        );
+        if (res && res.formattedAddress) {
+          return res.formattedAddress;
+        }
+      } catch (err: any) {
+        console.warn(
+          '[AttendanceService] LocationService reverseGeocode failed, using fallback:',
+          err?.message || err,
+        );
+      }
     }
 
     const latFixed = Number(latitude).toFixed(4);
