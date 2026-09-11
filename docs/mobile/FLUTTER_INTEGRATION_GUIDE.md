@@ -101,6 +101,17 @@ class _HimalayaWebViewScreenState extends State<HimalayaWebViewScreen> {
             );
           },
           onGeolocationPermissionsShowPrompt: (controller, origin) async {
+            final uri = Uri.tryParse(origin);
+            final isTrusted = uri != null && (
+              uri.host == 'thehimalaya.cloud' ||
+              uri.host == 'www.thehimalaya.cloud' ||
+              uri.host == 'localhost' ||
+              uri.host == '127.0.0.1' ||
+              uri.host == '10.0.2.2'
+            );
+            if (!isTrusted) {
+              return GeolocationPermissionShowPromptResponse(origin: origin, allow: false, retain: false);
+            }
             final status = await Permission.locationWhenInUse.request();
             return GeolocationPermissionShowPromptResponse(
               origin: origin,

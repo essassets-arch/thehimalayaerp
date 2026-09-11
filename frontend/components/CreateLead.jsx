@@ -470,7 +470,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   }, [mapsLoaded]);
 
   // Use current geolocation coordinates and reverse geocode them via Google Maps
-  const handleUseCurrentLocation = () => {
+  const handleUseCurrentLocation = async () => {
     if (!navigator.geolocation) {
       Swal.fire({
         icon: 'error',
@@ -483,159 +483,195 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
     setLocationStatus('locating');
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const accuracy = position.coords.accuracy;
+    // 1. If running inside mobile APK wrapper, proactively trigger native Android permission prompt
+    if (typeof window !== 'undefined' && window.flutter_inappwebview && typeof window.flutter_inappwebview.callHandler === 'function') {
+      try {
+        await window.flutter_inappwebview.callHandler('requestLocation');
+      } catch (bridgeErr) {
+        console.warn('[APK Bridge] requestLocation warning:', bridgeErr);
+      }
+    }
 
-        setLocationStatus('fetching');
+    const onPositionSuccess = async (position) => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
 
-        let geocodeResult = null;
+      setLocationStatus('fetching');
 
-        // 1. Try Google Reverse Geocoding via Next.js Backend Bridge
+      let geocodeResult = null;
+
+      // 1. Try Google Reverse Geocoding via Next.js Backend Bridge
+      try {
+        const query = new URLSearchParams();
+        query.set('lat', String(lat));
+        query.set('lng', String(lng));
+        if (accuracy != null && accuracy > 0) {
+          query.set('accuracy', String(Math.round(accuracy)));
+        }
+        const res = await backendFetch(`/api/backend/location/reverse-geocode?${query.toString()}`);
+        if (res && res.success && res.formattedAddress) {
+          geocodeResult = res;
+        }
+      } catch (bridgeErr) {
+        console.warn('Backend geocode bridge error, attempting client Google Geocoder:', bridgeErr);
+      }
+
+      // 2. Fallback to client-side Google Maps Geocoder if bridge was unavailable
+      if (!geocodeResult && window.google && window.google.maps && window.google.maps.Geocoder) {
         try {
-          const query = new URLSearchParams();
-          query.set('lat', String(lat));
-          query.set('lng', String(lng));
-          if (accuracy != null && accuracy > 0) {
-            query.set('accuracy', String(Math.round(accuracy)));
-          }
-          const res = await backendFetch(`/api/backend/location/reverse-geocode?${query.toString()}`);
-          if (res && res.success && res.formattedAddress) {
-            geocodeResult = res;
-          }
-        } catch (bridgeErr) {
-          console.warn('Backend geocode bridge error, attempting client Google Geocoder:', bridgeErr);
-        }
+          geocodeResult = await new Promise((resolve) => {
+            const geocoder = new window.google.maps.Geocoder();
+            geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+              if (status === 'OK' && results && results[0]) {
+                const place = results[0];
+                let streetNumber = '';
+                let route = '';
+                let sublocality = '';
+                let locality = '';
+                let adminArea2 = '';
+                let state = '';
+                let postalCode = '';
 
-        // 2. Fallback to client-side Google Maps Geocoder if bridge was unavailable
-        if (!geocodeResult && window.google && window.google.maps && window.google.maps.Geocoder) {
-          try {
-            geocodeResult = await new Promise((resolve) => {
-              const geocoder = new window.google.maps.Geocoder();
-              geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-                if (status === 'OK' && results && results[0]) {
-                  const place = results[0];
-                  let streetNumber = '';
-                  let route = '';
-                  let sublocality = '';
-                  let locality = '';
-                  let adminArea2 = '';
-                  let state = '';
-                  let postalCode = '';
-
-                  (place.address_components || []).forEach(component => {
-                    const types = component.types || [];
-                    if (types.includes('street_number')) streetNumber = component.long_name;
-                    if (types.includes('route')) route = component.long_name;
-                    if (types.includes('sublocality') || types.includes('sublocality_level_1') || types.includes('sublocality_level_2')) {
-                      sublocality = sublocality ? `${sublocality}, ${component.long_name}` : component.long_name;
-                    }
-                    if (types.includes('locality')) locality = component.long_name;
-                    if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
-                    if (types.includes('administrative_area_level_1')) state = component.long_name;
-                    if (types.includes('postal_code')) postalCode = component.long_name;
-                  });
-
-                  const addressParts = [];
-                  if (streetNumber) addressParts.push(streetNumber);
-                  if (route) addressParts.push(route);
-                  if (sublocality) addressParts.push(sublocality);
-
-                  let line1 = addressParts.join(', ');
-                  if (!line1) {
-                    line1 = place.formatted_address ? place.formatted_address.split(',')[0] : '';
+                (place.address_components || []).forEach(component => {
+                  const types = component.types || [];
+                  if (types.includes('street_number')) streetNumber = component.long_name;
+                  if (types.includes('route')) route = component.long_name;
+                  if (types.includes('sublocality') || types.includes('sublocality_level_1') || types.includes('sublocality_level_2')) {
+                    sublocality = sublocality ? `${sublocality}, ${component.long_name}` : component.long_name;
                   }
+                  if (types.includes('locality')) locality = component.long_name;
+                  if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
+                  if (types.includes('administrative_area_level_1')) state = component.long_name;
+                  if (types.includes('postal_code')) postalCode = component.long_name;
+                });
 
-                  resolve({
-                    success: true,
-                    formattedAddress: place.formatted_address || line1,
-                    placeId: place.place_id || '',
-                    line1,
-                    city: locality || adminArea2 || sublocality || '',
-                    state,
-                    pincode: postalCode
-                  });
-                } else {
-                  resolve(null);
+                const addressParts = [];
+                if (streetNumber) addressParts.push(streetNumber);
+                if (route) addressParts.push(route);
+                if (sublocality) addressParts.push(sublocality);
+
+                let line1 = addressParts.join(', ');
+                if (!line1) {
+                  line1 = place.formatted_address ? place.formatted_address.split(',')[0] : '';
                 }
-              });
+
+                resolve({
+                  success: true,
+                  formattedAddress: place.formatted_address || line1,
+                  placeId: place.place_id || '',
+                  line1,
+                  city: locality || adminArea2 || sublocality || '',
+                  state,
+                  pincode: postalCode
+                });
+              } else {
+                resolve(null);
+              }
             });
-          } catch (clientErr) {
-            console.warn('Client Google Geocoder failed:', clientErr);
-          }
-        }
-
-        if (geocodeResult && geocodeResult.formattedAddress) {
-          const resolvedLine1 = geocodeResult.line1 || geocodeResult.formattedAddress;
-          const resolvedCity = geocodeResult.city || '';
-          const resolvedState = geocodeResult.state || '';
-          const resolvedPincode = geocodeResult.pincode || '';
-          const resolvedPlaceId = geocodeResult.placeId || '';
-          const resolvedFormatted = geocodeResult.formattedAddress;
-
-          setFormData(prev => ({
-            ...prev,
-            addressLine1: resolvedLine1,
-            city: resolvedCity || prev.city,
-            stateName: resolvedState || prev.stateName,
-            pincode: resolvedPincode || prev.pincode,
-            deliveryAddress: resolvedFormatted,
-            deliveryLatitude: lat,
-            deliveryLongitude: lng,
-            deliveryAccuracy: accuracy != null ? Math.round(accuracy) : null,
-            deliveryPlaceId: resolvedPlaceId
-          }));
-
-          setLocationStatus('captured');
-
-          Swal.fire({
-            icon: 'success',
-            title: 'Location Captured',
-            text: `Delivery address resolved (~${Math.round(accuracy)}m accuracy).`,
-            timer: 2000,
-            showConfirmButton: false
           });
-        } else {
-          // Reverse geocoding failed: keep captured coordinates, do NOT invent address
-          setFormData(prev => ({
-            ...prev,
-            deliveryLatitude: lat,
-            deliveryLongitude: lng,
-            deliveryAccuracy: accuracy != null ? Math.round(accuracy) : null,
-          }));
-
-          setLocationStatus('idle');
-
-          Swal.fire({
-            icon: 'info',
-            title: 'Location Notice',
-            text: 'Location captured, but address could not be resolved. Please enter the delivery address manually.',
-            confirmButtonColor: '#2563eb'
-          });
+        } catch (clientErr) {
+          console.warn('Client Google Geocoder failed:', clientErr);
         }
-      },
-      (error) => {
-        setLocationStatus('idle');
-        let errorMsg = 'Unable to get your current location. Please check your device GPS/location permission and try again.';
-        if (error && error.code === 1) { // PERMISSION_DENIED
-          errorMsg = 'Location permission was denied. Please allow location access and try again.';
-        } else if (error && (error.code === 2 || error.code === 3)) { // POSITION_UNAVAILABLE or TIMEOUT
-          errorMsg = 'Unable to get your current location. Please check your device GPS/location permission and try again.';
-        }
+      }
+
+      if (geocodeResult && geocodeResult.formattedAddress) {
+        const resolvedLine1 = geocodeResult.line1 || geocodeResult.formattedAddress;
+        const resolvedCity = geocodeResult.city || '';
+        const resolvedState = geocodeResult.state || '';
+        const resolvedPincode = geocodeResult.pincode || '';
+        const resolvedPlaceId = geocodeResult.placeId || '';
+        const resolvedFormatted = geocodeResult.formattedAddress;
+
+        setFormData(prev => ({
+          ...prev,
+          addressLine1: resolvedLine1,
+          city: resolvedCity || prev.city,
+          stateName: resolvedState || prev.stateName,
+          pincode: resolvedPincode || prev.pincode,
+          deliveryAddress: resolvedFormatted,
+          deliveryLatitude: lat,
+          deliveryLongitude: lng,
+          deliveryAccuracy: accuracy != null ? Math.round(accuracy) : null,
+          deliveryPlaceId: resolvedPlaceId
+        }));
+
+        setLocationStatus('captured');
 
         Swal.fire({
-          icon: 'error',
-          title: 'Location Unavailable',
-          text: errorMsg,
+          icon: 'success',
+          title: 'Location Captured',
+          text: `Delivery address resolved (~${Math.round(accuracy)}m accuracy).`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+      } else {
+        // Reverse geocoding failed: keep captured coordinates, do NOT invent address
+        setFormData(prev => ({
+          ...prev,
+          deliveryLatitude: lat,
+          deliveryLongitude: lng,
+          deliveryAccuracy: accuracy != null ? Math.round(accuracy) : null,
+        }));
+
+        setLocationStatus('idle');
+
+        Swal.fire({
+          icon: 'info',
+          title: 'Location Notice',
+          text: 'Location captured, but address could not be resolved. Please enter the delivery address manually.',
           confirmButtonColor: '#2563eb'
         });
+      }
+    };
+
+    const handleFinalError = (error) => {
+      setLocationStatus('idle');
+      let errorMsg = 'Unable to determine your current location. Please turn on Location/GPS on your device and try again.';
+      if (error && error.code === 1) { // PERMISSION_DENIED
+        errorMsg = 'Location permission was denied. Please allow location access in your device/app settings and try again.';
+      } else if (error && error.code === 2) { // POSITION_UNAVAILABLE
+        errorMsg = 'Unable to determine your current location. Please turn on Location/GPS on your device and try again.';
+      } else if (error && error.code === 3) { // TIMEOUT
+        errorMsg = 'Location request timed out. Please ensure Location/GPS is enabled and try again.';
+      }
+
+      Swal.fire({
+        icon: 'error',
+        title: 'Location Unavailable',
+        text: errorMsg,
+        confirmButtonColor: '#2563eb'
+      });
+    };
+
+    const isTest = typeof window !== 'undefined' && window.__PLAYWRIGHT_TEST__;
+
+    // STAGE 1: Request high-accuracy location
+    navigator.geolocation.getCurrentPosition(
+      onPositionSuccess,
+      (error) => {
+        // Fallback to STAGE 2 for POSITION_UNAVAILABLE (2) or TIMEOUT (3).
+        // DO NOT fallback for PERMISSION_DENIED (1).
+        if (error && (error.code === 2 || error.code === 3)) {
+          console.warn('High accuracy GPS timed out or unavailable, retrying with standard network accuracy (Stage 2)...');
+          navigator.geolocation.getCurrentPosition(
+            onPositionSuccess,
+            handleFinalError,
+            {
+              enableHighAccuracy: false,
+              timeout: 10000,
+              maximumAge: isTest ? 60000 : 30000
+            }
+          );
+          return;
+        }
+
+        handleFinalError(error);
       },
       {
         enableHighAccuracy: true,
-        maximumAge: (typeof window !== 'undefined' && window.__PLAYWRIGHT_TEST__ ? 60000 : 0),
-        timeout: 15000
+        timeout: 10000,
+        maximumAge: isTest ? 60000 : 0
       }
     );
   };

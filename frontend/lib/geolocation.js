@@ -24,39 +24,68 @@ export async function getCurrentDeviceLocation(options = {}) {
   }
 
   if (!('geolocation' in navigator)) {
-    throw new Error('Unable to get your current location. Please check your device GPS/location permission and try again.');
+    throw new Error('Geolocation is not supported by your browser.');
   }
 
-  const maxAge = (typeof window !== 'undefined' && window.__PLAYWRIGHT_TEST__) ? 60000 : 0;
+  const isTest = typeof window !== 'undefined' && window.__PLAYWRIGHT_TEST__;
+  const maxAge = isTest ? 60000 : (options?.maxAgeSeconds ? options.maxAgeSeconds * 1000 : 0);
+
+  const formatResult = (position) => {
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+    const accuracy = position.coords.accuracy || 15;
+    const latDir = lat >= 0 ? 'N' : 'S';
+    const lngDir = lng >= 0 ? 'E' : 'W';
+    const coordsStr = `${Math.abs(lat).toFixed(4)}° ${latDir}, ${Math.abs(lng).toFixed(4)}° ${lngDir}`;
+
+    return {
+      latitude: lat,
+      longitude: lng,
+      accuracy,
+      coordsStr,
+      timestamp: position.timestamp || Date.now()
+    };
+  };
+
+  const formatError = (err) => {
+    if (err && err.code === 1) {
+      return new Error('Location permission was denied. Please allow location access in your device/app settings and try again.');
+    }
+    if (err && err.code === 2) {
+      return new Error('Unable to determine your current location. Please turn on Location/GPS on your device and try again.');
+    }
+    if (err && err.code === 3) {
+      return new Error('Location request timed out. Please ensure Location/GPS is enabled and try again.');
+    }
+    return new Error(err?.message || 'Unable to determine your current location. Please turn on Location/GPS on your device and try again.');
+  };
 
   return new Promise((resolve, reject) => {
+    // STAGE 1: High accuracy GPS
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const accuracy = position.coords.accuracy || 15;
-        const latDir = lat >= 0 ? 'N' : 'S';
-        const lngDir = lng >= 0 ? 'E' : 'W';
-        const coordsStr = `${Math.abs(lat).toFixed(4)}° ${latDir}, ${Math.abs(lng).toFixed(4)}° ${lngDir}`;
-
-        resolve({
-          latitude: lat,
-          longitude: lng,
-          accuracy,
-          coordsStr,
-          timestamp: position.timestamp || Date.now()
-        });
-      },
+      (pos) => resolve(formatResult(pos)),
       (err) => {
-        if (err && err.code === 1) {
-          reject(new Error('Location permission was denied. Please allow location access and try again.'));
-        } else {
-          reject(new Error('Unable to get your current location. Please check your device GPS/location permission and try again.'));
+        // Fallback to STAGE 2 for POSITION_UNAVAILABLE (2) or TIMEOUT (3).
+        // DO NOT fallback for PERMISSION_DENIED (1).
+        if (err && (err.code === 2 || err.code === 3)) {
+          console.warn('[geolocation] High accuracy GPS timed out or unavailable, retrying with standard network accuracy (Stage 2)...');
+          navigator.geolocation.getCurrentPosition(
+            (pos2) => resolve(formatResult(pos2)),
+            (err2) => reject(formatError(err2)),
+            {
+              enableHighAccuracy: false,
+              timeout: 10000,
+              maximumAge: isTest ? 60000 : 30000
+            }
+          );
+          return;
         }
+
+        reject(formatError(err));
       },
       {
         enableHighAccuracy: true,
-        timeout: 15000,
+        timeout: 10000,
         maximumAge: maxAge
       }
     );

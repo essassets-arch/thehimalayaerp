@@ -262,9 +262,14 @@ void setupHimalayaWebViewHandlers({
         if (!status.isGranted) {
           status = await Permission.locationWhenInUse.request();
         }
-        return {'granted': status.isGranted, 'status': status.name};
+        final serviceEnabled = await Permission.location.serviceStatus.isEnabled;
+        return {
+          'granted': status.isGranted,
+          'serviceEnabled': serviceEnabled,
+          'status': status.name
+        };
       } catch (e) {
-        return {'granted': false, 'error': e.toString()};
+        return {'granted': false, 'serviceEnabled': false, 'error': e.toString()};
       }
     },
   );
@@ -274,9 +279,14 @@ void setupHimalayaWebViewHandlers({
     callback: (args) async {
       try {
         final status = await Permission.locationWhenInUse.status;
-        return {'granted': status.isGranted, 'status': status.name};
+        final serviceEnabled = await Permission.location.serviceStatus.isEnabled;
+        return {
+          'granted': status.isGranted,
+          'serviceEnabled': serviceEnabled,
+          'status': status.name
+        };
       } catch (e) {
-        return {'granted': false, 'error': e.toString()};
+        return {'granted': false, 'serviceEnabled': false, 'error': e.toString()};
       }
     },
   );
