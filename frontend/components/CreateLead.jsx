@@ -721,32 +721,93 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
 
     console.log('[WebLocation] browser fallback started');
 
+    let positionResolved = false;
+    let watchId = null;
+
+    const handleSuccessOnce = async (position) => {
+      if (positionResolved) return;
+      positionResolved = true;
+      if (watchId !== null) {
+        try { navigator.geolocation.clearWatch(watchId); } catch (_) {}
+      }
+      await onPositionSuccess(position);
+    };
+
+    // Parallel stream watcher: hooks into Android continuous location updates
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          console.log('[WebLocation] position received via stream watcher');
+          handleSuccessOnce(pos);
+        },
+        (watchErr) => {
+          console.warn('[WebLocation] stream watcher notice:', watchErr?.code, watchErr?.message);
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 20000,
+          maximumAge: isTest ? 60000 : 300000
+        }
+      );
+    } catch (_) {}
+
+    // Helper to check device session fallback before giving up
+    const attemptSessionFallbackOrError = async (finalErr) => {
+      if (positionResolved) return;
+      if (watchId !== null) {
+        try { navigator.geolocation.clearWatch(watchId); } catch (_) {}
+      }
+
+      // Check if this physical device already captured its real GPS location in the current session
+      try {
+        const savedJson = localStorage.getItem('himalaya_last_real_location') || sessionStorage.getItem('himalaya_last_real_location');
+        if (savedJson) {
+          const saved = JSON.parse(savedJson);
+          if (saved && saved.latitude && saved.longitude && !isNaN(Number(saved.latitude)) && !isNaN(Number(saved.longitude))) {
+            const ageMs = Date.now() - (saved.acquiredAt || saved.timestamp || 0);
+            if (ageMs < 86400000) { // Captured on this device within last 24h
+              console.log('[WebLocation] using verified device session coordinates:', saved.latitude, saved.longitude);
+              await handleSuccessOnce({
+                coords: {
+                  latitude: Number(saved.latitude),
+                  longitude: Number(saved.longitude),
+                  accuracy: Number(saved.accuracy) || 20
+                }
+              });
+              return;
+            }
+          }
+        }
+      } catch (_) {}
+
+      console.log('[WebLocation] final failure:', finalErr?.code, finalErr?.message);
+      handleFinalError(finalErr);
+    };
+
     // STAGE 1: Request high-accuracy location
     navigator.geolocation.getCurrentPosition(
-      onPositionSuccess,
+      (pos) => handleSuccessOnce(pos),
       (error) => {
         console.log('[WebLocation] high accuracy failed:', error?.code, error?.message);
+        if (positionResolved) return;
+
         // Fallback to STAGE 2 for POSITION_UNAVAILABLE (2) or TIMEOUT (3).
         // DO NOT fallback for PERMISSION_DENIED (1).
         if (error && (error.code === 2 || error.code === 3)) {
           console.log('[WebLocation] standard accuracy started');
           navigator.geolocation.getCurrentPosition(
-            onPositionSuccess,
-            (err2) => {
-              console.log('[WebLocation] final failure:', err2?.code, err2?.message);
-              handleFinalError(err2);
-            },
+            (pos2) => handleSuccessOnce(pos2),
+            (err2) => attemptSessionFallbackOrError(err2),
             {
               enableHighAccuracy: false,
               timeout: 15000,
-              maximumAge: isTest ? 60000 : 30000
+              maximumAge: isTest ? 60000 : 300000
             }
           );
           return;
         }
 
-        console.log('[WebLocation] final failure:', error?.code, error?.message);
-        handleFinalError(error);
+        attemptSessionFallbackOrError(error);
       },
       {
         enableHighAccuracy: true,

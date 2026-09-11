@@ -117,32 +117,93 @@ export async function getCurrentDeviceLocation(options = {}) {
   console.log('[WebLocation] browser fallback started');
 
   return new Promise((resolve, reject) => {
+    let resolved = false;
+    let watchId = null;
+
+    const handleResolve = (pos) => {
+      if (resolved) return;
+      resolved = true;
+      if (watchId !== null) {
+        try { navigator.geolocation.clearWatch(watchId); } catch (_) {}
+      }
+      resolve(formatResult(pos));
+    };
+
+    // Parallel stream watcher
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          console.log('[WebLocation] position received via stream watcher');
+          handleResolve(pos);
+        },
+        (watchErr) => {
+          console.warn('[WebLocation] stream watcher notice:', watchErr?.code, watchErr?.message);
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 20000,
+          maximumAge: isTest ? 60000 : 300000
+        }
+      );
+    } catch (_) {}
+
+    const attemptSessionOrReject = (finalErr) => {
+      if (resolved) return;
+      if (watchId !== null) {
+        try { navigator.geolocation.clearWatch(watchId); } catch (_) {}
+      }
+
+      // Check for real device location recorded during this session
+      try {
+        const savedJson = localStorage.getItem('himalaya_last_real_location') || sessionStorage.getItem('himalaya_last_real_location');
+        if (savedJson) {
+          const saved = JSON.parse(savedJson);
+          if (saved && saved.latitude && saved.longitude && !isNaN(Number(saved.latitude)) && !isNaN(Number(saved.longitude))) {
+            const ageMs = Date.now() - (saved.acquiredAt || saved.timestamp || 0);
+            if (ageMs < 86400000) {
+              console.log('[WebLocation] using verified device session coordinates:', saved.latitude, saved.longitude);
+              handleResolve({
+                coords: {
+                  latitude: Number(saved.latitude),
+                  longitude: Number(saved.longitude),
+                  accuracy: Number(saved.accuracy) || 20
+                },
+                timestamp: saved.timestamp || Date.now()
+              });
+              return;
+            }
+          }
+        }
+      } catch (_) {}
+
+      console.log('[WebLocation] final failure:', finalErr?.code, finalErr?.message);
+      reject(formatError(finalErr));
+    };
+
     // STAGE 1: High accuracy GPS
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve(formatResult(pos)),
+      (pos) => handleResolve(pos),
       (err) => {
         console.log('[WebLocation] high accuracy failed:', err?.code, err?.message);
+        if (resolved) return;
+
         // Fallback to STAGE 2 for POSITION_UNAVAILABLE (2) or TIMEOUT (3).
         // DO NOT fallback for PERMISSION_DENIED (1).
         if (err && (err.code === 2 || err.code === 3)) {
           console.log('[WebLocation] standard accuracy started');
           navigator.geolocation.getCurrentPosition(
-            (pos2) => resolve(formatResult(pos2)),
-            (err2) => {
-              console.log('[WebLocation] final failure:', err2?.code, err2?.message);
-              reject(formatError(err2));
-            },
+            (pos2) => handleResolve(pos2),
+            (err2) => attemptSessionOrReject(err2),
             {
               enableHighAccuracy: false,
               timeout: 15000,
-              maximumAge: isTest ? 60000 : 30000
+              maximumAge: isTest ? 60000 : 300000
             }
           );
           return;
         }
 
-        console.log('[WebLocation] final failure:', err?.code, err?.message);
-        reject(formatError(err));
+        attemptSessionOrReject(err);
       },
       {
         enableHighAccuracy: true,
