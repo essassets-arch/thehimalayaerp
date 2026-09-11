@@ -16,6 +16,7 @@ export default function DataTable({
   searchQuery = '', 
   searchField = '', 
   actions, 
+  onRowClick,
   emptyMessage = 'No matching records found.',
   className = '',
   scrollMode = false
@@ -61,7 +62,11 @@ export default function DataTable({
             </tr>
           ) : (
             filteredData.map((row, rowIdx) => (
-              <tr key={rowIdx}>
+              <tr 
+                key={rowIdx}
+                onClick={() => onRowClick && onRowClick(row)}
+                style={{ cursor: onRowClick ? 'pointer' : 'default' }}
+              >
                 {columns.map((col, colIdx) => {
                   let value = '';
                   const acc = col.accessor || col.accessorKey;

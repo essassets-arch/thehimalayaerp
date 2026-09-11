@@ -1429,22 +1429,24 @@ export default function AttendanceView({ employees: propEmployees }) {
                           })() : '—')}
                         </div>
                       </div>
-                      <div>
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          background: 'rgba(255,255,255,0.08)',
-                          border: '1px solid rgba(255,255,255,0.15)',
-                          padding: '5px 10px',
-                          borderRadius: '8px',
-                          fontSize: '11px',
-                          color: '#E2E8F0',
-                          fontWeight: '700'
-                        }}>
-                          <Shield size={13} color="#38BDF8" /> PostgreSQL DB Timestamp Verified
-                        </span>
-                      </div>
+                      {activePreview.punchOut && activePreview.punchOut !== '—' && (
+                        <div>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: 'rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            padding: '5px 10px',
+                            borderRadius: '8px',
+                            fontSize: '11px',
+                            color: '#E2E8F0',
+                            fontWeight: '700'
+                          }}>
+                            <Shield size={13} color="#38BDF8" /> PostgreSQL DB Timestamp Verified
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

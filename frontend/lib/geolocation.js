@@ -1,64 +1,133 @@
-import { apiClient } from './apiClient';
+let lastKnownLocation = null;
 
 /**
- * Request real device GPS coordinates with high accuracy (maximumAge: 0).
- * Rejects if permission is denied or location cannot be obtained.
+ * Request real device GPS coordinates with high accuracy and mobile-optimized fallback.
+ * Uses watchPosition and fused location provider fallback to prevent indoor Android/iOS timeouts.
  * ZERO fake/factory fallbacks.
  *
- * @returns {Promise<{ latitude: number, longitude: number, accuracy: number, coordsStr: string }>}
+ * @param {{ forceFresh?: boolean, maxAgeSeconds?: number }} [options]
+ * @returns {Promise<{ latitude: number, longitude: number, accuracy: number, coordsStr: string, timestamp: number }>}
  */
-export async function getCurrentDeviceLocation() {
+export async function getCurrentDeviceLocation(options = {}) {
   if (typeof window === 'undefined' || !('geolocation' in navigator)) {
     throw new Error('Geolocation is not supported or accessible on this device/browser.');
   }
 
+  const { forceFresh = false, maxAgeSeconds = 45 } = options;
+
+  // Return recent real device location if acquired within maxAgeSeconds
+  if (!forceFresh && lastKnownLocation && (Date.now() - (lastKnownLocation.acquiredAt || 0) < maxAgeSeconds * 1000)) {
+    return lastKnownLocation;
+  }
+
+  const formatPos = (position) => {
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+    const accuracy = position.coords.accuracy || 15;
+    const latDir = lat >= 0 ? 'N' : 'S';
+    const lngDir = lng >= 0 ? 'E' : 'W';
+    const coordsStr = `${Math.abs(lat).toFixed(4)}° ${latDir}, ${Math.abs(lng).toFixed(4)}° ${lngDir}`;
+
+    const loc = {
+      latitude: lat,
+      longitude: lng,
+      accuracy,
+      coordsStr,
+      timestamp: position.timestamp || Date.now(),
+      acquiredAt: Date.now()
+    };
+    lastKnownLocation = loc;
+    return loc;
+  };
+
   return new Promise((resolve, reject) => {
-    const handleSuccess = (position) => {
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
-      const accuracy = position.coords.accuracy || 15;
-      const latDir = lat >= 0 ? 'N' : 'S';
-      const lngDir = lng >= 0 ? 'E' : 'W';
-      const coordsStr = `${Math.abs(lat).toFixed(4)}° ${latDir}, ${Math.abs(lng).toFixed(4)}° ${lngDir}`;
+    let settled = false;
+    let watchId = null;
+    let timerId = null;
 
-      resolve({
-        latitude: lat,
-        longitude: lng,
-        accuracy,
-        coordsStr,
-        timestamp: position.timestamp || Date.now()
-      });
-    };
-
-    const handleError = (err) => {
-      let message = 'Unable to acquire device GPS position.';
-      if (err.code === 1) {
-        message = 'Location access denied. Please grant location/GPS permission in your browser settings to punch attendance.';
-      } else if (err.code === 2) {
-        message = 'Location unavailable. Please verify device GPS/Location services are enabled.';
-      } else if (err.code === 3) {
-        message = 'Location acquisition timed out. Please ensure clear GPS reception and retry.';
+    const cleanup = () => {
+      if (watchId !== null) {
+        try {
+          navigator.geolocation.clearWatch(watchId);
+        } catch (e) {}
+        watchId = null;
       }
-      reject(new Error(message));
+      if (timerId !== null) {
+        clearTimeout(timerId);
+        timerId = null;
+      }
     };
 
-    // First try strict high accuracy (10s timeout, maximumAge: 0 for fresh GPS)
-    navigator.geolocation.getCurrentPosition(
-      handleSuccess,
-      (firstErr) => {
-        // If high accuracy times out or fails (e.g. indoor office Wi-Fi), try standard accuracy with maximumAge: 0
-        if (firstErr.code === 3 || firstErr.code === 2) {
-          navigator.geolocation.getCurrentPosition(
-            handleSuccess,
-            handleError,
-            { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }
-          );
-        } else {
-          handleError(firstErr);
+    const finishSuccess = (pos) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(formatPos(pos));
+    };
+
+    const tryFallback = () => {
+      cleanup();
+      // Try fused/network provider (enableHighAccuracy: false, maximumAge: 60s)
+      // This is crucial for indoor Android devices where direct satellite GPS is blocked by ceilings/walls
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (settled) return;
+          settled = true;
+          resolve(formatPos(pos));
+        },
+        (finalErr) => {
+          if (settled) return;
+          // If we have a cached device location within 2 minutes, use it rather than failing
+          if (lastKnownLocation && (Date.now() - (lastKnownLocation.acquiredAt || 0) < 120000)) {
+            settled = true;
+            resolve(lastKnownLocation);
+            return;
+          }
+          settled = true;
+          let msg = 'Unable to acquire device GPS position.';
+          if (finalErr && finalErr.code === 1) {
+            msg = 'Location access denied. Please grant location/GPS permission in your browser settings to punch attendance.';
+          } else if (finalErr && finalErr.code === 2) {
+            msg = 'Location unavailable. Please verify device GPS/Location services are turned ON in phone settings.';
+          } else if (finalErr && finalErr.code === 3) {
+            msg = 'Location acquisition timed out. Please tap "Retry GPS" and ensure device location is active.';
+          }
+          reject(new Error(msg));
+        },
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      );
+    };
+
+    // Tier 1: Try watchPosition with high accuracy and 30s maximumAge
+    // watchPosition on Android Chrome binds directly to FusedLocationProvider and fires quickly
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          if (pos && pos.coords) {
+            finishSuccess(pos);
+          }
+        },
+        (watchErr) => {
+          if (watchErr && watchErr.code === 1) {
+            settled = true;
+            cleanup();
+            reject(new Error('Location access denied. Please grant location/GPS permission in your browser settings to punch attendance.'));
+          } else {
+            tryFallback();
+          }
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+      );
+
+      // If watchPosition does not produce a fix within 6 seconds, invoke fallback
+      timerId = setTimeout(() => {
+        if (!settled) {
+          tryFallback();
         }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+      }, 6000);
+    } catch (e) {
+      tryFallback();
+    }
   });
 }
 

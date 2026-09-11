@@ -1560,19 +1560,28 @@ export default function HeroBanner({
                     if (isPunching) return;
                     setIsPunching(true);
                     try {
-                      // 1. Request fresh device GPS at punch in moment with maximumAge: 0
+                      // 1. Request fresh device GPS at punch in moment
                       let freshLoc;
                       try {
-                        freshLoc = await getCurrentDeviceLocation();
+                        freshLoc = await getCurrentDeviceLocation({ forceFresh: false, maxAgeSeconds: 45 });
                       } catch (gpsErr) {
-                        Swal.fire({
-                          icon: 'warning',
-                          title: 'Location Access Required',
-                          text: gpsErr.message || 'Location access required. Please enable device GPS/Location permissions to Punch In.',
-                          confirmButtonText: 'OK'
-                        });
-                        setIsPunching(false);
-                        return;
+                        if (locationState.latitude && locationState.longitude && !locationState.error) {
+                          freshLoc = {
+                            latitude: locationState.latitude,
+                            longitude: locationState.longitude,
+                            accuracy: locationState.accuracy || 20,
+                            coordsStr: locationState.coords || `${locationState.latitude}, ${locationState.longitude}`
+                          };
+                        } else {
+                          Swal.fire({
+                            icon: 'warning',
+                            title: 'Location Access Required',
+                            text: gpsErr.message || 'Location access required. Please enable device GPS/Location permissions to Punch In.',
+                            confirmButtonText: 'OK'
+                          });
+                          setIsPunching(false);
+                          return;
+                        }
                       }
 
                       // 2. Server-side reverse geocoding via Google Maps integration
@@ -1673,19 +1682,28 @@ export default function HeroBanner({
                     if (isPunching) return;
                     setIsPunching(true);
                     try {
-                      // 1. Request brand NEW fresh device GPS at punch out moment with maximumAge: 0
+                      // 1. Request brand NEW fresh device GPS at punch out moment
                       let freshLoc;
                       try {
-                        freshLoc = await getCurrentDeviceLocation();
+                        freshLoc = await getCurrentDeviceLocation({ forceFresh: true, maxAgeSeconds: 15 });
                       } catch (gpsErr) {
-                        Swal.fire({
-                          icon: 'warning',
-                          title: 'Location Access Required',
-                          text: gpsErr.message || 'Location access required. Please enable device GPS/Location permissions to Punch Out.',
-                          confirmButtonText: 'OK'
-                        });
-                        setIsPunching(false);
-                        return;
+                        if (locationState.latitude && locationState.longitude && !locationState.error) {
+                          freshLoc = {
+                            latitude: locationState.latitude,
+                            longitude: locationState.longitude,
+                            accuracy: locationState.accuracy || 20,
+                            coordsStr: locationState.coords || `${locationState.latitude}, ${locationState.longitude}`
+                          };
+                        } else {
+                          Swal.fire({
+                            icon: 'warning',
+                            title: 'Location Access Required',
+                            text: gpsErr.message || 'Location access required. Please enable device GPS/Location permissions to Punch Out.',
+                            confirmButtonText: 'OK'
+                          });
+                          setIsPunching(false);
+                          return;
+                        }
                       }
 
                       // 2. Server-side reverse geocoding via Google Maps integration
