@@ -1,0 +1,88 @@
+# Technical Implementation Plan — Production Management & Observability Layer
+
+This document outlines the architectural plan for deploying an industry-standard management, administration, and observability layer for **Himalaya ERP**.
+
+---
+
+## 1. Target Architecture & Management Stack
+
+```mermaid
+graph TD
+    Client["Client / Operator (HTTPS)"] --> Proxy["Reverse Proxy (Caddy / Host Nginx)"]
+    
+    Proxy -->|thehimalaya.cloud| Frontend["Frontend (Next.js) :3000"]
+    Proxy -->|dbadmin.thehimalaya.cloud| PgAdmin["pgAdmin 4 Container :5050"]
+    Proxy -->|portainer.thehimalaya.cloud| Portainer["Portainer CE Container :9000"]
+    Proxy -->|logs.thehimalaya.cloud| Dozzle["Dozzle Log Viewer :8080"]
+    
+    Frontend -->|Internal Bridge| Backend["Backend (NestJS API) :4000"]
+    Backend -->|Prisma ORM| Postgres[("PostgreSQL 16 Database :5432")]
+    PgAdmin -->|Internal Network| Postgres
+    Portainer -->|/var/run/docker.sock| DockerDaemon["Docker Engine Daemon"]
+    Dozzle -->|/var/run/docker.sock:ro| DockerDaemon
+
+    subgraph Internal Network: erp-network
+        Frontend
+        Backend
+        Postgres
+        PgAdmin
+        Portainer
+        Dozzle
+    end
+```
+
+---
+
+## 2. Component Design & Security Baseline
+
+| Service | Docker Image | Internal Port | Local Host Port Mapping | Auth / Security Strategy | Volume Persistence |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **pgAdmin** | `dpage/pgadmin4:latest` | `80` | `127.0.0.1:5050:80` | HTTPS subdomain, `PGADMIN_DEFAULT_EMAIL` & `PGADMIN_DEFAULT_PASSWORD` | `pgadmin_data` |
+| **Portainer CE** | `portainer/portainer-ce:latest` | `9000` | `127.0.0.1:9000:9000` | HTTPS subdomain, initial admin setup, read-only Docker socket mount where possible | `portainer_data` |
+| **Dozzle** | `amir20/dozzle:latest` | `8080` | `127.0.0.1:8080:8080` | HTTPS subdomain, simple password auth (`DOZZLE_USERNAME` & `DOZZLE_PASSWORD`) | Read-only `/var/run/docker.sock` |
+| **DB Backup Cron** | Bash script | N/A | N/A | Automated daily `pg_dump` with 30-day retention policy | `./backups/` |
+
+---
+
+## 3. User Review Required
+
+> [!IMPORTANT]
+> **Subdomain DNS Setup**: You will need A records pointing your subdomains (`dbadmin.thehimalaya.cloud`, `portainer.thehimalaya.cloud`, `logs.thehimalaya.cloud`) to your VPS IP address.
+
+> [!NOTE]
+> **Host Reverse Proxy Options**: The setup supports both Caddy (`caddy:2-alpine` container) and Host Nginx (`/etc/nginx/sites-available/thehimalaya.cloud.conf`). Both configurations are fully documented and provided.
+
+---
+
+## 4. Proposed Deliverables & File Modifications
+
+#### [NEW] [docker-compose.management.yml](file:///d:/prototype-next-main/docker-compose.management.yml)
+- Defines management services: `pgadmin`, `portainer`, and `dozzle`.
+- Configures isolated network access (`erp-network`), health checks, and named volumes (`pgadmin_data`, `portainer_data`).
+
+#### [MODIFY] [.env.docker.example](file:///d:/prototype-next-main/.env.docker.example)
+#### [MODIFY] [.env.example](file:///d:/prototype-next-main/.env.example)
+- Adds environment variables for management services (`PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`, `DOZZLE_USERNAME`, `DOZZLE_PASSWORD`, `DOZZLE_PASSWORD_HASH`).
+
+#### [MODIFY] [Caddyfile](file:///d:/prototype-next-main/Caddyfile)
+- Adds reverse proxy blocks for `dbadmin.{$APP_DOMAIN}`, `portainer.{$APP_DOMAIN}`, and `logs.{$APP_DOMAIN}` with security headers and compression.
+
+#### [NEW] [scripts/backup-db-cron.sh](file:///d:/prototype-next-main/scripts/backup-db-cron.sh)
+- Automated daily database backup script that runs PostgreSQL `pg_dump`, compresses backups, and enforces a 30-day retention policy.
+
+#### [NEW] [README-PRODUCTION.md](file:///d:/prototype-next-main/README-PRODUCTION.md)
+- Complete production Operations & Security Manual covering architecture, installation, secret management, management tool access, backup/restore procedures, crontab configuration, and security checklist.
+
+---
+
+## 5. Verification Plan
+
+### Automated Verification
+1. Run `docker compose -f docker-compose.yml -f docker-compose.management.yml config` to validate Compose file syntax.
+2. Verify shell script syntax with `bash -n scripts/backup-db-cron.sh`.
+
+### Manual & Integration Verification
+1. Verify `pgadmin` connects internally to `postgres:5432` without exposing PostgreSQL port 5432 publicly.
+2. Verify `portainer` connects to Docker daemon and displays container statuses.
+3. Verify `dozzle` streams real-time container logs for `himalaya-backend`, `himalaya-frontend`, `himalaya-postgres`, `himalaya-pgadmin`, `himalaya-portainer`, and `himalaya-dozzle`.
+4. Run `scripts/backup-db-cron.sh` and verify backup file creation and retention cleanup.

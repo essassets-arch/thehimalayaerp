@@ -305,8 +305,10 @@ void setupHimalayaWebViewHandlers({
       try {
         debugPrint('[NativeLocation] stage 1: requesting high accuracy fresh location (10s)');
         position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 10),
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 10),
+          ),
         );
       } catch (highErr) {
         debugPrint('[NativeLocation] stage 1 timeout/failure: $highErr');
@@ -314,8 +316,10 @@ void setupHimalayaWebViewHandlers({
           // 2. Medium/balanced accuracy fresh location — 15 seconds (fused Wi-Fi/cell)
           debugPrint('[NativeLocation] stage 2: requesting medium accuracy balanced location (15s)');
           position = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.medium,
-            timeLimit: const Duration(seconds: 15),
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+              timeLimit: Duration(seconds: 15),
+            ),
           );
         } catch (medErr) {
           debugPrint('[NativeLocation] stage 2 timeout/failure: $medErr');
