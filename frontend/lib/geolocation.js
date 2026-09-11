@@ -58,7 +58,10 @@ export async function getCurrentDeviceLocation(options = {}) {
     console.log('[Location] native bridge detected');
     console.log('[Location] requesting native permission');
     try {
-      const bridgeRes = await w.flutter_inappwebview.callHandler('requestLocation');
+      const bridgeRes = await Promise.race([
+        w.flutter_inappwebview.callHandler('requestLocation'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Native bridge timeout')), 8000))
+      ]);
       console.log('[Location] native location result:', bridgeRes);
       if (bridgeRes) {
         console.log('[Location] permission status:', bridgeRes.status || bridgeRes.granted);
@@ -72,10 +75,14 @@ export async function getCurrentDeviceLocation(options = {}) {
           throw formatError({ code: 1 });
         }
 
-        if (bridgeRes.latitude != null && bridgeRes.longitude != null && !isNaN(Number(bridgeRes.latitude)) && !isNaN(Number(bridgeRes.longitude))) {
-          const lat = Number(bridgeRes.latitude);
-          const lng = Number(bridgeRes.longitude);
-          const accuracy = bridgeRes.accuracy != null ? Number(bridgeRes.accuracy) : 15;
+        const rawLat = bridgeRes.latitude ?? bridgeRes.coords?.latitude;
+        const rawLng = bridgeRes.longitude ?? bridgeRes.coords?.longitude;
+        const rawAcc = bridgeRes.accuracy ?? bridgeRes.coords?.accuracy ?? 15;
+
+        if (rawLat != null && rawLng != null && !isNaN(Number(rawLat)) && !isNaN(Number(rawLng))) {
+          const lat = Number(rawLat);
+          const lng = Number(rawLng);
+          const accuracy = Number(rawAcc);
           console.log('[Location] latitude:', lat);
           console.log('[Location] longitude:', lng);
           console.log('[Location] accuracy:', accuracy);

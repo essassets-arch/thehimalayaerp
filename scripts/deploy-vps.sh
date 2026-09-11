@@ -43,7 +43,11 @@ fi
 
 echo "📥 Step 1: Pulling latest changes from Git..."
 git checkout scripts/deploy-vps.sh 2>/dev/null || true
-git pull --ff-only || (git stash && git pull --ff-only)
+git fetch origin main
+if ! git pull --ff-only 2>/dev/null; then
+    echo "⚠️ Notice: Fast-forward not possible, cleanly resetting local tracking to origin/main..."
+    git reset --hard origin/main
+fi
 
 echo ""
 echo "📦 Step 2: Building updated Docker images sequentially..."

@@ -263,6 +263,30 @@ void setupHimalayaWebViewHandlers({
           status = await Permission.locationWhenInUse.request();
         }
         final serviceEnabled = await Permission.location.serviceStatus.isEnabled;
+
+        if (!status.isGranted || !serviceEnabled) {
+          return {
+            'granted': status.isGranted,
+            'serviceEnabled': serviceEnabled,
+            'status': status.name
+          };
+        }
+
+        // NOTE: If using the 'geolocator' package in Flutter pubspec.yaml,
+        // you can return real device coordinates directly to bypass WebView geolocation entirely:
+        //
+        // final pos = await Geolocator.getCurrentPosition(
+        //   desiredAccuracy: LocationAccuracy.medium,
+        //   timeLimit: const Duration(seconds: 10),
+        // );
+        // return {
+        //   'granted': true,
+        //   'serviceEnabled': true,
+        //   'latitude': pos.latitude,
+        //   'longitude': pos.longitude,
+        //   'accuracy': pos.accuracy,
+        // };
+
         return {
           'granted': status.isGranted,
           'serviceEnabled': serviceEnabled,
