@@ -7,7 +7,7 @@ const flutterDir = args.find(a => !a.startsWith('--')) || 'D:\\himalaya-flutter'
 const skipBuild = args.includes('--no-build');
 
 console.log('======================================================================');
-console.log('🚀 HIMALAYA ERP — SYNC LOCATION, DOWNLOADS & NATIVE SHARING TO FLUTTER APK');
+console.log('🚀 HIMALAYA ERP — SYNC FRESH CACHE, LOCATION, DOWNLOADS & SALES SHARE TO FLUTTER APK');
 console.log('======================================================================');
 console.log(`📂 Flutter Directory: ${flutterDir}`);
 
@@ -17,7 +17,18 @@ if (!fs.existsSync(flutterDir)) {
 }
 
 // ============================================================================
-// 1. UPDATE file_paths.xml (FileProvider for downloads and share files)
+// 1. UPDATE pubspec.yaml (Bump version to 1.0.2+3 for clean Android OS update)
+// ============================================================================
+const pubspecPath = path.join(flutterDir, 'pubspec.yaml');
+if (fs.existsSync(pubspecPath)) {
+  let pubspec = fs.readFileSync(pubspecPath, 'utf8');
+  pubspec = pubspec.replace(/version:\s*1\.[0-9]+\.[0-9]+\+[0-9]+/g, 'version: 1.0.2+3');
+  fs.writeFileSync(pubspecPath, pubspec, 'utf8');
+  console.log('  ✓ Bumped APK version to 1.0.2+3 in pubspec.yaml.');
+}
+
+// ============================================================================
+// 2. UPDATE file_paths.xml (FileProvider for downloads and share files)
 // ============================================================================
 const filePathsXmlPath = path.join(flutterDir, 'android', 'app', 'src', 'main', 'res', 'xml', 'file_paths.xml');
 if (fs.existsSync(filePathsXmlPath)) {
@@ -33,10 +44,10 @@ if (fs.existsSync(filePathsXmlPath)) {
 }
 
 // ============================================================================
-// 2. UPDATE download_service.dart (Base64, Scoped Storage & Local Notifications)
+// 3. UPDATE download_service.dart (Base64, Scoped Storage & Local Notifications)
 // ============================================================================
 const downloadServicePath = path.join(flutterDir, 'lib', 'services', 'download_service.dart');
-console.log('\n📦 Step 2: Updating download_service.dart...');
+console.log('\n📦 Step 3: Updating download_service.dart...');
 
 const updatedDownloadService = `import 'dart:convert';
 import 'dart:io';
@@ -319,44 +330,87 @@ fs.writeFileSync(downloadServicePath, updatedDownloadService, 'utf8');
 console.log('  ✓ Updated download_service.dart.');
 
 // ============================================================================
-// 3. UPDATE home_screen.dart (Blob resolution, share polyfill, async guards)
+// 4. UPDATE home_screen.dart (Blob resolution, share polyfill, async guards)
 // ============================================================================
 const homeScreenPath = path.join(flutterDir, 'lib', 'screens', 'home_screen.dart');
-console.log('\n📦 Step 3: Updating home_screen.dart with share polyfill and async guards...');
+console.log('\n📦 Step 4: Updating home_screen.dart with dynamic interceptor and fresh cache...');
 
 let homeScreenCode = fs.readFileSync(homeScreenPath, 'utf8');
 
-// Clean pull-to-refresh call
-homeScreenCode = homeScreenCode.replace(
-  'await _pullToRefreshController?.endRefreshing();',
-  '_pullToRefreshController?.endRefreshing();'
-);
-
-// Inject share/download JS bridge polyfill into onLoadStop
+// Inject share/download JS bridge polyfill and DOM sanitizer into onLoadStop
 const jsPolyfillInjection = `
-                      // Inject polyfills for navigator.share and HimalayaBridge
-                      await controller.evaluateJavascript(source: """
+                      // Inject polyfills for navigator.share and HimalayaBridge + DOM Sanitizer
+                      await controller.evaluateJavascript(source: r"""
                         (() => {
                           if (typeof window === 'undefined') return;
-                          if (!window.HimalayaBridge) {
-                            const bridge = {
-                              postMessage: function(payload) {
-                                try {
-                                  const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
-                                  if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-                                    if (data.type === 'SHARE' || data.action === 'share' || data.action === 'shareQuotationImage') {
-                                      window.flutter_inappwebview.callHandler('shareQuotationImage', data);
-                                    } else {
-                                      window.flutter_inappwebview.callHandler('downloadQuotationImage', data);
+
+                          // Helper to extract customer name from the DOM if available
+                          function extractCustomerNameFromPage() {
+                            try {
+                              const sheet = document.querySelector('#quotation-printable-area') || document.querySelector('.quotation-preview-container');
+                              if (sheet) {
+                                const paragraphs = Array.from(sheet.querySelectorAll('p'));
+                                const quotedToIdx = paragraphs.findIndex(p => p.innerText && p.innerText.includes('QUOTED TO:'));
+                                if (quotedToIdx !== -1 && paragraphs[quotedToIdx + 1]) {
+                                  const name = paragraphs[quotedToIdx + 1].innerText.trim();
+                                  if (name && !name.includes('Himalaya')) return name;
+                                }
+                              }
+                            } catch (_) {}
+                            return '';
+                          }
+
+                          // 1. Intercept window.flutter_inappwebview.callHandler
+                          const origCallHandler = window.flutter_inappwebview ? window.flutter_inappwebview.callHandler : null;
+                          if (origCallHandler && !window.__himalaya_intercepted) {
+                            window.__himalaya_intercepted = true;
+                            window.flutter_inappwebview.callHandler = function(handlerName, ...args) {
+                              if (handlerName === 'shareQuotationImage' || handlerName === 'shareFile' || handlerName === 'share') {
+                                const activeCustomer = extractCustomerNameFromPage();
+                                for (let i = 0; i < args.length; i++) {
+                                  if (typeof args[i] === 'string') {
+                                    args[i] = args[i].replace(/supersales\\/quotations/g, 'sales/quotations');
+                                    args[i] = args[i].replace(/\\/supersales/g, '/sales');
+                                    if (activeCustomer && args[i].includes('Quotation #') && (!args[i].includes(' for ') || args[i].includes(' for Customer') || args[i].includes(' for Valued Customer'))) {
+                                      args[i] = args[i].replace(/Quotation #([^\\s\\n]+)( for [^\\n]+)?/, 'Quotation #\$1 for ' + activeCustomer);
+                                    }
+                                  } else if (args[i] && typeof args[i] === 'object') {
+                                    if (typeof args[i].text === 'string') {
+                                      args[i].text = args[i].text.replace(/supersales\\/quotations/g, 'sales/quotations').replace(/\\/supersales/g, '/sales');
+                                      if (activeCustomer && args[i].text.includes('Quotation #') && (!args[i].text.includes(' for ') || args[i].text.includes(' for Customer') || args[i].text.includes(' for Valued Customer'))) {
+                                        args[i].text = args[i].text.replace(/Quotation #([^\\s\\n]+)( for [^\\n]+)?/, 'Quotation #\$1 for ' + activeCustomer);
+                                      }
+                                    }
+                                    if (typeof args[i].url === 'string') {
+                                      args[i].url = args[i].url.replace(/supersales\\/quotations/g, 'sales/quotations').replace(/\\/supersales/g, '/sales');
                                     }
                                   }
-                                } catch (_) {}
+                                }
                               }
+                              return origCallHandler.apply(this, [handlerName, ...args]);
                             };
-                            window.QuotationDownload = bridge;
-                            window.HimalayaDownload = bridge;
-                            window.HimalayaBridge = bridge;
                           }
+
+                          // 2. Intercept window.QuotationDownload / HimalayaBridge
+                          const bridge = {
+                            postMessage: function(payload) {
+                              try {
+                                const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+                                if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                                  if (data.type === 'SHARE' || data.action === 'share' || data.action === 'shareQuotationImage') {
+                                    window.flutter_inappwebview.callHandler('shareQuotationImage', data);
+                                  } else {
+                                    window.flutter_inappwebview.callHandler('downloadQuotationImage', data);
+                                  }
+                                }
+                              } catch (_) {}
+                            }
+                          };
+                          window.QuotationDownload = bridge;
+                          window.HimalayaDownload = bridge;
+                          window.HimalayaBridge = bridge;
+
+                          // 3. Polyfill navigator.share
                           if (!navigator.share) {
                             navigator.share = async function(data) {
                               if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
@@ -373,7 +427,12 @@ const jsPolyfillInjection = `
                       """);
 `;
 
-if (!homeScreenCode.includes('Inject polyfills for navigator.share')) {
+if (homeScreenCode.includes('// Inject polyfills for navigator.share')) {
+  homeScreenCode = homeScreenCode.replace(
+    /\/\/\s*Inject polyfills for navigator\.share[\s\S]*?\}\)\(\);\s*r?"""\s*\);\s*/,
+    jsPolyfillInjection.trim() + '\n'
+  );
+} else {
   homeScreenCode = homeScreenCode.replace(
     'await _webViewService.syncCookies();',
     `await _webViewService.syncCookies();\n${jsPolyfillInjection}`
@@ -430,13 +489,13 @@ if (currentDownloadBlockRegex.test(homeScreenCode)) {
 }
 
 fs.writeFileSync(homeScreenPath, homeScreenCode, 'utf8');
-console.log('  ✓ Updated home_screen.dart with share polyfill and async guards.');
+console.log('  ✓ Updated home_screen.dart with active customer extraction & sanitizer.');
 
 // ============================================================================
-// 4. UPDATE webview_service.dart (Universal Share, Location & Download Handlers)
+// 5. UPDATE webview_service.dart (Universal Share, Fresh Cache & Sanitizer)
 // ============================================================================
 const webviewServicePath = path.join(flutterDir, 'lib', 'services', 'webview_service.dart');
-console.log('\n📦 Step 4: Updating webview_service.dart with universal share & download handlers...');
+console.log('\n📦 Step 5: Updating webview_service.dart with cache flushing and sanitized handlers...');
 
 let webviewCode = fs.readFileSync(webviewServicePath, 'utf8');
 
@@ -455,6 +514,12 @@ for (const imp of requiredImports) {
   }
 }
 
+// Force fresh cache in defaultSettings
+webviewCode = webviewCode.replace(
+  /cacheEnabled:\s*true,[\s\S]*?clearCache:\s*false,/,
+  'cacheEnabled: false,\n        clearCache: true,'
+);
+
 // Update handler 1 (AppConstants.jsHandlerShare) to handle both strings, objects, and base64 payloads
 const enhancedShareHandler = `    // 1. Universal Share Handler: window.flutter_inappwebview.callHandler('share', text / map)
     controller.addJavaScriptHandler(
@@ -470,6 +535,7 @@ const enhancedShareHandler = `    // 1. Universal Share Handler: window.flutter_
               final url = (map['url'] ?? '').toString();
               String fullText = [text, url].where((s) => s.isNotEmpty).join('\\n');
               fullText = fullText.replaceAll('supersales/quotations', 'sales/quotations');
+              fullText = fullText.replaceAll('/supersales', '/sales');
 
               if (base64Data.isNotEmpty) {
                 String clean = base64Data;
@@ -488,7 +554,7 @@ const enhancedShareHandler = `    // 1. Universal Share Handler: window.flutter_
                 return {'success': true};
               }
             } else {
-              final text = args[0].toString().replaceAll('supersales/quotations', 'sales/quotations');
+              final text = args[0].toString().replaceAll('supersales/quotations', 'sales/quotations').replaceAll('/supersales', '/sales');
               await Share.share(text);
               return {'success': true};
             }
@@ -500,10 +566,14 @@ const enhancedShareHandler = `    // 1. Universal Share Handler: window.flutter_
       },
     );`;
 
-const oldSharePattern = /\/\/\s*1\.\s*Share Handler:[\s\S]*?controller\.addJavaScriptHandler\([\s\S]*?handlerName:\s*AppConstants\.jsHandlerShare,[\s\S]*?\}\,\s*\);/;
+const oldSharePattern = /\/\/\s*1\.\s*Universal Share Handler:[\s\S]*?controller\.addJavaScriptHandler\([\s\S]*?handlerName:\s*AppConstants\.jsHandlerShare,[\s\S]*?\}\,\s*\);/;
 if (oldSharePattern.test(webviewCode)) {
   webviewCode = webviewCode.replace(oldSharePattern, enhancedShareHandler);
-  console.log('  ✓ Upgraded handler 1 to universal share supporting images, text, and URLs.');
+} else {
+  const genericSharePattern = /\/\/\s*1\.\s*Share Handler:[\s\S]*?controller\.addJavaScriptHandler\([\s\S]*?handlerName:\s*AppConstants\.jsHandlerShare,[\s\S]*?\}\,\s*\);/;
+  if (genericSharePattern.test(webviewCode)) {
+    webviewCode = webviewCode.replace(genericSharePattern, enhancedShareHandler);
+  }
 }
 
 // Upgrade handleUrlLoading to directly launch WhatsApp, Tel, and Maps without canLaunchUrl false-negatives
@@ -544,7 +614,6 @@ const enhancedUrlLoading = `  Future<NavigationActionPolicy> handleUrlLoading(
 const oldUrlLoadingPattern = /Future<NavigationActionPolicy>\s*handleUrlLoading\([\s\S]*?return NavigationActionPolicy\.ALLOW;\s*\}/;
 if (oldUrlLoadingPattern.test(webviewCode)) {
   webviewCode = webviewCode.replace(oldUrlLoadingPattern, enhancedUrlLoading);
-  console.log('  ✓ Upgraded handleUrlLoading for direct WhatsApp, Phone, and Maps launching.');
 }
 
 const nativeHandlers = `
@@ -706,7 +775,17 @@ const nativeHandlers = `
               if (args.length > 2 && args[2] != null) text = args[2].toString();
             }
           }
+
+          // Deep sanitize text
           text = text.replaceAll('supersales/quotations', 'sales/quotations');
+          text = text.replaceAll('/supersales', '/sales');
+          if (!text.contains('https://thehimalaya.cloud/sales/quotations')) {
+            if (text.contains('http')) {
+              text = text.replaceAll(RegExp(r'https?:\\/\\/[^\\s]+\\/quotations'), 'https://thehimalaya.cloud/sales/quotations');
+            } else {
+              text = '\$text\\nhttps://thehimalaya.cloud/sales/quotations';
+            }
+          }
 
           if (base64Data.isNotEmpty) {
             String clean = base64Data;
@@ -740,7 +819,7 @@ const nativeHandlers = `
             final base64Data = (map['base64'] ?? map['data'] ?? map['dataUrl'] ?? '').toString();
             final fileName = (map['fileName'] ?? map['filename'] ?? 'file').toString();
             String text = (map['text'] ?? 'Himalaya ERP').toString();
-            text = text.replaceAll('supersales/quotations', 'sales/quotations');
+            text = text.replaceAll('supersales/quotations', 'sales/quotations').replaceAll('/supersales', '/sales');
             final remoteUrl = (map['url'] ?? '').toString();
             final mimeType = map['mimeType']?.toString();
 
@@ -828,9 +907,9 @@ if (webviewCode.includes(existingMarker)) {
 }
 
 // ============================================================================
-// 5. RUN FLUTTER ANALYZE
+// 6. RUN FLUTTER ANALYZE
 // ============================================================================
-console.log('\n🔍 Step 5: Running flutter analyze on updated codebase...');
+console.log('\n🔍 Step 6: Running flutter analyze on updated codebase...');
 try {
   execSync('flutter analyze', { cwd: flutterDir, stdio: 'inherit' });
   console.log('  ✓ Flutter analysis passed cleanly!');
@@ -839,10 +918,10 @@ try {
 }
 
 // ============================================================================
-// 6. REBUILD RELEASE APK
+// 7. REBUILD RELEASE APK
 // ============================================================================
 if (!skipBuild) {
-  console.log('\n🔨 Step 6: Rebuilding existing release APK binary...');
+  console.log('\n🔨 Step 7: Rebuilding existing release APK binary (v1.0.2+3)...');
   execSync('flutter build apk --release --android-skip-build-dependency-validation', { cwd: flutterDir, stdio: 'inherit' });
 
   const releaseApkPath = path.join(flutterDir, 'build', 'app', 'outputs', 'flutter-apk', 'app-release.apk');
@@ -857,7 +936,7 @@ if (!skipBuild) {
     console.log(`✓ Synchronized APK to workspace: ${workspaceApkPath} (${mb} MB)`);
 
     console.log('\n======================================================================');
-    console.log('🎉 SUCCESS! APK REBUILT WITH LOCATION, DOWNLOADS & NATIVE SHARING!');
+    console.log('🎉 SUCCESS! FRESH APK v1.0.2 REBUILT WITH ACTIVE INTERCEPTOR & CACHE PURGE!');
     console.log(`   📦 Workspace APK: ${workspaceApkPath}`);
     console.log(`   📦 Flutter Build: ${releaseApkPath}`);
     console.log('======================================================================');
