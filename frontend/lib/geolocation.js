@@ -36,7 +36,7 @@ export async function getCurrentDeviceLocation(options = {}) {
   };
 
   const formatError = (err) => {
-    console.log('[Location] final failure:', err?.code || err);
+    console.log('[WebLocation] final failure:', err?.code || err);
     if (err && (err.code === 'LOCATION_SERVICES_DISABLED' || err.message === 'LOCATION_SERVICES_DISABLED')) {
       return new Error('Location services are turned off. Please enable Location/GPS and try again.');
     }
@@ -55,19 +55,23 @@ export async function getCurrentDeviceLocation(options = {}) {
   // 1. Proactively inspect and utilize native Android APK bridge if available
   const w = window;
   if (w.flutter_inappwebview && typeof w.flutter_inappwebview.callHandler === 'function') {
-    console.log('[Location] native bridge detected');
-    console.log('[Location] requesting native permission');
+    console.log('[WebLocation] native bridge detected');
     try {
-      const bridgeRes = await Promise.race([
+      let bridgeRes = await Promise.race([
         w.flutter_inappwebview.callHandler('requestLocation'),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Native bridge timeout')), 8000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
       ]);
-      console.log('[Location] native location result:', bridgeRes);
-      if (bridgeRes) {
-        console.log('[Location] permission status:', bridgeRes.status || bridgeRes.granted);
-        console.log('[Location] location services status:', bridgeRes.serviceEnabled);
 
-        if (bridgeRes.serviceEnabled === false) {
+      if (!bridgeRes || (!bridgeRes.latitude && !bridgeRes.coords?.latitude)) {
+        bridgeRes = await Promise.race([
+          w.flutter_inappwebview.callHandler('getLocation'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+        ]).catch(() => bridgeRes);
+      }
+
+      console.log('[WebLocation] native request result:', bridgeRes);
+      if (bridgeRes) {
+        if (bridgeRes.serviceEnabled === false || bridgeRes.status === 'disabled') {
           throw formatError({ code: 'LOCATION_SERVICES_DISABLED' });
         }
 
@@ -83,9 +87,10 @@ export async function getCurrentDeviceLocation(options = {}) {
           const lat = Number(rawLat);
           const lng = Number(rawLng);
           const accuracy = Number(rawAcc);
-          console.log('[Location] latitude:', lat);
-          console.log('[Location] longitude:', lng);
-          console.log('[Location] accuracy:', accuracy);
+          console.log('[WebLocation] using native coordinates');
+          console.log('[WebLocation] latitude:', lat);
+          console.log('[WebLocation] longitude:', lng);
+          console.log('[WebLocation] accuracy:', accuracy);
 
           return formatResult({
             coords: {
@@ -101,7 +106,7 @@ export async function getCurrentDeviceLocation(options = {}) {
       if (bridgeErr && (bridgeErr.message?.includes('Location services are turned off') || bridgeErr.message?.includes('Location permission was denied'))) {
         throw bridgeErr;
       }
-      console.warn('[Location] native bridge call warning:', bridgeErr);
+      console.warn('[WebLocation] native bridge warning:', bridgeErr);
     }
   }
 
@@ -109,21 +114,24 @@ export async function getCurrentDeviceLocation(options = {}) {
     throw new Error('Geolocation is not supported by your browser.');
   }
 
-  console.log('[Location] browser geolocation started');
+  console.log('[WebLocation] browser fallback started');
 
   return new Promise((resolve, reject) => {
     // STAGE 1: High accuracy GPS
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve(formatResult(pos)),
       (err) => {
-        console.log('[Location] high accuracy failed:', err?.code, err?.message);
+        console.log('[WebLocation] high accuracy failed:', err?.code, err?.message);
         // Fallback to STAGE 2 for POSITION_UNAVAILABLE (2) or TIMEOUT (3).
         // DO NOT fallback for PERMISSION_DENIED (1).
         if (err && (err.code === 2 || err.code === 3)) {
-          console.log('[Location] standard accuracy fallback started');
+          console.log('[WebLocation] standard accuracy started');
           navigator.geolocation.getCurrentPosition(
             (pos2) => resolve(formatResult(pos2)),
-            (err2) => reject(formatError(err2)),
+            (err2) => {
+              console.log('[WebLocation] final failure:', err2?.code, err2?.message);
+              reject(formatError(err2));
+            },
             {
               enableHighAccuracy: false,
               timeout: 15000,
@@ -133,6 +141,7 @@ export async function getCurrentDeviceLocation(options = {}) {
           return;
         }
 
+        console.log('[WebLocation] final failure:', err?.code, err?.message);
         reject(formatError(err));
       },
       {

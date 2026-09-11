@@ -20,6 +20,7 @@ dependencies:
   path_provider: ^2.1.5        # temporary directory for sharing
   share_plus: ^10.1.4          # native Android/iOS share sheet
   permission_handler: ^11.3.1  # storage/photos permissions
+  geolocator: ^12.0.0          # real-time Android fused/network location provider
 ```
 
 ---

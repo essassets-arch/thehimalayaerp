@@ -20,6 +20,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:geolocator/geolocator.dart';
 
 /// Attaches all Himalaya ERP native handlers to the InAppWebViewController
 void setupHimalayaWebViewHandlers({
@@ -252,50 +253,119 @@ void setupHimalayaWebViewHandlers({
   );
 
   // --------------------------------------------------------------------------
-  // 5. NATIVE GEOLOCATION PERMISSION & ACQUISITION HANDLER
+  // 5. NATIVE GEOLOCATION HANDLER (Android Fused Location Provider)
   // --------------------------------------------------------------------------
-  controller.addJavaScriptHandler(
-    handlerName: 'requestLocation',
-    callback: (args) async {
+  Future<Map<String, dynamic>> handleNativeLocation() async {
+    debugPrint('[NativeLocation] request started');
+    try {
+      // Step 4: Check runtime permission (ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION)
+      var status = await Permission.locationWhenInUse.status;
+      debugPrint('[NativeLocation] permission status: ${status.name}');
+
+      if (!status.isGranted) {
+        status = await Permission.locationWhenInUse.request();
+        debugPrint('[NativeLocation] requested permission status: ${status.name}');
+      }
+
+      if (status.isPermanentlyDenied) {
+        return {
+          'success': false,
+          'granted': false,
+          'status': 'permanentlyDenied',
+          'error': 'Location permission permanently denied',
+        };
+      }
+
+      if (!status.isGranted) {
+        return {
+          'success': false,
+          'granted': false,
+          'status': 'denied',
+          'error': 'Location permission denied',
+        };
+      }
+
+      // Step 5: Check Location Services enabled
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      debugPrint('[NativeLocation] location service enabled: $serviceEnabled');
+      if (!serviceEnabled) {
+        return {
+          'success': false,
+          'granted': true,
+          'serviceEnabled': false,
+          'status': 'disabled',
+          'error': 'Location services disabled',
+        };
+      }
+
+      // Step 3: Request Android Fused Location (Indoor/Outdoor: Wi-Fi, Cell, GPS)
+      debugPrint('[NativeLocation] requesting fused location');
+      Position? position;
+
       try {
-        var status = await Permission.locationWhenInUse.status;
-        if (!status.isGranted) {
-          status = await Permission.locationWhenInUse.request();
+        // High accuracy attempt first with 6s timeout
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 6),
+        );
+      } catch (highErr) {
+        debugPrint('[NativeLocation] high accuracy failed, falling back to balanced fused location: $highErr');
+        try {
+          // Standard network/fused position fallback with 10s timeout
+          position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.medium,
+            timeLimit: const Duration(seconds: 10),
+          );
+        } catch (medErr) {
+          debugPrint('[NativeLocation] medium accuracy failed, checking last known position: $medErr');
+          position = await Geolocator.getLastKnownPosition();
         }
-        final serviceEnabled = await Permission.location.serviceStatus.isEnabled;
+      }
 
-        if (!status.isGranted || !serviceEnabled) {
-          return {
-            'granted': status.isGranted,
-            'serviceEnabled': serviceEnabled,
-            'status': status.name
-          };
-        }
-
-        // NOTE: If using the 'geolocator' package in Flutter pubspec.yaml,
-        // you can return real device coordinates directly to bypass WebView geolocation entirely:
-        //
-        // final pos = await Geolocator.getCurrentPosition(
-        //   desiredAccuracy: LocationAccuracy.medium,
-        //   timeLimit: const Duration(seconds: 10),
-        // );
-        // return {
-        //   'granted': true,
-        //   'serviceEnabled': true,
-        //   'latitude': pos.latitude,
-        //   'longitude': pos.longitude,
-        //   'accuracy': pos.accuracy,
-        // };
+      if (position != null) {
+        debugPrint('[NativeLocation] location received');
+        debugPrint('[NativeLocation] latitude: ${position.latitude}');
+        debugPrint('[NativeLocation] longitude: ${position.longitude}');
+        debugPrint('[NativeLocation] accuracy: ${position.accuracy}');
 
         return {
-          'granted': status.isGranted,
-          'serviceEnabled': serviceEnabled,
-          'status': status.name
+          'success': true,
+          'granted': true,
+          'serviceEnabled': true,
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'accuracy': position.accuracy,
+          'altitude': position.altitude,
+          'speed': position.speed,
         };
-      } catch (e) {
-        return {'granted': false, 'serviceEnabled': false, 'error': e.toString()};
       }
-    },
+
+      debugPrint('[NativeLocation] timeout: fused location position could not be acquired');
+      return {
+        'success': false,
+        'granted': true,
+        'serviceEnabled': true,
+        'status': 'unavailable',
+        'error': 'Unable to determine device location within timeout',
+      };
+    } catch (e) {
+      debugPrint('[NativeLocation] location error: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
+
+  // Register both requestLocation and getLocation handlers
+  controller.addJavaScriptHandler(
+    handlerName: 'requestLocation',
+    callback: (args) => handleNativeLocation(),
+  );
+
+  controller.addJavaScriptHandler(
+    handlerName: 'getLocation',
+    callback: (args) => handleNativeLocation(),
   );
 
   controller.addJavaScriptHandler(
@@ -303,7 +373,7 @@ void setupHimalayaWebViewHandlers({
     callback: (args) async {
       try {
         final status = await Permission.locationWhenInUse.status;
-        final serviceEnabled = await Permission.location.serviceStatus.isEnabled;
+        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
         return {
           'granted': status.isGranted,
           'serviceEnabled': serviceEnabled,
