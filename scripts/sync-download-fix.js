@@ -7,7 +7,7 @@ const flutterDir = args.find(a => !a.startsWith('--')) || 'D:\\himalaya-flutter'
 const skipBuild = args.includes('--no-build');
 
 console.log('======================================================================');
-console.log('🚀 HIMALAYA ERP — SYNC PERMANENT DOWNLOAD & PERMISSIONS FIX TO FLUTTER APK');
+console.log('🚀 HIMALAYA ERP — SYNC LOCATION, DOWNLOADS & NATIVE SHARING TO FLUTTER APK');
 console.log('======================================================================');
 console.log(`📂 Flutter Directory: ${flutterDir}`);
 
@@ -17,7 +17,7 @@ if (!fs.existsSync(flutterDir)) {
 }
 
 // ============================================================================
-// 1. UPDATE file_paths.xml (Grant FileProvider full external app files access)
+// 1. UPDATE file_paths.xml (FileProvider for downloads and share files)
 // ============================================================================
 const filePathsXmlPath = path.join(flutterDir, 'android', 'app', 'src', 'main', 'res', 'xml', 'file_paths.xml');
 if (fs.existsSync(filePathsXmlPath)) {
@@ -33,7 +33,7 @@ if (fs.existsSync(filePathsXmlPath)) {
 }
 
 // ============================================================================
-// 2. UPDATE download_service.dart
+// 2. UPDATE download_service.dart (Base64, Scoped Storage & Local Notifications)
 // ============================================================================
 const downloadServicePath = path.join(flutterDir, 'lib', 'services', 'download_service.dart');
 console.log('\n📦 Step 2: Updating download_service.dart...');
@@ -316,16 +316,71 @@ class DownloadService {
 `;
 
 fs.writeFileSync(downloadServicePath, updatedDownloadService, 'utf8');
-console.log('  ✓ Updated download_service.dart with safe storage, notification, and base64 support.');
+console.log('  ✓ Updated download_service.dart.');
 
 // ============================================================================
-// 3. UPDATE home_screen.dart (Blob URL Resolution & async gap mounting guards)
+// 3. UPDATE home_screen.dart (Blob resolution, share polyfill, async guards)
 // ============================================================================
 const homeScreenPath = path.join(flutterDir, 'lib', 'screens', 'home_screen.dart');
-console.log('\n📦 Step 3: Updating home_screen.dart with blob resolution and async guards...');
+console.log('\n📦 Step 3: Updating home_screen.dart with share polyfill and async guards...');
 
 let homeScreenCode = fs.readFileSync(homeScreenPath, 'utf8');
 
+// Clean pull-to-refresh call
+homeScreenCode = homeScreenCode.replace(
+  'await _pullToRefreshController?.endRefreshing();',
+  '_pullToRefreshController?.endRefreshing();'
+);
+
+// Inject share/download JS bridge polyfill into onLoadStop
+const jsPolyfillInjection = `
+                      // Inject polyfills for navigator.share and HimalayaBridge
+                      await controller.evaluateJavascript(source: """
+                        (() => {
+                          if (typeof window === 'undefined') return;
+                          if (!window.HimalayaBridge) {
+                            const bridge = {
+                              postMessage: function(payload) {
+                                try {
+                                  const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+                                  if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                                    if (data.type === 'SHARE' || data.action === 'share' || data.action === 'shareQuotationImage') {
+                                      window.flutter_inappwebview.callHandler('shareQuotationImage', data);
+                                    } else {
+                                      window.flutter_inappwebview.callHandler('downloadQuotationImage', data);
+                                    }
+                                  }
+                                } catch (_) {}
+                              }
+                            };
+                            window.QuotationDownload = bridge;
+                            window.HimalayaDownload = bridge;
+                            window.HimalayaBridge = bridge;
+                          }
+                          if (!navigator.share) {
+                            navigator.share = async function(data) {
+                              if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+                                return window.flutter_inappwebview.callHandler('share', {
+                                  title: data ? (data.title || '') : '',
+                                  text: data ? (data.text || '') : '',
+                                  url: data ? (data.url || '') : ''
+                                });
+                              }
+                              return Promise.resolve();
+                            };
+                          }
+                        })();
+                      """);
+`;
+
+if (!homeScreenCode.includes('Inject polyfills for navigator.share')) {
+  homeScreenCode = homeScreenCode.replace(
+    'await _webViewService.syncCookies();',
+    `await _webViewService.syncCookies();\n${jsPolyfillInjection}`
+  );
+}
+
+// Ensure onDownloadStartRequest handles blob: safely with context.mounted guards
 const updatedHomeScreenOnDownload = `onDownloadStartRequest: (controller, downloadStartRequest) async {
                       final urlStr = downloadStartRequest.url.toString();
                       if (urlStr.startsWith('blob:')) {
@@ -372,23 +427,23 @@ const updatedHomeScreenOnDownload = `onDownloadStartRequest: (controller, downlo
 const currentDownloadBlockRegex = /onDownloadStartRequest:\s*\(controller,\s*downloadStartRequest\)\s*async\s*\{[\s\S]*?unawaited\(_downloadService\.downloadFile\([\s\S]*?\)\);\s*\},/;
 if (currentDownloadBlockRegex.test(homeScreenCode)) {
   homeScreenCode = homeScreenCode.replace(currentDownloadBlockRegex, updatedHomeScreenOnDownload);
-  fs.writeFileSync(homeScreenPath, homeScreenCode, 'utf8');
-  console.log('  ✓ Updated home_screen.dart onDownloadStartRequest with mounted guards.');
-} else {
-  console.log('  ℹ Regex did not match onDownloadStartRequest in home_screen.dart.');
 }
 
+fs.writeFileSync(homeScreenPath, homeScreenCode, 'utf8');
+console.log('  ✓ Updated home_screen.dart with share polyfill and async guards.');
+
 // ============================================================================
-// 4. UPDATE webview_service.dart (Native Download, Share & Notification Handlers)
+// 4. UPDATE webview_service.dart (Universal Share, Location & Download Handlers)
 // ============================================================================
 const webviewServicePath = path.join(flutterDir, 'lib', 'services', 'webview_service.dart');
-console.log('\n📦 Step 4: Registering native download, share, and notification handlers in webview_service.dart...');
+console.log('\n📦 Step 4: Updating webview_service.dart with universal share & download handlers...');
 
 let webviewCode = fs.readFileSync(webviewServicePath, 'utf8');
 
 // Ensure all required imports exist
 const requiredImports = [
   "import 'dart:convert';",
+  "import 'package:dio/dio.dart';",
   "import 'package:path_provider/path_provider.dart';",
   "import './download_service.dart';",
   "import './notification_service.dart';",
@@ -398,6 +453,97 @@ for (const imp of requiredImports) {
   if (!webviewCode.includes(imp)) {
     webviewCode = `${imp}\n` + webviewCode;
   }
+}
+
+// Update handler 1 (AppConstants.jsHandlerShare) to handle both strings, objects, and base64 payloads
+const enhancedShareHandler = `    // 1. Universal Share Handler: window.flutter_inappwebview.callHandler('share', text / map)
+    controller.addJavaScriptHandler(
+      handlerName: AppConstants.jsHandlerShare,
+      callback: (args) async {
+        try {
+          if (args.isNotEmpty && args[0] != null) {
+            if (args[0] is Map) {
+              final map = args[0] as Map;
+              final base64Data = (map['base64'] ?? map['data'] ?? map['dataUrl'] ?? '').toString();
+              final fileName = (map['fileName'] ?? map['filename'] ?? 'quotation.png').toString();
+              final text = (map['text'] ?? map['title'] ?? '').toString();
+              final url = (map['url'] ?? '').toString();
+              final fullText = [text, url].where((s) => s.isNotEmpty).join('\\n');
+
+              if (base64Data.isNotEmpty) {
+                String clean = base64Data;
+                if (clean.contains(',')) clean = clean.split(',').last;
+                final bytes = base64Decode(clean.trim());
+                final tempDir = await getTemporaryDirectory();
+                final file = File('\${tempDir.path}/\$fileName');
+                await file.writeAsBytes(bytes);
+                await Share.shareXFiles(
+                  [XFile(file.path, mimeType: 'image/png')],
+                  text: fullText.isNotEmpty ? fullText : null,
+                );
+                return {'success': true};
+              } else if (fullText.isNotEmpty) {
+                await Share.share(fullText);
+                return {'success': true};
+              }
+            } else {
+              final text = args[0].toString();
+              await Share.share(text);
+              return {'success': true};
+            }
+          }
+          return {'success': false, 'error': 'No share payload provided'};
+        } catch (e) {
+          return {'success': false, 'error': e.toString()};
+        }
+      },
+    );`;
+
+const oldSharePattern = /\/\/\s*1\.\s*Share Handler:[\s\S]*?controller\.addJavaScriptHandler\([\s\S]*?handlerName:\s*AppConstants\.jsHandlerShare,[\s\S]*?\}\,\s*\);/;
+if (oldSharePattern.test(webviewCode)) {
+  webviewCode = webviewCode.replace(oldSharePattern, enhancedShareHandler);
+  console.log('  ✓ Upgraded handler 1 to universal share supporting images, text, and URLs.');
+}
+
+// Upgrade handleUrlLoading to directly launch WhatsApp, Tel, and Maps without canLaunchUrl false-negatives
+const enhancedUrlLoading = `  Future<NavigationActionPolicy> handleUrlLoading(
+    InAppWebViewController controller,
+    NavigationAction navigationAction,
+  ) async {
+    final uri = navigationAction.request.url;
+    if (uri == null) return NavigationActionPolicy.ALLOW;
+
+    final scheme = uri.scheme.toLowerCase();
+    final host = uri.host.toLowerCase();
+
+    // Check if the URL should be handed off to external apps (WhatsApp, Maps, Tel, Mail)
+    final isExternalScheme = AppConstants.externalSchemes.contains(scheme);
+    final isExternalDomain = AppConstants.externalDomains.any(
+      (domain) => host == domain || host.endsWith('.$domain'),
+    );
+
+    if (isExternalScheme || isExternalDomain) {
+      try {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return NavigationActionPolicy.CANCEL;
+      } catch (_) {
+        try {
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        } catch (_) {}
+      }
+      return NavigationActionPolicy.CANCEL;
+    }
+
+    // Keep all internal navigation inside WebView
+    return NavigationActionPolicy.ALLOW;
+  }`;
+
+const oldUrlLoadingPattern = /Future<NavigationActionPolicy>\s*handleUrlLoading\([\s\S]*?return NavigationActionPolicy\.ALLOW;\s*\}/;
+if (oldUrlLoadingPattern.test(webviewCode)) {
+  webviewCode = webviewCode.replace(oldUrlLoadingPattern, enhancedUrlLoading);
+  console.log('  ✓ Upgraded handleUrlLoading for direct WhatsApp, Phone, and Maps launching.');
 }
 
 const nativeHandlers = `
@@ -544,18 +690,22 @@ const nativeHandlers = `
           String base64Data = '';
           String fileName = 'quotation.png';
           String text = 'Himalaya Quotation';
+          String remoteUrl = '';
+
           if (args.isNotEmpty) {
             if (args[0] is Map) {
               final map = args[0] as Map;
               base64Data = (map['base64'] ?? map['data'] ?? map['dataUrl'] ?? '').toString();
               fileName = (map['fileName'] ?? map['filename'] ?? 'quotation.png').toString();
               text = (map['text'] ?? map['caption'] ?? 'Himalaya Quotation').toString();
+              remoteUrl = (map['imageUrl'] ?? map['url'] ?? '').toString();
             } else {
               base64Data = args[0].toString();
               if (args.length > 1 && args[1] != null) fileName = args[1].toString();
               if (args.length > 2 && args[2] != null) text = args[2].toString();
             }
           }
+
           if (base64Data.isNotEmpty) {
             String clean = base64Data;
             if (clean.contains(',')) clean = clean.split(',').last;
@@ -563,10 +713,16 @@ const nativeHandlers = `
             final tempDir = await getTemporaryDirectory();
             final file = File('\${tempDir.path}/\$fileName');
             await file.writeAsBytes(bytes);
-            await Share.shareXFiles([XFile(file.path)], text: text);
+            await Share.shareXFiles([XFile(file.path, mimeType: 'image/png')], text: text);
+            return {'success': true};
+          } else if (remoteUrl.isNotEmpty && (remoteUrl.startsWith('http://') || remoteUrl.startsWith('https://'))) {
+            final tempDir = await getTemporaryDirectory();
+            final file = File('\${tempDir.path}/\$fileName');
+            await Dio().download(remoteUrl, file.path);
+            await Share.shareXFiles([XFile(file.path, mimeType: 'image/png')], text: text);
             return {'success': true};
           }
-          return {'success': false, 'error': 'No base64 data'};
+          return {'success': false, 'error': 'No base64 or image URL provided'};
         } catch (e) {
           return {'success': false, 'error': e.toString()};
         }
@@ -582,6 +738,9 @@ const nativeHandlers = `
             final base64Data = (map['base64'] ?? map['data'] ?? map['dataUrl'] ?? '').toString();
             final fileName = (map['fileName'] ?? map['filename'] ?? 'file').toString();
             final text = (map['text'] ?? 'Himalaya ERP').toString();
+            final remoteUrl = (map['url'] ?? '').toString();
+            final mimeType = map['mimeType']?.toString();
+
             if (base64Data.isNotEmpty) {
               String clean = base64Data;
               if (clean.contains(',')) clean = clean.split(',').last;
@@ -589,7 +748,13 @@ const nativeHandlers = `
               final tempDir = await getTemporaryDirectory();
               final file = File('\${tempDir.path}/\$fileName');
               await file.writeAsBytes(bytes);
-              await Share.shareXFiles([XFile(file.path)], text: text);
+              await Share.shareXFiles([XFile(file.path, mimeType: mimeType)], text: text);
+              return {'success': true};
+            } else if (remoteUrl.isNotEmpty && (remoteUrl.startsWith('http://') || remoteUrl.startsWith('https://'))) {
+              final tempDir = await getTemporaryDirectory();
+              final file = File('\${tempDir.path}/\$fileName');
+              await Dio().download(remoteUrl, file.path);
+              await Share.shareXFiles([XFile(file.path, mimeType: mimeType)], text: text);
               return {'success': true};
             }
           }
@@ -632,7 +797,6 @@ const nativeHandlers = `
     );
 `;
 
-// Remove previous injection if present to replace cleanly
 const existingMarker = "// 11. Download Quotation Image";
 if (webviewCode.includes(existingMarker)) {
   const markerIdx = webviewCode.indexOf(existingMarker);
@@ -690,7 +854,7 @@ if (!skipBuild) {
     console.log(`✓ Synchronized APK to workspace: ${workspaceApkPath} (${mb} MB)`);
 
     console.log('\n======================================================================');
-    console.log('🎉 SUCCESS! APK REBUILT WITH PERMANENT LOCATION & DOWNLOAD FIXES!');
+    console.log('🎉 SUCCESS! APK REBUILT WITH LOCATION, DOWNLOADS & NATIVE SHARING!');
     console.log(`   📦 Workspace APK: ${workspaceApkPath}`);
     console.log(`   📦 Flutter Build: ${releaseApkPath}`);
     console.log('======================================================================');
