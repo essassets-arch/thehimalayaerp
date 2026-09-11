@@ -55,9 +55,10 @@ test-results/
 frontend/playwright-report/
 playwright-report/
 
-.setup.txt
+# Android binaries
+*.apk
+*.aab
 
-# Firebase credentials
 *firebase-service-account*.json
 firebase-service-account.json
 backend/firebase-service-account.json
