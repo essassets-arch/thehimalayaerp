@@ -52,64 +52,86 @@ export async function getCurrentDeviceLocation(options = {}) {
     return new Error(err?.message || 'Unable to determine your current location. Please check Location/GPS and try again.');
   };
 
-  // 1. Proactively inspect and utilize native Android APK bridge if available
+  // 1. Android APK Native Bridge Path (Primary & Exclusive for APK)
   const w = window;
-  if (w.flutter_inappwebview && typeof w.flutter_inappwebview.callHandler === 'function') {
-    console.log('[WebLocation] native bridge detected');
+  const hasInAppWebView = Boolean(w && w.flutter_inappwebview && typeof w.flutter_inappwebview.callHandler === 'function');
+
+  if (hasInAppWebView) {
+    console.log('[CreateLeadLocation] Android bridge detected');
+    console.log('[CreateLeadLocation] native request started');
+
     try {
       let bridgeRes = await Promise.race([
         w.flutter_inappwebview.callHandler('requestLocation'),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('NATIVE_TIMEOUT')), 25000))
       ]);
 
-      if (!bridgeRes || (!bridgeRes.latitude && !bridgeRes.coords?.latitude)) {
-        bridgeRes = await Promise.race([
-          w.flutter_inappwebview.callHandler('getLocation'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
-        ]).catch(() => bridgeRes);
+      if (!bridgeRes || (bridgeRes.latitude == null && bridgeRes.coords?.latitude == null && !bridgeRes.errorCode && !bridgeRes.status)) {
+        try {
+          bridgeRes = await Promise.race([
+            w.flutter_inappwebview.callHandler('getLocation'),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('NATIVE_TIMEOUT')), 5000))
+          ]);
+        } catch (_) {}
       }
 
-      console.log('[WebLocation] native request result:', bridgeRes);
-      if (bridgeRes) {
-        if (bridgeRes.serviceEnabled === false || bridgeRes.status === 'disabled') {
-          throw formatError({ code: 'LOCATION_SERVICES_DISABLED' });
-        }
+      console.log('[CreateLeadLocation] native result =', bridgeRes);
 
-        if (bridgeRes.granted === false || bridgeRes.status === 'denied' || bridgeRes.status === 'permanentlyDenied') {
-          throw formatError({ code: 1 });
-        }
-
-        const rawLat = bridgeRes.latitude ?? bridgeRes.coords?.latitude;
-        const rawLng = bridgeRes.longitude ?? bridgeRes.coords?.longitude;
-        const rawAcc = bridgeRes.accuracy ?? bridgeRes.coords?.accuracy ?? 15;
-
-        if (rawLat != null && rawLng != null && !isNaN(Number(rawLat)) && !isNaN(Number(rawLng))) {
-          const lat = Number(rawLat);
-          const lng = Number(rawLng);
-          const accuracy = Number(rawAcc);
-          console.log('[WebLocation] using native coordinates');
-          console.log('[WebLocation] latitude:', lat);
-          console.log('[WebLocation] longitude:', lng);
-          console.log('[WebLocation] accuracy:', accuracy);
-
-          return formatResult({
-            coords: {
-              latitude: lat,
-              longitude: lng,
-              accuracy: accuracy
-            },
-            timestamp: Date.now()
-          });
-        }
+      if (
+        bridgeRes?.errorCode === 'LOCATION_SERVICES_DISABLED' ||
+        bridgeRes?.serviceEnabled === false ||
+        bridgeRes?.status === 'disabled'
+      ) {
+        throw new Error('Location services are disabled. Please enable Location/GPS and try again.');
       }
+
+      if (
+        bridgeRes?.errorCode === 'PERMISSION_DENIED' ||
+        bridgeRes?.errorCode === 'PERMISSION_PERMANENTLY_DENIED' ||
+        bridgeRes?.granted === false ||
+        bridgeRes?.status === 'denied' ||
+        bridgeRes?.status === 'permanentlyDenied'
+      ) {
+        throw new Error('Location permission was denied. Please allow location access and try again.');
+      }
+
+      const rawLat = bridgeRes?.latitude ?? bridgeRes?.coords?.latitude;
+      const rawLng = bridgeRes?.longitude ?? bridgeRes?.coords?.longitude;
+      const rawAcc = bridgeRes?.accuracy ?? bridgeRes?.coords?.accuracy ?? 15;
+
+      if (rawLat != null && rawLng != null && !isNaN(Number(rawLat)) && !isNaN(Number(rawLng))) {
+        const lat = Number(rawLat);
+        const lng = Number(rawLng);
+        const accuracy = Number(rawAcc);
+        console.log('[CreateLeadLocation] using native coordinates');
+        console.log('[CreateLeadLocation] latitude =', lat);
+        console.log('[CreateLeadLocation] longitude =', lng);
+        console.log('[CreateLeadLocation] accuracy =', accuracy);
+
+        return formatResult({
+          coords: {
+            latitude: lat,
+            longitude: lng,
+            accuracy: accuracy
+          },
+          timestamp: Date.now()
+        });
+      }
+
+      if (bridgeRes?.granted === true && rawLat == null) {
+        throw new Error('The Android app bridge responded without coordinates. Please update the APK with the native location handler.');
+      }
+
+      throw new Error(bridgeRes?.message || 'Unable to obtain device location from Android native provider.');
     } catch (bridgeErr) {
-      if (bridgeErr && (bridgeErr.message?.includes('Location services are turned off') || bridgeErr.message?.includes('Location permission was denied'))) {
-        throw bridgeErr;
+      if (bridgeErr?.message === 'NATIVE_TIMEOUT') {
+        throw new Error('Location request timed out after 25 seconds. Please try again.');
       }
-      console.warn('[WebLocation] native bridge warning:', bridgeErr);
+      throw bridgeErr;
     }
   }
 
+  // 2. Desktop / Standard Browser Fallback Only (when NOT in Android APK)
   if (!('geolocation' in navigator)) {
     throw new Error('Geolocation is not supported by your browser.');
   }

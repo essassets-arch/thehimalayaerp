@@ -385,5 +385,147 @@ test.describe('Sales Create Lead — Dynamic Real-Time GPS Delivery Location', (
     await expect(page.getByTestId('lead-pincode')).toHaveValue('400021');
     await expect(locationBtn).toContainText('Location captured');
   });
+
+  test('Android APK Native Bridge: callHandler("requestLocation") provides coordinates directly without browser fallback', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(45000);
+
+    let browserGeolocationCalled = false;
+
+    await page.addInitScript(() => {
+      localStorage.setItem('e2e_bypass_permissions', 'true');
+      sessionStorage.setItem('e2e_bypass_permissions', 'true');
+      (window as any).__PLAYWRIGHT_TEST__ = true;
+
+      // Mock Android InAppWebView JavaScript bridge
+      (window as any).flutter_inappwebview = {
+        callHandler: async (handlerName: string) => {
+          if (handlerName === 'requestLocation') {
+            return {
+              success: true,
+              latitude: 23.0225,
+              longitude: 72.5714,
+              accuracy: 15.0,
+            };
+          }
+          return null;
+        },
+      };
+
+      // Spy on navigator.geolocation to verify it is NEVER called when native bridge exists
+      navigator.geolocation.getCurrentPosition = function () {
+        (window as any).__BROWSER_GEO_CALLED__ = true;
+      };
+    });
+
+    // Mock reverse-geocode endpoint for Ahmedabad coordinates returned by native bridge
+    await page.route('**/api/backend/location/reverse-geocode*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          formattedAddress: 'SG Highway, Ahmedabad, Gujarat 380054',
+          placeId: 'ChIJahmedabad_sg_highway',
+          line1: 'SG Highway',
+          city: 'Ahmedabad',
+          state: 'Gujarat',
+          pincode: '380054',
+          country: 'India',
+          latitude: 23.0225,
+          longitude: 72.5714,
+          accuracy: 15.0,
+        }),
+      });
+    });
+
+    // Log in
+    await performRobustLogin(
+      page,
+      process.env.E2E_SALES_EXECUTIVE_EMAIL || 'sales.executive.browser@himalayaerp.test',
+      undefined,
+      /\/sales(?:\/dashboard)?(?:[/?#]|$)/,
+    );
+
+    await page.goto('/sales/leads');
+    const newLeadBtn = page.getByTestId('lead-create');
+    await expect(newLeadBtn).toBeVisible({ timeout: 10000 });
+    await newLeadBtn.click();
+    await expect(page.getByTestId('sales-create-lead-page')).toBeVisible({ timeout: 10000 });
+
+    const locationBtn = page.getByTestId('use-current-location-btn');
+    await expect(locationBtn).toBeVisible();
+
+    // Click "Use Current Location" inside APK
+    await locationBtn.click();
+
+    // Verify coordinates and address populated from native bridge
+    const accuracyBadge = page.getByTestId('location-accuracy-badge');
+    await expect(accuracyBadge).toBeVisible({ timeout: 10000 });
+    await expect(accuracyBadge).toContainText('Location accuracy: ~15 m');
+    await expect(accuracyBadge).toContainText('23.02250, 72.57140');
+
+    await expect(page.getByTestId('lead-address')).toHaveValue('SG Highway');
+    await expect(page.getByTestId('lead-city')).toHaveValue('Ahmedabad');
+    await expect(page.getByTestId('lead-state')).toHaveValue('Gujarat');
+    await expect(page.getByTestId('lead-pincode')).toHaveValue('380054');
+
+    // Confirm navigator.geolocation was NOT called
+    const wasGeoCalled = await page.evaluate(() => (window as any).__BROWSER_GEO_CALLED__);
+    expect(wasGeoCalled).toBeFalsy();
+  });
+
+  test('Android APK Native Bridge: reports LOCATION_SERVICES_DISABLED immediately without timeout', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(45000);
+
+    page.on('console', (msg) => console.log('[TEST 5 CONSOLE]', msg.text()));
+    page.on('pageerror', (err) => console.log('[TEST 5 ERROR]', err.message));
+
+    await page.addInitScript(() => {
+      localStorage.setItem('e2e_bypass_permissions', 'true');
+      sessionStorage.setItem('e2e_bypass_permissions', 'true');
+      (window as any).__PLAYWRIGHT_TEST__ = true;
+
+      // Mock Android InAppWebView bridge reporting LOCATION_SERVICES_DISABLED
+      (window as any).flutter_inappwebview = {
+        callHandler: async (handlerName: string) => {
+          if (handlerName === 'requestLocation') {
+            return {
+              success: false,
+              errorCode: 'LOCATION_SERVICES_DISABLED',
+              message: 'Location services are disabled.',
+            };
+          }
+          return null;
+        },
+      };
+    });
+
+    await performRobustLogin(
+      page,
+      process.env.E2E_SALES_EXECUTIVE_EMAIL || 'sales.executive.browser@himalayaerp.test',
+      undefined,
+      /\/sales(?:\/dashboard)?(?:[/?#]|$)/,
+    );
+
+    await page.goto('/sales/leads');
+    const newLeadBtn = page.getByTestId('lead-create');
+    await expect(newLeadBtn).toBeVisible({ timeout: 10000 });
+    await newLeadBtn.click();
+    await expect(page.getByTestId('sales-create-lead-page')).toBeVisible({ timeout: 10000 });
+
+    const locationBtn = page.getByTestId('use-current-location-btn');
+    await locationBtn.click();
+
+    // Verify warning dialog specifically mentions Location services are turned off
+    const swalModal = page.locator('.swal2-modal');
+    await expect(swalModal).toBeVisible({ timeout: 5000 });
+    await expect(swalModal).toContainText(/Location services are turned off/i);
+  });
 });
 

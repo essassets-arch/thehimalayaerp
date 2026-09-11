@@ -147,3 +147,69 @@ Flutter Native Layer (flutter_webview_handlers.dart)
   - Saves via `ImageGallerySaver.saveImage(...)` → Pictures/Gallery
   - Shares via `Share.shareXFiles([XFile(...)])` → Native Share Sheet
 ```
+
+---
+
+## 5. Step 17 — Authoritative Android APK Native Location Bridge Fix
+
+### Why the previous APK timed out:
+The previous APK binary's `requestLocation` handler only called `Permission.locationWhenInUse.request()` and returned:
+```dart
+{'granted': true, 'status': 'granted'}
+```
+Because no coordinates were returned, the website fell back to `navigator.geolocation`, which timed out inside Android WebView.
+
+### The Fix in Existing APK Source File:
+In the external Flutter project that builds your APK, open:
+`lib/services/webview_service.dart` (or wherever `controller.addJavaScriptHandler` is configured).
+
+#### 1. Add/Verify dependency in `pubspec.yaml`
+> **Important**: Check your existing `pubspec.yaml` first. If `geolocator` is already installed, reuse that compatible version. Do not blindly upgrade or downgrade Flutter dependencies:
+```yaml
+dependencies:
+  geolocator: any # or the version already compatible with your Flutter SDK
+  permission_handler: any
+```
+
+#### 2. Replace lines registering `requestLocation`:
+```dart
+// ❌ REPLACE THIS OLD BLOCK:
+// controller.addJavaScriptHandler(
+//   handlerName: 'requestLocation',
+//   callback: (args) async {
+//     final status = await Permission.locationWhenInUse.request();
+//     return {'granted': status.isGranted, 'status': status.name};
+//   },
+// );
+
+// ✅ WITH THIS AUTHORITATIVE HANDLER:
+controller.addJavaScriptHandler(
+  handlerName: 'requestLocation',
+  callback: (args) async => await handleNativeLocation(),
+);
+
+controller.addJavaScriptHandler(
+  handlerName: 'getLocation',
+  callback: (args) async => await handleNativeLocation(),
+);
+```
+
+#### 3. Add `handleNativeLocation()`:
+Copy `handleNativeLocation()` directly from [`docs/mobile/flutter_webview_handlers.dart`](./flutter_webview_handlers.dart) into `lib/services/webview_service.dart`.
+
+It implements:
+1. High accuracy fresh location (10s timeout)
+2. Balanced/fused accuracy fresh location (15s timeout)
+3. Last known location check (freshness <= 120s, accuracy <= 100m)
+4. Consistent JSON return object:
+   - Success: `{"success": true, "latitude": 23.xxxx, "longitude": 72.xxxx, "accuracy": 15.0}`
+   - Error: `{"success": false, "errorCode": "LOCATION_SERVICES_DISABLED|PERMISSION_DENIED|LOCATION_UNAVAILABLE", "message": "..."}`
+
+#### 4. Rebuild the APK binary:
+```bash
+flutter clean
+flutter pub get
+flutter build apk --release
+```
+Install the resulting `.apk` on the physical phone. Once installed, tapping "Use Current Location" in `/sales/create-lead` will instantly receive the physical phone's fused GPS coordinates without browser timeout!
+

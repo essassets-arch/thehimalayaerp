@@ -258,80 +258,99 @@ void setupHimalayaWebViewHandlers({
   Future<Map<String, dynamic>> handleNativeLocation() async {
     debugPrint('[NativeLocation] request started');
     try {
-      // Step 4: Check runtime permission (ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION)
+      // Step 1: Check runtime permission (ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION)
       var status = await Permission.locationWhenInUse.status;
-      debugPrint('[NativeLocation] permission status: ${status.name}');
+      debugPrint('[NativeLocation] permission = ${status.name}');
 
       if (!status.isGranted) {
         status = await Permission.locationWhenInUse.request();
-        debugPrint('[NativeLocation] requested permission status: ${status.name}');
+        debugPrint('[NativeLocation] requested permission = ${status.name}');
       }
 
       if (status.isPermanentlyDenied) {
+        debugPrint('[NativeLocation] error = PERMISSION_PERMANENTLY_DENIED');
         return {
           'success': false,
-          'granted': false,
-          'status': 'permanentlyDenied',
-          'error': 'Location permission permanently denied',
+          'errorCode': 'PERMISSION_PERMANENTLY_DENIED',
+          'message': 'Location permission permanently denied. Please allow in App Settings.',
         };
       }
 
       if (!status.isGranted) {
+        debugPrint('[NativeLocation] error = PERMISSION_DENIED');
         return {
           'success': false,
-          'granted': false,
-          'status': 'denied',
-          'error': 'Location permission denied',
+          'errorCode': 'PERMISSION_DENIED',
+          'message': 'Location permission was denied.',
         };
       }
 
-      // Step 5: Check Location Services enabled
+      // Step 2: Check Location Services enabled
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      debugPrint('[NativeLocation] location service enabled: $serviceEnabled');
+      debugPrint('[NativeLocation] services = ${serviceEnabled ? 'enabled' : 'disabled'}');
       if (!serviceEnabled) {
+        debugPrint('[NativeLocation] error = LOCATION_SERVICES_DISABLED');
         return {
           'success': false,
-          'granted': true,
-          'serviceEnabled': false,
-          'status': 'disabled',
-          'error': 'Location services disabled',
+          'errorCode': 'LOCATION_SERVICES_DISABLED',
+          'message': 'Location services are disabled.',
         };
       }
 
-      // Step 3: Request Android Fused Location (Indoor/Outdoor: Wi-Fi, Cell, GPS)
+      // Step 3: Fused Location Strategy
+      // 1. High accuracy fresh location — 10 seconds (GPS + Wi-Fi + Mobile)
       debugPrint('[NativeLocation] requesting fused location');
       Position? position;
 
       try {
-        // High accuracy attempt first with 6s timeout
+        debugPrint('[NativeLocation] stage 1: requesting high accuracy fresh location (10s)');
         position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 6),
+          timeLimit: const Duration(seconds: 10),
         );
       } catch (highErr) {
-        debugPrint('[NativeLocation] high accuracy failed, falling back to balanced fused location: $highErr');
+        debugPrint('[NativeLocation] stage 1 timeout/failure: $highErr');
         try {
-          // Standard network/fused position fallback with 10s timeout
+          // 2. Medium/balanced accuracy fresh location — 15 seconds (fused Wi-Fi/cell)
+          debugPrint('[NativeLocation] stage 2: requesting medium accuracy balanced location (15s)');
           position = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.medium,
-            timeLimit: const Duration(seconds: 10),
+            timeLimit: const Duration(seconds: 15),
           );
         } catch (medErr) {
-          debugPrint('[NativeLocation] medium accuracy failed, checking last known position: $medErr');
-          position = await Geolocator.getLastKnownPosition();
+          debugPrint('[NativeLocation] stage 2 timeout/failure: $medErr');
+
+          // 3. Last known location ONLY if exists, recent (<= 120s), and accurate (<= 100m)
+          try {
+            debugPrint('[NativeLocation] stage 3: inspecting last known position');
+            final lastKnown = await Geolocator.getLastKnownPosition();
+            if (lastKnown != null) {
+              final ageSeconds = DateTime.now().difference(lastKnown.timestamp).inSeconds.abs();
+              final isRecent = ageSeconds <= 120; // Within 2 minutes
+              final isAccurate = lastKnown.accuracy <= 100; // Within 100 meters
+
+              debugPrint('[NativeLocation] last known age = ${ageSeconds}s, accuracy = ${lastKnown.accuracy}m');
+              if (isRecent && isAccurate) {
+                debugPrint('[NativeLocation] last known position accepted');
+                position = lastKnown;
+              } else {
+                debugPrint('[NativeLocation] last known rejected: stale or inaccurate');
+              }
+            }
+          } catch (lastErr) {
+            debugPrint('[NativeLocation] stage 3 error: $lastErr');
+          }
         }
       }
 
       if (position != null) {
         debugPrint('[NativeLocation] location received');
-        debugPrint('[NativeLocation] latitude: ${position.latitude}');
-        debugPrint('[NativeLocation] longitude: ${position.longitude}');
-        debugPrint('[NativeLocation] accuracy: ${position.accuracy}');
+        debugPrint('[NativeLocation] latitude = ${position.latitude}');
+        debugPrint('[NativeLocation] longitude = ${position.longitude}');
+        debugPrint('[NativeLocation] accuracy = ${position.accuracy}');
 
         return {
           'success': true,
-          'granted': true,
-          'serviceEnabled': true,
           'latitude': position.latitude,
           'longitude': position.longitude,
           'accuracy': position.accuracy,
@@ -340,19 +359,18 @@ void setupHimalayaWebViewHandlers({
         };
       }
 
-      debugPrint('[NativeLocation] timeout: fused location position could not be acquired');
+      debugPrint('[NativeLocation] error = LOCATION_UNAVAILABLE');
       return {
         'success': false,
-        'granted': true,
-        'serviceEnabled': true,
-        'status': 'unavailable',
-        'error': 'Unable to determine device location within timeout',
+        'errorCode': 'LOCATION_UNAVAILABLE',
+        'message': 'Unable to obtain the device location.',
       };
     } catch (e) {
-      debugPrint('[NativeLocation] location error: $e');
+      debugPrint('[NativeLocation] error = $e');
       return {
         'success': false,
-        'error': e.toString(),
+        'errorCode': 'LOCATION_UNAVAILABLE',
+        'message': 'Unable to obtain the device location.',
       };
     }
   }

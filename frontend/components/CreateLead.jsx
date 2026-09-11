@@ -628,84 +628,153 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
       }
     };
 
-    // 1. Proactively inspect and utilize native Android APK bridge if available
-    let nativeRes = null;
+    // 1. Android APK Native Bridge Path (Primary & Exclusive for APK)
     const w = typeof window !== 'undefined' ? window : null;
-    const hasInAppWebView = w && w.flutter_inappwebview && typeof w.flutter_inappwebview.callHandler === 'function';
+    const hasInAppWebView = Boolean(w && w.flutter_inappwebview && typeof w.flutter_inappwebview.callHandler === 'function');
 
     if (hasInAppWebView) {
-      console.log('[WebLocation] native bridge detected');
+      console.log('[CreateLeadLocation] Android bridge detected');
+      console.log('[CreateLeadLocation] native request started');
+
       try {
-        // Request native location sequentially, protected with 8s timeout
-        nativeRes = await Promise.race([
+        // Native controlled request with 25s timeout
+        let nativeRes = await Promise.race([
           w.flutter_inappwebview.callHandler('requestLocation'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('NATIVE_TIMEOUT')), 25000))
         ]);
 
-        if (!nativeRes || (!nativeRes.latitude && !nativeRes.coords?.latitude)) {
-          // Fallback to 'getLocation' handler if requestLocation didn't provide coordinates
-          nativeRes = await Promise.race([
-            w.flutter_inappwebview.callHandler('getLocation'),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
-          ]).catch(() => nativeRes);
+        if (!nativeRes || (nativeRes.latitude == null && nativeRes.coords?.latitude == null && !nativeRes.errorCode && !nativeRes.status)) {
+          // Fallback check to 'getLocation' if requestLocation returned null/empty
+          try {
+            nativeRes = await Promise.race([
+              w.flutter_inappwebview.callHandler('getLocation'),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('NATIVE_TIMEOUT')), 5000))
+            ]);
+          } catch (_) {}
         }
-      } catch (bridgeErr) {
-        console.warn('[WebLocation] native bridge warning:', bridgeErr);
-      }
-    }
 
-    if (nativeRes) {
-      console.log('[WebLocation] native request result:', nativeRes);
+        console.log('[CreateLeadLocation] native result =', nativeRes);
 
-      // Check if Location Services are disabled on Android device
-      if (nativeRes.serviceEnabled === false || nativeRes.status === 'disabled') {
-        handleFinalError({ code: 'LOCATION_SERVICES_DISABLED' });
-        return;
-      }
+        // A. Android Location Services Disabled
+        if (
+          nativeRes?.errorCode === 'LOCATION_SERVICES_DISABLED' ||
+          nativeRes?.serviceEnabled === false ||
+          nativeRes?.status === 'disabled'
+        ) {
+          setLocationStatus('idle');
+          Swal.fire({
+            icon: 'warning',
+            title: 'Location Services Disabled',
+            text: 'Location services are turned off. Please enable Location/GPS in your device settings and try again.',
+            confirmButtonColor: '#2563eb'
+          });
+          return;
+        }
 
-      // Check if runtime permission was denied
-      if (nativeRes.granted === false || nativeRes.status === 'denied') {
-        handleFinalError({ code: 1 }); // PERMISSION_DENIED
-        return;
-      }
+        // B. Android Location Permission Denied
+        if (
+          nativeRes?.errorCode === 'PERMISSION_DENIED' ||
+          nativeRes?.granted === false ||
+          nativeRes?.status === 'denied'
+        ) {
+          setLocationStatus('idle');
+          Swal.fire({
+            icon: 'error',
+            title: 'Location Permission Denied',
+            text: 'Location permission was denied. Please allow location access and try again.',
+            confirmButtonColor: '#2563eb'
+          });
+          return;
+        }
 
-      if (nativeRes.status === 'permanentlyDenied') {
+        // C. Android Location Permission Permanently Denied
+        if (
+          nativeRes?.errorCode === 'PERMISSION_PERMANENTLY_DENIED' ||
+          nativeRes?.status === 'permanentlyDenied'
+        ) {
+          setLocationStatus('idle');
+          Swal.fire({
+            icon: 'error',
+            title: 'Location Permission Required',
+            text: 'Location permission was denied. Please allow location access in your device/app settings and try again.',
+            confirmButtonColor: '#2563eb'
+          });
+          return;
+        }
+
+        // D. Successful Native Coordinates
+        const rawLat = nativeRes?.latitude ?? nativeRes?.coords?.latitude;
+        const rawLng = nativeRes?.longitude ?? nativeRes?.coords?.longitude;
+        const rawAcc = nativeRes?.accuracy ?? nativeRes?.coords?.accuracy ?? 15;
+
+        if (rawLat != null && rawLng != null && !isNaN(Number(rawLat)) && !isNaN(Number(rawLng))) {
+          const lat = Number(rawLat);
+          const lng = Number(rawLng);
+          const accuracy = Number(rawAcc);
+
+          console.log('[CreateLeadLocation] using native coordinates');
+          console.log('[CreateLeadLocation] latitude =', lat);
+          console.log('[CreateLeadLocation] longitude =', lng);
+          console.log('[CreateLeadLocation] accuracy =', accuracy);
+          console.log('[CreateLeadLocation] reverse geocode started');
+
+          await onPositionSuccess({
+            coords: {
+              latitude: lat,
+              longitude: lng,
+              accuracy: accuracy
+            }
+          });
+
+          console.log('[CreateLeadLocation] reverse geocode completed');
+          return;
+        }
+
+        // E. Native bridge returned permission only without coordinates (un-updated APK binary)
+        setLocationStatus('idle');
+        if (nativeRes?.granted === true && rawLat == null) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'APK Update Required',
+            text: 'The Android app bridge responded but did not return coordinates. Please update the APK with the native location handler.',
+            confirmButtonColor: '#2563eb'
+          });
+          return;
+        }
+
+        // F. Other Native Failure (e.g. LOCATION_UNAVAILABLE)
         Swal.fire({
           icon: 'error',
           title: 'Location Unavailable',
-          text: 'Location permission was denied. Please allow location access in your device/app settings and try again.',
+          text: nativeRes?.message || 'Unable to obtain device location from Android native provider. Please try again.',
           confirmButtonColor: '#2563eb'
         });
-        setLocationStatus('idle');
         return;
-      }
-
-      // Check if native bridge directly provided valid Android device coordinates (flat or nested under coords)
-      const rawLat = nativeRes.latitude ?? nativeRes.coords?.latitude;
-      const rawLng = nativeRes.longitude ?? nativeRes.coords?.longitude;
-      const rawAcc = nativeRes.accuracy ?? nativeRes.coords?.accuracy ?? 15;
-
-      if (rawLat != null && rawLng != null && !isNaN(Number(rawLat)) && !isNaN(Number(rawLng))) {
-        const lat = Number(rawLat);
-        const lng = Number(rawLng);
-        const accuracy = Number(rawAcc);
-        console.log('[WebLocation] using native coordinates');
-        console.log('[WebLocation] latitude:', lat);
-        console.log('[WebLocation] longitude:', lng);
-        console.log('[WebLocation] accuracy:', accuracy);
-
-        await onPositionSuccess({
-          coords: {
-            latitude: lat,
-            longitude: lng,
-            accuracy: accuracy
-          }
-        });
+      } catch (nativeErr) {
+        console.warn('[CreateLeadLocation] native bridge error:', nativeErr);
+        setLocationStatus('idle');
+        if (nativeErr?.message === 'NATIVE_TIMEOUT') {
+          Swal.fire({
+            icon: 'error',
+            title: 'Location Request Timed Out',
+            text: 'Native Android location request timed out after 25 seconds. Please ensure GPS/Location is enabled with high accuracy and try again.',
+            confirmButtonColor: '#2563eb'
+          });
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Native Bridge Error',
+            text: nativeErr?.message || 'Unable to communicate with Android location bridge. Please try again.',
+            confirmButtonColor: '#2563eb'
+          });
+        }
         return;
       }
     }
 
-    // STEP 8: Browser / WebView Fallback
+    // =========================================================================
+    // 2. Desktop / Standard Browser Fallback Only (when NOT in Android APK)
+    // =========================================================================
     if (!navigator || !navigator.geolocation) {
       Swal.fire({
         icon: 'error',
