@@ -1,0 +1,210 @@
+import { test, expect } from '@playwright/test';
+import { performRobustLogin } from './certification/sales-order/helpers/test-setup';
+
+test.describe('Sales Create Lead — Dynamic Real-Time GPS Delivery Location', () => {
+  test('Delhi GPS coordinates resolve to Delhi address, then Bengaluru coordinates resolve to Bengaluru address', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(60000);
+
+    // Track network requests to ensure no third-party IP geocoding is contacted
+    const blockedHosts: string[] = [];
+    page.on('request', (req) => {
+      const url = req.url();
+      if (url.includes('bigdatacloud.net') || url.includes('ip-api.com') || url.includes('ipapi.co')) {
+        blockedHosts.push(url);
+      }
+    });
+
+    page.on('console', (msg) => console.log('[BROWSER CONSOLE]', msg.type(), msg.text()));
+    page.on('pageerror', (err) => console.log('[BROWSER PAGEERROR]', err.message));
+
+    await page.addInitScript(() => {
+      localStorage.setItem('e2e_bypass_permissions', 'true');
+      sessionStorage.setItem('e2e_bypass_permissions', 'true');
+      (window as any).__PLAYWRIGHT_TEST__ = true;
+
+      const originalGetCurrentPosition = navigator.geolocation.getCurrentPosition.bind(navigator.geolocation);
+      navigator.geolocation.getCurrentPosition = function (success, error, options) {
+        return originalGetCurrentPosition(
+          success,
+          error,
+          { ...options, maximumAge: options?.maximumAge === 0 ? 60000 : (options?.maximumAge ?? 60000) }
+        );
+      };
+    });
+
+    // Mock reverse-geocode endpoint responses for deterministic testing across machines
+    await page.route('**/api/backend/location/reverse-geocode*', async (route) => {
+      console.log('[MOCK ROUTE HIT]', route.request().url());
+      const url = new URL(route.request().url());
+      const lat = parseFloat(url.searchParams.get('lat') || '0');
+      const lng = parseFloat(url.searchParams.get('lng') || '0');
+      const acc = url.searchParams.get('accuracy') ? parseFloat(url.searchParams.get('accuracy')!) : null;
+
+      if (Math.abs(lat - 28.6139) < 0.01 && Math.abs(lng - 77.2090) < 0.01) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            formattedAddress: 'Connaught Place, New Delhi, Delhi 110001',
+            placeId: 'ChIJdelhi_connaught_place',
+            line1: 'Connaught Place',
+            city: 'New Delhi',
+            state: 'Delhi',
+            pincode: '110001',
+            country: 'India',
+            latitude: lat,
+            longitude: lng,
+            accuracy: acc,
+          }),
+        });
+        return;
+      }
+
+      if (Math.abs(lat - 12.9716) < 0.01 && Math.abs(lng - 77.5946) < 0.01) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            formattedAddress: 'MG Road, Bengaluru, Karnataka 560001',
+            placeId: 'ChIJbengaluru_mg_road',
+            line1: 'MG Road',
+            city: 'Bengaluru',
+            state: 'Karnataka',
+            pincode: '560001',
+            country: 'India',
+            latitude: lat,
+            longitude: lng,
+            accuracy: acc,
+          }),
+        });
+        return;
+      }
+
+      await route.continue();
+    });
+
+    // Grant permissions with explicit origin
+    await context.grantPermissions(['geolocation', 'notifications'], { origin: 'http://localhost:3000' });
+    await context.setGeolocation({ latitude: 28.6139, longitude: 77.2090, accuracy: 12 });
+
+    // 1. Log in as Sales Executive
+    await performRobustLogin(
+      page,
+      process.env.E2E_SALES_EXECUTIVE_EMAIL || 'sales.executive.browser@himalayaerp.test',
+      undefined,
+      /\/sales(?:\/dashboard)?(?:[/?#]|$)/,
+    );
+
+    // 2. Navigate to /sales/leads and open create lead form
+    await page.goto('/sales/leads');
+    const newLeadBtn = page.getByTestId('lead-create');
+    await expect(newLeadBtn).toBeVisible({ timeout: 10000 });
+    await newLeadBtn.click();
+    await expect(page.getByTestId('sales-create-lead-page')).toBeVisible({ timeout: 10000 });
+
+    const locationBtn = page.getByTestId('use-current-location-btn');
+    await expect(locationBtn).toBeVisible();
+    await expect(locationBtn).toHaveText(/Use Current Location/i);
+
+    // Verify no default state is prepopulated with Gujarat
+    const stateInput = page.getByTestId('lead-state');
+    expect(await stateInput.inputValue()).not.toBe('Gujarat');
+
+    // 4. Click "Use Current Location" in Delhi
+    await locationBtn.click();
+
+    // Verify accuracy badge and Delhi address resolution
+    const accuracyBadge = page.getByTestId('location-accuracy-badge');
+    await expect(accuracyBadge).toBeVisible({ timeout: 10000 });
+    await expect(accuracyBadge).toContainText('Location accuracy: ~12 m');
+    await expect(accuracyBadge).toContainText('28.61390, 77.20900');
+
+    // Verify fields populated with Delhi details
+    await expect(page.getByTestId('lead-address')).toHaveValue('Connaught Place');
+    await expect(page.getByTestId('lead-city')).toHaveValue('New Delhi');
+    await expect(page.getByTestId('lead-state')).toHaveValue('Delhi');
+    await expect(page.getByTestId('lead-pincode')).toHaveValue('110001');
+
+    // Verify button indicates location captured
+    await expect(locationBtn).toContainText('Location captured');
+
+    // 5. Travel to Bengaluru: update GPS coordinates
+    await context.setGeolocation({ latitude: 12.9716, longitude: 77.5946, accuracy: 8 });
+
+    // Click "Location captured" button again to request fresh position
+    await locationBtn.click();
+
+    // Verify accuracy badge updates to Bengaluru
+    await expect(accuracyBadge).toContainText('Location accuracy: ~8 m');
+    await expect(accuracyBadge).toContainText('12.97160, 77.59460');
+
+    // Verify fields updated to Bengaluru
+    await expect(page.getByTestId('lead-address')).toHaveValue('MG Road');
+    await expect(page.getByTestId('lead-city')).toHaveValue('Bengaluru');
+    await expect(page.getByTestId('lead-state')).toHaveValue('Karnataka');
+    await expect(page.getByTestId('lead-pincode')).toHaveValue('560001');
+
+    // Verify no third-party IP lookup services were ever contacted
+    expect(blockedHosts).toHaveLength(0);
+
+    // 6. Complete remaining required fields and verify payload submission
+    const suffix = `${Date.now()}`;
+    await page.getByTestId('lead-project-name').fill(`GPS Project ${suffix}`);
+    await page.getByTestId('lead-group-name').fill('GPS Group');
+    await page.getByTestId('lead-company-name').fill(`GPS Lead Company ${suffix}`);
+    await page.getByTestId('lead-contact-person').fill('Site Incharge Raman');
+    await page.getByTestId('lead-phone').fill('987' + String(Date.now()).slice(-7));
+
+    // Fill product
+    const pickerInput = page.getByTestId('lead-product-picker');
+    await pickerInput.click();
+    const productOption = page.locator('[data-testid^="product-option-"]').first();
+    await expect(productOption).toBeVisible({ timeout: 10000 });
+    await productOption.click();
+
+    await page.getByTestId('lead-specifications').fill('GPS Delivery Testing Spec');
+    await page.getByTestId('lead-estimated-quantity').fill('50');
+
+    // Intercept submit request and verify delivery coordinates contract
+    let submittedPayload: any = null;
+    await page.route('**/api/backend/sales/leads', async (route) => {
+      if (route.request().method() === 'POST') {
+        submittedPayload = route.request().postDataJSON();
+      }
+      await route.continue();
+    });
+
+    const submitBtn = page.getByTestId('lead-submit');
+    await submitBtn.click();
+
+    // Wait for submission to complete
+    await page.waitForResponse(
+      (resp) => resp.request().method() === 'POST' && resp.url().includes('/sales/leads'),
+      { timeout: 15000 },
+    );
+
+    // Assert submitted payload contract
+    expect(submittedPayload).toBeTruthy();
+    expect(submittedPayload.deliveryAddress).toBe('MG Road, Bengaluru, Karnataka 560001');
+    expect(submittedPayload.deliveryLatitude).toBe(12.9716);
+    expect(submittedPayload.deliveryLongitude).toBe(77.5946);
+    expect(submittedPayload.deliveryAccuracy).toBe(8);
+    expect(submittedPayload.deliveryPlaceId).toBe('ChIJbengaluru_mg_road');
+
+    // Verify postal address structure
+    expect(submittedPayload.address).toBeDefined();
+    expect(submittedPayload.address.line1).toBe('MG Road');
+    expect(submittedPayload.address.city).toBe('Bengaluru');
+    expect(submittedPayload.address.state).toBe('Karnataka');
+    expect(submittedPayload.address.pincode).toBe('560001');
+
+    // Verify NO duplicate coordinate fields inside address
+    expect(submittedPayload.address.latitude).toBeUndefined();
+    expect(submittedPayload.address.longitude).toBeUndefined();
+  });
+});

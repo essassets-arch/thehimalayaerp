@@ -14,6 +14,12 @@ export interface CreateLeadInput {
   unit?: string;
   remarks?: string;
   assignedToId?: string;
+  deliveryAddress?: string;
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
+  deliveryAccuracy?: number | null;
+  deliveryPlaceId?: string | null;
+  address?: any;
 }
 
 export interface UpdateLeadInput extends Partial<CreateLeadInput> {

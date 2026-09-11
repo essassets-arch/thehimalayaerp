@@ -39,12 +39,21 @@ export type SalesLead = {
   email: string;
   billingAddress: string;
   deliveryAddress: string;
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
+  deliveryAccuracy?: number | null;
+  deliveryPlaceId?: string | null;
   address?: {
     line1?: string;
     city?: string;
     state?: string;
     country?: string;
     pincode?: string;
+    deliveryAddress?: string;
+    deliveryLatitude?: number | null;
+    deliveryLongitude?: number | null;
+    deliveryAccuracy?: number | null;
+    deliveryPlaceId?: string | null;
   };
   projectName?: string;
   groupName?: string;

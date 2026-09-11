@@ -127,12 +127,21 @@ export type CreateLeadPayload = {
   gstNumber?: string;
   billingAddress?: string;
   deliveryAddress?: string;
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
+  deliveryAccuracy?: number | null;
+  deliveryPlaceId?: string | null;
   address?: {
     line1?: string;
     city?: string;
     state?: string;
     country?: string;
     pincode?: string;
+    deliveryAddress?: string;
+    deliveryLatitude?: number | null;
+    deliveryLongitude?: number | null;
+    deliveryAccuracy?: number | null;
+    deliveryPlaceId?: string | null;
   };
   expectedTransportationCost?: number;
   notes?: string;
@@ -314,6 +323,10 @@ export function createLead(
     gstNumber: payload.gstNumber || '',
     billingAddress,
     deliveryAddress,
+    deliveryLatitude: payload.deliveryLatitude ?? payload.address?.deliveryLatitude ?? null,
+    deliveryLongitude: payload.deliveryLongitude ?? payload.address?.deliveryLongitude ?? null,
+    deliveryAccuracy: payload.deliveryAccuracy ?? payload.address?.deliveryAccuracy ?? null,
+    deliveryPlaceId: payload.deliveryPlaceId ?? payload.address?.deliveryPlaceId ?? null,
     address: payload.address,
     requiredProducts: payload.requiredProducts || '',
     expectedQuantities: payload.expectedQuantities || '',

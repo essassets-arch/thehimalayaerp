@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Query,
   Body,
   UseGuards,
   BadRequestException,
@@ -86,4 +87,24 @@ export class LocationController {
     }
     return this.locationService.getLiveUsers(user.companyId);
   }
+
+  /**
+   * Reverse geocode coordinates via Google Maps Geocoding API.
+   * Returns structured address components and formatted address.
+   */
+  @Get('reverse-geocode')
+  async reverseGeocode(
+    @Query('lat') latStr: string,
+    @Query('lng') lngStr: string,
+    @Query('accuracy') accStr?: string,
+  ) {
+    const lat = parseFloat(latStr);
+    const lng = parseFloat(lngStr);
+    const accuracy = accStr ? parseFloat(accStr) : null;
+    if (isNaN(lat) || isNaN(lng)) {
+      throw new BadRequestException('Valid lat and lng query parameters are required.');
+    }
+    return this.locationService.reverseGeocode(lat, lng, accuracy);
+  }
 }
+

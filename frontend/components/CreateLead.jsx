@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, User, MapPin, FlaskConical, Package, Search, AlertCircle, Trash2, Plus, Truck } from 'lucide-react';
+import { ArrowLeft, User, MapPin, FlaskConical, Package, Search, AlertCircle, Trash2, Plus, Truck, Loader2, Check } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useAuth } from '../shared/context/AuthContext';
 import { useERPStore } from '../shared/context/ERPContext';
+import { backendFetch } from '../lib/backendFetch';
 import ProductPicker from '../shared/components/ProductPicker';
 import { useFormDraft } from '../shared/hooks/useFormDraft';
 import { displayEntityId } from '../store/idGenerator';
@@ -207,16 +208,42 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   };
 
   const parseAddress = (addr) => {
-    if (!addr) return { addressLine1: '', city: '', stateName: 'Gujarat', pincode: '', latitude: null, longitude: null, googlePlaceId: '' };
-    if (typeof addr === 'string') return { addressLine1: addr, city: '', stateName: 'Gujarat', pincode: '', latitude: null, longitude: null, googlePlaceId: '' };
+    if (!addr) {
+      return {
+        addressLine1: '',
+        city: '',
+        stateName: '',
+        pincode: '',
+        deliveryAddress: '',
+        deliveryLatitude: null,
+        deliveryLongitude: null,
+        deliveryAccuracy: null,
+        deliveryPlaceId: '',
+      };
+    }
+    if (typeof addr === 'string') {
+      return {
+        addressLine1: addr,
+        city: '',
+        stateName: '',
+        pincode: '',
+        deliveryAddress: addr,
+        deliveryLatitude: null,
+        deliveryLongitude: null,
+        deliveryAccuracy: null,
+        deliveryPlaceId: '',
+      };
+    }
     return {
       addressLine1: addr.addressLine1 ?? addr.line1 ?? addr.address ?? '',
       city: addr.city ?? '',
-      stateName: addr.stateName ?? addr.state ?? 'Gujarat',
+      stateName: addr.stateName ?? addr.state ?? '',
       pincode: addr.pincode ?? addr.zip ?? '',
-      latitude: addr.latitude ?? addr.lat ?? null,
-      longitude: addr.longitude ?? addr.lng ?? null,
-      googlePlaceId: addr.googlePlaceId ?? addr.placeId ?? '',
+      deliveryAddress: addr.deliveryAddress ?? addr.formattedAddress ?? addr.addressLine1 ?? addr.line1 ?? '',
+      deliveryLatitude: addr.deliveryLatitude != null ? Number(addr.deliveryLatitude) : (addr.latitude != null ? Number(addr.latitude) : null),
+      deliveryLongitude: addr.deliveryLongitude != null ? Number(addr.deliveryLongitude) : (addr.longitude != null ? Number(addr.longitude) : null),
+      deliveryAccuracy: addr.deliveryAccuracy != null ? Number(addr.deliveryAccuracy) : (addr.accuracy != null ? Number(addr.accuracy) : null),
+      deliveryPlaceId: addr.deliveryPlaceId ?? addr.googlePlaceId ?? addr.placeId ?? '',
     };
   };
 
@@ -248,9 +275,11 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
     city: parsedAddr.city,
     stateName: parsedAddr.stateName,
     pincode: parsedAddr.pincode,
-    latitude: parsedAddr.latitude,
-    longitude: parsedAddr.longitude,
-    googlePlaceId: parsedAddr.googlePlaceId,
+    deliveryAddress: parsedAddr.deliveryAddress || parsedAddr.addressLine1 || '',
+    deliveryLatitude: parsedAddr.deliveryLatitude,
+    deliveryLongitude: parsedAddr.deliveryLongitude,
+    deliveryAccuracy: parsedAddr.deliveryAccuracy,
+    deliveryPlaceId: parsedAddr.deliveryPlaceId,
     sampleRequired: editingLead?.sampleRequired ?? false,
     expectedTransportationCost: Number(editingLead?.expectedTransportationCost ?? 0),
     items: initialItems,
@@ -274,8 +303,10 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   const {
     leadDate, projectName, groupName, companyName, gstNumber, siteInchargeName, siteInchargeMobile, officeContact,
     email, remarks, addressLine1, city, stateName, pincode, sampleRequired, expectedTransportationCost,
-    items, sampleItems, submitAction, latitude, longitude, googlePlaceId
+    items, sampleItems, submitAction, deliveryAddress, deliveryLatitude, deliveryLongitude, deliveryAccuracy, deliveryPlaceId
   } = formData;
+
+  const [locationStatus, setLocationStatus] = useState('idle'); // 'idle' | 'locating' | 'fetching' | 'captured'
 
   const updateField = (field, value) => {
     setFormData(prev => ({
@@ -298,9 +329,11 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
   const setCity = (val) => updateField('city', val);
   const setStateName = (val) => updateField('stateName', val);
   const setPincode = (val) => updateField('pincode', val);
-  const setLatitude = (val) => updateField('latitude', val);
-  const setLongitude = (val) => updateField('longitude', val);
-  const setGooglePlaceId = (val) => updateField('googlePlaceId', val);
+  const setDeliveryAddress = (val) => updateField('deliveryAddress', val);
+  const setDeliveryLatitude = (val) => updateField('deliveryLatitude', val);
+  const setDeliveryLongitude = (val) => updateField('deliveryLongitude', val);
+  const setDeliveryAccuracy = (val) => updateField('deliveryAccuracy', val);
+  const setDeliveryPlaceId = (val) => updateField('deliveryPlaceId', val);
   const setSampleRequired = (val) => updateField('sampleRequired', val);
   const setExpectedTransportationCost = (val) => updateField('expectedTransportationCost', val);
   const setItems = (val) => updateField('items', val);
@@ -410,9 +443,11 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
         city: cityVal,
         stateName: stateVal,
         pincode: pincodeVal,
-        latitude: place.geometry?.location ? place.geometry.location.lat() : null,
-        longitude: place.geometry?.location ? place.geometry.location.lng() : null,
-        googlePlaceId: place.place_id || ''
+        deliveryAddress: place.formatted_address || line1,
+        deliveryLatitude: place.geometry?.location ? place.geometry.location.lat() : null,
+        deliveryLongitude: place.geometry?.location ? place.geometry.location.lng() : null,
+        deliveryAccuracy: 10,
+        deliveryPlaceId: place.place_id || ''
       }));
     });
 
@@ -434,139 +469,175 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
     };
   }, [mapsLoaded]);
 
-  // Use current geolocation coordinates and geocode them
-  const handleUseCurrentLocation = async () => {
-    Swal.fire({
-      title: 'Detecting location...',
-      text: 'Please wait while we determine your location.',
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
-    });
+  // Use current geolocation coordinates and reverse geocode them via Google Maps
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Geolocation Not Supported',
+        text: 'Geolocation is not supported by your browser. Please enter the delivery address manually.',
+        confirmButtonColor: '#2563eb'
+      });
+      return;
+    }
 
-    const populateFromCoords = (lat, lng) => {
-      if (window.google && window.google.maps) {
-        const geocoder = new window.google.maps.Geocoder();
-        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-          Swal.close();
-          if (status === 'OK' && results[0]) {
-            const place = results[0];
-            let streetNumber = '';
-            let route = '';
-            let sublocality = '';
-            let locality = '';
-            let adminArea2 = '';
-            let state = '';
-            let postalCode = '';
+    setLocationStatus('locating');
 
-            place.address_components.forEach(component => {
-              const types = component.types;
-              if (types.includes('street_number')) streetNumber = component.long_name;
-              if (types.includes('route')) route = component.long_name;
-              if (types.includes('sublocality') || types.includes('sublocality_level_1') || types.includes('sublocality_level_2')) {
-                if (sublocality) sublocality = `${sublocality}, ${component.long_name}`;
-                else sublocality = component.long_name;
-              }
-              if (types.includes('locality')) locality = component.long_name;
-              if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
-              if (types.includes('administrative_area_level_1')) state = component.long_name;
-              if (types.includes('postal_code')) postalCode = component.long_name;
-            });
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
 
-            const addressParts = [];
-            if (streetNumber) addressParts.push(streetNumber);
-            if (route) addressParts.push(route);
-            if (sublocality) addressParts.push(sublocality);
+        setLocationStatus('fetching');
 
-            let line1 = addressParts.join(', ');
-            if (!line1) {
-              line1 = place.formatted_address ? place.formatted_address.split(',')[0] : '';
-            }
+        let geocodeResult = null;
 
-            const cityVal = locality || adminArea2 || sublocality || '';
-            const stateVal = state || '';
-            const pincodeVal = postalCode || '';
-
-            setFormData(prev => ({
-              ...prev,
-              addressLine1: line1,
-              city: cityVal,
-              stateName: stateVal,
-              pincode: pincodeVal,
-              latitude: lat,
-              longitude: lng,
-              googlePlaceId: place.place_id || ''
-            }));
-
-            Swal.fire({
-              icon: 'success',
-              title: 'Location Updated',
-              text: 'Your delivery address has been autofilled.',
-              timer: 1500,
-              showConfirmButton: false
-            });
-            return;
+        // 1. Try Google Reverse Geocoding via Next.js Backend Bridge
+        try {
+          const query = new URLSearchParams();
+          query.set('lat', String(lat));
+          query.set('lng', String(lng));
+          if (accuracy != null && accuracy > 0) {
+            query.set('accuracy', String(Math.round(accuracy)));
           }
-          fallbackToIpGeocode(lat, lng);
-        });
-      } else {
-        fallbackToIpGeocode(lat, lng);
-      }
-    };
+          const res = await backendFetch(`/api/backend/location/reverse-geocode?${query.toString()}`);
+          if (res && res.success && res.formattedAddress) {
+            geocodeResult = res;
+          }
+        } catch (bridgeErr) {
+          console.warn('Backend geocode bridge error, attempting client Google Geocoder:', bridgeErr);
+        }
 
-    const fallbackToIpGeocode = async (optLat, optLng) => {
-      try {
-        const url = optLat && optLng 
-          ? `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${optLat}&longitude=${optLng}&localityLanguage=en`
-          : 'https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en';
-        const res = await fetch(url).then(r => r.json());
-        Swal.close();
-        if (res && (res.city || res.locality || res.principalSubdivision)) {
+        // 2. Fallback to client-side Google Maps Geocoder if bridge was unavailable
+        if (!geocodeResult && window.google && window.google.maps && window.google.maps.Geocoder) {
+          try {
+            geocodeResult = await new Promise((resolve) => {
+              const geocoder = new window.google.maps.Geocoder();
+              geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+                if (status === 'OK' && results && results[0]) {
+                  const place = results[0];
+                  let streetNumber = '';
+                  let route = '';
+                  let sublocality = '';
+                  let locality = '';
+                  let adminArea2 = '';
+                  let state = '';
+                  let postalCode = '';
+
+                  (place.address_components || []).forEach(component => {
+                    const types = component.types || [];
+                    if (types.includes('street_number')) streetNumber = component.long_name;
+                    if (types.includes('route')) route = component.long_name;
+                    if (types.includes('sublocality') || types.includes('sublocality_level_1') || types.includes('sublocality_level_2')) {
+                      sublocality = sublocality ? `${sublocality}, ${component.long_name}` : component.long_name;
+                    }
+                    if (types.includes('locality')) locality = component.long_name;
+                    if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
+                    if (types.includes('administrative_area_level_1')) state = component.long_name;
+                    if (types.includes('postal_code')) postalCode = component.long_name;
+                  });
+
+                  const addressParts = [];
+                  if (streetNumber) addressParts.push(streetNumber);
+                  if (route) addressParts.push(route);
+                  if (sublocality) addressParts.push(sublocality);
+
+                  let line1 = addressParts.join(', ');
+                  if (!line1) {
+                    line1 = place.formatted_address ? place.formatted_address.split(',')[0] : '';
+                  }
+
+                  resolve({
+                    success: true,
+                    formattedAddress: place.formatted_address || line1,
+                    placeId: place.place_id || '',
+                    line1,
+                    city: locality || adminArea2 || sublocality || '',
+                    state,
+                    pincode: postalCode
+                  });
+                } else {
+                  resolve(null);
+                }
+              });
+            });
+          } catch (clientErr) {
+            console.warn('Client Google Geocoder failed:', clientErr);
+          }
+        }
+
+        if (geocodeResult && geocodeResult.formattedAddress) {
+          const resolvedLine1 = geocodeResult.line1 || geocodeResult.formattedAddress;
+          const resolvedCity = geocodeResult.city || '';
+          const resolvedState = geocodeResult.state || '';
+          const resolvedPincode = geocodeResult.pincode || '';
+          const resolvedPlaceId = geocodeResult.placeId || '';
+          const resolvedFormatted = geocodeResult.formattedAddress;
+
           setFormData(prev => ({
             ...prev,
-            addressLine1: prev.addressLine1 || res.locality || res.principalSubdivision || '',
-            city: res.city || res.locality || '',
-            stateName: res.principalSubdivision || '',
-            pincode: res.postcode || prev.pincode || '',
-            latitude: optLat || res.latitude || prev.latitude || 23.0225,
-            longitude: optLng || res.longitude || prev.longitude || 72.5714,
+            addressLine1: resolvedLine1,
+            city: resolvedCity || prev.city,
+            stateName: resolvedState || prev.stateName,
+            pincode: resolvedPincode || prev.pincode,
+            deliveryAddress: resolvedFormatted,
+            deliveryLatitude: lat,
+            deliveryLongitude: lng,
+            deliveryAccuracy: accuracy != null ? Math.round(accuracy) : null,
+            deliveryPlaceId: resolvedPlaceId
           }));
+
+          setLocationStatus('captured');
+
           Swal.fire({
-            icon: 'info',
-            title: 'Location Estimated',
-            text: 'Address estimated from network. Please verify details.',
+            icon: 'success',
+            title: 'Location Captured',
+            text: `Delivery address resolved (~${Math.round(accuracy)}m accuracy).`,
             timer: 2000,
             showConfirmButton: false
           });
-          return;
-        }
-      } catch (err) {
-        console.warn('IP geocoding fallback failed:', err);
-      }
-      Swal.close();
-      Swal.fire({
-        icon: 'info',
-        title: 'Location Notice',
-        text: 'Could not automatically detect GPS. Please enter your address details manually.',
-        confirmButtonColor: '#2563eb'
-      });
-    };
+        } else {
+          // Reverse geocoding failed: keep captured coordinates, do NOT invent address
+          setFormData(prev => ({
+            ...prev,
+            deliveryLatitude: lat,
+            deliveryLongitude: lng,
+            deliveryAccuracy: accuracy != null ? Math.round(accuracy) : null,
+          }));
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          populateFromCoords(position.coords.latitude, position.coords.longitude);
-        },
-        () => {
-          // If high-accuracy or standard GPS times out / fails, fallback gracefully to IP
-          fallbackToIpGeocode();
-        },
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
-      );
-    } else {
-      fallbackToIpGeocode();
-    }
+          setLocationStatus('idle');
+
+          Swal.fire({
+            icon: 'info',
+            title: 'Location Notice',
+            text: 'Location captured, but address could not be resolved. Please enter the delivery address manually.',
+            confirmButtonColor: '#2563eb'
+          });
+        }
+      },
+      (error) => {
+        setLocationStatus('idle');
+        let errorMsg = 'Unable to get your current location. Please check GPS/location services and try again.';
+        if (error && error.code === 1) { // PERMISSION_DENIED
+          errorMsg = 'Location permission was denied. Please allow location access and try again.';
+        } else if (error && (error.code === 2 || error.code === 3)) { // POSITION_UNAVAILABLE or TIMEOUT
+          errorMsg = 'Unable to get your current location. Please check GPS/location services and try again.';
+        }
+
+        Swal.fire({
+          icon: 'error',
+          title: 'Location Unavailable',
+          text: errorMsg,
+          confirmButtonColor: '#2563eb'
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000
+      }
+    );
   };
 
   // Sync sampleItems whenever items (product list) changes
@@ -688,15 +759,18 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
       productInterested: itemsDescription,
       estimatedQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
 
+      deliveryAddress: (deliveryAddress || addressLine1 || '').trim(),
+      deliveryLatitude: deliveryLatitude ?? null,
+      deliveryLongitude: deliveryLongitude ?? null,
+      deliveryAccuracy: deliveryAccuracy ?? null,
+      deliveryPlaceId: deliveryPlaceId || null,
+
       address: {
         line1: addressLine1.trim(),
         city: city.trim(),
         state: stateName.trim(),
         country: 'India',
         pincode: pincode.trim(),
-        latitude: latitude !== undefined ? latitude : null,
-        longitude: longitude !== undefined ? longitude : null,
-        googlePlaceId: googlePlaceId || null
       },
 
       sampleRequired,
@@ -813,9 +887,24 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
           box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
           white-space: nowrap;
         }
-        .use-location-btn:hover {
+        .use-location-btn:hover:not(:disabled) {
           transform: translateY(-1px);
           box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3);
+        }
+        .use-location-btn:disabled {
+          opacity: 0.75;
+          cursor: not-allowed;
+        }
+        .use-location-btn.captured {
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .spin-animation {
+          animation: spin 1s linear infinite;
         }
         .use-location-btn-text {
           display: inline;
@@ -823,9 +912,6 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
         @media (max-width: 500px) {
           .use-location-btn {
             padding: 0 12px;
-          }
-          .use-location-btn-text {
-            display: none;
           }
         }
       `}</style>
@@ -1034,19 +1120,67 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                     className="form-input"
                     placeholder="e.g. Sector 62, Noida Industrial Area"
                     value={addressLine1}
-                    onChange={e => setAddressLine1(e.target.value)}
+                    onChange={e => {
+                      setAddressLine1(e.target.value);
+                      setDeliveryAddress(e.target.value);
+                    }}
                     style={{ flex: 1 }}
                     required
                   />
                   <button
                     type="button"
+                    data-testid="use-current-location-btn"
                     onClick={handleUseCurrentLocation}
-                    className="use-location-btn"
+                    disabled={locationStatus === 'locating' || locationStatus === 'fetching'}
+                    className={`use-location-btn ${locationStatus === 'captured' ? 'captured' : ''}`}
                   >
-                    <MapPin size={15} />
-                    <span className="use-location-btn-text">Use Current Location</span>
+                    {locationStatus === 'locating' ? (
+                      <>
+                        <Loader2 size={15} className="spin-animation" />
+                        <span className="use-location-btn-text">Locating...</span>
+                      </>
+                    ) : locationStatus === 'fetching' ? (
+                      <>
+                        <Loader2 size={15} className="spin-animation" />
+                        <span className="use-location-btn-text">Fetching address...</span>
+                      </>
+                    ) : locationStatus === 'captured' ? (
+                      <>
+                        <Check size={15} />
+                        <span className="use-location-btn-text">Location captured</span>
+                      </>
+                    ) : (
+                      <>
+                        <MapPin size={15} />
+                        <span className="use-location-btn-text">Use Current Location</span>
+                      </>
+                    )}
                   </button>
                 </div>
+                {deliveryAccuracy != null && deliveryLatitude != null && deliveryLongitude != null && (
+                  <div
+                    data-testid="location-accuracy-badge"
+                    style={{
+                      marginTop: '8px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      background: '#ecfdf5',
+                      border: '1px solid #a7f3d0',
+                      color: '#065f46',
+                      fontSize: '12px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', flexShrink: 0 }}></span>
+                    <span>Location accuracy: ~{Math.round(deliveryAccuracy)} m</span>
+                    <span style={{ color: '#047857', opacity: 0.8, fontSize: '11px', marginLeft: '4px' }}>
+                      ({Number(deliveryLatitude).toFixed(5)}, {Number(deliveryLongitude).toFixed(5)})
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="form-row-three">

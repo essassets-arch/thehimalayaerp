@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import {
   getSalesScope,
@@ -84,6 +84,93 @@ export class LeadsService {
     return lead;
   }
 
+  private validateCoordinates(
+    lat?: number | null,
+    lng?: number | null,
+    acc?: number | null,
+  ) {
+    if (lat !== undefined && lat !== null) {
+      const numLat = Number(lat);
+      if (isNaN(numLat) || numLat < -90 || numLat > 90) {
+        throw new BadRequestException(
+          'Invalid latitude. Must be between -90 and 90.',
+        );
+      }
+    }
+    if (lng !== undefined && lng !== null) {
+      const numLng = Number(lng);
+      if (isNaN(numLng) || numLng < -180 || numLng > 180) {
+        throw new BadRequestException(
+          'Invalid longitude. Must be between -180 and 180.',
+        );
+      }
+    }
+    if (acc !== undefined && acc !== null) {
+      const numAcc = Number(acc);
+      if (isNaN(numAcc) || numAcc < 0) {
+        throw new BadRequestException(
+          'Invalid accuracy. Must be greater than or equal to 0.',
+        );
+      }
+    }
+  }
+
+  private processLeadAddress(dto: any) {
+    if (
+      !dto.address &&
+      !dto.deliveryAddress &&
+      dto.deliveryLatitude === undefined &&
+      dto.deliveryLongitude === undefined
+    ) {
+      return dto.address || undefined;
+    }
+    const rawAddr = dto.address || {};
+    const deliveryLatitude =
+      dto.deliveryLatitude !== undefined && dto.deliveryLatitude !== null
+        ? Number(dto.deliveryLatitude)
+        : rawAddr.deliveryLatitude !== undefined &&
+            rawAddr.deliveryLatitude !== null
+          ? Number(rawAddr.deliveryLatitude)
+          : null;
+    const deliveryLongitude =
+      dto.deliveryLongitude !== undefined && dto.deliveryLongitude !== null
+        ? Number(dto.deliveryLongitude)
+        : rawAddr.deliveryLongitude !== undefined &&
+            rawAddr.deliveryLongitude !== null
+          ? Number(rawAddr.deliveryLongitude)
+          : null;
+    const deliveryAccuracy =
+      dto.deliveryAccuracy !== undefined && dto.deliveryAccuracy !== null
+        ? Number(dto.deliveryAccuracy)
+        : rawAddr.deliveryAccuracy !== undefined &&
+            rawAddr.deliveryAccuracy !== null
+          ? Number(rawAddr.deliveryAccuracy)
+          : null;
+    const deliveryAddress =
+      dto.deliveryAddress || rawAddr.deliveryAddress || '';
+    const deliveryPlaceId =
+      dto.deliveryPlaceId || rawAddr.deliveryPlaceId || '';
+
+    this.validateCoordinates(
+      deliveryLatitude,
+      deliveryLongitude,
+      deliveryAccuracy,
+    );
+
+    return {
+      line1: rawAddr.line1 || rawAddr.addressLine1 || '',
+      city: rawAddr.city || '',
+      state: rawAddr.state || rawAddr.stateName || '',
+      country: rawAddr.country || 'India',
+      pincode: rawAddr.pincode || '',
+      deliveryAddress,
+      deliveryLatitude,
+      deliveryLongitude,
+      deliveryAccuracy,
+      deliveryPlaceId,
+    };
+  }
+
   async createLead(
     dto: any,
     userId: string,
@@ -105,6 +192,8 @@ export class LeadsService {
       ? dto.salesExecutiveId || assignedId
       : userId;
 
+    const processedAddress = this.processLeadAddress(dto);
+
     return this.prisma.lead.create({
       data: {
         leadNumber,
@@ -117,7 +206,7 @@ export class LeadsService {
         phone: dto.phone,
         gstName: dto.gstName || dto.companyName,
         gstNumber: dto.gstNumber,
-        address: dto.address,
+        address: processedAddress,
         source: dto.source || 'OTHER',
         productInterest: dto.productInterest || dto.productInterested,
         detailedItems: Array.isArray(dto.detailedItems)
@@ -184,6 +273,15 @@ export class LeadsService {
 
     if (data.leadDate) {
       data.leadDate = new Date(data.leadDate);
+    }
+
+    if (
+      dto.address !== undefined ||
+      dto.deliveryAddress !== undefined ||
+      dto.deliveryLatitude !== undefined ||
+      dto.deliveryLongitude !== undefined
+    ) {
+      data.address = this.processLeadAddress(dto);
     }
 
     // Prevent unauthorized reassignment for salesperson roles

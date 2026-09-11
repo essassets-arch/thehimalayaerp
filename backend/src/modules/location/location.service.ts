@@ -805,4 +805,137 @@ export class LocationService {
       })),
     };
   }
+
+  // In-memory cache for reverse geocoding
+  private geocodeCache = new Map<string, any>();
+
+  /**
+   * Reverse geocode coordinates via Google Maps Geocoding API.
+   * Returns structured address components and formatted address.
+   */
+  async reverseGeocode(
+    latitude: number,
+    longitude: number,
+    accuracy?: number | null,
+  ): Promise<{
+    success: boolean;
+    formattedAddress: string;
+    placeId: string;
+    line1: string;
+    city: string;
+    state: string;
+    pincode: string;
+    country: string;
+    latitude: number;
+    longitude: number;
+    accuracy: number | null;
+    addressComponents: any[];
+  }> {
+    if (
+      latitude === undefined ||
+      longitude === undefined ||
+      isNaN(latitude) ||
+      isNaN(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      throw new BadRequestException('Coordinates out of valid range (-90..90 for lat, -180..180 for lng).');
+    }
+
+    if (accuracy !== undefined && accuracy !== null && (isNaN(accuracy) || accuracy < 0)) {
+      throw new BadRequestException('Accuracy must be a non-negative number.');
+    }
+
+    const cacheKey = `${Number(latitude).toFixed(4)},${Number(longitude).toFixed(4)}`;
+    if (this.geocodeCache.has(cacheKey)) {
+      return this.geocodeCache.get(cacheKey);
+    }
+
+    const apiKey =
+      process.env.GOOGLE_MAPS_API_KEY ||
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+      '';
+
+    if (!apiKey) {
+      this.logger.warn('Google Maps API key is not configured.');
+      throw new BadRequestException('Google Maps API key is not configured.');
+    }
+
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!response.ok) {
+        throw new Error(`Google Maps API responded with HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.status === 'OK' && data.results && data.results.length > 0) {
+        const place = data.results[0];
+        let streetNumber = '';
+        let route = '';
+        let sublocality = '';
+        let locality = '';
+        let adminArea2 = '';
+        let state = '';
+        let postalCode = '';
+        let country = 'India';
+
+        if (Array.isArray(place.address_components)) {
+          place.address_components.forEach((component: any) => {
+            const types = component.types || [];
+            if (types.includes('street_number')) streetNumber = component.long_name;
+            if (types.includes('route')) route = component.long_name;
+            if (
+              types.includes('sublocality') ||
+              types.includes('sublocality_level_1') ||
+              types.includes('sublocality_level_2')
+            ) {
+              if (sublocality) sublocality = `${sublocality}, ${component.long_name}`;
+              else sublocality = component.long_name;
+            }
+            if (types.includes('locality')) locality = component.long_name;
+            if (types.includes('administrative_area_level_2')) adminArea2 = component.long_name;
+            if (types.includes('administrative_area_level_1')) state = component.long_name;
+            if (types.includes('postal_code')) postalCode = component.long_name;
+            if (types.includes('country')) country = component.long_name;
+          });
+        }
+
+        const addressParts: string[] = [];
+        if (streetNumber) addressParts.push(streetNumber);
+        if (route) addressParts.push(route);
+        if (sublocality) addressParts.push(sublocality);
+
+        let line1 = addressParts.join(', ');
+        if (!line1) {
+          line1 = place.formatted_address ? place.formatted_address.split(',')[0] : '';
+        }
+
+        const result = {
+          success: true,
+          formattedAddress: place.formatted_address || line1,
+          placeId: place.place_id || '',
+          line1,
+          city: locality || adminArea2 || sublocality || '',
+          state,
+          pincode: postalCode,
+          country,
+          latitude,
+          longitude,
+          accuracy: accuracy != null ? Math.round(accuracy) : null,
+          addressComponents: place.address_components || [],
+        };
+
+        this.geocodeCache.set(cacheKey, result);
+        return result;
+      } else {
+        throw new Error(data.error_message || `Geocoding status: ${data.status}`);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Google reverse geocoding failed: ${err?.message || err}`);
+      throw new BadRequestException(err?.message || 'Reverse geocoding failed for given coordinates.');
+    }
+  }
 }
+
