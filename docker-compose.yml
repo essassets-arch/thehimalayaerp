@@ -116,6 +116,7 @@ services:
       FIREBASE_SERVICE_ACCOUNT_PATH: ${FIREBASE_SERVICE_ACCOUNT_PATH:-firebase-service-account.json}
       THROTTLE_LIMIT: 99999
       THROTTLE_TTL: 60000
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}}
     ports:
       - "127.0.0.1:4001:4000"
     volumes:

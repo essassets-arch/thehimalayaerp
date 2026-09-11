@@ -8,6 +8,7 @@ import {
   Query,
   Req,
   ForbiddenException,
+  BadRequestException,
   Delete,
 } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
@@ -17,6 +18,28 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
+
+  @Get('reverse-geocode')
+  async reverseGeocode(
+    @Query('lat') latStr: string,
+    @Query('lng') lngStr: string,
+    @Query('accuracy') accStr?: string,
+  ) {
+    const lat = parseFloat(latStr);
+    const lng = parseFloat(lngStr);
+    const accuracy = accStr ? parseFloat(accStr) : null;
+    if (isNaN(lat) || isNaN(lng)) {
+      throw new BadRequestException(
+        'Valid lat and lng query parameters are required.',
+      );
+    }
+    const address = await this.attendanceService.reverseGeocode(
+      lat,
+      lng,
+      accuracy,
+    );
+    return { success: true, address, latitude: lat, longitude: lng, accuracy };
+  }
 
   @Get('me/today')
   getTodayAttendance(@Req() req: any) {

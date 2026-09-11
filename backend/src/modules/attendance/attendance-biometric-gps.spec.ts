@@ -261,7 +261,7 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
   });
 
   describe('3. GPS Accuracy Thresholds', () => {
-    it('rejects poor GPS accuracy (> 50m) in production', async () => {
+    it('rejects poor GPS accuracy (> 500m) in production', async () => {
       mockUsers.push({
         id: 'user-1',
         email: 'user1@example.com',
@@ -279,7 +279,7 @@ describe('Attendance Biometric & GPS Validation Suite', () => {
         service.punchIn('user-1', 'comp-1', {
           latitude: 23.02281,
           longitude: 72.55661,
-          accuracy: 65, // > 50m
+          accuracy: 550, // > 500m
           address: 'Real Address Sabarmati',
           selfie: 'data:image/jpeg;base64,realimageselfiedatabytes',
           isBiometricCard: false,

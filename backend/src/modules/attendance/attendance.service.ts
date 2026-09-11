@@ -94,6 +94,70 @@ export function getKolkataDate(date: Date = new Date()): {
 export class AttendanceService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // Cache for Google Maps reverse geocoding to prevent repetitive API calls: grid of ~100m (3 decimal places)
+  private geocodeCache = new Map<string, string>();
+
+  async reverseGeocode(
+    latitude: number,
+    longitude: number,
+    accuracy?: number | null,
+  ): Promise<string> {
+    if (
+      latitude === undefined ||
+      longitude === undefined ||
+      isNaN(latitude) ||
+      isNaN(longitude)
+    ) {
+      return '—';
+    }
+
+    const latFixed = Number(latitude).toFixed(4);
+    const lngFixed = Number(longitude).toFixed(4);
+    const cacheKey = `${Number(latitude).toFixed(3)},${Number(longitude).toFixed(3)}`;
+
+    if (this.geocodeCache.has(cacheKey)) {
+      return this.geocodeCache.get(cacheKey)!;
+    }
+
+    const apiKey =
+      process.env.GOOGLE_MAPS_API_KEY ||
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+      '';
+
+    const honestCoordFallback =
+      accuracy != null && accuracy > 0
+        ? `${latFixed}, ${lngFixed} (Accuracy: ±${Math.round(accuracy)}m)`
+        : `${latFixed}, ${lngFixed}`;
+
+    if (!apiKey) {
+      this.geocodeCache.set(cacheKey, honestCoordFallback);
+      return honestCoordFallback;
+    }
+
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'OK' && data.results && data.results.length > 0) {
+          const formatted = data.results[0].formatted_address;
+          if (formatted && formatted.trim()) {
+            this.geocodeCache.set(cacheKey, formatted.trim());
+            return formatted.trim();
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(
+        '[AttendanceService] Google Maps Geocoding error:',
+        err?.message || err,
+      );
+    }
+
+    this.geocodeCache.set(cacheKey, honestCoordFallback);
+    return honestCoordFallback;
+  }
+
   // Helper to ensure authenticated User has a linked Employee profile
   private async getLinkedEmployeeId(userId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
@@ -198,7 +262,8 @@ export class AttendanceService {
   async punchIn(userId: string, companyId: string, body: any) {
     const employeeId = await this.getLinkedEmployeeId(userId);
 
-    const { latitude, longitude, accuracy, address, selfie } = body;
+    const { latitude, longitude, accuracy, address } = body;
+    const selfie = body.selfie || body.selfieUrl;
 
     if (latitude === undefined || longitude === undefined) {
       throw new BadRequestException('Valid GPS coordinates are required');
@@ -244,9 +309,9 @@ export class AttendanceService {
           'GPS accuracy must be a positive number.',
         );
       }
-      if (!isTestMode && accuracyVal > 50) {
+      if (!isTestMode && accuracyVal > 500) {
         throw new BadRequestException(
-          'GPS accuracy too low (> 50m). Please move to an open area with clear GPS reception.',
+          'GPS accuracy too low (> 500m). Please move to an open area with clear GPS reception.',
         );
       }
     }
@@ -281,6 +346,16 @@ export class AttendanceService {
     const deptName = user?.employee?.department?.name || 'Default';
     const lateMinutes = await this.calculateLateMinutes(now, deptName);
 
+    // Resolve real device address via Google Maps Geocoding integration
+    const resolvedAddress =
+      address &&
+      address.trim() &&
+      !address.includes('Factory Campus') &&
+      !address.includes('Network Location') &&
+      !address.includes('GPS Fallback')
+        ? address.trim()
+        : await this.reverseGeocode(latitude, longitude, accuracy);
+
     // Create single daily attendance record
     const attendance = await this.prisma.attendance.create({
       data: {
@@ -293,7 +368,7 @@ export class AttendanceService {
         punchInLatitude: latitude,
         punchInLongitude: longitude,
         punchInAccuracy: accuracy ? Number(accuracy) : null,
-        punchInAddress: address || 'Recorded Attendance Location',
+        punchInAddress: resolvedAddress,
         punchInSelfieUrl: savedSelfieUrl,
         lateMinutes,
       },
@@ -306,7 +381,8 @@ export class AttendanceService {
   async punchOut(userId: string, companyId: string, body: any) {
     const employeeId = await this.getLinkedEmployeeId(userId);
 
-    const { latitude, longitude, accuracy, address, selfie } = body;
+    const { latitude, longitude, accuracy, address } = body;
+    const selfie = body.selfie || body.selfieUrl;
 
     if (latitude === undefined || longitude === undefined) {
       throw new BadRequestException('Valid GPS coordinates are required');
@@ -352,9 +428,9 @@ export class AttendanceService {
           'GPS accuracy must be a positive number.',
         );
       }
-      if (!isTestMode && accuracyVal > 50) {
+      if (!isTestMode && accuracyVal > 500) {
         throw new BadRequestException(
-          'GPS accuracy too low (> 50m). Please move to an open area with clear GPS reception.',
+          'GPS accuracy too low (> 500m). Please move to an open area with clear GPS reception.',
         );
       }
     }
@@ -408,14 +484,24 @@ export class AttendanceService {
       status = 'HALF_DAY';
     }
 
+    // Fresh independent Google Maps Geocoding for punch out location
+    const resolvedAddress =
+      address &&
+      address.trim() &&
+      !address.includes('Factory Campus') &&
+      !address.includes('Network Location') &&
+      !address.includes('GPS Fallback')
+        ? address.trim()
+        : await this.reverseGeocode(latitude, longitude, accuracy);
+
     const updated = await this.prisma.attendance.update({
       where: { id: existing.id },
       data: {
         punchOutAt,
         punchOutLatitude: latitude,
         punchOutLongitude: longitude,
-        punchOutAccuracy: accuracy,
-        punchOutAddress: address,
+        punchOutAccuracy: accuracy ? Number(accuracy) : null,
+        punchOutAddress: resolvedAddress,
         punchOutSelfieUrl: savedSelfieUrl,
         workedSeconds,
         workedMinutes,
@@ -529,7 +615,35 @@ export class AttendanceService {
       }).format(new Date(d));
     };
 
-    let runningSeconds = record.workedSeconds;
+    const formatDate = (d: Date | null) => {
+      if (!d) return null;
+      return new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }).format(new Date(d));
+    };
+
+    const formatDurationHms = (totalSecs: number) => {
+      if (!totalSecs || totalSecs <= 0) return '00h 00m 00s';
+      const h = Math.floor(totalSecs / 3600);
+      const m = Math.floor((totalSecs % 3600) / 60);
+      const s = totalSecs % 60;
+      return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+    };
+
+    const formatElapsedHm = (d: Date) => {
+      const elapsedSecs = Math.max(
+        0,
+        Math.floor((Date.now() - new Date(d).getTime()) / 1000),
+      );
+      const h = Math.floor(elapsedSecs / 3600);
+      const m = Math.floor((elapsedSecs % 3600) / 60);
+      return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m`;
+    };
+
+    let runningSeconds = record.workedSeconds || 0;
     if (isPunchedIn && record.punchInAt) {
       runningSeconds = Math.max(
         0,
@@ -539,23 +653,53 @@ export class AttendanceService {
       );
     }
 
+    const inCoords =
+      record.punchInLatitude != null && record.punchInLongitude != null
+        ? `${Number(record.punchInLatitude).toFixed(4)}, ${Number(record.punchInLongitude).toFixed(4)}`
+        : null;
+    const outCoords =
+      record.punchOutLatitude != null && record.punchOutLongitude != null
+        ? `${Number(record.punchOutLatitude).toFixed(4)}, ${Number(record.punchOutLongitude).toFixed(4)}`
+        : null;
+
+    let workedDuration = '—';
+    if (isPunchedOut && record.workedSeconds > 0) {
+      workedDuration = formatDurationHms(record.workedSeconds);
+    } else if (isPunchedIn && record.punchInAt) {
+      workedDuration = formatElapsedHm(record.punchInAt);
+    }
+
     return {
       id: record.id,
       status: record.status,
       punchInAt: record.punchInAt,
       punchOutAt: record.punchOutAt,
       workedSeconds: record.workedSeconds || runningSeconds,
+      totalWorkingSeconds: record.workedSeconds || runningSeconds,
       workedMinutes: record.workedMinutes || Math.floor(runningSeconds / 60),
+      workedDuration,
       lateMinutes: record.lateMinutes || 0,
       earlyExitMinutes: record.earlyExitMinutes || 0,
       overtimeMinutes: record.overtimeMinutes || 0,
       isPunchedIn,
       isPunchedOut,
       punchInTime: formatTime(record.punchInAt),
+      punchInDate: formatDate(record.punchInAt),
+      punchInAddress: record.punchInAddress || inCoords || null,
+      punchInLatitude: record.punchInLatitude ? Number(record.punchInLatitude) : null,
+      punchInLongitude: record.punchInLongitude ? Number(record.punchInLongitude) : null,
+      punchInCoords: inCoords,
+      punchInAccuracy: record.punchInAccuracy != null ? Math.round(record.punchInAccuracy) : null,
+      punchInSelfieUrl: record.punchInSelfieUrl || null,
       punchOutTime: formatTime(record.punchOutAt),
+      punchOutDate: formatDate(record.punchOutAt),
+      punchOutAddress: record.punchOutAddress || outCoords || null,
+      punchOutLatitude: record.punchOutLatitude ? Number(record.punchOutLatitude) : null,
+      punchOutLongitude: record.punchOutLongitude ? Number(record.punchOutLongitude) : null,
+      punchOutCoords: outCoords,
+      punchOutAccuracy: record.punchOutAccuracy != null ? Math.round(record.punchOutAccuracy) : null,
+      punchOutSelfieUrl: record.punchOutSelfieUrl || null,
       lastPhoto: record.punchOutSelfieUrl || record.punchInSelfieUrl || null,
-      punchInAccuracy: record.punchInAccuracy || null,
-      punchOutAccuracy: record.punchOutAccuracy || null,
     };
   }
 
@@ -594,6 +738,7 @@ export class AttendanceService {
           timeZone: 'Asia/Kolkata',
           hour: '2-digit',
           minute: '2-digit',
+          second: '2-digit',
           hour12: true,
         }).format(new Date(d));
       };
@@ -608,31 +753,81 @@ export class AttendanceService {
         }).format(new Date(d));
       };
 
-      const formatDuration = (mins: number, secs: number) => {
-        const totalMins = mins || Math.floor(secs / 60);
-        if (!totalMins) return '—';
-        const h = Math.floor(totalMins / 60);
-        const m = totalMins % 60;
-        return `${h}h ${m}m`;
+      const formatEventDate = (d: Date | null) => {
+        if (!d) return null;
+        return new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Kolkata',
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }).format(new Date(d));
       };
+
+      const formatDurationHms = (totalSecs: number) => {
+        if (!totalSecs || totalSecs <= 0) return '—';
+        const h = Math.floor(totalSecs / 3600);
+        const m = Math.floor((totalSecs % 3600) / 60);
+        const s = totalSecs % 60;
+        return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+      };
+
+      const formatElapsedHm = (d: Date) => {
+        const elapsedSecs = Math.max(
+          0,
+          Math.floor((Date.now() - new Date(d).getTime()) / 1000),
+        );
+        const h = Math.floor(elapsedSecs / 3600);
+        const m = Math.floor((elapsedSecs % 3600) / 60);
+        return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m`;
+      };
+
+      const inCoords =
+        item.punchInLatitude != null && item.punchInLongitude != null
+          ? `${Number(item.punchInLatitude).toFixed(4)}, ${Number(item.punchInLongitude).toFixed(4)}`
+          : null;
+      const outCoords =
+        item.punchOutLatitude != null && item.punchOutLongitude != null
+          ? `${Number(item.punchOutLatitude).toFixed(4)}, ${Number(item.punchOutLongitude).toFixed(4)}`
+          : null;
+
+      const isOut = !!item.punchOutAt;
+      const isIn = !!item.punchInAt && !isOut;
+
+      let workedDuration = '—';
+      if (isOut && item.workedSeconds > 0) {
+        workedDuration = formatDurationHms(item.workedSeconds);
+      } else if (isIn && item.punchInAt) {
+        workedDuration = formatElapsedHm(item.punchInAt);
+      }
 
       return {
         id: item.id,
         date: formatDate(item.attendanceDate),
+        punchInAt: item.punchInAt,
+        punchOutAt: item.punchOutAt,
         punchInTime: formatTime(item.punchInAt),
+        punchInDate: formatEventDate(item.punchInAt),
         punchOutTime: formatTime(item.punchOutAt),
-        workedDuration: formatDuration(item.workedMinutes, item.workedSeconds),
+        punchOutDate: formatEventDate(item.punchOutAt),
+        workedDuration,
+        workedSeconds: item.workedSeconds,
+        totalWorkingSeconds: item.workedSeconds,
         workedMinutes: item.workedMinutes,
         lateMinutes: item.lateMinutes,
         earlyExitMinutes: item.earlyExitMinutes,
         overtimeMinutes: item.overtimeMinutes,
-        location: item.punchOutAddress || item.punchInAddress || '—',
-        coords: item.punchOutLatitude
-          ? `${item.punchOutLatitude}, ${item.punchOutLongitude}`
-          : `${item.punchInLatitude}, ${item.punchInLongitude}`,
-        punchInAccuracy: item.punchInAccuracy,
-        punchOutAccuracy: item.punchOutAccuracy,
+        punchInAddress: item.punchInAddress || inCoords || '—',
+        punchOutAddress: item.punchOutAddress || outCoords || '—',
+        punchInCoords: inCoords || '—',
+        punchOutCoords: outCoords || '—',
+        location: item.punchOutAddress || item.punchInAddress || outCoords || inCoords || '—',
+        coords: outCoords || inCoords || '—',
+        accuracy: item.punchOutAccuracy || item.punchInAccuracy,
+        punchInAccuracy: item.punchInAccuracy != null ? Math.round(item.punchInAccuracy) : null,
+        punchOutAccuracy: item.punchOutAccuracy != null ? Math.round(item.punchOutAccuracy) : null,
         selfieUrl: item.punchOutSelfieUrl || item.punchInSelfieUrl || null,
+        punchInSelfieUrl: item.punchInSelfieUrl || null,
+        punchOutSelfieUrl: item.punchOutSelfieUrl || null,
         status: item.status,
         timestamp: item.createdAt,
       };
@@ -716,7 +911,7 @@ export class AttendanceService {
             emp?.jobTitle ||
             usr?.role?.name ||
             (typeof usr?.role === 'string' ? usr.role : 'Staff Member');
-          const locationName = emp?.workLocation?.name || 'Ahmedabad Plant';
+          const locationName = emp?.workLocation?.name || 'Main Office';
 
           const formatTime = (d: Date | null | undefined) => {
             if (!d) return '—';
@@ -724,6 +919,7 @@ export class AttendanceService {
               timeZone: 'Asia/Kolkata',
               hour: '2-digit',
               minute: '2-digit',
+              second: '2-digit',
               hour12: true,
             }).format(new Date(d));
           };
@@ -732,12 +928,52 @@ export class AttendanceService {
             return getKolkataDate(d).dateStr;
           };
 
-          const formatDuration = (mins: number) => {
-            if (!mins) return '—';
-            const h = Math.floor(mins / 60);
-            const m = mins % 60;
-            return `${h}h ${m}m`;
+          const formatEventDate = (d: Date | null | undefined) => {
+            if (!d) return null;
+            return new Intl.DateTimeFormat('en-GB', {
+              timeZone: 'Asia/Kolkata',
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            }).format(new Date(d));
           };
+
+          const formatDurationHms = (totalSecs: number) => {
+            if (!totalSecs || totalSecs <= 0) return '—';
+            const h = Math.floor(totalSecs / 3600);
+            const m = Math.floor((totalSecs % 3600) / 60);
+            const s = totalSecs % 60;
+            return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+          };
+
+          const formatElapsedHm = (d: Date) => {
+            const elapsedSecs = Math.max(
+              0,
+              Math.floor((Date.now() - new Date(d).getTime()) / 1000),
+            );
+            const h = Math.floor(elapsedSecs / 3600);
+            const m = Math.floor((elapsedSecs % 3600) / 60);
+            return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m`;
+          };
+
+          const inCoords =
+            att.punchInLatitude != null && att.punchInLongitude != null
+              ? `${Number(att.punchInLatitude).toFixed(4)}, ${Number(att.punchInLongitude).toFixed(4)}`
+              : null;
+          const outCoords =
+            att.punchOutLatitude != null && att.punchOutLongitude != null
+              ? `${Number(att.punchOutLatitude).toFixed(4)}, ${Number(att.punchOutLongitude).toFixed(4)}`
+              : null;
+
+          const isOut = !!att.punchOutAt;
+          const isIn = !!att.punchInAt && !isOut;
+
+          let workedDuration = '—';
+          if (isOut && att.workedSeconds > 0) {
+            workedDuration = formatDurationHms(att.workedSeconds);
+          } else if (isIn && att.punchInAt) {
+            workedDuration = formatElapsedHm(att.punchInAt);
+          }
 
           return {
             id: att.id,
@@ -753,27 +989,38 @@ export class AttendanceService {
             date: formatDate(att.attendanceDate),
             punchIn: formatTime(att.punchInAt),
             punchOut: formatTime(att.punchOutAt),
-            workedDuration: att.workedMinutes
-              ? formatDuration(att.workedMinutes)
-              : att.status === 'PUNCHED_IN'
-                ? 'Running'
-                : '—',
+            punchInAt: att.punchInAt?.toISOString() || null,
+            punchInTime: formatTime(att.punchInAt),
+            punchInDate: formatEventDate(att.punchInAt) || formatDate(att.attendanceDate),
+            punchInAddress: att.punchInAddress || inCoords || '—',
+            punchInLocation: att.punchInAddress || inCoords || '—',
+            punchInCoords: inCoords || '—',
+            punchInLatitude: att.punchInLatitude ? Number(att.punchInLatitude) : null,
+            punchInLongitude: att.punchInLongitude ? Number(att.punchInLongitude) : null,
+            punchInAccuracy: att.punchInAccuracy != null ? Math.round(att.punchInAccuracy) : null,
+            punchInSelfieUrl: att.punchInSelfieUrl || null,
+            punchOutAt: att.punchOutAt?.toISOString() || null,
+            punchOutTime: formatTime(att.punchOutAt),
+            punchOutDate: formatEventDate(att.punchOutAt),
+            punchOutAddress: att.punchOutAddress || outCoords || '—',
+            punchOutLocation: att.punchOutAddress || outCoords || '—',
+            punchOutCoords: outCoords || '—',
+            punchOutLatitude: att.punchOutLatitude ? Number(att.punchOutLatitude) : null,
+            punchOutLongitude: att.punchOutLongitude ? Number(att.punchOutLongitude) : null,
+            punchOutAccuracy: att.punchOutAccuracy != null ? Math.round(att.punchOutAccuracy) : null,
+            punchOutSelfieUrl: att.punchOutSelfieUrl || null,
+            workedDuration,
+            workedSeconds: att.workedSeconds || 0,
+            totalWorkingSeconds: att.workedSeconds || 0,
             workedMinutes: att.workedMinutes || 0,
             lateMinutes: att.lateMinutes || 0,
             earlyExitMinutes: att.earlyExitMinutes || 0,
             overtimeMinutes: att.overtimeMinutes || 0,
             status: att.status,
-            punchInLocation: att.punchInAddress || locationName,
-            location: att.punchInAddress || locationName,
-            coords: att.punchOutLatitude
-              ? `${att.punchOutLatitude}, ${att.punchOutLongitude}`
-              : att.punchInLatitude
-                ? `${att.punchInLatitude}, ${att.punchInLongitude}`
-                : '—',
+            location: att.punchOutAddress || att.punchInAddress || outCoords || inCoords || '—',
+            coords: outCoords || inCoords || '—',
             accuracy: att.punchOutAccuracy || att.punchInAccuracy || null,
             selfieUrl: att.punchOutSelfieUrl || att.punchInSelfieUrl || null,
-            punchInSelfieUrl: att.punchInSelfieUrl || null,
-            punchOutSelfieUrl: att.punchOutSelfieUrl || null,
             timestamp:
               att.punchInAt?.toISOString() || att.createdAt.toISOString(),
           };
@@ -831,7 +1078,7 @@ export class AttendanceService {
 
         const deptName = emp.department?.name || 'Operations';
         const roleName = emp.jobTitle || emp.user?.role?.name || 'Staff Member';
-        const locationName = emp.workLocation?.name || 'Ahmedabad Plant';
+        const locationName = emp.workLocation?.name || 'Main Office';
 
         const formatTime = (d: Date | null | undefined) => {
           if (!d) return '—';
@@ -839,15 +1086,37 @@ export class AttendanceService {
             timeZone: 'Asia/Kolkata',
             hour: '2-digit',
             minute: '2-digit',
+            second: '2-digit',
             hour12: true,
           }).format(new Date(d));
         };
 
-        const formatDuration = (mins: number) => {
-          if (!mins) return '—';
-          const h = Math.floor(mins / 60);
-          const m = mins % 60;
-          return `${h}h ${m}m`;
+        const formatEventDate = (d: Date | null | undefined) => {
+          if (!d) return null;
+          return new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Asia/Kolkata',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          }).format(new Date(d));
+        };
+
+        const formatDurationHms = (totalSecs: number) => {
+          if (!totalSecs || totalSecs <= 0) return '—';
+          const h = Math.floor(totalSecs / 3600);
+          const m = Math.floor((totalSecs % 3600) / 60);
+          const s = totalSecs % 60;
+          return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+        };
+
+        const formatElapsedHm = (d: Date) => {
+          const elapsedSecs = Math.max(
+            0,
+            Math.floor((Date.now() - new Date(d).getTime()) / 1000),
+          );
+          const h = Math.floor(elapsedSecs / 3600);
+          const m = Math.floor((elapsedSecs % 3600) / 60);
+          return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m`;
         };
 
         // Precedence Order evaluation
@@ -856,11 +1125,15 @@ export class AttendanceService {
         let punchOut = '—';
         let workedDuration = '—';
         let workedMinutes = 0;
+        let workedSeconds = 0;
         let lateMinutes = 0;
         let earlyExitMinutes = 0;
         let overtimeMinutes = 0;
         let selfieUrl: string | null = null;
-        let location = locationName;
+        let punchInAddress = '—';
+        let punchOutAddress = '—';
+        let inCoords: string | null = null;
+        let outCoords: string | null = null;
         let coords = '—';
         let accuracy: number | null = null;
 
@@ -876,21 +1149,33 @@ export class AttendanceService {
           punchIn = formatTime(att.punchInAt);
           punchOut = formatTime(att.punchOutAt);
           workedMinutes = att.workedMinutes;
-          workedDuration = att.workedMinutes
-            ? formatDuration(att.workedMinutes)
-            : att.status === 'PUNCHED_IN'
-              ? 'Running'
-              : '—';
+          workedSeconds = att.workedSeconds || 0;
+
+          const isOut = !!att.punchOutAt;
+          const isIn = !!att.punchInAt && !isOut;
+          if (isOut && att.workedSeconds > 0) {
+            workedDuration = formatDurationHms(att.workedSeconds);
+          } else if (isIn && att.punchInAt) {
+            workedDuration = formatElapsedHm(att.punchInAt);
+          }
+
           lateMinutes = att.lateMinutes;
           earlyExitMinutes = att.earlyExitMinutes;
           overtimeMinutes = att.overtimeMinutes;
           selfieUrl = att.punchOutSelfieUrl || att.punchInSelfieUrl || null;
-          location = att.punchOutAddress || att.punchInAddress || locationName;
-          coords = att.punchOutLatitude
-            ? `${att.punchOutLatitude}, ${att.punchOutLongitude}`
-            : att.punchInLatitude
-              ? `${att.punchInLatitude}, ${att.punchInLongitude}`
-              : '—';
+
+          inCoords =
+            att.punchInLatitude != null && att.punchInLongitude != null
+              ? `${Number(att.punchInLatitude).toFixed(4)}, ${Number(att.punchInLongitude).toFixed(4)}`
+              : null;
+          outCoords =
+            att.punchOutLatitude != null && att.punchOutLongitude != null
+              ? `${Number(att.punchOutLatitude).toFixed(4)}, ${Number(att.punchOutLongitude).toFixed(4)}`
+              : null;
+
+          punchInAddress = att.punchInAddress || inCoords || '—';
+          punchOutAddress = att.punchOutAddress || outCoords || '—';
+          coords = outCoords || inCoords || '—';
           accuracy = att.punchOutAccuracy || att.punchInAccuracy || null;
         } else if (isToday) {
           status = 'NOT_PUNCHED_IN';
@@ -909,18 +1194,34 @@ export class AttendanceService {
           date: getKolkataDate(targetDate).dateStr,
           punchIn,
           punchOut,
+          punchInAt: att?.punchInAt?.toISOString() || null,
+          punchInTime: att ? formatTime(att.punchInAt) : '—',
+          punchInDate: att ? (formatEventDate(att.punchInAt) || getKolkataDate(targetDate).dateStr) : null,
+          punchInAddress,
+          punchInCoords: inCoords || '—',
+          punchInAccuracy: att?.punchInAccuracy != null ? Math.round(att.punchInAccuracy) : null,
+          punchInSelfieUrl: att?.punchInSelfieUrl || null,
+          punchOutAt: att?.punchOutAt?.toISOString() || null,
+          punchOutTime: att ? formatTime(att.punchOutAt) : '—',
+          punchOutDate: att ? formatEventDate(att.punchOutAt) : null,
+          punchOutAddress,
+          punchOutCoords: outCoords || '—',
+          punchOutAccuracy: att?.punchOutAccuracy != null ? Math.round(att.punchOutAccuracy) : null,
+          punchOutSelfieUrl: att?.punchOutSelfieUrl || null,
           workedDuration,
           workedMinutes,
+          workedSeconds,
+          totalWorkingSeconds: workedSeconds,
           lateMinutes,
           earlyExitMinutes,
           overtimeMinutes,
           status,
-          punchInLocation: location,
+          punchInLocation: punchInAddress,
+          punchOutLocation: punchOutAddress,
+          location: punchOutAddress !== '—' ? punchOutAddress : punchInAddress !== '—' ? punchInAddress : locationName,
           coords,
           accuracy,
           selfieUrl,
-          punchInSelfieUrl: att?.punchInSelfieUrl || null,
-          punchOutSelfieUrl: att?.punchOutSelfieUrl || null,
           timestamp:
             att?.punchInAt?.toISOString() ||
             att?.createdAt?.toISOString() ||

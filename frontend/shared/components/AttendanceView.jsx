@@ -254,16 +254,26 @@ export default function AttendanceView({ employees: propEmployees }) {
         role: p.role || 'Staff Member',
         action: p.punchOut && p.punchOut !== '—' ? 'Check Out' : 'Check In',
         time: (p.punchOut && p.punchOut !== '—') ? p.punchOut : (p.punchIn || '—'),
-        punchIn: p.punchIn || '—',
-        punchOut: p.punchOut || '—',
+        punchIn: p.punchInTime || p.punchIn || '—',
+        punchOut: p.punchOutTime || p.punchOut || '—',
+        punchInAt: p.punchInAt || null,
+        punchOutAt: p.punchOutAt || null,
         date: p.date || todayStr,
         location: p.punchInLocation || p.location || '—',
-        coords: p.coords || '—',
+        punchInLocation: p.punchInLocation || p.location || '—',
+        punchOutLocation: p.punchOutLocation || '—',
+        coords: p.punchInCoords || p.coords || '—',
+        punchInCoords: p.punchInCoords || p.coords || '—',
+        punchOutCoords: p.punchOutCoords || '—',
+        punchInAccuracy: p.punchInAccuracy ?? null,
+        punchOutAccuracy: p.punchOutAccuracy ?? null,
         selfieUrl: p.selfieUrl || p.punchInSelfieUrl || p.punchOutSelfieUrl || null,
         punchInSelfieUrl: p.punchInSelfieUrl || null,
         punchOutSelfieUrl: p.punchOutSelfieUrl || null,
+        workedSeconds: p.workedSeconds ?? null,
+        workedDuration: p.workedDuration || null,
         status: p.status || (p.punchIn && p.punchIn !== '—' ? 'GPS Verified' : 'PUNCHED_IN'),
-        timestamp: p.timestamp || new Date().toISOString(),
+        timestamp: p.timestamp || p.punchInAt || new Date().toISOString(),
         isRealPunch: true
       }));
 
@@ -344,10 +354,15 @@ export default function AttendanceView({ employees: propEmployees }) {
         'Role / Designation',
         'Attendance Date',
         'Punch In Time',
+        'Punch In Coordinates',
+        'Punch In Accuracy',
+        'Punch In Location',
         'Punch Out Time',
+        'Punch Out Coordinates',
+        'Punch Out Accuracy',
+        'Punch Out Location',
+        'Total Worked Duration',
         'Attendance Status',
-        'GPS Coordinates',
-        'Location / Address',
         'Verification Type',
         'Timestamp'
       ];
@@ -362,6 +377,14 @@ export default function AttendanceView({ employees: propEmployees }) {
           ? 'Biometric Selfie Verified'
           : 'Biometric ID Card';
 
+        const punchInCoords = l.punchInCoords && l.punchInCoords !== '—' ? l.punchInCoords : (l.coords && l.coords !== '—' ? l.coords : '—');
+        const punchInAccuracyStr = l.punchInAccuracy != null ? `±${l.punchInAccuracy}m` : '—';
+        const punchInLoc = l.punchInLocation && l.punchInLocation !== '—' ? l.punchInLocation : (l.location && l.location !== '—' ? l.location : '—');
+        const punchOutCoords = l.punchOutCoords && l.punchOutCoords !== '—' ? l.punchOutCoords : '—';
+        const punchOutAccuracyStr = l.punchOutAccuracy != null ? `±${l.punchOutAccuracy}m` : '—';
+        const punchOutLoc = l.punchOutLocation && l.punchOutLocation !== '—' ? l.punchOutLocation : '—';
+        const worked = l.workedDuration || (l.punchIn && l.punchIn !== '—' && l.punchOut && l.punchOut !== '—' ? `${l.punchIn} - ${l.punchOut}` : '—');
+
         return [
           `"${code}"`,
           `"${(l.name || 'Staff Member').replace(/"/g, '""')}"`,
@@ -369,10 +392,15 @@ export default function AttendanceView({ employees: propEmployees }) {
           `"${(l.role || 'Staff Member').replace(/"/g, '""')}"`,
           `"${l.date || 'Today'}"`,
           `"${l.punchIn || '—'}"`,
+          `"${punchInCoords}"`,
+          `"${punchInAccuracyStr}"`,
+          `"${punchInLoc.replace(/"/g, '""')}"`,
           `"${l.punchOut || '—'}"`,
+          `"${punchOutCoords}"`,
+          `"${punchOutAccuracyStr}"`,
+          `"${punchOutLoc.replace(/"/g, '""')}"`,
+          `"${worked}"`,
           `"${(l.status || 'PUNCHED_IN').replace(/"/g, '""')}"`,
-          `"${l.coords && l.coords !== '—' ? l.coords : 'Campus GPS'}"`,
-          `"${(l.location || 'Factory Campus, GIDC').replace(/"/g, '""')}"`,
           `"${verification}"`,
           `"${l.timestamp || ''}"`
         ];
@@ -946,7 +974,7 @@ export default function AttendanceView({ employees: propEmployees }) {
                             <MapPin size={12} /> Verified
                           </span>
                         ) : (
-                          <span style={{ color: '#94A3B8', fontSize: '11px', whiteSpace: 'nowrap' }}>Campus</span>
+                          <span style={{ color: '#94A3B8', fontSize: '11px', whiteSpace: 'nowrap' }}>—</span>
                         )
                       },
                       { 
@@ -1187,34 +1215,59 @@ export default function AttendanceView({ employees: propEmployees }) {
               </div>
 
               <div className="app-card" style={{ padding: '20px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '12px' }}>
-                  <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: '800', color: '#0F172A' }}>Biometric Selfie &amp; GPS Monitor</h3>
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>Live photographic identity verification terminal</span>
+                <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Camera size={18} color="#0284c7" /> Biometric Selfie &amp; GPS Monitor
+                    </h3>
+                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>Live photographic identity &amp; independent GPS verification terminal</span>
+                  </div>
+                  {activePreview && (
+                    <span style={{
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      background: activePreview.punchOut && activePreview.punchOut !== '—' ? '#F0FDF4' : '#FEF3C7',
+                      color: activePreview.punchOut && activePreview.punchOut !== '—' ? '#15803D' : '#B45309',
+                      border: activePreview.punchOut && activePreview.punchOut !== '—' ? '1px solid #BBF7D0' : '1px solid #FDE68A'
+                    }}>
+                      {activePreview.punchOut && activePreview.punchOut !== '—' ? '🟢 Shift Completed' : '🟡 Active Shift In Progress'}
+                    </span>
+                  )}
                 </div>
 
-                {/* Photo preview monitor box */}
-                <div style={{ flex: 1, minHeight: '220px', background: '#0B0F19', borderRadius: '12px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px', border: '2px solid #1E293B', overflow: 'hidden' }}>
+                {/* 1. TOP CAPTURE PANEL (Dual Selfie Viewer + SECURE CAPTURE) */}
+                <div style={{ minHeight: '220px', background: '#0B0F19', borderRadius: '12px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px', border: '2px solid #1E293B', overflow: 'hidden' }}>
                   {activePreview?.punchInSelfieUrl || activePreview?.punchOutSelfieUrl ? (
                     <div style={{ display: 'flex', gap: '8px', width: '100%', height: '100%', minHeight: '200px', flex: 1 }}>
-                      {activePreview?.punchInSelfieUrl ? (
-                        <div style={{ flex: 1, position: 'relative', minHeight: '180px', height: '100%', borderRadius: '8px', overflow: 'hidden', background: '#0f172a' }}>
+                      {/* Left: Punch In Selfie */}
+                      <div style={{ flex: 1, position: 'relative', minHeight: '180px', height: '100%', borderRadius: '8px', overflow: 'hidden', background: '#0f172a' }}>
+                        {activePreview?.punchInSelfieUrl ? (
                           <SecureImage src={activePreview.punchInSelfieUrl} alt="Punch In Selfie" style={{ width: '100%', height: '100%', minHeight: '180px', objectFit: 'contain' }} fallbackText="Punch In" allowZoom={true} />
-                          <div style={{ position: 'absolute', bottom: '6px', left: '6px', background: 'rgba(0,0,0,0.85)', color: '#10B981', fontSize: '10px', fontWeight: '900', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.4)', letterSpacing: '0.5px', zIndex: 2 }}>🟢 PUNCH IN</div>
-                        </div>
-                      ) : null}
-                      {activePreview?.punchOutSelfieUrl ? (
-                        <div style={{ flex: 1, position: 'relative', minHeight: '180px', height: '100%', borderRadius: '8px', overflow: 'hidden', background: '#0f172a' }}>
-                          <SecureImage src={activePreview.punchOutSelfieUrl} alt="Punch Out Selfie" style={{ width: '100%', height: '100%', minHeight: '180px', objectFit: 'contain' }} fallbackText="Punch Out" allowZoom={true} />
-                          <div style={{ position: 'absolute', bottom: '6px', left: '6px', background: 'rgba(0,0,0,0.85)', color: '#EF4444', fontSize: '10px', fontWeight: '900', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(239,68,68,0.4)', letterSpacing: '0.5px', zIndex: 2 }}>🔴 PUNCH OUT</div>
-                        </div>
-                      ) : (
-                        activePreview?.punchInSelfieUrl ? (
-                          <div style={{ flex: 1, minHeight: '180px', background: '#111827', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '11px', fontWeight: '700', border: '1px dashed #1e293b' }}>
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', minHeight: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '11px' }}>
+                            <Camera size={22} color="#334155" style={{ marginBottom: '6px' }} />
+                            No Punch In Selfie
+                          </div>
+                        )}
+                        <div style={{ position: 'absolute', bottom: '6px', left: '6px', background: 'rgba(0,0,0,0.85)', color: '#10B981', fontSize: '10px', fontWeight: '900', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.4)', letterSpacing: '0.5px', zIndex: 2 }}>🟢 PUNCH IN</div>
+                      </div>
+
+                      {/* Right: Punch Out Selfie */}
+                      <div style={{ flex: 1, position: 'relative', minHeight: '180px', height: '100%', borderRadius: '8px', overflow: 'hidden', background: '#0f172a' }}>
+                        {activePreview?.punchOutSelfieUrl ? (
+                          <>
+                            <SecureImage src={activePreview.punchOutSelfieUrl} alt="Punch Out Selfie" style={{ width: '100%', height: '100%', minHeight: '180px', objectFit: 'contain' }} fallbackText="Punch Out" allowZoom={true} />
+                            <div style={{ position: 'absolute', bottom: '6px', left: '6px', background: 'rgba(0,0,0,0.85)', color: '#EF4444', fontSize: '10px', fontWeight: '900', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(239,68,68,0.4)', letterSpacing: '0.5px', zIndex: 2 }}>🔴 PUNCH OUT</div>
+                          </>
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', minHeight: '180px', background: '#111827', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '11px', fontWeight: '700', border: '1px dashed #1e293b' }}>
                             <Camera size={22} color="#334155" style={{ marginBottom: '6px' }} />
                             No Punch Out Registered
                           </div>
-                        ) : null
-                      )}
+                        )}
+                      </div>
                     </div>
                   ) : (
                     activePreview?.selfieUrl ? (
@@ -1229,52 +1282,169 @@ export default function AttendanceView({ employees: propEmployees }) {
                       </div>
                     )
                   )}
-                  
+
                   {/* Overlay secure capture badge */}
-                  <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(255,255,255,0.15)' }}>
+                  <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', padding: '4px 10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(255,255,255,0.15)', zIndex: 10 }}>
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }} />
                     <span style={{ fontSize: '9px', fontWeight: '800', color: '#fff', textTransform: 'uppercase' }}>SECURE CAPTURE</span>
                   </div>
                 </div>
 
-                {/* Details card */}
+                {/* 2. DETAILS BELOW */}
                 {activePreview && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0', fontSize: '12.5px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>
-                      <span style={{ color: '#64748B', fontWeight: '600' }}>Employee Name:</span>
-                      <strong style={{ color: '#0F172A' }}>
-                        {activePreview.name} ({(() => {
-                          const raw = String(activePreview.employeeCode || activePreview.employeeId || activePreview.id || '').trim();
-                          return (raw && raw !== '—' && raw.length <= 10 && !raw.includes('-')) ? raw : (activePreview.employeeCode && activePreview.employeeCode !== '—' ? activePreview.employeeCode : `EMP-${raw.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase()}`);
-                        })()})
-                      </strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>
-                      <span style={{ color: '#64748B', fontWeight: '600' }}>Punch Action:</span>
-                      <span style={{ color: '#0F172A', fontWeight: '800' }}>
-                        {activePreview.action ? activePreview.action : (
-                          `${activePreview.punchIn !== '—' ? 'Punch In' : ''}${activePreview.punchIn !== '—' && activePreview.punchOut !== '—' ? ' & ' : ''}${activePreview.punchOut !== '—' ? 'Punch Out' : ''}`
-                        )}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>
-                      <span style={{ color: '#64748B', fontWeight: '600' }}>Device Timestamp:</span>
-                      <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>
-                        {activePreview.time ? activePreview.time : (
-                          `${activePreview.punchIn !== '—' ? `In: ${activePreview.punchIn}` : ''}${activePreview.punchIn !== '—' && activePreview.punchOut !== '—' ? ' | ' : ''}${activePreview.punchOut !== '—' ? `Out: ${activePreview.punchOut}` : ''}`
-                        )} ({activePreview.date || 'Today'})
-                      </strong>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ color: '#64748B', fontWeight: '600' }}>Verified Geolocation Address:</span>
-                      <strong style={{ color: '#0284C7', fontSize: '12px', lineHeight: 1.35 }}>
-                        📍 {activePreview.location || 'No Verified Location'}
-                      </strong>
-                      {activePreview.coords && (
-                        <span style={{ fontSize: '10.5px', fontFamily: 'monospace', color: '#0369A1', fontWeight: '700' }}>
-                          Exact GPS Coords: {activePreview.coords}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {/* Basic Meta Card */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0', fontSize: '12.5px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>
+                        <span style={{ color: '#64748B', fontWeight: '600' }}>Employee Name:</span>
+                        <strong style={{ color: '#0F172A' }}>
+                          {activePreview.name} ({activePreview.employeeCode || activePreview.id})
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>
+                        <span style={{ color: '#64748B', fontWeight: '600' }}>Punch Action:</span>
+                        <span style={{ color: '#0F172A', fontWeight: '800' }}>
+                          {activePreview.punchOut && activePreview.punchOut !== '—' ? 'Check In & Check Out' : 'Check In'}
                         </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>
+                        <span style={{ color: '#64748B', fontWeight: '600' }}>Device Timestamp:</span>
+                        <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>
+                          {activePreview.punchIn && activePreview.punchIn !== '—' ? activePreview.punchIn : (activePreview.time || '—')} ({activePreview.date || 'Today'})
+                        </strong>
+                      </div>
+
+                      {/* When only Punch In has occurred */}
+                      {(!activePreview.punchOut || activePreview.punchOut === '—') && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px' }}>
+                          <span style={{ color: '#64748B', fontWeight: '600' }}>Verified Geolocation Address:</span>
+                          <strong style={{ color: '#0284C7', fontSize: '12.5px', lineHeight: 1.4 }}>
+                            📍 {activePreview.punchInLocation && activePreview.punchInLocation !== '—' ? activePreview.punchInLocation : (activePreview.location || '—')}
+                          </strong>
+                          {(activePreview.punchInCoords && activePreview.punchInCoords !== '—' || activePreview.coords && activePreview.coords !== '—') && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                              <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#0369A1', fontWeight: '700' }}>
+                                Exact GPS Coords: {activePreview.punchInCoords && activePreview.punchInCoords !== '—' ? activePreview.punchInCoords : activePreview.coords}
+                              </span>
+                              {activePreview.punchInAccuracy != null && (
+                                <span style={{ fontSize: '10.5px', color: '#15803D', fontWeight: '800', background: '#DCFCE7', padding: '1px 6px', borderRadius: '4px' }}>
+                                  GPS Accuracy: ±{Math.round(activePreview.punchInAccuracy)} meters
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )}
+                    </div>
+
+                    {/* Separate Discrete Events (When Punched Out has occurred) */}
+                    {activePreview.punchOut && activePreview.punchOut !== '—' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+                        {/* PUNCH IN EVENT BLOCK */}
+                        <div style={{
+                          background: '#F0FDF4',
+                          border: '1.5px solid #86EFAC',
+                          borderRadius: '10px',
+                          padding: '12px 14px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          fontSize: '12px'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: '900', color: '#15803D', fontSize: '11px' }}>🟢 PUNCH IN</span>
+                            <span style={{ fontWeight: '800', color: '#16A34A', fontFamily: 'monospace' }}>{activePreview.punchIn}</span>
+                          </div>
+                          <div style={{ color: '#0284C7', fontWeight: '700', fontSize: '12px', lineHeight: 1.35 }}>
+                            📍 {activePreview.punchInLocation && activePreview.punchInLocation !== '—' ? activePreview.punchInLocation : (activePreview.location || '—')}
+                          </div>
+                          {(activePreview.punchInCoords && activePreview.punchInCoords !== '—' || activePreview.coords && activePreview.coords !== '—') && (
+                            <div style={{ fontSize: '11px', fontFamily: 'monospace', color: '#0369A1' }}>
+                              GPS: {activePreview.punchInCoords && activePreview.punchInCoords !== '—' ? activePreview.punchInCoords : activePreview.coords}
+                            </div>
+                          )}
+                          {activePreview.punchInAccuracy != null && (
+                            <div style={{ fontSize: '10.5px', color: '#15803D', fontWeight: '700' }}>
+                              Accuracy: ±{Math.round(activePreview.punchInAccuracy)}m
+                            </div>
+                          )}
+                        </div>
+
+                        {/* PUNCH OUT EVENT BLOCK */}
+                        <div style={{
+                          background: '#FEF2F2',
+                          border: '1.5px solid #FECDD3',
+                          borderRadius: '10px',
+                          padding: '12px 14px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          fontSize: '12px'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: '900', color: '#DC2626', fontSize: '11px' }}>🔴 PUNCH OUT</span>
+                            <span style={{ fontWeight: '800', color: '#DC2626', fontFamily: 'monospace' }}>{activePreview.punchOut}</span>
+                          </div>
+                          <div style={{ color: '#0284C7', fontWeight: '700', fontSize: '12px', lineHeight: 1.35 }}>
+                            📍 {activePreview.punchOutLocation && activePreview.punchOutLocation !== '—' ? activePreview.punchOutLocation : '—'}
+                          </div>
+                          {activePreview.punchOutCoords && activePreview.punchOutCoords !== '—' && (
+                            <div style={{ fontSize: '11px', fontFamily: 'monospace', color: '#0369A1' }}>
+                              GPS: {activePreview.punchOutCoords}
+                            </div>
+                          )}
+                          {activePreview.punchOutAccuracy != null && (
+                            <div style={{ fontSize: '10.5px', color: '#DC2626', fontWeight: '700' }}>
+                              Accuracy: ±{Math.round(activePreview.punchOutAccuracy)}m
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Total Working Hours Summary Banner */}
+                    <div style={{
+                      background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+                      borderRadius: '12px',
+                      padding: '14px 18px',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '12px'
+                    }}>
+                      <div>
+                        <span style={{ fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94A3B8', fontWeight: '700', display: 'block' }}>
+                          {activePreview.punchOut && activePreview.punchOut !== '—' ? 'Total Working Hours' : 'Elapsed Shift Duration'}
+                        </span>
+                        <div style={{ fontSize: '20px', fontWeight: '900', fontFamily: 'monospace', color: '#38BDF8', marginTop: '2px' }}>
+                          {activePreview.workedDuration || (activePreview.punchInAt ? (() => {
+                            const start = new Date(activePreview.punchInAt).getTime();
+                            if (isNaN(start)) return '—';
+                            const diff = Math.max(0, Math.floor((Date.now() - start) / 1000));
+                            const h = Math.floor(diff / 3600);
+                            const m = Math.floor((diff % 3600) / 60);
+                            return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m`;
+                          })() : '—')}
+                        </div>
+                      </div>
+                      <div>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'rgba(255,255,255,0.08)',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          padding: '5px 10px',
+                          borderRadius: '8px',
+                          fontSize: '11px',
+                          color: '#E2E8F0',
+                          fontWeight: '700'
+                        }}>
+                          <Shield size={13} color="#38BDF8" /> PostgreSQL DB Timestamp Verified
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}

@@ -11,6 +11,7 @@ import { useNotifications } from '../shared/context/NotificationContext';
 import Swal from 'sweetalert2';
 import { apiClient } from '../lib/apiClient';
 import { getBackendAssetUrl } from '../lib/assetUrl';
+import { getCurrentDeviceLocation, reverseGeocodeViaBackend } from '../lib/geolocation';
 
 // Notification category icon/color map
 const getPriorityMeta = (priority, read) => {
@@ -181,6 +182,14 @@ export default function HeroBanner({
           isPunchedIn: data.isPunchedIn || false,
           punchInTime: data.punchInTime || null,
           punchOutTime: data.punchOutTime || null,
+          punchInAt: data.punchInAt || null,
+          punchOutAt: data.punchOutAt || null,
+          punchInAddress: data.punchInAddress || null,
+          punchOutAddress: data.punchOutAddress || null,
+          punchInAccuracy: data.punchInAccuracy ?? null,
+          punchOutAccuracy: data.punchOutAccuracy ?? null,
+          workedSeconds: data.workedSeconds ?? null,
+          workedDuration: data.workedDuration || null,
           lastPhoto: data.lastPhoto || null
         };
         setPunchStatus(status);
@@ -202,50 +211,78 @@ export default function HeroBanner({
   };
 
   const getElapsedTimeHours = () => {
-    if (!punchStatus.punchInTime) return null;
+    // 1. If user is punched out and backend calculated workedDuration is present, use it as DB source of truth
+    if (!punchStatus.isPunchedIn && punchStatus.workedDuration) {
+      return {
+        decimal: punchStatus.workedSeconds ? (punchStatus.workedSeconds / 3600).toFixed(2) : '0.00',
+        formatted: punchStatus.workedDuration
+      };
+    }
+
+    if (!punchStatus.punchInTime && !punchStatus.punchInAt) return null;
     try {
       const now = new Date();
-      
-      const parseTime = (timeStr) => {
-        const timeParts = timeStr.match(/(\d+):(\d+):?(\d+)?\s*(AM|PM)/i);
-        if (!timeParts) return null;
-        let hours = parseInt(timeParts[1], 10);
-        const minutes = parseInt(timeParts[2], 10);
-        const seconds = timeParts[3] ? parseInt(timeParts[3], 10) : 0;
-        const ampm = timeParts[4].toUpperCase();
-        if (ampm === 'PM' && hours < 12) hours += 12;
-        if (ampm === 'AM' && hours === 12) hours = 0;
-        const d = new Date();
-        d.setHours(hours, minutes, seconds, 0);
-        return d;
-      };
+      let punchInDate = null;
+      if (punchStatus.punchInAt) {
+        punchInDate = new Date(punchStatus.punchInAt);
+      }
 
-      const punchInDate = parseTime(punchStatus.punchInTime);
-      if (!punchInDate) return null;
+      if (!punchInDate || isNaN(punchInDate.getTime())) {
+        const parseTime = (timeStr) => {
+          if (!timeStr) return null;
+          const timeParts = timeStr.match(/(\d+):(\d+):?(\d+)?\s*(AM|PM)/i);
+          if (!timeParts) return null;
+          let hours = parseInt(timeParts[1], 10);
+          const minutes = parseInt(timeParts[2], 10);
+          const seconds = timeParts[3] ? parseInt(timeParts[3], 10) : 0;
+          const ampm = timeParts[4].toUpperCase();
+          if (ampm === 'PM' && hours < 12) hours += 12;
+          if (ampm === 'AM' && hours === 12) hours = 0;
+          const d = new Date();
+          d.setHours(hours, minutes, seconds, 0);
+          return d;
+        };
+        punchInDate = parseTime(punchStatus.punchInTime);
+      }
+
+      if (!punchInDate || isNaN(punchInDate.getTime())) return null;
 
       let referenceDate = now;
-      if (!punchStatus.isPunchedIn && punchStatus.punchOutTime) {
-        const punchOutDate = parseTime(punchStatus.punchOutTime);
-        if (punchOutDate) referenceDate = punchOutDate;
+      if (!punchStatus.isPunchedIn) {
+        if (punchStatus.punchOutAt) {
+          const pOut = new Date(punchStatus.punchOutAt);
+          if (!isNaN(pOut.getTime())) referenceDate = pOut;
+        } else if (punchStatus.punchOutTime) {
+          const parseTime = (timeStr) => {
+            if (!timeStr) return null;
+            const timeParts = timeStr.match(/(\d+):(\d+):?(\d+)?\s*(AM|PM)/i);
+            if (!timeParts) return null;
+            let hours = parseInt(timeParts[1], 10);
+            const minutes = parseInt(timeParts[2], 10);
+            const seconds = timeParts[3] ? parseInt(timeParts[3], 10) : 0;
+            const ampm = timeParts[4].toUpperCase();
+            if (ampm === 'PM' && hours < 12) hours += 12;
+            if (ampm === 'AM' && hours === 12) hours = 0;
+            const d = new Date();
+            d.setHours(hours, minutes, seconds, 0);
+            return d;
+          };
+          const pOut = parseTime(punchStatus.punchOutTime);
+          if (pOut) referenceDate = pOut;
+        }
       }
 
       const diffMs = referenceDate.getTime() - punchInDate.getTime();
-      if (diffMs < 0) return { decimal: "0.00", formatted: "0m 00s" };
-      
+      if (diffMs < 0) return { decimal: "0.00", formatted: "00h 00m 00s" };
+
       const diffHours = diffMs / (1000 * 60 * 60);
-      
       const totalSecs = Math.floor(diffMs / 1000);
       const h = Math.floor(totalSecs / 3600);
       const m = Math.floor((totalSecs % 3600) / 60);
       const s = totalSecs % 60;
-      
-      let formatted = "";
-      if (h === 0) {
-        formatted = `${m}m ${s.toString().padStart(2, '0')}s`;
-      } else {
-        formatted = `${h}h ${m.toString().padStart(2, '0')}m`;
-      }
-      
+
+      const formatted = `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+
       return {
         decimal: diffHours.toFixed(2),
         formatted
@@ -333,87 +370,47 @@ export default function HeroBanner({
   const [isPunching, setIsPunching] = useState(false);
   const [locationState, setLocationState] = useState({
     loading: false,
-    coords: '23.0228° N, 72.5566° E',
-    latitude: 23.0228,
-    longitude: 72.5566,
-    accuracy: 15,
-    address: 'Factory Campus, GIDC Industrial Area 📍',
+    coords: null,
+    latitude: null,
+    longitude: null,
+    accuracy: null,
+    address: null,
     error: null,
-    mandatoryActive: true
+    mandatoryActive: false
   });
 
-  const fetchRealTimeLocation = () => {
+  const fetchRealTimeLocation = async () => {
     setLocationState(prev => ({ ...prev, loading: true, error: null }));
 
-    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-      const onSuccess = async (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const accuracy = position.coords.accuracy || 15;
-        const coordStr = `${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`;
-
-        let resolvedAddress = `Factory Campus, GIDC Industrial Area (GPS: ${coordStr})`;
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, { signal: AbortSignal.timeout(3000) }).catch(() => null);
-          if (res && res.ok) {
-            const data = await res.json().catch(() => null);
-            if (data && data.display_name) {
-              resolvedAddress = `${data.display_name.slice(0, 80)}...`;
-            }
-          }
-        } catch (e) {
-          console.warn('Reverse geocoding fallback:', e);
-        }
-
-        setLocationState({
-          loading: false,
-          coords: coordStr,
-          latitude: lat,
-          longitude: lng,
-          accuracy: accuracy,
-          address: resolvedAddress,
-          error: null,
-          mandatoryActive: true
-        });
-      };
-
-      const onFallback = (err) => {
-        console.warn('Mandatory geolocation notice:', err);
-        setLocationState({
-          loading: false,
-          coords: '23.0228° N, 72.5566° E',
-          latitude: 23.0228,
-          longitude: 72.5566,
-          accuracy: 25,
-          address: 'Factory Campus, GIDC Industrial Area (Network Location) 📍',
-          error: null,
-          mandatoryActive: true
-        });
-      };
-
-      // Try quick high accuracy (4s), then low accuracy (3s), then fallback immediately
-      navigator.geolocation.getCurrentPosition(
-        onSuccess,
-        () => {
-          navigator.geolocation.getCurrentPosition(
-            onSuccess,
-            onFallback,
-            { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
-          );
-        },
-        { enableHighAccuracy: true, timeout: 4000, maximumAge: 0 }
-      );
-    } else {
-      setLocationState({
+    try {
+      const loc = await getCurrentDeviceLocation();
+      const addr = await reverseGeocodeViaBackend(loc.latitude, loc.longitude, loc.accuracy);
+      const updated = {
         loading: false,
-        coords: '23.0228° N, 72.5566° E',
-        latitude: 23.0228,
-        longitude: 72.5566,
-        accuracy: 25,
-        address: 'Factory Campus, GIDC Industrial Area (Network Location) 📍',
+        coords: loc.coordsStr,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        accuracy: loc.accuracy,
+        address: addr,
         error: null,
         mandatoryActive: true
+      };
+      setLocationState(updated);
+      return { ...loc, address: addr };
+    } catch (err) {
+      console.warn('[HeroBanner] GPS Location acquisition failed:', err?.message || err);
+      const errMsg = err?.message || 'Location access required. Please enable device GPS/Location permissions.';
+      setLocationState({
+        loading: false,
+        coords: null,
+        latitude: null,
+        longitude: null,
+        accuracy: null,
+        address: null,
+        error: errMsg,
+        mandatoryActive: false
       });
+      return null;
     }
   };
 
@@ -483,7 +480,7 @@ export default function HeroBanner({
   };
 
   // Helper to capture live camera frame or generate high-contrast biometric badge
-  const generateVerificationSelfie = (actionType = 'PUNCH_IN') => {
+  const generateVerificationSelfie = (actionType = 'PUNCH_IN', freshLoc = null, resolvedAddress = null) => {
     if (videoRef.current && canvasRef.current && cameraActive) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -552,11 +549,12 @@ export default function HeroBanner({
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 15px monospace';
     ctx.fillText(`⏰ TIME: ${liveClock || new Date().toLocaleTimeString()} (${liveDateStr || 'Today'})`, 60, 310);
-    ctx.fillText(`📍 GPS COORDS: ${locationState.coords}`, 60, 345);
+    const coordsStr = freshLoc?.coordsStr || locationState.coords || (freshLoc?.latitude ? `${freshLoc.latitude.toFixed(4)}, ${freshLoc.longitude.toFixed(4)}` : 'GPS Verified');
+    ctx.fillText(`📍 GPS COORDS: ${coordsStr}`, 60, 345);
 
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '13px sans-serif';
-    const addressStr = locationState.address ? locationState.address.slice(0, 70) : 'Ambawadi, Ahmedabad, Gujarat';
+    const addressStr = (resolvedAddress || locationState.address || coordsStr).slice(0, 70);
     ctx.fillText(`🏢 ADDRESS: ${addressStr}`, 60, 380);
 
     // Security Watermark
@@ -603,7 +601,7 @@ export default function HeroBanner({
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   const isCameraActiveState = cameraActive && !cameraError;
-  const isGpsValidState = !!(locationState.coords && !locationState.error && !(locationState.latitude === 23.0228 && locationState.longitude === 72.5566));
+  const isGpsValidState = !!(locationState.latitude && locationState.longitude && !locationState.error);
   const isPunchBlocked = (!isCameraActiveState || !isGpsValidState) && !isTestMode;
 
 
@@ -1426,30 +1424,46 @@ export default function HeroBanner({
                 </span>
               </div>
 
-              {/* Real-time Location Box (Mandatory Active) */}
+              {/* Real-time Location Box (Mandatory Device GPS) */}
               <div className="attendance-punch-location">
                 <div className="attendance-punch-location-header">
                   <span className="attendance-punch-location-title">
-                    <MapPin size={13} color="#0284c7" /> Real-time Location (Mandatory GPS)
+                    <MapPin size={13} color="#0284c7" /> Real-time Location (Mandatory Device GPS)
                   </span>
                   <span className="attendance-punch-location-badge">
-                    Mandatory On Load 🟢
+                    {locationState.loading ? 'Acquiring GPS...' : locationState.error ? 'GPS Needed ⚠️' : 'Live GPS 🟢'}
                   </span>
                 </div>
                 <div className="attendance-punch-location-address">
                   <span style={{ flexShrink: 0 }}>📍</span>
-                  <span style={{ flex: 1 }}>{locationState.loading ? 'Acquiring mandatory device location via GPS...' : locationState.address}</span>
+                  <span style={{ flex: 1 }}>
+                    {locationState.loading
+                      ? 'Acquiring device GPS position...'
+                      : (locationState.error || locationState.address || 'Waiting for device GPS acquisition...')}
+                  </span>
                 </div>
                 {locationState.coords && (
                   <div className="attendance-punch-location-coordinates">
                     <span className="attendance-punch-location-coord-text">
-                      Mandatory GPS Coordinates: {locationState.coords}
+                      GPS Coordinates: {locationState.coords}
                     </span>
-                    {locationState.accuracy && (
+                    {locationState.accuracy != null && (
                       <span className="attendance-punch-location-accuracy-badge">
                         Accuracy: ±{Math.round(locationState.accuracy)}m
                       </span>
                     )}
+                  </div>
+                )}
+                {locationState.error && (
+                  <div style={{ marginTop: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => fetchRealTimeLocation()}
+                      className="attendance-punch-retry"
+                      style={{ padding: '3px 8px', fontSize: '11px' }}
+                    >
+                      <RefreshCw size={11} style={{ display: 'inline', marginRight: '4px' }} /> Retry GPS
+                    </button>
                   </div>
                 )}
               </div>
@@ -1546,13 +1560,42 @@ export default function HeroBanner({
                     if (isPunching) return;
                     setIsPunching(true);
                     try {
-                      const capturedDataUrl = generateVerificationSelfie('PUNCH_IN');
+                      // 1. Request fresh device GPS at punch in moment with maximumAge: 0
+                      let freshLoc;
+                      try {
+                        freshLoc = await getCurrentDeviceLocation();
+                      } catch (gpsErr) {
+                        Swal.fire({
+                          icon: 'warning',
+                          title: 'Location Access Required',
+                          text: gpsErr.message || 'Location access required. Please enable device GPS/Location permissions to Punch In.',
+                          confirmButtonText: 'OK'
+                        });
+                        setIsPunching(false);
+                        return;
+                      }
+
+                      // 2. Server-side reverse geocoding via Google Maps integration
+                      const resolvedAddress = await reverseGeocodeViaBackend(freshLoc.latitude, freshLoc.longitude, freshLoc.accuracy);
+
+                      setLocationState({
+                        loading: false,
+                        coords: freshLoc.coordsStr,
+                        latitude: freshLoc.latitude,
+                        longitude: freshLoc.longitude,
+                        accuracy: freshLoc.accuracy,
+                        address: resolvedAddress,
+                        error: null,
+                        mandatoryActive: true
+                      });
+
+                      const capturedDataUrl = generateVerificationSelfie('PUNCH_IN', freshLoc, resolvedAddress);
 
                       const res = await apiClient.post('/attendance/punch-in', {
-                        latitude: locationState.latitude || 23.0228,
-                        longitude: locationState.longitude || 72.5566,
-                        accuracy: locationState.accuracy || 15,
-                        address: locationState.address || 'Factory Campus, GIDC',
+                        latitude: freshLoc.latitude,
+                        longitude: freshLoc.longitude,
+                        accuracy: freshLoc.accuracy,
+                        address: resolvedAddress,
                         selfie: capturedDataUrl,
                         isBiometricCard: !cameraActive,
                         isGpsFallback: false,
@@ -1573,7 +1616,8 @@ export default function HeroBanner({
                                 <div><strong>Employee:</strong> ${user?.name || 'HR'} (${user?.role || 'HR'})</div>
                                 <div><strong>Action:</strong> <span style="font-weight: 800; color: #15803D;">PUNCH IN</span></div>
                                 <div><strong>Time:</strong> <span style="font-weight: 800; color: #2563EB;">${data.punchInTime || liveClock}</span></div>
-                                <div><strong>Location:</strong> <span style="font-weight: 700; color: #0284c7;">📍 ${locationState.address}</span></div>
+                                <div><strong>Location:</strong> <span style="font-weight: 700; color: #0284c7;">📍 ${data.punchInAddress || resolvedAddress}</span></div>
+                                <div><strong>GPS:</strong> <span style="font-family: monospace; font-size: 12px; color: #0369a1;">${freshLoc.coordsStr} (±${Math.round(freshLoc.accuracy)}m)</span></div>
                                 <div><strong>Verification:</strong> ${cameraActive ? 'Selfie Camera Verified 📸' : 'Biometric ID Security Card 🛡️'}</div>
                               </div>
                             </div>
@@ -1629,13 +1673,43 @@ export default function HeroBanner({
                     if (isPunching) return;
                     setIsPunching(true);
                     try {
-                      const capturedDataUrl = generateVerificationSelfie('PUNCH_OUT');
+                      // 1. Request brand NEW fresh device GPS at punch out moment with maximumAge: 0
+                      let freshLoc;
+                      try {
+                        freshLoc = await getCurrentDeviceLocation();
+                      } catch (gpsErr) {
+                        Swal.fire({
+                          icon: 'warning',
+                          title: 'Location Access Required',
+                          text: gpsErr.message || 'Location access required. Please enable device GPS/Location permissions to Punch Out.',
+                          confirmButtonText: 'OK'
+                        });
+                        setIsPunching(false);
+                        return;
+                      }
 
+                      // 2. Server-side reverse geocoding via Google Maps integration
+                      const resolvedAddress = await reverseGeocodeViaBackend(freshLoc.latitude, freshLoc.longitude, freshLoc.accuracy);
+
+                      setLocationState({
+                        loading: false,
+                        coords: freshLoc.coordsStr,
+                        latitude: freshLoc.latitude,
+                        longitude: freshLoc.longitude,
+                        accuracy: freshLoc.accuracy,
+                        address: resolvedAddress,
+                        error: null,
+                        mandatoryActive: true
+                      });
+
+                      const capturedDataUrl = generateVerificationSelfie('PUNCH_OUT', freshLoc, resolvedAddress);
+
+                      // 3. Submit to backend (which calculates and persists workedSeconds from punchInAt and punchOutAt)
                       const res = await apiClient.post('/attendance/punch-out', {
-                        latitude: locationState.latitude || 23.0228,
-                        longitude: locationState.longitude || 72.5566,
-                        accuracy: locationState.accuracy || 15,
-                        address: locationState.address || 'Factory Campus, GIDC',
+                        latitude: freshLoc.latitude,
+                        longitude: freshLoc.longitude,
+                        accuracy: freshLoc.accuracy,
+                        address: resolvedAddress,
                         selfie: capturedDataUrl,
                         isBiometricCard: !cameraActive,
                         isGpsFallback: false,
@@ -1655,9 +1729,11 @@ export default function HeroBanner({
                               <div style="background: #FEF2F2; border: 1.5px solid #FECDD3; padding: 14px; border-radius: 10px; margin-bottom: 12px;">
                                 <div><strong>Employee:</strong> ${user?.name || 'HR'} (${user?.role || 'HR'})</div>
                                 <div><strong>Action:</strong> <span style="font-weight: 800; color: #DC2626;">PUNCH OUT</span></div>
-                                <div><strong>Punch In Time:</strong> ${punchStatus.punchInTime}</div>
+                                <div><strong>Punch In Time:</strong> ${punchStatus.punchInTime || '—'}</div>
                                 <div><strong>Punch Out Time:</strong> <span style="font-weight: 800; color: #DC2626;">${data.punchOutTime || liveClock}</span></div>
-                                <div><strong>Location:</strong> <span style="font-weight: 700; color: #0284c7;">📍 ${locationState.address}</span></div>
+                                <div><strong>Total Working Hours:</strong> <span style="font-weight: 900; color: #15803D; font-family: monospace;">${data.workedDuration || 'Calculated'}</span></div>
+                                <div><strong>Punch Out Location:</strong> <span style="font-weight: 700; color: #0284c7;">📍 ${data.punchOutAddress || resolvedAddress}</span></div>
+                                <div><strong>Punch Out GPS:</strong> <span style="font-family: monospace; font-size: 12px; color: #0369a1;">${freshLoc.coordsStr} (±${Math.round(freshLoc.accuracy)}m)</span></div>
                                 <div><strong>Verification:</strong> ${cameraActive ? 'Selfie Camera Verified 📸' : 'Biometric ID Security Card 🛡️'}</div>
                               </div>
                             </div>
