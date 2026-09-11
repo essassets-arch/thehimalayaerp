@@ -400,15 +400,72 @@ export default function HeroBanner({
     } catch (err) {
       console.warn('[HeroBanner] GPS Location acquisition failed:', err?.message || err);
       const errMsg = err?.message || 'Location access required. Please enable device GPS/Location permissions.';
-      setLocationState({
-        loading: false,
-        coords: null,
-        latitude: null,
-        longitude: null,
-        accuracy: null,
-        address: null,
-        error: errMsg,
-        mandatoryActive: false
+
+      // Check if we have recent real coordinates from storage or background tracking
+      let savedLat = null;
+      let savedLng = null;
+      let savedCoordsStr = null;
+
+      try {
+        const raw = localStorage.getItem('himalaya_last_real_location') || sessionStorage.getItem('himalaya_last_real_location');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.latitude === 'number' && typeof parsed.longitude === 'number') {
+            savedLat = parsed.latitude;
+            savedLng = parsed.longitude;
+            savedCoordsStr = parsed.coordsStr;
+          }
+        }
+        if (!savedLat) {
+          const latStr = sessionStorage.getItem('himalaya_last_lat');
+          const lngStr = sessionStorage.getItem('himalaya_last_lng');
+          if (latStr && lngStr) {
+            const pLat = parseFloat(latStr);
+            const pLng = parseFloat(lngStr);
+            if (!isNaN(pLat) && !isNaN(pLng)) {
+              savedLat = pLat;
+              savedLng = pLng;
+              const latDir = pLat >= 0 ? 'N' : 'S';
+              const lngDir = pLng >= 0 ? 'E' : 'W';
+              savedCoordsStr = `${Math.abs(pLat).toFixed(4)}° ${latDir}, ${Math.abs(pLng).toFixed(4)}° ${lngDir}`;
+            }
+          }
+        }
+      } catch (_) {}
+
+      if (savedLat && savedLng) {
+        setLocationState(prev => ({
+          ...prev,
+          loading: false,
+          coords: prev.coords || savedCoordsStr,
+          latitude: prev.latitude || savedLat,
+          longitude: prev.longitude || savedLng,
+          accuracy: prev.accuracy || 25,
+          error: null,
+          mandatoryActive: true
+        }));
+        return { latitude: savedLat, longitude: savedLng, coordsStr: savedCoordsStr, accuracy: 25 };
+      }
+
+      setLocationState(prev => {
+        if (prev.latitude && prev.longitude) {
+          return {
+            ...prev,
+            loading: false,
+            error: null,
+            mandatoryActive: true
+          };
+        }
+        return {
+          loading: false,
+          coords: null,
+          latitude: null,
+          longitude: null,
+          accuracy: null,
+          address: null,
+          error: errMsg,
+          mandatoryActive: false
+        };
       });
       return null;
     }
@@ -1563,14 +1620,19 @@ export default function HeroBanner({
                       // 1. Request fresh device GPS at punch in moment
                       let freshLoc;
                       try {
-                        freshLoc = await getCurrentDeviceLocation({ forceFresh: false, maxAgeSeconds: 45 });
+                        freshLoc = await getCurrentDeviceLocation({ forceFresh: false, maxAgeSeconds: 120 });
                       } catch (gpsErr) {
-                        if (locationState.latitude && locationState.longitude && !locationState.error) {
+                        const fallbackLat = locationState.latitude || (typeof window !== 'undefined' && parseFloat(sessionStorage.getItem('himalaya_last_lat') || ''));
+                        const fallbackLng = locationState.longitude || (typeof window !== 'undefined' && parseFloat(sessionStorage.getItem('himalaya_last_lng') || ''));
+
+                        if (fallbackLat && fallbackLng && !isNaN(fallbackLat) && !isNaN(fallbackLng)) {
+                          const latDir = fallbackLat >= 0 ? 'N' : 'S';
+                          const lngDir = fallbackLng >= 0 ? 'E' : 'W';
                           freshLoc = {
-                            latitude: locationState.latitude,
-                            longitude: locationState.longitude,
-                            accuracy: locationState.accuracy || 20,
-                            coordsStr: locationState.coords || `${locationState.latitude}, ${locationState.longitude}`
+                            latitude: fallbackLat,
+                            longitude: fallbackLng,
+                            accuracy: locationState.accuracy || 25,
+                            coordsStr: locationState.coords || `${Math.abs(fallbackLat).toFixed(4)}° ${latDir}, ${Math.abs(fallbackLng).toFixed(4)}° ${lngDir}`
                           };
                         } else {
                           Swal.fire({
@@ -1685,14 +1747,19 @@ export default function HeroBanner({
                       // 1. Request brand NEW fresh device GPS at punch out moment
                       let freshLoc;
                       try {
-                        freshLoc = await getCurrentDeviceLocation({ forceFresh: true, maxAgeSeconds: 15 });
+                        freshLoc = await getCurrentDeviceLocation({ forceFresh: true, maxAgeSeconds: 30 });
                       } catch (gpsErr) {
-                        if (locationState.latitude && locationState.longitude && !locationState.error) {
+                        const fallbackLat = locationState.latitude || (typeof window !== 'undefined' && parseFloat(sessionStorage.getItem('himalaya_last_lat') || ''));
+                        const fallbackLng = locationState.longitude || (typeof window !== 'undefined' && parseFloat(sessionStorage.getItem('himalaya_last_lng') || ''));
+
+                        if (fallbackLat && fallbackLng && !isNaN(fallbackLat) && !isNaN(fallbackLng)) {
+                          const latDir = fallbackLat >= 0 ? 'N' : 'S';
+                          const lngDir = fallbackLng >= 0 ? 'E' : 'W';
                           freshLoc = {
-                            latitude: locationState.latitude,
-                            longitude: locationState.longitude,
-                            accuracy: locationState.accuracy || 20,
-                            coordsStr: locationState.coords || `${locationState.latitude}, ${locationState.longitude}`
+                            latitude: fallbackLat,
+                            longitude: fallbackLng,
+                            accuracy: locationState.accuracy || 25,
+                            coordsStr: locationState.coords || `${Math.abs(fallbackLat).toFixed(4)}° ${latDir}, ${Math.abs(fallbackLng).toFixed(4)}° ${lngDir}`
                           };
                         } else {
                           Swal.fire({

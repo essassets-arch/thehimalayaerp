@@ -35,6 +35,11 @@ Add the following permissions:
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
 
+    <!-- Mandatory GPS & Biometric Attendance Permissions -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+
     <application
         android:label="Himalaya ERP"
         android:requestLegacyExternalStorage="true"
@@ -53,6 +58,7 @@ Import the handlers from [`flutter_webview_handlers.dart`](./flutter_webview_han
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'docs/mobile/flutter_webview_handlers.dart'; // or your path
 
 class HimalayaWebViewScreen extends StatefulWidget {
@@ -83,14 +89,23 @@ class _HimalayaWebViewScreenState extends State<HimalayaWebViewScreen> {
             allowFileAccessFromFileURLs: true,
             allowUniversalAccessFromFileURLs: true,
             useOnDownloadStart: true,
+            geolocationEnabled: true,
           ),
           onWebViewCreated: (controller) {
             webViewController = controller;
 
-            // Attach all Himalaya ERP native download & share handlers
+            // Attach all Himalaya ERP native download, share & location handlers
             setupHimalayaWebViewHandlers(
               controller: controller,
               context: context,
+            );
+          },
+          onGeolocationPermissionsShowPrompt: (controller, origin) async {
+            final status = await Permission.locationWhenInUse.request();
+            return GeolocationPermissionShowPromptResponse(
+              origin: origin,
+              allow: status.isGranted,
+              retain: true,
             );
           },
         ),

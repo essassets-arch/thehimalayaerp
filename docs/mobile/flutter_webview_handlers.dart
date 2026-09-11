@@ -19,6 +19,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 /// Attaches all Himalaya ERP native handlers to the InAppWebViewController
 void setupHimalayaWebViewHandlers({
@@ -246,6 +247,36 @@ void setupHimalayaWebViewHandlers({
         return {'success': false, 'error': 'No data'};
       } catch (e) {
         return {'success': false, 'error': e.toString()};
+      }
+    },
+  );
+
+  // --------------------------------------------------------------------------
+  // 5. NATIVE GEOLOCATION PERMISSION & ACQUISITION HANDLER
+  // --------------------------------------------------------------------------
+  controller.addJavaScriptHandler(
+    handlerName: 'requestLocation',
+    callback: (args) async {
+      try {
+        var status = await Permission.locationWhenInUse.status;
+        if (!status.isGranted) {
+          status = await Permission.locationWhenInUse.request();
+        }
+        return {'granted': status.isGranted, 'status': status.name};
+      } catch (e) {
+        return {'granted': false, 'error': e.toString()};
+      }
+    },
+  );
+
+  controller.addJavaScriptHandler(
+    handlerName: 'checkLocationPermission',
+    callback: (args) async {
+      try {
+        final status = await Permission.locationWhenInUse.status;
+        return {'granted': status.isGranted, 'status': status.name};
+      } catch (e) {
+        return {'granted': false, 'error': e.toString()};
       }
     },
   );

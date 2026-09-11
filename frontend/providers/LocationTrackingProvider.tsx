@@ -169,6 +169,26 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
 
         lastLocationRef.current = { latitude, longitude, time: now };
 
+        try {
+          const latDir = latitude >= 0 ? 'N' : 'S';
+          const lngDir = longitude >= 0 ? 'E' : 'W';
+          const coordsStr = `${Math.abs(latitude).toFixed(4)}° ${latDir}, ${Math.abs(longitude).toFixed(4)}° ${lngDir}`;
+          const locObj = {
+            latitude,
+            longitude,
+            accuracy,
+            coordsStr,
+            timestamp: pos.timestamp || now,
+            acquiredAt: now
+          };
+          localStorage.setItem('himalaya_last_real_location', JSON.stringify(locObj));
+          sessionStorage.setItem('himalaya_last_real_location', JSON.stringify(locObj));
+          sessionStorage.setItem('himalaya_last_lat', String(latitude));
+          sessionStorage.setItem('himalaya_last_lng', String(longitude));
+          sessionStorage.setItem('himalaya_last_loc_accuracy', String(accuracy));
+          sessionStorage.setItem('himalaya_last_loc_time', String(now));
+        } catch (_) {}
+
         const payload = {
           sessionId: sessionIdRef.current,
           latitude,
