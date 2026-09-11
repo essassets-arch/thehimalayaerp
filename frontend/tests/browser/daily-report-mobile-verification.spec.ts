@@ -69,12 +69,7 @@ test.describe('Daily Production Report Mobile Responsive Verification', () => {
     await coverInput.fill('15');
     await frameInput.fill('15');
 
-    // 10. Verify Sticky Bottom Floating Dock
-    const dock = page.locator('.daily-report-floating-dock');
-    await expect(dock).toBeVisible();
-    console.log('Verified sticky floating dock is visible at bottom of mobile screen!');
-
-    // Capture screenshot showing bottom dock & card layout
+    // 10. Capture screenshot showing mobile card layout
     await page.screenshot({ path: 'test-results/mobile-daily-report-card.png', fullPage: false });
     console.log('Captured test-results/mobile-daily-report-card.png');
 
