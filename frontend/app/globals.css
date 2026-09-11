@@ -12483,276 +12483,124 @@ body, #root, .app-container {
 }
 
 @media (max-width: 767px) {
-  .daily-report-table.responsive-table,
-  .daily-report-table.responsive-table thead,
-  .daily-report-table.responsive-table tbody,
-  .daily-report-table.responsive-table tr,
-  .daily-report-table.responsive-table th,
-  .daily-report-table.responsive-table td {
-    display: block !important;
-    width: 100% !important;
+  /* ==========================================================================
+     DAILY PRODUCTION REPORT RESPONSIVE STYLING
+     ========================================================================== */
+  .daily-report-root {
+    padding-bottom: 96px;
+    gap: 16px;
   }
 
-  .daily-report-table.responsive-table thead {
-    display: none !important;
-  }
-
-  .daily-report-table.responsive-table tr {
-    display: grid !important;
-    grid-template-columns: repeat(24, 1fr) !important;
-    gap: 12px 8px !important;
-    padding: 0 0 12px 0 !important;
-    margin-bottom: 16px !important;
-    border: 1px solid var(--color-border) !important;
-    border-radius: var(--radius-lg) !important;
-    background: #ffffff !important;
-    box-shadow: var(--shadow-soft) !important;
-    overflow: hidden !important;
-  }
-
-  .daily-report-table.responsive-table td {
-    display: flex !important;
+  .daily-report-header {
+    padding: 16px !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 4px !important;
-    padding: 0 12px !important;
-    border: none !important;
-    text-align: left !important;
-    background: transparent !important;
-  }
-
-  /* 1. Header Bar (Sr) */
-  .daily-report-table.responsive-table td:nth-child(1) {
-    grid-column: span 24 !important;
-    display: flex !important;
-    flex-direction: row !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    padding: 10px 16px !important;
-    background: #f8fafc !important;
-    border-bottom: 1px solid #e2e8f0 !important;
-    font-size: 14px !important;
-    font-weight: 800 !important;
-    color: #1e293b !important;
-  }
-  .daily-report-table.responsive-table td:nth-child(1)::before {
-    display: none !important;
-  }
-  .daily-report-table.responsive-table td:nth-child(1)::after {
-    content: '▲' !important;
-    font-size: 10px !important;
-    color: #64748b !important;
-  }
-
-  /* 2. Product Search & Size */
-  .daily-report-table.responsive-table td:nth-child(2) { grid-column: span 15 !important; } /* Product */
-  .daily-report-table.responsive-table td:nth-child(3) { grid-column: span 9 !important; } /* Size */
-
-  /* 3. Type, Capacity, Cover Qty */
-  .daily-report-table.responsive-table td:nth-child(4) { grid-column: span 8 !important; } /* Type */
-  .daily-report-table.responsive-table td:nth-child(5) { grid-column: span 8 !important; } /* Capacity */
-  .daily-report-table.responsive-table td:nth-child(6) { grid-column: span 8 !important; } /* Cover Qty */
-
-  /* 4. Row 4 (Stats Grid): Cover Weight, Frame Qty, Frame Weight, Total Weight, Set Qty */
-  .daily-report-table.responsive-table td:nth-child(7), /* Cover Weight */
-  .daily-report-table.responsive-table td:nth-child(8), /* Frame Qty */
-  .daily-report-table.responsive-table td:nth-child(9), /* Frame Weight */
-  .daily-report-table.responsive-table td:nth-child(10), /* Total Weight */
-  .daily-report-table.responsive-table td:nth-child(11) { /* Set */
-    grid-row: 4 !important;
-    align-items: center !important;
-    justify-content: center !important;
-    padding: 8px 4px !important;
-    background: #f8fafc !important;
-    border-top: 1px solid #e2e8f0 !important;
-    border-bottom: 1px solid #e2e8f0 !important;
-    border-right: 1px solid #e2e8f0 !important;
-    border-radius: 0 !important;
-  }
-
-  .daily-report-table.responsive-table td:nth-child(7) { grid-column: span 5 !important; }
-  .daily-report-table.responsive-table td:nth-child(8) { grid-column: span 4 !important; }
-  .daily-report-table.responsive-table td:nth-child(9) { grid-column: span 5 !important; }
-  .daily-report-table.responsive-table td:nth-child(10) { grid-column: span 5 !important; }
-  .daily-report-table.responsive-table td:nth-child(11) { 
-    grid-column: span 5 !important; 
-    border-right: none !important;
-  }
-
-  /* Read-only mode adjustments (where Actions column is missing) */
-  .daily-report-table.responsive-table td:nth-child(11):last-child {
-    border-right: none !important;
-  }
-
-  /* Style inputs inside stats row to be borderless and centered */
-  .daily-report-table.responsive-table td:nth-child(7) input,
-  .daily-report-table.responsive-table td:nth-child(8) input,
-  .daily-report-table.responsive-table td:nth-child(9) input,
-  .daily-report-table.responsive-table td:nth-child(11) input {
-    border: none !important;
-    background: transparent !important;
-    text-align: center !important;
-    font-weight: 800 !important;
-    font-size: 13px !important;
-    padding: 0 !important;
-    height: auto !important;
-    box-shadow: none !important;
-  }
-
-  /* Custom text colors for Total Weight and Set values */
-  .daily-report-table.responsive-table td:nth-child(10) {
-    color: #7c3aed !important;
-    font-weight: 800 !important;
-    font-size: 13px !important;
-    text-align: center !important;
-  }
-  
-  .daily-report-table.responsive-table td:nth-child(11) input {
-    color: #059669 !important;
-  }
-
-  .daily-report-table.responsive-table td::before {
-    content: attr(data-label) !important;
-    font-weight: 800 !important;
-    color: var(--color-text-secondary) !important;
-    font-size: 9px !important;
-    text-transform: uppercase !important;
-    display: block !important;
-    margin-bottom: 2px !important;
-  }
-
-  .daily-report-table.responsive-table td:nth-child(7)::before,
-  .daily-report-table.responsive-table td:nth-child(8)::before,
-  .daily-report-table.responsive-table td:nth-child(9)::before,
-  .daily-report-table.responsive-table td:nth-child(10)::before,
-  .daily-report-table.responsive-table td:nth-child(11)::before {
-    font-size: 8px !important;
-    text-align: center !important;
-    margin-bottom: 4px !important;
-  }
-
-  /* 5. Row 5: Actions */
-  .daily-report-table.responsive-table td[data-label="ACTIONS"] {
-    grid-column: span 24 !important;
-    grid-row: 5 !important;
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    padding: 12px 12px 0 12px !important;
-    border-bottom: none !important;
-  }
-  
-  .daily-report-table.responsive-table td[data-label="ACTIONS"]::before {
-    content: 'Actions' !important;
-    display: block !important;
-    font-size: 10px !important;
-    font-weight: 800 !important;
-    color: var(--color-text-secondary) !important;
-    text-transform: uppercase !important;
-    margin-bottom: 4px !important;
-  }
-
-  .daily-report-table.responsive-table td[data-label="ACTIONS"] > div {
-    display: flex !important;
     gap: 12px !important;
-    justify-content: flex-start !important;
-    width: auto !important;
-  }
-  
-  /* Reset input widths inside stacked cells on mobile */
-  .daily-report-table.responsive-table td input,
-  .daily-report-table.responsive-table td select,
-  .daily-report-table.responsive-table td div {
-    max-width: 100% !important;
-    width: 100% !important;
-  }
-
-  /* Responsive styling for daily-report header actions */
-  .daily-report-header {
-    display: grid !important;
-    grid-template-columns: 1fr auto !important;
-    align-items: start !important;
-    padding: 16px !important;
   }
   
   .daily-report-header-info {
-    grid-column: 1 !important;
-    grid-row: 1 !important;
-  }
-  
-  .daily-report-header-top-actions {
-    grid-column: 2 !important;
-    grid-row: 1 !important;
-    justify-self: end !important;
-    display: flex !important;
-    gap: 6px !important;
-  }
-  
-  .daily-report-header-main-actions {
-    grid-column: 1 / -1 !important;
-    grid-row: 2 !important;
-    display: flex !important;
-    gap: 8px !important;
     width: 100% !important;
-    margin-top: 8px !important;
-  }
-  
-  .daily-report-header-main-actions button {
-    flex: 1 1 0% !important;
-    justify-content: center !important;
-    padding: 10px 4px !important;
-    font-size: 12px !important;
   }
 
-  /* Metadata Fields Bar (Grid of 2 columns) */
+  .daily-report-header-top-actions,
+  .daily-report-header-main-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .daily-report-header-top-actions button,
+  .daily-report-header-main-actions button {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 10px 8px !important;
+    font-size: 12.5px !important;
+  }
+
   .daily-report-metadata-bar {
     grid-template-columns: 1fr 1fr !important;
+    padding: 14px 16px !important;
     gap: 12px !important;
   }
-  
-  .daily-report-metadata-bar > div:nth-child(5) {
+
+  .daily-report-metadata-bar > div:last-child {
     grid-column: 1 / -1 !important;
   }
 
-  /* Summary Cards Grid (2 columns on mobile) */
   .daily-report-summary-grid {
     grid-template-columns: 1fr 1fr !important;
-    gap: 12px !important;
+    gap: 10px !important;
   }
 
-  /* Table Header & Actions on Mobile */
+  .daily-report-breakdown-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
   .daily-report-table-header {
     flex-direction: column !important;
     align-items: stretch !important;
-    padding: 12px !important;
-    gap: 8px !important;
+    padding: 12px 14px !important;
+    gap: 10px !important;
   }
-  
+
   .daily-report-table-actions {
     display: grid !important;
     grid-template-columns: 1fr !important;
     width: 100% !important;
     gap: 8px !important;
   }
-  
+
   .daily-report-btn-add-row {
     width: 100% !important;
-    background: #1e293b !important;
-    border-color: #1e293b !important;
-    color: #ffffff !important;
-    padding: 10px !important;
     justify-content: center !important;
   }
-  
-  .daily-report-table-actions > div {
-    display: none !important;
+
+  /* Sticky Bottom Action Dock */
+  .daily-report-floating-dock {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 999 !important;
+    background: rgba(255, 255, 255, 0.97) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border-top: 1px solid #E2E8F0 !important;
+    box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.12) !important;
+    padding: 10px 14px !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .daily-report-header-top-actions,
+  .daily-report-header-main-actions {
+    grid-template-columns: 1fr !important;
   }
 
-  /* Breakdown Summary Grid (2 columns on mobile) */
+  .daily-report-metadata-bar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .daily-report-metadata-bar > div:last-child {
+    grid-column: 1 !important;
+  }
+
+  .daily-report-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+
   .daily-report-breakdown-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 12px !important;
+    grid-template-columns: 1fr !important;
   }
+}
 
+@media (max-width: 767px) {
   /* ==========================================
      Raw Inventory Management Mobile Overrides
      ========================================== */
@@ -15874,42 +15722,8 @@ body, #root, .app-container {
     min-height: 40px;
   }
 
-  .daily-report-header {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 14px !important;
-  }
-
-  .daily-report-header-main-actions,
-  .daily-report-header-top-actions {
-    width: 100% !important;
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 8px !important;
-  }
-
-  .daily-report-header-main-actions button,
-  .daily-report-header-top-actions button {
-    width: 100% !important;
-    justify-content: center !important;
-  }
-
-  .daily-report-summary-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
-  }
 }
 
-@media (max-width: 480px) {
-  .daily-report-header-main-actions,
-  .daily-report-header-top-actions {
-    grid-template-columns: 1fr !important;
-  }
-
-  .daily-report-summary-grid {
-    grid-template-columns: 1fr !important;
-  }
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PLANT HEAD MODULE COMPREHENSIVE MOBILE RESPONSIVENESS & TOUCH OPTIMIZATIONS

@@ -1123,7 +1123,7 @@ export default function DailyReportHistoryView({
               background: '#ffffff',
               borderRadius: '16px',
               width: 'min(900px, calc(100vw - 24px))',
-              maxWidth: '100%',
+              maxWidth: '900px',
               maxHeight: '92vh',
               overflowY: 'auto',
               boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',

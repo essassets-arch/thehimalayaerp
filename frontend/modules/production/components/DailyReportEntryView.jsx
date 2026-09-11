@@ -25,7 +25,12 @@ import {
   RefreshCw,
   X,
   Layers,
-  Info
+  Info,
+  Grid,
+  Table as TableIcon,
+  SlidersHorizontal,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 
 import { useQueryClient } from '@tanstack/react-query';
@@ -51,7 +56,7 @@ function parseProductSpecs(name = '') {
   return { size, type, capacity };
 }
 
-const SmartProductCombobox = memo(function SmartProductCombobox({ value, disabled, products = [], onChange }) {
+const SmartProductCombobox = memo(function SmartProductCombobox({ value, disabled, products = [], onChange, placeholder }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(-1);
@@ -75,17 +80,25 @@ const SmartProductCombobox = memo(function SmartProductCombobox({ value, disable
   const updateCoords = useCallback(() => {
     if (inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect();
-      const availableWidth = window.innerWidth - rect.left - 16;
-      const popoverWidth = Math.max(rect.width, Math.min(420, availableWidth));
+      const isMobile = window.innerWidth < 768;
+      
+      let left = isMobile ? 8 : Math.max(8, rect.left);
+      let popoverWidth = isMobile 
+        ? Math.min(window.innerWidth - 16, 440)
+        : Math.max(rect.width, Math.min(460, window.innerWidth - rect.left - 16));
+
+      if (left + popoverWidth > window.innerWidth - 8) {
+        left = Math.max(8, window.innerWidth - popoverWidth - 8);
+      }
       
       const spaceBelow = window.innerHeight - rect.bottom;
-      const showAbove = spaceBelow < 320 && rect.top > 320;
+      const showAbove = spaceBelow < 280 && rect.top > 280;
       
       setCoords({
-        top: showAbove ? rect.top - 330 : rect.bottom + 4,
-        left: Math.max(8, rect.left),
+        top: showAbove ? Math.max(8, rect.top - 310) : rect.bottom + 4,
+        left,
         width: popoverWidth,
-        maxHeight: showAbove ? Math.min(320, rect.top - 16) : Math.min(320, spaceBelow - 16)
+        maxHeight: showAbove ? Math.min(290, rect.top - 16) : Math.min(320, spaceBelow - 16)
       });
     }
   }, []);
@@ -264,7 +277,7 @@ const SmartProductCombobox = memo(function SmartProductCombobox({ value, disable
           ref={inputRef}
           type="text"
           disabled={disabled}
-          placeholder="Search product from catalog..."
+          placeholder={placeholder || "Search product or type custom name..."}
           value={query}
           onFocus={() => {
             if (!disabled) {
@@ -444,6 +457,19 @@ export default function DailyReportEntryView({
   const [submitting, setSubmitting] = useState(false);
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [viewMode, setViewMode] = useState('auto'); // 'auto' | 'cards' | 'table'
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(typeof window !== 'undefined' && window.innerWidth < 992);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const activeViewMode = viewMode === 'auto' ? (isMobile ? 'cards' : 'table') : viewMode;
 
   // Form Header State
   const [currentReportId, setCurrentReportId] = useState(reportId || null);
@@ -454,6 +480,8 @@ export default function DailyReportEntryView({
   const [status, setStatus] = useState('DRAFT');
   const [lastUpdated, setLastUpdated] = useState(null);
   const [approvedBy, setApprovedBy] = useState(null);
+
+  const isReadOnly = status === 'SUBMITTED' || status === 'APPROVED';
 
   // Production Rows
   const [rows, setRows] = useState([
@@ -1426,18 +1454,16 @@ export default function DailyReportEntryView({
     );
   };
 
-  const isReadOnly = status === 'SUBMITTED' || status === 'APPROVED' || status === 'CANCELLED';
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
+    <div className="daily-report-root" style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: isMobile ? '80px' : '40px' }}>
 
-      {/* HEADER BAR */}
+      {/* ── HEADER BAR ── */}
       <div className="daily-report-header" style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
+        background: 'var(--color-bg-card, #ffffff)',
+        border: '1px solid var(--color-border, #E2E8F0)',
         borderRadius: '16px',
         padding: '20px 24px',
-        boxShadow: 'var(--shadow-soft)',
+        boxShadow: 'var(--shadow-soft, 0 4px 20px rgba(47, 67, 117, 0.05))',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -1445,231 +1471,236 @@ export default function DailyReportEntryView({
         flexWrap: 'wrap'
       }}>
         <div className="daily-report-header-info">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <h1 style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary)', margin: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: '20px', fontWeight: '900', color: 'var(--color-text-primary, #24345C)', margin: 0, letterSpacing: '-0.3px' }}>
               {title || (isDispatch ? 'Industrial FRP Dispatch Report' : 'Industrial FRP Production Report')}
             </h1>
             {renderStatusBadge(status)}
           </div>
-          <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
+          <p style={{ fontSize: '13px', color: 'var(--color-text-secondary, #5E6B82)', margin: '4px 0 0 0' }}>
             {subtitle || (isDispatch ? 'Digital daily entry sheet for Dispatch FRP Covers, Frames, Weights & Complete Sets.' : 'Digital daily entry sheet for FRP Covers, Frames, Weights & Complete Sets.')}
           </p>
         </div>
 
-        <div className="daily-report-header-top-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button
-            type="button"
-            onClick={onNavigateToHistory}
-            className="daily-report-header-btn-history"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '9px 16px',
-              borderRadius: '10px',
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-bg-subtle)',
-              color: 'var(--color-text-primary)',
-              fontSize: '13px',
-              fontWeight: '700',
-              cursor: 'pointer'
-            }}
-          >
-            <History size={16} /> History Log
-          </button>
-
-          {currentReportId && (
+        {/* Action Buttons Group */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="daily-report-header-top-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
               type="button"
-              onClick={() => onNavigateToPrint(currentReportId)}
-              className="daily-report-header-btn-print"
+              onClick={onNavigateToHistory}
+              className="daily-report-header-btn-history"
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
                 padding: '9px 16px',
                 borderRadius: '10px',
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-bg-subtle)',
-                color: 'var(--color-text-primary)',
+                border: '1px solid var(--color-border, #DCE5F0)',
+                background: '#F5FAFE',
+                color: 'var(--color-text-primary, #24345C)',
                 fontSize: '13px',
                 fontWeight: '700',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
               }}
             >
-              <Printer size={16} /> Print / Export PDF
+              <History size={16} /> History Log
             </button>
-          )}
-        </div>
 
-        <div className="daily-report-header-main-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Always available "+ New Report" button */}
-          <button
-            type="button"
-            onClick={handleNewReport}
-            title="Create a fresh daily report"
-            className="daily-report-header-btn-new"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '9px 18px',
-              borderRadius: '10px',
-              border: '1.5px solid #2F4375',
-              background: currentReportId ? '#2F4375' : '#ffffff',
-              color: currentReportId ? '#ffffff' : '#2F4375',
-              fontSize: '13px',
-              fontWeight: '800',
-              cursor: 'pointer',
-              boxShadow: currentReportId ? '0 4px 10px rgba(47, 67, 117, 0.2)' : 'none'
-            }}
-          >
-            <Plus size={16} /> New Report
-          </button>
+            {currentReportId && (
+              <button
+                type="button"
+                onClick={() => onNavigateToPrint(currentReportId)}
+                className="daily-report-header-btn-print"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 16px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--color-border, #DCE5F0)',
+                  background: '#F5FAFE',
+                  color: 'var(--color-text-primary, #24345C)',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Printer size={16} /> Print / Export PDF
+              </button>
+            )}
+          </div>
 
-          {isReadOnly && (
-            <>
-              {(status === 'SUBMITTED' || status === 'APPROVED') && (
+          <div className="daily-report-header-main-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Always available "+ New Report" button */}
+            <button
+              type="button"
+              onClick={handleNewReport}
+              title="Create a fresh daily report"
+              className="daily-report-header-btn-new"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 18px',
+                borderRadius: '10px',
+                border: '1.5px solid #2F4375',
+                background: currentReportId ? '#2F4375' : '#ffffff',
+                color: currentReportId ? '#ffffff' : '#2F4375',
+                fontSize: '13px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                boxShadow: currentReportId ? '0 4px 10px rgba(47, 67, 117, 0.2)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Plus size={16} /> New Report
+            </button>
+
+            {isReadOnly && (
+              <>
+                {(status === 'SUBMITTED' || status === 'APPROVED') && (
+                  <button
+                    type="button"
+                    onClick={handleReopenReport}
+                    disabled={loading}
+                    className="daily-report-header-btn-reopen"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '9px 18px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: '800',
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
+                    }}
+                  >
+                    <RefreshCw size={16} /> Reopen Report
+                  </button>
+                )}
+
+                {(status === 'SUBMITTED' || status === 'APPROVED') && (
+                  <button
+                    type="button"
+                    onClick={handleCancelReport}
+                    disabled={loading}
+                    className="daily-report-header-btn-cancel"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '9px 18px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: '#dc2626',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: '800',
+                      cursor: loading ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <X size={16} /> Cancel Report
+                  </button>
+                )}
+              </>
+            )}
+
+            {!isReadOnly && (
+              <>
                 <button
                   type="button"
-                  onClick={handleReopenReport}
-                  disabled={loading}
-                  className="daily-report-header-btn-reopen"
+                  onClick={handleSaveDraft}
+                  disabled={saving || submitting}
+                  className="daily-report-header-btn-save"
                   style={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
                     padding: '9px 18px',
                     borderRadius: '10px',
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                    color: '#ffffff',
+                    border: '1px solid #D6E2F0',
+                    background: '#ffffff',
+                    color: '#24345C',
                     fontSize: '13px',
                     fontWeight: '800',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  <RefreshCw size={16} /> Reopen Report
+                  <Save size={16} /> {saving ? 'Saving...' : 'Save Draft'}
                 </button>
-              )}
 
-              {(status === 'SUBMITTED' || status === 'APPROVED') && (
                 <button
                   type="button"
-                  onClick={handleCancelReport}
-                  disabled={loading}
-                  className="daily-report-header-btn-cancel"
+                  onClick={handleSubmitReport}
+                  disabled={saving || submitting}
+                  className="daily-report-header-btn-submit"
                   style={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
-                    padding: '9px 18px',
+                    padding: '9px 20px',
                     borderRadius: '10px',
                     border: 'none',
-                    background: '#dc2626',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                     color: '#ffffff',
                     fontSize: '13px',
                     fontWeight: '800',
-                    cursor: loading ? 'not-allowed' : 'pointer'
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)',
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  <X size={16} /> Cancel Report
+                  <Send size={16} /> {submitting ? 'Submitting...' : 'Submit Daily Report'}
                 </button>
-              )}
-            </>
-          )}
-
-          {!isReadOnly && (
-            <>
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                disabled={saving || submitting}
-                className="daily-report-header-btn-save"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '9px 18px',
-                  borderRadius: '10px',
-                  border: '1px solid #D6E2F0',
-                  background: '#ffffff',
-                  color: '#24345C',
-                  fontSize: '13px',
-                  fontWeight: '800',
-                  cursor: saving ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <Save size={16} /> {saving ? 'Saving...' : 'Save Draft'}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSubmitReport}
-                disabled={saving || submitting}
-                className="daily-report-header-btn-submit"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '9px 20px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  color: '#ffffff',
-                  fontSize: '13px',
-                  fontWeight: '800',
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
-                }}
-              >
-                <Send size={16} /> {submitting ? 'Submitting...' : 'Submit Daily Report'}
-              </button>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* METADATA FIELDS BAR */}
+      {/* ── METADATA FIELDS BAR ── */}
       <div className="daily-report-metadata-bar" style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
+        background: 'var(--color-bg-card, #ffffff)',
+        border: '1px solid var(--color-border, #E2E8F0)',
         borderRadius: '16px',
-        padding: '16px 20px',
+        padding: '18px 22px',
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         gap: '16px',
-        alignItems: 'center'
+        alignItems: 'center',
+        boxShadow: '0 2px 10px rgba(47, 67, 117, 0.03)'
       }}>
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase', marginBottom: '4px' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #5E6B82)', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.4px' }}>
             Report Date *
           </label>
           <input
             type="date"
             value={reportDate}
             disabled={isReadOnly}
-            onChange={(e) => {
-              setReportDate(e.target.value);
-            }}
+            onChange={(e) => setReportDate(e.target.value)}
             className="form-input"
-            style={{ width: '100%', margin: 0, fontWeight: '700', fontSize: '13.5px' }}
+            style={{ width: '100%', margin: 0, fontWeight: '700', fontSize: '13.5px', borderRadius: '10px', borderColor: 'var(--color-border, #DCE5F0)' }}
           />
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase', marginBottom: '4px' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #5E6B82)', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.4px' }}>
             Shift *
           </label>
           <select
             value={shift}
             disabled={isReadOnly}
-            onChange={(e) => {
-              setShift(e.target.value);
-            }}
+            onChange={(e) => setShift(e.target.value)}
             className="form-select"
-            style={{ width: '100%', margin: 0, fontWeight: '700', fontSize: '13.5px' }}
+            style={{ width: '100%', margin: 0, fontWeight: '700', fontSize: '13.5px', borderRadius: '10px', borderColor: 'var(--color-border, #DCE5F0)' }}
           >
             <option value="Morning">Morning Shift</option>
             <option value="Night">Night Shift</option>
@@ -1678,7 +1709,7 @@ export default function DailyReportEntryView({
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase', marginBottom: '4px' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #5E6B82)', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.4px' }}>
             {isDispatch ? 'Dispatch Executive' : 'Production Supervisor'}
           </label>
           <input
@@ -1688,146 +1719,209 @@ export default function DailyReportEntryView({
             disabled={isReadOnly}
             onChange={(e) => setSupervisorName(e.target.value)}
             className="form-input"
-            style={{ width: '100%', margin: 0, fontWeight: '600', fontSize: '13.5px' }}
+            style={{ width: '100%', margin: 0, fontWeight: '600', fontSize: '13.5px', borderRadius: '10px', borderColor: 'var(--color-border, #DCE5F0)' }}
           />
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase', marginBottom: '4px' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #5E6B82)', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.4px' }}>
             {isDispatch ? 'Dispatch User' : 'Production User'}
           </label>
-          <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)', padding: '8px 12px', background: 'var(--color-bg-subtle)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+          <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary, #24345C)', padding: '9px 12px', background: '#F5FAFE', borderRadius: '10px', border: '1px solid var(--color-border, #DCE5F0)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {user?.name || 'Operator'}
           </div>
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase', marginBottom: '4px' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #5E6B82)', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.4px' }}>
             Report Number
           </label>
-          <div style={{ fontSize: '13.5px', fontWeight: '800', color: 'var(--color-primary)', fontFamily: 'monospace', padding: '8px 12px', background: 'rgba(47, 67, 117, 0.05)', borderRadius: '8px', border: '1px solid rgba(47, 67, 117, 0.15)' }}>
+          <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#2F4375', fontFamily: 'monospace', padding: '9px 12px', background: 'rgba(47, 67, 117, 0.05)', borderRadius: '10px', border: '1px solid rgba(47, 67, 117, 0.15)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {reportNo}
           </div>
         </div>
       </div>
 
-      {/* DYNAMIC DAILY SUMMARY CARDS */}
+      {/* ── DYNAMIC DAILY SUMMARY CARDS (KPIs) ── */}
       <div className="daily-report-summary-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
         gap: '16px'
       }}>
         {/* Card 1: Total Covers */}
-        <div style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '14px',
-          padding: '16px 20px',
+        <div className="daily-report-kpi-card" style={{
+          background: 'var(--color-bg-card, #ffffff)',
+          border: '1px solid var(--color-border, #E2E8F0)',
+          borderRadius: '16px',
+          padding: '18px 20px',
           display: 'flex',
           alignItems: 'center',
-          gap: '14px'
+          gap: '16px',
+          boxShadow: '0 2px 10px rgba(47, 67, 117, 0.04)'
         }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Package size={22} />
+          <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(59, 130, 246, 0.12)', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Package size={24} />
           </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Total Covers</div>
-            <div style={{ fontSize: '22px', fontWeight: '900', color: 'var(--color-text-primary)' }}>{totals.totalCovers.toLocaleString()}</div>
-            <div style={{ fontSize: '11px', color: '#64748b' }}>Produced Cover Qty</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #5E6B82)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Covers</div>
+            <div style={{ fontSize: '24px', fontWeight: '900', color: 'var(--color-text-primary, #24345C)', lineHeight: 1.15, marginTop: '2px' }}>
+              {totals.totalCovers.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontWeight: '600' }}>Produced Cover Qty</div>
           </div>
         </div>
 
         {/* Card 2: Total Frames */}
-        <div style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '14px',
-          padding: '16px 20px',
+        <div className="daily-report-kpi-card" style={{
+          background: 'var(--color-bg-card, #ffffff)',
+          border: '1px solid var(--color-border, #E2E8F0)',
+          borderRadius: '16px',
+          padding: '18px 20px',
           display: 'flex',
           alignItems: 'center',
-          gap: '14px'
+          gap: '16px',
+          boxShadow: '0 2px 10px rgba(47, 67, 117, 0.04)'
         }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Boxes size={22} />
+          <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(245, 158, 11, 0.12)', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Boxes size={24} />
           </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Total Frames</div>
-            <div style={{ fontSize: '22px', fontWeight: '900', color: 'var(--color-text-primary)' }}>{totals.totalFrames.toLocaleString()}</div>
-            <div style={{ fontSize: '11px', color: '#64748b' }}>Produced Frame Qty</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #5E6B82)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Frames</div>
+            <div style={{ fontSize: '24px', fontWeight: '900', color: 'var(--color-text-primary, #24345C)', lineHeight: 1.15, marginTop: '2px' }}>
+              {totals.totalFrames.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontWeight: '600' }}>Produced Frame Qty</div>
           </div>
         </div>
 
         {/* Card 3: Complete Sets */}
-        <div style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '14px',
-          padding: '16px 20px',
+        <div className="daily-report-kpi-card" style={{
+          background: 'var(--color-bg-card, #ffffff)',
+          border: '1px solid var(--color-border, #E2E8F0)',
+          borderRadius: '16px',
+          padding: '18px 20px',
           display: 'flex',
           alignItems: 'center',
-          gap: '14px'
+          gap: '16px',
+          boxShadow: '0 2px 10px rgba(47, 67, 117, 0.04)'
         }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.1)', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <CheckCircle size={22} />
+          <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(16, 185, 129, 0.12)', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <CheckCircle size={24} />
           </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Complete Sets</div>
-            <div style={{ fontSize: '22px', fontWeight: '900', color: '#059669' }}>{totals.totalSets.toLocaleString()}</div>
-            <div style={{ fontSize: '11px', color: '#64748b' }}>Cover + Frame Sets</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #5E6B82)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Complete Sets</div>
+            <div style={{ fontSize: '24px', fontWeight: '900', color: '#059669', lineHeight: 1.15, marginTop: '2px' }}>
+              {totals.totalSets.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px', fontWeight: '700' }}>Cover + Frame Matched</div>
           </div>
         </div>
 
         {/* Card 4: Total Weight */}
-        <div style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '14px',
-          padding: '16px 20px',
+        <div className="daily-report-kpi-card" style={{
+          background: 'var(--color-bg-card, #ffffff)',
+          border: '1px solid var(--color-border, #E2E8F0)',
+          borderRadius: '16px',
+          padding: '18px 20px',
           display: 'flex',
           alignItems: 'center',
-          gap: '14px'
+          gap: '16px',
+          boxShadow: '0 2px 10px rgba(47, 67, 117, 0.04)'
         }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.1)', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Scale size={22} />
+          <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(139, 92, 246, 0.12)', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Scale size={24} />
           </div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>{isDispatch ? 'Dispatch Weight' : 'Production Weight'}</div>
-            <div style={{ fontSize: '20px', fontWeight: '900', color: '#7c3aed' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-text-secondary, #5E6B82)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {isDispatch ? 'Dispatch Weight' : 'Production Weight'}
+            </div>
+            <div style={{ fontSize: '22px', fontWeight: '900', color: '#7c3aed', lineHeight: 1.15, marginTop: '2px' }}>
               {totals.totalWeight.toLocaleString()} KG
             </div>
-            <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#6d28d9' }}>
+            <div style={{ fontSize: '12px', fontWeight: '800', color: '#6d28d9', marginTop: '2px' }}>
               {totals.totalWeightMT} MT
             </div>
           </div>
         </div>
       </div>
 
-      {/* MAIN PRODUCTION TABLE */}
-      <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
+      {/* ── MAIN PRODUCTION TABLE & MOBILE CARDS SECTION ── */}
+      <div className="daily-report-entries-section" style={{
+        background: 'var(--color-bg-card, #ffffff)',
+        border: '1px solid var(--color-border, #E2E8F0)',
         borderRadius: '16px',
-        boxShadow: 'var(--shadow-soft)',
+        boxShadow: 'var(--shadow-soft, 0 4px 20px rgba(47, 67, 117, 0.04))',
         overflow: 'hidden'
       }}>
+        {/* Section Header with View Toggle */}
         <div className="daily-report-table-header" style={{
-          padding: '14px 24px',
-          borderBottom: '1px solid var(--color-border)',
+          padding: '14px 22px',
+          borderBottom: '1px solid var(--color-border, #E2E8F0)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'rgba(248, 250, 252, 0.6)',
+          background: 'rgba(248, 250, 252, 0.8)',
           gap: '12px',
           flexWrap: 'wrap'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileText size={18} style={{ color: 'var(--color-primary)' }} />
-            <h2 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-text-primary)', margin: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(47, 67, 117, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2F4375' }}>
+              <FileText size={18} />
+            </div>
+            <h2 style={{ fontSize: '15px', fontWeight: '900', color: 'var(--color-text-primary, #24345C)', margin: 0 }}>
               {isDispatch ? 'Dispatch Entries' : 'Production Entries'}
             </h2>
-            <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', background: '#e2e8f0', padding: '2px 8px', borderRadius: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: '800', color: '#2F4375', background: 'rgba(47, 67, 117, 0.08)', padding: '2px 10px', borderRadius: '12px' }}>
               {rows.length} {rows.length === 1 ? 'Row' : 'Rows'}
             </span>
+
+            {/* View Switcher Toggle: Cards vs Table */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '3px', borderRadius: '8px', marginLeft: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                title="Switch to Card View (Mobile-friendly)"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: activeViewMode === 'cards' ? '#ffffff' : 'transparent',
+                  color: activeViewMode === 'cards' ? '#2F4375' : '#64748b',
+                  fontWeight: activeViewMode === 'cards' ? '800' : '600',
+                  fontSize: '11.5px',
+                  cursor: 'pointer',
+                  boxShadow: activeViewMode === 'cards' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Layers size={13} /> Cards
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                title="Switch to Table Grid View"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: activeViewMode === 'table' ? '#ffffff' : 'transparent',
+                  color: activeViewMode === 'table' ? '#2F4375' : '#64748b',
+                  fontWeight: activeViewMode === 'table' ? '800' : '600',
+                  fontSize: '11.5px',
+                  cursor: 'pointer',
+                  boxShadow: activeViewMode === 'table' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Grid size={13} /> Table
+              </button>
+            </div>
           </div>
 
           <div className="daily-report-table-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -1837,17 +1931,18 @@ export default function DailyReportEntryView({
                   type="button"
                   onClick={() => setShowMultiProductModal(true)}
                   style={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
-                    padding: '6px 14px',
+                    padding: '7px 14px',
                     borderRadius: '8px',
                     border: '1.5px solid #3b82f6',
                     background: 'rgba(59, 130, 246, 0.08)',
                     color: '#2563eb',
                     fontSize: '12.5px',
                     fontWeight: '800',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   <Boxes size={15} /> + Add Multiple Products
@@ -1857,280 +1952,601 @@ export default function DailyReportEntryView({
                   onClick={handleAddRow}
                   className="daily-report-btn-add-row"
                   style={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
-                    padding: '6px 14px',
+                    padding: '7px 16px',
                     borderRadius: '8px',
                     border: '1.5px solid #2F4375',
                     background: '#2F4375',
                     color: '#ffffff',
                     fontSize: '12.5px',
                     fontWeight: '800',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   <Plus size={15} /> + Add Row
                 </button>
               </>
             )}
-            <div style={{ fontSize: '11.5px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-              Press <kbd style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '1px 5px', borderRadius: '4px' }}>Ctrl + Enter</kbd> to add row
+            <div style={{ fontSize: '11.5px', color: 'var(--color-text-secondary, #64748b)', fontWeight: '600', display: isMobile ? 'none' : 'block' }}>
+              Press <kbd style={{ background: '#ffffff', border: '1px solid #cbd5e1', padding: '1px 5px', borderRadius: '4px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>Ctrl + Enter</kbd> to add row
             </div>
           </div>
         </div>
 
-        <div style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
-          <table className="daily-report-table" style={{ width: '100%', minWidth: '1100px', borderCollapse: 'collapse', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border)' }}>
-                <th style={{ padding: '12px 14px', textAlign: 'center', width: '50px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Sr</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', minWidth: '220px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Product *</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', width: '120px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Size</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', width: '90px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Type</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', width: '90px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Capacity</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', width: '90px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Cover</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', width: '120px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Cover Wt (kg)</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', width: '90px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Frame</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', width: '120px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Frame Wt (kg)</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', width: '120px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Total Wt (kg)</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', width: '80px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Set</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', width: '100px', fontSize: '11px', fontWeight: '800', color: '#2563eb', textTransform: 'uppercase' }}>Extra Cover</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', width: '100px', fontSize: '11px', fontWeight: '800', color: '#7c3aed', textTransform: 'uppercase' }}>Extra Frame</th>
-                {!isReadOnly && <th style={{ padding: '12px 14px', textAlign: 'center', width: '80px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr
+        {/* ── RENDER MODE 1: MOBILE TOUCH-CARD VIEW ── */}
+        {activeViewMode === 'cards' && (
+          <div className="daily-report-card-list" style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px',
+            padding: '16px',
+            background: '#F8FAFC'
+          }}>
+            {rows.map((row, index) => {
+              const selectedProd = products.find(p => p.id === row.productId);
+              return (
+                <div
                   key={row.id}
+                  className="daily-report-item-card"
                   style={{
-                    borderBottom: '1px solid #f1f5f9',
-                    background: index % 2 === 0 ? '#ffffff' : '#f8fafc'
+                    background: '#ffffff',
+                    border: '1.5px solid #E2E8F0',
+                    borderRadius: '14px',
+                    padding: '14px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)'
                   }}
                 >
-                  {/* Sr No */}
-                  <td data-label="SR" style={{ padding: '10px 14px', textAlign: 'center', fontWeight: '800', color: 'var(--color-text-secondary)' }}>
-                    {String(index + 1).padStart(2, '0')}
-                  </td>
+                  {/* Card Header: Item Index, Product Title, Weight Override, Duplicate, Delete */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', paddingBottom: '10px', borderBottom: '1px solid #F1F5F9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                      <span style={{
+                        background: '#2F4375',
+                        color: '#ffffff',
+                        fontSize: '11.5px',
+                        fontWeight: '900',
+                        padding: '3px 8px',
+                        borderRadius: '6px'
+                      }}>
+                        #{String(index + 1).padStart(2, '0')}
+                      </span>
+                      <span style={{
+                        fontSize: '13px',
+                        fontWeight: '800',
+                        color: '#0f172a',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {selectedProd?.name || 'Select Product...'}
+                      </span>
+                    </div>
 
-                  {/* Product Smart Combobox */}
-                  <td data-label="PRODUCT *" style={{ padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      {/* Weight Override Trigger */}
+                      <button
+                        type="button"
+                        title="Measured Weight Override"
+                        onClick={() => openOverrideModal(index)}
+                        style={{
+                          background: row.actualCoverWeight || row.actualFrameWeight ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.08)',
+                          color: row.actualCoverWeight || row.actualFrameWeight ? '#d97706' : '#2563eb',
+                          border: 'none',
+                          padding: '5px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <Scale size={13} />
+                        {row.actualCoverWeight || row.actualFrameWeight ? 'Override' : 'Weight'}
+                      </button>
+
+                      {!isReadOnly && (
+                        <>
+                          <button
+                            type="button"
+                            title="Duplicate row"
+                            onClick={() => handleDuplicateRow(index)}
+                            style={{
+                              background: 'rgba(59, 130, 246, 0.08)',
+                              color: '#2563eb',
+                              border: 'none',
+                              padding: '5px 7px',
+                              borderRadius: '6px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Copy size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete row"
+                            onClick={() => handleDeleteRow(index)}
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.08)',
+                              color: '#dc2626',
+                              border: 'none',
+                              padding: '5px 7px',
+                              borderRadius: '6px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Product Combobox */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '10.5px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      Product Catalog *
+                    </label>
                     <SmartProductCombobox
                       value={row.productId}
                       disabled={isReadOnly}
                       products={products}
+                      placeholder="Search product or type custom name..."
                       onChange={(selectedProd) => handleProductSelect(index, selectedProd)}
                     />
-                  </td>
+                  </div>
 
-                  {/* Size */}
-                  <td data-label="SIZE" style={{ padding: '10px 14px' }}>
-                    <input
-                      type="text"
-                      value={row.size}
-                      disabled={isReadOnly}
-                      placeholder="e.g. 600 x 600"
-                      onChange={(e) => handleFieldChange(index, 'size', e.target.value)}
-                      className="form-input"
-                      style={{ width: '100%', margin: 0, fontSize: '12.5px', fontWeight: '600' }}
-                    />
-                  </td>
+                  {/* Specifications (Size, Type, Capacity) */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '3px' }}>
+                        Size
+                      </label>
+                      <input
+                        type="text"
+                        value={row.size}
+                        disabled={isReadOnly}
+                        placeholder="600x600"
+                        onChange={(e) => handleFieldChange(index, 'size', e.target.value)}
+                        className="form-input"
+                        style={{ width: '100%', margin: 0, fontSize: '12px', fontWeight: '600', padding: '6px 8px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '3px' }}>
+                        Type
+                      </label>
+                      <input
+                        type="text"
+                        value={row.type}
+                        disabled={isReadOnly}
+                        placeholder="MHC / WGC"
+                        onChange={(e) => handleFieldChange(index, 'type', e.target.value)}
+                        className="form-input"
+                        style={{ width: '100%', margin: 0, fontSize: '12px', fontWeight: '600', padding: '6px 8px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '3px' }}>
+                        Capacity
+                      </label>
+                      <input
+                        type="text"
+                        value={row.capacity}
+                        disabled={isReadOnly}
+                        placeholder="B125"
+                        onChange={(e) => handleFieldChange(index, 'capacity', e.target.value)}
+                        className="form-input"
+                        style={{ width: '100%', margin: 0, fontSize: '12px', fontWeight: '600', padding: '6px 8px' }}
+                      />
+                    </div>
+                  </div>
 
-                  {/* Type */}
-                  <td data-label="TYPE" style={{ padding: '10px 14px' }}>
-                    <input
-                      type="text"
-                      value={row.type}
-                      disabled={isReadOnly}
-                      placeholder="MHC / WGC"
-                      onChange={(e) => handleFieldChange(index, 'type', e.target.value)}
-                      className="form-input"
-                      style={{ width: '100%', margin: 0, fontSize: '12.5px', fontWeight: '600' }}
-                    />
-                  </td>
-
-                  {/* Capacity */}
-                  <td data-label="CAPACITY" style={{ padding: '10px 14px' }}>
-                    <input
-                      type="text"
-                      value={row.capacity}
-                      disabled={isReadOnly}
-                      placeholder="B125 / C250"
-                      onChange={(e) => handleFieldChange(index, 'capacity', e.target.value)}
-                      className="form-input"
-                      style={{ width: '100%', margin: 0, fontSize: '12.5px', fontWeight: '600' }}
-                    />
-                  </td>
-
-                  {/* Cover Qty */}
-                  <td data-label="COVER" style={{ padding: '10px 14px', textAlign: 'right' }}>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={row.coverQty}
-                      disabled={isReadOnly}
-                      onChange={(e) => handleFieldChange(index, 'coverQty', e.target.value)}
-                      className="form-input"
-                      style={{ width: '100%', margin: 0, textAlign: 'right', fontWeight: '800', fontSize: '13px', color: '#1e293b' }}
-                    />
-                  </td>
-
-                  {/* Cover Weight */}
-                  <td data-label="COVER WT (KG)" style={{ padding: '10px 14px', textAlign: 'right' }}>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={row.coverWeight}
-                      disabled={isReadOnly}
-                      placeholder="0"
-                      onChange={(e) => handleCoverWeightChange(index, e.target.value)}
-                      className="form-input"
-                      style={{
-                        width: '100%',
-                        margin: 0,
-                        textAlign: 'right',
-                        fontWeight: '800',
-                        fontSize: '13px',
-                        color: row.isCoverWeightCustom || row.actualCoverWeight ? '#d97706' : '#1e293b',
-                        background: row.isCoverWeightCustom || row.actualCoverWeight ? 'rgba(245, 158, 11, 0.06)' : '#ffffff',
-                        borderColor: row.isCoverWeightCustom || row.actualCoverWeight ? 'rgba(245, 158, 11, 0.4)' : '#cbd5e1'
-                      }}
-                    />
-                  </td>
-
-                  {/* Frame Qty */}
-                  <td data-label="FRAME" style={{ padding: '10px 14px', textAlign: 'right' }}>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={row.frameQty}
-                      disabled={isReadOnly}
-                      onChange={(e) => handleFieldChange(index, 'frameQty', e.target.value)}
-                      className="form-input"
-                      style={{ width: '100%', margin: 0, textAlign: 'right', fontWeight: '800', fontSize: '13px', color: '#1e293b' }}
-                    />
-                  </td>
-
-                  {/* Frame Weight */}
-                  <td data-label="FRAME WT (KG)" style={{ padding: '10px 14px', textAlign: 'right' }}>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={row.frameWeight}
-                      disabled={isReadOnly}
-                      placeholder="0"
-                      onChange={(e) => handleFrameWeightChange(index, e.target.value)}
-                      className="form-input"
-                      style={{
-                        width: '100%',
-                        margin: 0,
-                        textAlign: 'right',
-                        fontWeight: '800',
-                        fontSize: '13px',
-                        color: row.isFrameWeightCustom || row.actualFrameWeight ? '#d97706' : '#1e293b',
-                        background: row.isFrameWeightCustom || row.actualFrameWeight ? 'rgba(245, 158, 11, 0.06)' : '#ffffff',
-                        borderColor: row.isFrameWeightCustom || row.actualFrameWeight ? 'rgba(245, 158, 11, 0.4)' : '#cbd5e1'
-                      }}
-                    />
-                  </td>
-
-                  {/* Total Weight */}
-                  <td data-label="TOTAL WT (KG)" style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '900', color: '#7c3aed' }}>
-                    {row.totalWeight}
-                  </td>
-
-                  {/* Set Qty */}
-                  <td data-label="SET" style={{ padding: '10px 14px', textAlign: 'right' }}>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={row.setQty}
-                      disabled={isReadOnly}
-                      onChange={(e) => handleSetQtyChange(index, e.target.value)}
-                      className="form-input"
-                      style={{
-                        width: '100%',
-                        margin: 0,
-                        textAlign: 'right',
-                        fontWeight: '900',
-                        fontSize: '13px',
-                        color: '#059669',
-                        background: 'rgba(16, 185, 129, 0.06)',
-                        borderColor: 'rgba(16, 185, 129, 0.3)'
-                      }}
-                    />
-                  </td>
-
-                  {/* Extra Cover */}
-                  <td data-label="EXTRA COVER" style={{ padding: '10px 14px', textAlign: 'right' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      fontWeight: '800',
-                      fontSize: '12px',
-                      background: Number(row.extraCoverQty || 0) > 0 ? 'rgba(37, 99, 235, 0.1)' : '#f8fafc',
-                      color: Number(row.extraCoverQty || 0) > 0 ? '#2563eb' : '#94a3b8',
-                      border: Number(row.extraCoverQty || 0) > 0 ? '1px solid #bfdbfe' : '1px solid #e2e8f0'
-                    }}>
-                      {Number(row.extraCoverQty || 0) > 0 ? `+${row.extraCoverQty}` : '0'}
-                    </span>
-                  </td>
-
-                  {/* Extra Frame */}
-                  <td data-label="EXTRA FRAME" style={{ padding: '10px 14px', textAlign: 'right' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      fontWeight: '800',
-                      fontSize: '12px',
-                      background: Number(row.extraFrameQty || 0) > 0 ? 'rgba(124, 58, 237, 0.1)' : '#f8fafc',
-                      color: Number(row.extraFrameQty || 0) > 0 ? '#7c3aed' : '#94a3b8',
-                      border: Number(row.extraFrameQty || 0) > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0'
-                    }}>
-                      {Number(row.extraFrameQty || 0) > 0 ? `+${row.extraFrameQty}` : '0'}
-                    </span>
-                  </td>
-
-                  {/* Actions */}
-                  {!isReadOnly && (
-                    <td data-label="ACTIONS" style={{ padding: '10px 14px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                        <button
-                          type="button"
-                          title="Duplicate row"
-                          onClick={() => handleDuplicateRow(index)}
-                          style={{ background: 'rgba(59,130,246,0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#2563eb', cursor: 'pointer' }}
-                        >
-                          <Copy size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          title="Delete row"
-                          onClick={() => handleDeleteRow(index)}
-                          style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#dc2626', cursor: 'pointer' }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                  {/* Covers & Frames Production Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {/* Cover Box */}
+                    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '10px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '800', color: '#2563eb', textTransform: 'uppercase', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Package size={13} /> Cover Production
                       </div>
-                    </td>
-                  )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div>
+                          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>Quantity:</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={row.coverQty}
+                            disabled={isReadOnly}
+                            onChange={(e) => handleFieldChange(index, 'coverQty', e.target.value)}
+                            className="form-input"
+                            style={{ width: '100%', margin: '2px 0 0', fontWeight: '800', fontSize: '13.5px', textAlign: 'right' }}
+                          />
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>Weight (kg):</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={row.coverWeight}
+                            disabled={isReadOnly}
+                            onChange={(e) => handleCoverWeightChange(index, e.target.value)}
+                            className="form-input"
+                            style={{
+                              width: '100%',
+                              margin: '2px 0 0',
+                              fontWeight: '800',
+                              fontSize: '13px',
+                              textAlign: 'right',
+                              color: row.isCoverWeightCustom || row.actualCoverWeight ? '#d97706' : '#1e293b',
+                              background: row.isCoverWeightCustom || row.actualCoverWeight ? 'rgba(245, 158, 11, 0.08)' : '#ffffff'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Frame Box */}
+                    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '10px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '800', color: '#d97706', textTransform: 'uppercase', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Boxes size={13} /> Frame Production
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div>
+                          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>Quantity:</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={row.frameQty}
+                            disabled={isReadOnly}
+                            onChange={(e) => handleFieldChange(index, 'frameQty', e.target.value)}
+                            className="form-input"
+                            style={{ width: '100%', margin: '2px 0 0', fontWeight: '800', fontSize: '13.5px', textAlign: 'right' }}
+                          />
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700' }}>Weight (kg):</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={row.frameWeight}
+                            disabled={isReadOnly}
+                            onChange={(e) => handleFrameWeightChange(index, e.target.value)}
+                            className="form-input"
+                            style={{
+                              width: '100%',
+                              margin: '2px 0 0',
+                              fontWeight: '800',
+                              fontSize: '13px',
+                              textAlign: 'right',
+                              color: row.isFrameWeightCustom || row.actualFrameWeight ? '#d97706' : '#1e293b',
+                              background: row.isFrameWeightCustom || row.actualFrameWeight ? 'rgba(245, 158, 11, 0.08)' : '#ffffff'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Calculations Strip: Sets, Extra Covers, Extra Frames, Total Weight */}
+                  <div style={{
+                    background: 'rgba(241, 245, 249, 0.7)',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '10px',
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>
+                        Sets: <strong style={{ color: '#059669', fontSize: '13px' }}>{row.setQty}</strong>
+                      </div>
+                      {Number(row.extraCoverQty) > 0 && (
+                        <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#2563eb', background: 'rgba(37, 99, 235, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                          +{row.extraCoverQty} Cvr
+                        </span>
+                      )}
+                      {Number(row.extraFrameQty) > 0 && (
+                        <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#7c3aed', background: 'rgba(124, 58, 237, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                          +{row.extraFrameQty} Frm
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ fontSize: '12.5px', fontWeight: '900', color: '#7c3aed', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Scale size={13} />
+                      <span>Total: <strong>{row.totalWeight} kg</strong></span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── RENDER MODE 2: DESKTOP TABLE VIEW ── */}
+        {activeViewMode === 'table' && (
+          <div style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
+            <table className="daily-report-table" style={{ width: '100%', minWidth: '1100px', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border, #E2E8F0)' }}>
+                  <th style={{ padding: '12px 14px', textAlign: 'center', width: '50px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Sr</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'left', minWidth: '220px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Product *</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'left', width: '120px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Size</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'left', width: '90px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Type</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'left', width: '90px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Capacity</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', width: '90px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Cover</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', width: '120px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Cover Wt (kg)</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', width: '90px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Frame</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', width: '120px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Frame Wt (kg)</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', width: '120px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Total Wt (kg)</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', width: '80px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Set</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', width: '100px', fontSize: '11px', fontWeight: '800', color: '#2563eb', textTransform: 'uppercase' }}>Extra Cover</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'right', width: '100px', fontSize: '11px', fontWeight: '800', color: '#7c3aed', textTransform: 'uppercase' }}>Extra Frame</th>
+                  {!isReadOnly && <th style={{ padding: '12px 14px', textAlign: 'center', width: '80px', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Actions</th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <tr
+                    key={row.id}
+                    style={{
+                      borderBottom: '1px solid #f1f5f9',
+                      background: index % 2 === 0 ? '#ffffff' : '#f8fafc',
+                      transition: 'background 0.15s ease'
+                    }}
+                  >
+                    {/* Sr No */}
+                    <td data-label="SR" style={{ padding: '10px 14px', textAlign: 'center', fontWeight: '800', color: 'var(--color-text-secondary)' }}>
+                      {String(index + 1).padStart(2, '0')}
+                    </td>
+
+                    {/* Product Smart Combobox */}
+                    <td data-label="PRODUCT *" style={{ padding: '10px 14px' }}>
+                      <SmartProductCombobox
+                        value={row.productId}
+                        disabled={isReadOnly}
+                        products={products}
+                        placeholder="Search product or type custom name..."
+                        onChange={(selectedProd) => handleProductSelect(index, selectedProd)}
+                      />
+                    </td>
+
+                    {/* Size */}
+                    <td data-label="SIZE" style={{ padding: '10px 14px' }}>
+                      <input
+                        type="text"
+                        value={row.size}
+                        disabled={isReadOnly}
+                        placeholder="e.g. 600 x 600"
+                        onChange={(e) => handleFieldChange(index, 'size', e.target.value)}
+                        className="form-input"
+                        style={{ width: '100%', margin: 0, fontSize: '12.5px', fontWeight: '600' }}
+                      />
+                    </td>
+
+                    {/* Type */}
+                    <td data-label="TYPE" style={{ padding: '10px 14px' }}>
+                      <input
+                        type="text"
+                        value={row.type}
+                        disabled={isReadOnly}
+                        placeholder="MHC / WGC"
+                        onChange={(e) => handleFieldChange(index, 'type', e.target.value)}
+                        className="form-input"
+                        style={{ width: '100%', margin: 0, fontSize: '12.5px', fontWeight: '600' }}
+                      />
+                    </td>
+
+                    {/* Capacity */}
+                    <td data-label="CAPACITY" style={{ padding: '10px 14px' }}>
+                      <input
+                        type="text"
+                        value={row.capacity}
+                        disabled={isReadOnly}
+                        placeholder="B125 / C250"
+                        onChange={(e) => handleFieldChange(index, 'capacity', e.target.value)}
+                        className="form-input"
+                        style={{ width: '100%', margin: 0, fontSize: '12.5px', fontWeight: '600' }}
+                      />
+                    </td>
+
+                    {/* Cover Qty */}
+                    <td data-label="COVER" style={{ padding: '10px 14px', textAlign: 'right' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={row.coverQty}
+                        disabled={isReadOnly}
+                        onChange={(e) => handleFieldChange(index, 'coverQty', e.target.value)}
+                        className="form-input"
+                        style={{ width: '100%', margin: 0, textAlign: 'right', fontWeight: '800', fontSize: '13px', color: '#1e293b' }}
+                      />
+                    </td>
+
+                    {/* Cover Weight */}
+                    <td data-label="COVER WT (KG)" style={{ padding: '10px 14px', textAlign: 'right' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={row.coverWeight}
+                        disabled={isReadOnly}
+                        placeholder="0"
+                        onChange={(e) => handleCoverWeightChange(index, e.target.value)}
+                        className="form-input"
+                        style={{
+                          width: '100%',
+                          margin: 0,
+                          textAlign: 'right',
+                          fontWeight: '800',
+                          fontSize: '13px',
+                          color: row.isCoverWeightCustom || row.actualCoverWeight ? '#d97706' : '#1e293b',
+                          background: row.isCoverWeightCustom || row.actualCoverWeight ? 'rgba(245, 158, 11, 0.06)' : '#ffffff',
+                          borderColor: row.isCoverWeightCustom || row.actualCoverWeight ? 'rgba(245, 158, 11, 0.4)' : '#cbd5e1'
+                        }}
+                      />
+                    </td>
+
+                    {/* Frame Qty */}
+                    <td data-label="FRAME" style={{ padding: '10px 14px', textAlign: 'right' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={row.frameQty}
+                        disabled={isReadOnly}
+                        onChange={(e) => handleFieldChange(index, 'frameQty', e.target.value)}
+                        className="form-input"
+                        style={{ width: '100%', margin: 0, textAlign: 'right', fontWeight: '800', fontSize: '13px', color: '#1e293b' }}
+                      />
+                    </td>
+
+                    {/* Frame Weight */}
+                    <td data-label="FRAME WT (KG)" style={{ padding: '10px 14px', textAlign: 'right' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={row.frameWeight}
+                        disabled={isReadOnly}
+                        placeholder="0"
+                        onChange={(e) => handleFrameWeightChange(index, e.target.value)}
+                        className="form-input"
+                        style={{
+                          width: '100%',
+                          margin: 0,
+                          textAlign: 'right',
+                          fontWeight: '800',
+                          fontSize: '13px',
+                          color: row.isFrameWeightCustom || row.actualFrameWeight ? '#d97706' : '#1e293b',
+                          background: row.isFrameWeightCustom || row.actualFrameWeight ? 'rgba(245, 158, 11, 0.06)' : '#ffffff',
+                          borderColor: row.isFrameWeightCustom || row.actualFrameWeight ? 'rgba(245, 158, 11, 0.4)' : '#cbd5e1'
+                        }}
+                      />
+                    </td>
+
+                    {/* Total Weight */}
+                    <td data-label="TOTAL WT (KG)" style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '900', color: '#7c3aed' }}>
+                      {row.totalWeight}
+                    </td>
+
+                    {/* Set Qty */}
+                    <td data-label="SET" style={{ padding: '10px 14px', textAlign: 'right' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={row.setQty}
+                        disabled={isReadOnly}
+                        onChange={(e) => handleSetQtyChange(index, e.target.value)}
+                        className="form-input"
+                        style={{
+                          width: '100%',
+                          margin: 0,
+                          textAlign: 'right',
+                          fontWeight: '900',
+                          fontSize: '13px',
+                          color: '#059669',
+                          background: 'rgba(16, 185, 129, 0.06)',
+                          borderColor: 'rgba(16, 185, 129, 0.3)'
+                        }}
+                      />
+                    </td>
+
+                    {/* Extra Cover */}
+                    <td data-label="EXTRA COVER" style={{ padding: '10px 14px', textAlign: 'right' }}>
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontWeight: '800',
+                        fontSize: '12px',
+                        background: Number(row.extraCoverQty || 0) > 0 ? 'rgba(37, 99, 235, 0.1)' : '#f8fafc',
+                        color: Number(row.extraCoverQty || 0) > 0 ? '#2563eb' : '#94a3b8',
+                        border: Number(row.extraCoverQty || 0) > 0 ? '1px solid #bfdbfe' : '1px solid #e2e8f0'
+                      }}>
+                        {Number(row.extraCoverQty || 0) > 0 ? `+${row.extraCoverQty}` : '0'}
+                      </span>
+                    </td>
+
+                    {/* Extra Frame */}
+                    <td data-label="EXTRA FRAME" style={{ padding: '10px 14px', textAlign: 'right' }}>
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        fontWeight: '800',
+                        fontSize: '12px',
+                        background: Number(row.extraFrameQty || 0) > 0 ? 'rgba(124, 58, 237, 0.1)' : '#f8fafc',
+                        color: Number(row.extraFrameQty || 0) > 0 ? '#7c3aed' : '#94a3b8',
+                        border: Number(row.extraFrameQty || 0) > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0'
+                      }}>
+                        {Number(row.extraFrameQty || 0) > 0 ? `+${row.extraFrameQty}` : '0'}
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    {!isReadOnly && (
+                      <td data-label="ACTIONS" style={{ padding: '10px 14px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            title="Measured Weight Override"
+                            onClick={() => openOverrideModal(index)}
+                            style={{
+                              background: row.actualCoverWeight || row.actualFrameWeight ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.1)',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '6px',
+                              color: row.actualCoverWeight || row.actualFrameWeight ? '#d97706' : '#2563eb',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Scale size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Duplicate row"
+                            onClick={() => handleDuplicateRow(index)}
+                            style={{ background: 'rgba(59,130,246,0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#2563eb', cursor: 'pointer' }}
+                          >
+                            <Copy size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete row"
+                            onClick={() => handleDeleteRow(index)}
+                            style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#dc2626', cursor: 'pointer' }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* ADD ROW & MULTI-PRODUCT BUTTONS */}
         {!isReadOnly && (
-          <div style={{ padding: '14px 24px', borderTop: '1px solid var(--color-border)', background: '#fafafa', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ padding: '14px 24px', borderTop: '1px solid var(--color-border, #E2E8F0)', background: '#fafafa', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <button
               type="button"
               onClick={handleAddRow}
@@ -2147,7 +2563,8 @@ export default function DailyReportEntryView({
                 fontSize: '13px',
                 fontWeight: '800',
                 cursor: 'pointer',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                transition: 'all 0.15s ease'
               }}
             >
               <Plus size={16} /> {isDispatch ? 'Add Dispatch Row' : 'Add Production Row'}
@@ -2169,7 +2586,8 @@ export default function DailyReportEntryView({
                 fontSize: '13px',
                 fontWeight: '800',
                 cursor: 'pointer',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                transition: 'all 0.15s ease'
               }}
             >
               <Boxes size={16} /> + Select Multiple Products from Catalog
@@ -2178,15 +2596,15 @@ export default function DailyReportEntryView({
         )}
       </div>
 
-      {/* ADDITIONAL SUMMARY & BREAKDOWN */}
+      {/* ── ADDITIONAL SUMMARY & BREAKDOWN ── */}
       <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
+        background: 'var(--color-bg-card, #ffffff)',
+        border: '1px solid var(--color-border, #E2E8F0)',
         borderRadius: '16px',
         padding: '20px 24px',
-        boxShadow: 'var(--shadow-soft)'
+        boxShadow: 'var(--shadow-soft, 0 4px 20px rgba(47, 67, 117, 0.04))'
       }}>
-        <h3 style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text-primary)', margin: '0 0 14px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <h3 style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text-primary, #24345C)', margin: '0 0 14px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           {isDispatch ? 'Daily Dispatch Summary Breakdown' : 'Daily Production Summary Breakdown'}
         </h3>
 
@@ -2230,31 +2648,39 @@ export default function DailyReportEntryView({
         </div>
       </div>
 
-      {/* WEIGHT OVERRIDE MODAL */}
+      {/* ── WEIGHT OVERRIDE MODAL ── */}
       {overrideModalRowIndex !== null && (
         <div style={{
           position: 'fixed',
           inset: 0,
           zIndex: 10000,
-          background: 'rgba(15, 23, 42, 0.55)',
-          backdropFilter: 'blur(4px)',
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          padding: '16px'
         }}>
           <div style={{
             background: '#ffffff',
-            borderRadius: '16px',
+            borderRadius: '20px',
             width: '100%',
             maxWidth: '460px',
-            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.2)',
-            overflow: 'hidden'
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.25)',
+            overflow: 'hidden',
+            border: '1px solid #e2e8f0'
           }}>
-            <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
-                Measured Weight Override
-              </h3>
-              <button onClick={() => setOverrideModalRowIndex(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
+            <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Scale size={18} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
+                  Measured Weight Override
+                </h3>
+              </div>
+              <button onClick={() => setOverrideModalRowIndex(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
                 <X size={18} />
               </button>
             </div>
@@ -2271,7 +2697,7 @@ export default function DailyReportEntryView({
                   value={overrideForm.actualCoverWeight}
                   onChange={(e) => setOverrideForm(p => ({ ...p, actualCoverWeight: e.target.value }))}
                   className="form-input"
-                  style={{ width: '100%', margin: 0 }}
+                  style={{ width: '100%', margin: 0, fontSize: '14px', fontWeight: '700' }}
                 />
               </div>
 
@@ -2286,7 +2712,7 @@ export default function DailyReportEntryView({
                   value={overrideForm.actualFrameWeight}
                   onChange={(e) => setOverrideForm(p => ({ ...p, actualFrameWeight: e.target.value }))}
                   className="form-input"
-                  style={{ width: '100%', margin: 0 }}
+                  style={{ width: '100%', margin: 0, fontSize: '14px', fontWeight: '700' }}
                 />
               </div>
 
@@ -2300,23 +2726,23 @@ export default function DailyReportEntryView({
                   onChange={(e) => setOverrideForm(p => ({ ...p, reason: e.target.value }))}
                   rows={3}
                   className="form-input"
-                  style={{ width: '100%', margin: 0, resize: 'vertical' }}
+                  style={{ width: '100%', margin: 0, resize: 'vertical', fontSize: '13px' }}
                 />
               </div>
             </div>
 
-            <div style={{ padding: '14px 24px 20px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div style={{ padding: '14px 24px 20px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: '10px', justifyContent: 'flex-end', background: '#f8fafc' }}>
               <button
                 type="button"
                 onClick={() => setOverrideModalRowIndex(null)}
-                style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                style={{ padding: '9px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={applyWeightOverride}
-                style={{ padding: '9px 20px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: '800', fontSize: '13px', cursor: 'pointer' }}
+                style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: '#fff', fontWeight: '800', fontSize: '13px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)' }}
               >
                 Apply Override
               </button>
@@ -2331,7 +2757,8 @@ export default function DailyReportEntryView({
           position: 'fixed',
           inset: 0,
           background: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(4px)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
           zIndex: 100000,
           display: 'flex',
           alignItems: 'center',
@@ -2340,14 +2767,15 @@ export default function DailyReportEntryView({
         }}>
           <div style={{
             background: '#ffffff',
-            borderRadius: '18px',
+            borderRadius: '20px',
             width: '100%',
             maxWidth: '780px',
             maxHeight: '90vh',
             boxShadow: '0 25px 60px rgba(0, 0, 0, 0.3)',
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            border: '1px solid #e2e8f0'
           }}>
             {/* Modal Header */}
             <div style={{
@@ -2493,7 +2921,7 @@ export default function DailyReportEntryView({
                           alignItems: 'center',
                           gap: '12px',
                           padding: '10px 14px',
-                          borderRadius: '10px',
+                          borderRadius: '12px',
                           border: '1.5px solid',
                           borderColor: isChecked ? '#3b82f6' : '#e2e8f0',
                           background: isChecked ? 'rgba(59, 130, 246, 0.05)' : '#ffffff',
@@ -2549,7 +2977,7 @@ export default function DailyReportEntryView({
                     const allFilteredIds = filteredCatalogProducts.map(p => p.id);
                     setSelectedMultiProductIds(prev => Array.from(new Set([...prev, ...allFilteredIds])));
                   }}
-                  style={{ background: 'none', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', color: '#475569', cursor: 'pointer' }}
+                  style={{ background: 'none', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', color: '#475569', cursor: 'pointer' }}
                 >
                   Select All Filtered ({filteredCatalogProducts.length})
                 </button>
@@ -2571,7 +2999,7 @@ export default function DailyReportEntryView({
                     setShowMultiProductModal(false);
                     setSelectedMultiProductIds([]);
                   }}
-                  style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                  style={{ padding: '9px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                 >
                   Cancel
                 </button>
@@ -2584,7 +3012,7 @@ export default function DailyReportEntryView({
                   }}
                   style={{
                     padding: '9px 22px',
-                    borderRadius: '8px',
+                    borderRadius: '10px',
                     border: 'none',
                     background: selectedMultiProductIds.length === 0 ? '#94a3b8' : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                     color: '#ffffff',
@@ -2601,6 +3029,81 @@ export default function DailyReportEntryView({
           </div>
         </div>
       )}
+
+      {/* ── MOBILE STICKY FLOATING ACTION DOCK ── */}
+      <div className="daily-report-floating-dock">
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: '10px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            Total Produced
+          </span>
+          <span style={{ fontSize: '14px', fontWeight: '900', color: '#7c3aed', lineHeight: 1.2 }}>
+            {totals.totalWeight.toLocaleString()} kg <span style={{ fontSize: '11px', color: '#6d28d9' }}>({totals.totalWeightMT} MT)</span>
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {!isReadOnly && (
+            <>
+              <button
+                type="button"
+                onClick={handleAddRow}
+                title="Add Row"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #2F4375',
+                  background: '#ffffff',
+                  color: '#2F4375',
+                  cursor: 'pointer'
+                }}
+              >
+                <Plus size={18} />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={saving || submitting}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '10px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#24345C',
+                  fontSize: '12px',
+                  fontWeight: '800',
+                  cursor: saving ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {saving ? '...' : 'Save Draft'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSubmitReport}
+                disabled={saving || submitting}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: '800',
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                }}
+              >
+                {submitting ? '...' : 'Submit'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
 
     </div>
   );
