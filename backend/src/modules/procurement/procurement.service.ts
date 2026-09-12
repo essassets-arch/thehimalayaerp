@@ -217,6 +217,12 @@ export class ProcurementService {
       purchaseIndent: { items: { include: { product: true } } },
       purchaseOrder: {
         items: { include: { product: true } },
+        grns: {
+          where: {
+            status: { notIn: ['CANCELLED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED'] },
+          },
+          include: { items: true },
+        },
         supplier: {
           select: {
             id: true,
@@ -226,6 +232,13 @@ export class ProcurementService {
             phone: true,
             gstin: true,
             contact: true,
+          },
+        },
+        purchaseIndent: {
+          select: {
+            id: true,
+            publicId: true,
+            indentNo: true,
           },
         },
       },
@@ -264,11 +277,50 @@ export class ProcurementService {
     const mappedData = data.map((item: any) => {
       if (entity === 'purchaseOrder') {
         const vName = item.supplier?.name || (item.snapshot as any)?.vendorName || '';
+        const poGrns = item.grns || [];
+        const computedItems = (item.items || []).map((lineItem: any) => {
+          const orderedQty = Number(lineItem.quantity || 0);
+          let receivedQty = 0;
+          poGrns.forEach((g: any) => {
+            (g.items || []).forEach((gi: any) => {
+              if (
+                (gi.purchaseOrderItemId && gi.purchaseOrderItemId === lineItem.id) ||
+                (gi.productId && (gi.productId === lineItem.productId || gi.productId === lineItem.materialId))
+              ) {
+                receivedQty += Number(gi.acceptedQuantity || gi.receivedQuantity || 0);
+              }
+            });
+          });
+          receivedQty = Math.max(receivedQty, Number(lineItem.receivedQuantity || lineItem.acceptedQuantity || 0));
+          const remainingQty = Math.max(0, orderedQty - receivedQty);
+
+          return {
+            ...lineItem,
+            orderedQty,
+            receivedQty,
+            remainingQty,
+            cumulativeDeliveredQty: receivedQty,
+            receivedQuantity: receivedQty,
+          };
+        });
+
+        const totalExpected = computedItems.reduce((s: number, it: any) => s + it.orderedQty, 0);
+        const totalDelivered = computedItems.reduce((s: number, it: any) => s + it.receivedQty, 0);
+        const totalRemaining = computedItems.reduce((s: number, it: any) => s + it.remainingQty, 0);
+        const fulfillmentRate = totalExpected > 0 ? Math.round((totalDelivered / totalExpected) * 100) : 0;
+        const isFullyReceived = totalRemaining === 0 && totalExpected > 0;
+
         return {
           ...item,
+          items: computedItems,
           vendorName: vName,
           supplierName: vName,
           vendorId: item.supplier?.publicId || item.supplierId,
+          totalExpected,
+          totalDelivered,
+          totalRemaining,
+          fulfillmentRate,
+          isFullyReceived,
         };
       }
       if (entity === 'goodsReceiptNote') {
@@ -284,6 +336,92 @@ export class ProcurementService {
     });
 
     return { data: mappedData, meta: { page: Number(page), limit: Number(limit), total } };
+  }
+  async getPO(id: string, userId?: string, companyId?: string) {
+    const po = await this.prisma.purchaseOrder.findFirst({
+      where: {
+        OR: [{ id }, { publicId: id }, { poNumber: id }],
+        ...(companyId && { companyId }),
+      },
+      include: {
+        items: { include: { product: true } },
+        grns: {
+          where: {
+            status: { notIn: ['CANCELLED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED'] },
+          },
+          include: { items: true },
+        },
+        supplier: {
+          select: {
+            id: true,
+            publicId: true,
+            name: true,
+            email: true,
+            phone: true,
+            gstin: true,
+            contact: true,
+          },
+        },
+        purchaseIndent: {
+          select: {
+            id: true,
+            publicId: true,
+            indentNo: true,
+          },
+        },
+      },
+    });
+
+    if (!po) {
+      throw new NotFoundException(`Purchase order "${id}" not found`);
+    }
+
+    const vName = po.supplier?.name || (po.snapshot as any)?.vendorName || '';
+    const poGrns = po.grns || [];
+    const computedItems = (po.items || []).map((lineItem: any) => {
+      const orderedQty = Number(lineItem.quantity || 0);
+      let receivedQty = 0;
+      poGrns.forEach((g: any) => {
+        (g.items || []).forEach((gi: any) => {
+          if (
+            (gi.purchaseOrderItemId && gi.purchaseOrderItemId === lineItem.id) ||
+            (gi.productId && (gi.productId === lineItem.productId || gi.productId === lineItem.materialId))
+          ) {
+            receivedQty += Number(gi.acceptedQuantity || gi.receivedQuantity || 0);
+          }
+        });
+      });
+      receivedQty = Math.max(receivedQty, Number(lineItem.receivedQuantity || lineItem.acceptedQuantity || 0));
+      const remainingQty = Math.max(0, orderedQty - receivedQty);
+
+      return {
+        ...lineItem,
+        orderedQty,
+        receivedQty,
+        remainingQty,
+        cumulativeDeliveredQty: receivedQty,
+        receivedQuantity: receivedQty,
+      };
+    });
+
+    const totalExpected = computedItems.reduce((s: number, it: any) => s + it.orderedQty, 0);
+    const totalDelivered = computedItems.reduce((s: number, it: any) => s + it.receivedQty, 0);
+    const totalRemaining = computedItems.reduce((s: number, it: any) => s + it.remainingQty, 0);
+    const fulfillmentRate = totalExpected > 0 ? Math.round((totalDelivered / totalExpected) * 100) : 0;
+    const isFullyReceived = totalRemaining === 0 && totalExpected > 0;
+
+    return {
+      ...po,
+      items: computedItems,
+      vendorName: vName,
+      supplierName: vName,
+      vendorId: po.supplier?.publicId || po.supplierId,
+      totalExpected,
+      totalDelivered,
+      totalRemaining,
+      fulfillmentRate,
+      isFullyReceived,
+    };
   }
   async history(entityType: string, entityId: string) {
     const rows = await this.prisma.auditLog.findMany({

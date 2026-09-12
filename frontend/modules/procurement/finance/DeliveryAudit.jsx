@@ -207,6 +207,39 @@ const CSS = `
     padding: 2px 8px;
     border-radius: 50px;
   }
+  .da-badge-partial {
+    background: #EFF6FF;
+    color: #1D4ED8;
+    border: 1px solid #BFDBFE;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 50px;
+  }
+  .da-btn-approve-partial {
+    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+    color: #FFFFFF;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    transition: all 0.2s;
+  }
+  .da-btn-approve-partial:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+  }
+  .da-btn-approve-partial:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
   .da-card-meta-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -920,6 +953,150 @@ export default function DeliveryAudit() {
     return null;
   };
 
+  // All GRNs for the associated PO
+  const allPOGRNs = useMemo(() => {
+    if (!associatedPO) return [];
+    return goodsReceipts.filter(g =>
+      (g.purchaseOrderId && (g.purchaseOrderId === associatedPO.id || g.purchaseOrderId === associatedPO.poNumber)) ||
+      (g.poId && (g.poId === associatedPO.id || g.poId === associatedPO.poNumber))
+    );
+  }, [goodsReceipts, associatedPO]);
+
+  // Prior GRNs on this PO (GRNs created before this GRN or already audit-approved, excluding current GRN)
+  const priorPOGRNs = useMemo(() => {
+    if (!selectedGRN || !allPOGRNs.length) return [];
+    const currentCreatedAt = selectedGRN.createdAt ? new Date(selectedGRN.createdAt).getTime() : Infinity;
+    return allPOGRNs.filter(g => {
+      if (g.id === selectedGRN.id || g.grnNumber === selectedGRN.grnNumber) return false;
+      const gCreatedAt = g.createdAt ? new Date(g.createdAt).getTime() : 0;
+      return g.status === 'FINANCE_AUDIT_APPROVED' || gCreatedAt < currentCreatedAt;
+    });
+  }, [selectedGRN, allPOGRNs]);
+
+  // Comprehensive audit summary computing PO Qty, Previously Received, Delivered, Accepted, Cumulative, and Remaining
+  const poAuditSummary = useMemo(() => {
+    if (!associatedPO || !selectedGRN) return null;
+    const poItems = associatedPO.items || [];
+
+    let grandPOQty = 0;
+    let grandPreviouslyReceived = 0;
+    let grandCurrentDelivered = 0;
+    let grandCurrentAccepted = 0;
+    let grandCurrentRejected = 0;
+    let grandCumulativeReceived = 0;
+    let grandRemaining = 0;
+    let grandAuditValue = 0;
+
+    const auditedItems = (selectedGRN.items || []).map((row, idx) => {
+      const poItem = findPoItem(row, idx);
+      const poOrderedQty = Number(poItem?.quantity ?? poItem?.orderedQty ?? poItem?.orderedQuantity ?? 0);
+
+      // Sum all previously accepted/verified quantities across prior GRNs
+      let previouslyReceivedQty = 0;
+      priorPOGRNs.forEach(priorGRN => {
+        (priorGRN.items || []).forEach(gi => {
+          const isMatch =
+            (row.purchaseOrderItemId && (gi.purchaseOrderItemId === row.purchaseOrderItemId || gi.id === row.purchaseOrderItemId)) ||
+            (row.productId && (gi.productId === row.productId || gi.materialId === row.productId)) ||
+            (poItem?.id && (gi.purchaseOrderItemId === poItem.id || gi.id === poItem.id));
+          if (isMatch) {
+            previouslyReceivedQty += Number(gi.acceptedQuantity ?? gi.acceptedQty ?? gi.receivedQuantity ?? gi.deliveredQuantity ?? 0);
+          }
+        });
+      });
+
+      // Fallback: If prior GRNs list in store state was empty but PO item has cumulative received data
+      const directPoReceived = Number(poItem?.cumulativeDeliveredQty ?? poItem?.receivedQuantity ?? 0);
+      const currentAcceptedQty = Number(row.acceptedQuantity ?? row.acceptedQty ?? 0);
+      if (previouslyReceivedQty === 0 && directPoReceived > 0 && selectedGRN.status === 'PENDING_FINANCE_AUDIT') {
+        previouslyReceivedQty = Math.max(0, directPoReceived - currentAcceptedQty);
+      }
+
+      const currentDeliveredQty = Number(row.receivedQuantity ?? row.receivedQty ?? row.deliveredQuantity ?? 0);
+      const currentRejectedQty = Number(row.rejectedQuantity ?? row.rejectedQty ?? 0);
+      const cumulativeReceivedQty = previouslyReceivedQty + currentAcceptedQty;
+      const remainingQty = poOrderedQty > 0 ? Math.max(0, poOrderedQty - cumulativeReceivedQty) : 0;
+      const unitPrice = getProductUnitPrice(row, idx);
+      const lineValue = currentAcceptedQty * unitPrice;
+
+      grandPOQty += poOrderedQty;
+      grandPreviouslyReceived += previouslyReceivedQty;
+      grandCurrentDelivered += currentDeliveredQty;
+      grandCurrentAccepted += currentAcceptedQty;
+      grandCurrentRejected += currentRejectedQty;
+      grandCumulativeReceived += cumulativeReceivedQty;
+      grandRemaining += remainingQty;
+      grandAuditValue += lineValue;
+
+      return {
+        ...row,
+        poItem,
+        poOrderedQty,
+        previouslyReceivedQty,
+        currentDeliveredQty,
+        currentAcceptedQty,
+        currentRejectedQty,
+        cumulativeReceivedQty,
+        remainingQty,
+        unitPrice,
+        lineValue,
+        prodName: getProductName(row, idx),
+        prodCode: getProductCode(row, idx),
+        prodUnit: getProductUnit(row, idx),
+      };
+    });
+
+    // PO-level fulfillment evaluation across all PO items
+    let totalPOUnits = 0;
+    let totalFulfilledUnitsAcrossPO = 0;
+    poItems.forEach(pi => {
+      const ord = Number(pi.quantity ?? pi.orderedQty ?? 0);
+      totalPOUnits += ord;
+      let rec = 0;
+      [...priorPOGRNs, selectedGRN].forEach(g => {
+        (g.items || []).forEach(gi => {
+          if (
+            (gi.purchaseOrderItemId && gi.purchaseOrderItemId === pi.id) ||
+            (gi.productId && (gi.productId === pi.productId || gi.productId === pi.materialId))
+          ) {
+            rec += Number(gi.acceptedQuantity ?? gi.acceptedQty ?? 0);
+          }
+        });
+      });
+      totalFulfilledUnitsAcrossPO += Math.min(ord, rec);
+    });
+
+    if (grandPOQty === 0) {
+      grandPOQty = grandCurrentAccepted;
+      grandRemaining = 0;
+    }
+
+    const overallRemaining = totalPOUnits > 0 ? Math.max(0, totalPOUnits - totalFulfilledUnitsAcrossPO) : grandRemaining;
+    const isFullyReceived = overallRemaining === 0;
+    const effectiveTotalUnits = totalPOUnits > 0 ? totalPOUnits : grandPOQty;
+    const effectiveFulfilled = totalFulfilledUnitsAcrossPO > 0 ? totalFulfilledUnitsAcrossPO : grandCumulativeReceived;
+    const fulfillmentPct = effectiveTotalUnits > 0
+      ? Math.min(100, Math.round((effectiveFulfilled / effectiveTotalUnits) * 100))
+      : (overallRemaining === 0 ? 100 : 0);
+
+    return {
+      auditedItems,
+      grandPOQty,
+      grandPreviouslyReceived,
+      grandCurrentDelivered,
+      grandCurrentAccepted,
+      grandCurrentRejected,
+      grandCumulativeReceived,
+      grandRemaining,
+      grandAuditValue,
+      totalPOUnits: effectiveTotalUnits,
+      totalFulfilledUnits: effectiveFulfilled,
+      overallRemaining,
+      isFullyReceived,
+      fulfillmentPct
+    };
+  }, [associatedPO, selectedGRN, priorPOGRNs]);
+
   const getProductName = (row, index) => {
     const poItem = findPoItem(row, index);
     const name = poItem?.product?.name || poItem?.productName || poItem?.materialName || poItem?.materialNameSnapshot;
@@ -962,29 +1139,39 @@ export default function DeliveryAudit() {
 
   /* ──────────────── Actions ──────────────── */
 
-  // 1. APPROVE / ACCEPT DELIVERY AUDIT (Closes PO & Indent)
+  // 1. APPROVE / ACCEPT DELIVERY AUDIT (Conditionally Closes PO only when 100% fulfilled)
   const handleApprove = async () => {
     if (!selectedGRN) return;
 
     const poNumber = associatedPO?.poNumber || selectedGRN.purchaseOrderId;
     const grnNumber = selectedGRN.grnNumber || selectedGRN.id;
+    const isFullyReceived = poAuditSummary?.isFullyReceived ?? false;
+    const remainingUnits = poAuditSummary?.overallRemaining ?? 0;
 
     const result = await Swal.fire({
-      title: 'Approve Delivery Audit?',
+      title: isFullyReceived ? 'Approve & Close PO?' : 'Approve Partial Delivery Audit?',
       html: `
         <div style="text-align:left;font-size:13.5px;color:#334155;line-height:1.6;">
           <p style="margin:0 0 8px;">You are approving GRN <strong>${grnNumber}</strong> against PO <strong>${poNumber}</strong>.</p>
-          <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:12px;margin-bottom:8px;">
-            <p style="margin:0;color:#166534;font-weight:600;">✓ Raw inventory was updated upon Store verification.</p>
-            <p style="margin:4px 0 0;color:#166534;">✓ Approving this audit will officially mark the delivery as audited and close Purchase Order <strong>${poNumber}</strong>.</p>
+          <div style="background:${isFullyReceived ? '#F0FDF4' : '#EFF6FF'};border:1px solid ${isFullyReceived ? '#BBF7D0' : '#BFDBFE'};border-radius:8px;padding:12px;margin-bottom:8px;">
+            <p style="margin:0;color:${isFullyReceived ? '#166534' : '#1E40AF'};font-weight:700;">
+              ${isFullyReceived 
+                ? '✓ 100% Order Fulfilled — All materials have been received.' 
+                : `⚡ Partial Delivery — ${poAuditSummary?.grandCurrentAccepted || 0} units accepted (${remainingUnits} units remaining).`}
+            </p>
+            <p style="margin:4px 0 0;color:${isFullyReceived ? '#166534' : '#1E40AF'};">
+              ${isFullyReceived
+                ? `✓ Approving this final audit will officially mark delivery as verified and <strong>CLOSE</strong> Purchase Order <strong>${poNumber}</strong> and its Indent.`
+                : `✓ Approving will record audit approval for this GRN. Purchase Order <strong>${poNumber}</strong> will remain <strong>OPEN / PARTIALLY DELIVERED</strong> for Store to receive the remaining ${remainingUnits} units.`}
+            </p>
           </div>
         </div>
       `,
-      icon: 'question',
+      icon: isFullyReceived ? 'question' : 'info',
       showCancelButton: true,
-      confirmButtonText: 'Yes, Approve & Close PO',
+      confirmButtonText: isFullyReceived ? 'Yes, Accept & Close PO' : 'Yes, Approve Partial GRN (Keep PO Open)',
       cancelButtonText: 'Cancel',
-      confirmButtonColor: '#16A34A',
+      confirmButtonColor: isFullyReceived ? '#16A34A' : '#2563EB',
       cancelButtonColor: '#64748B',
     });
 
@@ -992,16 +1179,19 @@ export default function DeliveryAudit() {
 
     try {
       setIsSubmitting(true);
-      const remarks = auditRemarks.trim() || 'Approved by Finance Delivery Audit';
+      const remarks = auditRemarks.trim() || (isFullyReceived ? 'Approved by Finance Delivery Audit (Final Closure)' : 'Partial delivery approved by Finance Delivery Audit');
       await approveGoodsReceiptNote(selectedGRN.id, remarks, 'Finance Auditor');
 
       await Swal.fire({
         icon: 'success',
-        title: 'Audit Approved!',
+        title: isFullyReceived ? 'PO Officially Closed!' : 'Partial Audit Approved!',
         html: `
           <div style="text-align:left;font-size:13.5px;color:#334155;">
             <p>GRN <strong>${grnNumber}</strong> has been audited and approved.</p>
-            <p style="color:#16A34A;font-weight:700;margin:0;">✓ Purchase Order ${poNumber} & Indent have been officially closed.</p>
+            ${isFullyReceived 
+              ? `<p style="color:#16A34A;font-weight:700;margin:0;">✓ Purchase Order ${poNumber} & Indent have been officially closed.</p>`
+              : `<p style="color:#2563EB;font-weight:700;margin:0;">⚡ Purchase Order ${poNumber} remains OPEN for Store to receive remaining ${remainingUnits} units.</p>`
+            }
           </div>
         `,
         confirmButtonColor: '#2563EB',
@@ -1127,7 +1317,23 @@ export default function DeliveryAudit() {
 
   /* ──────────────── Render Detail View ──────────────── */
   if (selectedGRN) {
-    const items = selectedGRN.items || [];
+    const summary = poAuditSummary || {
+      auditedItems: [],
+      grandPOQty: 0,
+      grandPreviouslyReceived: 0,
+      grandCurrentDelivered: 0,
+      grandCurrentAccepted: 0,
+      grandCurrentRejected: 0,
+      grandCumulativeReceived: 0,
+      grandRemaining: 0,
+      grandAuditValue: 0,
+      totalPOUnits: 0,
+      totalFulfilledUnits: 0,
+      overallRemaining: 0,
+      isFullyReceived: false,
+      fulfillmentPct: 0
+    };
+
     const attachments = getAttachments(selectedGRN);
     const challanNum = selectedGRN.snapshot?.deliveryChallanNumber || selectedGRN.snapshot?.challanNumber || selectedGRN.snapshot?.challanNo || selectedGRN.challanNumber || '—';
     const vehicleNum = selectedGRN.snapshot?.vehicleNumber || selectedGRN.snapshot?.vehicleNo || selectedGRN.snapshot?.truckNumber || selectedGRN.vehicleNumber || '—';
@@ -1136,20 +1342,6 @@ export default function DeliveryAudit() {
     const poNumber = associatedPO?.poNumber || selectedGRN.purchaseOrderId;
     const indentNumber = associatedIndent?.indentNo || associatedIndent?.publicId || associatedIndent?.indentNumber || associatedPO?.purchaseIndent?.indentNo || associatedPO?.purchaseIndent?.publicId || associatedPO?.indentNo || associatedPO?.indentNumber || '—';
     const supplierName = associatedSupplier?.name || '—';
-
-    // Summary calculations
-    let totalAcceptedQty = 0;
-    let totalRejectedQty = 0;
-    let totalAuditValue = 0;
-
-    items.forEach((i, idx) => {
-      const accepted = Number(i.acceptedQuantity ?? i.acceptedQty ?? 0);
-      const rejected = Number(i.rejectedQuantity ?? i.rejectedQty ?? 0);
-      totalAcceptedQty += accepted;
-      totalRejectedQty += rejected;
-      const rate = getProductUnitPrice(i, idx);
-      totalAuditValue += accepted * rate;
-    });
 
     return (
       <>
@@ -1176,23 +1368,81 @@ export default function DeliveryAudit() {
                     {selectedGRN.grnType === 'REPLACEMENT' && (
                       <span className="da-badge-replacement">REPLACEMENT MATERIAL</span>
                     )}
+                    {!summary.isFullyReceived && (
+                      <span className="da-badge-partial">PARTIAL INTAKE</span>
+                    )}
                   </h2>
                   <div className="da-detail-header-sub">
                     Against PO: <strong>{poNumber}</strong> &bull; Indent: <strong>{indentNumber}</strong> &bull; Supplier: <strong>{supplierName}</strong>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ background: '#FFFFFF', padding: '10px 16px', borderRadius: 10, border: '1px solid #E2E8F0', textAlign: 'right' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Accepted Qty</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: '#16A34A' }}>{totalAcceptedQty.toLocaleString()}</div>
+                {/* Header Metrics Summary Grid */}
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ background: '#FFFFFF', padding: '8px 14px', borderRadius: 10, border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>PO Ordered Qty</div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: '#0F172A' }}>{summary.grandPOQty.toLocaleString()}</div>
                   </div>
-                  {totalAuditValue > 0 && (
-                    <div style={{ background: '#FFFFFF', padding: '10px 16px', borderRadius: 10, border: '1px solid #E2E8F0', textAlign: 'right' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Accepted Value</div>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: '#0F172A' }}>₹{totalAuditValue.toLocaleString()}</div>
+                  <div style={{ background: '#FFFFFF', padding: '8px 14px', borderRadius: 10, border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Prior Received</div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: '#2563EB' }}>{summary.grandPreviouslyReceived.toLocaleString()}</div>
+                  </div>
+                  <div style={{ background: '#FFFFFF', padding: '8px 14px', borderRadius: 10, border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Accepted in this GRN</div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: '#16A34A' }}>+{summary.grandCurrentAccepted.toLocaleString()}</div>
+                  </div>
+                  <div style={{ background: '#FFFFFF', padding: '8px 14px', borderRadius: 10, border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Remaining Balance</div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: summary.overallRemaining === 0 ? '#16A34A' : '#D97706' }}>
+                      {summary.overallRemaining.toLocaleString()}
+                    </div>
+                  </div>
+                  {summary.grandAuditValue > 0 && (
+                    <div style={{ background: '#FFFFFF', padding: '8px 14px', borderRadius: 10, border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>This GRN Value</div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: '#0F172A' }}>₹{summary.grandAuditValue.toLocaleString()}</div>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Delivery Progress & PO Fulfillment Status Banner */}
+              <div style={{
+                marginTop: 16,
+                padding: '14px 18px',
+                borderRadius: 12,
+                background: summary.isFullyReceived ? '#F0FDF4' : '#EFF6FF',
+                border: `1.5px solid ${summary.isFullyReceived ? '#86EFAC' : '#BFDBFE'}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {summary.isFullyReceived ? (
+                      <CheckCircle2 size={20} color="#16A34A" />
+                    ) : (
+                      <Clock size={20} color="#2563EB" />
+                    )}
+                    <span style={{ fontSize: 13.5, fontWeight: 800, color: summary.isFullyReceived ? '#166534' : '#1E40AF' }}>
+                      {summary.isFullyReceived 
+                        ? `✅ 100% ORDER FULFILLED (${summary.totalFulfilledUnits} / ${summary.totalPOUnits} Units) — Final Delivery Audit` 
+                        : `⚡ PARTIAL DELIVERY AUDIT (${summary.totalFulfilledUnits} / ${summary.totalPOUnits} Units • ${summary.fulfillmentPct}%) — ${summary.overallRemaining} Units Pending Future Delivery`}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: summary.isFullyReceived ? '#166534' : '#1E40AF' }}>
+                    PO Status After Audit: <strong>{summary.isFullyReceived ? 'CLOSED' : 'PARTIALLY DELIVERED (OPEN)'}</strong>
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div style={{ width: '100%', height: 6, background: '#E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${summary.fulfillmentPct}%`,
+                    height: '100%',
+                    background: summary.isFullyReceived ? '#16A34A' : '#2563EB',
+                    borderRadius: 10,
+                    transition: 'width 0.3s ease'
+                  }} />
                 </div>
               </div>
 
@@ -1225,80 +1475,171 @@ export default function DeliveryAudit() {
 
             {/* Received Materials Table */}
             <div className="da-section-card">
-              <h3 className="da-section-heading">
-                <PackageCheck size={18} color="#2563EB" /> Received Items Verification
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+                <h3 className="da-section-heading" style={{ margin: 0 }}>
+                  <PackageCheck size={18} color="#2563EB" /> Received Items Verification & Cumulative Audit
+                </h3>
+                <span style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>
+                  Calculated against PO {poNumber}
+                </span>
+              </div>
+
+              {/* Prior GRNs Banner if multiple deliveries exist */}
+              {priorPOGRNs.length > 0 && (
+                <div style={{
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 10
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Layers size={16} color="#64748B" />
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: '#334155' }}>
+                      Prior Verified GRNs on PO {poNumber} ({priorPOGRNs.length}):
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {priorPOGRNs.map(pg => {
+                      const acc = (pg.items || []).reduce((sum, gi) => sum + Number(gi.acceptedQuantity ?? gi.acceptedQty ?? 0), 0);
+                      return (
+                        <span key={pg.id} style={{
+                          background: '#EFF6FF',
+                          color: '#1D4ED8',
+                          border: '1px solid #DBEAFE',
+                          borderRadius: 6,
+                          padding: '2px 8px',
+                          fontSize: 11.5,
+                          fontWeight: 700
+                        }}>
+                          {pg.grnNumber || pg.id}: {acc} units ({pg.status === 'FINANCE_AUDIT_APPROVED' ? 'Audited' : 'Verified'})
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div style={{ overflowX: 'auto' }}>
                 <table className="da-items-table">
                   <thead>
                     <tr>
-                      <th>Material</th>
-                      <th>Unit</th>
-                      <th style={{ textAlign: 'right' }}>Delivered</th>
-                      <th style={{ textAlign: 'right' }}>Accepted</th>
-                      <th style={{ textAlign: 'right' }}>Rejected</th>
-                      <th style={{ textAlign: 'right' }}>Unit Rate</th>
-                      <th style={{ textAlign: 'right' }}>Total Value</th>
-                      <th>Inspection Remarks</th>
+                      <th style={{ minWidth: '170px' }}>Material</th>
+                      <th style={{ textAlign: 'right', minWidth: '75px' }}>PO Qty</th>
+                      <th style={{ textAlign: 'right', minWidth: '95px' }}>Previously Received</th>
+                      <th style={{ textAlign: 'right', minWidth: '95px' }}>Delivered in this GRN</th>
+                      <th style={{ textAlign: 'right', minWidth: '80px' }}>Accepted</th>
+                      <th style={{ textAlign: 'right', minWidth: '100px' }}>Cumulative Received</th>
+                      <th style={{ textAlign: 'center', minWidth: '110px' }}>Remaining</th>
+                      <th style={{ textAlign: 'right', minWidth: '85px' }}>Unit Rate</th>
+                      <th style={{ textAlign: 'right', minWidth: '95px' }}>This GRN Value</th>
+                      <th style={{ minWidth: '120px' }}>Inspection Remarks</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((row, idx) => {
-                      const unitPrice = getProductUnitPrice(row, idx);
-                      const acceptedQty = Number(row.acceptedQuantity ?? row.acceptedQty ?? 0);
-                      const deliveredQty = Number(row.receivedQuantity ?? row.receivedQty ?? 0);
-                      const rejectedQty = Number(row.rejectedQuantity ?? row.rejectedQty ?? 0);
-                      const lineValue = acceptedQty * unitPrice;
-                      const prodName = getProductName(row, idx);
-                      const prodCode = getProductCode(row, idx);
-                      const prodUnit = getProductUnit(row, idx);
+                    {summary.auditedItems.map((item, idx) => {
+                      const isLineFulfilled = item.remainingQty === 0;
 
                       return (
                         <tr key={idx}>
                           <td>
-                            <strong style={{ color: '#0F172A', display: 'block' }}>{prodName}</strong>
-                            <span style={{ fontSize: 11, color: '#64748B' }}>Code: {prodCode}</span>
+                            <strong style={{ color: '#0F172A', display: 'block' }}>{item.prodName}</strong>
+                            <span style={{ fontSize: 11, color: '#64748B' }}>Code: {item.prodCode} • {item.prodUnit}</span>
                           </td>
-                          <td>{prodUnit}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 600 }}>{deliveredQty.toLocaleString()}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            <span className="da-qty-accepted">+{acceptedQty.toLocaleString()}</span>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#334155' }}>
+                            {item.poOrderedQty.toLocaleString()} {item.prodUnit}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: item.previouslyReceivedQty > 0 ? '#2563EB' : '#94A3B8' }}>
+                            {item.previouslyReceivedQty.toLocaleString()}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: '#0F172A' }}>
+                            {item.currentDeliveredQty.toLocaleString()}
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            {rejectedQty > 0 ? (
-                              <span className="da-qty-rejected">✗ {rejectedQty.toLocaleString()}</span>
+                            <span className="da-qty-accepted">+{item.currentAcceptedQty.toLocaleString()}</span>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 800, color: '#0F172A' }}>
+                            {item.cumulativeReceivedQty.toLocaleString()} / {item.poOrderedQty.toLocaleString()}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {isLineFulfilled ? (
+                              <span style={{
+                                background: '#F0FDF4',
+                                color: '#166534',
+                                border: '1px solid #BBF7D0',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}>
+                                ✓ Fulfilled (0)
+                              </span>
                             ) : (
-                              <span style={{ color: '#94A3B8' }}>0</span>
+                              <span style={{
+                                background: '#EFF6FF',
+                                color: '#1D4ED8',
+                                border: '1px solid #BFDBFE',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}>
+                                ⚡ {item.remainingQty.toLocaleString()} {item.prodUnit}
+                              </span>
                             )}
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            {unitPrice > 0 ? `₹${unitPrice.toLocaleString()}` : '—'}
+                            {item.unitPrice > 0 ? `₹${item.unitPrice.toLocaleString()}` : '—'}
                           </td>
                           <td style={{ textAlign: 'right', fontWeight: 700, color: '#0F172A' }}>
-                            {lineValue > 0 ? `₹${lineValue.toLocaleString()}` : '—'}
+                            {item.lineValue > 0 ? `₹${item.lineValue.toLocaleString()}` : '—'}
                           </td>
-                          <td style={{ fontSize: 12.5, color: '#64748B', fontStyle: row.inspectionRemarks ? 'normal' : 'italic' }}>
-                            {row.inspectionRemarks || 'None'}
+                          <td style={{ fontSize: 12.5, color: '#64748B', fontStyle: item.inspectionRemarks ? 'normal' : 'italic' }}>
+                            {item.inspectionRemarks || 'None'}
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
                   <tfoot>
-                    <tr>
-                      <td colSpan={2}>Grand Totals</td>
-                      <td style={{ textAlign: 'right' }}>
-                        {items.reduce((s, i) => s + Number(i.receivedQuantity ?? i.receivedQty ?? 0), 0).toLocaleString()}
+                    <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
+                      <td>Grand Totals</td>
+                      <td style={{ textAlign: 'right', color: '#0F172A' }}>
+                        {summary.grandPOQty.toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#2563EB' }}>
+                        {summary.grandPreviouslyReceived.toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#0F172A' }}>
+                        {summary.grandCurrentDelivered.toLocaleString()}
                       </td>
                       <td style={{ textAlign: 'right', color: '#16A34A' }}>
-                        {totalAcceptedQty.toLocaleString()}
+                        +{summary.grandCurrentAccepted.toLocaleString()}
                       </td>
-                      <td style={{ textAlign: 'right', color: totalRejectedQty > 0 ? '#DC2626' : '#64748B' }}>
-                        {totalRejectedQty.toLocaleString()}
+                      <td style={{ textAlign: 'right', color: '#0F172A' }}>
+                        {summary.grandCumulativeReceived.toLocaleString()} / {summary.grandPOQty.toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {summary.grandRemaining === 0 ? (
+                          <span style={{ color: '#166534', fontWeight: 800 }}>✓ All Fulfilled</span>
+                        ) : (
+                          <span style={{ color: '#1D4ED8', fontWeight: 800 }}>⚡ {summary.grandRemaining.toLocaleString()} Pending</span>
+                        )}
                       </td>
                       <td></td>
                       <td style={{ textAlign: 'right', color: '#0F172A' }}>
-                        {totalAuditValue > 0 ? `₹${totalAuditValue.toLocaleString()}` : '—'}
+                        {summary.grandAuditValue > 0 ? `₹${summary.grandAuditValue.toLocaleString()}` : '—'}
                       </td>
                       <td></td>
                     </tr>
@@ -1403,12 +1744,17 @@ export default function DeliveryAudit() {
 
                   <button
                     type="button"
-                    className="da-btn-approve"
+                    className={summary.isFullyReceived ? "da-btn-approve" : "da-btn-approve-partial"}
                     onClick={handleApprove}
                     disabled={isSubmitting}
-                    title="Approve GRN audit and officially close PO & Indent"
+                    title={summary.isFullyReceived ? "All materials received. Approve audit and close PO & Indent" : "Approve partial delivery. PO will remain OPEN for remaining balance"}
                   >
-                    <CheckCircle2 size={17} /> {isSubmitting ? 'Approving...' : 'Accept & Close PO'}
+                    <CheckCircle2 size={17} /> 
+                    {isSubmitting 
+                      ? 'Approving...' 
+                      : summary.isFullyReceived 
+                        ? 'Accept & Close PO' 
+                        : 'Approve Partial Delivery (PO Remains Open)'}
                   </button>
                 </div>
               </div>
@@ -1507,6 +1853,9 @@ export default function DeliveryAudit() {
               const totalAccepted = items.reduce((s, i) => s + Number(i.acceptedQuantity ?? i.acceptedQty ?? 0), 0);
               const totalRejected = items.reduce((s, i) => s + Number(i.rejectedQuantity ?? i.rejectedQty ?? 0), 0);
 
+              const poTotalOrdered = (po?.items || []).reduce((s, pi) => s + Number(pi.quantity ?? pi.orderedQty ?? 0), 0);
+              const isPartialGRN = poTotalOrdered > 0 && totalAccepted < poTotalOrdered;
+
               return (
                 <div key={grn.id} className="da-card" onClick={() => setSelectedGRNId(grn.id)}>
                   <div className="da-card-main">
@@ -1515,6 +1864,11 @@ export default function DeliveryAudit() {
                       <span className="da-badge-pending">PENDING FINANCE AUDIT</span>
                       {(grn.grnType === 'REPLACEMENT' || grn.snapshot?.isReplacement) && (
                         <span className="da-badge-replacement">REPLACEMENT</span>
+                      )}
+                      {isPartialGRN && (
+                        <span className="da-badge-partial">
+                          ⚡ PARTIAL ({totalAccepted}/{poTotalOrdered})
+                        </span>
                       )}
                     </div>
 

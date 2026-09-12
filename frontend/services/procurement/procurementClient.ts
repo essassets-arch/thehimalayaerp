@@ -38,6 +38,7 @@ export async function procurementRequest<T>(
     idempotencyKey?: string;
     version?: number;
     signal?: AbortSignal;
+    cacheTtlMs?: number;
   }
 ): Promise<T> {
   let url = `/api/backend/procurement/${path}`;
@@ -58,6 +59,12 @@ export async function procurementRequest<T>(
     'Content-Type': 'application/json',
     'X-Request-ID': generateUUID(),
   };
+
+  if (options?.cacheTtlMs === 0) {
+    headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    headers['Pragma'] = 'no-cache';
+    headers['Expires'] = '0';
+  }
 
   if (method !== 'GET') {
     headers['Idempotency-Key'] = options?.idempotencyKey || generateUUID();
@@ -84,6 +91,7 @@ export async function procurementRequest<T>(
     headers,
     body: requestBody === undefined ? undefined : JSON.stringify(requestBody),
     signal: options?.signal,
+    cache: options?.cacheTtlMs === 0 ? 'no-store' : undefined,
   });
 
   if (response.status === 401 && typeof window !== 'undefined') {

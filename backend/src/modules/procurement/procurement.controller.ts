@@ -325,6 +325,11 @@ export class ProcurementController {
   poHistory(@Param('id') id: string) {
     return this.service.history('PurchaseOrder', id);
   }
+  @Get('purchase-orders/:id')
+  @RequirePermissions('procurement.purchase_orders.read')
+  getPO(@Param('id') id: string, @Req() r: any) {
+    return this.service.getPO(id, r.user?.sub, r.user?.companyId);
+  }
   @Get('grns') @RequirePermissions('procurement.grns.read') listGrns(
     @Query() q: any,
     @Req() r: any,

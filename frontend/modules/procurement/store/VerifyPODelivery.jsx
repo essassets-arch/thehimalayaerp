@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useERPStore } from '../../../store/erpStore';
 import { syncProcurementData, verifyPODelivery } from '../../../store/procurementActions';
+import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
 import { DeliveryDocumentUploader } from '../components/DeliveryDocumentUploader';
 import { POPdfPreviewModal } from '../../store/pages/StorePortal';
 import {
@@ -28,7 +29,8 @@ import {
   FileCheck2,
   Layers,
   AlertCircle,
-  Printer
+  Printer,
+  Loader2
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -160,31 +162,87 @@ export default function VerifyPODelivery() {
   const goodsReceiptNotes = useERPStore(state => state.state?.procurement?.goodsReceiptNotes || state.state?.goodsReceipts || []);
   const materialRejections = useERPStore(state => state.state?.materialRejections ?? EMPTY_REJECTIONS);
 
+  const replacementByPO = useMemo(() => new Map(
+    materialRejections
+      .filter(rejection => ['REPLACEMENT_EXPECTED', 'PARTIALLY_RESOLVED'].includes(rejection.status))
+      .map(rejection => [rejection.purchaseOrderId || rejection.poId, rejection])
+  ), [materialRejections]);
+
+  const replacementHistoryByPO = useMemo(() => new Map(
+    materialRejections
+      .filter(rejection => ['REPLACEMENT_RECEIVED', 'RESOLVED'].includes(rejection.status))
+      .map(rejection => [rejection.purchaseOrderId || rejection.poId, rejection])
+  ), [materialRejections]);
+
+  const grnsByPO = useMemo(() => {
+    const map = new Map();
+    (goodsReceiptNotes || []).forEach(grn => {
+      const pId = grn.purchaseOrderId || grn.poId || grn.purchaseOrder?.id;
+      if (pId) {
+        if (!map.has(pId)) map.set(pId, []);
+        map.get(pId).push(grn);
+      }
+    });
+    return map;
+  }, [goodsReceiptNotes]);
+
+  // Accurate helper to compute physical received units for an item (with fallback to GRNs)
+  const getItemReceivedQty = (po, item) => {
+    if (item?.receivedQty !== undefined && item?.receivedQty !== null) return Number(item.receivedQty);
+    const direct = Number(item?.cumulativeDeliveredQty ?? item?.receivedQuantity ?? 0);
+    if (direct > 0) return direct;
+    const poGrns = grnsByPO.get(po?.id) || po?.grns || [];
+    let fromGrns = 0;
+    poGrns.forEach(g => {
+      if (['CANCELLED', 'REJECTED'].includes(g.status)) return;
+      (g.items || []).forEach(gi => {
+        if (gi.purchaseOrderItemId === item?.id || gi.productId === item?.productId || gi.productId === item?.materialId) {
+          fromGrns += Number(gi.acceptedQuantity ?? gi.receivedQuantity ?? gi.deliveredQuantity ?? 0);
+        }
+      });
+    });
+    return fromGrns > 0 ? fromGrns : direct;
+  };
+
   // Helper to check if all items of a PO have been 100% delivered/received
   const isPOFullyReceived = (po) => {
+    if (po?.isFullyReceived !== undefined) return Boolean(po.isFullyReceived);
     const items = po?.items || [];
-    if (items.length === 0) return false;
-    const totalOrdered = items.reduce((sum, it) => sum + Number(it.quantity || it.orderedQty || 0), 0);
-    const totalReceived = items.reduce((sum, it) => sum + Number(it.cumulativeDeliveredQty || it.receivedQuantity || 0), 0);
+    if (items.length === 0) {
+      return ['COMPLETED', 'FULLY_RECEIVED', 'CLOSED', 'PO_CLOSED'].includes(po?.status);
+    }
+    const totalOrdered = items.reduce((sum, it) => sum + Number(it.orderedQty ?? it.quantity ?? 0), 0);
+    const totalReceived = items.reduce((sum, it) => sum + getItemReceivedQty(po, it), 0);
     return totalOrdered > 0 && totalReceived >= totalOrdered;
   };
 
-  const isPOCompletedStatus = (status) => {
-    return [
-      'DELIVERY_PENDING_FINANCE_AUDIT',
-      'PARTIALLY_DELIVERED_PENDING_AUDIT',
-      'COMPLETED',
-      'GRN_RECEIVED',
-      'FULLY_RECEIVED',
-      'CLOSED',
-      'STOCK_POSTED',
-      'PAYMENT_COMPLETED',
-      'FINANCE_AUDIT_APPROVED',
-      'RECEIVED'
-    ].includes(status);
+  const isTerminalStatus = (status) => {
+    return ['CLOSED', 'PO_CLOSED', 'CANCELLED'].includes(status);
+  };
+
+  // A PO is complete ONLY when 100% of units are delivered/received or terminal status.
+  // Partially received POs (e.g. 30/40 units received) must STAY in Pending Inward until fully complete!
+  const isPOComplete = (po) => {
+    if (!po) return false;
+    // 1. Terminal statuses (closed by admin/finance or cancelled)
+    if (isTerminalStatus(po.status)) return true;
+
+    // 2. If awaiting replacement intake, it is NOT complete (needs physical replacement delivery)
+    if (replacementByPO.has(po.id)) return false;
+
+    // 3. Physical fulfillment check: 100% of all ordered items delivered
+    const items = po?.items || [];
+    if (items.length > 0) {
+      return isPOFullyReceived(po);
+    }
+
+    // 4. Fallback if no items array
+    return ['COMPLETED', 'FULLY_RECEIVED'].includes(po.status);
   };
 
   const [selectedPOId, setSelectedPOId] = useState(null);
+  const [livePO, setLivePO] = useState(null);
+  const [isLoadingPO, setIsLoadingPO] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewTab, setViewTab] = useState('pending'); // 'pending' | 'history'
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'ORDERED' | 'PARTIALLY_RECEIVED' | 'REPLACEMENT'
@@ -265,58 +323,27 @@ export default function VerifyPODelivery() {
     }
   };
 
-  const replacementByPO = useMemo(() => new Map(
-    materialRejections
-      .filter(rejection => ['REPLACEMENT_EXPECTED', 'PARTIALLY_RESOLVED'].includes(rejection.status))
-      .map(rejection => [rejection.purchaseOrderId || rejection.poId, rejection])
-  ), [materialRejections]);
-
-  const replacementHistoryByPO = useMemo(() => new Map(
-    materialRejections
-      .filter(rejection => ['REPLACEMENT_RECEIVED', 'RESOLVED'].includes(rejection.status))
-      .map(rejection => [rejection.purchaseOrderId || rejection.poId, rejection])
-  ), [materialRejections]);
-
-  const grnsByPO = useMemo(() => {
-    const map = new Map();
-    (goodsReceiptNotes || []).forEach(grn => {
-      const pId = grn.purchaseOrderId || grn.poId || grn.purchaseOrder?.id;
-      if (pId) {
-        if (!map.has(pId)) map.set(pId, []);
-        map.get(pId).push(grn);
-      }
-    });
-    return map;
-  }, [goodsReceiptNotes]);
-
   const pendingPOs = useMemo(() => purchaseOrders.filter(po => {
-    // 1. If awaiting replacement intake, it is pending
+    // 1. If complete (100% fulfilled or closed), it belongs in Delivery History, NOT pending
+    if (isPOComplete(po)) return false;
+
+    // 2. If awaiting replacement intake, it is pending
     if (replacementByPO.has(po.id)) return true;
 
-    // 2. If 100% fulfilled or status is completed/audited, it belongs in Delivery History
-    if (isPOCompletedStatus(po.status) || isPOFullyReceived(po)) {
-      return false;
-    }
+    // 3. Exclude terminal closed/cancelled
+    if (isTerminalStatus(po.status)) return false;
 
-    // 3. Otherwise, pending inward intake
-    return [
-      'ORDERED',
-      'PO_ISSUED',
-      'VENDOR_ACCEPTED',
-      'IN_TRANSIT',
-      'PARTIALLY_RECEIVED',
-      'DELIVERY_PENDING',
-      'PARTIALLY_DELIVERED',
-    ].includes(po.status);
-  }), [purchaseOrders, replacementByPO]);
+    // 4. Any open or partially delivered PO with remaining units belongs in Pending Inward
+    return true;
+  }), [purchaseOrders, replacementByPO, grnsByPO]);
 
   const completedPOs = useMemo(() => purchaseOrders.filter(po => {
     // If awaiting replacement, keep in pending inward
     if (replacementByPO.has(po.id)) return false;
 
-    // Belongs in Delivery History if status indicates completion/audit or all units are delivered
-    return isPOCompletedStatus(po.status) || isPOFullyReceived(po);
-  }), [purchaseOrders, replacementByPO]);
+    // Belongs in Delivery History ONLY when complete
+    return isPOComplete(po);
+  }), [purchaseOrders, replacementByPO, grnsByPO]);
 
   // KPI Metrics Calculations
   const metrics = useMemo(() => {
@@ -349,12 +376,17 @@ export default function VerifyPODelivery() {
     return list.filter(po => {
       // Status Filter
       if (viewTab === 'pending' && statusFilter !== 'ALL') {
+        const items = po.items || [];
+        const totalUnits = items.reduce((sum, it) => sum + Number(it.quantity || it.orderedQty || 0), 0);
+        const receivedUnits = items.reduce((sum, it) => sum + getItemReceivedQty(po, it), 0);
+        const isPartiallyReceived = (receivedUnits > 0 && receivedUnits < totalUnits) || ['PARTIALLY_RECEIVED', 'PARTIALLY_DELIVERED', 'PARTIALLY_DELIVERED_PENDING_AUDIT'].includes(po.status);
+
         if (statusFilter === 'REPLACEMENT') {
           if (!replacementByPO.has(po.id)) return false;
         } else if (statusFilter === 'PARTIALLY_RECEIVED') {
-          if (!['PARTIALLY_RECEIVED', 'PARTIALLY_DELIVERED'].includes(po.status)) return false;
+          if (!isPartiallyReceived) return false;
         } else if (statusFilter === 'ORDERED') {
-          if (!['ORDERED', 'PO_ISSUED', 'VENDOR_ACCEPTED', 'IN_TRANSIT'].includes(po.status)) return false;
+          if (isPartiallyReceived || replacementByPO.has(po.id)) return false;
         }
       }
 
@@ -369,15 +401,18 @@ export default function VerifyPODelivery() {
 
       return poNum.includes(query) || vendor.includes(query) || indent.includes(query) || itemMatch;
     });
-  }, [viewTab, pendingPOs, completedPOs, statusFilter, searchQuery, replacementByPO]);
+  }, [viewTab, pendingPOs, completedPOs, statusFilter, searchQuery, replacementByPO, grnsByPO]);
 
-  const selectedPO = useMemo(() => purchaseOrders.find(p => p.id === selectedPOId) || null, [purchaseOrders, selectedPOId]);
+  const selectedPO = useMemo(() => {
+    if (livePO && (livePO.id === selectedPOId || livePO.publicId === selectedPOId)) return livePO;
+    return purchaseOrders.find(p => p.id === selectedPOId) || null;
+  }, [livePO, purchaseOrders, selectedPOId]);
 
   const isSelectedPOCompleted = useMemo(() => {
     if (!selectedPO) return false;
     if (replacementByPO.has(selectedPO.id)) return false;
-    return isPOCompletedStatus(selectedPO.status) || isPOFullyReceived(selectedPO);
-  }, [selectedPO, replacementByPO]);
+    return isPOComplete(selectedPO);
+  }, [selectedPO, replacementByPO, grnsByPO]);
 
   const selectedPOGRNs = useMemo(() => {
     if (!selectedPO) return [];
@@ -386,11 +421,11 @@ export default function VerifyPODelivery() {
       : (grnsByPO.get(selectedPO.id) || []);
   }, [selectedPO, grnsByPO]);
 
-  const handleSelectPO = (poId) => {
+  const handleSelectPO = async (poId) => {
     const po = purchaseOrders.find(p => p.id === poId);
-    if (!po) return;
-    setSelectedPOId(po.id);
-    const replacement = replacementByPO.get(po.id);
+    setSelectedPOId(poId);
+    setLivePO(null);
+    const replacement = replacementByPO.get(poId);
     setSelectedReplacement(replacement || null);
     setChallanNumber('');
     setVehicleNumber('');
@@ -399,39 +434,64 @@ export default function VerifyPODelivery() {
     setFormErrors({});
     setTouchedFields({});
 
-    const initialItems = replacement ? (po.items || []).filter(item =>
-      (item.productId || item.materialId) === replacement.materialId,
-    ).map(item => ({
-      purchaseOrderItemId: item.id,
-      productId: item.productId || item.materialId,
-      materialName: item.product?.name || item.materialName || replacement.materialName || 'Replacement material',
-      remainingSupplyQty: Number(replacement.remainingResolutionQty || replacement.rejectedQty || 0),
-      orderedQty: Number(replacement.remainingResolutionQty || replacement.rejectedQty || 0),
-      deliveredQty: 0,
-      acceptedQty: 0,
-      rejectedQty: 0,
-      unit: item.unit || item.product?.unit || 'Nos',
-      inspectionRemarks: '',
-    })) : (po.items || []).map(item => {
-      const ordered = Number(item.quantity ?? item.orderedQty ?? 0);
-      const delivered = Number(item.cumulativeDeliveredQty ?? item.receivedQuantity ?? 0);
-      const remaining = Math.max(0, ordered - delivered);
+    const buildItemsFromPO = (targetPO) => {
+      if (!targetPO) return [];
+      if (replacement) {
+        return (targetPO.items || []).filter(item =>
+          (item.productId || item.materialId) === replacement.materialId,
+        ).map(item => ({
+          purchaseOrderItemId: item.id,
+          productId: item.productId || item.materialId,
+          materialName: item.product?.name || item.materialName || replacement.materialName || 'Replacement material',
+          remainingSupplyQty: Number(replacement.remainingResolutionQty || replacement.rejectedQty || 0),
+          orderedQty: Number(replacement.remainingResolutionQty || replacement.rejectedQty || 0),
+          previouslyReceivedQty: 0,
+          deliveredQty: 0,
+          acceptedQty: 0,
+          rejectedQty: 0,
+          unit: item.unit || item.product?.unit || 'Nos',
+          inspectionRemarks: '',
+        }));
+      }
 
-      return {
-        purchaseOrderItemId: item.id,
-        productId: item.productId || item.materialId,
-        materialName: item.product?.name || item.materialName || 'Material',
-        remainingSupplyQty: remaining,
-        orderedQty: ordered,
-        deliveredQty: 0,
-        acceptedQty: 0,
-        rejectedQty: 0,
-        unit: item.unit || item.product?.unit || 'Nos',
-        inspectionRemarks: '',
-      };
-    });
+      return (targetPO.items || []).map(item => {
+        const ordered = Number(item.orderedQty ?? item.quantity ?? 0);
+        const delivered = item.receivedQty !== undefined ? Number(item.receivedQty) : getItemReceivedQty(targetPO, item);
+        const remaining = item.remainingQty !== undefined ? Number(item.remainingQty) : Math.max(0, ordered - delivered);
 
-    setDeliveryItems(initialItems);
+        return {
+          purchaseOrderItemId: item.id,
+          productId: item.productId || item.materialId,
+          materialName: item.product?.name || item.materialName || 'Material',
+          remainingSupplyQty: remaining,
+          orderedQty: ordered,
+          previouslyReceivedQty: delivered,
+          deliveredQty: 0,
+          acceptedQty: 0,
+          rejectedQty: 0,
+          unit: item.unit || item.product?.unit || 'Nos',
+          inspectionRemarks: '',
+        };
+      });
+    };
+
+    if (po) {
+      setDeliveryItems(buildItemsFromPO(po));
+    }
+
+    try {
+      setIsLoadingPO(true);
+      const res = await purchaseOrderService.get(poId);
+      const freshPO = res?.data || res;
+      if (freshPO && freshPO.id) {
+        setLivePO(freshPO);
+        setDeliveryItems(buildItemsFromPO(freshPO));
+      }
+    } catch (err) {
+      console.warn('[VerifyPODelivery] Could not fetch fresh PO details, continuing with cached PO:', err);
+    } finally {
+      setIsLoadingPO(false);
+    }
   };
 
   const handleQtyChange = (productId, field, value) => {
@@ -483,18 +543,35 @@ export default function VerifyPODelivery() {
 
   // Live tally for the selected PO
   const deliverySummary = useMemo(() => {
-    let totalOrdered = 0;
-    let totalDelivered = 0;
+    let totalExpected = 0;
+    let priorDelivered = 0;
+    let totalRemaining = 0;
+    let currentIntake = 0;
 
     deliveryItems.forEach(item => {
-      totalOrdered += item.remainingSupplyQty || 0;
-      totalDelivered += item.deliveredQty || 0;
+      totalExpected += item.orderedQty || 0;
+      priorDelivered += item.previouslyReceivedQty || 0;
+      totalRemaining += item.remainingSupplyQty || 0;
+      currentIntake += item.deliveredQty || 0;
     });
 
-    const completionRate = totalOrdered > 0 ? Math.round((totalDelivered / totalOrdered) * 100) : 0;
-    const remainingToDeliver = Math.max(0, totalOrdered - totalDelivered);
+    const cumulativeDelivered = priorDelivered + currentIntake;
+    const remainingToDeliver = Math.max(0, totalRemaining - currentIntake);
+    const fulfillmentRate = totalExpected > 0 ? Math.min(100, Math.round((cumulativeDelivered / totalExpected) * 100)) : 0;
 
-    return { totalOrdered, totalDelivered, totalAccepted: totalDelivered, totalRejected: 0, completionRate, remainingToDeliver };
+    return {
+      totalExpected,
+      totalOrdered: totalExpected,
+      priorDelivered,
+      totalDelivered: cumulativeDelivered,
+      currentIntake,
+      totalAccepted: currentIntake,
+      totalRejected: 0,
+      completionRate: fulfillmentRate,
+      fulfillmentRate,
+      remainingToDeliver,
+      totalRemaining,
+    };
   }, [deliveryItems]);
 
   const handleSubmitGRN = async () => {
@@ -557,7 +634,8 @@ export default function VerifyPODelivery() {
           <div><strong>PO Reference:</strong> ${selectedPO.poNumber || selectedPO.publicId || selectedPO.id}</div>
           <div><strong>Vendor:</strong> ${selectedPO.supplier?.name || selectedPO.vendorName || selectedPO.snapshot?.vendorName || 'Supplier'}</div>
           <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #cbd5e1;">
-            <span style="color: #059669; font-weight: 700;">✓ Total Delivered: ${deliverySummary.totalDelivered} Units</span>
+            <span style="color: #059669; font-weight: 700;">✓ Total Delivered in this GRN: ${deliverySummary.currentIntake} Units</span>
+            <div style="font-size: 12px; color: #475569; margin-top: 4px;">Cumulative Received: ${deliverySummary.totalDelivered} / ${deliverySummary.totalExpected} Units (${deliverySummary.fulfillmentRate}%)</div>
           </div>
         </div>
       `,
@@ -619,18 +697,29 @@ export default function VerifyPODelivery() {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('inventory-updated'));
       }
+
+      // Check if all ordered items are now completely fulfilled
+      const isNowComplete = deliveryItems.every(it => {
+        const itemDeliveredNow = activeItems.find(a => (a.purchaseOrderItemId === it.purchaseOrderItemId || a.productId === it.productId))?.deliveredQty || 0;
+        return (it.previouslyReceivedQty + itemDeliveredNow) >= it.orderedQty;
+      });
+
       Swal.fire({
         icon: 'success',
-        title: '✅ Delivery Confirmed!',
+        title: isNowComplete ? '✅ Order Fully Received!' : '⚡ Partial Delivery Recorded!',
         html: `<div style="text-align:left;font-size:13.5px;color:#334155;">
           <p style="margin:0 0 8px 0;">GRN <strong>${grn?.grnNumber || grn?.publicId || ''}</strong> has been generated successfully.</p>
-          <p style="margin:0 0 4px 0;">Raw inventory has been updated immediately.</p>
-          <p style="margin:0;color:#D97706;font-weight:700;">⏳ Awaiting Finance Audit approval to close the Purchase Order.</p>
+          <p style="margin:0 0 4px 0;">Raw inventory stock has been incremented immediately.</p>
+          ${isNowComplete 
+            ? '<p style="margin:0;color:#16A34A;font-weight:700;">✓ All materials have been 100% received. PO moved to Delivery History.</p>' 
+            : '<p style="margin:0;color:#2563EB;font-weight:700;">⚡ Remaining units are pending future delivery. This PO stays in Pending Inward for remaining intake.</p>'
+          }
         </div>`,
         confirmButtonColor: '#2563eb'
       });
 
       setSelectedPOId(null);
+      setLivePO(null);
       setFormErrors({});
       setTouchedFields({});
     } catch (err) {
@@ -1025,11 +1114,13 @@ export default function VerifyPODelivery() {
                 const isReplacement = replacementByPO.has(po.id);
                 const items = po.items || [];
                 const totalUnits = items.reduce((sum, it) => sum + Number(it.quantity || it.orderedQty || 0), 0);
-                const receivedUnits = items.reduce((sum, it) => sum + Number(it.cumulativeDeliveredQty || it.receivedQuantity || 0), 0);
+                const receivedUnits = items.reduce((sum, it) => sum + getItemReceivedQty(po, it), 0);
                 const pct = totalUnits > 0 ? Math.min(100, Math.round((receivedUnits / totalUnits) * 100)) : 0;
                 const indentRef = po.purchaseIndent?.publicId || po.indentRef || po.purchaseIndentId || '';
 
-                const isCompletedPO = isPOCompletedStatus(po.status) || isPOFullyReceived(po);
+                const isCompletedPO = isPOComplete(po);
+                const hasPartialDelivery = receivedUnits > 0 && receivedUnits < totalUnits;
+                const remainingUnits = Math.max(0, totalUnits - receivedUnits);
 
                 return (
                   <div key={po.id} className="delivery-po-card" onClick={() => handleSelectPO(po.id)}>
@@ -1065,6 +1156,33 @@ export default function VerifyPODelivery() {
                           }}>
                             {po.status === 'DELIVERY_PENDING_FINANCE_AUDIT' ? '⏳ Awaiting Audit' : '✓ GRN Recorded'}
                           </span>
+                        ) : hasPartialDelivery ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                            <span style={{
+                              fontSize: '10.5px',
+                              fontWeight: 800,
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              background: '#EFF6FF',
+                              color: '#1D4ED8',
+                              border: '1px solid #BFDBFE',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              ⚡ {remainingUnits} Units Remaining
+                            </span>
+                            <span style={{
+                              fontSize: '10.5px',
+                              fontWeight: 800,
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              background: urgency.bg,
+                              color: urgency.color,
+                              border: `1px solid ${urgency.border}`,
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {urgency.text}
+                            </span>
+                          </div>
                         ) : (
                           <span style={{
                             fontSize: '11px',
@@ -1121,7 +1239,7 @@ export default function VerifyPODelivery() {
                           <strong style={{ color: '#0F172A' }}>{receivedUnits} / {totalUnits} ({pct}%)</strong>
                         </div>
                         <div style={{ width: '100%', height: '6px', background: '#E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
-                          <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? '#10B981' : '#2563EB', borderRadius: '10px', transition: 'width 0.3s' }} />
+                          <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? '#10B981' : hasPartialDelivery ? '#F59E0B' : '#2563EB', borderRadius: '10px', transition: 'width 0.3s' }} />
                         </div>
                       </div>
                     </div>
@@ -1161,12 +1279,16 @@ export default function VerifyPODelivery() {
                         <button
                           type="button"
                           className="po-card-cta"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectPO(po.id);
+                          }}
                           style={{
                             padding: '7px 14px',
                             borderRadius: '8px',
                             border: 'none',
-                            background: isCompletedPO || viewTab === 'history' ? '#F0FDF4' : '#EFF6FF',
-                            color: isCompletedPO || viewTab === 'history' ? '#16A34A' : '#2563EB',
+                            background: isCompletedPO || viewTab === 'history' ? '#F0FDF4' : hasPartialDelivery ? '#F0FDF4' : '#EFF6FF',
+                            color: isCompletedPO || viewTab === 'history' ? '#16A34A' : hasPartialDelivery ? '#15803D' : '#2563EB',
                             fontWeight: 800,
                             fontSize: '12.5px',
                             cursor: 'pointer',
@@ -1176,7 +1298,11 @@ export default function VerifyPODelivery() {
                             transition: 'all 0.15s ease'
                           }}
                         >
-                          {isCompletedPO || viewTab === 'history' ? 'View GRN Details' : 'Receive & Verify'} <ArrowRight size={14} />
+                          {isCompletedPO || viewTab === 'history' 
+                            ? 'View GRN Details' 
+                            : hasPartialDelivery 
+                              ? `Receive & Verify Remaining (${remainingUnits})` 
+                              : 'Receive & Verify'} <ArrowRight size={14} />
                         </button>
                       </div>
                     </div>
@@ -1208,8 +1334,11 @@ export default function VerifyPODelivery() {
                       const urgency = getDeliveryUrgency(dueDate);
                       const items = po.items || [];
                       const totalUnits = items.reduce((sum, it) => sum + Number(it.quantity || it.orderedQty || 0), 0);
+                      const receivedUnits = items.reduce((sum, it) => sum + getItemReceivedQty(po, it), 0);
                       const indentRef = po.purchaseIndent?.publicId || po.indentRef || po.purchaseIndentId || '—';
-                      const isCompletedPO = isPOCompletedStatus(po.status) || isPOFullyReceived(po);
+                      const isCompletedPO = isPOComplete(po);
+                      const hasPartialDelivery = receivedUnits > 0 && receivedUnits < totalUnits;
+                      const remainingUnits = Math.max(0, totalUnits - receivedUnits);
 
                       return (
                         <tr key={po.id} className="store-table-row" style={{ borderBottom: '1px solid #F1F5F9' }}>
@@ -1227,7 +1356,7 @@ export default function VerifyPODelivery() {
                           </td>
                           <td style={{ padding: '14px 18px' }}>
                             <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B' }}>{items.length} {items.length === 1 ? 'Item' : 'Items'}</div>
-                            <div style={{ fontSize: '11.5px', color: '#64748B' }}>Total {totalUnits} Units</div>
+                            <div style={{ fontSize: '11.5px', color: '#64748B' }}>Total {totalUnits} Units {hasPartialDelivery && `(${receivedUnits} received)`}</div>
                           </td>
                           <td style={{ padding: '14px 18px' }}>
                             <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#1E293B' }}>
@@ -1238,18 +1367,48 @@ export default function VerifyPODelivery() {
                             </span>
                           </td>
                           <td style={{ padding: '14px 18px' }}>
-                            <span style={{
-                              fontSize: '11px',
-                              fontWeight: 800,
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              background: isCompletedPO || viewTab === 'history' ? '#ECFDF5' : '#EFF6FF',
-                              color: isCompletedPO || viewTab === 'history' ? '#047857' : '#1D4ED8',
-                              border: `1px solid ${isCompletedPO || viewTab === 'history' ? '#A7F3D0' : '#DBEAFE'}`,
-                              textTransform: 'uppercase'
-                            }}>
-                              {po.status === 'DELIVERY_PENDING_FINANCE_AUDIT' ? 'Awaiting Audit' : po.status.replace(/_/g, ' ')}
-                            </span>
+                            {isCompletedPO || viewTab === 'history' ? (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                background: po.status === 'DELIVERY_PENDING_FINANCE_AUDIT' ? '#FFFBEB' : '#ECFDF5',
+                                color: po.status === 'DELIVERY_PENDING_FINANCE_AUDIT' ? '#B45309' : '#047857',
+                                border: `1px solid ${po.status === 'DELIVERY_PENDING_FINANCE_AUDIT' ? '#FDE68A' : '#A7F3D0'}`,
+                                textTransform: 'uppercase'
+                              }}>
+                                {po.status === 'DELIVERY_PENDING_FINANCE_AUDIT' ? 'Awaiting Audit' : '✓ Completed'}
+                              </span>
+                            ) : hasPartialDelivery ? (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                background: '#EFF6FF',
+                                color: '#1D4ED8',
+                                border: '1px solid #BFDBFE',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                ⚡ Partial ({receivedUnits}/{totalUnits})
+                              </span>
+                            ) : (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                background: '#EFF6FF',
+                                color: '#1D4ED8',
+                                border: '1px solid #DBEAFE',
+                                textTransform: 'uppercase'
+                              }}>
+                                {po.status.replace(/_/g, ' ')}
+                              </span>
+                            )}
                           </td>
                           <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                             <button
@@ -1282,7 +1441,7 @@ export default function VerifyPODelivery() {
                                 padding: '7px 16px',
                                 borderRadius: '8px',
                                 border: 'none',
-                                background: isCompletedPO || viewTab === 'history' ? '#10B981' : '#2563EB',
+                                background: isCompletedPO || viewTab === 'history' ? '#10B981' : hasPartialDelivery ? '#15803D' : '#2563EB',
                                 color: '#ffffff',
                                 fontSize: '12.5px',
                                 fontWeight: 700,
@@ -1292,7 +1451,11 @@ export default function VerifyPODelivery() {
                                 gap: '6px'
                               }}
                             >
-                              {isCompletedPO || viewTab === 'history' ? 'View Details' : 'Verify'} <ArrowRight size={14} />
+                              {isCompletedPO || viewTab === 'history' 
+                                ? 'View Details' 
+                                : hasPartialDelivery 
+                                  ? 'Verify Remaining' 
+                                  : 'Verify'} <ArrowRight size={14} />
                             </button>
                           </td>
                         </tr>
@@ -1311,7 +1474,7 @@ export default function VerifyPODelivery() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <button
               type="button"
-              onClick={() => { setSelectedPOId(null); setViewTab('history'); }}
+              onClick={() => { setSelectedPOId(null); setLivePO(null); setViewTab('history'); }}
               style={{
                 border: '1.5px solid #CBD5E1',
                 background: '#ffffff',
@@ -1568,7 +1731,7 @@ export default function VerifyPODelivery() {
           }}>
             <button
               type="button"
-              onClick={() => { setSelectedPOId(null); setViewTab('history'); }}
+              onClick={() => { setSelectedPOId(null); setLivePO(null); setViewTab('history'); }}
               style={{
                 padding: '10px 20px',
                 borderRadius: '8px',
@@ -1611,7 +1774,7 @@ export default function VerifyPODelivery() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <button
               type="button"
-              onClick={() => setSelectedPOId(null)}
+              onClick={() => { setSelectedPOId(null); setLivePO(null); }}
               style={{
                 border: '1.5px solid #CBD5E1',
                 background: '#ffffff',
@@ -1660,8 +1823,15 @@ export default function VerifyPODelivery() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
               <div>
-                <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#93C5FD', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Purchase Order Gate Inward & Inspection
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#93C5FD', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Purchase Order Gate Inward & Inspection
+                  </div>
+                  {isLoadingPO && (
+                    <span style={{ fontSize: '11px', color: '#93C5FD', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Loader2 size={12} className="animate-spin" /> Live ledger sync...
+                    </span>
+                  )}
                 </div>
                 <h2 className="hero-delivery-title" style={{ fontSize: '24px', fontWeight: 900, margin: '4px 0 6px 0', color: '#ffffff' }}>
                   {selectedPO.poNumber || selectedPO.publicId || selectedPO.id}
@@ -1732,10 +1902,10 @@ export default function VerifyPODelivery() {
               <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: '10px', padding: '12px 16px', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 700, textTransform: 'uppercase' }}>Order Scope</div>
                 <div style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff', marginTop: '4px' }}>
-                  {deliveryItems.length} Materials
+                  {deliveryItems.length} Materials • {deliverySummary.totalExpected} Total Units
                 </div>
                 <div style={{ fontSize: '12px', color: '#86EFAC', marginTop: '2px', fontWeight: 700 }}>
-                  {deliverySummary.totalOrdered} Total Units Remaining
+                  {deliverySummary.priorDelivered} Received / {deliverySummary.totalRemaining} Remaining
                 </div>
               </div>
             </div>
@@ -1796,24 +1966,64 @@ export default function VerifyPODelivery() {
 
             {/* Inspection Items — Card List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+              {selectedPOGRNs.length > 0 && (
+                <div style={{
+                  background: '#F0FDF4',
+                  border: '1.5px solid #86EFAC',
+                  borderRadius: '12px',
+                  padding: '14px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '10px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <CheckCircle2 size={18} color="#059669" />
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#166534' }}>
+                        Prior Deliveries Verified ({selectedPOGRNs.length} GRN{selectedPOGRNs.length > 1 ? 's' : ''})
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#15803D' }}>
+                        Partial quantities have already been received into raw inventory stock. Record intake for the remaining unfulfilled balance below.
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {selectedPOGRNs.map((g, gIdx) => (
+                      <span key={g.id || gIdx} style={{ background: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
+                        {g.grnNumber || g.publicId || `GRN #${gIdx + 1}`}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {deliveryItems.map((item, idx) => {
+                const isLineCompleted = item.remainingSupplyQty === 0;
                 const fillPct = item.remainingSupplyQty > 0
                   ? Math.min(100, Math.round((item.deliveredQty / item.remainingSupplyQty) * 100))
-                  : 0;
-                const isFull = fillPct === 100;
+                  : 100;
+                const isFull = fillPct === 100 && !isLineCompleted;
+
                 return (
                   <div
                     key={item.productId}
                     style={{
-                      background: isFull ? 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)' : '#ffffff',
-                      border: `1.5px solid ${isFull ? '#86EFAC' : '#E2E8F0'}`,
+                      background: isLineCompleted
+                        ? '#F8FAFC'
+                        : isFull
+                          ? 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)'
+                          : '#ffffff',
+                      border: `1.5px solid ${isLineCompleted ? '#CBD5E1' : isFull ? '#86EFAC' : '#E2E8F0'}`,
                       borderRadius: '14px',
                       padding: '18px 20px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '14px',
                       transition: 'all 0.2s ease',
-                      boxShadow: isFull ? '0 4px 12px rgba(16,185,129,0.08)' : '0 1px 3px rgba(0,0,0,0.03)'
+                      boxShadow: isFull ? '0 4px 12px rgba(16,185,129,0.08)' : '0 1px 3px rgba(0,0,0,0.03)',
+                      opacity: isLineCompleted ? 0.85 : 1
                     }}
                   >
                     {/* Row 1: Material info + qty input side by side */}
@@ -1823,7 +2033,7 @@ export default function VerifyPODelivery() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
                           <div style={{
                             width: '30px', height: '30px', borderRadius: '8px',
-                            background: isFull ? '#10B981' : '#6366F1',
+                            background: isLineCompleted ? '#64748B' : isFull ? '#10B981' : '#6366F1',
                             color: '#ffffff', display: 'flex', alignItems: 'center',
                             justifyContent: 'center', fontWeight: 900, fontSize: '13px', flexShrink: 0
                           }}>
@@ -1832,85 +2042,135 @@ export default function VerifyPODelivery() {
                           <span style={{ fontSize: '14.5px', fontWeight: 900, color: '#0F172A', lineHeight: 1.2 }}>
                             {item.materialName}
                           </span>
-                          {isFull && (
+                          {isLineCompleted ? (
+                            <span style={{
+                              background: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0',
+                              borderRadius: '20px', padding: '2px 8px', fontSize: '10.5px', fontWeight: 900,
+                              display: 'inline-flex', alignItems: 'center', gap: '4px'
+                            }}>✓ Line Fulfilled</span>
+                          ) : isFull ? (
                             <span style={{
                               background: '#D1FAE5', color: '#065F46', border: '1px solid #6EE7B7',
                               borderRadius: '20px', padding: '2px 8px', fontSize: '10.5px', fontWeight: 900
-                            }}>✓ Full</span>
-                          )}
+                            }}>✓ Full Intake</span>
+                          ) : null}
                         </div>
 
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                           <span style={{
-                            fontSize: '11.5px', background: '#F8FAFC', border: '1px solid #E2E8F0',
+                            fontSize: '11.5px', background: '#F1F5F9', border: '1px solid #E2E8F0',
                             padding: '3px 10px', borderRadius: '6px', color: '#475569', fontWeight: 700
                           }}>
-                            📦 Ordered: <strong style={{ color: '#0F172A' }}>{item.orderedQty} {item.unit}</strong>
+                            📦 Total Ordered: <strong style={{ color: '#0F172A' }}>{item.orderedQty} {item.unit}</strong>
                           </span>
-                          <span style={{
-                            fontSize: '11.5px', background: '#EFF6FF', border: '1px solid #BFDBFE',
-                            padding: '3px 10px', borderRadius: '6px', color: '#1D4ED8', fontWeight: 800
-                          }}>
-                            Remaining: {item.remainingSupplyQty} {item.unit}
-                          </span>
+                          {item.previouslyReceivedQty > 0 && (
+                            <span style={{
+                              fontSize: '11.5px', background: '#ECFDF5', border: '1px solid #A7F3D0',
+                              padding: '3px 10px', borderRadius: '6px', color: '#047857', fontWeight: 700
+                            }}>
+                              Prior Received: <strong>{item.previouslyReceivedQty} {item.unit}</strong>
+                            </span>
+                          )}
+                          {isLineCompleted ? (
+                            <span style={{
+                              fontSize: '11.5px', background: '#DCFCE7', border: '1px solid #86EFAC',
+                              padding: '3px 10px', borderRadius: '6px', color: '#166534', fontWeight: 800
+                            }}>
+                              ✓ 0 Remaining
+                            </span>
+                          ) : (
+                            <span style={{
+                              fontSize: '11.5px', background: '#EFF6FF', border: '1px solid #BFDBFE',
+                              padding: '3px 10px', borderRadius: '6px', color: '#1D4ED8', fontWeight: 800
+                            }}>
+                              ⚡ Remaining: {item.remainingSupplyQty} {item.unit}
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       {/* Right: Qty input block */}
                       <div style={{
                         flexShrink: 0, display: 'flex', flexDirection: 'column',
-                        alignItems: 'center', gap: '6px', minWidth: '120px'
+                        alignItems: 'center', gap: '6px', minWidth: '130px'
                       }}>
-                        <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Delivered Qty</div>
-                        <input
-                          type="number"
-                          min="0"
-                          max={item.remainingSupplyQty}
-                          value={item.deliveredQty === 0 ? '' : item.deliveredQty}
-                          placeholder="0"
-                          onChange={e => handleQtyChange(item.productId, 'deliveredQty', e.target.value)}
-                          className="qty-input"
-                          style={{
-                            border: isFull ? '2px solid #10B981' : '2px solid #CBD5E1',
-                            color: isFull ? '#065F46' : '#0F172A',
-                            background: isFull ? '#F0FDF4' : '#ffffff',
-                            width: '100px',
-                            fontSize: '18px',
-                            fontWeight: 900,
-                            padding: '10px 8px'
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleQtyChange(item.productId, 'deliveredQty', item.remainingSupplyQty)}
-                          style={{
-                            background: '#EFF6FF', border: '1px solid #BFDBFE',
-                            borderRadius: '6px', color: '#2563EB',
-                            fontSize: '11px', fontWeight: 800,
-                            cursor: 'pointer', padding: '3px 10px',
-                            transition: 'all 0.15s'
-                          }}
-                        >
-                          All ({item.remainingSupplyQty})
-                        </button>
+                        {isLineCompleted ? (
+                          <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: '100%',
+                            padding: '8px 14px',
+                            background: '#F0FDF4',
+                            border: '1.5px solid #BBF7D0',
+                            borderRadius: '10px',
+                            minHeight: '62px'
+                          }}>
+                            <span style={{ fontSize: '13px', fontWeight: 900, color: '#166534', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Check size={16} /> Fully Received
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600, marginTop: '2px' }}>
+                              ✓ {item.orderedQty}/{item.orderedQty} {item.unit}
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Delivered Qty</div>
+                            <input
+                              type="number"
+                              min="0"
+                              max={item.remainingSupplyQty}
+                              value={item.deliveredQty === 0 ? '' : item.deliveredQty}
+                              placeholder="0"
+                              onChange={e => handleQtyChange(item.productId, 'deliveredQty', e.target.value)}
+                              className="qty-input"
+                              style={{
+                                border: isFull ? '2px solid #10B981' : '2px solid #CBD5E1',
+                                color: isFull ? '#065F46' : '#0F172A',
+                                background: isFull ? '#F0FDF4' : '#ffffff',
+                                width: '100px',
+                                fontSize: '18px',
+                                fontWeight: 900,
+                                padding: '10px 8px',
+                                textAlign: 'center'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleQtyChange(item.productId, 'deliveredQty', item.remainingSupplyQty)}
+                              style={{
+                                background: '#EFF6FF', border: '1px solid #BFDBFE',
+                                borderRadius: '6px', color: '#2563EB',
+                                fontSize: '11px', fontWeight: 800,
+                                cursor: 'pointer', padding: '3px 10px',
+                                transition: 'all 0.15s'
+                              }}
+                            >
+                              All Remaining ({item.remainingSupplyQty})
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
 
                     {/* Row 2: Progress bar */}
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748B', fontWeight: 700, marginBottom: '5px' }}>
-                        <span>Delivery progress</span>
-                        <span style={{ color: isFull ? '#059669' : '#1D4ED8', fontWeight: 900 }}>{fillPct}%</span>
+                    {!isLineCompleted && (
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748B', fontWeight: 700, marginBottom: '5px' }}>
+                          <span>Intake progress for this delivery</span>
+                          <span style={{ color: isFull ? '#059669' : '#1D4ED8', fontWeight: 900 }}>{fillPct}%</span>
+                        </div>
+                        <div style={{ width: '100%', height: '6px', background: '#E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
+                          <div style={{
+                            width: `${fillPct}%`, height: '100%',
+                            background: isFull ? 'linear-gradient(90deg, #10B981, #059669)' : 'linear-gradient(90deg, #3B82F6, #2563EB)',
+                            borderRadius: '10px',
+                            transition: 'width 0.35s cubic-bezier(0.4,0,0.2,1)'
+                          }} />
+                        </div>
                       </div>
-                      <div style={{ width: '100%', height: '6px', background: '#E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
-                        <div style={{
-                          width: `${fillPct}%`, height: '100%',
-                          background: isFull ? 'linear-gradient(90deg, #10B981, #059669)' : 'linear-gradient(90deg, #3B82F6, #2563EB)',
-                          borderRadius: '10px',
-                          transition: 'width 0.35s cubic-bezier(0.4,0,0.2,1)'
-                        }} />
-                      </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
@@ -1920,28 +2180,37 @@ export default function VerifyPODelivery() {
             <div className="delivery-summary-card" style={{ background: '#F8FAFC', border: '1.5px solid #E2E8F0', borderRadius: '12px', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
               <div className="summary-stats-wrap" style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
                 <div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>Total Expected</div>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F172A' }}>{deliverySummary.totalExpected} Units</div>
+                </div>
+                <div className="summary-divider" style={{ width: '1px', height: '30px', background: '#E2E8F0' }} />
+                <div>
                   <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>Total Delivered</div>
-                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#0F172A' }}>{deliverySummary.totalDelivered} Units</div>
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#059669' }}>{deliverySummary.totalDelivered} Units</div>
+                  {deliverySummary.currentIntake > 0 ? (
+                    <div style={{ fontSize: '10.5px', color: '#16A34A', fontWeight: 700 }}>
+                      ({deliverySummary.priorDelivered} prior + {deliverySummary.currentIntake} new)
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 600 }}>
+                      ({deliverySummary.priorDelivered} prior verified)
+                    </div>
+                  )}
                 </div>
                 <div className="summary-divider" style={{ width: '1px', height: '30px', background: '#E2E8F0' }} />
                 <div>
                   <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>Remaining to Deliver</div>
                   <div style={{ fontSize: '18px', fontWeight: 900, color: '#2563EB' }}>{deliverySummary.remainingToDeliver} Units</div>
                 </div>
-                <div className="summary-divider" style={{ width: '1px', height: '30px', background: '#E2E8F0' }} />
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>Total Expected Order</div>
-                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#475569' }}>{deliverySummary.totalOrdered} Units</div>
-                </div>
               </div>
 
               <div style={{ minWidth: '180px', width: '100%', maxWidth: '240px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#64748B', fontWeight: 700, marginBottom: '4px' }}>
                   <span>Fulfillment Rate</span>
-                  <span>{deliverySummary.completionRate}%</span>
+                  <span style={{ fontWeight: 800, color: '#059669' }}>{deliverySummary.fulfillmentRate}%</span>
                 </div>
                 <div style={{ width: '100%', height: '8px', background: '#E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
-                  <div style={{ width: `${deliverySummary.completionRate}%`, height: '100%', background: '#10B981', borderRadius: '10px', transition: 'width 0.3s' }} />
+                  <div style={{ width: `${deliverySummary.fulfillmentRate}%`, height: '100%', background: '#10B981', borderRadius: '10px', transition: 'width 0.3s' }} />
                 </div>
               </div>
             </div>
@@ -2216,6 +2485,7 @@ export default function VerifyPODelivery() {
               className="delivery-btn-cancel"
               onClick={() => {
                 setSelectedPOId(null);
+                setLivePO(null);
                 setFormErrors({});
                 setTouchedFields({});
               }}
@@ -2237,21 +2507,21 @@ export default function VerifyPODelivery() {
               type="button"
               className="delivery-btn-submit"
               onClick={handleSubmitGRN}
-              disabled={isSubmitting || deliverySummary.totalDelivered === 0}
+              disabled={isSubmitting || deliverySummary.currentIntake === 0}
               style={{
                 padding: '12px 28px',
                 borderRadius: '10px',
                 border: 'none',
-                background: deliverySummary.totalDelivered === 0 ? '#94A3B8' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                background: deliverySummary.currentIntake === 0 ? '#94A3B8' : 'linear-gradient(135deg, #059669 0%, #047857 100%)',
                 color: '#ffffff',
                 fontSize: '14px',
                 fontWeight: 800,
-                cursor: (isSubmitting || deliverySummary.totalDelivered === 0) ? 'not-allowed' : 'pointer',
+                cursor: (isSubmitting || deliverySummary.currentIntake === 0) ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                boxShadow: deliverySummary.totalDelivered > 0 ? '0 4px 14px rgba(5, 150, 105, 0.35)' : 'none',
+                boxShadow: deliverySummary.currentIntake > 0 ? '0 4px 14px rgba(5, 150, 105, 0.35)' : 'none',
                 transition: 'all 0.15s ease'
               }}
             >
@@ -2259,7 +2529,7 @@ export default function VerifyPODelivery() {
                 <>Creating GRN & Moving Stock...</>
               ) : (
                 <>
-                  <CheckCircle2 size={18} /> Confirm Delivery & Generate GRN ({deliverySummary.totalDelivered} Units)
+                  <CheckCircle2 size={18} /> Confirm Delivery & Generate GRN ({deliverySummary.currentIntake} Units)
                 </>
               )}
             </button>
