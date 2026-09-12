@@ -1,343 +1,945 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import Swal from 'sweetalert2';
 import { useMaterialRequests } from '../../hooks/useMaterialRequests';
-import { Search, X, PackageCheck, CheckCircle2, Clock, Box, Layers, RefreshCw, Filter } from 'lucide-react';
+import {
+  PackageCheck,
+  Search,
+  X,
+  RefreshCw,
+  Copy,
+  Printer,
+  FileText,
+  Boxes,
+  Layers,
+  CheckCircle2,
+  Calendar,
+  User,
+  Building2,
+  ArrowRight,
+  Eye,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Sparkles
+} from 'lucide-react';
+import './ProductionStoreReleasesView.css';
+
+const STORE_RELEASE_HISTORY_KEY = 'store_release_history_v1';
+const STORE_ISSUED_QTY_KEY = 'store_issued_quantities';
+
+// Baseline released materials data if no backend/local transactions exist
+const BASELINE_STORE_RELEASES = [
+  {
+    id: 'REL-INIT-001',
+    issueReference: 'ISS-WO-109-178582',
+    requestId: 'mr-sample-wo109',
+    requestNo: 'MR-2026-089',
+    workOrderNo: 'WO-109',
+    materialName: 'Steel Plates (Grade 304)',
+    quantityIssued: 150,
+    unit: 'Units',
+    department: 'Production Assembly',
+    issuedBy: 'Store Manager',
+    issuedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+    status: 'ISSUED_TO_PRODUCTION'
+  },
+  {
+    id: 'REL-INIT-002',
+    issueReference: 'ISS-WO-2026-074-9912',
+    requestId: 'mr-sample-004',
+    requestNo: 'MR-2026-098',
+    workOrderNo: 'WO-2026-074',
+    materialName: 'Pigment Red Iron Oxide',
+    quantityIssued: 500,
+    unit: 'Kg',
+    department: 'Production Assembly',
+    issuedBy: 'Store Manager',
+    issuedAt: new Date(Date.now() - 3600000 * 18).toISOString(),
+    status: 'ISSUED_TO_PRODUCTION'
+  },
+  {
+    id: 'REL-INIT-003',
+    issueReference: 'ISS-WO-2026-088-3310',
+    requestId: 'mr-sample-001',
+    requestNo: 'MR-2026-101',
+    workOrderNo: 'WO-2026-088',
+    materialName: 'OPC Cement Grade 53',
+    quantityIssued: 50,
+    unit: 'Bags',
+    department: 'Production Floor',
+    issuedBy: 'Store Officer',
+    issuedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+    status: 'ISSUED_TO_PRODUCTION'
+  },
+  {
+    id: 'REL-INIT-004',
+    issueReference: 'ISS-WO-2026-088-3311',
+    requestId: 'mr-sample-001',
+    requestNo: 'MR-2026-101',
+    workOrderNo: 'WO-2026-088',
+    materialName: 'River Sand Grade-1',
+    quantityIssued: 20,
+    unit: 'Tons',
+    department: 'Production Floor',
+    issuedBy: 'Store Officer',
+    issuedAt: new Date(Date.now() - 3600000 * 10).toISOString(),
+    status: 'ISSUED_TO_PRODUCTION'
+  },
+  {
+    id: 'REL-INIT-005',
+    issueReference: 'ISS-WO-2026-092-8821',
+    requestId: 'mr-sample-002',
+    requestNo: 'MR-2026-102',
+    workOrderNo: 'WO-2026-092',
+    materialName: 'Resin Epoxy Binder',
+    quantityIssued: 15,
+    unit: 'Barrels',
+    department: 'Chemical Processing',
+    issuedBy: 'Store Officer',
+    issuedAt: new Date(Date.now() - 3600000 * 4).toISOString(),
+    status: 'ISSUED_TO_PRODUCTION'
+  }
+];
 
 export default function ProductionStoreReleasesView() {
   const { data: allRequests = [], refetch } = useMaterialRequests();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const [isMobile, setIsMobile] = useState(false);
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedWo, setSelectedWo] = useState('ALL');
+  const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards'
+  const [copiedRef, setCopiedRef] = useState(null);
+  const [selectedVoucher, setSelectedVoucher] = useState(null);
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Read Store Release History from localStorage
+  const [storeLedger, setStoreLedger] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(STORE_RELEASE_HISTORY_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {
+        console.error('Failed to read store_release_history_v1:', e);
+      }
+    }
+    return BASELINE_STORE_RELEASES;
+  });
+
+  // Listen for storage changes across tabs/windows
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+    const handleStorage = (e) => {
+      if (e.key === STORE_RELEASE_HISTORY_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setStoreLedger(parsed);
+        } catch {}
+      }
     };
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  // Fallback dataset including order WO-109
-  const fallbackRequests = useMemo(() => [
-    {
-      id: 'a216ad48-b316-4174-b609-f6c465f58f2d',
-      orderId: 'WO-109',
-      department: 'Production',
-      status: 'ISSUED_TO_PRODUCTION',
-      issuedBy: 'Store Manager',
-      issueReference: 'ISS-WO-109-178582',
-      items: [
-        {
-          materialId: 'mat-steel-plates',
-          materialName: 'Steel Plates',
-          approvedQty: 150,
-          issuedQty: 150,
-          unit: 'Units'
-        }
-      ]
-    }
-  ], []);
-
-  // Combined requests (fallback + backend requests) with localStorage issued quantities overlay
-  const requests = useMemo(() => {
+  // AGGREGATE ALL MATERIALS ISSUED BY STORE
+  const issuedMaterials = useMemo(() => {
     let savedQuantities = {};
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('store_issued_quantities');
+        const saved = localStorage.getItem(STORE_ISSUED_QTY_KEY);
         if (saved) savedQuantities = JSON.parse(saved);
       } catch {}
     }
 
-    const map = new Map();
-    fallbackRequests.forEach((req) => {
-      const updatedItems = req.items.map((item, idx) => {
-        const itemKey = `${req.id}-${item.materialId || idx}`;
-        const issuedVal = savedQuantities[itemKey] !== undefined ? savedQuantities[itemKey] : item.issuedQty;
-        return { ...item, issuedQty: issuedVal };
-      });
-      const allIssued = updatedItems.every((it) => Number(it.issuedQty || 0) >= Number(it.approvedQty || 0));
-      map.set(req.id, {
-        ...req,
-        items: updatedItems,
-        status: allIssued ? 'ISSUED_TO_PRODUCTION' : req.status,
+    const itemsMap = new Map();
+
+    // 1. Ingest transactions from the Store Releases ledger
+    storeLedger.forEach((tx) => {
+      if (!tx || !tx.materialName || Number(tx.quantityIssued || 0) <= 0) return;
+      const key = `${tx.issueReference || tx.id}-${tx.materialName}`;
+      itemsMap.set(key, {
+        id: tx.id || `rel-${Math.random()}`,
+        issueReference: tx.issueReference || `ISS-${tx.workOrderNo || 'WO'}-${tx.id.slice(-4)}`,
+        workOrderNo: tx.workOrderNo || tx.orderId || 'Direct Issue',
+        requestNo: tx.requestNo || tx.publicId || 'MR-STORE',
+        materialName: tx.materialName,
+        quantityIssued: Number(tx.quantityIssued),
+        unit: tx.unit || 'Units',
+        department: tx.department || 'Production Floor',
+        issuedBy: tx.issuedBy || 'Store Manager',
+        issuedAt: tx.issuedAt || new Date().toISOString(),
+        status: tx.status || 'ISSUED_TO_PRODUCTION'
       });
     });
 
+    // 2. Ingest backend material requests items where issuedQty > 0
     (allRequests || []).forEach((req) => {
-      const updatedItems = req.items.map((item, idx) => {
+      const wo = req.workOrderNo || req.orderId || 'Direct Requisition';
+      const reqNum = req.requestNo || req.publicId || req.id;
+      const dept = req.metadata?.issuedToDepartment || req.department || 'Production';
+      const issuer = req.metadata?.issuedBy || req.issuedBy || 'Store';
+      const ref = req.metadata?.issueReference || req.issueReference || `ISS-${wo}-${reqNum.slice(-4)}`;
+      const time = req.metadata?.issuedAt || req.updatedAt || req.createdAt || new Date().toISOString();
+
+      (req.items || []).forEach((item, idx) => {
         const itemKey = `${req.id}-${item.materialId || idx}`;
-        const issuedVal = savedQuantities[itemKey] !== undefined ? savedQuantities[itemKey] : item.issuedQty;
-        return { ...item, issuedQty: issuedVal };
+        let qty = 0;
+        if (savedQuantities[itemKey] !== undefined) {
+          qty = Number(savedQuantities[itemKey]);
+        } else {
+          qty = Number(item.issuedQty || 0);
+          if (qty === 0 && ['ISSUED_TO_PRODUCTION', 'RECEIVED', 'CONSUMING'].includes(req.status)) {
+            qty = Number(item.approvedQty || item.quantity || 0);
+          }
+        }
+
+        if (qty > 0) {
+          const mapKey = `${ref}-${item.materialName || item.material}`;
+          if (!itemsMap.has(mapKey)) {
+            itemsMap.set(mapKey, {
+              id: `${req.id}-${item.id || idx}`,
+              issueReference: ref,
+              workOrderNo: wo,
+              requestNo: reqNum,
+              materialName: item.materialName || item.material,
+              quantityIssued: qty,
+              unit: item.unit || 'Units',
+              department: req.metadata?.itemDepartments?.[item.id] || dept,
+              issuedBy: issuer,
+              issuedAt: time,
+              status: req.status || 'ISSUED_TO_PRODUCTION'
+            });
+          }
+        }
       });
-      const anyIssued = updatedItems.some((it) => Number(it.issuedQty || 0) > 0);
-      if (
-        ['ISSUED_TO_PRODUCTION', 'ISSUED', 'STORE_APPROVED', 'PARTIALLY_ISSUED'].includes(req.status) ||
-        anyIssued
-      ) {
-        map.set(req.id, { ...req, items: updatedItems });
-      }
     });
 
-    return Array.from(map.values());
-  }, [allRequests, fallbackRequests]);
+    // Sort newest releases first
+    return Array.from(itemsMap.values()).sort((a, b) => {
+      const timeA = new Date(a.issuedAt).getTime() || 0;
+      const timeB = new Date(b.issuedAt).getTime() || 0;
+      return timeB - timeA;
+    });
+  }, [storeLedger, allRequests]);
 
-  // Filter requests by search term & status
-  const filteredRequests = useMemo(() => {
-    return requests.filter(req => {
-      const q = searchTerm.toLowerCase();
-      const matchesSearch = !q ||
-        (req.orderId || '').toLowerCase().includes(q) ||
-        (req.id || '').toLowerCase().includes(q) ||
-        (req.issueReference || '').toLowerCase().includes(q) ||
-        req.items?.some(it => (it.materialName || it.material || '').toLowerCase().includes(q));
+  // Unique Work Orders list for filtering
+  const workOrderOptions = useMemo(() => {
+    const set = new Set();
+    issuedMaterials.forEach((item) => {
+      if (item.workOrderNo) set.add(item.workOrderNo);
+    });
+    return Array.from(set);
+  }, [issuedMaterials]);
+
+  // Filtered materials
+  const filteredMaterials = useMemo(() => {
+    return issuedMaterials.filter((item) => {
+      const q = searchTerm.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        (item.materialName || '').toLowerCase().includes(q) ||
+        (item.issueReference || '').toLowerCase().includes(q) ||
+        (item.workOrderNo || '').toLowerCase().includes(q) ||
+        (item.requestNo || '').toLowerCase().includes(q) ||
+        (item.department || '').toLowerCase().includes(q) ||
+        (item.issuedBy || '').toLowerCase().includes(q);
 
       if (!matchesSearch) return false;
 
-      const isFull = req.items?.every(it => Number(it.issuedQty ?? it.approvedQty ?? 0) >= Number(it.approvedQty || 0));
-      if (statusFilter === 'FULL') return isFull;
-      if (statusFilter === 'PARTIAL') return !isFull;
+      if (selectedWo !== 'ALL' && item.workOrderNo !== selectedWo) {
+        return false;
+      }
+
       return true;
     });
-  }, [requests, searchTerm, statusFilter]);
+  }, [issuedMaterials, searchTerm, selectedWo]);
+
+  // Group materials by Work Order for Cards View
+  const groupedByWorkOrder = useMemo(() => {
+    const groups = {};
+    filteredMaterials.forEach((item) => {
+      const wo = item.workOrderNo || 'Direct Issue';
+      if (!groups[wo]) {
+        groups[wo] = {
+          workOrderNo: wo,
+          department: item.department,
+          items: [],
+          totalQty: 0,
+          latestIssuedAt: item.issuedAt
+        };
+      }
+      groups[wo].items.push(item);
+      groups[wo].totalQty += item.quantityIssued;
+      if (new Date(item.issuedAt) > new Date(groups[wo].latestIssuedAt)) {
+        groups[wo].latestIssuedAt = item.issuedAt;
+      }
+    });
+    return Object.values(groups);
+  }, [filteredMaterials]);
+
+  // KPIs
+  const kpis = useMemo(() => {
+    const uniqueMaterials = new Set(issuedMaterials.map((m) => m.materialName)).size;
+    const totalQty = issuedMaterials.reduce((sum, m) => sum + (Number(m.quantityIssued) || 0), 0);
+    const uniqueVouchers = new Set(issuedMaterials.map((m) => m.issueReference)).size;
+    const uniqueWos = new Set(issuedMaterials.map((m) => m.workOrderNo)).size;
+
+    return {
+      uniqueMaterials,
+      totalQty,
+      uniqueVouchers,
+      uniqueWos
+    };
+  }, [issuedMaterials]);
+
+  // Pagination for table view
+  const totalPages = Math.max(1, Math.ceil(filteredMaterials.length / pageSize));
+  const paginatedMaterials = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredMaterials.slice(start, start + pageSize);
+  }, [filteredMaterials, page, pageSize]);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, selectedWo]);
+
+  const copyToClipboard = (text) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedRef(text);
+      setTimeout(() => setCopiedRef(null), 2000);
+    }
+  };
+
+  const formatDateTime = (iso) => {
+    if (!iso) return '—';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return iso;
+    }
+  };
 
   return (
-    <div style={{ padding: 'clamp(12px, 2vw, 24px)', fontFamily: "var(--font-main, 'Inter', sans-serif)", width: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'hidden' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{ margin: '0 0 6px', fontSize: '24px', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <PackageCheck size={26} color="#06b6d4" /> Production Store Releases
-          </h1>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>
-            Complete &amp; partial material inventory released by the Store department for production orders.
-          </p>
+    <div className="prod-store-releases-root">
+      {/* ── HEADER BANNER ── */}
+      <header className="prod-sr-header">
+        <div className="prod-sr-header__title-wrap">
+          <div className="prod-sr-header__icon-box">
+            <PackageCheck size={28} />
+          </div>
+          <div>
+            <h1 className="prod-sr-header__title">
+              Store Released Materials (Production Floor)
+            </h1>
+            <p className="prod-sr-header__subtitle">
+              Live floor registry of all raw materials, components, and supplies issued by Store for active production.
+            </p>
+          </div>
         </div>
 
-        {/* Refresh */}
-        <button
-          onClick={() => refetch?.()}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', fontSize: '13px', fontWeight: '600', color: '#475569', cursor: 'pointer' }}
-        >
-          <RefreshCw size={14} /> Refresh List
-        </button>
-      </div>
+        <div className="prod-sr-header__actions">
+          <button
+            type="button"
+            className="prod-sr-btn prod-sr-btn--outline"
+            onClick={() => {
+              refetch?.();
+              try {
+                const saved = localStorage.getItem(STORE_RELEASE_HISTORY_KEY);
+                if (saved) setStoreLedger(JSON.parse(saved));
+              } catch {}
+            }}
+          >
+            <RefreshCw size={15} /> Refresh List
+          </button>
+        </div>
+      </header>
 
-      {/* Filter Bar */}
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '20px', background: '#fff', padding: isMobile ? '10px 12px' : '12px 18px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-        {/* Search Input */}
-        <div style={{ position: 'relative', width: '100%', minWidth: 0, flex: isMobile ? 'none' : '1 1 280px', maxWidth: isMobile ? '100%' : '380px' }}>
-          <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
-          <input
-            type="text"
-            placeholder="Search order ID, material, request ID…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: '100%', height: '38px', boxSizing: 'border-box', padding: '0 32px 0 36px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', background: '#f8fafc', color: '#0f172a' }}
-          />
-          {searchTerm && (
-            <X size={14} onClick={() => setSearchTerm('')} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', cursor: 'pointer' }} />
-          )}
+      {/* ── KPI METRICS SUMMARY CARDS ── */}
+      <section className="prod-sr-kpi-grid">
+        <div className="prod-sr-kpi-card">
+          <div className="prod-sr-kpi-icon" style={{ background: '#F0FDF4', color: '#16A34A', border: '1px solid #BBF7D0' }}>
+            <Boxes size={22} />
+          </div>
+          <div>
+            <div className="prod-sr-kpi-value">{kpis.uniqueMaterials}</div>
+            <div className="prod-sr-kpi-label">Materials Released</div>
+          </div>
         </div>
 
-        {/* Filter Pills */}
-        <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '8px', width: isMobile ? '100%' : 'auto', boxSizing: 'border-box', overflowX: 'auto' }}>
-          {[
-            { key: 'ALL', label: 'All Releases' },
-            { key: 'FULL', label: 'Completely Issued' },
-            { key: 'PARTIAL', label: 'Partially Issued' },
-          ].map((tab) => (
+        <div className="prod-sr-kpi-card">
+          <div className="prod-sr-kpi-icon" style={{ background: '#F0FDFA', color: '#0F766E', border: '1px solid #CCFBF1' }}>
+            <Sparkles size={22} />
+          </div>
+          <div>
+            <div className="prod-sr-kpi-value">{kpis.totalQty.toLocaleString('en-IN')}</div>
+            <div className="prod-sr-kpi-label">Total Units Issued</div>
+          </div>
+        </div>
+
+        <div className="prod-sr-kpi-card">
+          <div className="prod-sr-kpi-icon" style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>
+            <FileText size={22} />
+          </div>
+          <div>
+            <div className="prod-sr-kpi-value">{kpis.uniqueVouchers}</div>
+            <div className="prod-sr-kpi-label">Release Vouchers</div>
+          </div>
+        </div>
+
+        <div className="prod-sr-kpi-card">
+          <div className="prod-sr-kpi-icon" style={{ background: '#FAF5FF', color: '#9333EA', border: '1px solid #E9D5FF' }}>
+            <Building2 size={22} />
+          </div>
+          <div>
+            <div className="prod-sr-kpi-value">{kpis.uniqueWos}</div>
+            <div className="prod-sr-kpi-label">Work Orders Supplied</div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── CONTROLS & FILTER BAR ── */}
+      <section className="prod-sr-controls">
+        <div className="prod-sr-controls__left">
+          {/* Search Box */}
+          <div className="prod-sr-search-wrap">
+            <Search size={16} className="prod-sr-search-icon" />
+            <input
+              type="text"
+              className="prod-sr-search-input"
+              placeholder="Search material, voucher, work order, issuer…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                className="prod-sr-clear-btn"
+                onClick={() => setSearchTerm('')}
+                title="Clear search"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
+
+          {/* Work Order Selector */}
+          <select
+            className="prod-sr-select"
+            value={selectedWo}
+            onChange={(e) => setSelectedWo(e.target.value)}
+          >
+            <option value="ALL">All Work Orders ({issuedMaterials.length} materials)</option>
+            {workOrderOptions.map((wo) => (
+              <option key={wo} value={wo}>
+                Work Order: {wo}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* View Mode Toggle */}
+        <div className="prod-sr-controls__right">
+          <div className="prod-sr-view-toggle">
             <button
-              key={tab.key}
-              onClick={() => setStatusFilter(tab.key)}
-              style={{
-                flex: isMobile ? '1 1 0' : 'none',
-                whiteSpace: 'nowrap',
-                textAlign: 'center',
-                padding: isMobile ? '6px 8px' : '6px 14px',
-                borderRadius: '6px',
-                border: 'none',
-                fontSize: isMobile ? '11.5px' : '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                background: statusFilter === tab.key ? '#0f172a' : 'transparent',
-                color: statusFilter === tab.key ? '#fff' : '#64748b',
-                transition: 'all 0.15s'
-              }}
+              type="button"
+              className={`prod-sr-view-btn ${viewMode === 'table' ? 'is-active' : ''}`}
+              onClick={() => setViewMode('table')}
             >
-              {tab.label}
+              <FileText size={15} /> Table Ledger
             </button>
-          ))}
+            <button
+              type="button"
+              className={`prod-sr-view-btn ${viewMode === 'cards' ? 'is-active' : ''}`}
+              onClick={() => setViewMode('cards')}
+            >
+              <Layers size={15} /> Work Order Cards
+            </button>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Orders Cards List */}
-      {filteredRequests.map((request) => {
-        const lineItems = request.items || [];
-        const isCompletelyIssued = lineItems.every(it => Number(it.issuedQty ?? it.approvedQty ?? 0) >= Number(it.approvedQty || 0));
+      {/* ── VIEW 1: DETAILED MATERIAL LEDGER TABLE ── */}
+      {viewMode === 'table' && (
+        <div className="prod-sr-table-card">
+          <div className="prod-sr-table-wrap">
+            <table className="prod-sr-table">
+              <thead>
+                <tr>
+                  <th>Material Issued</th>
+                  <th>Quantity Issued</th>
+                  <th>Release Voucher</th>
+                  <th>Work Order / Requisition</th>
+                  <th>Target Department</th>
+                  <th>Issued By &amp; Date</th>
+                  <th>Floor Status</th>
+                  <th style={{ textAlign: 'right' }}>Handover Pass</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredMaterials.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ padding: '60px 20px', textAlign: 'center', color: '#64748B' }}>
+                      <PackageCheck size={42} style={{ color: '#CBD5E1', marginBottom: '10px' }} />
+                      <div style={{ fontSize: '16px', fontWeight: '800', color: '#1E293B' }}>
+                        No Store Released Materials Found
+                      </div>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#94A3B8' }}>
+                        {searchTerm || selectedWo !== 'ALL'
+                          ? 'No issued materials match the current filters.'
+                          : 'Materials issued by the store will automatically appear here once released.'}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedMaterials.map((item) => {
+                    const isCopied = copiedRef === item.issueReference;
+                    return (
+                      <tr key={item.id}>
+                        {/* Material Name & Unit */}
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{
+                              width: '34px',
+                              height: '34px',
+                              borderRadius: '8px',
+                              background: '#F1F5F9',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#0F766E',
+                              flexShrink: 0
+                            }}>
+                              <Boxes size={18} />
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: '800', color: '#0F172A', fontSize: '13.5px' }}>
+                                {item.materialName}
+                              </div>
+                              <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+                                Unit: <strong style={{ color: '#334155' }}>{item.unit}</strong>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
 
-        return (
-          <div key={request.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', marginBottom: '20px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-            {/* Card Meta Header */}
-            <div style={{ padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: '12px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', fontSize: '13px', color: '#475569', width: isMobile ? '100%' : 'auto' }}>
-                <span><strong>Order ID:</strong> <span style={{ color: '#0f172a', fontFamily: 'monospace', fontWeight: '700' }}>{request.orderId || '—'}</span></span>
-                <span><strong>Department:</strong> <span style={{ color: '#0f172a', fontWeight: '600' }}>{request.department || 'Production'}</span></span>
-                <span><strong>Request ID:</strong> <span style={{ fontFamily: 'monospace', color: '#24345C', fontWeight: '700' }}>{request.requestNo || request.publicId || request.id}</span></span>
-                {request.issueReference && <span><strong>Issue Ref:</strong> <span style={{ color: '#0284c7', fontWeight: '600' }}>{request.issueReference}</span></span>}
-              </div>
+                        {/* Quantity Issued */}
+                        <td>
+                          <span className="prod-sr-qty-pill">
+                            {item.quantityIssued} {item.unit}
+                          </span>
+                        </td>
 
-              <div style={{ alignSelf: isMobile ? 'flex-start' : 'auto' }}>
-                <span
-                  style={{
-                    padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '800',
-                    background: isCompletelyIssued ? '#f0fdf4' : '#eff6ff',
-                    color: isCompletelyIssued ? '#15803d' : '#1d4ed8',
-                    border: `1px solid ${isCompletelyIssued ? '#bbf7d0' : '#bfdbfe'}`
-                  }}
-                >
-                  {isCompletelyIssued ? '✓ Completely Issued to Production' : '⚡ Partially Issued / Pending'}
-                </span>
-              </div>
-            </div>
+                        {/* Voucher Badge */}
+                        <td>
+                          <div className="prod-sr-voucher-badge">
+                            <span>{item.issueReference}</span>
+                            <button
+                              type="button"
+                              className="prod-sr-copy-btn"
+                              onClick={() => copyToClipboard(item.issueReference)}
+                              title="Copy voucher reference"
+                            >
+                              {isCopied ? <Check size={13} color="#059669" /> : <Copy size={13} />}
+                            </button>
+                          </div>
+                        </td>
 
-            {/* Table / Mobile Card List */}
-            {isMobile ? (
-              <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {lineItems.map((item, idx) => {
-                  const approvedQty = Number(item.approvedQty || 0);
-                  const issuedQty = Number(item.issuedQty ?? approvedQty ?? 0);
-                  const remainingQty = Math.max(0, approvedQty - issuedQty);
-                  const isLineComplete = remainingQty === 0;
+                        {/* Work Order & Requisition */}
+                        <td>
+                          <div className="prod-sr-wo-chip">
+                            <span style={{ color: '#0284C7' }}>⚡</span>
+                            <span>{item.workOrderNo}</span>
+                          </div>
+                          <div className="prod-sr-req-sub">
+                            Req: {item.requestNo}
+                          </div>
+                        </td>
 
-                  return (
-                    <div
-                      key={idx}
-                      style={{
-                        background: '#ffffff',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '10px',
-                        padding: '14px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '10px'
-                      }}
-                    >
-                      {/* Header material */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '10px' }}>
-                        <span style={{ fontWeight: '800', color: '#0f172a', fontSize: '14px' }}>
-                          {item.materialName || item.material}
-                        </span>
-                        {isLineComplete ? (
-                          <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', whiteSpace: 'nowrap' }}>
+                        {/* Target Department */}
+                        <td>
+                          <span style={{
+                            background: '#F1F5F9',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: '#334155'
+                          }}>
+                            {item.department}
+                          </span>
+                        </td>
+
+                        {/* Issued By & Date */}
+                        <td>
+                          <div style={{ fontWeight: '600', color: '#1E293B', fontSize: '13px' }}>
+                            {item.issuedBy}
+                          </div>
+                          <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+                            {formatDateTime(item.issuedAt)}
+                          </div>
+                        </td>
+
+                        {/* Floor Status */}
+                        <td>
+                          <span className="prod-sr-status-ready">
+                            <span className="prod-sr-dot-pulse" />
                             Ready for Production
                           </span>
-                        ) : (
-                          <span style={{ background: '#fffbeb', color: '#d97706', border: '1px solid #fcd34d', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', whiteSpace: 'nowrap' }}>
-                            Partially Issued
-                          </span>
-                        )}
+                        </td>
+
+                        {/* Handover Pass Action */}
+                        <td style={{ textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedVoucher(item)}
+                            className="prod-sr-btn prod-sr-btn--outline"
+                            style={{ padding: '5px 10px', fontSize: '12px' }}
+                            title="View official store release slip"
+                          >
+                            <Eye size={13} /> View Pass
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {filteredMaterials.length > 0 && (
+            <div style={{
+              padding: '12px 20px',
+              background: '#FFFFFF',
+              borderTop: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              <div style={{ fontSize: '13px', color: '#64748B' }}>
+                Showing <strong style={{ color: '#0F172A' }}>{(page - 1) * pageSize + 1}</strong> to <strong style={{ color: '#0F172A' }}>{Math.min(page * pageSize, filteredMaterials.length)}</strong> of <strong style={{ color: '#0F172A' }}>{filteredMaterials.length}</strong> released materials
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="prod-sr-select"
+                  style={{ height: '34px', fontSize: '12px' }}
+                >
+                  <option value={25}>25 rows</option>
+                  <option value={50}>50 rows</option>
+                  <option value={100}>100 rows</option>
+                </select>
+
+                <button
+                  type="button"
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="prod-sr-btn prod-sr-btn--outline"
+                  style={{ padding: '6px 12px', fontSize: '12px', opacity: page === 1 ? 0.5 : 1 }}
+                >
+                  <ChevronLeft size={14} /> Prev
+                </button>
+
+                <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A', padding: '0 4px' }}>
+                  {page} / {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={page === totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="prod-sr-btn prod-sr-btn--outline"
+                  style={{ padding: '6px 12px', fontSize: '12px', opacity: page === totalPages ? 0.5 : 1 }}
+                >
+                  Next <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── VIEW 2: WORK ORDER GROUPED CARDS ── */}
+      {viewMode === 'cards' && (
+        <div className="prod-sr-cards-grid">
+          {groupedByWorkOrder.length === 0 ? (
+            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: '14px', border: '1px solid #e2e8f0', color: '#64748B' }}>
+              <PackageCheck size={40} style={{ color: '#cbd5e1', marginBottom: '10px' }} />
+              <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>No Work Order Groups Found</div>
+            </div>
+          ) : (
+            groupedByWorkOrder.map((group) => (
+              <div key={group.workOrderNo} className="prod-sr-group-card">
+                {/* Header */}
+                <div className="prod-sr-group-header">
+                  <div>
+                    <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', fontWeight: '700', letterSpacing: '0.04em' }}>
+                      Production Work Order
+                    </div>
+                    <div style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ color: '#0284C7' }}>⚡</span>
+                      {group.workOrderNo}
+                    </div>
+                  </div>
+                  <span className="prod-sr-status-ready">
+                    <span className="prod-sr-dot-pulse" />
+                    {group.items.length} Material(s)
+                  </span>
+                </div>
+
+                {/* Body Item List */}
+                <div className="prod-sr-group-body">
+                  {group.items.map((it) => (
+                    <div key={it.id} className="prod-sr-group-item">
+                      <div>
+                        <div style={{ fontWeight: '700', color: '#0F172A', fontSize: '13.5px' }}>
+                          {it.materialName}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px', fontFamily: 'monospace' }}>
+                          Ref: {it.issueReference}
+                        </div>
                       </div>
 
-                      {/* Quantities breakdown */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 80px), 1fr))', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                        <div>
-                          <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#8893a7', fontWeight: '800' }}>
-                            Approved
-                          </span>
-                          <span style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>
-                            {approvedQty} {item.unit || 'Units'}
-                          </span>
+                      <div style={{ textAlign: 'right' }}>
+                        <span className="prod-sr-qty-pill" style={{ padding: '2px 8px', fontSize: '12.5px' }}>
+                          {it.quantityIssued} {it.unit}
+                        </span>
+                        <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '3px' }}>
+                          {it.department}
                         </div>
-                        <div>
-                          <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#8893a7', fontWeight: '800' }}>
-                            Issued
-                          </span>
-                          <span style={{ fontSize: '12px', color: '#1d4ed8', fontWeight: '700' }}>
-                            {issuedQty} {item.unit || 'Units'}
-                          </span>
-                        </div>
-                        <div>
-                          <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: '#8893a7', fontWeight: '800' }}>
-                            Remaining
-                          </span>
-                          <span style={{ fontSize: '12px', color: remainingQty > 0 ? '#d97706' : '#16a34a', fontWeight: '700' }}>
-                            {remainingQty} {item.unit || 'Units'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Issued By line */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
-                        <span>Issued By: {request.issuedBy || 'Store'}</span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                  <thead>
-                    <tr style={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0', textAlign: 'left', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                      <th style={{ padding: '12px 20px' }}>Material</th>
-                      <th style={{ padding: '12px 20px' }}>Approved Qty</th>
-                      <th style={{ padding: '12px 20px' }}>Issued Qty</th>
-                      <th style={{ padding: '12px 20px' }}>Remaining Qty</th>
-                      <th style={{ padding: '12px 20px' }}>Issued By</th>
-                      <th style={{ padding: '12px 20px' }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lineItems.map((item, idx) => {
-                      const approvedQty = Number(item.approvedQty || 0);
-                      const issuedQty = Number(item.issuedQty ?? approvedQty ?? 0);
-                      const remainingQty = Math.max(0, approvedQty - issuedQty);
-                      const isLineComplete = remainingQty === 0;
+                  ))}
+                </div>
 
-                      return (
-                        <tr key={idx} style={{ borderBottom: idx < lineItems.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                          <td style={{ padding: '14px 20px', fontWeight: '700', color: '#0f172a' }}>{item.materialName || item.material}</td>
-                          <td style={{ padding: '14px 20px', color: '#475569' }}>{approvedQty} {item.unit || 'Units'}</td>
-                          <td style={{ padding: '14px 20px', fontWeight: '700', color: '#1d4ed8' }}>{issuedQty} {item.unit || 'Units'}</td>
-                          <td style={{ padding: '14px 20px', fontWeight: '700', color: remainingQty > 0 ? '#d97706' : '#16a34a' }}>
-                            {remainingQty} {item.unit || 'Units'}
-                          </td>
-                          <td style={{ padding: '14px 20px', color: '#64748b' }}>{request.issuedBy || 'Store'}</td>
-                          <td style={{ padding: '14px 20px' }}>
-                            {isLineComplete ? (
-                              <span style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                                Ready for Production
-                              </span>
-                            ) : (
-                              <span style={{ background: '#fffbeb', color: '#d97706', border: '1px solid #fcd34d', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                                Partially Issued ({remainingQty} {item.unit} Left)
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                {/* Footer */}
+                <div className="prod-sr-group-footer">
+                  <span>
+                    Last Release: <strong style={{ color: '#1E293B' }}>{formatDateTime(group.latestIssuedAt)}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVoucher(group.items[0])}
+                    className="prod-sr-btn prod-sr-btn--outline"
+                    style={{ padding: '4px 10px', fontSize: '11.5px' }}
+                  >
+                    <Eye size={12} /> View Slip
+                  </button>
+                </div>
               </div>
-            )}
+            ))
+          )}
+        </div>
+      )}
 
-            {/* Footer */}
-            <div style={{ padding: '12px 20px', background: '#fafafa', borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '8px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', fontSize: '12px', color: '#64748b' }}>
-              <span>✓ Materials issued by Store team and registered on shop floor</span>
-              <span style={{ fontWeight: '600', color: '#0284c7', alignSelf: isMobile ? 'flex-end' : 'auto' }}>Ready for Work Order Execution</span>
+      {/* ── OFFICIAL STORE RELEASE PASS / DISPATCH SLIP MODAL ── */}
+      {selectedVoucher && (
+        <div className="prod-sr-modal-overlay" onClick={() => setSelectedVoucher(null)}>
+          <div className="prod-sr-modal-card" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #E2E8F0',
+              background: '#F8FAFC',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ padding: '8px', background: '#ECFDF5', borderRadius: '8px', color: '#059669' }}>
+                  <PackageCheck size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16.5px', fontWeight: '800', color: '#0F172A' }}>
+                    Store Material Handover Pass
+                  </h3>
+                  <div style={{ fontSize: '12px', color: '#64748B' }}>
+                    Official warehouse release voucher for shop-floor production
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="prod-sr-no-print"
+                onClick={() => setSelectedVoucher(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94A3B8',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Voucher Content */}
+            <div style={{ padding: '24px' }}>
+              {/* Top Meta Details */}
+              <div style={{
+                background: '#F0FDFA',
+                border: '1px solid #CCFBF1',
+                borderRadius: '12px',
+                padding: '16px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: '12px',
+                marginBottom: '20px'
+              }}>
+                <div>
+                  <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#0F766E', fontWeight: '800' }}>
+                    Voucher Reference
+                  </span>
+                  <div style={{ fontFamily: 'monospace', fontWeight: '800', color: '#134E4A', fontSize: '13.5px', marginTop: '2px' }}>
+                    {selectedVoucher.issueReference}
+                  </div>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#0F766E', fontWeight: '800' }}>
+                    Work Order
+                  </span>
+                  <div style={{ fontWeight: '800', color: '#134E4A', fontSize: '13.5px', marginTop: '2px' }}>
+                    {selectedVoucher.workOrderNo}
+                  </div>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#0F766E', fontWeight: '800' }}>
+                    Requisition ID
+                  </span>
+                  <div style={{ fontFamily: 'monospace', fontWeight: '700', color: '#134E4A', fontSize: '13px', marginTop: '2px' }}>
+                    {selectedVoucher.requestNo}
+                  </div>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#0F766E', fontWeight: '800' }}>
+                    Release Date
+                  </span>
+                  <div style={{ fontWeight: '600', color: '#134E4A', fontSize: '12.5px', marginTop: '2px' }}>
+                    {formatDateTime(selectedVoucher.issuedAt)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Material Detail Box */}
+              <div style={{
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                marginBottom: '20px'
+              }}>
+                <div style={{
+                  padding: '12px 16px',
+                  background: '#F8FAFC',
+                  borderBottom: '1px solid #E2E8F0',
+                  fontWeight: '700',
+                  fontSize: '12.5px',
+                  color: '#475569',
+                  textTransform: 'uppercase'
+                }}>
+                  Released Material Item
+                </div>
+                <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A' }}>
+                      {selectedVoucher.materialName}
+                    </div>
+                    <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '3px' }}>
+                      Department: <strong style={{ color: '#1E293B' }}>{selectedVoucher.department}</strong>
+                    </div>
+                  </div>
+                  <div className="prod-sr-qty-pill" style={{ fontSize: '16px', padding: '6px 14px' }}>
+                    {selectedVoucher.quantityIssued} {selectedVoucher.unit}
+                  </div>
+                </div>
+              </div>
+
+              {/* Signatures & Chain of Custody */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '16px',
+                paddingTop: '16px',
+                borderTop: '1px dashed #CBD5E1'
+              }}>
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>
+                  <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', fontWeight: '700' }}>
+                    Released By (Store Custodian)
+                  </div>
+                  <div style={{ fontWeight: '800', color: '#0F172A', marginTop: '4px', fontSize: '14px' }}>
+                    {selectedVoucher.issuedBy}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px', fontWeight: '600' }}>
+                    ✓ Physical Stock Dispatched
+                  </div>
+                </div>
+
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>
+                  <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', fontWeight: '700' }}>
+                    Received By (Production Floor)
+                  </div>
+                  <div style={{ fontWeight: '800', color: '#0F172A', marginTop: '4px', fontSize: '14px' }}>
+                    Production Supervisor
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#059669', marginTop: '2px', fontWeight: '600' }}>
+                    ✓ Staged &amp; Ready on Floor
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="prod-sr-no-print" style={{
+              padding: '16px 24px',
+              background: '#F8FAFC',
+              borderTop: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '10px'
+            }}>
+              <button
+                type="button"
+                className="prod-sr-btn prod-sr-btn--outline"
+                onClick={() => setSelectedVoucher(null)}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="prod-sr-btn prod-sr-btn--primary"
+                onClick={() => window.print()}
+              >
+                <Printer size={15} /> Print Pass Slip
+              </button>
             </div>
           </div>
-        );
-      })}
-
-      {filteredRequests.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: '14px', border: '1px solid #e2e8f0', color: '#64748b' }}>
-          <PackageCheck size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
-          <div style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>No store release products found</div>
-          <p style={{ fontSize: '13px', margin: 0 }}>There are currently no store released products matching your filter.</p>
         </div>
       )}
     </div>
