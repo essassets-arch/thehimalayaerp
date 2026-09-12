@@ -458,7 +458,12 @@ export class QuotationsService {
               item.specification ||
               item.productDetails ||
               '',
-            quantity: item.quantity,
+            quantity:
+              item.quantity !== undefined &&
+              item.quantity !== null &&
+              item.quantity !== ''
+                ? Number(item.quantity)
+                : Number(item.qty || 0),
             unitPrice: item.unitPrice,
             discount: item.discount || 0,
             tax: item.tax || 0,
@@ -711,7 +716,12 @@ export class QuotationsService {
                       item.specification ||
                       item.productDetails ||
                       '',
-                    quantity: item.quantity,
+                    quantity:
+                      item.quantity !== undefined &&
+                      item.quantity !== null &&
+                      item.quantity !== ''
+                        ? Number(item.quantity)
+                        : Number(item.qty || 0),
                     unitPrice: item.unitPrice,
                     discount: item.discount || 0,
                     tax: item.tax || 0,

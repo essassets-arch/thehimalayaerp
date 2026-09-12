@@ -658,12 +658,13 @@ export default function QuotationsView({
     );
   };
 
-  // Helper function to format in INR Lakhs style
+  // Helper function to format in INR currency
   const formatINR = (value) => {
-    if (value >= 100000) {
-      return `₹${(value / 100000).toFixed(2)} L`;
-    }
-    return `₹${Math.round(value).toLocaleString('en-IN')}`;
+    const num = Number(value) || 0;
+    return `₹${num.toLocaleString('en-IN', {
+      minimumFractionDigits: Number.isInteger(num) ? 0 : 2,
+      maximumFractionDigits: 2
+    })}`;
   };
 
   const formatAddressString = (addr) => {
@@ -1692,10 +1693,12 @@ export default function QuotationsView({
                   </thead>
                   <tbody style={{ display: 'table-row-group' }}>
                     {itemsList.map((item, index) => {
-                      const itemSubtotal = item.quantity * item.unitPrice;
-                      const discountValue = itemSubtotal * (item.discount || 0) / 100;
+                      const itemQty = (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') ? Number(item.quantity) : 1;
+                      const itemPrice = Number(item.unitPrice) || 0;
+                      const itemSubtotal = itemQty * itemPrice;
+                      const discountValue = itemSubtotal * (Number(item.discount) || 0) / 100;
                       const taxable = itemSubtotal - discountValue;
-                      const taxValue = taxable * (item.tax !== undefined ? item.tax : 18) / 100;
+                      const taxValue = taxable * (item.tax !== undefined ? Number(item.tax) : 18) / 100;
                       const itemTotal = taxable + taxValue;
                       const cleanSpecs = formatCleanProductSpecs(item);
 
@@ -1723,12 +1726,12 @@ export default function QuotationsView({
 
                           {/* QTY */}
                           <td className="product-qty" style={{ width: '10%', padding: '12px 8px', textAlign: 'center', fontWeight: '800', color: '#002e5d', fontSize: '13.5px', display: 'table-cell', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                            {item.quantity}
+                            {itemQty}
                           </td>
 
                           {/* RATE */}
                           <td className="product-rate" style={{ width: '13%', padding: '12px 10px', textAlign: 'right', fontWeight: '700', color: '#002e5d', fontSize: '13.5px', display: 'table-cell', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                            ₹{Math.round(item.unitPrice).toLocaleString('en-IN')}
+                            {formatINR(itemPrice)}
                           </td>
 
                           {/* TAX */}
@@ -1738,7 +1741,7 @@ export default function QuotationsView({
 
                           {/* TOTAL */}
                           <td className="product-total" style={{ width: '13%', padding: '12px 14px', textAlign: 'right', fontWeight: '900', color: '#002e5d', fontSize: '14px', display: 'table-cell', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                            ₹{Math.round(itemTotal).toLocaleString('en-IN')}
+                            {formatINR(itemTotal)}
                           </td>
                         </tr>
                       );

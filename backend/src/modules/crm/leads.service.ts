@@ -212,7 +212,12 @@ export class LeadsService {
         detailedItems: Array.isArray(dto.detailedItems)
           ? dto.detailedItems
           : undefined,
-        estimatedQuantity: dto.estimatedQuantity,
+        estimatedQuantity:
+          dto.estimatedQuantity !== undefined &&
+          dto.estimatedQuantity !== null &&
+          dto.estimatedQuantity !== ''
+            ? Number(dto.estimatedQuantity)
+            : null,
         unit: dto.unit,
         assignedToId: assignedId,
         salesExecutiveId: salesExecutiveId,
@@ -273,6 +278,13 @@ export class LeadsService {
 
     if (data.leadDate) {
       data.leadDate = new Date(data.leadDate);
+    }
+
+    if (data.estimatedQuantity !== undefined) {
+      data.estimatedQuantity =
+        data.estimatedQuantity !== null && data.estimatedQuantity !== ''
+          ? Number(data.estimatedQuantity)
+          : null;
     }
 
     if (

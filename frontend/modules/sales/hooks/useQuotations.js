@@ -33,7 +33,7 @@ export function useQuotations(showToast, autoLoad = true) {
         : [];
 
       const items = rawItems.map((item) => {
-        const quantity = Number(item.quantity || item.qty || 0);
+        const quantity = Number(item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? item.quantity : (item.qty ?? 0));
         const unitPrice = Number(item.unitPrice || item.rate || item.price || 0);
         const gross = quantity * unitPrice;
         const discPct = Number(item.discount || 0);
@@ -119,7 +119,7 @@ export function useQuotations(showToast, autoLoad = true) {
           : [];
 
         const mappedItems = rawItems.map((item) => {
-          const quantity = Number(item.quantity || item.qty || 0);
+          const quantity = Number(item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? item.quantity : (item.qty ?? 0));
           const unitPrice = Number(item.unitPrice || item.rate || item.price || 0);
           const gross = quantity * unitPrice;
           const discPct = Number(item.discount || 0);

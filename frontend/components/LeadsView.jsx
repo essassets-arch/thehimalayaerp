@@ -300,8 +300,8 @@ export default function LeadsView({
       specification: item.specification || item.productDetails || item.description || '',
       description: item.specification || item.productDetails || item.description || '',
       productDetails: item.specification || item.productDetails || item.description || '',
-      quantity: Number(item.quantity) || 1,
-      qty: Number(item.quantity) || 1,
+      quantity: (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') ? Number(item.quantity) : 1,
+      qty: (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') ? Number(item.quantity) : 1,
       unitPrice: Number(item.unitPrice) || 0,
       discount: Number(item.discount) || 0,
       tax: item.tax !== undefined ? Number(item.tax) : (item.gstRate !== undefined ? Number(item.gstRate) : 18),
@@ -313,8 +313,8 @@ export default function LeadsView({
       specification: 'Standard Specification',
       description: 'Standard Specification',
       productDetails: 'Standard Specification',
-      quantity: Number(lead.estimatedQuantity) || 1,
-      qty: Number(lead.estimatedQuantity) || 1,
+      quantity: (lead.estimatedQuantity !== undefined && lead.estimatedQuantity !== null && lead.estimatedQuantity !== '') ? Number(lead.estimatedQuantity) : 1,
+      qty: (lead.estimatedQuantity !== undefined && lead.estimatedQuantity !== null && lead.estimatedQuantity !== '') ? Number(lead.estimatedQuantity) : 1,
       unitPrice: 100,
       discount: 0,
       tax: 18,
@@ -1593,7 +1593,7 @@ export default function LeadsView({
               {currentDetailsLead.estimatedQuantity > 0 && (
                 <div className="details-row">
                   <span className="details-label">Est. Quantity</span>
-                  <span className="details-value">{currentDetailsLead.estimatedQuantity} units</span>
+                  <span className="details-value">{Number(currentDetailsLead.estimatedQuantity)} units</span>
                 </div>
               )}
 
@@ -1699,7 +1699,7 @@ export default function LeadsView({
                             )}
                             <div>
                               <span style={{ color: '#64748b', fontSize: '11px', display: 'block', fontWeight: '600' }}>Quantity</span>
-                              <span style={{ fontWeight: '700', color: '#0f172a' }}>{item.quantity || item.qty || 1}</span>
+                              <span style={{ fontWeight: '700', color: '#0f172a' }}>{(item.quantity !== undefined && item.quantity !== null && item.quantity !== '') ? Number(item.quantity) : (item.qty || 1)}</span>
                             </div>
                             <div>
                               <span style={{ color: '#64748b', fontSize: '11px', display: 'block', fontWeight: '600' }}>Rate / Unit</span>

@@ -1905,7 +1905,7 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
   const quotationTotals = calculateQuotationTotals(items, transportationCost);
 
   const tableRows = items.map((item, idx) => {
-    const qty = Number(item.quantity) || 1;
+    const qty = Number(item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? item.quantity : (item.qty ?? 0));
     const rate = Number(item.unitPrice || item.price) || 0;
     const taxRate = Number(item.tax) || 0;
     const sub = qty * rate;

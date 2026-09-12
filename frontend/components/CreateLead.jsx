@@ -153,7 +153,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
         productCode: item.productCode || item.product?.code || item.code || '',
         specification: item.specification ?? '',
         color: item.color ?? '',
-        quantity: item.quantity != null ? Number(item.quantity) : 1,
+        quantity: (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') ? Number(item.quantity) : 1,
         unitPrice: item.unitPrice != null ? Number(item.unitPrice) : 100,
         discount: item.discount != null ? Number(item.discount) : 0,
         tax: item.tax ?? item.gstRate ?? 18,
@@ -168,7 +168,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
         productCode: item.productCode || item.product?.code || item.code || '',
         specification: item.specification ?? '',
         color: item.color ?? '',
-        quantity: item.quantity != null ? Number(item.quantity) : 1,
+        quantity: (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') ? Number(item.quantity) : 1,
         unitPrice: item.unitPrice != null ? Number(item.unitPrice) : (Number(item.rate) || 100),
         discount: item.discount != null ? Number(item.discount) : 0,
         tax: item.tax ?? item.gstRate ?? 18,
@@ -182,7 +182,7 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
         productName: editingLead.productInterest || editingLead.productInterested || editingLead.requirements,
         productCode: editingLead.productCode || '',
         specification: '',
-        quantity: Number(editingLead.estimatedQuantity || 1),
+        quantity: (editingLead.estimatedQuantity !== undefined && editingLead.estimatedQuantity !== null && editingLead.estimatedQuantity !== '') ? Number(editingLead.estimatedQuantity) : 1,
         unitPrice: 100,
         discount: 0,
         tax: 18,
@@ -933,20 +933,26 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
     setActiveDropdownRow(null);
   };
 
-  const calculateItemSubtotal = (item) => item.quantity * item.unitPrice;
-  const calculateItemDiscountAmt = (item) => calculateItemSubtotal(item) * (item.discount || 0) / 100;
-  const calculateItemTaxAmt = (item) => (calculateItemSubtotal(item) - calculateItemDiscountAmt(item)) * (item.tax || 0) / 100;
+  const calculateItemSubtotal = (item) => (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+  const calculateItemDiscountAmt = (item) => calculateItemSubtotal(item) * (Number(item.discount) || 0) / 100;
+  const calculateItemTaxAmt = (item) => (calculateItemSubtotal(item) - calculateItemDiscountAmt(item)) * (Number(item.tax) || 0) / 100;
 
   const calculateItemTotal = (item) =>
-    calculateItemSubtotal(item) - calculateItemDiscountAmt(item) + calculateItemTaxAmt(item) + (item.additionalCharges || 0);
+    calculateItemSubtotal(item) - calculateItemDiscountAmt(item) + calculateItemTaxAmt(item) + (Number(item.additionalCharges) || 0);
 
   const summarySubtotal = items.reduce((sum, item) => sum + calculateItemSubtotal(item), 0);
   const summaryDiscount = items.reduce((sum, item) => sum + calculateItemDiscountAmt(item), 0);
   const summaryGST = items.reduce((sum, item) => sum + calculateItemTaxAmt(item), 0);
-  const summaryAdditional = items.reduce((sum, item) => sum + (item.additionalCharges || 0), 0);
+  const summaryAdditional = items.reduce((sum, item) => sum + (Number(item.additionalCharges) || 0), 0);
   const grandTotal = items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
 
-  const formatINR = (value) => `₹${Math.round(value).toLocaleString('en-IN')}`;
+  const formatINR = (value) => {
+    const num = Number(value) || 0;
+    return `₹${num.toLocaleString('en-IN', {
+      minimumFractionDigits: Number.isInteger(num) ? 0 : 2,
+      maximumFractionDigits: 2
+    })}`;
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -992,18 +998,18 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
         productName: item.productName,
         productCode: item.productCode || undefined,
         specification: item.specification,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        discount: item.discount || 0,
-        tax: item.tax || 18,
-        additionalCharges: item.additionalCharges || 0
+        quantity: Number(item.quantity) || 0,
+        unitPrice: Number(item.unitPrice) || 0,
+        discount: Number(item.discount) || 0,
+        tax: Number(item.tax) || 18,
+        additionalCharges: Number(item.additionalCharges) || 0
       })),
 
       contactPerson: siteInchargeName.trim(),
       phone: siteInchargeMobile.trim(),
       productInterest: itemsDescription,
       productInterested: itemsDescription,
-      estimatedQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
+      estimatedQuantity: items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
 
       deliveryAddress: (deliveryAddress || addressLine1 || '').trim(),
       deliveryLatitude: deliveryLatitude ?? null,
@@ -1527,10 +1533,11 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                         data-testid="lead-estimated-quantity"
                         type="number"
                         className="form-input"
-                        min="1"
+                        min="0.001"
+                        step="any"
                         placeholder="Qty"
-                        value={item.quantity}
-                        onChange={e => handleRowChange(item.id, 'quantity', Math.max(1, Number(e.target.value)))}
+                        value={item.quantity === '' ? '' : item.quantity}
+                        onChange={e => handleRowChange(item.id, 'quantity', e.target.value === '' ? '' : e.target.value)}
                         required
                         style={{ textAlign: 'center', padding: '9px 8px', fontWeight: '700', color: '#1e293b', background: '#eff6ff', border: '1.5px solid #93c5fd', borderRadius: '8px' }}
                       />
@@ -1548,9 +1555,10 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
                         type="number"
                         className="form-input"
                         min="0"
+                        step="any"
                         placeholder="₹ Price"
-                        value={item.unitPrice}
-                        onChange={e => handleRowChange(item.id, 'unitPrice', Number(e.target.value))}
+                        value={item.unitPrice === '' ? '' : item.unitPrice}
+                        onChange={e => handleRowChange(item.id, 'unitPrice', e.target.value === '' ? '' : e.target.value)}
                         required
                         style={{ textAlign: 'center', padding: '9px 8px', fontWeight: '700', color: '#1e293b', background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '8px' }}
                       />

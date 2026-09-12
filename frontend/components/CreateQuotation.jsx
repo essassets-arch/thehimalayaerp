@@ -190,7 +190,7 @@ export default function CreateQuotation({
 
     if (sourceItems && sourceItems.length > 0) {
       return sourceItems.map((item, idx) => {
-        const qty = Number(item.quantity !== undefined ? item.quantity : (item.qty !== undefined ? item.qty : 1));
+        const qty = (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') ? Number(item.quantity) : (item.qty !== undefined && item.qty !== null && item.qty !== '' ? Number(item.qty) : 1);
         const price = Number(item.unitPrice !== undefined ? item.unitPrice : (item.price !== undefined ? item.price : item.rate || 0));
         const gross = qty * price;
         
@@ -226,7 +226,7 @@ export default function CreateQuotation({
         productName: matchedLeadFromProps.productInterest || matchedLeadFromProps.product,
         productDetails: 'Standard Specification',
         specification: 'Standard Specification',
-        quantity: Number(matchedLeadFromProps.estimatedQuantity) || 1,
+        quantity: (matchedLeadFromProps.estimatedQuantity !== undefined && matchedLeadFromProps.estimatedQuantity !== null && matchedLeadFromProps.estimatedQuantity !== '') ? Number(matchedLeadFromProps.estimatedQuantity) : 1,
         unitPrice: 100,
         discount: 0,
         tax: 18,
@@ -241,7 +241,7 @@ export default function CreateQuotation({
         productName: prefilledProduct || '', 
         productDetails: '',
         specification: '',
-        quantity: prefilledQuantity || 1, 
+        quantity: (prefilledQuantity !== undefined && prefilledQuantity !== null && prefilledQuantity !== '') ? Number(prefilledQuantity) : 1, 
         unitPrice: prefilledPrice || 100,
         discount: 0,
         tax: 18
@@ -623,7 +623,7 @@ export default function CreateQuotation({
       .slice(0, 8);
   }, [customerOptions, customerName]);
   const shouldRequireExistingCustomer = !isSampleSource && customerOptions.length > 0 && !editingQuotation;
-  const canCreateQuotationForCustomer = !shouldRequireExistingCustomer || Boolean(selectedCustomerRecord) || Boolean(editingQuotation) || Boolean(matchedLeadFromProps);
+  const canCreateQuotationForCustomer = !shouldRequireExistingCustomer || Boolean(selectedCustomerRecord) || Boolean(editingQuotation) || Boolean(matchedLeadFromProps) || Boolean(leads?.some(l => normalizeText(l.companyName) === normalizeText(customerName) || normalizeText(l.projectName) === normalizeText(customerName)));
 
   const selectCustomerOption = (option) => {
     setCustomerName(option.name);
@@ -640,10 +640,11 @@ export default function CreateQuotation({
   };
 
   const formatINR = (value) => {
-    if (value >= 100000) {
-      return `₹${(value / 100000).toFixed(2)} L`;
-    }
-    return `₹${Math.round(value).toLocaleString('en-IN')}`;
+    const num = Number(value) || 0;
+    return `₹${num.toLocaleString('en-IN', {
+      minimumFractionDigits: Number.isInteger(num) ? 0 : 2,
+      maximumFractionDigits: 2
+    })}`;
   };
 
   const itemIdCounter = useRef(0);
@@ -715,8 +716,10 @@ export default function CreateQuotation({
   let detectedGstRate = null;
 
   items.forEach(item => {
-    const itemSubtotal = item.quantity * item.unitPrice;
-    const itemDiscountAmt = (itemSubtotal * (item.discount || 0)) / 100;
+    const itemQty = Number(item.quantity) || 0;
+    const itemUnitPrice = Number(item.unitPrice) || 0;
+    const itemSubtotal = itemQty * itemUnitPrice;
+    const itemDiscountAmt = (itemSubtotal * (Number(item.discount) || 0)) / 100;
     const itemTaxable = itemSubtotal - itemDiscountAmt;
     const taxPct = (item.tax !== undefined && item.tax !== null && item.tax !== '') ? Number(item.tax) : 18;
     if (taxPct > 0 && detectedGstRate === null) detectedGstRate = taxPct;
@@ -830,13 +833,13 @@ export default function CreateQuotation({
           amount: Math.round((taxable + taxAmt) * 100) / 100,
         };
       }),
-      quantity: items.reduce((sum, item) => sum + item.quantity, 0),
+      quantity: items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
       price: items.length > 0 ? items[0].unitPrice : 0, // Fallback average pricing indicator
       discount: 0,
       tax: 0,
       transportCharge: transportCharge === '' || transportCharge === null || transportCharge === undefined ? 0 : Number(transportCharge),
       expectedTransportationCost: transportCharge === '' || transportCharge === null || transportCharge === undefined ? 0 : Number(transportCharge),
-      totalAmount: Math.round(grandTotal),
+      totalAmount: Math.round(grandTotal * 100) / 100,
       date: new Date().toISOString().split('T')[0],
       validTill,
       validUntil: validTill,
@@ -852,7 +855,7 @@ export default function CreateQuotation({
       customTerms: customTerms,
       source: isSampleSource ? 'SAMPLE' : (isLeadSource || selectedCustomerRecord?.type === 'Lead' ? 'LEAD' : (editingQuotation?.leadId ? 'LEAD' : undefined)),
       sourceId: isSampleSource ? sourceId : (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : (editingQuotation?.leadId || undefined))),
-      leadId: targetLeadId || (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : (editingQuotation?.leadId || undefined))),
+      leadId: targetLeadId || (selectedCustomerRecord?.type === 'Lead' ? selectedCustomerRecord.id : undefined) || leads.find(l => normalizeText(l.companyName) === normalizeText(customerName) || normalizeText(l.projectName) === normalizeText(customerName))?.id || (isLeadSource ? (quotationDraft?.leadId || quotationDraft?.sourceId) : (editingQuotation?.leadId || undefined)),
       customerId: selectedCustomerRecord?.type === 'Customer' ? selectedCustomerRecord.id : (editingQuotation?.customerId || undefined)
     };
 
@@ -995,6 +998,7 @@ export default function CreateQuotation({
             <label className="form-label">Customer / Corporate Company *</label>
             <div style={{ position: 'relative' }}>
               <input
+                data-testid="quotation-customer-name"
                 type="text"
                 className="form-input"
                 placeholder="Search existing lead or customer"
@@ -1068,6 +1072,7 @@ export default function CreateQuotation({
           <div className="form-group">
             <label className="form-label">Group Name *</label>
             <input
+              data-testid="quotation-group-name"
               type="text"
               className="form-input"
               placeholder="e.g. NHAI Group, L&T Infrastructure"
@@ -1079,6 +1084,7 @@ export default function CreateQuotation({
           <div className="form-group">
             <label className="form-label">GST Name *</label>
             <input 
+              data-testid="quotation-gst-name"
               type="text" 
               className="form-input" 
               placeholder="Legal name as per GST registration" 
@@ -1090,6 +1096,7 @@ export default function CreateQuotation({
           <div className="form-group">
             <label className="form-label">GST Registered? *</label>
             <select
+              data-testid="quotation-gst-registered"
               className="form-select"
               value={isGstRegistered || 'YES'}
               onChange={e => {
@@ -1137,6 +1144,7 @@ export default function CreateQuotation({
               <Truck size={12} /> Expected Transportation Cost (₹) *
             </label>
             <input 
+              data-testid="quotation-transport-charge"
               type="number" 
               className="form-input" 
               placeholder="e.g. 2500"
@@ -1157,10 +1165,10 @@ export default function CreateQuotation({
           {isCompact ? (
             <div className="quotation-mobile-items-list" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {items.map((item, index) => {
-                const itemSubtotal = item.quantity * item.unitPrice;
-                const itemDiscountAmt = (itemSubtotal * (item.discount || 0)) / 100;
+                const itemSubtotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                const itemDiscountAmt = (itemSubtotal * (Number(item.discount) || 0)) / 100;
                 const itemTaxable = itemSubtotal - itemDiscountAmt;
-                const itemTaxAmt = (itemTaxable * (item.tax !== undefined ? item.tax : 18)) / 100;
+                const itemTaxAmt = (itemTaxable * (item.tax !== undefined ? Number(item.tax) : 18)) / 100;
                 const lineTotal = itemTaxable + itemTaxAmt;
 
                 return (
@@ -1261,9 +1269,10 @@ export default function CreateQuotation({
                         <input
                           type="number"
                           className="form-input"
-                          min="1"
+                          min="0.001"
+                          step="any"
                           value={item.quantity === '' ? '' : item.quantity}
-                          onChange={e => handleRowChange(item.id, 'quantity', e.target.value === '' ? '' : Number(e.target.value))}
+                          onChange={e => handleRowChange(item.id, 'quantity', e.target.value === '' ? '' : e.target.value)}
                           required
                           style={{ padding: '9px 10px', width: '100%', textAlign: 'center', border: '1.5px solid #93c5fd', background: '#eff6ff', borderRadius: '8px', fontWeight: 700, color: '#1e293b' }}
                         />
@@ -1430,9 +1439,10 @@ export default function CreateQuotation({
                         <input 
                           type="number" 
                           className="form-input" 
-                          min="1" 
+                          min="0.001" 
+                          step="any"
                           value={item.quantity === '' ? '' : item.quantity} 
-                          onChange={e => handleRowChange(item.id, 'quantity', e.target.value === '' ? '' : Number(e.target.value))}
+                          onChange={e => handleRowChange(item.id, 'quantity', e.target.value === '' ? '' : e.target.value)}
                           required
                           style={{ padding: '8px 10px', width: '100%', maxWidth: '80px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
                         />
@@ -1441,10 +1451,10 @@ export default function CreateQuotation({
                         <input 
                           type="number" 
                           className="form-input" 
-                          min="0.01" 
-                          step="0.01" 
+                          min="0" 
+                          step="any" 
                           value={item.unitPrice === '' ? '' : item.unitPrice} 
-                          onChange={e => handleRowChange(item.id, 'unitPrice', e.target.value === '' ? '' : Number(e.target.value))}
+                          onChange={e => handleRowChange(item.id, 'unitPrice', e.target.value === '' ? '' : e.target.value)}
                           required
                           style={{ padding: '8px 10px', width: '100%', maxWidth: '120px', border: '1px solid #cbd5e1', borderRadius: '8px' }}
                         />
@@ -1455,6 +1465,7 @@ export default function CreateQuotation({
                           className="form-input" 
                           min="0" 
                           max="100" 
+                          step="any"
                           value={item.discount === '' ? '' : (item.discount ?? 0)} 
                           onChange={e => handleRowChange(item.id, 'discount', e.target.value === '' ? '' : Number(e.target.value))}
                           style={{ padding: '8px 10px', width: '100%', maxWidth: '85px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
@@ -1466,6 +1477,7 @@ export default function CreateQuotation({
                           className="form-input" 
                           min="0" 
                           max="100" 
+                          step="any"
                           value={item.tax === '' ? '' : (item.tax !== undefined ? item.tax : 18)} 
                           onChange={e => handleRowChange(item.id, 'tax', e.target.value === '' ? '' : Number(e.target.value))}
                           style={{ padding: '8px 10px', width: '100%', maxWidth: '85px', textAlign: 'center', border: '1px solid #cbd5e1', borderRadius: '8px' }}
@@ -1473,10 +1485,10 @@ export default function CreateQuotation({
                       </td>
                       <td data-label="Total Amount" style={{ fontWeight: '700', paddingLeft: '10px' }}>
                         {(() => {
-                          const itemSubtotal = item.quantity * item.unitPrice;
-                          const itemDiscountAmt = (itemSubtotal * (item.discount || 0)) / 100;
+                          const itemSubtotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                          const itemDiscountAmt = (itemSubtotal * (Number(item.discount) || 0)) / 100;
                           const itemTaxable = itemSubtotal - itemDiscountAmt;
-                          const itemTaxAmt = (itemTaxable * (item.tax || 0)) / 100;
+                          const itemTaxAmt = (itemTaxable * (item.tax !== undefined ? Number(item.tax) : 18)) / 100;
                           return formatINR(itemTaxable + itemTaxAmt);
                         })()}
                       </td>
@@ -1498,6 +1510,7 @@ export default function CreateQuotation({
             </div>
           )}
           <button 
+            data-testid="quotation-add-item-btn"
             type="button" 
             className="btn-small btn-outline-small" 
             onClick={handleAddItem}
