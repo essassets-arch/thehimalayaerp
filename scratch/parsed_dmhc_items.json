@@ -1,0 +1,702 @@
+[
+  {
+    "type": "DMHC",
+    "size": "300X300",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "300X300",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "300X300",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "300X300",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "300X300",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "300X300",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "300X300",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X450",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X450",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X450",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X450",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X450",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X450",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X450",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X600",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X600",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X600",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X600",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X600",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X600",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X600",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X900",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X900",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X900",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X900",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X900",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X900",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X900",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X1200",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X1200",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X1200",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X1200",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X1200",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X1200",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "450X1200",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X600",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X600",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X600",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X600",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X600",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X600",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X600",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X900",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X900",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X900",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X900",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X900",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X900",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X900",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X1200",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X1200",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X1200",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X1200",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X1200",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X1200",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "600X1200",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X900",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X900",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X900",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X900",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X900",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X900",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X900",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X750",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X750",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X750",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X750",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X750",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X750",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X750",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X1200",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X1200",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X1200",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X1200",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X1200",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X1200",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "750X1200",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X900",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X900",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X900",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X900",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X900",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X900",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X900",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X1200",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X1200",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X1200",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X1200",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X1200",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X1200",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "900X1200",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "1000X1000",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "1000X1000",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "1000X1000",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "1000X1000",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "1000X1000",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "1000X1000",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "1000X1000",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "1200X1200",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "1200X1200",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "1200X1200",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "1200X1200",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "1200X1200",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "1200X1200",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "1200X1200",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "1500X1500",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "1500X1500",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "1500X1500",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "1500X1500",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "1500X1500",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "1500X1500",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "1500X1500",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "1800X1800",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "1800X1800",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "1800X1800",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "1800X1800",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "1800X1800",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "1800X1800",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "1800X1800",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "560MM DIA",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "560MM DIA",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "560MM DIA",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "560MM DIA",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "560MM DIA",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "560MM DIA",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "560MM DIA",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "600MM DIA",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "600MM DIA",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "600MM DIA",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "600MM DIA",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "600MM DIA",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "600MM DIA",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "600MM DIA",
+    "capacity": "F900"
+  },
+  {
+    "type": "DMHC",
+    "size": "900MM DIA",
+    "capacity": "ELD"
+  },
+  {
+    "type": "DMHC",
+    "size": "900MM DIA",
+    "capacity": "LD"
+  },
+  {
+    "type": "DMHC",
+    "size": "900MM DIA",
+    "capacity": "B125"
+  },
+  {
+    "type": "DMHC",
+    "size": "900MM DIA",
+    "capacity": "C250"
+  },
+  {
+    "type": "DMHC",
+    "size": "900MM DIA",
+    "capacity": "D400"
+  },
+  {
+    "type": "DMHC",
+    "size": "900MM DIA",
+    "capacity": "E600"
+  },
+  {
+    "type": "DMHC",
+    "size": "900MM DIA",
+    "capacity": "F900"
+  }
+]

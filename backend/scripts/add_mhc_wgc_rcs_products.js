@@ -248,6 +248,7 @@ function buildProductList() {
   processSeries('MHC', 'Manhole Cover', MHC_SPECS);
   processSeries('WGC', 'With Grate Cover', WGC_SPECS);
   processSeries('RCS', 'Round Cover Square Frame', RCS_SPECS);
+  processSeries('DMHC', 'DMHC Manhole Cover', MHC_SPECS);
 
   return allProducts;
 }
