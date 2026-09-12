@@ -32,6 +32,7 @@ import DailyTaskView from '../../../components/DailyTaskView';
 import CreatePurchaseOrder from '../../procurement/finance/CreatePurchaseOrder';
 import DeliveryAudit from '../../procurement/finance/DeliveryAudit';
 import PartialDelivery from '../../procurement/finance/PartialDelivery';
+import DeliveryHistory from '../../store/components/DeliveryHistory';
 import RejectionManagement from '../../procurement/finance/RejectionManagement';
 import VendorInvoiceWorkspace from '../../procurement/finance/VendorInvoiceWorkspace';
 import FinanceBrandAnalysis from './FinanceBrandAnalysis';
@@ -374,6 +375,7 @@ export default function FinancePortal({ initialView, forceView }) {
   const [draftPOsSubTab, setDraftPOsSubTab] = useState('Pending Drafts');
   const [pendingApprovalSubTab, setPendingApprovalSubTab] = useState('Pending'); // Sub-tab for PO Pending Approval
   const [approvedPOsSubTab, setApprovedPOsSubTab] = useState('Approved');
+  const [historySubTab, setHistorySubTab] = useState('STORE');
 
   // Vendor & PO Generation states
   const [vendors, setVendors] = useState([]);
@@ -3661,7 +3663,53 @@ export default function FinancePortal({ initialView, forceView }) {
             />
           )}
           {activeTab === "Closed POs" && renderAllPOsTab('CLOSED')}
-          {activeTab === "History" && renderAllPOsTab('HISTORY')}
+          {activeTab === "History" && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', gap: '8px', background: '#F1F5F9', padding: '4px', borderRadius: '10px', width: 'fit-content' }}>
+                <button
+                  type="button"
+                  onClick={() => setHistorySubTab('STORE')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    background: historySubTab === 'STORE' ? '#FFFFFF' : 'transparent',
+                    color: historySubTab === 'STORE' ? '#0F172A' : '#64748B',
+                    boxShadow: historySubTab === 'STORE' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+                  }}
+                >
+                  Store Delivery History
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistorySubTab('PO')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    background: historySubTab === 'PO' ? '#FFFFFF' : 'transparent',
+                    color: historySubTab === 'PO' ? '#0F172A' : '#64748B',
+                    boxShadow: historySubTab === 'PO' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+                  }}
+                >
+                  PO History
+                </button>
+              </div>
+              {historySubTab === 'STORE' ? (
+                <div style={{ background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px' }}>
+                  <DeliveryHistory />
+                </div>
+              ) : (
+                renderAllPOsTab('HISTORY')
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

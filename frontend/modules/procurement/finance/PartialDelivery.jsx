@@ -23,9 +23,11 @@ import {
   AlertCircle,
   ChevronsUpDown,
   Maximize2,
-  Minimize2
+  Minimize2,
+  History
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import DeliveryHistory from '../../store/components/DeliveryHistory';
 
 const CSS = `
   .pd-container {
@@ -899,6 +901,327 @@ const CSS = `
     max-width: 480px;
     margin: 0 auto;
   }
+
+  /* ── Desktop vs Mobile Nested Material Display ── */
+  .pd-nested-table-wrap {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+  }
+  .pd-nested-mobile-list {
+    display: none;
+  }
+
+  /* ── Mobile Material Card Styling ── */
+  .pd-mobile-mat-card {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .pd-mobile-mat-card.row-complete {
+    border-left: 4px solid #16A34A;
+    background: #FAFCFA;
+  }
+  .pd-mobile-mat-card.row-partial {
+    border-left: 4px solid #F59E0B;
+    background: #FFFDF9;
+  }
+  .pd-mobile-mat-card.row-remaining {
+    border-left: 4px solid #EF4444;
+    background: #FFFBFB;
+  }
+
+  .pd-mobile-mat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .pd-mobile-mat-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+  .pd-mobile-mat-idx {
+    background: #F1F5F9;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .pd-mobile-mat-title-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .pd-mobile-mat-name {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #0F172A;
+    line-height: 1.3;
+    word-break: break-word;
+  }
+  .pd-mobile-mat-code {
+    font-size: 11px;
+    font-family: monospace;
+    color: #64748B;
+  }
+
+  .pd-mobile-mat-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    background: #F8FAFC;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #E2E8F0;
+  }
+  .pd-mobile-stat-box {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .pd-mobile-stat-lbl {
+    font-size: 10px;
+    font-weight: 600;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .pd-mobile-stat-val {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #0F172A;
+  }
+  .pd-mobile-stat-val.text-green {
+    color: #16A34A;
+  }
+  .pd-mobile-stat-unit {
+    font-size: 10.5px;
+    font-weight: 500;
+    color: #64748B;
+  }
+
+  .pd-mobile-mat-details-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    border-top: 1px dashed #E2E8F0;
+    padding-top: 8px;
+  }
+  .pd-mobile-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .pd-mobile-detail-lbl {
+    color: #64748B;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .pd-mobile-detail-val {
+    font-weight: 600;
+    color: #1E293B;
+    text-align: right;
+  }
+
+  .pd-mobile-mat-actions {
+    margin-top: 2px;
+  }
+
+  /* ── Sub-Navigation Tabs inside Partial Delivery ── */
+  .pd-subnav-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #F1F5F9;
+    padding: 5px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px solid #E2E8F0;
+    width: fit-content;
+    max-width: 100%;
+  }
+  .pd-subnav-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #64748B;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    outline: none;
+  }
+  .pd-subnav-tab:hover {
+    color: #0F172A;
+    background: rgba(255, 255, 255, 0.7);
+  }
+  .pd-subnav-tab.active {
+    background: #FFFFFF;
+    color: #0F172A;
+    font-weight: 700;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+  .pd-subnav-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 50px;
+    background: #E2E8F0;
+    color: #475569;
+  }
+  .pd-subnav-badge.store-badge {
+    background: #FEF3C7;
+    color: #B45309;
+  }
+  .pd-subnav-tab.active .pd-subnav-badge {
+    background: #EFF6FF;
+    color: #2563EB;
+  }
+  .pd-subnav-tab.active .pd-subnav-badge.store-badge {
+    background: #FEF3C7;
+    color: #B45309;
+  }
+
+  .pd-history-box {
+    margin-top: 4px;
+  }
+
+  /* ── Mobile Responsive Overrides ── */
+  @media (max-width: 768px) {
+    .pd-container {
+      padding: 12px;
+      border-radius: 12px;
+    }
+    .pd-subnav-bar {
+      width: 100%;
+      display: flex;
+      gap: 6px;
+      padding: 4px;
+      box-sizing: border-box;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .pd-subnav-bar::-webkit-scrollbar {
+      display: none;
+    }
+    .pd-subnav-tab {
+      flex: 1 0 auto;
+      justify-content: center;
+      padding: 8px 10px;
+      font-size: 12px;
+      gap: 5px;
+      white-space: nowrap;
+    }
+    .pd-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+    .pd-header-actions {
+      width: 100%;
+      flex-direction: column;
+    }
+    .pd-header-actions .pd-btn-secondary,
+    .pd-header-actions .pd-btn-primary {
+      width: 100%;
+      justify-content: center;
+    }
+    .pd-kpi-grid {
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 10px !important;
+    }
+    .pd-po-tree-ledger {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      padding: 12px 14px;
+    }
+    .pd-tree-stats-row {
+      flex-wrap: wrap;
+    }
+    .pd-controls-bar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+    .pd-controls-left {
+      flex-direction: column;
+      align-items: stretch;
+      width: 100%;
+    }
+    .pd-filter-pill-group {
+      width: 100%;
+      overflow-x: auto;
+    }
+    .pd-search-input-wrap {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+    .pd-controls-right {
+      width: 100%;
+      justify-content: space-between;
+    }
+    .pd-po-row-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      padding: 14px;
+    }
+    .pd-po-meta-actions {
+      flex-wrap: wrap;
+      width: 100%;
+      justify-content: flex-start;
+      gap: 8px;
+    }
+    .pd-po-units-tally {
+      width: 100%;
+      min-width: 0;
+    }
+    .pd-po-nested-area {
+      padding: 12px 10px 14px;
+    }
+    .pd-nested-title-bar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+    .pd-nested-table-wrap {
+      display: none !important;
+    }
+    .pd-nested-mobile-list {
+      display: flex !important;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .pd-po-footer-summary {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      font-size: 11.5px;
+      padding: 10px 12px;
+    }
+  }
 `;
 
 const formatDate = (val) => {
@@ -948,6 +1271,29 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
   const [expandedPOIds, setExpandedPOIds] = useState(new Set());
   const [inspectingPO, setInspectingPO] = useState(null);
   const [inspectingGRN, setInspectingGRN] = useState(null);
+  const [activeSubTab, setActiveSubTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const sub = sp.get('subtab') || sp.get('subTab') || sp.get('view');
+      if (sub === 'history' || sp.get('history') === 'true') {
+        return 'history';
+      }
+    }
+    return 'ledger';
+  });
+
+  const handleSubTabChange = (tabKey) => {
+    setActiveSubTab(tabKey);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (tabKey === 'history') {
+        url.searchParams.set('subtab', 'history');
+      } else {
+        url.searchParams.delete('subtab');
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
 
   // Sync data on mount
   useEffect(() => {
@@ -1293,7 +1639,36 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
         </div>
       </div>
 
-      {/* ── KPI Summary Cards ── */}
+      {/* ── Sub Navigation Tabs ── */}
+      <div className="pd-subnav-bar">
+        <button
+          type="button"
+          onClick={() => handleSubTabChange('ledger')}
+          className={`pd-subnav-tab ${activeSubTab === 'ledger' ? 'active' : ''}`}
+        >
+          <Layers size={15} />
+          <span>Active Partial POs</span>
+          <span className="pd-subnav-badge">{analyzedPOs.length}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSubTabChange('history')}
+          className={`pd-subnav-tab ${activeSubTab === 'history' ? 'active' : ''}`}
+        >
+          <History size={15} />
+          <span>Store Delivery History</span>
+          <span className="pd-subnav-badge store-badge">Store Log</span>
+        </button>
+      </div>
+
+      {activeSubTab === 'history' ? (
+        <div className="pd-history-box">
+          <DeliveryHistory />
+        </div>
+      ) : (
+        <>
+          {/* ── KPI Summary Cards ── */}
       <div className="pd-kpi-grid">
         <div className="pd-kpi-card indigo">
           <span className="pd-kpi-label">Partial Purchase Orders</span>
@@ -1565,48 +1940,154 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
                       </div>
                     </div>
 
-                    <table className="pd-nested-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: 36 }}>#</th>
-                          <th>Material</th>
-                          <th className="text-right" style={{ textAlign: 'right' }}>PO Qty (Ordered)</th>
-                          <th className="text-right" style={{ textAlign: 'right' }}>Delivered</th>
-                          <th className="text-right" style={{ textAlign: 'right' }}>Remaining</th>
-                          <th>Status</th>
-                          <th>Due Date</th>
-                          <th>Latest Inward / GRN</th>
-                          <th>Audit Status</th>
-                          <th style={{ textAlign: 'right' }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {po.lines.map((line) => {
-                          const lineUrgency = getDeliveryUrgency(line.dueDate);
-                          const rowClass =
-                            line.status === 'COMPLETE'
-                              ? 'row-complete'
-                              : line.status === 'PARTIAL'
-                              ? 'row-partial'
-                              : 'row-remaining';
+                    {/* Desktop Table View */}
+                    <div className="pd-nested-table-wrap">
+                      <table className="pd-nested-table no-mobile-stack">
+                        <thead>
+                          <tr>
+                            <th style={{ width: 36 }}>#</th>
+                            <th>Material</th>
+                            <th className="text-right" style={{ textAlign: 'right' }}>PO Qty (Ordered)</th>
+                            <th className="text-right" style={{ textAlign: 'right' }}>Delivered</th>
+                            <th className="text-right" style={{ textAlign: 'right' }}>Remaining</th>
+                            <th>Status</th>
+                            <th>Due Date</th>
+                            <th>Latest Inward / GRN</th>
+                            <th>Audit Status</th>
+                            <th style={{ textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {po.lines.map((line) => {
+                            const lineUrgency = getDeliveryUrgency(line.dueDate);
+                            const rowClass =
+                              line.status === 'COMPLETE'
+                                ? 'row-complete'
+                                : line.status === 'PARTIAL'
+                                ? 'row-partial'
+                                : 'row-remaining';
 
-                          return (
-                            <tr key={line.lineId} className={rowClass}>
-                              <td style={{ color: '#64748B', fontWeight: 600 }}>{line.itemIndex}</td>
-                              <td>
-                                <span className="pd-mat-name">{line.materialName}</span>
-                                <span className="pd-mat-code">{line.materialCode}</span>
-                              </td>
-                              <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                                {line.orderedQty} <span style={{ fontSize: 11, color: '#64748B', fontWeight: 500 }}>{line.unit}</span>
-                              </td>
-                              <td style={{ textAlign: 'right', fontWeight: 800, color: '#16A34A' }}>
-                                {line.deliveredQty}
-                              </td>
-                              <td style={{ textAlign: 'right', fontWeight: 800, color: line.remainingQty > 0 ? '#D97706' : '#16A34A' }}>
-                                {line.remainingQty}
-                              </td>
-                              <td>
+                            return (
+                              <tr key={line.lineId} className={rowClass}>
+                                <td style={{ color: '#64748B', fontWeight: 600 }}>{line.itemIndex}</td>
+                                <td>
+                                  <span className="pd-mat-name">{line.materialName}</span>
+                                  <span className="pd-mat-code">{line.materialCode}</span>
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                                  {line.orderedQty} <span style={{ fontSize: 11, color: '#64748B', fontWeight: 500 }}>{line.unit}</span>
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: 800, color: '#16A34A' }}>
+                                  {line.deliveredQty}
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: 800, color: line.remainingQty > 0 ? '#D97706' : '#16A34A' }}>
+                                  {line.remainingQty}
+                                </td>
+                                <td>
+                                  {line.status === 'COMPLETE' ? (
+                                    <span className="pd-status-badge completed">
+                                      <CheckCircle2 size={12} />
+                                      Complete
+                                    </span>
+                                  ) : line.status === 'PARTIAL' ? (
+                                    <span className="pd-status-badge partial">
+                                      <Clock size={12} />
+                                      Partial
+                                    </span>
+                                  ) : (
+                                    <span className="pd-status-badge remaining">
+                                      <AlertCircle size={12} />
+                                      Remaining
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  <div style={{ fontSize: 12, color: '#334155' }}>{formatDate(line.dueDate)}</div>
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      padding: '1px 5px',
+                                      borderRadius: 4,
+                                      background: lineUrgency.bg,
+                                      color: lineUrgency.color,
+                                      border: `1px solid ${lineUrgency.border}`,
+                                      display: 'inline-block',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {lineUrgency.text}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>
+                                    {line.latestGRN || '—'}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#64748B' }}>
+                                    {line.storeVerificationDate ? formatDate(line.storeVerificationDate) : 'Pending Inward'}
+                                  </div>
+                                </td>
+                                <td>
+                                  <span
+                                    style={{
+                                      fontSize: 10.5,
+                                      fontWeight: 700,
+                                      padding: '2px 7px',
+                                      borderRadius: 4,
+                                      background: line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#DCFCE7' : '#FEF3C7',
+                                      color: line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#166534' : '#92400E',
+                                      border: `1px solid ${line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#BBF7D0' : '#FDE68A'}`
+                                    }}
+                                  >
+                                    {line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED'
+                                      ? 'Approved'
+                                      : line.financeAuditStatus === 'PENDING_FINANCE_AUDIT'
+                                      ? 'Pending Audit'
+                                      : line.financeAuditStatus.replace(/_/g, ' ')}
+                                  </span>
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                    <button
+                                      onClick={() => handleOpenDeliveryAudit(line.latestGRNObj, line.rawPO)}
+                                      className="pd-btn-action view-audit"
+                                      title="Audit latest inward delivery"
+                                    >
+                                      <ClipboardCheck size={12} />
+                                      Audit
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile List-Wise View */}
+                    <div className="pd-nested-mobile-list">
+                      {po.lines.map((line) => {
+                        const lineUrgency = getDeliveryUrgency(line.dueDate);
+                        const rowClass =
+                          line.status === 'COMPLETE'
+                            ? 'row-complete'
+                            : line.status === 'PARTIAL'
+                            ? 'row-partial'
+                            : 'row-remaining';
+
+                        return (
+                          <div key={line.lineId} className={`pd-mobile-mat-card ${rowClass}`}>
+                            {/* Header: #, Material Name & Code, Status Badge */}
+                            <div className="pd-mobile-mat-header">
+                              <div className="pd-mobile-mat-info">
+                                <span className="pd-mobile-mat-idx">#{line.itemIndex}</span>
+                                <div className="pd-mobile-mat-title-wrap">
+                                  <span className="pd-mobile-mat-name">{line.materialName}</span>
+                                  <span className="pd-mobile-mat-code">{line.materialCode}</span>
+                                </div>
+                              </div>
+                              <div className="pd-mobile-mat-status">
                                 {line.status === 'COMPLETE' ? (
                                   <span className="pd-status-badge completed">
                                     <CheckCircle2 size={12} />
@@ -1623,69 +2104,106 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
                                     Remaining
                                   </span>
                                 )}
-                              </td>
-                              <td>
-                                <div style={{ fontSize: 12, color: '#334155' }}>{formatDate(line.dueDate)}</div>
-                                <span
-                                  style={{
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    padding: '1px 5px',
-                                    borderRadius: 4,
-                                    background: lineUrgency.bg,
-                                    color: lineUrgency.color,
-                                    border: `1px solid ${lineUrgency.border}`,
-                                    display: 'inline-block',
-                                    marginTop: 2
-                                  }}
-                                >
-                                  {lineUrgency.text}
+                              </div>
+                            </div>
+
+                            {/* Quantities 3-Column Stats Grid: PO Qty, Delivered, Remaining */}
+                            <div className="pd-mobile-mat-stats-grid">
+                              <div className="pd-mobile-stat-box">
+                                <span className="pd-mobile-stat-lbl">PO Qty (Ordered)</span>
+                                <span className="pd-mobile-stat-val">
+                                  {line.orderedQty} <span className="pd-mobile-stat-unit">{line.unit}</span>
                                 </span>
-                              </td>
-                              <td>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>
-                                  {line.latestGRN || '—'}
-                                </div>
-                                <div style={{ fontSize: 11, color: '#64748B' }}>
-                                  {line.storeVerificationDate ? formatDate(line.storeVerificationDate) : 'Pending Inward'}
-                                </div>
-                              </td>
-                              <td>
-                                <span
-                                  style={{
-                                    fontSize: 10.5,
-                                    fontWeight: 700,
-                                    padding: '2px 7px',
-                                    borderRadius: 4,
-                                    background: line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#DCFCE7' : '#FEF3C7',
-                                    color: line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#166534' : '#92400E',
-                                    border: `1px solid ${line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#BBF7D0' : '#FDE68A'}`
-                                  }}
-                                >
-                                  {line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED'
-                                    ? 'Approved'
-                                    : line.financeAuditStatus === 'PENDING_FINANCE_AUDIT'
-                                    ? 'Pending Audit'
-                                    : line.financeAuditStatus.replace(/_/g, ' ')}
+                              </div>
+                              <div className="pd-mobile-stat-box delivered">
+                                <span className="pd-mobile-stat-lbl">Delivered</span>
+                                <span className="pd-mobile-stat-val text-green">
+                                  {line.deliveredQty}
                                 </span>
-                              </td>
-                              <td style={{ textAlign: 'right' }}>
-                                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                                  <button
-                                    onClick={() => handleOpenDeliveryAudit(line.latestGRNObj, line.rawPO)}
-                                    className="pd-btn-action view-audit"
-                                    title="Audit latest inward delivery"
+                              </div>
+                              <div className="pd-mobile-stat-box remaining">
+                                <span className="pd-mobile-stat-lbl">Remaining</span>
+                                <span className="pd-mobile-stat-val" style={{ color: line.remainingQty > 0 ? '#D97706' : '#16A34A' }}>
+                                  {line.remainingQty}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Key-Value Details List */}
+                            <div className="pd-mobile-mat-details-list">
+                              <div className="pd-mobile-detail-row">
+                                <span className="pd-mobile-detail-lbl">Due Date:</span>
+                                <div className="pd-mobile-detail-val" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span>{formatDate(line.dueDate)}</span>
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      padding: '1px 6px',
+                                      borderRadius: 4,
+                                      background: lineUrgency.bg,
+                                      color: lineUrgency.color,
+                                      border: `1px solid ${lineUrgency.border}`
+                                    }}
                                   >
-                                    <ClipboardCheck size={12} />
-                                    Audit
-                                  </button>
+                                    {lineUrgency.text}
+                                  </span>
                                 </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                              </div>
+
+                              <div className="pd-mobile-detail-row">
+                                <span className="pd-mobile-detail-lbl">Latest Inward:</span>
+                                <div className="pd-mobile-detail-val">
+                                  <span style={{ fontWeight: 600, color: '#0F172A' }}>{line.latestGRN || '—'}</span>
+                                  {line.storeVerificationDate && (
+                                    <span style={{ fontSize: 11, color: '#64748B', marginLeft: 4 }}>
+                                      ({formatDate(line.storeVerificationDate)})
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="pd-mobile-detail-row">
+                                <span className="pd-mobile-detail-lbl">Audit Status:</span>
+                                <div className="pd-mobile-detail-val">
+                                  <span
+                                    style={{
+                                      fontSize: 10.5,
+                                      fontWeight: 700,
+                                      padding: '2px 8px',
+                                      borderRadius: 50,
+                                      display: 'inline-block',
+                                      background: line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#DCFCE7' : '#FEF3C7',
+                                      color: line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#166534' : '#92400E',
+                                      border: `1px solid ${line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#BBF7D0' : '#FDE68A'}`
+                                    }}
+                                  >
+                                    {line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED'
+                                      ? 'Approved'
+                                      : line.financeAuditStatus === 'PENDING_FINANCE_AUDIT'
+                                      ? 'Pending Audit'
+                                      : line.financeAuditStatus.replace(/_/g, ' ')}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Actions Button */}
+                            <div className="pd-mobile-mat-actions">
+                              <button
+                                onClick={() => handleOpenDeliveryAudit(line.latestGRNObj, line.rawPO)}
+                                className="pd-btn-action view-audit"
+                                style={{ width: '100%', justifyContent: 'center', padding: '8px 12px', fontSize: 12.5 }}
+                                title="Audit latest inward delivery"
+                              >
+                                <ClipboardCheck size={14} />
+                                Audit
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
 
                     {/* PO Level Summary Footer */}
                     <div className="pd-po-footer-summary">
@@ -1816,6 +2334,8 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
             );
           })}
         </div>
+      )}
+        </>
       )}
 
       {/* ── Detail Modal for View PO ── */}
