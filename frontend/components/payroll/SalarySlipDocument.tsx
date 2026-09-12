@@ -187,7 +187,7 @@ export function SalarySlipDocument({
   const ctcPerMonth = Number(data.ctcPerMonth) > 0 ? Number(data.ctcPerMonth) : (totalGross + totalCompanyCost);
   const ctcPerAnnum = ctcPerMonth * 12;
 
-  // High-Resolution Image Download function using html2canvas
+  // High-Resolution Image Download function with native Tailwind v4 oklch support
   const handleDownloadImage = async () => {
     const el = document.getElementById('printable-salary-slip-doc');
     if (!el) {
@@ -195,7 +195,31 @@ export function SalarySlipDocument({
     }
 
     setDownloading(true);
+    const safeName = (empName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeCode = (empCode || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `Salary_Slip_${safeName}_${safeCode}.png`;
+
     try {
+      // Strategy 1: html-to-image (Native Tailwind v4 oklch color & foreignObject rendering)
+      try {
+        const { toPng } = await import('html-to-image');
+        const dataUrl = await toPng(el, {
+          quality: 0.98,
+          pixelRatio: 2,
+          backgroundColor: '#ffffff',
+          filter: (node: any) => !node.classList || !node.classList.contains('no-print'),
+        });
+
+        if (dataUrl) {
+          await safeSaveFile(dataUrl, filename, 'image/png');
+          setDownloading(false);
+          return;
+        }
+      } catch (h2iErr) {
+        console.warn('[html-to-image failed, trying html2canvas fallback]:', h2iErr);
+      }
+
+      // Strategy 2: html2canvas with oklch sanitizer
       const canvas = await html2canvas(el, {
         scale: 2,
         useCORS: true,
@@ -203,41 +227,28 @@ export function SalarySlipDocument({
         backgroundColor: '#ffffff',
         logging: false,
         windowWidth: 1024,
+        onclone: (clonedDoc) => {
+          // Sanitize any style tags with oklch
+          clonedDoc.querySelectorAll('style').forEach((styleTag) => {
+            if (styleTag.textContent && styleTag.textContent.includes('oklch')) {
+              styleTag.textContent = styleTag.textContent.replace(/oklch\([^)]+\)/g, '#1e293b');
+            }
+          });
+          // Sanitize inline styles
+          clonedDoc.querySelectorAll('*').forEach((elem: any) => {
+            if (elem.style) {
+              const styleStr = elem.getAttribute('style') || '';
+              if (styleStr.includes('oklch')) {
+                elem.setAttribute('style', styleStr.replace(/oklch\([^)]+\)/g, '#1e293b'));
+              }
+            }
+          });
+        },
       });
 
-      const safeName = (empName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const safeCode = (empCode || '').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const filename = `Salary_Slip_${safeName}_${safeCode}.png`;
-
-      if (canvas.toBlob) {
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            const imageURI = canvas.toDataURL('image/png', 1.0);
-            const link = document.createElement('a');
-            link.download = filename;
-            link.href = imageURI;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            return;
-          }
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.download = filename;
-          link.href = url;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          setTimeout(() => URL.revokeObjectURL(url), 2000);
-        }, 'image/png', 1.0);
-      } else {
+      if (canvas && canvas.width > 0 && canvas.height > 0) {
         const imageURI = canvas.toDataURL('image/png', 1.0);
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = imageURI;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        await safeSaveFile(imageURI, filename, 'image/png');
       }
     } catch (err) {
       console.error('Failed to generate salary slip image:', err);

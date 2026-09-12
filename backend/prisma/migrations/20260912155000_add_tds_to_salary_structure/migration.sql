@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "EmployeeSalaryStructure" 
+ADD COLUMN IF NOT EXISTS "tdsPercentage" DECIMAL(6,2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS "tdsAmount" DECIMAL(14,2) DEFAULT 0;
