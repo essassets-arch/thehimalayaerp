@@ -1760,6 +1760,19 @@ export default function QuotationsView({
                   <span style={{ fontWeight: '800', color: '#002e5d', fontSize: '13.5px' }}>{formatINR(calculatedSubtotal)}</span>
                 </div>
 
+                {/* Transportation Cost */}
+                {(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0) >= 0) && (
+                  <div style={{ display: 'flex', width: '290px', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', border: '1px solid #bbf7d0', borderRadius: '6px', background: '#f0fdf4' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0369a1', fontWeight: '600' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '4px', background: '#e0fdf4' }}>
+                        <Truck size={12} color="#0369a1" />
+                      </span>
+                      Transportation Cost:
+                    </span>
+                    <span style={{ fontWeight: '800', color: '#0369a1', fontSize: '13.5px' }}>+{formatINR(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0))}</span>
+                  </div>
+                )}
+
                 {/* GST row */}
                 <div style={{ display: 'flex', width: '290px', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#ffffff' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#475569', fontWeight: '600' }}>
@@ -1771,19 +1784,6 @@ export default function QuotationsView({
                   <span style={{ fontWeight: '800', color: '#002e5d', fontSize: '13.5px' }}>{formatINR(calculatedTaxAmt)}</span>
                 </div>
 
-                {/* Expected Transportation Cost */}
-                {(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0) >= 0) && (
-                  <div style={{ display: 'flex', width: '290px', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', border: '1px solid #bbf7d0', borderRadius: '6px', background: '#f0fdf4' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0369a1', fontWeight: '600' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '4px', background: '#e0fdf4' }}>
-                        <Truck size={12} color="#0369a1" />
-                      </span>
-                      Expected Transportation Cost:
-                    </span>
-                    <span style={{ fontWeight: '800', color: '#0369a1', fontSize: '13.5px' }}>+{formatINR(Number(selectedQuotation.transportCharge ?? selectedQuotation.expectedTransportationCost ?? 0))}</span>
-                  </div>
-                )}
-
                 {/* Grand Total row */}
                 <div style={{ display: 'flex', width: '290px', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', borderRadius: '6px', color: '#ffffff', boxShadow: '0 3px 10px rgba(37, 99, 235, 0.25)' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '800' }}>
@@ -1792,7 +1792,7 @@ export default function QuotationsView({
                     </span>
                     Grand Total:
                   </span>
-                  <span style={{ fontWeight: '900', fontSize: '16px' }}>{formatINR(quotationTotal(selectedQuotation))}</span>
+                  <span style={{ fontWeight: '900', fontSize: '16px' }}>{formatINR(quotationTotals.grandTotal)}</span>
                 </div>
               </div>
 

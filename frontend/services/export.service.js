@@ -1649,25 +1649,56 @@ export const exportExecutiveReportPDF = async (reportData, dateRangeLabel) => {
 
 /** Shared quotation totals used by both the preview and the A4 PDF renderer. */
 export const calculateQuotationTotals = (items = [], transportationCost = 0) => {
-  const totals = items.reduce((result, item) => {
+  let subtotal = 0;
+  let discountAmount = 0;
+  let itemsGstAmount = 0;
+  let detectedGstRate = null;
+
+  items.forEach((item) => {
     const quantity = Number(item.quantity ?? item.qty ?? 0);
     const rate = Number(item.unitPrice ?? item.rate ?? item.price ?? 0);
     const discountPercent = Number(item.discount ?? item.discountPercent ?? 0);
-    const gstPercent = Number(item.tax ?? item.gstPercent ?? 0);
+    const gstPercent = (item.tax !== undefined && item.tax !== null && item.tax !== '')
+      ? Number(item.tax ?? item.gstPercent ?? 18)
+      : (item.gstPercent !== undefined && item.gstPercent !== null && item.gstPercent !== '')
+        ? Number(item.gstPercent)
+        : 18;
+
+    if (gstPercent > 0 && detectedGstRate === null) {
+      detectedGstRate = gstPercent;
+    }
     const lineSubtotal = quantity * rate;
-    const lineDiscount = lineSubtotal * discountPercent / 100;
+    const lineDiscount = (lineSubtotal * discountPercent) / 100;
     const lineTaxable = lineSubtotal - lineDiscount;
-    result.subtotal += lineSubtotal;
-    result.discountAmount += lineDiscount;
-    result.gstAmount += lineTaxable * gstPercent / 100;
-    return result;
-  }, { subtotal: 0, discountAmount: 0, gstAmount: 0 });
+    subtotal += lineSubtotal;
+    discountAmount += lineDiscount;
+    itemsGstAmount += (lineTaxable * gstPercent) / 100;
+  });
 
   const transport = Number(transportationCost) || 0;
+  const itemsTaxable = subtotal - discountAmount;
+  // Effective GST rate across quotation items (defaults to 18%)
+  const gstRate = itemsTaxable > 0
+    ? (itemsGstAmount / itemsTaxable) * 100
+    : (detectedGstRate ?? 18);
+
+  // Transportation Cost is included in the Taxable Subtotal before calculating GST
+  const taxableSubtotal = itemsTaxable + transport;
+  const transportGstAmount = (transport * gstRate) / 100;
+  const totalGstAmount = itemsGstAmount + transportGstAmount;
+  const grandTotal = taxableSubtotal + totalGstAmount;
+
   return {
-    ...totals,
+    subtotal,
+    discountAmount,
+    itemsTaxable,
+    taxableSubtotal,
+    gstRate,
+    transportGstAmount,
+    itemsGstAmount,
+    gstAmount: totalGstAmount,
     transportationCost: transport,
-    grandTotal: totals.subtotal - totals.discountAmount + totals.gstAmount + transport
+    grandTotal
   };
 };
 
@@ -1941,11 +1972,11 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
   doc.text('Items Subtotal:', pageWidth - margin - 66, y + 4.5);
   doc.text(`Rs. ${itemsSubtotal.toFixed(2)}`, pageWidth - margin - 4, y + 4.5, { align: 'right' });
 
-  doc.text('GST Amount:', pageWidth - margin - 66, y + 9);
-  doc.text(`Rs. ${totalTax.toFixed(2)}`, pageWidth - margin - 4, y + 9, { align: 'right' });
+  doc.text('Transportation Cost:', pageWidth - margin - 66, y + 9);
+  doc.text(`+Rs. ${transportationCost.toFixed(2)}`, pageWidth - margin - 4, y + 9, { align: 'right' });
 
-  doc.text('Transportation:', pageWidth - margin - 66, y + 13.5);
-  doc.text(`Rs. ${transportationCost.toFixed(2)}`, pageWidth - margin - 4, y + 13.5, { align: 'right' });
+  doc.text('GST Amount:', pageWidth - margin - 66, y + 13.5);
+  doc.text(`Rs. ${totalTax.toFixed(2)}`, pageWidth - margin - 4, y + 13.5, { align: 'right' });
 
   // Grand Total Highlighted Blue Box
   doc.setFillColor(59, 130, 246);

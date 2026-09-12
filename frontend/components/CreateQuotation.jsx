@@ -711,22 +711,29 @@ export default function CreateQuotation({
   // Calculations
   let subtotal = 0;
   let discountAmtTotal = 0;
-  let taxAmtTotal = 0;
-  let grandTotal = 0;
+  let itemsTaxAmtTotal = 0;
+  let detectedGstRate = null;
 
   items.forEach(item => {
     const itemSubtotal = item.quantity * item.unitPrice;
     const itemDiscountAmt = (itemSubtotal * (item.discount || 0)) / 100;
     const itemTaxable = itemSubtotal - itemDiscountAmt;
-    const itemTaxAmt = (itemTaxable * (item.tax || 0)) / 100;
+    const taxPct = (item.tax !== undefined && item.tax !== null && item.tax !== '') ? Number(item.tax) : 18;
+    if (taxPct > 0 && detectedGstRate === null) detectedGstRate = taxPct;
+    const itemTaxAmt = (itemTaxable * taxPct) / 100;
     
     subtotal += itemSubtotal;
     discountAmtTotal += itemDiscountAmt;
-    taxAmtTotal += itemTaxAmt;
-    grandTotal += (itemTaxable + itemTaxAmt);
+    itemsTaxAmtTotal += itemTaxAmt;
   });
   
-  grandTotal += (transportCharge || 0);
+  const transportVal = Number(transportCharge || 0);
+  const itemsTaxable = subtotal - discountAmtTotal;
+  const effectiveGstRate = itemsTaxable > 0 ? (itemsTaxAmtTotal / itemsTaxable) * 100 : (detectedGstRate ?? 18);
+  const transportTaxAmt = (transportVal * effectiveGstRate) / 100;
+  const taxAmtTotal = itemsTaxAmtTotal + transportTaxAmt;
+  const taxableSubtotal = itemsTaxable + transportVal;
+  const grandTotal = taxableSubtotal + taxAmtTotal;
   const effectiveDiscountPercent = subtotal > 0 ? ((discountAmtTotal / subtotal) * 100).toFixed(1) : 0;
 
   const handleSubmit = (e) => {
@@ -1832,7 +1839,7 @@ export default function CreateQuotation({
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', marginTop: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-secondary)' }}>
-                <span>Subtotal:</span>
+                <span>Items Subtotal:</span>
                 <span style={{ fontWeight: '600', color: 'var(--color-text-primary)' }}>{formatINR(subtotal)}</span>
               </div>
 
@@ -1843,14 +1850,14 @@ export default function CreateQuotation({
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-secondary)' }}>
-                <span>GST Tax Value:</span>
-                <span style={{ fontWeight: '600', color: 'var(--color-text-primary)' }}>+{formatINR(taxAmtTotal)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0369a1' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Truck size={11} /> Transportation Cost:</span>
+                <span style={{ fontWeight: '600' }}>+{formatINR(transportVal)}</span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0369a1' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Truck size={11} /> Expected Transportation Cost:</span>
-                <span style={{ fontWeight: '600' }}>+{formatINR(transportCharge || 0)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-secondary)' }}>
+                <span>GST Amount:</span>
+                <span style={{ fontWeight: '600', color: 'var(--color-text-primary)' }}>+{formatINR(taxAmtTotal)}</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '17px', fontWeight: '800', borderTop: '1px solid #e5e7eb', paddingTop: '10px', marginTop: '6px' }}>

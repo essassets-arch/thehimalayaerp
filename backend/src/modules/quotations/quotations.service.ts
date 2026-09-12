@@ -155,27 +155,55 @@ export class QuotationsService {
     };
   }
 
-  private calculate(items: any[]) {
+  private calculate(items: any[], expectedTransportationCost: number = 0) {
     let subtotal = new Decimal(0);
     let discount = new Decimal(0);
-    let tax = new Decimal(0);
+    let itemsTax = new Decimal(0);
+    let detectedGstRate: Decimal | null = null;
     const processedItems = (items || []).map((item) => {
       const gross = new Decimal(item.quantity).mul(item.unitPrice);
       const itemDiscount = new Decimal(item.discount || 0);
       const taxable = gross.sub(itemDiscount);
-      const itemTax = new Decimal(item.tax || 0);
-      const lineTotal = taxable.add(itemTax);
+      let itemTaxAmount: Decimal;
+      if (item.tax !== undefined && item.tax !== null && item.tax !== '') {
+        const rawTax = new Decimal(item.tax);
+        if (rawTax.lte(28) && rawTax.gte(0)) {
+          // Indian GST slabs (0, 3, 5, 12, 18, 28)
+          itemTaxAmount = taxable.mul(rawTax).div(100);
+          if (detectedGstRate === null && rawTax.gt(0)) detectedGstRate = rawTax;
+        } else {
+          itemTaxAmount = rawTax;
+          if (taxable.gt(0) && detectedGstRate === null) {
+            detectedGstRate = itemTaxAmount.mul(100).div(taxable);
+          }
+        }
+      } else {
+        itemTaxAmount = taxable.mul(18).div(100);
+        if (detectedGstRate === null) detectedGstRate = new Decimal(18);
+      }
+      const lineTotal = taxable.add(itemTaxAmount);
       subtotal = subtotal.add(gross);
       discount = discount.add(itemDiscount);
-      tax = tax.add(itemTax);
+      itemsTax = itemsTax.add(itemTaxAmount);
       return { ...item, lineTotal: lineTotal.toNumber() };
     });
+
+    const transport = new Decimal(expectedTransportationCost || 0);
+    const itemsTaxable = subtotal.sub(discount);
+    const effectiveGstRate = itemsTaxable.gt(0)
+      ? itemsTax.mul(100).div(itemsTaxable)
+      : (detectedGstRate ?? new Decimal(18));
+    const transportTax = transport.mul(effectiveGstRate).div(100);
+    const totalTax = itemsTax.add(transportTax);
+    const taxableSubtotal = itemsTaxable.add(transport);
+    const grandTotal = taxableSubtotal.add(totalTax);
+
     return {
       processedItems,
       subtotal: subtotal.toNumber(),
       discount: discount.toNumber(),
-      tax: tax.toNumber(),
-      total: subtotal.sub(discount).add(tax).toNumber(),
+      tax: totalTax.toNumber(),
+      total: grandTotal.toNumber(),
     };
   }
 
@@ -334,7 +362,10 @@ export class QuotationsService {
         return { ...item, productId: product.id };
       }),
     );
-    const totals = this.calculate(resolvedItems);
+    const transportCost = Number(
+      dto.expectedTransportationCost ?? dto.transportCharge ?? 0,
+    );
+    const totals = this.calculate(resolvedItems, transportCost);
     if (!totals.processedItems.length)
       throw new BadRequestException('At least one quotation item is required');
     const quotationNumber =
@@ -552,7 +583,19 @@ export class QuotationsService {
           )
         : null;
 
-      const totals = resolvedItems ? this.calculate(resolvedItems) : null;
+      const expectedTransportationCost =
+        dto.expectedTransportationCost !== undefined &&
+        dto.expectedTransportationCost !== null
+          ? Number(dto.expectedTransportationCost)
+          : dto.transportCharge !== undefined && dto.transportCharge !== null
+            ? Number(dto.transportCharge)
+            : undefined;
+
+      const effectiveTransport = expectedTransportationCost !== undefined
+        ? expectedTransportationCost
+        : Number(quotation.expectedTransportationCost || 0);
+
+      const totals = resolvedItems ? this.calculate(resolvedItems, effectiveTransport) : null;
       if (dto.items && !totals?.processedItems.length)
         throw new BadRequestException(
           'At least one quotation item is required',
@@ -627,13 +670,6 @@ export class QuotationsService {
               : null
             : undefined;
 
-      const expectedTransportationCost =
-        dto.expectedTransportationCost !== undefined &&
-        dto.expectedTransportationCost !== null
-          ? Number(dto.expectedTransportationCost)
-          : dto.transportCharge !== undefined && dto.transportCharge !== null
-            ? Number(dto.transportCharge)
-            : undefined;
 
       const remarks =
         dto.remarks !== undefined
