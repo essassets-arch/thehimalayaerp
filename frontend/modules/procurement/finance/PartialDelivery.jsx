@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useERPStore } from '../../../store/erpStore';
 import { syncProcurementData } from '../../../store/procurementActions';
 import { purchaseOrderService } from '../../../services/procurement/purchaseOrderService';
@@ -10,23 +10,20 @@ import {
   ExternalLink,
   CheckCircle2,
   Clock,
-  Truck,
   Building2,
-  Calendar,
-  AlertTriangle,
   FileText,
   Boxes,
   ClipboardCheck,
-  ChevronRight,
-  ShieldCheck,
-  Hash,
-  Download,
+  ChevronDown,
+  ChevronUp,
   X,
-  Printer,
   PackageCheck,
-  SlidersHorizontal,
   LayoutGrid,
-  List
+  List,
+  AlertCircle,
+  ChevronsUpDown,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
@@ -140,7 +137,7 @@ const CSS = `
   /* ── KPI Metrics Cards ── */
   .pd-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 14px;
     margin-bottom: 20px;
   }
@@ -170,8 +167,12 @@ const CSS = `
     background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
     border-color: #C7D2FE;
   }
+  .pd-kpi-card.rose {
+    background: linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%);
+    border-color: #FECDD3;
+  }
   .pd-kpi-label {
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -180,6 +181,7 @@ const CSS = `
   .pd-kpi-card.amber .pd-kpi-label { color: #92400E; }
   .pd-kpi-card.emerald .pd-kpi-label { color: #166534; }
   .pd-kpi-card.indigo .pd-kpi-label { color: #3730A3; }
+  .pd-kpi-card.rose .pd-kpi-label { color: #9F1239; }
   .pd-kpi-val {
     font-size: 26px;
     font-weight: 800;
@@ -189,6 +191,7 @@ const CSS = `
   .pd-kpi-card.amber .pd-kpi-val { color: #B45309; }
   .pd-kpi-card.emerald .pd-kpi-val { color: #15803D; }
   .pd-kpi-card.indigo .pd-kpi-val { color: #4338CA; }
+  .pd-kpi-card.rose .pd-kpi-val { color: #BE123C; }
   .pd-kpi-sub {
     font-size: 11.5px;
     color: #64748B;
@@ -200,50 +203,50 @@ const CSS = `
     background: #F8FAFC;
     border: 1px solid #E2E8F0;
     border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 22px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 16px;
+    gap: 14px;
   }
   .pd-tree-left {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: 14px;
     flex-wrap: wrap;
   }
   .pd-tree-badge-root {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 800;
     color: #0F172A;
     background: #FFFFFF;
     border: 1px solid #CBD5E1;
     border-radius: 8px;
-    padding: 6px 14px;
+    padding: 6px 12px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.03);
   }
   .pd-tree-branches {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     flex-wrap: wrap;
     font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
-    font-size: 13px;
+    font-size: 12.5px;
   }
   .pd-branch-item {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 10px;
+    padding: 3px 10px;
     border-radius: 6px;
     font-weight: 700;
   }
-  .pd-branch-item.delivered {
+  .pd-branch-item.completed {
     background: #DCFCE7;
     color: #166534;
     border: 1px solid #BBF7D0;
@@ -253,63 +256,64 @@ const CSS = `
     color: #92400E;
     border: 1px solid #FDE68A;
   }
+  .pd-branch-item.remaining {
+    background: #FFE4E6;
+    color: #9F1239;
+    border: 1px solid #FECDD3;
+  }
   .pd-tree-desc {
     font-size: 12.5px;
     color: #64748B;
-    font-style: italic;
+    font-weight: 500;
   }
 
-  /* ── Toolbar & Filters ── */
+  /* ── Toolbar ── */
   .pd-toolbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
   }
   .pd-filter-pills {
     display: flex;
-    background: #F1F5F9;
-    padding: 4px;
-    border-radius: 10px;
-    gap: 4px;
+    gap: 8px;
+    flex-wrap: wrap;
   }
   .pd-pill-btn {
-    padding: 7px 14px;
-    border: none;
-    border-radius: 7px;
-    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12.5px;
     font-weight: 600;
+    background: #F1F5F9;
+    color: #475569;
+    border: 1px solid #E2E8F0;
     cursor: pointer;
-    background: transparent;
-    color: #64748B;
+    transition: all 0.15s ease;
     display: flex;
     align-items: center;
     gap: 6px;
-    transition: all 0.15s;
   }
   .pd-pill-btn:hover {
+    background: #E2E8F0;
     color: #0F172A;
   }
   .pd-pill-btn.active {
-    background: #FFFFFF;
-    color: #2563EB;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    background: #0F172A;
+    color: #FFFFFF;
+    border-color: #0F172A;
   }
   .pd-pill-count {
-    padding: 1px 7px;
-    border-radius: 50px;
     font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.08);
     font-weight: 700;
   }
   .pd-pill-btn.active .pd-pill-count {
-    background: #EFF6FF;
-    color: #2563EB;
-  }
-  .pd-pill-btn:not(.active) .pd-pill-count {
-    background: #E2E8F0;
-    color: #64748B;
+    background: rgba(255,255,255,0.2);
+    color: #FFFFFF;
   }
 
   .pd-search-tools {
@@ -320,21 +324,22 @@ const CSS = `
   }
   .pd-search-input-wrap {
     position: relative;
-    width: 280px;
+    width: 320px;
+    max-width: 100%;
   }
   .pd-search-input {
     width: 100%;
-    box-sizing: border-box;
     padding: 8px 12px 8px 34px;
-    font-size: 13px;
-    border: 1px solid #CBD5E1;
     border-radius: 8px;
+    border: 1px solid #CBD5E1;
+    font-size: 13px;
     outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    background: #FFFFFF;
   }
   .pd-search-input:focus {
     border-color: #2563EB;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
   }
   .pd-search-icon {
     position: absolute;
@@ -345,142 +350,210 @@ const CSS = `
     pointer-events: none;
   }
 
+  .pd-bulk-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 12px;
+    background: #F8FAFC;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .pd-bulk-btn:hover {
+    background: #F1F5F9;
+    color: #0F172A;
+  }
+
   .pd-view-toggle {
     display: flex;
     background: #F1F5F9;
-    border-radius: 8px;
     padding: 2px;
+    border-radius: 8px;
+    border: 1px solid #E2E8F0;
   }
   .pd-view-btn {
-    border: none;
-    background: transparent;
     padding: 6px 10px;
     border-radius: 6px;
+    border: none;
+    background: transparent;
     color: #64748B;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: all 0.15s;
   }
   .pd-view-btn.active {
     background: #FFFFFF;
     color: #0F172A;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
   }
 
-  /* ── Table View ── */
-  .pd-table-wrap {
+  /* ── PO-WISE ACCORDION LIST VIEW ── */
+  .pd-po-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .pd-po-accordion {
+    background: #FFFFFF;
     border: 1px solid #E2E8F0;
     border-radius: 12px;
-    overflow-x: auto;
-    background: #FFFFFF;
+    overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
   }
-  .pd-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-    min-width: 1080px;
+  .pd-po-accordion:hover {
+    border-color: #CBD5E1;
   }
-  .pd-table thead th {
-    background: #F8FAFC;
-    padding: 12px 14px;
-    font-size: 11.5px;
-    font-weight: 700;
-    color: #475569;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border-bottom: 1px solid #E2E8F0;
-    text-align: left;
-    white-space: nowrap;
-  }
-  .pd-table thead th.text-right { text-align: right; }
-  .pd-table thead th.text-center { text-align: center; }
-  .pd-table tbody td {
-    padding: 13px 14px;
-    border-bottom: 1px solid #F1F5F9;
-    color: #334155;
-    vertical-align: middle;
-  }
-  .pd-table tbody tr:hover td {
-    background: #F8FAFC;
+  .pd-po-accordion.expanded {
+    border-color: #93C5FD;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.06);
   }
 
-  .pd-material-name {
-    font-weight: 700;
-    color: #0F172A;
-    display: block;
-    font-size: 13.5px;
+  /* PO Header Row */
+  .pd-po-row-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    background: #FAFCFF;
+    cursor: pointer;
+    user-select: none;
+    gap: 14px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid transparent;
+    transition: background 0.15s;
   }
-  .pd-material-code {
-    font-size: 11.5px;
-    color: #64748B;
-    font-family: 'JetBrains Mono', monospace;
+  .pd-po-accordion.expanded .pd-po-row-header {
+    border-bottom-color: #E2E8F0;
+    background: #F8FAFC;
+  }
+  .pd-po-row-header:hover {
+    background: #F1F5F9;
+  }
+
+  .pd-po-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    min-width: 260px;
+  }
+  .pd-chevron-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    color: #475569;
+    transition: transform 0.2s ease, background 0.15s;
+  }
+  .pd-po-accordion.expanded .pd-chevron-btn {
+    background: #EFF6FF;
+    border-color: #BFDBFE;
+    color: #2563EB;
+  }
+  .pd-po-num-box {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
   }
   .pd-po-badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-weight: 700;
-    color: #0284C7;
-    background: #F0F9FF;
-    border: 1px solid #BAE6FD;
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-size: 12px;
-    cursor: pointer;
-  }
-  .pd-po-badge:hover {
-    background: #E0F2FE;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #1E40AF;
   }
   .pd-indent-chip {
-    font-size: 11px;
-    color: #64748B;
-    margin-top: 3px;
-    display: block;
-  }
-  .pd-vendor-text {
+    font-size: 11.5px;
     font-weight: 600;
-    color: #1E293B;
-    display: flex;
-    align-items: center;
-    gap: 5px;
+    color: #64748B;
   }
-
-  .pd-status-badge {
+  .pd-supplier-chip {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 4px 10px;
-    border-radius: 50px;
-    font-size: 11.5px;
-    font-weight: 700;
-    white-space: nowrap;
-  }
-  .pd-status-badge.partial {
-    background: #FEF3C7;
-    color: #B45309;
-    border: 1px solid #FDE68A;
-  }
-  .pd-status-badge.delivered {
-    background: #DCFCE7;
-    color: #15803D;
-    border: 1px solid #BBF7D0;
-  }
-  .pd-status-badge.not-received {
-    background: #F1F5F9;
-    color: #64748B;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    background: #FFFFFF;
+    padding: 3px 8px;
+    border-radius: 6px;
     border: 1px solid #E2E8F0;
   }
 
+  /* Material Status Chips in PO Header */
+  .pd-mat-chips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pd-chip-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  .pd-chip-pill.total {
+    background: #F1F5F9;
+    color: #334155;
+    border: 1px solid #E2E8F0;
+  }
+  .pd-chip-pill.completed {
+    background: #DCFCE7;
+    color: #166534;
+    border: 1px solid #BBF7D0;
+  }
+  .pd-chip-pill.partial {
+    background: #FEF3C7;
+    color: #92400E;
+    border: 1px solid #FDE68A;
+  }
+  .pd-chip-pill.remaining {
+    background: #FFE4E6;
+    color: #9F1239;
+    border: 1px solid #FECDD3;
+  }
+
+  /* Units Tally in PO Header */
+  .pd-po-units-tally {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 170px;
+  }
+  .pd-units-text {
+    font-size: 12px;
+    color: #475569;
+    display: flex;
+    justify-content: space-between;
+  }
+  .pd-units-text strong {
+    color: #0F172A;
+  }
   .pd-progress-wrap {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-width: 110px;
   }
   .pd-progress-bar {
     flex: 1;
-    height: 7px;
+    height: 6px;
     background: #E2E8F0;
     border-radius: 4px;
     overflow: hidden;
@@ -490,15 +563,44 @@ const CSS = `
     border-radius: 4px;
     transition: width 0.3s ease;
   }
-  .pd-progress-fill.partial { background: #F59E0B; }
-  .pd-progress-fill.delivered { background: #10B981; }
+  .pd-progress-fill.partial {
+    background: linear-gradient(90deg, #F59E0B 0%, #D97706 100%);
+  }
+  .pd-progress-fill.completed {
+    background: linear-gradient(90deg, #10B981 0%, #059669 100%);
+  }
 
-  .pd-actions-cell {
+  .pd-po-meta-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
-    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
   }
+  .pd-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  .pd-status-badge.partial {
+    background: #FEF3C7;
+    color: #B45309;
+    border: 1px solid #FDE68A;
+  }
+  .pd-status-badge.completed {
+    background: #DCFCE7;
+    color: #166534;
+    border: 1px solid #BBF7D0;
+  }
+  .pd-status-badge.remaining {
+    background: #FFE4E6;
+    color: #BE123C;
+    border: 1px solid #FECDD3;
+  }
+
   .pd-btn-action {
     display: inline-flex;
     align-items: center;
@@ -530,10 +632,99 @@ const CSS = `
     color: #1D4ED8;
   }
 
-  /* ── Cards View ── */
+  /* Expanded Material Breakdown Area */
+  .pd-po-nested-area {
+    background: #FFFFFF;
+    padding: 16px 20px;
+    border-top: 1px solid #E2E8F0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .pd-nested-title-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: #475569;
+    font-weight: 600;
+  }
+  .pd-nested-title-bar strong {
+    color: #0F172A;
+  }
+
+  .pd-nested-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .pd-nested-table thead {
+    background: #F8FAFC;
+    border-bottom: 1px solid #CBD5E1;
+  }
+  .pd-nested-table th {
+    padding: 9px 12px;
+    text-align: left;
+    font-weight: 700;
+    color: #475569;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .pd-nested-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #F1F5F9;
+    vertical-align: middle;
+  }
+  .pd-nested-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .pd-nested-table tbody tr:hover {
+    background: #F8FAFC;
+  }
+  .pd-nested-table tbody tr.row-complete {
+    background: #FAFCFA;
+  }
+  .pd-nested-table tbody tr.row-partial {
+    background: #FFFDF9;
+  }
+  .pd-nested-table tbody tr.row-remaining {
+    background: #FFFBFB;
+  }
+
+  .pd-mat-name {
+    font-weight: 700;
+    color: #0F172A;
+    display: block;
+  }
+  .pd-mat-code {
+    font-size: 11px;
+    color: #64748B;
+    font-family: monospace;
+    display: block;
+  }
+
+  .pd-po-footer-summary {
+    background: #F8FAFC;
+    border: 1px dashed #CBD5E1;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12.5px;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ── CARDS VIEW ── */
   .pd-cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     gap: 16px;
   }
   .pd-card {
@@ -748,13 +939,13 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
   const erpStoreState = useERPStore(s => s.state);
   const purchaseOrders = erpStoreState?.procurement?.purchaseOrders ?? erpStoreState?.purchaseOrders ?? EMPTY_ARRAY;
   const goodsReceipts = erpStoreState?.procurement?.goodsReceiptNotes ?? erpStoreState?.goodsReceipts ?? EMPTY_ARRAY;
-  const purchaseIndents = erpStoreState?.procurement?.materialIndents ?? erpStoreState?.purchaseIndents ?? EMPTY_ARRAY;
   const suppliers = erpStoreState?.procurement?.suppliers ?? erpStoreState?.suppliers ?? EMPTY_ARRAY;
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState('ALL'); // 'ALL' | 'PARTIAL' | 'DELIVERED' | 'NOT_RECEIVED'
-  const [viewLayout, setViewLayout] = useState('table'); // 'table' | 'cards'
+  const [filterMode, setFilterMode] = useState('ALL'); // 'ALL' | 'HAS_PARTIAL' | 'HAS_REMAINING'
+  const [viewLayout, setViewLayout] = useState('accordion'); // 'accordion' | 'cards'
+  const [expandedPOIds, setExpandedPOIds] = useState(new Set());
   const [inspectingPO, setInspectingPO] = useState(null);
   const [inspectingGRN, setInspectingGRN] = useState(null);
 
@@ -779,7 +970,6 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
   const grnsByPO = useMemo(() => {
     const map = new Map();
     goodsReceipts.forEach(grn => {
-      // Exclude cancelled/rejected/voided GRNs
       if (['CANCELLED', 'REJECTED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED', 'VOID', 'VOIDED'].includes(grn.status)) {
         return;
       }
@@ -796,16 +986,17 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
     return map;
   }, [goodsReceipts]);
 
-  // Master calculation of partial POs and material lines directly from the receiving ledger
-  const { analyzedPOs, allMaterialLines, kpiSummary } = useMemo(() => {
-    let totalMonitoredLines = 0;
-    let fullyDeliveredLinesCount = 0;
-    let partiallyDeliveredLinesCount = 0;
-    let notReceivedLinesCount = 0;
-    let totalPendingUnits = 0;
+  // Master calculation of partial POs directly from physical receiving ledger
+  const { analyzedPOs, kpiSummary } = useMemo(() => {
+    let globalTotalLines = 0;
+    let globalCompleteLines = 0;
+    let globalPartialLines = 0;
+    let globalRemainingLines = 0;
+    let globalTotalPendingUnits = 0;
+    let globalTotalOrderedUnits = 0;
+    let globalTotalDeliveredUnits = 0;
 
     const partialPOList = [];
-    const materialLinesList = [];
 
     // Filter active POs (exclude terminal cancelled/drafts)
     const candidates = purchaseOrders.filter(po => {
@@ -827,7 +1018,7 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
       if (rawItems.length === 0) return;
 
       let poOrderedUnits = 0;
-      let poReceivedUnits = 0;
+      let poDeliveredUnits = 0;
       let poRemainingUnits = 0;
       const computedPoLines = [];
 
@@ -836,7 +1027,7 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
         if (orderedQty <= 0) return;
 
         // Sum cumulative received quantity across all valid accepted/verified GRNs
-        let receivedQty = 0;
+        let deliveredQty = 0;
         let latestGRNQty = 0;
 
         sortedGRNs.forEach((grn, gIdx) => {
@@ -848,7 +1039,7 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
 
             if (isMatch) {
               const qty = Number(gi.acceptedQuantity ?? gi.receivedQuantity ?? gi.deliveredQuantity ?? 0);
-              receivedQty += qty;
+              deliveredQty += qty;
               if (gIdx === 0) {
                 latestGRNQty += qty;
               }
@@ -856,22 +1047,34 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
           });
         });
 
-        // Fallback to item.receivedQty / cumulativeDeliveredQty if GRNs array is empty
-        if (receivedQty === 0 && (item.receivedQty || item.cumulativeDeliveredQty || item.receivedQuantity)) {
-          receivedQty = Number(item.receivedQty || item.cumulativeDeliveredQty || item.receivedQuantity || 0);
+        // Fallback to item.receivedQty / cumulativeDeliveredQty if GRNs array was empty
+        if (deliveredQty === 0 && (item.receivedQty || item.cumulativeDeliveredQty || item.receivedQuantity)) {
+          deliveredQty = Number(item.receivedQty || item.cumulativeDeliveredQty || item.receivedQuantity || 0);
         }
 
-        const remainingQty = Math.max(0, orderedQty - receivedQty);
-        const previouslyReceived = Math.max(0, receivedQty - latestGRNQty);
-        const fulfillmentPct = orderedQty > 0 ? Math.min(100, Math.round((receivedQty / orderedQty) * 100)) : 0;
+        const remainingQty = Math.max(0, orderedQty - deliveredQty);
+        const previouslyDelivered = Math.max(0, deliveredQty - latestGRNQty);
+        const fulfillmentPct = orderedQty > 0 ? Math.min(100, Math.round((deliveredQty / orderedQty) * 100)) : 0;
 
-        let lineStatus = 'NOT_RECEIVED';
-        if (receivedQty === 0) {
-          lineStatus = 'NOT_RECEIVED';
-        } else if (receivedQty > 0 && remainingQty > 0) {
-          lineStatus = 'PARTIAL_DELIVERY';
-        } else if (remainingQty === 0 && orderedQty > 0) {
-          lineStatus = 'FULLY_DELIVERED';
+        // Exact Line Status Logic requested by user:
+        // Delivered Qty >= Ordered Qty → Complete
+        // 0 < Delivered Qty < Ordered Qty → Partial
+        // Delivered Qty = 0 → Remaining
+        let lineStatus = 'REMAINING';
+        let lineStatusLabel = 'Remaining';
+        let lineStatusIcon = '🔴';
+        if (deliveredQty >= orderedQty) {
+          lineStatus = 'COMPLETE';
+          lineStatusLabel = 'Complete';
+          lineStatusIcon = '✅';
+        } else if (deliveredQty > 0 && deliveredQty < orderedQty) {
+          lineStatus = 'PARTIAL';
+          lineStatusLabel = 'Partial';
+          lineStatusIcon = '🟠';
+        } else {
+          lineStatus = 'REMAINING';
+          lineStatusLabel = 'Remaining';
+          lineStatusIcon = '🔴';
         }
 
         const supplierName = po.supplier?.name || po.vendorName || po.snapshot?.vendorName || suppliers.find(s => s.id === po.supplierId)?.name || '—';
@@ -880,10 +1083,11 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
         const materialCode = item.product?.code || item.materialCode || `MAT-${String(idx + 1).padStart(3, '0')}`;
         const dueDate = po.expectedDeliveryDate || po.deliveryDate;
         const storeVerificationDate = latestGRN?.verifiedAt || latestGRN?.createdAt || null;
-        const financeAuditStatus = latestGRN?.status || (receivedQty > 0 ? 'STORE_VERIFIED' : 'PENDING_DELIVERY');
+        const financeAuditStatus = latestGRN?.status || (deliveredQty > 0 ? 'STORE_VERIFIED' : 'PENDING_DELIVERY');
 
         const lineObj = {
           lineId: `${poId}-${item.id || idx}`,
+          itemIndex: idx + 1,
           poId,
           poNumber: poNum,
           indentNumber,
@@ -892,9 +1096,9 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
           materialCode,
           unit: item.unit || item.product?.unit || 'Units',
           orderedQty,
-          previouslyReceived,
+          previouslyDelivered,
           latestGRNQty,
-          cumulativeReceived: receivedQty,
+          deliveredQty,
           remainingQty,
           fulfillmentPct,
           dueDate,
@@ -903,97 +1107,132 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
           storeVerificationDate,
           financeAuditStatus,
           status: lineStatus,
+          statusLabel: lineStatusLabel,
+          statusIcon: lineStatusIcon,
           rawPO: po,
           rawItem: item
         };
 
         computedPoLines.push(lineObj);
         poOrderedUnits += orderedQty;
-        poReceivedUnits += receivedQty;
+        poDeliveredUnits += deliveredQty;
         poRemainingUnits += remainingQty;
       });
 
-      // A PO belongs on the Partial Delivery monitoring queue if:
-      // 1. It has received some quantity (poReceivedUnits > 0 or has at least 1 valid GRN), AND
-      // 2. The PO as a whole is not complete (poRemainingUnits > 0 or not terminal CLOSED)
-      const isPartiallyDeliveredPO = poReceivedUnits > 0 && poRemainingUnits > 0 && po.status !== 'CLOSED' && po.status !== 'PO_CLOSED';
+      const totalMaterials = computedPoLines.length;
+      const completedCount = computedPoLines.filter(l => l.status === 'COMPLETE').length;
+      const partialCount = computedPoLines.filter(l => l.status === 'PARTIAL').length;
+      const remainingCount = computedPoLines.filter(l => l.status === 'REMAINING').length;
+
+      // Important logic requested by user:
+      // PO is Complete only when all materials are complete.
+      // PO is Partial Delivery when at least one material is delivered but one or more materials remain.
+      const isPartiallyDeliveredPO =
+        poDeliveredUnits > 0 &&
+        poRemainingUnits > 0 &&
+        po.status !== 'CLOSED' &&
+        po.status !== 'PO_CLOSED';
 
       if (isPartiallyDeliveredPO) {
-        partialPOList.push({
+        const poObj = {
           poId,
           poNumber: poNum,
           indentNumber: po.purchaseIndent?.publicId || po.purchaseIndent?.indentNo || po.indentNo || po.purchaseIndentId || '—',
-          supplierName: po.supplier?.name || po.vendorName || po.snapshot?.vendorName || '—',
-          orderedUnits: poOrderedUnits,
-          receivedUnits: poReceivedUnits,
-          remainingUnits: poRemainingUnits,
-          overallFulfillmentPct: poOrderedUnits > 0 ? Math.round((poReceivedUnits / poOrderedUnits) * 100) : 0,
+          supplierName: po.supplier?.name || po.vendorName || po.snapshot?.vendorName || suppliers.find(s => s.id === po.supplierId)?.name || '—',
+          totalMaterials,
+          completedCount,
+          partialCount,
+          remainingCount,
+          totalOrdered: poOrderedUnits,
+          totalDelivered: poDeliveredUnits,
+          totalRemaining: poRemainingUnits,
+          overallFulfillmentPct: poOrderedUnits > 0 ? Math.min(100, Math.round((poDeliveredUnits / poOrderedUnits) * 100)) : 0,
+          overallStatus: 'Partial Delivery',
           dueDate: po.expectedDeliveryDate || po.deliveryDate,
           lines: computedPoLines,
           rawPO: po,
           latestGRN
-        });
+        };
 
-        // Add all lines of this partially delivered PO to the master lines view
-        computedPoLines.forEach(l => {
-          materialLinesList.push(l);
-          totalMonitoredLines++;
-          if (l.status === 'FULLY_DELIVERED') fullyDeliveredLinesCount++;
-          else if (l.status === 'PARTIAL_DELIVERY') partiallyDeliveredLinesCount++;
-          else notReceivedLinesCount++;
-          totalPendingUnits += l.remainingQty;
-        });
+        partialPOList.push(poObj);
+
+        // Global KPI tallies across qualified partial POs
+        globalTotalLines += totalMaterials;
+        globalCompleteLines += completedCount;
+        globalPartialLines += partialCount;
+        globalRemainingLines += remainingCount;
+        globalTotalOrderedUnits += poOrderedUnits;
+        globalTotalDeliveredUnits += poDeliveredUnits;
+        globalTotalPendingUnits += poRemainingUnits;
       }
     });
 
     return {
       analyzedPOs: partialPOList,
-      allMaterialLines: materialLinesList,
       kpiSummary: {
-        totalLines: totalMonitoredLines,
-        deliveredLines: fullyDeliveredLinesCount,
-        partialLines: partiallyDeliveredLinesCount,
-        notReceivedLines: notReceivedLinesCount,
         partialPOsCount: partialPOList.length,
-        totalPendingUnits
+        totalMaterials: globalTotalLines,
+        completedMaterials: globalCompleteLines,
+        partialMaterials: globalPartialLines,
+        remainingMaterials: globalRemainingLines,
+        totalOrderedUnits: globalTotalOrderedUnits,
+        totalDeliveredUnits: globalTotalDeliveredUnits,
+        totalPendingUnits: globalTotalPendingUnits
       }
     };
   }, [purchaseOrders, grnsByPO, suppliers]);
 
-  // Filtering lines based on filterMode & search query
-  const filteredMaterialLines = useMemo(() => {
-    let list = allMaterialLines;
-    if (filterMode === 'PARTIAL') {
-      list = list.filter(l => l.status === 'PARTIAL_DELIVERY');
-    } else if (filterMode === 'DELIVERED') {
-      list = list.filter(l => l.status === 'FULLY_DELIVERED');
-    } else if (filterMode === 'NOT_RECEIVED') {
-      list = list.filter(l => l.status === 'NOT_RECEIVED');
+  // Automatically expand all POs initially so Finance immediately sees the material breakdowns
+  useEffect(() => {
+    if (analyzedPOs.length > 0 && expandedPOIds.size === 0) {
+      setExpandedPOIds(new Set(analyzedPOs.map(po => po.poId)));
+    }
+  }, [analyzedPOs]);
+
+  // Filtering POs by search query and mode
+  const filteredPOs = useMemo(() => {
+    let list = analyzedPOs;
+
+    if (filterMode === 'HAS_PARTIAL') {
+      list = list.filter(po => po.partialCount > 0);
+    } else if (filterMode === 'HAS_REMAINING') {
+      list = list.filter(po => po.remainingCount > 0);
     }
 
     if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase().trim();
-    return list.filter(l =>
-      l.materialName.toLowerCase().includes(q) ||
-      l.poNumber.toLowerCase().includes(q) ||
-      l.supplierName.toLowerCase().includes(q) ||
-      l.indentNumber.toLowerCase().includes(q) ||
-      (l.latestGRN && l.latestGRN.toLowerCase().includes(q)) ||
-      l.materialCode.toLowerCase().includes(q)
-    );
-  }, [allMaterialLines, filterMode, searchQuery]);
 
-  // Filtering PO cards
-  const filteredPOCards = useMemo(() => {
-    if (!searchQuery.trim()) return analyzedPOs;
-    const q = searchQuery.toLowerCase().trim();
-    return analyzedPOs.filter(po =>
+    return list.filter(po =>
       po.poNumber.toLowerCase().includes(q) ||
       po.supplierName.toLowerCase().includes(q) ||
       po.indentNumber.toLowerCase().includes(q) ||
-      po.lines.some(l => l.materialName.toLowerCase().includes(q) || l.materialCode.toLowerCase().includes(q))
+      po.lines.some(l =>
+        l.materialName.toLowerCase().includes(q) ||
+        l.materialCode.toLowerCase().includes(q) ||
+        (l.latestGRN && l.latestGRN.toLowerCase().includes(q))
+      )
     );
-  }, [analyzedPOs, searchQuery]);
+  }, [analyzedPOs, filterMode, searchQuery]);
+
+  // Accordion toggle handlers
+  const togglePO = (poId) => {
+    setExpandedPOIds(prev => {
+      const next = new Set(prev);
+      if (next.has(poId)) next.delete(poId);
+      else next.add(poId);
+      return next;
+    });
+  };
+
+  const expandAll = () => {
+    setExpandedPOIds(new Set(filteredPOs.map(p => p.poId)));
+  };
+
+  const collapseAll = () => {
+    setExpandedPOIds(new Set());
+  };
+
+  const isAllExpanded = filteredPOs.length > 0 && filteredPOs.every(p => expandedPOIds.has(p.poId));
 
   // Action: Open PO detail modal
   const handleOpenPO = (po) => {
@@ -1024,11 +1263,11 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
             Partial Delivery
             <span className="pd-pulse-tag">
               <span className="pd-pulse-dot" />
-              Live Inward Ledger
+              PO-Wise Ledger
             </span>
           </h2>
           <p>
-            Real-time tracking of partially received Purchase Orders and material lines calculated dynamically from the physical receiving ledger.
+            PO-wise monitoring queue of partially received Purchase Orders. Click any PO to expand its material-wise delivery status.
           </p>
         </div>
 
@@ -1057,24 +1296,29 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
       {/* ── KPI Summary Cards ── */}
       <div className="pd-kpi-grid">
         <div className="pd-kpi-card indigo">
-          <span className="pd-kpi-label">Total Monitored Lines</span>
-          <span className="pd-kpi-val">{kpiSummary.totalLines}</span>
+          <span className="pd-kpi-label">Partial Purchase Orders</span>
+          <span className="pd-kpi-val">{kpiSummary.partialPOsCount}</span>
+          <span className="pd-kpi-sub">Active open POs with partial inward</span>
+        </div>
+        <div className="pd-kpi-card">
+          <span className="pd-kpi-label">Total Monitored Materials</span>
+          <span className="pd-kpi-val">{kpiSummary.totalMaterials}</span>
           <span className="pd-kpi-sub">Across active partial POs</span>
+        </div>
+        <div className="pd-kpi-card emerald">
+          <span className="pd-kpi-label">Completed Materials</span>
+          <span className="pd-kpi-val">{kpiSummary.completedMaterials}</span>
+          <span className="pd-kpi-sub">Delivered &ge; Ordered Qty</span>
         </div>
         <div className="pd-kpi-card amber">
           <span className="pd-kpi-label">Partially Delivered</span>
-          <span className="pd-kpi-val">{kpiSummary.partialLines}</span>
-          <span className="pd-kpi-sub">Remaining balance &gt; 0</span>
+          <span className="pd-kpi-val">{kpiSummary.partialMaterials}</span>
+          <span className="pd-kpi-sub">0 &lt; Delivered &lt; Ordered</span>
         </div>
-        <div className="pd-kpi-card emerald">
-          <span className="pd-kpi-label">Fully Delivered Lines</span>
-          <span className="pd-kpi-val">{kpiSummary.deliveredLines}</span>
-          <span className="pd-kpi-sub">100% fulfilled lines</span>
-        </div>
-        <div className="pd-kpi-card">
-          <span className="pd-kpi-label">Partially Delivered POs</span>
-          <span className="pd-kpi-val">{kpiSummary.partialPOsCount}</span>
-          <span className="pd-kpi-sub">Open Purchase Orders</span>
+        <div className="pd-kpi-card rose">
+          <span className="pd-kpi-label">Remaining Materials</span>
+          <span className="pd-kpi-val">{kpiSummary.remainingMaterials}</span>
+          <span className="pd-kpi-sub">Delivered Qty = 0</span>
         </div>
         <div className="pd-kpi-card">
           <span className="pd-kpi-label">Outstanding Units</span>
@@ -1083,62 +1327,63 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
         </div>
       </div>
 
-      {/* ── Dynamic Ledger Tree Widget ── */}
+      {/* ── Dynamic Ledger Tree Widget (PO-wise hierarchy) ── */}
       <div className="pd-tree-summary">
         <div className="pd-tree-left">
           <div className="pd-tree-badge-root">
             <Boxes size={16} color="#2563EB" />
-            <span>{kpiSummary.totalLines} Total Lines</span>
+            <span>PO-wise Partial Delivery Ledger</span>
           </div>
 
           <div className="pd-tree-branches">
-            <span className="pd-branch-item delivered">
-              ├── {kpiSummary.deliveredLines} Delivered (100%)
+            <span className="pd-branch-item">
+              ├── {kpiSummary.partialPOsCount} Open Partial POs ({kpiSummary.totalMaterials} Materials)
+            </span>
+            <span className="pd-branch-item completed">
+              ├── {kpiSummary.completedMaterials} Complete
             </span>
             <span className="pd-branch-item partial">
-              └── {kpiSummary.partialLines} Partial (Incomplete)
+              ├── {kpiSummary.partialMaterials} Partial
+            </span>
+            <span className="pd-branch-item remaining">
+              └── {kpiSummary.remainingMaterials} Remaining
             </span>
           </div>
         </div>
 
         <div className="pd-tree-desc">
-          Calculated from verified Store GRNs vs Ordered PO Quantities
+          Calculated from Store GRNs vs Ordered PO Quantities
         </div>
       </div>
 
-      {/* ── Toolbar: Filters, Search & View Switcher ── */}
+      {/* ── Toolbar: Filters, Search, Bulk Actions & Layout Toggle ── */}
       <div className="pd-toolbar">
         <div className="pd-filter-pills">
           <button
             onClick={() => setFilterMode('ALL')}
             className={`pd-pill-btn ${filterMode === 'ALL' ? 'active' : ''}`}
           >
-            All Lines
-            <span className="pd-pill-count">{kpiSummary.totalLines}</span>
+            All Partial POs
+            <span className="pd-pill-count">{kpiSummary.partialPOsCount}</span>
           </button>
           <button
-            onClick={() => setFilterMode('PARTIAL')}
-            className={`pd-pill-btn ${filterMode === 'PARTIAL' ? 'active' : ''}`}
+            onClick={() => setFilterMode('HAS_PARTIAL')}
+            className={`pd-pill-btn ${filterMode === 'HAS_PARTIAL' ? 'active' : ''}`}
           >
-            🟡 Partial Only
-            <span className="pd-pill-count">{kpiSummary.partialLines}</span>
+            🟠 Has Partial Lines
+            <span className="pd-pill-count">
+              {analyzedPOs.filter(p => p.partialCount > 0).length}
+            </span>
           </button>
           <button
-            onClick={() => setFilterMode('DELIVERED')}
-            className={`pd-pill-btn ${filterMode === 'DELIVERED' ? 'active' : ''}`}
+            onClick={() => setFilterMode('HAS_REMAINING')}
+            className={`pd-pill-btn ${filterMode === 'HAS_REMAINING' ? 'active' : ''}`}
           >
-            🟢 Delivered
-            <span className="pd-pill-count">{kpiSummary.deliveredLines}</span>
+            🔴 Has Remaining Lines
+            <span className="pd-pill-count">
+              {analyzedPOs.filter(p => p.remainingCount > 0).length}
+            </span>
           </button>
-          {kpiSummary.notReceivedLines > 0 && (
-            <button
-              onClick={() => setFilterMode('NOT_RECEIVED')}
-              className={`pd-pill-btn ${filterMode === 'NOT_RECEIVED' ? 'active' : ''}`}
-            >
-              ⚪ Not Received
-              <span className="pd-pill-count">{kpiSummary.notReceivedLines}</span>
-            </button>
-          )}
         </div>
 
         <div className="pd-search-tools">
@@ -1146,25 +1391,36 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
             <Search size={15} className="pd-search-icon" />
             <input
               type="text"
-              placeholder="Search Material, PO, Supplier, GRN..."
+              placeholder="Search PO Number, Material, Supplier..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pd-search-input"
             />
           </div>
 
+          {viewLayout === 'accordion' && (
+            <button
+              onClick={isAllExpanded ? collapseAll : expandAll}
+              className="pd-bulk-btn"
+              title={isAllExpanded ? 'Collapse all POs' : 'Expand all POs'}
+            >
+              <ChevronsUpDown size={14} />
+              {isAllExpanded ? 'Collapse All' : 'Expand All'}
+            </button>
+          )}
+
           <div className="pd-view-toggle">
             <button
-              onClick={() => setViewLayout('table')}
-              className={`pd-view-btn ${viewLayout === 'table' ? 'active' : ''}`}
-              title="Material Lines Table View"
+              onClick={() => setViewLayout('accordion')}
+              className={`pd-view-btn ${viewLayout === 'accordion' ? 'active' : ''}`}
+              title="PO-wise Accordion View"
             >
               <List size={16} />
             </button>
             <button
               onClick={() => setViewLayout('cards')}
               className={`pd-view-btn ${viewLayout === 'cards' ? 'active' : ''}`}
-              title="PO Cards Grouped View"
+              title="PO Cards View"
             >
               <LayoutGrid size={16} />
             </button>
@@ -1172,188 +1428,301 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
         </div>
       </div>
 
-      {/* ── Content View: Table or Cards ── */}
-      {filteredMaterialLines.length === 0 ? (
+      {/* ── Content: PO-wise Accordion or Cards ── */}
+      {filteredPOs.length === 0 ? (
         <div className="pd-empty-state">
           <PackageCheck className="pd-empty-icon" />
-          <h3>No Partial Deliveries Found</h3>
+          <h3>No Partial Purchase Orders Found</h3>
           <p>
             {searchQuery
-              ? `No material lines matched your search "${searchQuery}". Try adjusting your filters.`
+              ? `No Purchase Orders matched your search "${searchQuery}". Try adjusting your filters.`
               : 'All active Purchase Orders are either awaiting initial receiving or have been 100% fulfilled and closed.'}
           </p>
         </div>
-      ) : viewLayout === 'table' ? (
-        /* ── TABLE VIEW ── */
-        <div className="pd-table-wrap">
-          <table className="pd-table">
-            <thead>
-              <tr>
-                <th>Material</th>
-                <th>PO Number</th>
-                <th>Supplier</th>
-                <th className="text-right">Ordered</th>
-                <th className="text-right">Prev. Rec.</th>
-                <th className="text-right">Latest GRN</th>
-                <th className="text-right">Cumulative</th>
-                <th className="text-right">Remaining</th>
-                <th>Fulfillment</th>
-                <th>Status</th>
-                <th>Due Date</th>
-                <th>Latest GRN / Store Date</th>
-                <th>Finance Audit</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredMaterialLines.map(line => {
-                const urgency = getDeliveryUrgency(line.dueDate);
-                return (
-                  <tr key={line.lineId}>
-                    <td>
-                      <span className="pd-material-name">{line.materialName}</span>
-                      <span className="pd-material-code">{line.materialCode}</span>
-                    </td>
-                    <td>
-                      <span
-                        className="pd-po-badge"
-                        onClick={() => handleOpenPO(line.rawPO)}
-                        title="Click to view full PO"
-                      >
-                        <FileText size={12} />
-                        {line.poNumber}
+      ) : viewLayout === 'accordion' ? (
+        /* ── PRIMARY VIEW: PO-WISE ACCORDION ── */
+        <div className="pd-po-list">
+          {filteredPOs.map(po => {
+            const isExpanded = expandedPOIds.has(po.poId);
+            const urgency = getDeliveryUrgency(po.dueDate);
+
+            return (
+              <div key={po.poId} className={`pd-po-accordion ${isExpanded ? 'expanded' : ''}`}>
+                {/* PO Header Bar (Clicking anywhere toggles material expansion) */}
+                <div className="pd-po-row-header" onClick={() => togglePO(po.poId)}>
+                  {/* Left: Chevron & PO Identity */}
+                  <div className="pd-po-identity">
+                    <div className="pd-chevron-btn" title={isExpanded ? 'Collapse materials' : 'Expand materials'}>
+                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </div>
+
+                    <div className="pd-po-num-box">
+                      <div className="pd-po-badge">
+                        <FileText size={15} color="#2563EB" />
+                        <span>{po.poNumber}</span>
+                      </div>
+                      <span className="pd-indent-chip">Indent: {po.indentNumber}</span>
+                    </div>
+
+                    <div className="pd-supplier-chip" title="Supplier Name">
+                      <Building2 size={13} color="#64748B" />
+                      <span>{po.supplierName}</span>
+                    </div>
+                  </div>
+
+                  {/* Middle: Material Counts Breakdown */}
+                  <div className="pd-mat-chips">
+                    <span className="pd-chip-pill total" title="Total Materials">
+                      {po.totalMaterials} {po.totalMaterials === 1 ? 'Material' : 'Materials'}
+                    </span>
+                    {po.completedCount > 0 && (
+                      <span className="pd-chip-pill completed" title="Materials with 100% Delivery">
+                        ✅ {po.completedCount} Complete
                       </span>
-                      <span className="pd-indent-chip">Indent: {line.indentNumber}</span>
-                    </td>
-                    <td>
-                      <div className="pd-vendor-text">
-                        <Building2 size={13} color="#64748B" />
-                        {line.supplierName}
-                      </div>
-                    </td>
-                    <td className="text-right font-bold" style={{ fontWeight: 700 }}>
-                      {line.orderedQty} <span style={{ fontSize: 11, color: '#64748B' }}>{line.unit}</span>
-                    </td>
-                    <td className="text-right" style={{ color: '#64748B' }}>
-                      {line.previouslyReceived}
-                    </td>
-                    <td className="text-right font-semibold" style={{ fontWeight: 600, color: '#0284C7' }}>
-                      {line.latestGRNQty > 0 ? `+${line.latestGRNQty}` : '—'}
-                    </td>
-                    <td className="text-right" style={{ fontWeight: 800, color: '#16A34A' }}>
-                      {line.cumulativeReceived}
-                    </td>
-                    <td className="text-right" style={{ fontWeight: 800, color: line.remainingQty > 0 ? '#D97706' : '#16A34A' }}>
-                      {line.remainingQty}
-                    </td>
-                    <td>
-                      <div className="pd-progress-wrap">
-                        <div className="pd-progress-bar">
-                          <div
-                            className={`pd-progress-fill ${line.remainingQty === 0 ? 'delivered' : 'partial'}`}
-                            style={{ width: `${line.fulfillmentPct}%` }}
-                          />
-                        </div>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
-                          {line.fulfillmentPct}%
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      {line.status === 'FULLY_DELIVERED' ? (
-                        <span className="pd-status-badge delivered">
-                          <CheckCircle2 size={12} />
-                          Delivered
-                        </span>
-                      ) : line.status === 'PARTIAL_DELIVERY' ? (
-                        <span className="pd-status-badge partial">
-                          <Clock size={12} />
-                          Partial
-                        </span>
-                      ) : (
-                        <span className="pd-status-badge not-received">
-                          Not Received
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ fontSize: 12, color: '#334155' }}>
-                        {formatDate(line.dueDate)}
-                      </div>
-                      <span
-                        style={{
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          padding: '1px 6px',
-                          borderRadius: 4,
-                          background: urgency.bg,
-                          color: urgency.color,
-                          border: `1px solid ${urgency.border}`,
-                          display: 'inline-block',
-                          marginTop: 2
-                        }}
-                      >
-                        {urgency.text}
+                    )}
+                    {po.partialCount > 0 && (
+                      <span className="pd-chip-pill partial" title="Materials with partial quantity received">
+                        🟠 {po.partialCount} Partial
                       </span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>
-                        {line.latestGRN || '—'}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#64748B' }}>
-                        {line.storeVerificationDate ? formatDate(line.storeVerificationDate) : 'Pending Inward'}
-                      </div>
-                    </td>
-                    <td>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          padding: '2px 8px',
-                          borderRadius: 4,
-                          background: line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#DCFCE7' : '#FEF3C7',
-                          color: line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#166534' : '#92400E',
-                          border: `1px solid ${line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#BBF7D0' : '#FDE68A'}`
-                        }}
-                      >
-                        {line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED'
-                          ? 'Approved'
-                          : line.financeAuditStatus === 'PENDING_FINANCE_AUDIT'
-                          ? 'Pending Audit'
-                          : line.financeAuditStatus.replace(/_/g, ' ')}
+                    )}
+                    {po.remainingCount > 0 && (
+                      <span className="pd-chip-pill remaining" title="Materials with 0 quantity received">
+                        🔴 {po.remainingCount} Remaining
                       </span>
-                    </td>
-                    <td>
-                      <div className="pd-actions-cell">
-                        <button
-                          onClick={() => handleOpenPO(line.rawPO)}
-                          className="pd-btn-action view-po"
-                          title="View PO Details"
-                        >
-                          <Eye size={12} />
-                          View PO
-                        </button>
-                        <button
-                          onClick={() => handleOpenDeliveryAudit(line.latestGRNObj, line.rawPO)}
-                          className="pd-btn-action view-audit"
-                          title="View Delivery Audit"
-                        >
-                          <ClipboardCheck size={12} />
-                          Audit
-                        </button>
+                    )}
+                  </div>
+
+                  {/* Units Tally & Progress */}
+                  <div className="pd-po-units-tally">
+                    <div className="pd-units-text">
+                      <span>Delivered: <strong>{po.totalDelivered}</strong> / {po.totalOrdered}</span>
+                      <span style={{ color: '#D97706', fontWeight: 700 }}>{po.totalRemaining} rem</span>
+                    </div>
+                    <div className="pd-progress-wrap">
+                      <div className="pd-progress-bar">
+                        <div
+                          className="pd-progress-fill partial"
+                          style={{ width: `${po.overallFulfillmentPct}%` }}
+                        />
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <span style={{ fontSize: 11.5, fontWeight: 700, color: '#334155' }}>
+                        {po.overallFulfillmentPct}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right: Status & Actions */}
+                  <div className="pd-po-meta-actions" onClick={(e) => e.stopPropagation()}>
+                    <span className="pd-status-badge partial">
+                      <Clock size={12} />
+                      Partial Delivery
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        background: urgency.bg,
+                        color: urgency.color,
+                        border: `1px solid ${urgency.border}`
+                      }}
+                      title="Target Due Date"
+                    >
+                      {urgency.text}
+                    </span>
+
+                    <button
+                      onClick={() => handleOpenPO(po.rawPO)}
+                      className="pd-btn-action view-po"
+                      title="View full Purchase Order specifications"
+                    >
+                      <Eye size={12} />
+                      View PO
+                    </button>
+
+                    <button
+                      onClick={() => handleOpenDeliveryAudit(po.latestGRN, po.rawPO)}
+                      className="pd-btn-action view-audit"
+                      title="Open Delivery Audit for this PO"
+                    >
+                      <ClipboardCheck size={12} />
+                      Audit
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded Material-wise Delivery Status Breakdown */}
+                {isExpanded && (
+                  <div className="pd-po-nested-area">
+                    <div className="pd-nested-title-bar">
+                      <div>
+                        <strong>Material Delivery Status Breakdown</strong> ({po.lines.length} {po.lines.length === 1 ? 'material' : 'materials'} for {po.poNumber})
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748B' }}>
+                        Ordered: <strong>{po.totalOrdered}</strong> • Delivered: <strong style={{ color: '#16A34A' }}>{po.totalDelivered}</strong> • Remaining: <strong style={{ color: '#D97706' }}>{po.totalRemaining}</strong>
+                      </div>
+                    </div>
+
+                    <table className="pd-nested-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: 36 }}>#</th>
+                          <th>Material</th>
+                          <th className="text-right" style={{ textAlign: 'right' }}>PO Qty (Ordered)</th>
+                          <th className="text-right" style={{ textAlign: 'right' }}>Delivered</th>
+                          <th className="text-right" style={{ textAlign: 'right' }}>Remaining</th>
+                          <th>Status</th>
+                          <th>Fulfillment</th>
+                          <th>Due Date</th>
+                          <th>Latest Inward / GRN</th>
+                          <th>Audit Status</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {po.lines.map((line) => {
+                          const lineUrgency = getDeliveryUrgency(line.dueDate);
+                          const rowClass =
+                            line.status === 'COMPLETE'
+                              ? 'row-complete'
+                              : line.status === 'PARTIAL'
+                              ? 'row-partial'
+                              : 'row-remaining';
+
+                          return (
+                            <tr key={line.lineId} className={rowClass}>
+                              <td style={{ color: '#64748B', fontWeight: 600 }}>{line.itemIndex}</td>
+                              <td>
+                                <span className="pd-mat-name">{line.materialName}</span>
+                                <span className="pd-mat-code">{line.materialCode}</span>
+                              </td>
+                              <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                                {line.orderedQty} <span style={{ fontSize: 11, color: '#64748B', fontWeight: 500 }}>{line.unit}</span>
+                              </td>
+                              <td style={{ textAlign: 'right', fontWeight: 800, color: '#16A34A' }}>
+                                {line.deliveredQty}
+                              </td>
+                              <td style={{ textAlign: 'right', fontWeight: 800, color: line.remainingQty > 0 ? '#D97706' : '#16A34A' }}>
+                                {line.remainingQty}
+                              </td>
+                              <td>
+                                {line.status === 'COMPLETE' ? (
+                                  <span className="pd-status-badge completed">
+                                    <CheckCircle2 size={12} />
+                                    Complete
+                                  </span>
+                                ) : line.status === 'PARTIAL' ? (
+                                  <span className="pd-status-badge partial">
+                                    <Clock size={12} />
+                                    Partial
+                                  </span>
+                                ) : (
+                                  <span className="pd-status-badge remaining">
+                                    <AlertCircle size={12} />
+                                    Remaining
+                                  </span>
+                                )}
+                              </td>
+                              <td>
+                                <div className="pd-progress-wrap" style={{ minWidth: 100 }}>
+                                  <div className="pd-progress-bar">
+                                    <div
+                                      className={`pd-progress-fill ${line.status === 'COMPLETE' ? 'completed' : 'partial'}`}
+                                      style={{ width: `${line.fulfillmentPct}%` }}
+                                    />
+                                  </div>
+                                  <span style={{ fontSize: 11.5, fontWeight: 700, color: '#334155' }}>
+                                    {line.fulfillmentPct}%
+                                  </span>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ fontSize: 12, color: '#334155' }}>{formatDate(line.dueDate)}</div>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    padding: '1px 5px',
+                                    borderRadius: 4,
+                                    background: lineUrgency.bg,
+                                    color: lineUrgency.color,
+                                    border: `1px solid ${lineUrgency.border}`,
+                                    display: 'inline-block',
+                                    marginTop: 2
+                                  }}
+                                >
+                                  {lineUrgency.text}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>
+                                  {line.latestGRN || '—'}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#64748B' }}>
+                                  {line.storeVerificationDate ? formatDate(line.storeVerificationDate) : 'Pending Inward'}
+                                </div>
+                              </td>
+                              <td>
+                                <span
+                                  style={{
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    padding: '2px 7px',
+                                    borderRadius: 4,
+                                    background: line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#DCFCE7' : '#FEF3C7',
+                                    color: line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#166534' : '#92400E',
+                                    border: `1px solid ${line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED' ? '#BBF7D0' : '#FDE68A'}`
+                                  }}
+                                >
+                                  {line.financeAuditStatus === 'FINANCE_AUDIT_APPROVED'
+                                    ? 'Approved'
+                                    : line.financeAuditStatus === 'PENDING_FINANCE_AUDIT'
+                                    ? 'Pending Audit'
+                                    : line.financeAuditStatus.replace(/_/g, ' ')}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                  <button
+                                    onClick={() => handleOpenDeliveryAudit(line.latestGRNObj, line.rawPO)}
+                                    className="pd-btn-action view-audit"
+                                    title="Audit latest inward delivery"
+                                  >
+                                    <ClipboardCheck size={12} />
+                                    Audit
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    {/* PO Level Summary Footer */}
+                    <div className="pd-po-footer-summary">
+                      <div>
+                        <strong>{po.poNumber} Summary:</strong> {po.totalMaterials} Materials ({po.completedCount} Complete, {po.partialCount} Partial, {po.remainingCount} Remaining)
+                      </div>
+                      <div>
+                        Total: <strong>{po.totalOrdered} Ordered</strong> • <strong style={{ color: '#16A34A' }}>{po.totalDelivered} Delivered</strong> • <strong style={{ color: '#D97706' }}>{po.totalRemaining} Remaining</strong> ({po.overallFulfillmentPct}% Fulfilled)
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
-        /* ── CARDS VIEW (Grouped by PO) ── */
+        /* ── ALTERNATIVE VIEW: ELEVATED PO CARDS ── */
         <div className="pd-cards-grid">
-          {filteredPOCards.map(po => {
+          {filteredPOs.map(po => {
+            const isExpanded = expandedPOIds.has(po.poId);
             const urgency = getDeliveryUrgency(po.dueDate);
+
             return (
               <div key={po.poId} className="pd-card">
                 <div className="pd-card-header">
@@ -1384,13 +1753,13 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
                     <span className="pd-card-meta-val">{formatDate(po.dueDate)}</span>
                   </div>
                   <div className="pd-card-meta-item">
-                    <span className="pd-card-meta-lbl">PO Total Units</span>
-                    <span className="pd-card-meta-val">{po.orderedUnits}</span>
+                    <span className="pd-card-meta-lbl">Materials</span>
+                    <span className="pd-card-meta-val">{po.totalMaterials} total ({po.completedCount} comp, {po.partialCount} part)</span>
                   </div>
                   <div className="pd-card-meta-item">
-                    <span className="pd-card-meta-lbl">Received / Balance</span>
+                    <span className="pd-card-meta-lbl">Units (Del / Rem)</span>
                     <span className="pd-card-meta-val" style={{ color: '#B45309' }}>
-                      {po.receivedUnits} / {po.remainingUnits} rem
+                      {po.totalDelivered} / {po.totalRemaining} rem
                     </span>
                   </div>
                 </div>
@@ -1415,19 +1784,23 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
                         <span style={{ fontWeight: 700, fontSize: 13, color: '#0F172A' }}>
                           {line.materialName}
                         </span>
-                        {line.status === 'FULLY_DELIVERED' ? (
-                          <span className="pd-status-badge delivered" style={{ padding: '2px 6px', fontSize: 10 }}>
-                            Delivered
+                        {line.status === 'COMPLETE' ? (
+                          <span className="pd-status-badge completed" style={{ padding: '2px 6px', fontSize: 10 }}>
+                            ✅ Complete
+                          </span>
+                        ) : line.status === 'PARTIAL' ? (
+                          <span className="pd-status-badge partial" style={{ padding: '2px 6px', fontSize: 10 }}>
+                            🟠 Partial
                           </span>
                         ) : (
-                          <span className="pd-status-badge partial" style={{ padding: '2px 6px', fontSize: 10 }}>
-                            Partial
+                          <span className="pd-status-badge remaining" style={{ padding: '2px 6px', fontSize: 10 }}>
+                            🔴 Remaining
                           </span>
                         )}
                       </div>
                       <div className="pd-card-item-nums">
                         <span>Ordered: <strong>{line.orderedQty}</strong></span>
-                        <span>Rec: <strong style={{ color: '#16A34A' }}>{line.cumulativeReceived}</strong></span>
+                        <span>Delivered: <strong style={{ color: '#16A34A' }}>{line.deliveredQty}</strong></span>
                         <span>Rem: <strong style={{ color: '#D97706' }}>{line.remainingQty}</strong></span>
                         <span>({line.fulfillmentPct}%)</span>
                       </div>
@@ -1459,7 +1832,7 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
         </div>
       )}
 
-      {/* ── Detail Modal for View PO (Fallback if parent doesn't handle modal) ── */}
+      {/* ── Detail Modal for View PO ── */}
       {inspectingPO && (
         <div className="pd-modal-overlay" onClick={() => setInspectingPO(null)}>
           <div className="pd-modal-box" onClick={(e) => e.stopPropagation()}>
@@ -1534,7 +1907,7 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
         </div>
       )}
 
-      {/* ── Quick Audit Modal (Fallback) ── */}
+      {/* ── Quick Audit Modal ── */}
       {inspectingGRN && (
         <div className="pd-modal-overlay" onClick={() => setInspectingGRN(null)}>
           <div className="pd-modal-box" onClick={(e) => e.stopPropagation()}>
