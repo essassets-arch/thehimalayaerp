@@ -219,7 +219,7 @@ export class ProcurementService {
         items: { include: { product: true } },
         grns: {
           where: {
-            status: { notIn: ['CANCELLED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED'] },
+            status: { notIn: ['CANCELLED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED', 'REJECTED', 'VOID', 'VOIDED'] },
           },
           include: { items: true },
         },
@@ -347,7 +347,7 @@ export class ProcurementService {
         items: { include: { product: true } },
         grns: {
           where: {
-            status: { notIn: ['CANCELLED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED'] },
+            status: { notIn: ['CANCELLED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED', 'REJECTED', 'VOID', 'VOIDED'] },
           },
           include: { items: true },
         },
@@ -2948,7 +2948,7 @@ export class ProcurementService {
           const approvedGrns = await tx.goodsReceiptNote.findMany({
             where: {
               purchaseOrderId: poId,
-              status: 'FINANCE_AUDIT_APPROVED',
+              status: { in: ['FINANCE_AUDIT_APPROVED', 'AUDITED', 'COMPLETED', 'ACCEPTED'] },
             },
             include: { items: true },
           });

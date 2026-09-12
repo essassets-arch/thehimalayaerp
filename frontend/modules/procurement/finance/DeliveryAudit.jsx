@@ -953,13 +953,15 @@ export default function DeliveryAudit() {
     return null;
   };
 
-  // All GRNs for the associated PO
+  // All GRNs for the associated PO (all valid receipts, excluding cancelled/rejected)
   const allPOGRNs = useMemo(() => {
     if (!associatedPO) return [];
-    return goodsReceipts.filter(g =>
-      (g.purchaseOrderId && (g.purchaseOrderId === associatedPO.id || g.purchaseOrderId === associatedPO.poNumber)) ||
-      (g.poId && (g.poId === associatedPO.id || g.poId === associatedPO.poNumber))
-    );
+    return goodsReceipts.filter(g => {
+      const match = (g.purchaseOrderId && (g.purchaseOrderId === associatedPO.id || g.purchaseOrderId === associatedPO.poNumber)) ||
+                    (g.poId && (g.poId === associatedPO.id || g.poId === associatedPO.poNumber));
+      if (!match) return false;
+      return !['CANCELLED', 'REJECTED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED', 'VOID', 'VOIDED'].includes(g.status);
+    });
   }, [goodsReceipts, associatedPO]);
 
   // Prior GRNs on this PO (GRNs created before this GRN or already audit-approved, excluding current GRN)
@@ -969,7 +971,7 @@ export default function DeliveryAudit() {
     return allPOGRNs.filter(g => {
       if (g.id === selectedGRN.id || g.grnNumber === selectedGRN.grnNumber) return false;
       const gCreatedAt = g.createdAt ? new Date(g.createdAt).getTime() : 0;
-      return g.status === 'FINANCE_AUDIT_APPROVED' || gCreatedAt < currentCreatedAt;
+      return ['FINANCE_AUDIT_APPROVED', 'AUDITED', 'COMPLETED', 'ACCEPTED'].includes(g.status) || gCreatedAt < currentCreatedAt;
     });
   }, [selectedGRN, allPOGRNs]);
 

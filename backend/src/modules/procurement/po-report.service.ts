@@ -38,9 +38,11 @@ export class POReportService {
       po.grns.forEach((grn) => {
         if (
           grn.status === 'FINANCE_AUDIT_APPROVED' ||
+          grn.status === 'PENDING_FINANCE_AUDIT' ||
           grn.status === 'APPROVED' ||
           grn.status === 'INVENTORY_UPDATED' ||
-          grn.status === 'CLOSED'
+          grn.status === 'CLOSED' ||
+          grn.status === 'AUDITED'
         ) {
           // Check if it's a replacement using snapshot metadata
           const isReplacement =

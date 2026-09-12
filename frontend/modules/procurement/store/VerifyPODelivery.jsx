@@ -189,18 +189,20 @@ export default function VerifyPODelivery() {
   // Accurate helper to compute physical received units for an item (with fallback to GRNs)
   const getItemReceivedQty = (po, item) => {
     if (item?.receivedQty !== undefined && item?.receivedQty !== null) return Number(item.receivedQty);
-    const direct = Number(item?.cumulativeDeliveredQty ?? item?.receivedQuantity ?? 0);
-    if (direct > 0) return direct;
     const poGrns = grnsByPO.get(po?.id) || po?.grns || [];
     let fromGrns = 0;
     poGrns.forEach(g => {
-      if (['CANCELLED', 'REJECTED'].includes(g.status)) return;
+      if (['CANCELLED', 'REJECTED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED', 'VOID', 'VOIDED'].includes(g.status)) return;
       (g.items || []).forEach(gi => {
-        if (gi.purchaseOrderItemId === item?.id || gi.productId === item?.productId || gi.productId === item?.materialId) {
+        if (
+          (gi.purchaseOrderItemId && gi.purchaseOrderItemId === item?.id) ||
+          (gi.productId && (gi.productId === item?.productId || gi.productId === item?.materialId))
+        ) {
           fromGrns += Number(gi.acceptedQuantity ?? gi.receivedQuantity ?? gi.deliveredQuantity ?? 0);
         }
       });
     });
+    const direct = Number(item?.cumulativeDeliveredQty ?? item?.receivedQuantity ?? 0);
     return fromGrns > 0 ? fromGrns : direct;
   };
 
@@ -416,9 +418,10 @@ export default function VerifyPODelivery() {
 
   const selectedPOGRNs = useMemo(() => {
     if (!selectedPO) return [];
-    return (selectedPO.grns && selectedPO.grns.length > 0)
+    const allGrns = (selectedPO.grns && selectedPO.grns.length > 0)
       ? selectedPO.grns
       : (grnsByPO.get(selectedPO.id) || []);
+    return allGrns.filter(g => !['CANCELLED', 'REJECTED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED', 'VOID', 'VOIDED'].includes(g.status));
   }, [selectedPO, grnsByPO]);
 
   const handleSelectPO = async (poId) => {
