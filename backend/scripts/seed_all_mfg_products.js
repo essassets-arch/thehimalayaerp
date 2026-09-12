@@ -617,14 +617,16 @@ function buildAllProducts() {
 
     let type = forcedType;
     if (!type) {
-      if (name.includes(' WGC ')) type = 'WGC';
+      if (name.includes(' DMHC ')) type = 'DMHC';
+      else if (name.includes(' WGC ')) type = 'WGC';
       else if (name.includes(' MHC ')) type = 'MHC';
       else if (name.includes(' ONGC ')) type = 'ONGC';
       else if (name.includes(' RCS ')) type = 'RCS';
     }
 
     let subCategory = 'FRP Cover';
-    if (type === 'WGC') subCategory = 'With Grate Cover';
+    if (type === 'DMHC') subCategory = 'DMHC Manhole Cover';
+    else if (type === 'WGC') subCategory = 'With Grate Cover';
     else if (type === 'MHC') subCategory = 'Manhole Cover';
     else if (type === 'ONGC') subCategory = 'ONGC Cover';
     else if (type === 'RCS') subCategory = 'Round Cover Square Frame';
@@ -702,6 +704,19 @@ function buildAllProducts() {
 
   addProduct('HIMALAYA FRP RCS 1800X1800X65 E600', '1800X1800X65', 'E600', 'RCS');
   addProduct('HIMALAYA FRP RCS 1800X1800X32 E600', '1800X1800X32', 'E600', 'RCS');
+
+  const DMHC_SIZES = [
+    '300X300', '450X450', '450X600', '450X900', '450X1200',
+    '600X600', '600X900', '600X1200', '750X900', '750X750', '750X1200',
+    '900X900', '900X1200', '1000X1000', '1200X1200', '1500X1500', '1800X1800',
+    '560MM DIA', '600MM DIA', '900MM DIA'
+  ];
+
+  for (const s of DMHC_SIZES) {
+    for (const cls of STANDARD_CLASSES) {
+      addProduct(`HIMALAYA FRP DMHC ${s} ${cls}`, s, cls, 'DMHC');
+    }
+  }
 
   return Array.from(productMap.values());
 }
