@@ -1574,7 +1574,6 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
                           <th className="text-right" style={{ textAlign: 'right' }}>Delivered</th>
                           <th className="text-right" style={{ textAlign: 'right' }}>Remaining</th>
                           <th>Status</th>
-                          <th>Fulfillment</th>
                           <th>Due Date</th>
                           <th>Latest Inward / GRN</th>
                           <th>Audit Status</th>
@@ -1624,19 +1623,6 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
                                     Remaining
                                   </span>
                                 )}
-                              </td>
-                              <td>
-                                <div className="pd-progress-wrap" style={{ minWidth: 100 }}>
-                                  <div className="pd-progress-bar">
-                                    <div
-                                      className={`pd-progress-fill ${line.status === 'COMPLETE' ? 'completed' : 'partial'}`}
-                                      style={{ width: `${line.fulfillmentPct}%` }}
-                                    />
-                                  </div>
-                                  <span style={{ fontSize: 11.5, fontWeight: 700, color: '#334155' }}>
-                                    {line.fulfillmentPct}%
-                                  </span>
-                                </div>
                               </td>
                               <td>
                                 <div style={{ fontSize: 12, color: '#334155' }}>{formatDate(line.dueDate)}</div>

@@ -972,6 +972,12 @@
         "group": null
       },
       {
+        "id": "partial-delivery",
+        "label": "Partial Delivery",
+        "path": "/finance/po-requests?tab=Partial Delivery",
+        "group": null
+      },
+      {
         "id": "closed-pos",
         "label": "Closed POs",
         "path": "/finance/po-requests?tab=Closed POs",

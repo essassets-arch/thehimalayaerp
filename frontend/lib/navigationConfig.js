@@ -140,6 +140,7 @@ export const navigationConfig = {
         { id: 'pending-approval', label: 'Pending Approval', path: '/finance/po-requests?tab=Pending Approval' },
         { id: 'approved-pos', label: 'Approved POs', path: '/finance/po-requests?tab=Approved POs' },
         { id: 'delivery-audit', label: 'Delivery Audit', path: '/finance/po-requests?tab=Delivery Audit' },
+        { id: 'partial-delivery', label: 'Partial Delivery', path: '/finance/po-requests?tab=Partial Delivery' },
         { id: 'closed-pos', label: 'Closed POs', path: '/finance/po-requests?tab=Closed POs' },
         { id: 'history', label: 'History', path: '/finance/po-requests?tab=History' }
       ]
@@ -174,6 +175,7 @@ export const navigationConfig = {
         { id: 'pending-approval', label: 'Pending Approval', path: '/finance/po-requests?tab=Pending Approval' },
         { id: 'approved-pos', label: 'Approved POs', path: '/finance/po-requests?tab=Approved POs' },
         { id: 'delivery-audit', label: 'Delivery Audit', path: '/finance/po-requests?tab=Delivery Audit' },
+        { id: 'partial-delivery', label: 'Partial Delivery', path: '/finance/po-requests?tab=Partial Delivery' },
         { id: 'closed-pos', label: 'Closed POs', path: '/finance/po-requests?tab=Closed POs' },
         { id: 'history', label: 'History', path: '/finance/po-requests?tab=History' }
       ]
