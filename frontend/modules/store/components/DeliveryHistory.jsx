@@ -23,6 +23,7 @@ import {
   Copy
 } from 'lucide-react';
 import { grnService } from '../../../services/procurement/grnService';
+import { useERPStore } from '../../../store/erpStore';
 import Swal from 'sweetalert2';
 
 const formatDate = (val) => {
@@ -57,7 +58,48 @@ const formatDateShort = (val) => {
   }
 };
 
+const resolveIndentId = (po, snapshot, erpPOs = [], erpIndents = []) => {
+  // 1. Direct from PO relation
+  if (po?.purchaseIndent?.publicId || po?.purchaseIndent?.indentNo) {
+    return po.purchaseIndent.publicId || po.purchaseIndent.indentNo;
+  }
+  // 2. Direct from snapshot
+  if (snapshot?.purchaseIndent?.publicId || snapshot?.purchaseIndent?.indentNo || snapshot?.indentNo) {
+    return snapshot.purchaseIndent?.publicId || snapshot.purchaseIndent?.indentNo || snapshot.indentNo;
+  }
+  if (snapshot?.selectedIndents?.length) {
+    return snapshot.selectedIndents.map(i => i.publicId || i.indentNo || i.id).join(', ');
+  }
+  // 3. From PO indent reference ID
+  const indentId = po?.purchaseIndentId || snapshot?.purchaseIndentId;
+  if (indentId && erpIndents?.length) {
+    const matched = erpIndents.find(i => i.id === indentId || i.publicId === indentId || i.indentNo === indentId);
+    if (matched) return matched.publicId || matched.indentNo;
+  }
+  // 4. Cross reference by PO from ERP store
+  const targetPoId = po?.id || po?.poNumber;
+  if (targetPoId && erpPOs?.length) {
+    const matchedPO = erpPOs.find(p => p.id === targetPoId || p.poNumber === targetPoId || p.publicId === targetPoId);
+    if (matchedPO) {
+      if (matchedPO.purchaseIndent?.publicId || matchedPO.purchaseIndent?.indentNo) {
+        return matchedPO.purchaseIndent.publicId || matchedPO.purchaseIndent.indentNo;
+      }
+      if (matchedPO.indentNo) return matchedPO.indentNo;
+      if (matchedPO.purchaseIndentId && erpIndents?.length) {
+        const matched = erpIndents.find(i => i.id === matchedPO.purchaseIndentId || i.publicId === matchedPO.purchaseIndentId || i.indentNo === matchedPO.purchaseIndentId);
+        if (matched) return matched.publicId || matched.indentNo;
+        return matchedPO.purchaseIndentId;
+      }
+    }
+  }
+  return indentId || '—';
+};
+
 export default function DeliveryHistory() {
+  const erpStoreState = useERPStore(s => s.state);
+  const erpPOs = useMemo(() => erpStoreState?.procurement?.purchaseOrders ?? erpStoreState?.purchaseOrders ?? [], [erpStoreState]);
+  const erpIndents = useMemo(() => erpStoreState?.procurement?.purchaseIndents ?? erpStoreState?.purchaseIndents ?? [], [erpStoreState]);
+
   const [deliveries, setDeliveries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -96,11 +138,14 @@ export default function DeliveryHistory() {
           0
         );
 
+        const indentNumber = resolveIndentId(po, snapshot, erpPOs, erpIndents);
+
         return {
           id: item.id,
           grnNumber: item.grnNumber || item.publicId || `GRN-${item.id.slice(0, 8).toUpperCase()}`,
           poNumber: po.poNumber || po.publicId || item.purchaseOrderId || 'PO-RECORD',
           poId: po.id || item.purchaseOrderId,
+          indentNumber,
           vendorName: supplier.name || snapshot.vendorName || 'Vendor / Supplier',
           vendorCode: supplier.vendorCode || supplier.publicId || '—',
           receivedAt: item.receivedAt || item.createdAt,
@@ -144,6 +189,7 @@ export default function DeliveryHistory() {
             grnNumber: item.grnNumber || item.publicId || `GRN-${item.id.slice(0, 8).toUpperCase()}`,
             poNumber: po.poNumber || po.publicId || item.purchaseOrderId || 'PO-RECORD',
             poId: po.id || item.purchaseOrderId,
+            indentNumber: resolveIndentId(po, snapshot, erpPOs, erpIndents),
             vendorName: supplier.name || snapshot.vendorName || 'Vendor / Supplier',
             vendorCode: supplier.vendorCode || supplier.publicId || '—',
             receivedAt: item.receivedAt || item.createdAt,
@@ -220,13 +266,14 @@ export default function DeliveryHistory() {
         const q = searchQuery.toLowerCase().trim();
         const matchesGRN = (item.grnNumber || '').toLowerCase().includes(q);
         const matchesPO = (item.poNumber || '').toLowerCase().includes(q);
+        const matchesIndent = (item.indentNumber || '').toLowerCase().includes(q);
         const matchesVendor = (item.vendorName || '').toLowerCase().includes(q);
         const matchesChallan = (item.challanNumber || '').toLowerCase().includes(q);
         const matchesInvoice = (item.invoiceNumber || '').toLowerCase().includes(q);
         const matchesItem = (item.items || []).some(
           it => (it.name || '').toLowerCase().includes(q) || (it.code || '').toLowerCase().includes(q)
         );
-        if (!matchesGRN && !matchesPO && !matchesVendor && !matchesChallan && !matchesInvoice && !matchesItem) {
+        if (!matchesGRN && !matchesPO && !matchesIndent && !matchesVendor && !matchesChallan && !matchesInvoice && !matchesItem) {
           return false;
         }
       }
@@ -312,8 +359,8 @@ export default function DeliveryHistory() {
 
         <div class="grid">
           <div class="card">
-            <div class="card-label">Purchase Order Reference</div>
-            <div class="card-value">${delivery.poNumber}</div>
+            <div class="card-label">Purchase Order & Indent</div>
+            <div class="card-value">${delivery.poNumber}${delivery.indentNumber && delivery.indentNumber !== '—' ? ` (Indent: ${delivery.indentNumber})` : ''}</div>
             <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Vendor: ${delivery.vendorName}</div>
           </div>
           <div class="card">
@@ -649,7 +696,7 @@ export default function DeliveryHistory() {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '900px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '980px' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #E2E8F0' }}>
                   <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -657,6 +704,9 @@ export default function DeliveryHistory() {
                   </th>
                   <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     PO Reference
+                  </th>
+                  <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Indent ID
                   </th>
                   <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Vendor / Supplier
@@ -726,6 +776,28 @@ export default function DeliveryHistory() {
                         <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
                           {delivery.warehouseName}
                         </div>
+                      </td>
+
+                      {/* Indent ID */}
+                      <td style={{ padding: '14px 16px' }}>
+                        {delivery.indentNumber && delivery.indentNumber !== '—' ? (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            fontFamily: 'monospace',
+                            background: '#F0F9FF',
+                            color: '#0284C7',
+                            border: '1px solid #BAE6FD',
+                          }}>
+                            {delivery.indentNumber}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: '#94A3B8' }}>—</span>
+                        )}
                       </td>
 
                       {/* Vendor */}
@@ -939,6 +1011,10 @@ export default function DeliveryHistory() {
                 borderRadius: '12px',
                 padding: '16px',
               }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Purchase Indent Ref</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0284c7', marginTop: '2px' }}>{selectedDelivery.indentNumber || 'N/A'}</div>
+                </div>
                 <div>
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Delivery Challan #</div>
                   <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>{selectedDelivery.challanNumber || 'N/A'}</div>

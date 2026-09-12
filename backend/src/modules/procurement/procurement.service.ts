@@ -1584,6 +1584,20 @@ export class ProcurementService {
                   supplier: { name: { contains: search, mode: 'insensitive' } },
                 },
               },
+              {
+                purchaseOrder: {
+                  purchaseIndent: {
+                    publicId: { contains: search, mode: 'insensitive' },
+                  },
+                },
+              },
+              {
+                purchaseOrder: {
+                  purchaseIndent: {
+                    indentNo: { contains: search, mode: 'insensitive' },
+                  },
+                },
+              },
             ],
           }
         : {}),
@@ -1599,6 +1613,7 @@ export class ProcurementService {
           purchaseOrder: {
             include: {
               supplier: true,
+              purchaseIndent: true,
             },
           },
           items: {
