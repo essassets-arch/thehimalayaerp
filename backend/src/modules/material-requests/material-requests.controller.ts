@@ -54,7 +54,12 @@ export class MaterialRequestsController {
     );
   }
 
-  @RequirePermissions('admin.materialrequests.approve')
+  @RequirePermissions(
+    'admin.materialrequests.approve',
+    'materialrequests.approve',
+    'store.materialrequests.approve',
+    'production.materialrequests.approve',
+  )
   @Patch(':id/approve')
   approve(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
     return this.service.decide(
@@ -66,7 +71,12 @@ export class MaterialRequestsController {
     );
   }
 
-  @RequirePermissions('admin.materialrequests.reject')
+  @RequirePermissions(
+    'admin.materialrequests.reject',
+    'materialrequests.reject',
+    'store.materialrequests.reject',
+    'production.materialrequests.reject',
+  )
   @Patch(':id/reject')
   reject(@Param('id') id: string, @Req() req: any) {
     return this.service.decide(
@@ -78,7 +88,14 @@ export class MaterialRequestsController {
     );
   }
 
-  @RequirePermissions('admin.materialrequests.update')
+  @RequirePermissions(
+    'admin.materialrequests.update',
+    'materialrequests.update',
+    'store.materialrequests.update',
+    'store.materialrequests.approve',
+    'store.materialrequests.reject',
+    'production.materialrequests.update',
+  )
   @Patch(':id/status')
   updateStatus(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
     return this.service.updateStatus(
