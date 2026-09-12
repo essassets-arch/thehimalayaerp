@@ -1,57 +1,8 @@
-export interface SalaryInputData {
-  basicSalary: number;
-  hraPercentage?: number;
-  ltaPercentage?: number;
-  educationAllowancePercentage?: number;
-  conveyancePercentage?: number;
-  employeeEpfPercentage?: number;
-  employeeEsicPercentage?: number;
-  professionalTaxPercentage?: number;
-  professionalTaxAmount?: number;
-  tdsPercentage?: number;
-  tdsAmount?: number;
-  companyEpfPercentage?: number;
-  companyEsicPercentage?: number;
-  gratuityPercentage?: number;
-}
-
-export function round(val: number): number {
+function round(val) {
   return Math.round((Number(val || 0) + Number.EPSILON) * 100) / 100;
 }
 
-export interface CalculatedSalaryOutput {
-  basicSalary: number;
-  hraPercentage: number;
-  hraAmount: number;
-  ltaPercentage: number;
-  ltaAmount: number;
-  educationAllowancePercentage: number;
-  educationAllowanceAmount: number;
-  conveyancePercentage: number;
-  conveyanceAmount: number;
-  grossTotalA: number;
-  employeeEpfPercentage: number;
-  employeeEpfAmount: number;
-  employeeEsicPercentage: number;
-  employeeEsicAmount: number;
-  professionalTaxPercentage: number;
-  professionalTaxAmount: number;
-  tdsPercentage: number;
-  tdsAmount: number;
-  totalDeductionB: number;
-  netTakeHomeC: number;
-  companyEpfPercentage: number;
-  companyEpfAmount: number;
-  companyEsicPercentage: number;
-  companyEsicAmount: number;
-  gratuityPercentage: number;
-  gratuityAmount: number;
-  totalCompanyContributionD: number;
-  ctcPerMonthE: number;
-  ctcPerAnnum: number;
-}
-
-export function calculateSalaryStructure(input: SalaryInputData): CalculatedSalaryOutput {
+function calculateSalaryStructure(input) {
   const basic = round(Number(input.basicSalary) || 0);
   const hraPct = round(Number(input.hraPercentage) || 0);
   const ltaPct = round(Number(input.ltaPercentage) || 0);
@@ -78,17 +29,11 @@ export function calculateSalaryStructure(input: SalaryInputData): CalculatedSala
   const esicWage = grossTotalA > 21000 ? 21000 : grossTotalA;
   const employeeEsicAmount = round((esicWage * esicPct) / 100);
 
-  // Professional Tax: standard ₹200 if gross >= 12,000, or explicit override
-  const professionalTaxAmount =
-    input.professionalTaxAmount !== undefined && input.professionalTaxAmount !== null && Number(input.professionalTaxAmount) >= 0
-      ? round(Number(input.professionalTaxAmount))
-      : (ptPct > 0 ? round((grossTotalA * ptPct) / 100) : (grossTotalA >= 12000 ? 200 : 0));
+  // Professional Tax: standard ₹200 if gross >= 12,000, but if ptPct === 0 and ptAmount === 0, 0
+  const professionalTaxAmount = ptPct > 0 ? round((grossTotalA * ptPct) / 100) : (grossTotalA >= 12000 ? 200 : 0);
 
-  // Tax Deducted at Source (TDS): dynamic % of Gross or explicit amount
-  const tdsAmount =
-    input.tdsAmount !== undefined && input.tdsAmount !== null && Number(input.tdsAmount) >= 0 && (Number(input.tdsAmount) > 0 || tdsPct === 0)
-      ? round(Number(input.tdsAmount))
-      : round((grossTotalA * tdsPct) / 100);
+  // TDS
+  const tdsAmount = round((grossTotalA * tdsPct) / 100);
 
   const totalDeductionB = round(employeeEpfAmount + employeeEsicAmount + professionalTaxAmount + tdsAmount);
   const netTakeHomeC = round(grossTotalA - totalDeductionB);
@@ -142,3 +87,19 @@ export function calculateSalaryStructure(input: SalaryInputData): CalculatedSala
   };
 }
 
+const res = calculateSalaryStructure({
+  basicSalary: 35000,
+  hraPercentage: 10,
+  ltaPercentage: 5,
+  educationAllowancePercentage: 5,
+  conveyancePercentage: 5,
+  employeeEpfPercentage: 12,
+  employeeEsicPercentage: 0.75,
+  professionalTaxPercentage: 0,
+  tdsPercentage: 0,
+  companyEpfPercentage: 1,
+  companyEsicPercentage: 3.25,
+  gratuityPercentage: 4.81
+});
+
+console.log('Result:', JSON.stringify(res, null, 2));

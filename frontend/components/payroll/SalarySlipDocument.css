@@ -1,17 +1,26 @@
 /* ==========================================================================
    SalarySlipDocument.css
    Official Himalaya ERP Formal Salary Slip & CTC Statement
+   Universal Desktop-Fidelity across ALL Devices & Screen Sizes
    ========================================================================== */
 
 /* ── Container & Wrappers ── */
 .salary-slip-page-container {
   width: 100%;
-  max-width: 900px;
+  max-width: 920px;
   margin: 0 auto;
   padding: 24px 16px 60px;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color: #0f172a;
+}
+
+.salary-slip-page-scroll-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 12px;
 }
 
 .salary-slip-modal-backdrop {
@@ -26,8 +35,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  overflow-y: auto;
+  padding: 16px;
+  overflow: auto;
 }
 
 .salary-slip-modal-dialog {
@@ -36,11 +45,52 @@
   width: 100%;
   max-width: 920px;
   max-height: 94vh;
-  overflow-y: auto;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
+}
+
+.salary-slip-content-body {
+  padding: 24px;
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.salary-slip-content-body::-webkit-scrollbar,
+.salary-slip-page-scroll-wrap::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.salary-slip-content-body::-webkit-scrollbar-track,
+.salary-slip-page-scroll-wrap::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.salary-slip-content-body::-webkit-scrollbar-thumb,
+.salary-slip-page-scroll-wrap::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+@media (max-width: 880px) {
+  .salary-slip-modal-backdrop {
+    padding: 8px;
+    align-items: flex-start;
+  }
+  .salary-slip-modal-dialog {
+    max-height: 98vh;
+    border-radius: 12px;
+  }
+  .salary-slip-content-body {
+    padding: 14px 10px;
+  }
 }
 
 /* ── Action Toolbar (Hidden during print) ── */
@@ -56,8 +106,10 @@
   border-top-right-radius: 16px;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .salary-slip-toolbar-left {
@@ -127,7 +179,9 @@
   color: #0f172a;
 }
 
-/* ── Formal Salary Slip Document Paper ── */
+/* ── Formal Salary Slip Document Paper ──
+   Fixed standard document dimensions ensuring 100% desktop fidelity
+   across ALL screen sizes and mobile viewports (no media query collapse) */
 .salary-slip-paper {
   background: #ffffff;
   padding: 32px 36px;
@@ -135,6 +189,10 @@
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
   box-sizing: border-box;
+  width: 840px !important;
+  min-width: 840px !important;
+  max-width: 840px !important;
+  margin: 0 auto;
 }
 
 /* ── Formal Header ── */
@@ -146,10 +204,12 @@
   border-bottom: 2px solid #0f172a;
   padding-bottom: 18px;
   margin-bottom: 20px;
+  flex-wrap: nowrap;
 }
 
 .salary-slip-logo-wrap {
   width: 140px;
+  min-width: 140px;
   max-width: 160px;
   flex-shrink: 0;
 }
@@ -164,6 +224,7 @@
 .salary-slip-company-info {
   text-align: right;
   flex: 1;
+  min-width: 420px;
 }
 
 .salary-slip-company-name {
@@ -173,6 +234,7 @@
   margin: 0 0 2px;
   letter-spacing: -0.01em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .salary-slip-company-sub {
@@ -213,6 +275,103 @@
   margin: 2px 0 0;
 }
 
+/* ── Absolute Immunity from Global Responsive Table Flattening ──
+   Guarantees the formal salary slip document retains its exact desktop layout
+   and table structures on ALL devices (mobile, tablet, desktop) without card conversions */
+.app-container .salary-slip-content-body,
+.app-container .salary-slip-page-scroll-wrap,
+.app-container .salary-slip-paper,
+.salary-slip-content-body,
+.salary-slip-page-scroll-wrap,
+.salary-slip-paper {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.app-container table.salary-slip-emp-table,
+.app-container table.salary-slip-breakdown-table,
+.app-container table.salary-slip-ctc-table,
+.salary-slip-paper table,
+table.salary-slip-emp-table,
+table.salary-slip-breakdown-table,
+table.salary-slip-ctc-table {
+  display: table !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+  margin-bottom: 18px !important;
+}
+
+.app-container table.salary-slip-breakdown-table thead,
+.app-container table.salary-slip-ctc-table thead,
+.salary-slip-paper thead,
+table.salary-slip-breakdown-table thead,
+table.salary-slip-ctc-table thead {
+  display: table-header-group !important;
+  visibility: visible !important;
+}
+
+.app-container table.salary-slip-emp-table tbody,
+.app-container table.salary-slip-breakdown-table tbody,
+.app-container table.salary-slip-ctc-table tbody,
+.salary-slip-paper tbody,
+table.salary-slip-emp-table tbody,
+table.salary-slip-breakdown-table tbody,
+table.salary-slip-ctc-table tbody {
+  display: table-row-group !important;
+  flex-direction: initial !important;
+  gap: 0 !important;
+  width: 100% !important;
+}
+
+.app-container table.salary-slip-emp-table tbody tr,
+.app-container table.salary-slip-breakdown-table tbody tr,
+.app-container table.salary-slip-ctc-table tbody tr,
+.salary-slip-paper tr,
+table.salary-slip-emp-table tbody tr,
+table.salary-slip-breakdown-table tbody tr,
+table.salary-slip-ctc-table tbody tr {
+  display: table-row !important;
+  flex-direction: initial !important;
+  width: auto !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-container table.salary-slip-emp-table td,
+.app-container table.salary-slip-breakdown-table td,
+.app-container table.salary-slip-breakdown-table th,
+.app-container table.salary-slip-ctc-table td,
+.app-container table.salary-slip-ctc-table th,
+.salary-slip-paper td,
+.salary-slip-paper th,
+table.salary-slip-emp-table td,
+table.salary-slip-breakdown-table td,
+table.salary-slip-breakdown-table th,
+table.salary-slip-ctc-table td,
+table.salary-slip-ctc-table th {
+  display: table-cell !important;
+  flex-direction: initial !important;
+  justify-content: initial !important;
+  align-items: initial !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  background-clip: padding-box !important;
+}
+
+.app-container .salary-slip-paper td::before,
+.app-container .salary-slip-paper th::before,
+.salary-slip-paper td::before,
+.salary-slip-paper th::before {
+  display: none !important;
+  content: none !important;
+}
+
 /* ── Employee Information Grid Table ── */
 .salary-slip-emp-table {
   width: 100%;
@@ -222,10 +381,11 @@
   background: #f8fafc;
   border-radius: 8px;
   overflow: hidden;
+  table-layout: fixed;
 }
 
 .salary-slip-emp-table td {
-  padding: 7px 12px;
+  padding: 8px 12px;
   font-size: 12px;
   border: 1px solid #e2e8f0;
 }
@@ -233,14 +393,16 @@
 .salary-slip-emp-table td.label {
   font-weight: 700;
   color: #475569;
-  width: 20%;
+  width: 19%;
   background: #f1f5f9;
+  white-space: nowrap;
 }
 
 .salary-slip-emp-table td.val {
   font-weight: 700;
   color: #0f172a;
-  width: 30%;
+  width: 31%;
+  word-break: break-word;
 }
 
 /* ── Earnings & Deductions Two-Column Table ── */
@@ -249,6 +411,7 @@
   border-collapse: collapse;
   margin-bottom: 18px;
   border: 1px solid #0f172a;
+  table-layout: fixed;
 }
 
 .salary-slip-breakdown-table th {
@@ -260,7 +423,13 @@
   letter-spacing: 0.04em;
   padding: 8px 12px;
   border: 1px solid #0f172a;
+  white-space: nowrap;
 }
+
+.salary-slip-breakdown-table th:nth-child(1) { width: 33%; }
+.salary-slip-breakdown-table th:nth-child(2) { width: 17%; text-align: right; }
+.salary-slip-breakdown-table th:nth-child(3) { width: 33%; }
+.salary-slip-breakdown-table th:nth-child(4) { width: 17%; text-align: right; }
 
 .salary-slip-breakdown-table td {
   padding: 8px 12px;
@@ -268,6 +437,13 @@
   color: #1e293b;
   border: 1px solid #cbd5e1;
   vertical-align: middle;
+}
+
+.salary-slip-breakdown-table td:nth-child(2),
+.salary-slip-breakdown-table td:nth-child(4) {
+  white-space: nowrap;
+  text-align: right;
+  font-weight: 700;
 }
 
 .salary-slip-breakdown-table tr.subtotal-row td {
@@ -288,6 +464,11 @@
   gap: 16px;
   margin-bottom: 18px;
   border: 1px solid #334155;
+  flex-wrap: nowrap;
+}
+
+.salary-slip-net-left {
+  flex: 1;
 }
 
 .salary-slip-net-left span {
@@ -319,6 +500,8 @@
   padding: 8px 16px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .salary-slip-net-right strong {
@@ -340,6 +523,7 @@
   border-collapse: collapse;
   margin-bottom: 24px;
   border: 1px solid #cbd5e1;
+  table-layout: fixed;
 }
 
 .salary-slip-ctc-table th {
@@ -351,13 +535,23 @@
   letter-spacing: 0.04em;
   padding: 8px 12px;
   border: 1px solid #1e293b;
+  white-space: nowrap;
 }
+
+.salary-slip-ctc-table th:nth-child(1) { width: 70%; }
+.salary-slip-ctc-table th:nth-child(2) { width: 30%; text-align: right; }
 
 .salary-slip-ctc-table td {
   padding: 7px 12px;
   font-size: 12px;
   color: #1e293b;
   border: 1px solid #cbd5e1;
+}
+
+.salary-slip-ctc-table td:nth-child(2) {
+  white-space: nowrap;
+  text-align: right;
+  font-weight: 700;
 }
 
 .salary-slip-ctc-table tr.ctc-total-row td {
@@ -377,11 +571,14 @@
   margin-top: 36px;
   padding-top: 24px;
   border-top: 1px dashed #cbd5e1;
+  flex-wrap: nowrap;
 }
 
 .salary-slip-sign-box {
   text-align: center;
   width: 200px;
+  min-width: 200px;
+  flex-shrink: 0;
 }
 
 .salary-slip-sign-line {
@@ -395,11 +592,13 @@
   font-weight: 800;
   color: #0f172a;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .salary-slip-sign-sub {
   font-size: 10px;
   color: #64748b;
+  white-space: nowrap;
 }
 
 .salary-slip-footer-note {
@@ -486,6 +685,11 @@
     display: block !important;
   }
 
+  .salary-slip-content-body {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
   .salary-slip-page-container {
     width: 100% !important;
     max-width: 100% !important;
@@ -494,11 +698,17 @@
     visibility: visible !important;
   }
 
+  .salary-slip-page-scroll-wrap {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
   .salary-slip-paper {
     border: 1px solid #cbd5e1 !important;
     box-shadow: none !important;
     padding: 20px 24px !important;
     width: 100% !important;
+    min-width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
     box-sizing: border-box !important;

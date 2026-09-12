@@ -114,77 +114,155 @@ export function SalarySlipDocument({
     : data.payPeriod || 'Current Active';
 
   // 1. Component Breakdowns (Raw inputs from data)
-  const rawBasic = Number(data.basicSalary || data.basic || 0);
-  const rawHra = Number(data.hraAmount ?? data.hra ?? 0);
-  const rawLta = Number(data.ltaAmount ?? data.lta ?? data.specialAllowance ?? 0);
-  const rawEdu = Number(data.educationAllowanceAmount ?? data.educationAllowance ?? data.otherAllowance ?? 0);
-  const rawConv = Number(data.conveyanceAllowance ?? data.conveyanceAmount ?? data.conveyance ?? 0);
+  const rawBasic = Number(data.basicSalary ?? data.basic ?? 0);
+  const rawGross = Number(data.grossSalary ?? data.grossEarnings ?? data.grossTotal ?? 0);
+  const basicSalary = rawBasic > 0 ? rawBasic : (rawGross > 0 ? Math.round(rawGross * 0.80) : 0);
 
-  // If basic is 0 but gross exists, derive 80%
-  const basicSalary = rawBasic > 0 ? rawBasic : (Number(data.grossSalary || data.grossEarnings || 0) > 0 ? Math.round(Number(data.grossSalary || data.grossEarnings) * 0.80) : 0);
+  // Allowances: Check explicit values and percentages (including 0!)
+  const hasHraPct = data.hraPercentage !== undefined && data.hraPercentage !== null && data.hraPercentage !== '';
+  const hasHraAmt = (data.hraAmount !== undefined && data.hraAmount !== null && data.hraAmount !== '') ||
+                    (data.hra !== undefined && data.hra !== null && data.hra !== '');
+  const hraPct = hasHraPct
+    ? Number(data.hraPercentage)
+    : (hasHraAmt && basicSalary > 0
+        ? Math.round((Number(data.hraAmount ?? data.hra) / basicSalary) * 100)
+        : 10);
+  const hraAmount = hasHraAmt
+    ? Number(data.hraAmount ?? data.hra)
+    : Math.round((basicSalary * hraPct) / 100);
 
-  const hraAmount = rawHra > 0 ? rawHra : (basicSalary > 0 ? Math.round(basicSalary * 0.10) : 0);
-  const hraPct = Number(data.hraPercentage) > 0 ? Number(data.hraPercentage) : (basicSalary > 0 && hraAmount > 0 ? Math.round((hraAmount / basicSalary) * 100) : 10);
+  const hasLtaPct = data.ltaPercentage !== undefined && data.ltaPercentage !== null && data.ltaPercentage !== '';
+  const hasLtaAmt = (data.ltaAmount !== undefined && data.ltaAmount !== null && data.ltaAmount !== '') ||
+                    (data.lta !== undefined && data.lta !== null && data.lta !== '') ||
+                    (data.specialAllowance !== undefined && data.specialAllowance !== null && data.specialAllowance !== '');
+  const ltaPct = hasLtaPct
+    ? Number(data.ltaPercentage)
+    : (hasLtaAmt && basicSalary > 0
+        ? Math.round((Number(data.ltaAmount ?? data.lta ?? data.specialAllowance) / basicSalary) * 100)
+        : 5);
+  const ltaAmount = hasLtaAmt
+    ? Number(data.ltaAmount ?? data.lta ?? data.specialAllowance)
+    : Math.round((basicSalary * ltaPct) / 100);
 
-  const ltaAmount = rawLta > 0 ? rawLta : (basicSalary > 0 ? Math.round(basicSalary * 0.05) : 0);
-  const ltaPct = Number(data.ltaPercentage) > 0 ? Number(data.ltaPercentage) : (basicSalary > 0 && ltaAmount > 0 ? Math.round((ltaAmount / basicSalary) * 100) : 5);
+  const hasEduPct = data.educationAllowancePercentage !== undefined && data.educationAllowancePercentage !== null && data.educationAllowancePercentage !== '';
+  const hasEduAmt = (data.educationAllowanceAmount !== undefined && data.educationAllowanceAmount !== null && data.educationAllowanceAmount !== '') ||
+                    (data.educationAllowance !== undefined && data.educationAllowance !== null && data.educationAllowance !== '') ||
+                    (data.otherAllowance !== undefined && data.otherAllowance !== null && data.otherAllowance !== '');
+  const eduPct = hasEduPct
+    ? Number(data.educationAllowancePercentage)
+    : (hasEduAmt && basicSalary > 0
+        ? Math.round((Number(data.educationAllowanceAmount ?? data.educationAllowance ?? data.otherAllowance) / basicSalary) * 100)
+        : 5);
+  const eduAmount = hasEduAmt
+    ? Number(data.educationAllowanceAmount ?? data.educationAllowance ?? data.otherAllowance)
+    : Math.round((basicSalary * eduPct) / 100);
 
-  const eduAmount = rawEdu > 0 ? rawEdu : (basicSalary > 0 ? Math.round(basicSalary * 0.05) : 0);
-  const eduPct = Number(data.educationAllowancePercentage) > 0 ? Number(data.educationAllowancePercentage) : (basicSalary > 0 && eduAmount > 0 ? Math.round((eduAmount / basicSalary) * 100) : 5);
+  const hasConvPct = data.conveyancePercentage !== undefined && data.conveyancePercentage !== null && data.conveyancePercentage !== '';
+  const hasConvAmt = (data.conveyanceAllowance !== undefined && data.conveyanceAllowance !== null && data.conveyanceAllowance !== '') ||
+                     (data.conveyanceAmount !== undefined && data.conveyanceAmount !== null && data.conveyanceAmount !== '') ||
+                     (data.conveyance !== undefined && data.conveyance !== null && data.conveyance !== '');
+  const convPct = hasConvPct
+    ? Number(data.conveyancePercentage)
+    : (hasConvAmt && basicSalary > 0
+        ? Math.round((Number(data.conveyanceAllowance ?? data.conveyanceAmount ?? data.conveyance) / basicSalary) * 100)
+        : 5);
+  const convAmount = hasConvAmt
+    ? Number(data.conveyanceAllowance ?? data.conveyanceAmount ?? data.conveyance)
+    : Math.round((basicSalary * convPct) / 100);
 
-  const convAmount = rawConv > 0 ? rawConv : (basicSalary > 0 ? Math.round(basicSalary * 0.05) : 0);
-  const convPct = Number(data.conveyancePercentage) > 0 ? Number(data.conveyancePercentage) : (basicSalary > 0 && convAmount > 0 ? Math.round((convAmount / basicSalary) * 100) : 5);
-
-  // Computed sum of earnings (Total Gross cannot be lower than Basic + Allowances)
+  // Total Gross Salary (A) is ALWAYS strictly equal to sum of basic and allowances
   const componentsSum = basicSalary + hraAmount + ltaAmount + eduAmount + convAmount;
-  const rawGross = Number(data.grossSalary || data.grossEarnings || data.grossTotal || 0);
-  const totalGross = Math.max(rawGross, componentsSum);
+  const totalGross = componentsSum > 0 ? componentsSum : rawGross;
 
-  // 2. Deductions
-  const rawEpf = Number(data.employeeEpfAmount ?? data.pfDeduction ?? data.epf ?? 0);
-  const empEpfAmount = rawEpf > 0 ? rawEpf : (basicSalary > 0 && data.employeeEpfPercentage !== 0 && data.employeeEpfPercentage !== '0' ? Math.round(Math.min(basicSalary, 15000) * 0.12) : 0);
-  const empEpfPct = Number(data.employeeEpfPercentage) > 0 ? Number(data.employeeEpfPercentage) : (empEpfAmount > 0 && basicSalary > 0 ? Math.round((empEpfAmount / Math.min(basicSalary, 15000)) * 100) : (empEpfAmount > 0 ? 12 : 0));
+  // 2. Deductions (B)
+  const hasEmpEpfPct = data.employeeEpfPercentage !== undefined && data.employeeEpfPercentage !== null && data.employeeEpfPercentage !== '';
+  const empEpfPct = hasEmpEpfPct
+    ? Number(data.employeeEpfPercentage)
+    : ((data.employeeEpfAmount > 0 || data.pfDeduction > 0) ? 12 : 12);
+  const epfWage = basicSalary > 15000 && empEpfPct === 12 ? 15000 : basicSalary;
+  const hasEmpEpfAmt = (data.employeeEpfAmount !== undefined && data.employeeEpfAmount !== null && data.employeeEpfAmount !== '') ||
+                       (data.pfDeduction !== undefined && data.pfDeduction !== null && data.pfDeduction !== '') ||
+                       (data.epf !== undefined && data.epf !== null && data.epf !== '');
+  const empEpfAmount = hasEmpEpfAmt
+    ? Number(data.employeeEpfAmount ?? data.pfDeduction ?? data.epf)
+    : (empEpfPct > 0 ? Math.round((epfWage * empEpfPct) / 100) : 0);
 
-  const rawEsic = Number(data.employeeEsicAmount ?? data.esicDeduction ?? data.esic ?? 0);
-  const empEsicAmount = rawEsic > 0 ? rawEsic : (totalGross > 0 && totalGross <= 21000 && data.employeeEsicPercentage !== 0 && data.employeeEsicPercentage !== '0' ? Math.round(totalGross * 0.0075) : 0);
-  const empEsicPct = Number(data.employeeEsicPercentage) > 0 ? Number(data.employeeEsicPercentage) : (totalGross <= 21000 && empEsicAmount > 0 ? 0.75 : 0);
+  const hasEmpEsicPct = data.employeeEsicPercentage !== undefined && data.employeeEsicPercentage !== null && data.employeeEsicPercentage !== '';
+  const empEsicPct = hasEmpEsicPct
+    ? Number(data.employeeEsicPercentage)
+    : (totalGross <= 21000 ? 0.75 : 0.75);
+  const esicWage = totalGross > 21000 ? 21000 : totalGross;
+  const hasEmpEsicAmt = (data.employeeEsicAmount !== undefined && data.employeeEsicAmount !== null && data.employeeEsicAmount !== '') ||
+                        (data.esicDeduction !== undefined && data.esicDeduction !== null && data.esicDeduction !== '') ||
+                        (data.esic !== undefined && data.esic !== null && data.esic !== '');
+  const empEsicAmount = hasEmpEsicAmt
+    ? Number(data.employeeEsicAmount ?? data.esicDeduction ?? data.esic)
+    : (empEsicPct > 0 ? Math.round((esicWage * empEsicPct) / 100 * 100) / 100 : 0);
 
-  const rawPt = Number(data.professionalTaxAmount ?? data.professionalTax ?? data.pt ?? 0);
-  const ptAmount = rawPt > 0 ? rawPt : (totalGross >= 12000 ? 200 : 0);
-  const ptPct = Number(data.professionalTaxPercentage) > 0 ? Number(data.professionalTaxPercentage) : 0;
+  const hasPtPct = data.professionalTaxPercentage !== undefined && data.professionalTaxPercentage !== null && data.professionalTaxPercentage !== '';
+  const ptPct = hasPtPct ? Number(data.professionalTaxPercentage) : 0;
+  const hasPtAmt = (data.professionalTaxAmount !== undefined && data.professionalTaxAmount !== null && data.professionalTaxAmount !== '') ||
+                   (data.professionalTax !== undefined && data.professionalTax !== null && data.professionalTax !== '') ||
+                   (data.pt !== undefined && data.pt !== null && data.pt !== '');
+  const ptAmount = hasPtAmt
+    ? Number(data.professionalTaxAmount ?? data.professionalTax ?? data.pt)
+    : (ptPct > 0 ? Math.round((totalGross * ptPct) / 100) : (totalGross >= 12000 ? 200 : 0));
 
-  const leaveDeduction = Number(data.leaveDeduction || data.lopDeduction || 0);
+  const hasTdsPct = data.tdsPercentage !== undefined && data.tdsPercentage !== null && data.tdsPercentage !== '';
+  const tdsPct = hasTdsPct ? Number(data.tdsPercentage) : 0;
+  const hasTdsAmt = (data.tdsAmount !== undefined && data.tdsAmount !== null && data.tdsAmount !== '') ||
+                    (data.tdsDeduction !== undefined && data.tdsDeduction !== null && data.tdsDeduction !== '') ||
+                    (data.tds !== undefined && data.tds !== null && data.tds !== '');
+  const tdsAmount = hasTdsAmt
+    ? Number(data.tdsAmount ?? data.tdsDeduction ?? data.tds)
+    : (tdsPct > 0 ? Math.round((totalGross * tdsPct) / 100) : 0);
 
-  const tdsPct = Number(data.tdsPercentage || 0);
-  const rawTds = Number(data.tdsAmount ?? data.tdsDeduction ?? data.tds ?? 0);
-  const tdsAmount = rawTds > 0 ? rawTds : (tdsPct > 0 ? Math.round((totalGross * tdsPct) / 100) : 0);
+  const rawLeaveCut = Number(data.leaveDeduction || data.lopDeduction || 0);
+  const statutoryDeductionsWithoutLeave = empEpfAmount + empEsicAmount + ptAmount + tdsAmount;
+  
+  // Implied leave cut if payroll record net is lower than gross - statutory
+  const rawNet = Number(data.netTakeHome || data.netPayable || data.netSalary || 0);
+  const leaveDeduction = rawLeaveCut > 0
+    ? rawLeaveCut
+    : (rawNet > 0 && rawNet < (totalGross - statutoryDeductionsWithoutLeave)
+        ? Math.round(((totalGross - statutoryDeductionsWithoutLeave) - rawNet) * 100) / 100
+        : 0);
 
-  const statutoryDeductions = empEpfAmount + empEsicAmount + ptAmount + tdsAmount + leaveDeduction;
-  const rawDeductions = Number(data.totalDeduction ?? data.totalDeductions ?? 0);
-  const totalDeductions = rawDeductions > 0 ? rawDeductions : statutoryDeductions;
+  // Total Deductions (B) is ALWAYS strictly the sum of all deduction line items in Table B:
+  const totalDeductions = statutoryDeductionsWithoutLeave + leaveDeduction;
 
-  const netTakeHome = Math.max(
-    0,
-    Number(data.netTakeHome || data.netPayable || data.netSalary || (totalGross - totalDeductions))
-  );
+  // Net Take Home Pay (C = A - B) is ALWAYS strictly totalGross - totalDeductions:
+  const netTakeHome = Math.max(0, totalGross - totalDeductions);
 
-  // 3. Employer Contributions & CTC
-  const rawCompEpf = Number(data.companyEpfAmount ?? data.employerPf ?? 0);
-  const compEpfAmount = rawCompEpf > 0 ? rawCompEpf : (basicSalary > 0 && data.companyEpfPercentage !== 0 && data.companyEpfPercentage !== '0' ? Math.round(Math.min(basicSalary, 15000) * 0.12) : 0);
-  const compEpfPct = Number(data.companyEpfPercentage) > 0 ? Number(data.companyEpfPercentage) : (compEpfAmount > 0 && basicSalary > 0 ? Math.round((compEpfAmount / Math.min(basicSalary, 15000)) * 100) : (compEpfAmount > 0 ? 12 : 0));
+  // 3. Employer Contributions & CTC (D & E)
+  const hasCompEpfPct = data.companyEpfPercentage !== undefined && data.companyEpfPercentage !== null && data.companyEpfPercentage !== '';
+  const compEpfPct = hasCompEpfPct ? Number(data.companyEpfPercentage) : 12;
+  const hasCompEpfAmt = (data.companyEpfAmount !== undefined && data.companyEpfAmount !== null && data.companyEpfAmount !== '') ||
+                        (data.employerPf !== undefined && data.employerPf !== null && data.employerPf !== '');
+  const compEpfAmount = hasCompEpfAmt
+    ? Number(data.companyEpfAmount ?? data.employerPf)
+    : (compEpfPct > 0 ? Math.round((epfWage * compEpfPct) / 100) : 0);
 
-  const rawCompEsic = Number(data.companyEsicAmount ?? data.employerEsic ?? 0);
-  const compEsicAmount = rawCompEsic > 0 ? rawCompEsic : (totalGross > 0 && totalGross <= 21000 && data.companyEsicPercentage !== 0 && data.companyEsicPercentage !== '0' ? Math.round(totalGross * 0.0325) : 0);
-  const compEsicPct = Number(data.companyEsicPercentage) > 0 ? Number(data.companyEsicPercentage) : (totalGross <= 21000 && compEsicAmount > 0 ? 3.25 : 0);
+  const hasCompEsicPct = data.companyEsicPercentage !== undefined && data.companyEsicPercentage !== null && data.companyEsicPercentage !== '';
+  const compEsicPct = hasCompEsicPct ? Number(data.companyEsicPercentage) : (totalGross <= 21000 ? 3.25 : 3.25);
+  const hasCompEsicAmt = (data.companyEsicAmount !== undefined && data.companyEsicAmount !== null && data.companyEsicAmount !== '') ||
+                         (data.employerEsic !== undefined && data.employerEsic !== null && data.employerEsic !== '');
+  const compEsicAmount = hasCompEsicAmt
+    ? Number(data.companyEsicAmount ?? data.employerEsic)
+    : (compEsicPct > 0 ? Math.round((esicWage * compEsicPct) / 100 * 100) / 100 : 0);
 
-  const rawGratuity = Number(data.gratuityAmount ?? 0);
-  const gratuityAmount = rawGratuity > 0 ? rawGratuity : (basicSalary > 0 ? Math.round(basicSalary * 0.0481 * 100) / 100 : 0);
-  const gratuityPct = Number(data.gratuityPercentage) > 0 ? Number(data.gratuityPercentage) : 4.81;
+  const hasGratuityPct = data.gratuityPercentage !== undefined && data.gratuityPercentage !== null && data.gratuityPercentage !== '';
+  const gratuityPct = hasGratuityPct ? Number(data.gratuityPercentage) : 4.81;
+  const hasGratuityAmt = data.gratuityAmount !== undefined && data.gratuityAmount !== null && data.gratuityAmount !== '';
+  const gratuityAmount = hasGratuityAmt
+    ? Number(data.gratuityAmount)
+    : (gratuityPct > 0 ? Math.round((basicSalary * gratuityPct) / 100 * 100) / 100 : 0);
 
-  const calculatedCompanyCost = compEpfAmount + compEsicAmount + gratuityAmount;
-  const totalCompanyCost = Number(data.totalCompanyContribution || data.employerTotalCost || calculatedCompanyCost);
+  // Total Company Contribution (D) is ALWAYS strictly the sum of employer contributions:
+  const totalCompanyCost = compEpfAmount + compEsicAmount + gratuityAmount;
 
-  const ctcPerMonth = Number(data.ctcPerMonth) > 0 ? Number(data.ctcPerMonth) : (totalGross + totalCompanyCost);
+  // Total Cost to Company - CTC (E = A + D) is ALWAYS strictly totalGross + totalCompanyCost:
+  const ctcPerMonth = totalGross + totalCompanyCost;
   const ctcPerAnnum = ctcPerMonth * 12;
 
   // High-Resolution Image Download function with native Tailwind v4 oklch support
@@ -207,6 +285,7 @@ export function SalarySlipDocument({
           quality: 0.98,
           pixelRatio: 2,
           backgroundColor: '#ffffff',
+          width: 840,
           filter: (node: any) => !node.classList || !node.classList.contains('no-print'),
         });
 
@@ -258,7 +337,7 @@ export function SalarySlipDocument({
   };
 
   const documentContent = (
-    <div id="printable-salary-slip-doc" className="salary-slip-paper">
+    <div id="printable-salary-slip-doc" className="salary-slip-paper no-mobile-stack">
       {/* ── Document Header with Himalaya Official Mountain Logo ── */}
       <div className="salary-slip-header">
         <div className="salary-slip-logo-wrap">
@@ -291,7 +370,7 @@ export function SalarySlipDocument({
       </div>
 
       {/* ── Employee Master Information Table ── */}
-      <table className="salary-slip-emp-table">
+      <table className="salary-slip-emp-table no-mobile-stack flat-table">
         <tbody>
           <tr>
             <td className="label">Employee Name:</td>
@@ -325,7 +404,7 @@ export function SalarySlipDocument({
       </table>
 
       {/* ── Earnings & Deductions Two-Column Statement ── */}
-      <table className="salary-slip-breakdown-table">
+      <table className="salary-slip-breakdown-table no-mobile-stack flat-table">
         <thead>
           <tr>
             <th style={{ width: '35%', textAlign: 'left' }}>EARNINGS &amp; ALLOWANCES (A)</th>
@@ -350,8 +429,8 @@ export function SalarySlipDocument({
           <tr>
             <td><strong>Leave Travel Allowance (LTA)</strong> <small style={{ color: '#64748b' }}>({ltaPct}% of Basic)</small></td>
             <td style={{ textAlign: 'right' }}>{fmt(ltaAmount)}</td>
-            <td><strong>Professional Tax (P.Tax)</strong> <small style={{ color: '#64748b' }}>({ptPct}% of Gross)</small></td>
-            <td style={{ textAlign: 'right', color: '#e11d48' }}>{fmt(ptAmount)}</td>
+            <td><strong>Professional Tax (P.Tax)</strong> <small style={{ color: '#64748b' }}>({ptAmount === 0 ? 'Exempt' : ptPct > 0 ? `${ptPct}% of Gross` : 'Standard Slab'})</small></td>
+            <td style={{ textAlign: 'right', color: ptAmount > 0 ? '#e11d48' : '#94a3b8' }}>{fmt(ptAmount)}</td>
           </tr>
           <tr>
             <td><strong>Education Allowance</strong> <small style={{ color: '#64748b' }}>({eduPct}% of Basic)</small></td>
@@ -408,7 +487,7 @@ export function SalarySlipDocument({
       </div>
 
       {/* ── Employer Contribution & CTC (D & E) ── */}
-      <table className="salary-slip-ctc-table">
+      <table className="salary-slip-ctc-table no-mobile-stack flat-table">
         <thead>
           <tr>
             <th style={{ textAlign: 'left', width: '70%' }}>COMPANY CONTRIBUTION &amp; COST TO COMPANY (D &amp; E)</th>
@@ -515,7 +594,7 @@ export function SalarySlipDocument({
             </div>
           </div>
 
-          <div style={{ padding: '24px', overflowY: 'auto' }}>
+          <div className="salary-slip-content-body">
             {documentContent}
           </div>
         </div>
@@ -558,7 +637,9 @@ export function SalarySlipDocument({
         </div>
       </div>
 
-      {documentContent}
+      <div className="salary-slip-page-scroll-wrap">
+        {documentContent}
+      </div>
     </div>
   );
 }

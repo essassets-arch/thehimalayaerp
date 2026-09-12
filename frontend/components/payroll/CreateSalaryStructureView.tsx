@@ -93,6 +93,7 @@ export function CreateSalaryStructureView({
   const [empEpfPct, setEmpEpfPct] = useState<number>(12);
   const [empEsicPct, setEmpEsicPct] = useState<number>(0.75);
   const [ptPct, setPtPct] = useState<number>(0);
+  const [ptAmountOverride, setPtAmountOverride] = useState<number | undefined>(undefined);
   const [tdsPct, setTdsPct] = useState<number>(0);
 
   const [compEpfPct, setCompEpfPct] = useState<number>(12);
@@ -179,6 +180,9 @@ export function CreateSalaryStructureView({
             setEmpEpfPct(epfPct);
             setEmpEsicPct(struct.employeeEsicPercentage !== undefined && struct.employeeEsicPercentage !== null ? Number(struct.employeeEsicPercentage) : 0.75);
             setPtPct(struct.professionalTaxPercentage !== undefined && struct.professionalTaxPercentage !== null ? Number(struct.professionalTaxPercentage) : 0);
+            if (struct.professionalTaxAmount !== undefined && struct.professionalTaxAmount !== null) {
+              setPtAmountOverride(Number(struct.professionalTaxAmount));
+            }
             setTdsPct(struct.tdsPercentage !== undefined && struct.tdsPercentage !== null ? Number(struct.tdsPercentage) : 0);
             setCompEpfPct(struct.companyEpfPercentage !== undefined && struct.companyEpfPercentage !== null ? Number(struct.companyEpfPercentage) : 12);
             setCompEsicPct(struct.companyEsicPercentage !== undefined && struct.companyEsicPercentage !== null ? Number(struct.companyEsicPercentage) : 3.25);
@@ -276,6 +280,9 @@ export function CreateSalaryStructureView({
         setEmpEpfPct(existing.employeeEpfPercentage !== undefined ? Number(existing.employeeEpfPercentage) : 12);
         setEmpEsicPct(existing.employeeEsicPercentage !== undefined ? Number(existing.employeeEsicPercentage) : 0.75);
         setPtPct(existing.professionalTaxPercentage !== undefined ? Number(existing.professionalTaxPercentage) : 0);
+        if (existing.professionalTaxAmount !== undefined && existing.professionalTaxAmount !== null) {
+          setPtAmountOverride(Number(existing.professionalTaxAmount));
+        }
         setTdsPct(existing.tdsPercentage !== undefined ? Number(existing.tdsPercentage) : 0);
         setCompEpfPct(existing.companyEpfPercentage !== undefined ? Number(existing.companyEpfPercentage) : 12);
         setCompEsicPct(existing.companyEsicPercentage !== undefined ? Number(existing.companyEsicPercentage) : 3.25);
@@ -296,6 +303,7 @@ export function CreateSalaryStructureView({
     setEmpEpfPct(12);
     setEmpEsicPct(0.75);
     setPtPct(0);
+    setPtAmountOverride(200);
     setTdsPct(0);
     setCompEpfPct(12);
     setCompEsicPct(3.25);
@@ -329,6 +337,7 @@ export function CreateSalaryStructureView({
       employeeEpfPercentage: Number(empEpfPct) || 0,
       employeeEsicPercentage: Number(empEsicPct) || 0,
       professionalTaxPercentage: Number(ptPct) || 0,
+      professionalTaxAmount: ptAmountOverride,
       tdsPercentage: Number(tdsPct) || 0,
       companyEpfPercentage: Number(compEpfPct) || 0,
       companyEsicPercentage: Number(compEsicPct) || 0,
@@ -344,6 +353,7 @@ export function CreateSalaryStructureView({
     empEpfPct,
     empEsicPct,
     ptPct,
+    ptAmountOverride,
     tdsPct,
     compEpfPct,
     compEsicPct,
@@ -1368,7 +1378,11 @@ export function CreateSalaryStructureView({
                 <div className="ctc-allowance-title">
                   <span style={{ color: '#be123c' }}>Professional Tax (PT)</span>
                   <span className="ctc-allowance-tag">
-                    {ptPct > 0 ? `${ptPct}% of Gross` : 'Standard Slab (₹200)'}
+                    {calculation.professionalTaxAmount === 0
+                      ? 'Exempt / Nil (₹0)'
+                      : ptPct > 0
+                        ? `${ptPct}% of Gross`
+                        : 'Standard Slab (₹200)'}
                   </span>
                 </div>
                 <div className="ctc-allowance-control">
@@ -1379,10 +1393,39 @@ export function CreateSalaryStructureView({
                     step="any"
                     disabled={isReadOnly}
                     value={ptPct}
-                    onChange={(e) => setPtPct(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value) || 0;
+                      setPtPct(v);
+                      if (v > 0) setPtAmountOverride(undefined);
+                    }}
                     className="ctc-pct-input"
                   />
-                  <span className="ctc-pct-symbol">{ptPct > 0 ? '% of Gross' : '₹200 Standard (0%)'}</span>
+                  <span className="ctc-pct-symbol">{ptPct > 0 ? '% of Gross' : 'Standard Slab'}</span>
+
+                  {!isReadOnly && (
+                    <div className="ctc-allowance-quick-presets" style={{ marginLeft: 'auto' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPtPct(0);
+                          setPtAmountOverride(200);
+                        }}
+                        className={`ctc-allowance-preset-btn ${calculation.professionalTaxAmount === 200 && ptPct === 0 ? 'active' : ''}`}
+                      >
+                        ₹200
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPtPct(0);
+                          setPtAmountOverride(0);
+                        }}
+                        className={`ctc-allowance-preset-btn ${calculation.professionalTaxAmount === 0 ? 'active' : ''}`}
+                      >
+                        ₹0
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="ctc-allowance-result" style={{ color: '#be123c' }}>
                   {fmt(calculation.professionalTaxAmount)}
