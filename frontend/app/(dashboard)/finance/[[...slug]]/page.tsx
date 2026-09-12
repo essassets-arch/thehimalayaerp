@@ -16,6 +16,7 @@ const RESTRICTED_FOR_EXECUTIVE = [
   'create-po',
   'all-pos',
   'verify-close',
+  'partial-delivery',
   'vendors',
   'expenses',
   'settings',

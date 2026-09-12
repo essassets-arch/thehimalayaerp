@@ -31,6 +31,7 @@ import VendorManagement from '../../purchase/pages/VendorManagement';
 import DailyTaskView from '../../../components/DailyTaskView';
 import CreatePurchaseOrder from '../../procurement/finance/CreatePurchaseOrder';
 import DeliveryAudit from '../../procurement/finance/DeliveryAudit';
+import PartialDelivery from '../../procurement/finance/PartialDelivery';
 import RejectionManagement from '../../procurement/finance/RejectionManagement';
 import VendorInvoiceWorkspace from '../../procurement/finance/VendorInvoiceWorkspace';
 import FinanceBrandAnalysis from './FinanceBrandAnalysis';
@@ -64,6 +65,7 @@ const financeMenu = {
     "create-po",
     "all-pos",
     "verify-close",
+    "partial-delivery",
     "history-ledger",
     "history",
     "brand-analysis",
@@ -93,6 +95,7 @@ const financeMenu = {
     "create-po",
     "all-pos",
     "verify-close",
+    "partial-delivery",
     "history-ledger",
     "history",
     "brand-analysis",
@@ -452,6 +455,8 @@ export default function FinancePortal({ initialView, forceView }) {
       navigate.push('/finance/po-requests?tab=All POs', { replace: true });
     } else if (view === 'verify-close') {
       navigate.push('/finance/po-requests?tab=Verify %26 Close', { replace: true });
+    } else if (view === 'partial-delivery') {
+      navigate.push('/finance/po-requests?tab=Partial Delivery', { replace: true });
     } else {
       const currentTab = nextSearchParams?.get('tab');
       if (currentTab) setActiveTab(currentTab);
@@ -3622,7 +3627,7 @@ export default function FinancePortal({ initialView, forceView }) {
   };
 
   const renderFinancePOWorkspace = () => {
-    const tabs = ["Pending Requests", "Create PO", "Draft POs", "Pending Approval", "Approved POs", "Delivery Audit", "Closed POs", "History"];
+    const tabs = ["Pending Requests", "Create PO", "Draft POs", "Pending Approval", "Approved POs", "Delivery Audit", "Partial Delivery", "Closed POs", "History"];
     return (
       <div className="po-page" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div className="po-tabs-wrapper">
@@ -3649,6 +3654,12 @@ export default function FinancePortal({ initialView, forceView }) {
           {activeTab === "Pending Approval" && renderAllPOsTab('PENDING_APPROVAL')}
           {activeTab === "Approved POs" && renderApprovedPOsTab()}
           {activeTab === "Delivery Audit" && <DeliveryAudit />}
+          {activeTab === "Partial Delivery" && (
+            <PartialDelivery
+              onNavigateToAudit={(grnOrPo) => handleTabChange("Delivery Audit")}
+              onNavigateToPO={(po) => setSelectedPO(po)}
+            />
+          )}
           {activeTab === "Closed POs" && renderAllPOsTab('CLOSED')}
           {activeTab === "History" && renderAllPOsTab('HISTORY')}
         </div>
@@ -4128,7 +4139,7 @@ export default function FinancePortal({ initialView, forceView }) {
       {view === 'receivables' && <div data-testid="finance-receivables-view" className="sales-portal-view">{renderReceivables()}</div>}
       {view === 'history-ledger' && <div data-testid="finance-history-ledger-view" className="sales-portal-view">{renderHistory()}</div>}
       {view === 'history' && <div data-testid="finance-history-view" className="sales-portal-view">{renderHistory()}</div>}
-      {(view === 'po-requests' || view === 'pending-requests' || view === 'create-po' || view === 'all-pos' || view === 'verify-close') && (
+      {(view === 'po-requests' || view === 'pending-requests' || view === 'create-po' || view === 'all-pos' || view === 'verify-close' || view === 'partial-delivery') && (
         <div data-testid="finance-po-workspace-view" className="sales-portal-view">
           {renderFinancePOWorkspace()}
         </div>

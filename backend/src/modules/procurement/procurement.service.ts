@@ -541,6 +541,17 @@ export class ProcurementService {
         };
       } else if (tab === 'Closed POs') {
         status = 'CLOSED';
+      } else if (tab === 'Partial Delivery') {
+        status = {
+          notIn: [
+            'DRAFT',
+            'CANCELLED',
+            'CLOSED',
+            'PO_CLOSED',
+            'PLANT_HEAD_PURCHASE_REJECTED',
+            'SUPER_ADMIN_REJECTED',
+          ],
+        };
       }
     }
     const where: any = {
@@ -557,19 +568,71 @@ export class ProcurementService {
           supplier: true,
           items: { include: { product: true } },
           purchaseIndent: { include: { requestedBy: true } },
-          grns: { include: { items: true } },
+          grns: {
+            where: {
+              status: { notIn: ['CANCELLED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED', 'REJECTED', 'VOID', 'VOIDED'] },
+            },
+            include: { items: true },
+          },
         },
       }),
       this.prisma.purchaseOrder.count({ where }),
     ]);
-    const mappedData = data.map((po: any) => ({
-      ...po,
-      vendorName: po.supplier?.name || (po.snapshot as any)?.vendorName || '',
-      supplierName: po.supplier?.name || (po.snapshot as any)?.vendorName || '',
-      vendorId: po.supplier?.publicId || po.supplierId,
-      grns: po.grns || [],
-    }));
-    return { data: mappedData, meta: { page, limit, total } };
+    const mappedData = data.map((po: any) => {
+      const vName = po.supplier?.name || (po.snapshot as any)?.vendorName || '';
+      const poGrns = po.grns || [];
+      const computedItems = (po.items || []).map((lineItem: any) => {
+        const orderedQty = Number(lineItem.quantity || lineItem.orderedQty || 0);
+        let receivedQty = 0;
+        poGrns.forEach((g: any) => {
+          (g.items || []).forEach((gi: any) => {
+            if (
+              (gi.purchaseOrderItemId && gi.purchaseOrderItemId === lineItem.id) ||
+              (gi.productId && (gi.productId === lineItem.productId || gi.productId === lineItem.materialId))
+            ) {
+              receivedQty += Number(gi.acceptedQuantity || gi.receivedQuantity || 0);
+            }
+          });
+        });
+        receivedQty = Math.max(receivedQty, Number(lineItem.receivedQuantity || lineItem.acceptedQuantity || 0));
+        const remainingQty = Math.max(0, orderedQty - receivedQty);
+
+        return {
+          ...lineItem,
+          orderedQty,
+          receivedQty,
+          remainingQty,
+          cumulativeDeliveredQty: receivedQty,
+          receivedQuantity: receivedQty,
+        };
+      });
+
+      const totalExpected = computedItems.reduce((s: number, it: any) => s + it.orderedQty, 0);
+      const totalDelivered = computedItems.reduce((s: number, it: any) => s + it.receivedQty, 0);
+      const totalRemaining = computedItems.reduce((s: number, it: any) => s + it.remainingQty, 0);
+      const fulfillmentRate = totalExpected > 0 ? Math.round((totalDelivered / totalExpected) * 100) : 0;
+      const isFullyReceived = totalRemaining === 0 && totalExpected > 0;
+
+      return {
+        ...po,
+        items: computedItems,
+        vendorName: vName,
+        supplierName: vName,
+        vendorId: po.supplier?.publicId || po.supplierId,
+        grns: poGrns,
+        totalExpected,
+        totalDelivered,
+        totalRemaining,
+        fulfillmentRate,
+        isFullyReceived,
+      };
+    });
+
+    const finalData = tab === 'Partial Delivery'
+      ? mappedData.filter((po: any) => po.totalDelivered > 0 && po.totalRemaining > 0)
+      : mappedData;
+
+    return { data: finalData, meta: { page, limit, total: finalData.length } };
   }
 
   async plantHeadPurchaseQueue(companyId: string | undefined, query: any) {
