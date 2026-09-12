@@ -7,6 +7,8 @@ export interface SalaryInputData {
   employeeEpfPercentage?: number;
   employeeEsicPercentage?: number;
   professionalTaxPercentage?: number;
+  tdsPercentage?: number;
+  tdsAmount?: number;
   companyEpfPercentage?: number;
   companyEsicPercentage?: number;
   gratuityPercentage?: number;
@@ -33,6 +35,8 @@ export interface CalculatedSalaryOutput {
   employeeEsicAmount: number;
   professionalTaxPercentage: number;
   professionalTaxAmount: number;
+  tdsPercentage: number;
+  tdsAmount: number;
   totalDeductionB: number;
   netTakeHomeC: number;
   companyEpfPercentage: number;
@@ -63,6 +67,7 @@ export function calculateSalaryStructure(input: SalaryInputData): CalculatedSala
   const epfPct = round(Number(input.employeeEpfPercentage) || 0);
   const esicPct = round(Number(input.employeeEsicPercentage) || 0);
   const ptPct = round(Number(input.professionalTaxPercentage) || 0);
+  const tdsPct = round(Number(input.tdsPercentage) || 0);
 
   // Statutory EPF Wage Ceiling is ₹15,000 (12% of 15,000 = ₹1,800)
   const epfWage = basic > 15000 && epfPct === 12 ? 15000 : basic;
@@ -75,7 +80,13 @@ export function calculateSalaryStructure(input: SalaryInputData): CalculatedSala
   // Professional Tax: standard ₹200 if gross >= 12,000
   const professionalTaxAmount = ptPct > 0 ? round((grossTotalA * ptPct) / 100) : (grossTotalA >= 12000 ? 200 : 0);
 
-  const totalDeductionB = round(employeeEpfAmount + employeeEsicAmount + professionalTaxAmount);
+  // Tax Deducted at Source (TDS): dynamic % of Gross or explicit amount
+  const tdsAmount =
+    input.tdsAmount !== undefined && input.tdsAmount !== null && Number(input.tdsAmount) >= 0 && (Number(input.tdsAmount) > 0 || tdsPct === 0)
+      ? round(Number(input.tdsAmount))
+      : round((grossTotalA * tdsPct) / 100);
+
+  const totalDeductionB = round(employeeEpfAmount + employeeEsicAmount + professionalTaxAmount + tdsAmount);
   const netTakeHomeC = round(grossTotalA - totalDeductionB);
 
   const compEpfPct = round(Number(input.companyEpfPercentage) || 0);
@@ -111,6 +122,8 @@ export function calculateSalaryStructure(input: SalaryInputData): CalculatedSala
     employeeEsicAmount,
     professionalTaxPercentage: ptPct,
     professionalTaxAmount,
+    tdsPercentage: tdsPct,
+    tdsAmount,
     totalDeductionB,
     netTakeHomeC,
     companyEpfPercentage: compEpfPct,
@@ -124,3 +137,4 @@ export function calculateSalaryStructure(input: SalaryInputData): CalculatedSala
     ctcPerAnnum,
   };
 }
+

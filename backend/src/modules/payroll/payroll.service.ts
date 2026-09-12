@@ -2103,6 +2103,9 @@ export class PayrollService {
             employeeEsicAmount: calc.employeeEsicAmount,
             professionalTaxPercentage: calc.professionalTaxPercentage,
             professionalTaxAmount: calc.professionalTaxAmount,
+            tdsPercentage: calc.tdsPercentage,
+            tdsAmount: calc.tdsAmount,
+            tdsApplicable: calc.tdsAmount > 0 || body.tdsApplicable === true,
             totalDeduction: calc.totalDeductionB,
             netTakeHome: calc.netTakeHomeC,
             companyEpfPercentage: calc.companyEpfPercentage,
@@ -2214,6 +2217,16 @@ export class PayrollService {
         ? new Date(body.wef)
         : existing.effectiveFrom;
 
+    // Deactivate any other active records for this employee so this updated record is the single active source
+    await this.prisma.employeeSalaryStructure.updateMany({
+      where: {
+        employeeId: existing.employeeId,
+        id: { not: existing.id },
+        isActive: true,
+      },
+      data: { isActive: false },
+    });
+
     const updated = await this.prisma.employeeSalaryStructure.update({
       where: { id: existing.id },
       data: {
@@ -2242,6 +2255,9 @@ export class PayrollService {
         employeeEsicAmount: calc.employeeEsicAmount,
         professionalTaxPercentage: calc.professionalTaxPercentage,
         professionalTaxAmount: calc.professionalTaxAmount,
+        tdsPercentage: calc.tdsPercentage,
+        tdsAmount: calc.tdsAmount,
+        tdsApplicable: calc.tdsAmount > 0 || body.tdsApplicable === true,
         totalDeduction: calc.totalDeductionB,
         netTakeHome: calc.netTakeHomeC,
         companyEpfPercentage: calc.companyEpfPercentage,
@@ -2252,6 +2268,8 @@ export class PayrollService {
         gratuityAmount: calc.gratuityAmount,
         totalCompanyContribution: calc.totalCompanyContributionD,
         ctcPerMonth: calc.ctcPerMonthE,
+        status: 'ACTIVE',
+        isActive: true,
       },
       include: {
         employee: {
@@ -2299,7 +2317,10 @@ export class PayrollService {
         const pfDeduction = calc.employeeEpfAmount;
         const esicDeduction = calc.employeeEsicAmount;
         const professionalTax = calc.professionalTaxAmount;
-        const tdsDeduction = Number(rec.tdsDeduction || 0);
+        const tdsDeduction =
+          calc.tdsAmount !== undefined && calc.tdsAmount >= 0
+            ? calc.tdsAmount
+            : Number(rec.tdsDeduction || 0);
         const otherDeductions = Number(rec.otherDeductions || 0);
 
         const totalDeductions =
@@ -2327,6 +2348,7 @@ export class PayrollService {
             pfDeduction,
             esicDeduction,
             professionalTax,
+            tdsDeduction,
             totalDeductions,
             netPayable,
             employerPf,
@@ -2340,6 +2362,7 @@ export class PayrollService {
               updated.designationSnapshot || rec.jobTitleSnapshot,
           },
         });
+
 
         // Also update any SalarySlip attached to this record
         await this.prisma.salarySlip

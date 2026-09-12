@@ -48,8 +48,10 @@ async function performBackendFetch<T = unknown>(
     : url;
   const method = opts.method || 'GET';
   const headers = getAuthHeaders(opts);
+  headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+  headers['Pragma'] = 'no-cache';
 
-  const fetchOpts: RequestInit = { method, headers };
+  const fetchOpts: RequestInit = { method, headers, cache: 'no-store' };
   if (opts.body !== undefined && method !== 'GET') {
     fetchOpts.body =
       opts.body instanceof FormData

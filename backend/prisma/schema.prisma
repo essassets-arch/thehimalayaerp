@@ -878,6 +878,8 @@ model EmployeeSalaryStructure {
   employeeEsicAmount           Decimal   @default(0) @db.Decimal(14, 2)
   professionalTaxPercentage    Decimal   @default(0) @db.Decimal(6, 2)
   professionalTaxAmount        Decimal   @default(0) @db.Decimal(14, 2)
+  tdsPercentage                Decimal   @default(0) @db.Decimal(6, 2)
+  tdsAmount                    Decimal   @default(0) @db.Decimal(14, 2)
   totalDeduction               Decimal   @default(0) @db.Decimal(14, 2)
 
   // C - Net Take Home

@@ -93,6 +93,7 @@ export function CreateSalaryStructureView({
   const [empEpfPct, setEmpEpfPct] = useState<number>(12);
   const [empEsicPct, setEmpEsicPct] = useState<number>(0.75);
   const [ptPct, setPtPct] = useState<number>(0);
+  const [tdsPct, setTdsPct] = useState<number>(0);
 
   const [compEpfPct, setCompEpfPct] = useState<number>(12);
   const [compEsicPct, setCompEsicPct] = useState<number>(3.25);
@@ -154,23 +155,34 @@ export function CreateSalaryStructureView({
             const edu = Number(struct.educationAllowanceAmount ?? struct.educationAllowance ?? struct.otherAllowance ?? 0);
             const conv = Number(struct.conveyanceAllowance ?? struct.conveyanceAmount ?? 0);
 
-            const hraPercentage = Number(struct.hraPercentage) > 0 ? Number(struct.hraPercentage) : (basic > 0 && hra > 0 ? Math.round((hra / basic) * 100) : 10);
-            const ltaPercentage = Number(struct.ltaPercentage) > 0 ? Number(struct.ltaPercentage) : (basic > 0 && lta > 0 ? Math.round((lta / basic) * 100) : 5);
-            const eduPercentage = Number(struct.educationAllowancePercentage) > 0 ? Number(struct.educationAllowancePercentage) : (basic > 0 && edu > 0 ? Math.round((edu / basic) * 100) : 5);
-            const convPercentage = Number(struct.conveyancePercentage) > 0 ? Number(struct.conveyancePercentage) : (basic > 0 && conv > 0 ? Math.round((conv / basic) * 100) : 5);
+            const hraPercentage = struct.hraPercentage !== undefined && struct.hraPercentage !== null
+              ? Number(struct.hraPercentage)
+              : (basic > 0 && hra > 0 ? Math.round((hra / basic) * 100) : 10);
+            const ltaPercentage = struct.ltaPercentage !== undefined && struct.ltaPercentage !== null
+              ? Number(struct.ltaPercentage)
+              : (basic > 0 && lta > 0 ? Math.round((lta / basic) * 100) : 5);
+            const eduPercentage = struct.educationAllowancePercentage !== undefined && struct.educationAllowancePercentage !== null
+              ? Number(struct.educationAllowancePercentage)
+              : (basic > 0 && edu > 0 ? Math.round((edu / basic) * 100) : 5);
+            const convPercentage = struct.conveyancePercentage !== undefined && struct.conveyancePercentage !== null
+              ? Number(struct.conveyancePercentage)
+              : (basic > 0 && conv > 0 ? Math.round((conv / basic) * 100) : 5);
 
             setHraPct(hraPercentage);
             setLtaPct(ltaPercentage);
             setEduPct(eduPercentage);
             setConvPct(convPercentage);
 
-            const epfPct = Number(struct.employeeEpfPercentage) > 0 ? Number(struct.employeeEpfPercentage) : (struct.employeeEpfAmount > 0 ? 12 : 12);
+            const epfPct = struct.employeeEpfPercentage !== undefined && struct.employeeEpfPercentage !== null
+              ? Number(struct.employeeEpfPercentage)
+              : (struct.employeeEpfAmount > 0 ? 12 : 12);
             setEmpEpfPct(epfPct);
-            setEmpEsicPct(Number(struct.employeeEsicPercentage) || 0.75);
-            setPtPct(Number(struct.professionalTaxPercentage) || 0);
-            setCompEpfPct(Number(struct.companyEpfPercentage) || 12);
-            setCompEsicPct(Number(struct.companyEsicPercentage) || 3.25);
-            setGratuityPct(Number(struct.gratuityPercentage) || 4.81);
+            setEmpEsicPct(struct.employeeEsicPercentage !== undefined && struct.employeeEsicPercentage !== null ? Number(struct.employeeEsicPercentage) : 0.75);
+            setPtPct(struct.professionalTaxPercentage !== undefined && struct.professionalTaxPercentage !== null ? Number(struct.professionalTaxPercentage) : 0);
+            setTdsPct(struct.tdsPercentage !== undefined && struct.tdsPercentage !== null ? Number(struct.tdsPercentage) : 0);
+            setCompEpfPct(struct.companyEpfPercentage !== undefined && struct.companyEpfPercentage !== null ? Number(struct.companyEpfPercentage) : 12);
+            setCompEsicPct(struct.companyEsicPercentage !== undefined && struct.companyEsicPercentage !== null ? Number(struct.companyEsicPercentage) : 3.25);
+            setGratuityPct(struct.gratuityPercentage !== undefined && struct.gratuityPercentage !== null ? Number(struct.gratuityPercentage) : 4.81);
             if (struct.wef) setWef(struct.wef);
             if (struct.effectiveFrom) {
               try {
@@ -228,29 +240,13 @@ export function CreateSalaryStructureView({
     try {
       const res = await payrollService.getPayrollAttendanceSummary(selectedEmployeeId, payrollMonth);
       setAttendanceData(res);
-
-      if (mode === 'create' && res?.structure) {
-        const struct = res.structure;
-        setBasicSalary(Number(struct.basicSalary) || 30000);
-        setHraPct(Number(struct.hraPercentage) || 10);
-        setLtaPct(Number(struct.ltaPercentage) || 5);
-        setEduPct(Number(struct.educationAllowancePercentage) || 5);
-        setConvPct(Number(struct.conveyancePercentage) || 5);
-        setEmpEpfPct(Number(struct.employeeEpfPercentage) || 12);
-        setEmpEsicPct(Number(struct.employeeEsicPercentage) || 0.75);
-        setPtPct(Number(struct.professionalTaxPercentage) || 0);
-        setCompEpfPct(Number(struct.companyEpfPercentage) || 12);
-        setCompEsicPct(Number(struct.companyEsicPercentage) || 3.25);
-        setGratuityPct(Number(struct.gratuityPercentage) || 4.81);
-        if (struct.wef) setWef(struct.wef);
-      }
     } catch (err: any) {
       console.error('Failed to fetch attendance summary:', err);
       setAttendanceError(err?.message || 'Could not fetch attendance & leave data from HR system.');
     } finally {
       setLoadingAttendance(false);
     }
-  }, [selectedEmployeeId, payrollMonth, mode]);
+  }, [selectedEmployeeId, payrollMonth]);
 
   // AUTOMATIC ATTENDANCE & LEAVE FETCHING ON EMPLOYEE / MONTH SELECTION
   useEffect(() => {
@@ -273,16 +269,17 @@ export function CreateSalaryStructureView({
       const existing = existingStructures.find((s) => s.employeeId === emp.id && s.isActive);
       if (existing) {
         setBasicSalary(Number(existing.basicSalary) || 30000);
-        setHraPct(Number(existing.hraPercentage) || 10);
-        setLtaPct(Number(existing.ltaPercentage) || 5);
-        setEduPct(Number(existing.educationAllowancePercentage) || 5);
-        setConvPct(Number(existing.conveyancePercentage) || 5);
-        setEmpEpfPct(Number(existing.employeeEpfPercentage) || 12);
-        setEmpEsicPct(Number(existing.employeeEsicPercentage) || 0.75);
-        setPtPct(Number(existing.professionalTaxPercentage) || 0);
-        setCompEpfPct(Number(existing.companyEpfPercentage) || 12);
-        setCompEsicPct(Number(existing.companyEsicPercentage) || 3.25);
-        setGratuityPct(Number(existing.gratuityPercentage) || 4.81);
+        setHraPct(existing.hraPercentage !== undefined ? Number(existing.hraPercentage) : 10);
+        setLtaPct(existing.ltaPercentage !== undefined ? Number(existing.ltaPercentage) : 5);
+        setEduPct(existing.educationAllowancePercentage !== undefined ? Number(existing.educationAllowancePercentage) : 5);
+        setConvPct(existing.conveyancePercentage !== undefined ? Number(existing.conveyancePercentage) : 5);
+        setEmpEpfPct(existing.employeeEpfPercentage !== undefined ? Number(existing.employeeEpfPercentage) : 12);
+        setEmpEsicPct(existing.employeeEsicPercentage !== undefined ? Number(existing.employeeEsicPercentage) : 0.75);
+        setPtPct(existing.professionalTaxPercentage !== undefined ? Number(existing.professionalTaxPercentage) : 0);
+        setTdsPct(existing.tdsPercentage !== undefined ? Number(existing.tdsPercentage) : 0);
+        setCompEpfPct(existing.companyEpfPercentage !== undefined ? Number(existing.companyEpfPercentage) : 12);
+        setCompEsicPct(existing.companyEsicPercentage !== undefined ? Number(existing.companyEsicPercentage) : 3.25);
+        setGratuityPct(existing.gratuityPercentage !== undefined ? Number(existing.gratuityPercentage) : 4.81);
         if (existing.wef) setWef(existing.wef);
       } else if (emp.baseSalary && Number(emp.baseSalary) > 0) {
         setBasicSalary(Number(emp.baseSalary));
@@ -299,6 +296,7 @@ export function CreateSalaryStructureView({
     setEmpEpfPct(12);
     setEmpEsicPct(0.75);
     setPtPct(0);
+    setTdsPct(0);
     setCompEpfPct(12);
     setCompEsicPct(3.25);
     setGratuityPct(4.81);
@@ -331,6 +329,7 @@ export function CreateSalaryStructureView({
       employeeEpfPercentage: Number(empEpfPct) || 0,
       employeeEsicPercentage: Number(empEsicPct) || 0,
       professionalTaxPercentage: Number(ptPct) || 0,
+      tdsPercentage: Number(tdsPct) || 0,
       companyEpfPercentage: Number(compEpfPct) || 0,
       companyEsicPercentage: Number(compEsicPct) || 0,
       gratuityPercentage: Number(gratuityPct) || 0,
@@ -345,6 +344,7 @@ export function CreateSalaryStructureView({
     empEpfPct,
     empEsicPct,
     ptPct,
+    tdsPct,
     compEpfPct,
     compEsicPct,
     gratuityPct,
@@ -452,6 +452,9 @@ export function CreateSalaryStructureView({
       employeeEsicAmount: calculation.employeeEsicAmount,
       professionalTaxPercentage: calculation.professionalTaxPercentage,
       professionalTaxAmount: calculation.professionalTaxAmount,
+      tdsPercentage: calculation.tdsPercentage,
+      tdsAmount: calculation.tdsAmount,
+      tdsApplicable: calculation.tdsAmount > 0 || calculation.tdsPercentage > 0,
       totalDeduction: calculation.totalDeductionB,
       netTakeHome: calculation.netTakeHomeC,
       companyEpfPercentage: calculation.companyEpfPercentage,
@@ -492,6 +495,7 @@ export function CreateSalaryStructureView({
           confirmButtonColor: '#0f172a',
         });
       }
+      router.refresh();
       router.push('/hr/salary/prepare');
     } catch (err: any) {
       console.error('Failed to save salary structure:', err);
@@ -1382,6 +1386,40 @@ export function CreateSalaryStructureView({
                 </div>
                 <div className="ctc-allowance-result" style={{ color: '#be123c' }}>
                   {fmt(calculation.professionalTaxAmount)}
+                </div>
+              </div>
+
+              {/* Tax Deducted at Source (TDS) */}
+              <div className="ctc-allowance-card">
+                <div className="ctc-allowance-title">
+                  <span style={{ color: '#be123c' }}>Tax Deducted at Source (TDS)</span>
+                  <span className="ctc-allowance-tag">
+                    {tdsPct > 0 ? `${tdsPct}% of Gross` : 'Income Tax (0%)'}
+                  </span>
+                </div>
+                <div className="ctc-allowance-control">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="any"
+                    disabled={isReadOnly}
+                    value={tdsPct}
+                    onChange={(e) => setTdsPct(parseFloat(e.target.value) || 0)}
+                    className="ctc-pct-input"
+                  />
+                  <span className="ctc-pct-symbol">% of Gross</span>
+
+                  {!isReadOnly && (
+                    <div className="ctc-allowance-quick-presets" style={{ marginLeft: 'auto' }}>
+                      <button type="button" onClick={() => setTdsPct(0)} className="ctc-allowance-preset-btn">0%</button>
+                      <button type="button" onClick={() => setTdsPct(5)} className="ctc-allowance-preset-btn">5%</button>
+                      <button type="button" onClick={() => setTdsPct(10)} className="ctc-allowance-preset-btn">10%</button>
+                    </div>
+                  )}
+                </div>
+                <div className="ctc-allowance-result" style={{ color: '#be123c' }}>
+                  {fmt(calculation.tdsAmount)}
                 </div>
               </div>
             </div>

@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { safeSaveFile } from '../../services/export.service';
 import './SalarySlipDocument.css';
@@ -156,7 +155,11 @@ export function SalarySlipDocument({
 
   const leaveDeduction = Number(data.leaveDeduction || data.lopDeduction || 0);
 
-  const statutoryDeductions = empEpfAmount + empEsicAmount + ptAmount + leaveDeduction;
+  const tdsPct = Number(data.tdsPercentage || 0);
+  const rawTds = Number(data.tdsAmount ?? data.tdsDeduction ?? data.tds ?? 0);
+  const tdsAmount = rawTds > 0 ? rawTds : (tdsPct > 0 ? Math.round((totalGross * tdsPct) / 100) : 0);
+
+  const statutoryDeductions = empEpfAmount + empEsicAmount + ptAmount + tdsAmount + leaveDeduction;
   const rawDeductions = Number(data.totalDeduction ?? data.totalDeductions ?? 0);
   const totalDeductions = rawDeductions > 0 ? rawDeductions : statutoryDeductions;
 
@@ -184,16 +187,10 @@ export function SalarySlipDocument({
   const ctcPerMonth = Number(data.ctcPerMonth) > 0 ? Number(data.ctcPerMonth) : (totalGross + totalCompanyCost);
   const ctcPerAnnum = ctcPerMonth * 12;
 
-  // Print function
-  const handlePrint = () => {
-    window.print();
-  };
-
-  // PDF Download function using html2canvas and jsPDF
-  const handleDownloadPDF = async () => {
+  // High-Resolution Image Download function using html2canvas
+  const handleDownloadImage = async () => {
     const el = document.getElementById('printable-salary-slip-doc');
     if (!el) {
-      window.print();
       return;
     }
 
@@ -208,43 +205,42 @@ export function SalarySlipDocument({
         windowWidth: 1024,
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-
-      const pdfWidth = 210; // A4 mm
-      const pdfHeight = 297; // A4 mm
-      const margin = 8;
-      const printableWidth = pdfWidth - (margin * 2);
-      const imgHeight = (canvas.height * printableWidth) / canvas.width;
-
-      if (imgHeight <= pdfHeight - (margin * 2)) {
-        pdf.addImage(imgData, 'JPEG', margin, margin, printableWidth, imgHeight, undefined, 'FAST');
-      } else {
-        let heightLeft = imgHeight;
-        let position = margin;
-        pdf.addImage(imgData, 'JPEG', margin, position, printableWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= (pdfHeight - margin);
-
-        while (heightLeft > 0) {
-          position = heightLeft - imgHeight + margin;
-          pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', margin, position, printableWidth, imgHeight, undefined, 'FAST');
-          heightLeft -= (pdfHeight - margin);
-        }
-      }
-
       const safeName = (empName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_');
       const safeCode = (empCode || '').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const filename = `Salary_Slip_${safeName}_${safeCode}.pdf`;
+      const filename = `Salary_Slip_${safeName}_${safeCode}.png`;
 
-      pdf.save(filename);
+      if (canvas.toBlob) {
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            const imageURI = canvas.toDataURL('image/png', 1.0);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = imageURI;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.download = filename;
+          link.href = url;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(url), 2000);
+        }, 'image/png', 1.0);
+      } else {
+        const imageURI = canvas.toDataURL('image/png', 1.0);
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = imageURI;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     } catch (err) {
-      console.error('Failed to generate PDF:', err);
-      window.print();
+      console.error('Failed to generate salary slip image:', err);
     } finally {
       setDownloading(false);
     }
@@ -364,8 +360,17 @@ export function SalarySlipDocument({
           <tr>
             <td><strong>Conveyance Allowance</strong> <small style={{ color: '#64748b' }}>({convPct}% of Basic)</small></td>
             <td style={{ textAlign: 'right' }}>{fmt(convAmount)}</td>
-            <td style={{ color: '#94a3b8' }}>—</td>
-            <td style={{ textAlign: 'right', color: '#94a3b8' }}>—</td>
+            {tdsAmount > 0 ? (
+              <>
+                <td><strong>TDS (Income Tax)</strong> <small style={{ color: '#64748b' }}>({tdsPct > 0 ? `${tdsPct}% of Gross` : 'Tax Slab'})</small></td>
+                <td style={{ textAlign: 'right', color: '#e11d48', fontWeight: 600 }}>{fmt(tdsAmount)}</td>
+              </>
+            ) : (
+              <>
+                <td><strong>TDS (Income Tax)</strong> <small style={{ color: '#94a3b8' }}>(0%)</small></td>
+                <td style={{ textAlign: 'right', color: '#94a3b8' }}>₹ 0.00</td>
+              </>
+            )}
           </tr>
           <tr className="subtotal-row">
             <td><strong>TOTAL GROSS SALARY (A)</strong></td>
@@ -469,24 +474,15 @@ export function SalarySlipDocument({
             </div>
 
             <div className="salary-slip-toolbar-actions">
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="btn-slip-action btn-slip-print"
-                title="Print Document"
-              >
-                🖨️ Print Slip
-              </button>
-
               {allowDownload && (
                 <button
                   type="button"
-                  onClick={handleDownloadPDF}
+                  onClick={handleDownloadImage}
                   disabled={downloading}
                   className="btn-slip-action btn-slip-download"
-                  title="Download PDF"
+                  title="Download Salary Slip as Image"
                 >
-                  {downloading ? '⏳ Generating PDF...' : '📥 Download PDF'}
+                  {downloading ? '⏳ Generating Image...' : '🖼️ Download Image'}
                 </button>
               )}
 
@@ -527,22 +523,15 @@ export function SalarySlipDocument({
         </div>
 
         <div className="salary-slip-toolbar-actions">
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="btn-slip-action btn-slip-print"
-          >
-            🖨️ Print Slip
-          </button>
-
           {allowDownload && (
             <button
               type="button"
-              onClick={handleDownloadPDF}
+              onClick={handleDownloadImage}
               disabled={downloading}
               className="btn-slip-action btn-slip-download"
+              title="Download Salary Slip as Image"
             >
-              {downloading ? '⏳ Generating PDF...' : '📥 Download PDF'}
+              {downloading ? '⏳ Generating Image...' : '🖼️ Download Image'}
             </button>
           )}
 

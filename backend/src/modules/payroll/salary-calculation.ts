@@ -7,6 +7,8 @@ export interface SalaryInputData {
   employeeEpfPercentage?: number;
   employeeEsicPercentage?: number;
   professionalTaxPercentage?: number;
+  tdsPercentage?: number;
+  tdsAmount?: number;
   companyEpfPercentage?: number;
   companyEsicPercentage?: number;
   gratuityPercentage?: number;
@@ -35,6 +37,7 @@ export function calculateSalaryStructure(input: SalaryInputData) {
   const epfPct = round(Number(input.employeeEpfPercentage) || 0);
   const esicPct = round(Number(input.employeeEsicPercentage) || 0);
   const ptPct = round(Number(input.professionalTaxPercentage) || 0);
+  const tdsPct = round(Number((input as any).tdsPercentage) || 0);
 
   // Statutory EPF Wage Ceiling is ₹15,000 (12% of 15,000 = ₹1,800)
   const epfWage = basic > 15000 && epfPct === 12 ? 15000 : basic;
@@ -43,11 +46,12 @@ export function calculateSalaryStructure(input: SalaryInputData) {
       ? round(Number((input as any).employeeEpfAmount))
       : round((epfWage * epfPct) / 100);
 
-  // Statutory ESIC Gross Ceiling is ₹21,000
+  // Statutory ESIC Wage Ceiling is ₹21,000 (0.75% of 21k max)
+  const esicWage = grossTotalA > 21000 ? 21000 : grossTotalA;
   const employeeEsicAmount =
     (input as any).employeeEsicAmount !== undefined && (input as any).employeeEsicAmount !== null && Number((input as any).employeeEsicAmount) >= 0
       ? round(Number((input as any).employeeEsicAmount))
-      : (grossTotalA <= 21000 ? round((grossTotalA * esicPct) / 100) : 0);
+      : round((esicWage * esicPct) / 100);
 
   // Professional Tax: standard ₹200 if gross >= 12,000
   const professionalTaxAmount =
@@ -55,8 +59,14 @@ export function calculateSalaryStructure(input: SalaryInputData) {
       ? round(Number((input as any).professionalTaxAmount))
       : (ptPct > 0 ? round((grossTotalA * ptPct) / 100) : (grossTotalA >= 12000 ? 200 : 0));
 
+  // Tax Deducted at Source (TDS): dynamic % of Gross or explicit amount
+  const tdsAmount =
+    (input as any).tdsAmount !== undefined && (input as any).tdsAmount !== null && Number((input as any).tdsAmount) >= 0 && (Number((input as any).tdsAmount) > 0 || tdsPct === 0)
+      ? round(Number((input as any).tdsAmount))
+      : round((grossTotalA * tdsPct) / 100);
+
   const totalDeductionB = round(
-    employeeEpfAmount + employeeEsicAmount + professionalTaxAmount,
+    employeeEpfAmount + employeeEsicAmount + professionalTaxAmount + tdsAmount,
   );
   const netTakeHomeC = round(grossTotalA - totalDeductionB);
 
@@ -78,7 +88,7 @@ export function calculateSalaryStructure(input: SalaryInputData) {
   const companyEsicAmount =
     (input as any).companyEsicAmount !== undefined && (input as any).companyEsicAmount !== null && Number((input as any).companyEsicAmount) >= 0
       ? round(Number((input as any).companyEsicAmount))
-      : (grossTotalA <= 21000 ? round((grossTotalA * compEsicPct) / 100) : 0);
+      : round((esicWage * compEsicPct) / 100);
 
   const gratuityAmount =
     (input as any).gratuityAmount !== undefined && (input as any).gratuityAmount !== null && Number((input as any).gratuityAmount) >= 0
@@ -107,6 +117,8 @@ export function calculateSalaryStructure(input: SalaryInputData) {
     employeeEsicAmount,
     professionalTaxPercentage: ptPct,
     professionalTaxAmount,
+    tdsPercentage: tdsPct,
+    tdsAmount,
     totalDeductionB,
     netTakeHomeC,
     companyEpfPercentage: compEpfPct,
@@ -119,3 +131,4 @@ export function calculateSalaryStructure(input: SalaryInputData) {
     ctcPerMonthE,
   };
 }
+

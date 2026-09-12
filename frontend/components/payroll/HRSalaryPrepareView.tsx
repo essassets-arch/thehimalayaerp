@@ -52,6 +52,16 @@ export default function HRSalaryPrepareView() {
 
   useEffect(() => {
     void loadData();
+
+    const onFocus = () => {
+      void loadData();
+    };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('visibilitychange', onFocus);
+    };
   }, [loadData]);
 
   // Map employee IDs to their latest PayrollRecord for instant submission status tracking
