@@ -20,7 +20,8 @@ import {
   ChevronRight,
   Filter,
   Check,
-  Copy
+  Copy,
+  Clock
 } from 'lucide-react';
 import { grnService } from '../../../services/procurement/grnService';
 import { useERPStore } from '../../../store/erpStore';
@@ -95,6 +96,39 @@ const resolveIndentId = (po, snapshot, erpPOs = [], erpIndents = []) => {
   return indentId || '—';
 };
 
+const computeDeliveryStage = (po, item, erpPOs = []) => {
+  const targetPo = erpPOs.find(p => p.id === po?.id || p.poNumber === po?.poNumber || p.id === item?.purchaseOrderId);
+  const effectivePOStatus = (po?.status || targetPo?.status || '').toUpperCase();
+
+  const isPOClosed = ['CLOSED', 'PO_CLOSED', 'PURCHASE_COMPLETED', 'COMPLETED'].includes(effectivePOStatus);
+
+  let areAllItemsDelivered = false;
+  if (targetPo?.items?.length) {
+    areAllItemsDelivered = targetPo.items.every(ti => {
+      const ord = Number(ti.quantity || ti.orderedQty || 0);
+      const rec = Number(ti.receivedQty || ti.cumulativeDeliveredQty || ti.receivedQuantity || 0);
+      return ord > 0 && rec >= ord;
+    });
+  }
+
+  const isDeliveryComplete = isPOClosed || areAllItemsDelivered || item?.status === 'COMPLETED';
+  const isDeliveryPartial = !isDeliveryComplete && (
+    ['PARTIALLY_DELIVERED', 'PARTIALLY_RECEIVED'].includes(effectivePOStatus) ||
+    item?.status === 'PARTIAL' ||
+    Boolean(targetPo?.items?.some(ti => {
+      const ord = Number(ti.quantity || ti.orderedQty || 0);
+      const rec = Number(ti.receivedQty || ti.cumulativeDeliveredQty || ti.receivedQuantity || 0);
+      return rec > 0 && rec < ord;
+    }))
+  );
+
+  return {
+    isDeliveryComplete,
+    isDeliveryPartial,
+    deliveryStage: isDeliveryComplete ? 'COMPLETED' : isDeliveryPartial ? 'PARTIAL' : 'INWARD_RECEIVED'
+  };
+};
+
 export default function DeliveryHistory() {
   const erpStoreState = useERPStore(s => s.state);
   const erpPOs = useMemo(() => erpStoreState?.procurement?.purchaseOrders ?? erpStoreState?.purchaseOrders ?? [], [erpStoreState]);
@@ -139,6 +173,7 @@ export default function DeliveryHistory() {
         );
 
         const indentNumber = resolveIndentId(po, snapshot, erpPOs, erpIndents);
+        const { isDeliveryComplete, isDeliveryPartial, deliveryStage } = computeDeliveryStage(po, item, erpPOs);
 
         return {
           id: item.id,
@@ -146,6 +181,10 @@ export default function DeliveryHistory() {
           poNumber: po.poNumber || po.publicId || item.purchaseOrderId || 'PO-RECORD',
           poId: po.id || item.purchaseOrderId,
           indentNumber,
+          isDeliveryComplete,
+          isDeliveryPartial,
+          deliveryStage,
+          poStatus: po.status || '',
           vendorName: supplier.name || snapshot.vendorName || 'Vendor / Supplier',
           vendorCode: supplier.vendorCode || supplier.publicId || '—',
           receivedAt: item.receivedAt || item.createdAt,
@@ -184,12 +223,18 @@ export default function DeliveryHistory() {
           const po = item.purchaseOrder || {};
           const supplier = po.supplier || {};
 
+          const { isDeliveryComplete, isDeliveryPartial, deliveryStage } = computeDeliveryStage(po, item, erpPOs);
+
           return {
             id: item.id,
             grnNumber: item.grnNumber || item.publicId || `GRN-${item.id.slice(0, 8).toUpperCase()}`,
             poNumber: po.poNumber || po.publicId || item.purchaseOrderId || 'PO-RECORD',
             poId: po.id || item.purchaseOrderId,
             indentNumber: resolveIndentId(po, snapshot, erpPOs, erpIndents),
+            isDeliveryComplete,
+            isDeliveryPartial,
+            deliveryStage,
+            poStatus: po.status || '',
             vendorName: supplier.name || snapshot.vendorName || 'Vendor / Supplier',
             vendorCode: supplier.vendorCode || supplier.publicId || '—',
             receivedAt: item.receivedAt || item.createdAt,
@@ -254,8 +299,10 @@ export default function DeliveryHistory() {
     const totalDeliveries = deliveries.length;
     const totalAccepted = deliveries.reduce((s, d) => s + d.totalAccepted, 0);
     const totalRejected = deliveries.reduce((s, d) => s + d.totalRejected, 0);
-    const verifiedCount = deliveries.filter(d => ['VERIFIED', 'COMPLETED', 'RECEIVED'].includes((d.status || '').toUpperCase())).length;
-    return { totalDeliveries, totalAccepted, totalRejected, verifiedCount };
+    const completedCount = deliveries.filter(d => d.isDeliveryComplete).length;
+    const partialCount = deliveries.filter(d => d.isDeliveryPartial).length;
+    const verifiedCount = deliveries.filter(d => ['VERIFIED', 'COMPLETED', 'RECEIVED', 'FINANCE_AUDIT_APPROVED'].includes((d.status || '').toUpperCase())).length;
+    return { totalDeliveries, totalAccepted, totalRejected, completedCount, partialCount, verifiedCount };
   }, [deliveries]);
 
   // Filtering
@@ -280,9 +327,10 @@ export default function DeliveryHistory() {
 
       // Status filter
       if (statusFilter !== 'ALL') {
-        if (statusFilter === 'VERIFIED' && !['VERIFIED', 'RECEIVED'].includes(item.status)) return false;
-        if (statusFilter === 'COMPLETED' && item.status !== 'COMPLETED') return false;
-        if (statusFilter === 'AUDITED' && item.status !== 'AUDITED') return false;
+        if (statusFilter === 'COMPLETED' && !item.isDeliveryComplete) return false;
+        if (statusFilter === 'PARTIAL' && !item.isDeliveryPartial) return false;
+        if (statusFilter === 'VERIFIED' && !['VERIFIED', 'RECEIVED', 'STORE_VERIFIED', 'FINANCE_AUDIT_APPROVED'].includes(item.status)) return false;
+        if (statusFilter === 'AUDITED' && item.status !== 'FINANCE_AUDIT_APPROVED') return false;
         if (statusFilter === 'REJECTIONS' && item.totalRejected <= 0) return false;
       }
 
@@ -584,11 +632,12 @@ export default function DeliveryHistory() {
 
         {/* Filters */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'inline-flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', gap: '2px' }}>
+          <div style={{ display: 'inline-flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px', gap: '2px', flexWrap: 'wrap' }}>
             {[
-              { id: 'ALL', label: 'All Receipts' },
-              { id: 'VERIFIED', label: 'Verified' },
-              { id: 'COMPLETED', label: 'Completed' },
+              { id: 'ALL', label: `All Receipts (${deliveries.length})` },
+              { id: 'COMPLETED', label: `Completed Deliveries (${stats.completedCount})` },
+              { id: 'PARTIAL', label: `Partial Deliveries (${stats.partialCount})` },
+              { id: 'VERIFIED', label: 'Approved' },
               { id: 'REJECTIONS', label: 'Has Rejections' },
             ].map(f => {
               const active = statusFilter === f.id;
@@ -776,6 +825,41 @@ export default function DeliveryHistory() {
                         <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
                           {delivery.warehouseName}
                         </div>
+                        {delivery.isDeliveryComplete ? (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            marginTop: '4px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            background: '#DCFCE7',
+                            color: '#15803D',
+                            border: '1px solid #BBF7D0'
+                          }}>
+                            <CheckCircle2 size={10} />
+                            Complete Delivery
+                          </span>
+                        ) : delivery.isDeliveryPartial ? (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            marginTop: '4px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            background: '#FEF3C7',
+                            color: '#B45309',
+                            border: '1px solid #FDE68A'
+                          }}>
+                            <Clock size={10} />
+                            Partial Delivery
+                          </span>
+                        ) : null}
                       </td>
 
                       {/* Indent ID */}

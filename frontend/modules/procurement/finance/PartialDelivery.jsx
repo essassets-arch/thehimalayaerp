@@ -1513,10 +1513,45 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
       }
     });
 
+    // Count POs where delivery has been completed (100% fulfilled or closed)
+    let completedPOsCount = 0;
+    candidates.forEach(po => {
+      const poId = po.id;
+      const poNum = po.poNumber || po.publicId || po.id;
+      const poGrns = (grnsByPO.get(poId) || grnsByPO.get(poNum) || po.grns || []).filter(g =>
+        !['CANCELLED', 'REJECTED', 'RETURNED_TO_STORE', 'FINANCE_AUDIT_REJECTED', 'VOID', 'VOIDED'].includes(g.status)
+      );
+      if (poGrns.length === 0) return;
+      if (['CLOSED', 'PO_CLOSED', 'PURCHASE_COMPLETED'].includes(po.status)) {
+        completedPOsCount++;
+        return;
+      }
+      const rawItems = po.items || [];
+      if (rawItems.length === 0) return;
+      const allDone = rawItems.every(item => {
+        let deliveredQty = 0;
+        poGrns.forEach(grn => {
+          (grn.items || []).forEach(gi => {
+            const isMatch =
+              (gi.purchaseOrderItemId && gi.purchaseOrderItemId === item.id) ||
+              (gi.productId && (gi.productId === item.productId || gi.productId === item.materialId)) ||
+              (gi.materialName && item.materialName && gi.materialName.toLowerCase() === item.materialName.toLowerCase());
+            if (isMatch) deliveredQty += Number(gi.acceptedQuantity ?? gi.receivedQuantity ?? 0);
+          });
+        });
+        const orderedQty = Number(item.quantity || item.orderedQty || 0);
+        return orderedQty > 0 && deliveredQty >= orderedQty;
+      });
+      if (allDone) {
+        completedPOsCount++;
+      }
+    });
+
     return {
       analyzedPOs: partialPOList,
       kpiSummary: {
         partialPOsCount: partialPOList.length,
+        completedPOsCount,
         totalMaterials: globalTotalLines,
         completedMaterials: globalCompleteLines,
         partialMaterials: globalPartialLines,
@@ -1658,7 +1693,7 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
         >
           <History size={15} />
           <span>Store Delivery History</span>
-          <span className="pd-subnav-badge store-badge">Store Log</span>
+          <span className="pd-subnav-badge store-badge">Store Log • Completed Deliveries</span>
         </button>
       </div>
 
@@ -1668,12 +1703,64 @@ export default function PartialDelivery({ onNavigateToAudit, onNavigateToPO }) {
         </div>
       ) : (
         <>
+          {/* ── Workflow Guide / Completed Partial Notice ── */}
+          <div style={{
+            background: '#F8FAFC',
+            border: '1px solid #E2E8F0',
+            borderRadius: '12px',
+            padding: '12px 18px',
+            marginBottom: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ background: '#DCFCE7', color: '#16A34A', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <CheckCircle2 size={16} />
+              </div>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+                  Completed Partial Deliveries Storage
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748B', marginTop: '1px' }}>
+                  When all remaining materials for a partial PO are delivered (100% fulfilled), the completed delivery records, GRNs, and audit history are permanently stored in <strong>Store Delivery History</strong>.
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSubTabChange('history')}
+              className="pd-btn-secondary"
+              style={{ fontSize: '12px', padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <History size={13} />
+              <span>View in Store Delivery History &rarr;</span>
+            </button>
+          </div>
+
           {/* ── KPI Summary Cards ── */}
       <div className="pd-kpi-grid">
         <div className="pd-kpi-card indigo">
           <span className="pd-kpi-label">Partial Purchase Orders</span>
           <span className="pd-kpi-val">{kpiSummary.partialPOsCount}</span>
           <span className="pd-kpi-sub">Active open POs with partial inward</span>
+        </div>
+        <div 
+          className="pd-kpi-card emerald"
+          onClick={() => handleSubTabChange('history')}
+          style={{ cursor: 'pointer' }}
+          title="Click to view all completed delivery history in Store Delivery History"
+        >
+          <span className="pd-kpi-label">Completed Deliveries</span>
+          <span className="pd-kpi-val" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>{kpiSummary.completedPOsCount}</span>
+            <span style={{ fontSize: '10.5px', color: '#16A34A', fontWeight: 700, background: '#DCFCE7', padding: '2px 7px', borderRadius: '10px' }}>
+              Store History &rarr;
+            </span>
+          </span>
+          <span className="pd-kpi-sub">Fully fulfilled POs stored in Store History</span>
         </div>
         <div className="pd-kpi-card">
           <span className="pd-kpi-label">Total Monitored Materials</span>
