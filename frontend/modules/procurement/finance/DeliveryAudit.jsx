@@ -953,6 +953,46 @@ export default function DeliveryAudit() {
     return null;
   };
 
+  const getProductName = (row, index) => {
+    const poItem = findPoItem(row, index);
+    const name = poItem?.product?.name || poItem?.productName || poItem?.materialName || poItem?.materialNameSnapshot;
+    if (name) return name;
+    const inv = rawInventory.find(item => item.id === row?.productId || item.materialId === row?.productId);
+    if (inv?.name) return inv.name;
+    return row?.materialName || row?.productName || (row?.productId ? `Material (${row.productId.substring(0, 8)})` : '—');
+  };
+
+  const getProductCode = (row, index) => {
+    const poItem = findPoItem(row, index);
+    const code = poItem?.product?.sku || poItem?.product?.code || poItem?.productSku || poItem?.materialCode || poItem?.materialCodeSnapshot;
+    if (code) return code;
+    const inv = rawInventory.find(item => item.id === row?.productId || item.materialId === row?.productId);
+    if (inv?.sku || inv?.code) return inv.sku || inv.code;
+    return row?.productId ? row.productId : '—';
+  };
+
+  const getProductUnit = (row, index) => {
+    const poItem = findPoItem(row, index);
+    const unit = poItem?.product?.unit || poItem?.product?.uom || poItem?.uom || poItem?.uomSnapshot || poItem?.unit;
+    if (unit) return unit;
+    const inv = rawInventory.find(item => item.id === row?.productId || item.materialId === row?.productId);
+    if (inv?.unit || inv?.uom) return inv.unit || inv.uom;
+    return 'Units';
+  };
+
+  const getProductUnitPrice = (row, index) => {
+    const poItem = findPoItem(row, index);
+    return Number(poItem?.unitPrice || poItem?.unitRate || poItem?.estimatedUnitRate || 0);
+  };
+
+  // Attachments extraction
+  const getAttachments = (grn) => {
+    if (!grn) return [];
+    const list = grn.snapshot?.attachments || grn.attachments || [];
+    if (Array.isArray(list)) return list;
+    return [];
+  };
+
   // All GRNs for the associated PO (all valid receipts, excluding cancelled/rejected)
   const allPOGRNs = useMemo(() => {
     if (!associatedPO) return [];
@@ -1098,46 +1138,6 @@ export default function DeliveryAudit() {
       fulfillmentPct
     };
   }, [associatedPO, selectedGRN, priorPOGRNs]);
-
-  const getProductName = (row, index) => {
-    const poItem = findPoItem(row, index);
-    const name = poItem?.product?.name || poItem?.productName || poItem?.materialName || poItem?.materialNameSnapshot;
-    if (name) return name;
-    const inv = rawInventory.find(item => item.id === row?.productId || item.materialId === row?.productId);
-    if (inv?.name) return inv.name;
-    return row?.materialName || row?.productName || (row?.productId ? `Material (${row.productId.substring(0, 8)})` : '—');
-  };
-
-  const getProductCode = (row, index) => {
-    const poItem = findPoItem(row, index);
-    const code = poItem?.product?.sku || poItem?.product?.code || poItem?.productSku || poItem?.materialCode || poItem?.materialCodeSnapshot;
-    if (code) return code;
-    const inv = rawInventory.find(item => item.id === row?.productId || item.materialId === row?.productId);
-    if (inv?.sku || inv?.code) return inv.sku || inv.code;
-    return row?.productId ? row.productId : '—';
-  };
-
-  const getProductUnit = (row, index) => {
-    const poItem = findPoItem(row, index);
-    const unit = poItem?.product?.unit || poItem?.product?.uom || poItem?.uom || poItem?.uomSnapshot || poItem?.unit;
-    if (unit) return unit;
-    const inv = rawInventory.find(item => item.id === row?.productId || item.materialId === row?.productId);
-    if (inv?.unit || inv?.uom) return inv.unit || inv.uom;
-    return 'Units';
-  };
-
-  const getProductUnitPrice = (row, index) => {
-    const poItem = findPoItem(row, index);
-    return Number(poItem?.unitPrice || poItem?.unitRate || poItem?.estimatedUnitRate || 0);
-  };
-
-  // Attachments extraction
-  const getAttachments = (grn) => {
-    if (!grn) return [];
-    const list = grn.snapshot?.attachments || grn.attachments || [];
-    if (Array.isArray(list)) return list;
-    return [];
-  };
 
   /* ──────────────── Actions ──────────────── */
 
@@ -1658,11 +1658,14 @@ export default function DeliveryAudit() {
               {attachments.length > 0 ? (
                 <div className="da-attachments-grid">
                   {attachments.map((doc, idx) => {
-                    const isImg =
-                      (doc.previewUrl && (doc.previewUrl.startsWith('data:image') || doc.previewUrl.startsWith('http'))) ||
-                      (doc.url && (doc.url.startsWith('data:image') || doc.url.startsWith('http'))) ||
-                      (typeof doc === 'string' && (doc.startsWith('data:image') || doc.startsWith('http')));
                     const src = doc.previewUrl || doc.url || (typeof doc === 'string' ? doc : '');
+                    let isImg = false;
+                    if (src && typeof src === 'string' && !src.includes('[truncated') && !src.includes('...')) {
+                      if (src.startsWith('data:image/') || src.startsWith('/')) isImg = true;
+                      else if (src.startsWith('http://') || src.startsWith('https://')) {
+                        try { new URL(src); isImg = true; } catch (e) { isImg = false; }
+                      }
+                    }
                     const name = doc.name || `Document ${idx + 1}`;
                     const size = doc.size || '';
 
@@ -1912,11 +1915,14 @@ export default function DeliveryAudit() {
                     {attachments.length > 0 && (
                       <div className="da-card-docs-preview" onClick={e => e.stopPropagation()}>
                         {attachments.slice(0, 4).map((doc, idx) => {
-                          const isImg =
-                            (doc.previewUrl && (doc.previewUrl.startsWith('data:image') || doc.previewUrl.startsWith('http'))) ||
-                            (doc.url && (doc.url.startsWith('data:image') || doc.url.startsWith('http'))) ||
-                            (typeof doc === 'string' && (doc.startsWith('data:image') || doc.startsWith('http')));
                           const src = doc.previewUrl || doc.url || (typeof doc === 'string' ? doc : '');
+                          let isImg = false;
+                          if (src && typeof src === 'string' && !src.includes('[truncated') && !src.includes('...')) {
+                            if (src.startsWith('data:image/') || src.startsWith('/')) isImg = true;
+                            else if (src.startsWith('http://') || src.startsWith('https://')) {
+                              try { new URL(src); isImg = true; } catch (e) { isImg = false; }
+                            }
+                          }
                           const name = doc.name || `Document ${idx + 1}`;
 
                           return isImg && src ? (
