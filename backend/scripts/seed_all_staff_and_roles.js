@@ -519,6 +519,7 @@ async function run() {
       roleCode: 'SUPER_SALES',
       deptName: 'Sales Department',
       jobTitle: 'SuperSales Lead',
+      phoneNumber: '8488811670',
     },
     {
       email: 'supersales2@himalayaerp.com',
@@ -529,6 +530,7 @@ async function run() {
       roleCode: 'SUPER_SALES',
       deptName: 'Sales Department',
       jobTitle: 'SuperSales Lead',
+      phoneNumber: '9033516045',
     },
     // Also HR & Super Admin
     {
