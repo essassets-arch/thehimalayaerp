@@ -783,19 +783,27 @@ export class ProductionDailyReportService {
         }
 
         // Fetch current extra balances before transaction for immutable ledger audit
-        const existingExtras = await tx.stockHistory.aggregate({
-          where: {
-            companyId,
-            productId,
-          },
-          _sum: {
-            extraCoverQuantity: true,
-            extraFrameQuantity: true,
-          },
-        });
+        let curExtCover = 0;
+        let curExtFrame = 0;
+        try {
+          const existingExtras = await tx.stockHistory.aggregate({
+            where: {
+              companyId,
+              productId,
+            },
+            _sum: {
+              extraCoverQuantity: true,
+              extraFrameQuantity: true,
+            },
+          });
+          curExtCover = Number(existingExtras._sum?.extraCoverQuantity || 0);
+          curExtFrame = Number(existingExtras._sum?.extraFrameQuantity || 0);
+        } catch (aggErr) {
+          console.warn('[StockHistory Aggregate Warning]', aggErr);
+          curExtCover = 0;
+          curExtFrame = 0;
+        }
 
-        const curExtCover = Number(existingExtras._sum.extraCoverQuantity || 0);
-        const curExtFrame = Number(existingExtras._sum.extraFrameQuantity || 0);
         const afterExtCover = curExtCover + newExtraCovers;
         const afterExtFrame = curExtFrame + newExtraFrames;
 

@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "extraCoverQuantity" DECIMAL(14,3) DEFAULT 0;
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "extraFrameQuantity" DECIMAL(14,3) DEFAULT 0;
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "beforeExtraCover" DECIMAL(14,3);
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "afterExtraCover" DECIMAL(14,3);
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "beforeExtraFrame" DECIMAL(14,3);
+ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "afterExtraFrame" DECIMAL(14,3);
