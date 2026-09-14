@@ -696,8 +696,8 @@ export default function DailyReportEntryView({
 
     const totalWeight = coverWeight + frameWeight;
 
-    const coversPerSet = Math.max(1, parseInt(row.coversPerSet) || 1);
-    const framesPerSet = row.framesPerSet !== undefined && row.framesPerSet !== null ? parseInt(row.framesPerSet) : 1;
+    const coversPerSet = Math.max(1, parseFloat(row.coversPerSet) || 1);
+    const framesPerSet = row.framesPerSet !== undefined && row.framesPerSet !== null ? parseFloat(row.framesPerSet) : 1;
 
     let calculatedSets = Math.floor(coverQty / coversPerSet);
     if (framesPerSet > 0) {
@@ -705,9 +705,14 @@ export default function DailyReportEntryView({
       calculatedSets = Math.min(calculatedSets, setsFromFrames);
     }
 
-    const setQty = row.isSetQtyCustom ? (parseInt(row.setQty) || 0) : calculatedSets;
-    const extraCoverQty = Math.max(0, coverQty - (setQty * coversPerSet));
-    const extraFrameQty = Math.max(0, frameQty - (setQty * (framesPerSet > 0 ? framesPerSet : 0)));
+    const setQty = row.isSetQtyCustom ? (parseFloat(row.setQty) || 0) : calculatedSets;
+    const requiredCover = setQty * coversPerSet;
+    const requiredFrame = setQty * (framesPerSet > 0 ? framesPerSet : 0);
+    const extraCoverQty = Math.max(0, Number((coverQty - requiredCover).toFixed(4)));
+    const extraFrameQty = Math.max(0, Number((frameQty - requiredFrame).toFixed(4)));
+
+    const isCoverInsufficient = coverQty < requiredCover;
+    const isFrameInsufficient = frameQty < requiredFrame;
 
     return {
       ...row,
@@ -718,7 +723,11 @@ export default function DailyReportEntryView({
       totalWeight: Math.round(totalWeight * 100) / 100,
       setQty,
       extraCoverQty,
-      extraFrameQty
+      extraFrameQty,
+      requiredCover,
+      requiredFrame,
+      isCoverInsufficient,
+      isFrameInsufficient
     };
   };
 
@@ -801,18 +810,19 @@ export default function DailyReportEntryView({
     });
   };
 
-  // Direct Edit of Set Qty (Override Auto-Calculation)
+  // Direct Edit of Set Qty (Override Auto-Calculation) with immediate recalculation of extras
   const handleSetQtyChange = (rowIndex, value) => {
     setRows(prevRows => {
       const updated = [...prevRows];
       const curRow = updated[rowIndex];
       const isCustom = value !== '';
-      const numVal = isCustom ? Math.max(0, parseInt(value) || 0) : 0;
-      updated[rowIndex] = {
+      const numVal = isCustom ? Math.max(0, parseFloat(value) || 0) : 0;
+      const newRow = calculateRowValues({
         ...curRow,
         setQty: numVal,
         isSetQtyCustom: isCustom
-      };
+      });
+      updated[rowIndex] = newRow;
       return updated;
     });
   };
@@ -1089,6 +1099,38 @@ export default function DailyReportEntryView({
       return;
     }
 
+    // Authoritative component recipe sufficiency check before submission
+    if (!isDispatch) {
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r.productId) continue;
+        const coversPerSet = Math.max(1, parseFloat(r.coversPerSet) || 1);
+        const framesPerSet = r.framesPerSet !== undefined && r.framesPerSet !== null ? parseFloat(r.framesPerSet) : 1;
+        const setQty = parseFloat(r.setQty) || 0;
+        const coverQty = parseFloat(r.coverQty) || 0;
+        const frameQty = parseFloat(r.frameQty) || 0;
+        const requiredCover = setQty * coversPerSet;
+        const requiredFrame = setQty * framesPerSet;
+
+        if (coverQty < requiredCover) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Component Quantity Insufficient',
+            text: `Line item #${i + 1}: Cover quantity (${coverQty}) is less than required (${requiredCover}) for ${setQty} set(s) [Recipe: ${coversPerSet} cover(s)/set]. Please adjust Cover quantity or Set count.`
+          });
+          return;
+        }
+        if (frameQty < requiredFrame) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Component Quantity Insufficient',
+            text: `Line item #${i + 1}: Frame quantity (${frameQty}) is less than required (${requiredFrame}) for ${setQty} set(s) [Recipe: ${framesPerSet} frame(s)/set]. Please adjust Frame quantity or Set count.`
+          });
+          return;
+        }
+      }
+    }
+
     const confirm = await Swal.fire({
       title: isDispatch ? 'Submit Daily Dispatch Report?' : 'Submit Daily Production Report?',
       text: isDispatch
@@ -1151,9 +1193,10 @@ export default function DailyReportEntryView({
         setStatus(submitted.status);
         setLastUpdated(submitted.updatedAt);
 
-        // Invalidate finished goods and daily report caches
+        // Invalidate finished goods, stock logs, and daily report caches
         queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
         queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock-logs"] });
         queryClient.invalidateQueries({ queryKey: ["finished-goods-dispatch-history"] });
         queryClient.invalidateQueries({ queryKey: ["dispatch-daily-reports"] });
         queryClient.invalidateQueries({ queryKey: ["production-daily-reports"] });
@@ -1163,7 +1206,7 @@ export default function DailyReportEntryView({
           title: 'Report Submitted',
           text: isDispatch
             ? `Daily Dispatch Report ${submitted.reportNo} submitted successfully! Finished goods stock has been deducted.`
-            : `Daily Production Report ${submitted.reportNo} submitted successfully!`
+            : `Daily Production Report ${submitted.reportNo} submitted successfully! Finished goods stock has been updated.`
         });
       }
     } catch (err) {
@@ -2250,17 +2293,47 @@ export default function DailyReportEntryView({
                     gap: '8px'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>
-                        Sets: <strong style={{ color: '#059669', fontSize: '13px' }}>{row.setQty}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#059669' }}>Sets:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={row.setQty}
+                          disabled={isReadOnly}
+                          onChange={(e) => handleSetQtyChange(index, e.target.value)}
+                          className="form-input"
+                          style={{
+                            width: '65px',
+                            margin: 0,
+                            padding: '3px 6px',
+                            fontWeight: '800',
+                            fontSize: '12.5px',
+                            textAlign: 'right',
+                            color: '#059669',
+                            background: 'rgba(16, 185, 129, 0.08)',
+                            borderColor: row.isCoverInsufficient || row.isFrameInsufficient ? '#ef4444' : 'rgba(16, 185, 129, 0.3)'
+                          }}
+                        />
                       </div>
                       {Number(row.extraCoverQty) > 0 && (
                         <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#2563eb', background: 'rgba(37, 99, 235, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
-                          +{row.extraCoverQty} Cvr
+                          +{row.extraCoverQty} Extra Cvr
                         </span>
                       )}
                       {Number(row.extraFrameQty) > 0 && (
                         <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#7c3aed', background: 'rgba(124, 58, 237, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
-                          +{row.extraFrameQty} Frm
+                          +{row.extraFrameQty} Extra Frm
+                        </span>
+                      )}
+                      {row.isCoverInsufficient && (
+                        <span style={{ fontSize: '10px', fontWeight: '800', color: '#dc2626', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>
+                          ⚠️ Cover &lt; {row.requiredCover} req
+                        </span>
+                      )}
+                      {row.isFrameInsufficient && (
+                        <span style={{ fontSize: '10px', fontWeight: '800', color: '#dc2626', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>
+                          ⚠️ Frame &lt; {row.requiredFrame} req
                         </span>
                       )}
                     </div>
@@ -2460,9 +2533,9 @@ export default function DailyReportEntryView({
                           textAlign: 'right',
                           fontWeight: '900',
                           fontSize: '13px',
-                          color: '#059669',
-                          background: 'rgba(16, 185, 129, 0.06)',
-                          borderColor: 'rgba(16, 185, 129, 0.3)'
+                          color: row.isCoverInsufficient || row.isFrameInsufficient ? '#dc2626' : '#059669',
+                          background: row.isCoverInsufficient || row.isFrameInsufficient ? '#fee2e2' : 'rgba(16, 185, 129, 0.06)',
+                          borderColor: row.isCoverInsufficient || row.isFrameInsufficient ? '#ef4444' : 'rgba(16, 185, 129, 0.3)'
                         }}
                       />
                     </td>
@@ -2475,11 +2548,11 @@ export default function DailyReportEntryView({
                         borderRadius: '6px',
                         fontWeight: '800',
                         fontSize: '12px',
-                        background: Number(row.extraCoverQty || 0) > 0 ? 'rgba(37, 99, 235, 0.1)' : '#f8fafc',
-                        color: Number(row.extraCoverQty || 0) > 0 ? '#2563eb' : '#94a3b8',
-                        border: Number(row.extraCoverQty || 0) > 0 ? '1px solid #bfdbfe' : '1px solid #e2e8f0'
+                        background: row.isCoverInsufficient ? '#fee2e2' : Number(row.extraCoverQty || 0) > 0 ? 'rgba(37, 99, 235, 0.1)' : '#f8fafc',
+                        color: row.isCoverInsufficient ? '#dc2626' : Number(row.extraCoverQty || 0) > 0 ? '#2563eb' : '#94a3b8',
+                        border: row.isCoverInsufficient ? '1px solid #fca5a5' : Number(row.extraCoverQty || 0) > 0 ? '1px solid #bfdbfe' : '1px solid #e2e8f0'
                       }}>
-                        {Number(row.extraCoverQty || 0) > 0 ? `+${row.extraCoverQty}` : '0'}
+                        {row.isCoverInsufficient ? `Short (-${row.requiredCover - row.coverQty})` : Number(row.extraCoverQty || 0) > 0 ? `+${row.extraCoverQty}` : '0'}
                       </span>
                     </td>
 
@@ -2491,11 +2564,11 @@ export default function DailyReportEntryView({
                         borderRadius: '6px',
                         fontWeight: '800',
                         fontSize: '12px',
-                        background: Number(row.extraFrameQty || 0) > 0 ? 'rgba(124, 58, 237, 0.1)' : '#f8fafc',
-                        color: Number(row.extraFrameQty || 0) > 0 ? '#7c3aed' : '#94a3b8',
-                        border: Number(row.extraFrameQty || 0) > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0'
+                        background: row.isFrameInsufficient ? '#fee2e2' : Number(row.extraFrameQty || 0) > 0 ? 'rgba(124, 58, 237, 0.1)' : '#f8fafc',
+                        color: row.isFrameInsufficient ? '#dc2626' : Number(row.extraFrameQty || 0) > 0 ? '#7c3aed' : '#94a3b8',
+                        border: row.isFrameInsufficient ? '1px solid #fca5a5' : Number(row.extraFrameQty || 0) > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0'
                       }}>
-                        {Number(row.extraFrameQty || 0) > 0 ? `+${row.extraFrameQty}` : '0'}
+                        {row.isFrameInsufficient ? `Short (-${row.requiredFrame - row.frameQty})` : Number(row.extraFrameQty || 0) > 0 ? `+${row.extraFrameQty}` : '0'}
                       </span>
                     </td>
 

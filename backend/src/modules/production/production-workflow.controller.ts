@@ -159,6 +159,25 @@ export class ProductionWorkflowController {
     }
   }
 
+  @RequirePermissions(
+    'production.productionworkflow.read',
+    'production.floor.read',
+    'admin.products.read',
+    'products.read',
+  )
+  @Get('production/all-stock/logs')
+  async getAllStockLogs(@Req() req: any, @Query() query: any) {
+    try {
+      const companyId =
+        req.headers['x-company-id'] || req.user?.companyId || 'COMP-000001';
+      const data = await this.workflowService.getStockLogs(companyId, query);
+      return { success: true, ...data };
+    } catch (err: any) {
+      console.error('[getAllStockLogs Error]', err);
+      return { success: false, items: [], total: 0, error: err.message };
+    }
+  }
+
   // ==========================================
   // FINISHED GOODS
   // ==========================================

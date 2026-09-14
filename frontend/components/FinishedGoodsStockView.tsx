@@ -70,7 +70,6 @@ export default function FinishedGoodsStockView({
   title,
   subtitle,
 }: FinishedGoodsStockViewProps) {
-  const [activeTab, setActiveTab] = useState<"current" | "history">("current");
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -165,6 +164,12 @@ export default function FinishedGoodsStockView({
     refetchOnMount: "always",
   });
 
+  const [activeTab, setActiveTab] = useState<"current" | "logs" | "history">("current");
+  const [logsPage, setLogsPage] = useState(1);
+  const [logsLimit, setLogsLimit] = useState(25);
+  const [logsSearch, setLogsSearch] = useState("");
+  const [logsEventFilter, setLogsEventFilter] = useState("ALL");
+
   // Fetch Finished Goods Dispatch History from PostgreSQL backend
   const { data: historyData, isLoading: isHistoryLoading } = useQuery({
     queryKey: ["finished-goods-dispatch-history"],
@@ -174,6 +179,46 @@ export default function FinishedGoodsStockView({
     },
     enabled: activeTab === "history",
   });
+
+  // Fetch paginated Stock History Logs from PostgreSQL backend
+  const {
+    data: stockLogsResponse,
+    isLoading: isStockLogsLoading,
+    refetch: refetchStockLogs,
+  } = useQuery({
+    queryKey: [
+      "finished-goods-all-stock-logs",
+      logsPage,
+      logsLimit,
+      logsSearch,
+      logsEventFilter,
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: String(logsPage),
+        limit: String(logsLimit),
+      });
+      if (logsSearch.trim()) params.set("search", logsSearch.trim());
+      if (logsEventFilter && logsEventFilter !== "ALL") {
+        params.set("event", logsEventFilter);
+      }
+      const res = await backendFetch<any>(
+        `/api/backend/production/all-stock/logs?${params.toString()}`,
+        { cacheTtlMs: 0 }
+      );
+      return res;
+    },
+    enabled: activeTab === "logs",
+  });
+
+  const stockLogsItems = useMemo(() => {
+    return Array.isArray(stockLogsResponse?.items)
+      ? stockLogsResponse.items
+      : [];
+  }, [stockLogsResponse]);
+
+  const stockLogsTotal = stockLogsResponse?.total || 0;
+  const stockLogsTotalPages = stockLogsResponse?.totalPages || 1;
 
   const allItems: StockRow[] = useMemo(() => {
     if (!Array.isArray(data)) return [];
@@ -185,14 +230,15 @@ export default function FinishedGoodsStockView({
       const dispatchOut = Number(item.dispatchOut ?? 0);
       const reservedQuantity = Number(item.reservedQty ?? item.reservedQuantity ?? 0);
 
-      // Available stock formula from authoritative contract:
-      // Available = Opening Stock + Production In + Extra Cover + Extra Frame - Dispatch Out - Reserved Qty
+      // Available stock formula from authoritative master specification:
+      // Available = Opening Stock + Production In - Dispatch Out - Reserved Qty
+      // NOTE: Extra Cover and Extra Frame are separate component balances and NEVER added to Available Stock!
       const rawAvailable = Number(
         item.availableStock !== undefined
           ? item.availableStock
           : item.availableQuantity !== undefined
           ? item.availableQuantity
-          : openingStock + productionIn + extraCover + extraFrame - dispatchOut - reservedQuantity
+          : openingStock + productionIn - dispatchOut - reservedQuantity
       );
       const availableQuantity = rawAvailable > 0 ? rawAvailable : 0;
       const quantity = availableQuantity + reservedQuantity;
@@ -690,31 +736,54 @@ export default function FinishedGoodsStockView({
       <div className={styles.inventoryWrapper}>
         <div className={styles.inventoryTop}>
           <div className={styles.stockTitle}>
-            {role === "dispatch" ? (
-              <div style={{ display: "flex", gap: "8px", background: "#f1f5f9", padding: "4px", borderRadius: "8px" }}>
-                <button
-                  type="button"
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: "6px",
-                    fontSize: "13px",
-                    fontWeight: "700",
-                    border: "none",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    background: activeTab === "current" ? "#ffffff" : "transparent",
-                    color: activeTab === "current" ? "#0f172a" : "#64748b",
-                    boxShadow: activeTab === "current" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                  }}
-                  onClick={() => {
-                    setActiveTab("current");
-                    setCurrentPage(1);
-                  }}
-                >
-                  <PackageCheck size={15} /> Current Stock ({allItems.length})
-                </button>
+            <div style={{ display: "flex", gap: "8px", background: "#f1f5f9", padding: "4px", borderRadius: "8px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: "700",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: activeTab === "current" ? "#ffffff" : "transparent",
+                  color: activeTab === "current" ? "#0f172a" : "#64748b",
+                  boxShadow: activeTab === "current" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                }}
+                onClick={() => {
+                  setActiveTab("current");
+                  setCurrentPage(1);
+                }}
+              >
+                <PackageCheck size={15} /> All Stock Registry ({allItems.length})
+              </button>
+              <button
+                type="button"
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: "700",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: activeTab === "logs" ? "#ffffff" : "transparent",
+                  color: activeTab === "logs" ? "#0f172a" : "#64748b",
+                  boxShadow: activeTab === "logs" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                }}
+                onClick={() => {
+                  setActiveTab("logs");
+                  setLogsPage(1);
+                }}
+              >
+                <History size={15} /> Stock Movement Logs
+              </button>
+              {(role === "dispatch" || historyItems.length > 0) && (
                 <button
                   type="button"
                   style={{
@@ -738,32 +807,61 @@ export default function FinishedGoodsStockView({
                 >
                   <History size={15} /> Dispatch History ({historyItems.length})
                 </button>
-              </div>
-            ) : (
-              <>
-                <span>Stock</span>
-                <span className={styles.stockBadgeCount}>({allItems.length})</span>
-              </>
-            )}
+              )}
+            </div>
           </div>
 
-          <div className={styles.searchBox}>
-            <span className={styles.searchIconSpan}>
-              <Search size={15} />
-            </span>
-            <input
-              type="text"
-              placeholder={
-                activeTab === "current"
-                  ? "Search product name, code, category..."
-                  : "Search dispatch ID, order, product, customer, vehicle..."
-              }
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
-              }}
-            />
+          <div className={styles.searchBox} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center", flex: 1 }}>
+              <span className={styles.searchIconSpan}>
+                <Search size={15} />
+              </span>
+              <input
+                type="text"
+                placeholder={
+                  activeTab === "current"
+                    ? "Search product name, code, category..."
+                    : activeTab === "logs"
+                    ? "Search reference (e.g. PR-2026-000001), product, actor..."
+                    : "Search dispatch ID, order, product, customer, vehicle..."
+                }
+                value={activeTab === "logs" ? logsSearch : search}
+                onChange={(e) => {
+                  if (activeTab === "logs") {
+                    setLogsSearch(e.target.value);
+                    setLogsPage(1);
+                  } else {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }
+                }}
+                className={styles.searchInput}
+              />
+            </div>
+            {activeTab === "logs" && (
+              <select
+                value={logsEventFilter}
+                onChange={(e) => {
+                  setLogsEventFilter(e.target.value);
+                  setLogsPage(1);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
+                  fontSize: "12.5px",
+                  fontWeight: "600",
+                  color: "#334155",
+                  background: "#ffffff",
+                }}
+              >
+                <option value="ALL">All Events</option>
+                <option value="PRODUCTION_IN">Production Entry</option>
+                <option value="DISPATCH_OUT">Dispatch Out</option>
+                <option value="STOCK_IN">Stock In</option>
+                <option value="ADJUSTMENT">Adjustment</option>
+              </select>
+            )}
           </div>
         </div>
 
@@ -1103,6 +1201,287 @@ export default function FinishedGoodsStockView({
           )
         )}
 
+        {/* ── STOCK MOVEMENT LOGS TAB TABLE (PostgreSQL Ledger) ── */}
+        {activeTab === "logs" && (
+          isMobile ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              {isStockLogsLoading ? (
+                <div style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                  Loading stock movement ledger...
+                </div>
+              ) : stockLogsItems.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "24px", color: "#94a3b8" }}>
+                  No stock movements found matching your filters.
+                </div>
+              ) : (
+                stockLogsItems.map((log: any) => {
+                  const dateStr = log.createdAt
+                    ? new Date(log.createdAt).toLocaleString("en-GB", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "—";
+
+                  let eventLabel = log.event || "—";
+                  let eventBadgeBg = "#f1f5f9";
+                  let eventBadgeColor = "#334155";
+                  if (log.event === "PRODUCTION_IN") {
+                    eventLabel = "PRODUCTION";
+                    eventBadgeBg = "#dcfce7";
+                    eventBadgeColor = "#15803d";
+                  } else if (log.event === "DISPATCH_OUT") {
+                    eventLabel = "DISPATCH";
+                    eventBadgeBg = "#fee2e2";
+                    eventBadgeColor = "#b91c1c";
+                  } else if (log.event === "STOCK_IN") {
+                    eventLabel = "STOCK IN";
+                    eventBadgeBg = "#e0f2fe";
+                    eventBadgeColor = "#0369a1";
+                  } else if (log.event === "ADJUSTMENT" || log.event === "STOCK_ADJUSTMENT") {
+                    eventLabel = "ADJUSTMENT";
+                    eventBadgeBg = "#f3e8ff";
+                    eventBadgeColor = "#7e22ce";
+                  } else if (log.event?.includes("REVERSAL")) {
+                    eventLabel = "REVERSAL";
+                    eventBadgeBg = "#fef3c7";
+                    eventBadgeColor = "#b45309";
+                  }
+
+                  const setDelta = Number(log.quantity || 0);
+                  const extCoverDelta = Number(log.extraCoverQuantity || 0);
+                  const extFrameDelta = Number(log.extraFrameQuantity || 0);
+
+                  return (
+                    <div
+                      key={log.id}
+                      style={{
+                        background: "#ffffff",
+                        border: "1.5px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "16px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "10px",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.01)",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "600" }}>{dateStr}</span>
+                        <span
+                          style={{
+                            padding: "3px 8px",
+                            borderRadius: "6px",
+                            fontSize: "11px",
+                            fontWeight: "800",
+                            background: eventBadgeBg,
+                            color: eventBadgeColor,
+                          }}
+                        >
+                          {eventLabel}
+                        </span>
+                      </div>
+
+                      <div>
+                        <strong style={{ fontSize: "13px", color: "#0f172a" }}>{log.productName}</strong>
+                        <div style={{ fontSize: "11px", color: "#64748b", fontFamily: "monospace" }}>{log.productCode}</div>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", background: "#f8fafc", padding: "10px", borderRadius: "8px" }}>
+                        <div>
+                          <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "700" }}>SET DELTA</div>
+                          <div style={{ fontSize: "13px", fontWeight: "800", color: setDelta > 0 ? "#16a34a" : setDelta < 0 ? "#dc2626" : "#64748b" }}>
+                            {setDelta > 0 ? `+${setDelta}` : setDelta}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "700" }}>EXTRA COVER</div>
+                          <div style={{ fontSize: "13px", fontWeight: "800", color: extCoverDelta > 0 ? "#2563eb" : "#94a3b8" }}>
+                            {extCoverDelta > 0 ? `+${extCoverDelta}` : "0"}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "700" }}>EXTRA FRAME</div>
+                          <div style={{ fontSize: "13px", fontWeight: "800", color: extFrameDelta > 0 ? "#7c3aed" : "#94a3b8" }}>
+                            {extFrameDelta > 0 ? `+${extFrameDelta}` : "0"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#475569" }}>
+                        <span>Ref: <strong style={{ fontFamily: "monospace" }}>{log.referenceNumber || "—"}</strong></span>
+                        <span>By: <strong>{log.actor || "System"}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : (
+            <div className={styles.tableScroll}>
+              <table className={styles.inventoryTable}>
+                <thead>
+                  <tr>
+                    <th style={{ width: "130px" }}>Date &amp; Time</th>
+                    <th style={{ width: "120px" }}>Event</th>
+                    <th style={{ minWidth: "180px" }}>Product</th>
+                    <th style={{ width: "130px" }}>Reference</th>
+                    <th style={{ textAlign: "right", width: "80px" }}>Set Qty</th>
+                    <th style={{ textAlign: "right", width: "90px" }}>Extra Cover</th>
+                    <th style={{ textAlign: "right", width: "90px" }}>Extra Frame</th>
+                    <th style={{ textAlign: "right", width: "110px" }}>Sets Balance</th>
+                    <th style={{ textAlign: "right", width: "110px" }}>Ext Cvr Bal</th>
+                    <th style={{ textAlign: "right", width: "110px" }}>Ext Frm Bal</th>
+                    <th style={{ width: "100px" }}>Actor</th>
+                    <th style={{ minWidth: "140px" }}>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isStockLogsLoading ? (
+                    <tr>
+                      <td colSpan={12} style={{ textAlign: "center", padding: "32px", color: "#64748b" }}>
+                        Loading stock movement ledger...
+                      </td>
+                    </tr>
+                  ) : stockLogsItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={12} style={{ textAlign: "center", padding: "32px", color: "#94a3b8" }}>
+                        No stock movement logs found matching your filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    stockLogsItems.map((log: any) => {
+                      const dateStr = log.createdAt
+                        ? new Date(log.createdAt).toLocaleString("en-GB", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—";
+
+                      let eventLabel = log.event || "—";
+                      let eventBadgeBg = "#f1f5f9";
+                      let eventBadgeColor = "#334155";
+                      if (log.event === "PRODUCTION_IN") {
+                        eventLabel = "PRODUCTION";
+                        eventBadgeBg = "#dcfce7";
+                        eventBadgeColor = "#15803d";
+                      } else if (log.event === "DISPATCH_OUT") {
+                        eventLabel = "DISPATCH";
+                        eventBadgeBg = "#fee2e2";
+                        eventBadgeColor = "#b91c1c";
+                      } else if (log.event === "STOCK_IN") {
+                        eventLabel = "STOCK IN";
+                        eventBadgeBg = "#e0f2fe";
+                        eventBadgeColor = "#0369a1";
+                      } else if (log.event === "ADJUSTMENT" || log.event === "STOCK_ADJUSTMENT") {
+                        eventLabel = "ADJUSTMENT";
+                        eventBadgeBg = "#f3e8ff";
+                        eventBadgeColor = "#7e22ce";
+                      } else if (log.event?.includes("REVERSAL")) {
+                        eventLabel = "REVERSAL";
+                        eventBadgeBg = "#fef3c7";
+                        eventBadgeColor = "#b45309";
+                      }
+
+                      const setDelta = Number(log.quantity || 0);
+                      const extCoverDelta = Number(log.extraCoverQuantity || 0);
+                      const extFrameDelta = Number(log.extraFrameQuantity || 0);
+
+                      return (
+                        <tr key={log.id}>
+                          <td style={{ fontSize: "12px", color: "#475569", whiteSpace: "nowrap" }}>
+                            {dateStr}
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "3px 8px",
+                                borderRadius: "6px",
+                                fontSize: "11px",
+                                fontWeight: "800",
+                                background: eventBadgeBg,
+                                color: eventBadgeColor,
+                              }}
+                            >
+                              {eventLabel}
+                            </span>
+                          </td>
+                          <td>
+                            <div>
+                              <strong style={{ display: "block", fontSize: "12px", color: "#0f172a" }}>
+                                {log.productName}
+                              </strong>
+                              <span style={{ fontSize: "11px", color: "#64748b", fontFamily: "monospace" }}>
+                                {log.productCode}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                fontFamily: "monospace",
+                                fontWeight: "700",
+                                fontSize: "12px",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                background: "#f8fafc",
+                                border: "1px solid #cbd5e1",
+                                color: "#0f172a",
+                              }}
+                            >
+                              {log.referenceNumber || "—"}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: "right", fontWeight: "800", fontSize: "12.5px", color: setDelta > 0 ? "#16a34a" : setDelta < 0 ? "#dc2626" : "#64748b" }}>
+                            {setDelta > 0 ? `+${setDelta}` : setDelta}
+                          </td>
+                          <td style={{ textAlign: "right", fontWeight: "700", fontSize: "12px", color: extCoverDelta > 0 ? "#2563eb" : "#94a3b8" }}>
+                            {extCoverDelta > 0 ? `+${extCoverDelta}` : "0"}
+                          </td>
+                          <td style={{ textAlign: "right", fontWeight: "700", fontSize: "12px", color: extFrameDelta > 0 ? "#7c3aed" : "#94a3b8" }}>
+                            {extFrameDelta > 0 ? `+${extFrameDelta}` : "0"}
+                          </td>
+                          <td style={{ textAlign: "right", fontSize: "12px", color: "#334155" }}>
+                            {log.beforeQuantity !== null && log.afterQuantity !== null ? (
+                              <span>{log.beforeQuantity} → <strong>{log.afterQuantity}</strong></span>
+                            ) : "—"}
+                          </td>
+                          <td style={{ textAlign: "right", fontSize: "12px", color: "#2563eb" }}>
+                            {log.beforeExtraCover !== null && log.afterExtraCover !== null ? (
+                              <span>{log.beforeExtraCover} → <strong>{log.afterExtraCover}</strong></span>
+                            ) : (
+                              log.afterExtraCover !== null ? <strong>{log.afterExtraCover}</strong> : "0"
+                            )}
+                          </td>
+                          <td style={{ textAlign: "right", fontSize: "12px", color: "#7c3aed" }}>
+                            {log.beforeExtraFrame !== null && log.afterExtraFrame !== null ? (
+                              <span>{log.beforeExtraFrame} → <strong>{log.afterExtraFrame}</strong></span>
+                            ) : (
+                              log.afterExtraFrame !== null ? <strong>{log.afterExtraFrame}</strong> : "0"
+                            )}
+                          </td>
+                          <td style={{ fontSize: "12px", color: "#475569", fontWeight: "600" }}>
+                            {log.actor || "System"}
+                          </td>
+                          <td style={{ fontSize: "11.5px", color: "#64748b" }}>
+                            {log.remarks || "—"}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+
         {/* ── DISPATCH HISTORY TAB TABLE ── */}
         {activeTab === "history" && (
           isMobile ? (
@@ -1303,44 +1682,75 @@ export default function FinishedGoodsStockView({
         <div className={styles.tableFooter}>
           <div className={styles.rowsPerPage}>
             <span>Rows per page:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
+            {activeTab === "logs" ? (
+              <select
+                value={logsLimit}
+                onChange={(e) => {
+                  setLogsLimit(Number(e.target.value));
+                  setLogsPage(1);
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            ) : (
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            )}
           </div>
 
           <div className={styles.pagination}>
             <span>
               Showing{" "}
-              {activeTab === "current"
+              {activeTab === "logs"
+                ? stockLogsTotal > 0 ? (logsPage - 1) * logsLimit + 1 : 0
+                : activeTab === "current"
                 ? filteredData.length > 0 ? (currentPage - 1) * pageSize + 1 : 0
                 : filteredHistory.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}{" "}
               to{" "}
-              {Math.min(
-                currentPage * pageSize,
-                activeTab === "current" ? filteredData.length : filteredHistory.length
-              )}{" "}
-              of {activeTab === "current" ? filteredData.length : filteredHistory.length} entries
+              {activeTab === "logs"
+                ? Math.min(logsPage * logsLimit, stockLogsTotal)
+                : Math.min(
+                    currentPage * pageSize,
+                    activeTab === "current" ? filteredData.length : filteredHistory.length
+                  )}{" "}
+              of {activeTab === "logs" ? stockLogsTotal : activeTab === "current" ? filteredData.length : filteredHistory.length} entries
             </span>
             <button
               type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              onClick={() => {
+                if (activeTab === "logs") {
+                  setLogsPage((p) => Math.max(1, p - 1));
+                } else {
+                  setCurrentPage((p) => Math.max(1, p - 1));
+                }
+              }}
+              disabled={activeTab === "logs" ? logsPage <= 1 : currentPage === 1}
             >
               ‹
             </button>
             <button
               type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages}
+              onClick={() => {
+                if (activeTab === "logs") {
+                  setLogsPage((p) => Math.min(stockLogsTotalPages, p + 1));
+                } else {
+                  setCurrentPage((p) => Math.min(totalPages, p + 1));
+                }
+              }}
+              disabled={activeTab === "logs" ? logsPage >= stockLogsTotalPages : currentPage >= totalPages}
             >
               ›
             </button>
@@ -1387,10 +1797,12 @@ export default function FinishedGoodsStockView({
                       <tr style={{ background: "#f1f5f9", borderBottom: "1px solid #cbd5e1" }}>
                         <th style={{ padding: "10px 12px", textAlign: "left" }}>Date &amp; Time</th>
                         <th style={{ padding: "10px 12px", textAlign: "left" }}>Event / Action</th>
-                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Impact</th>
-                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Stock Before</th>
-                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Stock After</th>
-                        <th style={{ padding: "10px 12px", textAlign: "left" }}>Source</th>
+                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Set Qty</th>
+                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Extra Cover</th>
+                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Extra Frame</th>
+                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Sets Balance</th>
+                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Ext Cvr Bal</th>
+                        <th style={{ padding: "10px 12px", textAlign: "right" }}>Ext Frm Bal</th>
                         <th style={{ padding: "10px 12px", textAlign: "left" }}>Reference No</th>
                         <th style={{ padding: "10px 12px", textAlign: "left" }}>Actor</th>
                       </tr>
@@ -1441,16 +1853,8 @@ export default function FinishedGoodsStockView({
                           eventBadgeColor = "#4338ca";
                         }
 
-                        // Source mapping
-                        let sourceLabel = log.sourceType || "—";
-                        if (log.sourceType === "PRODUCTION_REPORT") sourceLabel = "Production Report";
-                        else if (log.sourceType === "DISPATCH_REPORT") sourceLabel = "Dispatch Report";
-                        else if (log.sourceType === "DISPATCH_REPORT_CANCEL") sourceLabel = "Dispatch Cancel";
-                        else if (log.sourceType === "PRODUCTION_REPORT_CANCEL") sourceLabel = "Production Cancel";
-                        else if (log.sourceType === "DISPATCH_REPORT_UPDATE") sourceLabel = "Dispatch Edit";
-                        else if (log.sourceType === "PRODUCTION_REPORT_UPDATE") sourceLabel = "Production Edit";
-                        else if (log.sourceType === "MANUAL") sourceLabel = "Manual Entry";
-                        else if (log.sourceType === "INITIAL_STOCK") sourceLabel = "Initial Stock";
+                        const extCvr = Number(log.extraCoverQuantity || 0);
+                        const extFrm = Number(log.extraFrameQuantity || 0);
 
                         return (
                           <tr key={log.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
@@ -1471,9 +1875,27 @@ export default function FinishedGoodsStockView({
                             <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "800", fontSize: "13px", color: impactColor }}>
                               {impactText}
                             </td>
-                            <td style={{ padding: "10px 12px", textAlign: "right", color: "#64748b" }}>{Number(log.beforeQuantity ?? 0).toLocaleString()}</td>
-                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "700", color: "#0f172a" }}>{Number(log.afterQuantity ?? 0).toLocaleString()}</td>
-                            <td style={{ padding: "10px 12px", color: "#475569", fontWeight: "600" }}>{sourceLabel}</td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "700", fontSize: "12px", color: extCvr > 0 ? "#2563eb" : "#94a3b8" }}>
+                              {extCvr > 0 ? `+${extCvr}` : "0"}
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "700", fontSize: "12px", color: extFrm > 0 ? "#7c3aed" : "#94a3b8" }}>
+                              {extFrm > 0 ? `+${extFrm}` : "0"}
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", color: "#334155", fontSize: "12px" }}>
+                              {log.beforeQuantity !== null && log.afterQuantity !== null ? (
+                                <span>{log.beforeQuantity} → <strong>{log.afterQuantity}</strong></span>
+                              ) : "—"}
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", color: "#2563eb", fontSize: "12px" }}>
+                              {log.beforeExtraCover !== null && log.afterExtraCover !== null ? (
+                                <span>{log.beforeExtraCover} → <strong>{log.afterExtraCover}</strong></span>
+                              ) : (log.afterExtraCover !== null ? <strong>{log.afterExtraCover}</strong> : "0")}
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", color: "#7c3aed", fontSize: "12px" }}>
+                              {log.beforeExtraFrame !== null && log.afterExtraFrame !== null ? (
+                                <span>{log.beforeExtraFrame} → <strong>{log.afterExtraFrame}</strong></span>
+                              ) : (log.afterExtraFrame !== null ? <strong>{log.afterExtraFrame}</strong> : "0")}
+                            </td>
                             <td style={{ padding: "10px 12px" }}>
                               <span style={{
                                 fontFamily: "monospace",

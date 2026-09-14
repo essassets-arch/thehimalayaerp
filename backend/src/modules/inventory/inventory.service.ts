@@ -596,9 +596,15 @@ export class InventoryService {
     userId: string,
     remarks?: string,
     eventType: StockHistoryEvent = 'PRODUCTION_IN',
+    extraCoverQuantity: number = 0,
+    extraFrameQuantity: number = 0,
+    beforeExtraCover?: number,
+    afterExtraCover?: number,
+    beforeExtraFrame?: number,
+    afterExtraFrame?: number,
   ) {
     const qty = Number(quantity);
-    if (qty <= 0) return;
+    if (qty <= 0 && extraCoverQuantity <= 0 && extraFrameQuantity <= 0) return;
 
     // 1. SELECT ... FOR UPDATE row-level locking
     const fgRecords = await tx.$queryRaw<any[]>`
@@ -693,12 +699,18 @@ export class InventoryService {
         companyId,
         productId,
         quantity: qty,
+        extraCoverQuantity: extraCoverQuantity || 0,
+        extraFrameQuantity: extraFrameQuantity || 0,
         event: eventType,
         actor: userId,
         beforeQuantity: beforeQty,
         afterQuantity: afterQty,
         beforeAvailableQuantity: beforeAvail,
         afterAvailableQuantity: afterAvail,
+        beforeExtraCover: beforeExtraCover !== undefined ? beforeExtraCover : null,
+        afterExtraCover: afterExtraCover !== undefined ? afterExtraCover : null,
+        beforeExtraFrame: beforeExtraFrame !== undefined ? beforeExtraFrame : null,
+        afterExtraFrame: afterExtraFrame !== undefined ? afterExtraFrame : null,
         sourceType,
         sourceId,
         sourceItemId,
@@ -1017,10 +1029,16 @@ export class InventoryService {
         createdAt: h.createdAt,
         eventType: h.event,
         quantityChange: Number(h.quantity || 0),
+        extraCoverQuantity: Number(h.extraCoverQuantity || 0),
+        extraFrameQuantity: Number(h.extraFrameQuantity || 0),
         beforeQuantity: Number(h.beforeQuantity ?? 0),
         afterQuantity: Number(h.afterQuantity ?? 0),
         beforeAvailableQuantity: Number(h.beforeAvailableQuantity ?? 0),
         afterAvailableQuantity: Number(h.afterAvailableQuantity ?? 0),
+        beforeExtraCover: h.beforeExtraCover !== null ? Number(h.beforeExtraCover) : null,
+        afterExtraCover: h.afterExtraCover !== null ? Number(h.afterExtraCover) : null,
+        beforeExtraFrame: h.beforeExtraFrame !== null ? Number(h.beforeExtraFrame) : null,
+        afterExtraFrame: h.afterExtraFrame !== null ? Number(h.afterExtraFrame) : null,
         sourceType: h.sourceType || 'MANUAL',
         referenceNumber: h.referenceNumber || h.sourceId || '—',
         actor: h.actor,
@@ -1051,10 +1069,16 @@ export class InventoryService {
           createdAt: fg.receivedAt || new Date(),
           eventType: 'PRODUCTION_IN',
           quantityChange: qty,
+          extraCoverQuantity: 0,
+          extraFrameQuantity: 0,
           beforeQuantity: 0,
           afterQuantity: qty,
           beforeAvailableQuantity: 0,
           afterAvailableQuantity: Number(fg.availableQuantity || qty),
+          beforeExtraCover: null,
+          afterExtraCover: null,
+          beforeExtraFrame: null,
+          afterExtraFrame: null,
           sourceType: 'INITIAL_STOCK',
           referenceNumber: fg.workOrder?.workOrderNumber || 'INIT-STOCK',
           actor: fg.receivedById || 'System',
@@ -1065,6 +1089,115 @@ export class InventoryService {
     }
 
     return mapped;
+  }
+
+  async getAllStockLogs(
+    companyId: string,
+    query: {
+      page?: number;
+      limit?: number;
+      productId?: string;
+      search?: string;
+      event?: string;
+    } = {},
+  ) {
+    const page = Math.max(1, Number(query.page || 1));
+    const limit = Math.max(1, Math.min(100, Number(query.limit || 25)));
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.StockHistoryWhereInput = {
+      companyId,
+    };
+
+    if (query.productId) {
+      where.productId = query.productId;
+    }
+
+    if (query.event && query.event !== 'ALL') {
+      where.event = query.event as any;
+    }
+
+    if (query.search && query.search.trim()) {
+      const s = query.search.trim();
+      where.OR = [
+        { referenceNumber: { contains: s, mode: 'insensitive' } },
+        { remarks: { contains: s, mode: 'insensitive' } },
+        { product: { name: { contains: s, mode: 'insensitive' } } },
+        { product: { sku: { contains: s, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [total, histories] = await Promise.all([
+      this.prisma.stockHistory.count({ where }),
+      this.prisma.stockHistory.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              sku: true,
+              category: true,
+              unit: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const actorIds = Array.from(
+      new Set(histories.map((h) => h.actor).filter(Boolean)),
+    ) as string[];
+
+    const users =
+      actorIds.length > 0
+        ? await this.prisma.user.findMany({
+            where: { id: { in: actorIds } },
+            select: { id: true, name: true, email: true },
+          })
+        : [];
+    const userMap = new Map(users.map((u) => [u.id, u.name || u.email]));
+
+    const items = histories.map((h) => ({
+      id: h.id,
+      createdAt: h.createdAt,
+      event: h.event,
+      productId: h.productId,
+      productName: h.product?.name || 'Finished Goods Product',
+      productCode: h.product?.sku || h.productId,
+      unit: (h.product?.unit || 'PCS').toUpperCase(),
+      referenceNumber: h.referenceNumber || h.sourceType || '—',
+      quantity: Number(h.quantity || 0),
+      extraCoverQuantity: Number(h.extraCoverQuantity || 0),
+      extraFrameQuantity: Number(h.extraFrameQuantity || 0),
+      beforeQuantity: h.beforeQuantity !== null ? Number(h.beforeQuantity) : null,
+      afterQuantity: h.afterQuantity !== null ? Number(h.afterQuantity) : null,
+      beforeAvailableQuantity:
+        h.beforeAvailableQuantity !== null
+          ? Number(h.beforeAvailableQuantity)
+          : null,
+      afterAvailableQuantity:
+        h.afterAvailableQuantity !== null
+          ? Number(h.afterAvailableQuantity)
+          : null,
+      beforeExtraCover: h.beforeExtraCover !== null ? Number(h.beforeExtraCover) : null,
+      afterExtraCover: h.afterExtraCover !== null ? Number(h.afterExtraCover) : null,
+      beforeExtraFrame: h.beforeExtraFrame !== null ? Number(h.beforeExtraFrame) : null,
+      afterExtraFrame: h.afterExtraFrame !== null ? Number(h.afterExtraFrame) : null,
+      actor: userMap.get(h.actor || '') || h.actor || 'System',
+      remarks: h.remarks || '—',
+    }));
+
+    return {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      items,
+    };
   }
 
   /**

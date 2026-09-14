@@ -822,7 +822,7 @@ export class ProcurementService {
         orderBy: { createdAt: 'desc' },
         include: {
           items: { include: { product: true } },
-          purchaseOrder: { include: { supplier: true, grns: true } },
+          purchaseOrders: { include: { supplier: true, grns: true } },
           history: { orderBy: { createdAt: 'asc' } },
         },
       }),

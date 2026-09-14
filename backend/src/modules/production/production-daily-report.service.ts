@@ -119,30 +119,36 @@ export class ProductionDailyReportService {
 
       const totalWeight = coverWeight + frameWeight;
 
-      // Complete Set calculation
+      // Complete Set calculation based on catalog recipe
       const coversPerSet = Math.max(1, product?.coversPerSet || 1);
       const framesPerSet = Math.max(1, product?.framesPerSet || 1);
 
-      const setsFromCovers = Math.floor(coverQty / coversPerSet);
-      const setsFromFrames =
-        frameQty > 0 ? Math.floor(frameQty / framesPerSet) : 0;
       const setQty =
         item.setQty !== undefined && item.setQty !== null
           ? Math.max(0, Math.floor(Number(item.setQty)))
-          : Math.min(setsFromCovers, setsFromFrames);
-
-      const extraCoverQty =
-        item.extraCoverQty !== undefined && item.extraCoverQty !== null
-          ? Math.max(0, Math.floor(Number(item.extraCoverQty)))
-          : Math.max(0, coverQty - setQty * coversPerSet);
-
-      const extraFrameQty =
-        item.extraFrameQty !== undefined && item.extraFrameQty !== null
-          ? Math.max(0, Math.floor(Number(item.extraFrameQty)))
-          : Math.max(
-              0,
-              frameQty - setQty * (framesPerSet > 0 ? framesPerSet : 0),
+          : Math.min(
+              Math.floor(coverQty / coversPerSet),
+              Math.floor(frameQty / framesPerSet),
             );
+
+      const requiredCover = setQty * coversPerSet;
+      const requiredFrame = setQty * framesPerSet;
+
+      // Authoritative validation: Component quantities must be sufficient for declared finished sets
+      if (coverQty < requiredCover) {
+        throw new BadRequestException(
+          `Line item Sr #${srNo} (${product?.name || customProductName || 'Product'}): Cover quantity (${coverQty}) is less than required (${requiredCover}) for ${setQty} set(s) [recipe: ${coversPerSet} cover(s)/set].`,
+        );
+      }
+      if (frameQty < requiredFrame) {
+        throw new BadRequestException(
+          `Line item Sr #${srNo} (${product?.name || customProductName || 'Product'}): Frame quantity (${frameQty}) is less than required (${requiredFrame}) for ${setQty} set(s) [recipe: ${framesPerSet} frame(s)/set].`,
+        );
+      }
+
+      // Backend authoritatively calculates extra components (never trust client-supplied extras)
+      const extraCoverQty = coverQty - requiredCover;
+      const extraFrameQty = frameQty - requiredFrame;
 
       totalCovers += coverQty;
       totalFrames += frameQty;
@@ -697,10 +703,15 @@ export class ProductionDailyReportService {
         throw new NotFoundException(`Report with ID ${id} not found`);
       }
 
+      // Idempotency: If report is already submitted or stock already posted, return report without duplicate increment
       if (report.status === 'SUBMITTED' || report.stockPostedAt !== null) {
-        throw new BadRequestException(
-          `Report ${report.reportNo} is already submitted and stock has been posted.`,
-        );
+        return tx.productionDailyReport.findUnique({
+          where: { id },
+          include: {
+            createdBy: { select: { id: true, name: true, email: true } },
+            items: { orderBy: { srNo: 'asc' }, include: { product: true } },
+          },
+        });
       }
 
       if (report.status !== 'DRAFT' && report.status !== 'REOPENED') {
@@ -712,6 +723,7 @@ export class ProductionDailyReportService {
       // Fetch items for validation and submission
       const items = await tx.productionDailyReportItem.findMany({
         where: { reportId: id },
+        include: { product: true },
       });
 
       if (items.length === 0) {
@@ -720,7 +732,7 @@ export class ProductionDailyReportService {
         );
       }
 
-      // Validate rows
+      // Validate rows and recipes authoritatively under lock
       for (const item of items) {
         if (item.coverQty < 0 || item.frameQty < 0 || item.setQty < 0) {
           throw new BadRequestException(
@@ -732,9 +744,26 @@ export class ProductionDailyReportService {
             `Invalid negative weight found in line item Sr #${item.srNo}`,
           );
         }
+
+        const coversPerSet = Math.max(1, item.product?.coversPerSet || 1);
+        const framesPerSet = Math.max(1, item.product?.framesPerSet || 1);
+        const setQty = item.setQty || 0;
+        const requiredCover = setQty * coversPerSet;
+        const requiredFrame = setQty * framesPerSet;
+
+        if (item.coverQty < requiredCover) {
+          throw new BadRequestException(
+            `Line item Sr #${item.srNo} (${item.product?.name || 'Product'}): Cover quantity (${item.coverQty}) is less than required (${requiredCover}) for ${setQty} set(s) [recipe: ${coversPerSet} cover(s)/set].`,
+          );
+        }
+        if (item.frameQty < requiredFrame) {
+          throw new BadRequestException(
+            `Line item Sr #${item.srNo} (${item.product?.name || 'Product'}): Frame quantity (${item.frameQty}) is less than required (${requiredFrame}) for ${setQty} set(s) [recipe: ${framesPerSet} frame(s)/set].`,
+          );
+        }
       }
 
-      // Group items by productId for transactional stock posting and extra combination
+      // Group items by productId for transactional stock posting
       const allProductIds = Array.from(
         new Set(items.map((i) => i.productId).filter(Boolean)),
       ) as string[];
@@ -742,16 +771,35 @@ export class ProductionDailyReportService {
       for (const productId of allProductIds) {
         const prodItems = items.filter((i) => i.productId === productId);
         const directSets = prodItems.reduce((s, i) => s + (i.setQty || 0), 0);
-        const newExtraCovers = prodItems.reduce(
-          (s, i) => s + (i.extraCoverQty || 0),
-          0,
-        );
-        const newExtraFrames = prodItems.reduce(
-          (s, i) => s + (i.extraFrameQty || 0),
-          0,
-        );
+        let newExtraCovers = 0;
+        let newExtraFrames = 0;
+        for (const itm of prodItems) {
+          const cPerSet = Math.max(1, itm.product?.coversPerSet || 1);
+          const fPerSet = Math.max(1, itm.product?.framesPerSet || 1);
+          const reqC = (itm.setQty || 0) * cPerSet;
+          const reqF = (itm.setQty || 0) * fPerSet;
+          newExtraCovers += Math.max(0, itm.coverQty - reqC);
+          newExtraFrames += Math.max(0, itm.frameQty - reqF);
+        }
 
-        // 1. Post direct complete sets
+        // Fetch current extra balances before transaction for immutable ledger audit
+        const existingExtras = await tx.stockHistory.aggregate({
+          where: {
+            companyId,
+            productId,
+          },
+          _sum: {
+            extraCoverQuantity: true,
+            extraFrameQuantity: true,
+          },
+        });
+
+        const curExtCover = Number(existingExtras._sum.extraCoverQuantity || 0);
+        const curExtFrame = Number(existingExtras._sum.extraFrameQuantity || 0);
+        const afterExtCover = curExtCover + newExtraCovers;
+        const afterExtFrame = curExtFrame + newExtraFrames;
+
+        // 1. Post direct complete sets into FinishedGoods & StockHistory
         if (directSets > 0) {
           await this.inventoryService.stockInFinishedGoods(
             tx,
@@ -764,125 +812,51 @@ export class ProductionDailyReportService {
             report.reportNo,
             userId,
             `Production Report submission ${report.reportNo}`,
+            'PRODUCTION_IN',
+            newExtraCovers,
+            newExtraFrames,
+            curExtCover,
+            afterExtCover,
+            curExtFrame,
+            afterExtFrame,
           );
-        }
-
-        // 2. Query current unconsumed extra cover & extra frame balances under transaction lock
-        const currentExtras = await tx.stockHistory.groupBy({
-          by: ['event'],
-          where: {
-            companyId,
-            productId,
-            event: {
-              in: [
-                'EXTRA_COVER_IN',
-                'EXTRA_COVER_REVERSAL',
-                'EXTRA_FRAME_IN',
-                'EXTRA_FRAME_REVERSAL',
-              ],
-            },
-          },
-          _sum: { quantity: true },
-        });
-
-        let curExtCover = 0;
-        let curExtFrame = 0;
-        for (const ce of currentExtras) {
-          const q = Number(ce._sum.quantity || 0);
-          if (
-            ce.event === 'EXTRA_COVER_IN' ||
-            ce.event === 'EXTRA_COVER_REVERSAL'
-          )
-            curExtCover += q;
-          if (
-            ce.event === 'EXTRA_FRAME_IN' ||
-            ce.event === 'EXTRA_FRAME_REVERSAL'
-          )
-            curExtFrame += q;
-        }
-
-        // 3. Post new extra covers if any
-        if (newExtraCovers > 0) {
-          await tx.stockHistory.create({
-            data: {
-              companyId,
-              productId,
-              quantity: newExtraCovers,
-              event: 'EXTRA_COVER_IN',
-              actor: userId,
-              sourceType: 'PRODUCTION_REPORT_EXTRA_COVER',
-              sourceId: report.id,
-              referenceNumber: report.reportNo,
-              remarks: `Extra Cover (+${newExtraCovers}) from Production Report ${report.reportNo}`,
-            },
-          });
-          curExtCover += newExtraCovers;
-        }
-
-        // 4. Post new extra frames if any
-        if (newExtraFrames > 0) {
-          await tx.stockHistory.create({
-            data: {
-              companyId,
-              productId,
-              quantity: newExtraFrames,
-              event: 'EXTRA_FRAME_IN',
-              actor: userId,
-              sourceType: 'PRODUCTION_REPORT_EXTRA_FRAME',
-              sourceId: report.id,
-              referenceNumber: report.reportNo,
-              remarks: `Extra Frame (+${newExtraFrames}) from Production Report ${report.reportNo}`,
-            },
-          });
-          curExtFrame += newExtraFrames;
-        }
-
-        // 5. Automatic Transactional Extra Combination Check:
-        const autoPairedSets = Math.min(
-          Math.max(0, curExtCover),
-          Math.max(0, curExtFrame),
-        );
-        if (autoPairedSets > 0) {
-          // Post auto-paired sets into Finished Goods
-          await this.inventoryService.stockInFinishedGoods(
-            tx,
-            companyId,
-            productId,
-            autoPairedSets,
-            'PRODUCTION_REPORT_EXTRA_COMBINE',
-            id,
-            null,
-            report.reportNo,
-            userId,
-            `Auto-combination of ${autoPairedSets} Extra Cover + ${autoPairedSets} Extra Frame into complete Set (${report.reportNo})`,
+        } else if (newExtraCovers > 0 || newExtraFrames > 0) {
+          // Components only: No finished sets, but extra component stock produced
+          const fgRecords = await tx.$queryRaw<any[]>`
+            SELECT id, quantity, "availableQuantity"
+            FROM "FinishedGoods"
+            WHERE "productId" = ${productId}
+          `;
+          const currentSets = fgRecords.reduce(
+            (sum, r) => sum + Number(r.quantity || 0),
+            0,
+          );
+          const currentAvail = fgRecords.reduce(
+            (sum, r) => sum + Number(r.availableQuantity || 0),
+            0,
           );
 
-          // Deduct the consumed extra covers and extra frames from extra ledger
           await tx.stockHistory.create({
             data: {
               companyId,
               productId,
-              quantity: -autoPairedSets,
-              event: 'EXTRA_COVER_REVERSAL',
+              quantity: 0,
+              extraCoverQuantity: newExtraCovers,
+              extraFrameQuantity: newExtraFrames,
+              event: 'PRODUCTION_IN',
               actor: userId,
-              sourceType: 'PRODUCTION_REPORT_EXTRA_COMBINE',
+              beforeQuantity: currentSets,
+              afterQuantity: currentSets,
+              beforeAvailableQuantity: currentAvail,
+              afterAvailableQuantity: currentAvail,
+              beforeExtraCover: curExtCover,
+              afterExtraCover: afterExtCover,
+              beforeExtraFrame: curExtFrame,
+              afterExtraFrame: afterExtFrame,
+              sourceType: 'PRODUCTION_REPORT',
               sourceId: report.id,
               referenceNumber: report.reportNo,
-              remarks: `Extra Cover consumed (-${autoPairedSets}) to form complete set (${report.reportNo})`,
-            },
-          });
-
-          await tx.stockHistory.create({
-            data: {
-              companyId,
-              productId,
-              quantity: -autoPairedSets,
-              event: 'EXTRA_FRAME_REVERSAL',
-              actor: userId,
-              sourceType: 'PRODUCTION_REPORT_EXTRA_COMBINE',
-              sourceId: report.id,
-              referenceNumber: report.reportNo,
-              remarks: `Extra Frame consumed (-${autoPairedSets}) to form complete set (${report.reportNo})`,
+              remarks: `Production Report submission ${report.reportNo} (Components only: +${newExtraCovers} Cover, +${newExtraFrames} Frame)`,
             },
           });
         }

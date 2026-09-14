@@ -2161,19 +2161,14 @@ export class ProductionWorkflowService {
       // Opening stock from authoritative opening transaction source (never double-counted)
       const openingStock = openingMap.get(pId) || 0;
 
-      // Production In: production daily reports + production/stock-in history (excluding opening stock)
-      const reportProdIn = pdr.setQty;
-      const shProdIn = (shEvents.get('PRODUCTION_IN') || 0) + (shEvents.get('STOCK_IN') || 0);
-      const productionIn = (reportProdIn + shProdIn > 0)
-        ? (reportProdIn + shProdIn)
+      // Production In: production daily reports (audit source) or finished goods balance (if legacy)
+      const productionIn = pdr.setQty > 0
+        ? pdr.setQty
         : (openingStock > 0 ? 0 : fg.quantity);
 
-      // Extra Cover and Extra Frame remain separate from normal sets
-      const shExtraCover = (shEvents.get('EXTRA_COVER_IN') || 0) - (shEvents.get('EXTRA_COVER_REVERSAL') || 0);
-      const extraCover = Math.max(0, pdr.extraCoverQty - ddr.extraCoverQty + shExtraCover);
-
-      const shExtraFrame = (shEvents.get('EXTRA_FRAME_IN') || 0) - (shEvents.get('EXTRA_FRAME_REVERSAL') || 0);
-      const extraFrame = Math.max(0, pdr.extraFrameQty - ddr.extraFrameQty + shExtraFrame);
+      // Extra Cover and Extra Frame remain strictly separate component balances (never added to finished sets)
+      const extraCover = Math.max(0, pdr.extraCoverQty - ddr.extraCoverQty);
+      const extraFrame = Math.max(0, pdr.extraFrameQty - ddr.extraFrameQty);
 
       // Dispatch Out: dispatch daily reports or dispatch out transactions
       const reportDispatchOut = ddr.setQty;
@@ -2183,8 +2178,9 @@ export class ProductionWorkflowService {
       // Reserved quantity
       const reservedQty = Math.max(0, fg.reservedQuantity);
 
-      // Available = Opening Stock + Production In + Extra Cover + Extra Frame - Dispatch Out - Reserved Qty
-      const rawAvailable = openingStock + productionIn + extraCover + extraFrame - dispatchOut - reservedQty;
+      // Available Stock = Opening Stock + Production In - Dispatch Out - Reserved Qty
+      // NEVER include Extra Cover or Extra Frame into Available Stock!
+      const rawAvailable = openingStock + productionIn - dispatchOut - reservedQty;
       const availableStock = rawAvailable > 0 ? rawAvailable : 0;
       const status = availableStock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK';
 
@@ -2585,6 +2581,10 @@ export class ProductionWorkflowService {
     }
 
     return this.inventoryService.getFinishedGoodsHistory(companyId, cleanId);
+  }
+
+  async getStockLogs(companyId: string, query: any) {
+    return this.inventoryService.getAllStockLogs(companyId, query);
   }
 
   async handleIncomingOrderDecision(

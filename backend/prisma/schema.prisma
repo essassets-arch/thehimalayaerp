@@ -403,6 +403,7 @@ model Product {
   framesPerSet                Int?                         @default(1)
   dailyReportItems            ProductionDailyReportItem[]
   dispatchReportItems         DispatchDailyReportItem[]
+  stockHistories              StockHistory[]
 
   @@index([companyId, minimumStock])
   @@index([preferredVendorId])
@@ -540,7 +541,7 @@ model PurchaseIndent {
   requestedBy                User                          @relation(fields: [requestedById], references: [id])
   items                      PurchaseIndentItem[]
   history                    PurchaseIndentStatusHistory[]
-  purchaseOrder              PurchaseOrder?
+  purchaseOrders             PurchaseOrder[]
 
   @@index([status])
   @@index([requiredDate])
@@ -1951,7 +1952,7 @@ model PurchaseOrder {
   publicId                       String                          @unique
   companyId                      String
   supplierId                     String
-  purchaseIndentId               String?                         @unique
+  purchaseIndentId               String?
   status                         String                          @default("DRAFT")
   draftPoNo                      String?                         @unique
   poNo                           String?                         @unique
@@ -3909,6 +3910,8 @@ model StockHistory {
   companyId               String
   productId               String
   quantity                Decimal           @db.Decimal(18, 3)
+  extraCoverQuantity      Decimal?          @default(0) @db.Decimal(18, 3)
+  extraFrameQuantity      Decimal?          @default(0) @db.Decimal(18, 3)
   salesOrderId            String?
   salesOrderItemId        String?
   allocationId            String?
@@ -3921,11 +3924,17 @@ model StockHistory {
   afterQuantity           Decimal?          @db.Decimal(18, 3)
   beforeAvailableQuantity Decimal?          @db.Decimal(18, 3)
   afterAvailableQuantity  Decimal?          @db.Decimal(18, 3)
+  beforeExtraCover        Decimal?          @db.Decimal(18, 3)
+  afterExtraCover         Decimal?          @db.Decimal(18, 3)
+  beforeExtraFrame        Decimal?          @db.Decimal(18, 3)
+  afterExtraFrame         Decimal?          @db.Decimal(18, 3)
   sourceType              String?
   sourceId                String?
   sourceItemId            String?
   referenceNumber         String?
   remarks                 String?
+
+  product                 Product?          @relation(fields: [productId], references: [id])
 
   @@index([companyId, productId, createdAt])
   @@index([salesOrderId])
