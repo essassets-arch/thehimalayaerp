@@ -2090,6 +2090,26 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
   doc.setTextColor(30, 41, 59);
   doc.text('Authorised Signatory', pageWidth - margin, y + 18, { align: 'right' });
 
+  // Resolve Sales user contact phone with company fallback
+  const rawSalesMobile =
+    quotation?.salesExecutiveMobile ||
+    quotation?.salesExecutivePhone ||
+    quotation?.salesExecutive?.employee?.phoneNumber ||
+    quotation?.salesExecutive?.employee?.companyPhoneNumber ||
+    quotation?.salesExecutive?.phoneNumber ||
+    quotation?.salesExecutive?.phone ||
+    quotation?.salesExecutive?.mobile ||
+    quotation?.lead?.salesExecutive?.employee?.phoneNumber ||
+    quotation?.lead?.salesExecutive?.employee?.companyPhoneNumber ||
+    quotation?.lead?.salesExecutive?.phoneNumber ||
+    quotation?.lead?.salesExecutive?.phone ||
+    '';
+
+  const cleanSalesMobile = rawSalesMobile ? String(rawSalesMobile).trim() : '';
+  const quotationContactPhone = cleanSalesMobile
+    ? (cleanSalesMobile.startsWith('+') ? cleanSalesMobile : `+91 ${cleanSalesMobile}`)
+    : '+91 84888 11609';
+
   // 10. Loop over all pages to draw background footers and page numbers
   const totalPages = doc.internal.getNumberOfPages();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -2106,7 +2126,7 @@ export const exportQuotationPDF = async (quotation, returnBlob = false) => {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('+91 84888 11609  |  Info@thehimalaya.co.in  |  www.thehimalaya.co.in', pageWidth / 2, pageHeight - 4.5, { align: 'center' });
+    doc.text(`${quotationContactPhone}  |  Info@thehimalaya.co.in  |  www.thehimalaya.co.in`, pageWidth / 2, pageHeight - 4.5, { align: 'center' });
 
     // Page numbering right-aligned
     doc.setFontSize(8.5);

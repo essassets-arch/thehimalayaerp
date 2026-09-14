@@ -57,8 +57,8 @@ export default function QuotationsView({
     : ['Advance', '7 Days', '15 Days', '20 Days', 'Custom'];
   const predefinedTerms = paymentTermOptions.filter(t => t !== 'Custom');
   const [localSearch, setLocalSearch] = useState('');
-  const search = (searchQuery !== undefined && searchQuery !== null) ? searchQuery : localSearch;
-  const setSearch = setSearchQuery !== undefined ? setSearchQuery : setLocalSearch;
+  const search = setSearchQuery ? (searchQuery ?? '') : localSearch;
+  const setSearch = setSearchQuery || setLocalSearch;
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [filter, setFilter] = useState('All');
   const [reminderBucket, setReminderBucket] = useState('Today');
@@ -752,6 +752,28 @@ export default function QuotationsView({
   const clientGST = (typeof rawGst === 'string' && rawGst.trim() && !['—', '-', 'N/A', 'NA', 'NONE', 'NULL', 'UNDEFINED'].includes(rawGst.trim().toUpperCase()))
     ? rawGst.trim().toUpperCase()
     : null;
+
+  // Resolve Sales user contact phone with company fallback
+  const rawSalesMobile =
+    selectedQuotation?.salesExecutiveMobile ||
+    selectedQuotation?.salesExecutivePhone ||
+    selectedQuotation?.salesExecutive?.employee?.phoneNumber ||
+    selectedQuotation?.salesExecutive?.employee?.companyPhoneNumber ||
+    selectedQuotation?.salesExecutive?.phoneNumber ||
+    selectedQuotation?.salesExecutive?.phone ||
+    selectedQuotation?.salesExecutive?.mobile ||
+    selectedQuotation?.lead?.salesExecutive?.employee?.phoneNumber ||
+    selectedQuotation?.lead?.salesExecutive?.employee?.companyPhoneNumber ||
+    selectedQuotation?.lead?.salesExecutive?.phoneNumber ||
+    selectedQuotation?.lead?.salesExecutive?.phone ||
+    clientLead?.salesExecutive?.employee?.phoneNumber ||
+    clientLead?.salesExecutive?.employee?.companyPhoneNumber ||
+    '';
+
+  const cleanSalesMobile = rawSalesMobile ? String(rawSalesMobile).trim() : '';
+  const quotationContactPhone = cleanSalesMobile
+    ? (cleanSalesMobile.startsWith('+') ? cleanSalesMobile : `+91 ${cleanSalesMobile}`)
+    : '+91 84888 11609';
 
   // Resolve detailed item rows
   const itemsList = selectedQuotation ? quotationDetailItems(selectedQuotation) : [];
@@ -1900,7 +1922,7 @@ export default function QuotationsView({
               </svg>
               <div className="quotation-footer-contact" style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '100%', boxSizing: 'border-box', padding: '30px 34px 10px', color: '#ffffff', fontSize: '11.5px', fontWeight: '700' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
-                  <Phone size={13} color="#ffffff" fill="#ffffff" /> +91 84888 11609
+                  <Phone size={13} color="#ffffff" fill="#ffffff" /> {quotationContactPhone}
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap' }}>
                   <Mail size={13} color="#ffffff" /> Info@thehimalaya.co.in

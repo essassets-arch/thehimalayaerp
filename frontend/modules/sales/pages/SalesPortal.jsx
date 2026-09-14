@@ -1226,6 +1226,7 @@ export default function SalesPortal({ overrideView, overrideBasePath, mode }) {
             prefillData={prefillQuotationData}
             clearPrefill={() => setPrefillQuotationData(null)}
             searchQuery={globalSearch}
+            setSearchQuery={setGlobalSearch}
           />
         </div>
       );

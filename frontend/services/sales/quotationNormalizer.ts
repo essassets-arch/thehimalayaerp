@@ -189,11 +189,29 @@ export const normalizeQuotation = (quotation: any): any => {
     quotation.quotationNo ??
     quotation.id;
 
+  const rawSalesMobile =
+    quotation.salesExecutiveMobile ||
+    quotation.salesExecutivePhone ||
+    quotation.salesExecutive?.employee?.phoneNumber ||
+    quotation.salesExecutive?.employee?.companyPhoneNumber ||
+    quotation.salesExecutive?.phoneNumber ||
+    quotation.salesExecutive?.phone ||
+    quotation.salesExecutive?.mobile ||
+    quotation.lead?.salesExecutive?.employee?.phoneNumber ||
+    quotation.lead?.salesExecutive?.employee?.companyPhoneNumber ||
+    quotation.lead?.salesExecutive?.phoneNumber ||
+    quotation.lead?.salesExecutive?.phone ||
+    null;
+
+  const salesExecutiveMobile = rawSalesMobile ? String(rawSalesMobile).trim() : null;
+
   return {
     ...quotation,
     id: quotation.id,
     quotationNumber,
     quotationNo: quotationNumber,
+    salesExecutiveMobile,
+    salesExecutivePhone: salesExecutiveMobile,
     customerName,
     groupName,
     gstName,

@@ -308,6 +308,7 @@ async function run() {
       roleCode: 'SALES_EXECUTIVE',
       deptName: 'Sales Department',
       jobTitle: 'Sales Executive',
+      phoneNumber: '9033516048',
     },
     {
       email: 'trushna.g@himalayaerp.com',
@@ -349,6 +350,7 @@ async function run() {
       roleCode: 'SALES_EXECUTIVE',
       deptName: 'Sales Department',
       jobTitle: 'Sales Executive',
+      phoneNumber: '8488811630',
     },
     {
       email: 'sales14@himalayaerp.com',
@@ -359,6 +361,7 @@ async function run() {
       roleCode: 'SALES_EXECUTIVE',
       deptName: 'Sales Department',
       jobTitle: 'Sales Executive',
+      phoneNumber: '9033516046',
     },
     {
       email: 'sales13@himalayaerp.com',
@@ -369,6 +372,7 @@ async function run() {
       roleCode: 'SALES_EXECUTIVE',
       deptName: 'Sales Department',
       jobTitle: 'Sales Executive',
+      phoneNumber: '8488811619',
     },
     {
       email: 'abbas.b@himalayaerp.com',
@@ -440,6 +444,7 @@ async function run() {
       roleCode: 'SALES_EXECUTIVE',
       deptName: 'Sales Department',
       jobTitle: 'Sales Executive',
+      phoneNumber: '9586040153',
     },
     {
       email: 'sales2@himalayaerp.com',
@@ -450,6 +455,7 @@ async function run() {
       roleCode: 'SALES_EXECUTIVE',
       deptName: 'Sales Department',
       jobTitle: 'Sales Executive',
+      phoneNumber: '9998521843',
     },
     {
       email: 'sales3@himalayaerp.com',
@@ -460,6 +466,7 @@ async function run() {
       roleCode: 'SALES_EXECUTIVE',
       deptName: 'Sales Department',
       jobTitle: 'Sales Executive',
+      phoneNumber: '9033516047',
     },
     {
       email: 'sales4@himalayaerp.com',
@@ -470,6 +477,7 @@ async function run() {
       roleCode: 'SALES_EXECUTIVE',
       deptName: 'Sales Department',
       jobTitle: 'Sales Executive',
+      phoneNumber: '8488811682',
     },
     {
       email: 'sales5@himalayaerp.com',
@@ -480,6 +488,7 @@ async function run() {
       roleCode: 'SALES_EXECUTIVE',
       deptName: 'Sales Department',
       jobTitle: 'Sales Executive',
+      phoneNumber: '9033731173',
     },
     {
       email: 'sales6@himalayaerp.com',
@@ -614,7 +623,8 @@ async function run() {
           status: 'ACTIVE',
           dateOfBirth: new Date('1995-01-01'),
           gender: 'MALE',
-          phoneNumber: `98765${String(10000 + idx).slice(-5)}`,
+          phoneNumber: acc.phoneNumber || `98765${String(10000 + idx).slice(-5)}`,
+          companyPhoneNumber: acc.phoneNumber || null,
           residentialAddress: 'Ahmedabad, Gujarat',
           permanentAddress: 'Ahmedabad, Gujarat',
           emergencyContactName: 'Emergency Contact',

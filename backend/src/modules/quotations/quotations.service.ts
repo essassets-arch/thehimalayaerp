@@ -14,6 +14,21 @@ import {
   canAssignSalesOwner,
 } from '../../common/utils/rbac.util';
 
+
+const SALES_EXECUTIVE_SELECT = {
+  select: {
+    id: true,
+    name: true,
+    email: true,
+    employee: {
+      select: {
+        phoneNumber: true,
+        companyPhoneNumber: true,
+      },
+    },
+  },
+};
+
 @Injectable()
 export class QuotationsService {
   constructor(
@@ -21,6 +36,36 @@ export class QuotationsService {
     private readonly workflowService: WorkflowService,
     private readonly sequenceService: SequenceService,
   ) {}
+
+  private resolveSalesMobile(
+    quotation: any,
+    userMap?: Map<string, any>,
+  ): string | null {
+    const directPhone =
+      quotation?.salesExecutive?.employee?.phoneNumber ||
+      quotation?.salesExecutive?.employee?.companyPhoneNumber;
+    if (directPhone && String(directPhone).trim()) {
+      return String(directPhone).trim();
+    }
+
+    const leadPhone =
+      quotation?.lead?.salesExecutive?.employee?.phoneNumber ||
+      quotation?.lead?.salesExecutive?.employee?.companyPhoneNumber;
+    if (leadPhone && String(leadPhone).trim()) {
+      return String(leadPhone).trim();
+    }
+
+    if (quotation?.createdById && userMap?.has(quotation.createdById)) {
+      const creator = userMap.get(quotation.createdById);
+      const creatorPhone =
+        creator?.employee?.phoneNumber || creator?.employee?.companyPhoneNumber;
+      if (creatorPhone && String(creatorPhone).trim()) {
+        return String(creatorPhone).trim();
+      }
+    }
+
+    return null;
+  }
 
   async listQuotations(
     companyId?: string,
@@ -40,10 +85,10 @@ export class QuotationsService {
       },
       include: {
         workflowState: true,
-        salesExecutive: { select: { id: true, name: true, email: true } },
+        salesExecutive: SALES_EXECUTIVE_SELECT,
         lead: {
           include: {
-            salesExecutive: { select: { id: true, name: true, email: true } },
+            salesExecutive: SALES_EXECUTIVE_SELECT,
           },
         },
         items: { include: { product: true } },
@@ -66,6 +111,36 @@ export class QuotationsService {
 
     const customerMap = new Map(customers.map((c) => [c.id, c]));
 
+    const missingCreatorIds = quotations
+      .filter(
+        (q) =>
+          !q.salesExecutive?.employee?.phoneNumber &&
+          !q.salesExecutive?.employee?.companyPhoneNumber &&
+          !q.lead?.salesExecutive?.employee?.phoneNumber &&
+          !q.lead?.salesExecutive?.employee?.companyPhoneNumber &&
+          q.createdById,
+      )
+      .map((q) => q.createdById as string);
+
+    let creatorMap = new Map<string, any>();
+    if (missingCreatorIds.length > 0) {
+      const creators = await this.prisma.user.findMany({
+        where: { id: { in: missingCreatorIds } },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          employee: {
+            select: {
+              phoneNumber: true,
+              companyPhoneNumber: true,
+            },
+          },
+        },
+      });
+      creatorMap = new Map(creators.map((u) => [u.id, u]));
+    }
+
     return quotations.map((q) => {
       const cust = q.customerId ? customerMap.get(q.customerId) || null : null;
       const leadName = q.lead?.companyName || q.lead?.projectName || '';
@@ -81,6 +156,8 @@ export class QuotationsService {
         ? q.lead?.gstNumber || cust?.gstin || ''
         : cust?.gstin || '') || '';
 
+      const salesMobile = this.resolveSalesMobile(q, creatorMap);
+
       return {
         ...q,
         customer: cust,
@@ -88,6 +165,16 @@ export class QuotationsService {
         groupName,
         gstName,
         gstNumber,
+        salesExecutiveMobile: salesMobile,
+        salesExecutivePhone: salesMobile,
+        salesExecutive: q.salesExecutive
+          ? {
+              ...q.salesExecutive,
+              phoneNumber: salesMobile,
+              phone: salesMobile,
+              mobile: salesMobile,
+            }
+          : null,
       };
     });
   }
@@ -108,12 +195,12 @@ export class QuotationsService {
       },
       include: {
         workflowState: true,
-        salesExecutive: { select: { id: true, name: true, email: true } },
+        salesExecutive: SALES_EXECUTIVE_SELECT,
         items: { include: { product: true } },
         selectedTerms: { orderBy: { sortOrder: 'asc' } },
         lead: {
           include: {
-            salesExecutive: { select: { id: true, name: true, email: true } },
+            salesExecutive: SALES_EXECUTIVE_SELECT,
           },
         },
         parentQuotation: true,
@@ -145,6 +232,35 @@ export class QuotationsService {
       ? quotation.lead?.gstNumber || customer?.gstin || ''
       : customer?.gstin || '') || '';
 
+    let creatorUser: any = null;
+    if (
+      !quotation.salesExecutive?.employee?.phoneNumber &&
+      !quotation.salesExecutive?.employee?.companyPhoneNumber &&
+      !quotation.lead?.salesExecutive?.employee?.phoneNumber &&
+      !quotation.lead?.salesExecutive?.employee?.companyPhoneNumber &&
+      quotation.createdById
+    ) {
+      creatorUser = await this.prisma.user.findUnique({
+        where: { id: quotation.createdById },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          employee: {
+            select: {
+              phoneNumber: true,
+              companyPhoneNumber: true,
+            },
+          },
+        },
+      });
+    }
+
+    const creatorMap = creatorUser
+      ? new Map([[creatorUser.id, creatorUser]])
+      : undefined;
+    const salesMobile = this.resolveSalesMobile(quotation, creatorMap);
+
     return {
       ...quotation,
       customer,
@@ -152,6 +268,16 @@ export class QuotationsService {
       groupName,
       gstName,
       gstNumber,
+      salesExecutiveMobile: salesMobile,
+      salesExecutivePhone: salesMobile,
+      salesExecutive: quotation.salesExecutive
+        ? {
+            ...quotation.salesExecutive,
+            phoneNumber: salesMobile,
+            phone: salesMobile,
+            mobile: salesMobile,
+          }
+        : null,
     };
   }
 
@@ -295,7 +421,7 @@ export class QuotationsService {
           },
           include: {
             workflowState: true,
-            salesExecutive: { select: { id: true, name: true, email: true } },
+            salesExecutive: SALES_EXECUTIVE_SELECT,
             items: { include: { product: true } },
             selectedTerms: { orderBy: { sortOrder: 'asc' } },
             lead: true,
@@ -303,7 +429,20 @@ export class QuotationsService {
           orderBy: { createdAt: 'desc' },
         });
         if (existingQuotation) {
-          return existingQuotation;
+          const salesMobile = this.resolveSalesMobile(existingQuotation);
+          return {
+            ...existingQuotation,
+            salesExecutiveMobile: salesMobile,
+            salesExecutivePhone: salesMobile,
+            salesExecutive: existingQuotation.salesExecutive
+              ? {
+                  ...existingQuotation.salesExecutive,
+                  phoneNumber: salesMobile,
+                  phone: salesMobile,
+                  mobile: salesMobile,
+                }
+              : null,
+          };
         }
       }
     }
@@ -480,7 +619,7 @@ export class QuotationsService {
       },
       include: {
         workflowState: true,
-        salesExecutive: { select: { id: true, name: true, email: true } },
+        salesExecutive: SALES_EXECUTIVE_SELECT,
         items: { include: { product: true } },
         selectedTerms: { orderBy: { sortOrder: 'asc' } },
         lead: true,
@@ -501,7 +640,20 @@ export class QuotationsService {
       }
     }
 
-    return quotation;
+    const createdSalesMobile = this.resolveSalesMobile(quotation);
+    return {
+      ...quotation,
+      salesExecutiveMobile: createdSalesMobile,
+      salesExecutivePhone: createdSalesMobile,
+      salesExecutive: quotation.salesExecutive
+        ? {
+            ...quotation.salesExecutive,
+            phoneNumber: createdSalesMobile,
+            phone: createdSalesMobile,
+            mobile: createdSalesMobile,
+          }
+        : null,
+    };
   }
 
   async updateQuotation(
@@ -733,12 +885,12 @@ export class QuotationsService {
         },
         include: {
           workflowState: true,
-          salesExecutive: { select: { id: true, name: true, email: true } },
+          salesExecutive: SALES_EXECUTIVE_SELECT,
           items: { include: { product: true } },
           selectedTerms: { orderBy: { sortOrder: 'asc' } },
           lead: {
             include: {
-              salesExecutive: { select: { id: true, name: true, email: true } },
+              salesExecutive: SALES_EXECUTIVE_SELECT,
             },
           },
         },
@@ -750,9 +902,20 @@ export class QuotationsService {
           where: { id: updated.customerId },
         });
       }
+      const updatedSalesMobile = this.resolveSalesMobile(updated);
       return {
         ...updated,
         customer,
+        salesExecutiveMobile: updatedSalesMobile,
+        salesExecutivePhone: updatedSalesMobile,
+        salesExecutive: updated.salesExecutive
+          ? {
+              ...updated.salesExecutive,
+              phoneNumber: updatedSalesMobile,
+              phone: updatedSalesMobile,
+              mobile: updatedSalesMobile,
+            }
+          : null,
       };
     });
   }
@@ -827,7 +990,7 @@ export class QuotationsService {
         tx,
       );
 
-      return tx.quotation.update({
+      const updatedQuotation = await tx.quotation.update({
         where: { id },
         data: {
           workflowStateId: result.nextStateId,
@@ -835,8 +998,30 @@ export class QuotationsService {
             ? { approvedById: userId || 'SYSTEM', approvedAt: new Date() }
             : {}),
         },
-        include: { workflowState: true },
+        include: {
+          workflowState: true,
+          salesExecutive: SALES_EXECUTIVE_SELECT,
+          lead: {
+            include: {
+              salesExecutive: SALES_EXECUTIVE_SELECT,
+            },
+          },
+        },
       });
+      const actionSalesMobile = this.resolveSalesMobile(updatedQuotation);
+      return {
+        ...updatedQuotation,
+        salesExecutiveMobile: actionSalesMobile,
+        salesExecutivePhone: actionSalesMobile,
+        salesExecutive: updatedQuotation.salesExecutive
+          ? {
+              ...updatedQuotation.salesExecutive,
+              phoneNumber: actionSalesMobile,
+              phone: actionSalesMobile,
+              mobile: actionSalesMobile,
+            }
+          : null,
+      };
     });
   }
 
@@ -886,7 +1071,7 @@ export class QuotationsService {
       const baseNumber = original.quotationNumber.replace(/-V\d+$/, '');
       const quotationNumber = `${baseNumber}-V${newVersion}`;
 
-      return tx.quotation.create({
+      const created = await tx.quotation.create({
         data: {
           quotationNumber,
           version: newVersion,
@@ -914,8 +1099,31 @@ export class QuotationsService {
             })),
           },
         },
-        include: { workflowState: true, items: true },
+        include: {
+          workflowState: true,
+          items: true,
+          salesExecutive: SALES_EXECUTIVE_SELECT,
+          lead: {
+            include: {
+              salesExecutive: SALES_EXECUTIVE_SELECT,
+            },
+          },
+        },
       });
+      const dupSalesMobile = this.resolveSalesMobile(created);
+      return {
+        ...created,
+        salesExecutiveMobile: dupSalesMobile,
+        salesExecutivePhone: dupSalesMobile,
+        salesExecutive: created.salesExecutive
+          ? {
+              ...created.salesExecutive,
+              phoneNumber: dupSalesMobile,
+              phone: dupSalesMobile,
+              mobile: dupSalesMobile,
+            }
+          : null,
+      };
     });
   }
 
