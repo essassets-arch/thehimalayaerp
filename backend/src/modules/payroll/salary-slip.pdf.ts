@@ -46,7 +46,7 @@ export function createSalarySlipPdf(slip: any): Buffer {
 
   // 1. Company Header
   drawText(
-    slip.company?.name || 'Himalaya ERP & Construction Products',
+    slip.company?.name || 'Himalaya Composites & Precast Pvt. Ltd.',
     48,
     y,
     15,
@@ -54,17 +54,19 @@ export function createSalarySlipPdf(slip: any): Buffer {
   );
   y -= 16;
   drawText(
-    slip.company?.address || 'Industrial Area, Solan, Himachal Pradesh',
+    slip.company?.address ||
+      'Besides Anand Niketan School, Opp. Shyam Village Hotel, Mehmedabad Highway, Hathijan, Ahmedabad - 382445, Gujarat, India.',
     48,
     y,
-    9,
+    8,
     false,
   );
   y -= 13;
   drawText(
     [
-      slip.company?.email || 'finance@himalayaerp.com',
-      slip.company?.phone || '+91 98160 00000',
+      slip.company?.email || 'info@thehimalaya.co.in',
+      slip.company?.phone || '+91 84888 11630 / +91 90335 16045',
+      'Web: www.thehimalaya.co.in',
     ]
       .filter(Boolean)
       .join(' | '),

@@ -357,8 +357,10 @@ export function SalarySlipDocument({
           <p className="salary-slip-company-sub">DURABLE Manhole Covers • Since 2004</p>
           <p className="salary-slip-company-addr">
             An ISO 9001:2015 Certified Company<br />
-            Industrial Growth Centre, Phase-II, Bodhjungnagar, Agartala, Tripura - 799008<br />
-            Email: hr@thehimalayaerp.com | Web: www.thehimalayaerp.com
+            Besides Anand Niketan School, Opp. Shyam Village Hotel, Mehmedabad Highway,<br />
+            Hathijan, Ahmedabad – 382445, Gujarat, India.<br />
+            Phone: +91 84888 11630 | +91 90335 16045<br />
+            Email: info@thehimalaya.co.in | Web: www.thehimalaya.co.in
           </p>
         </div>
       </div>
