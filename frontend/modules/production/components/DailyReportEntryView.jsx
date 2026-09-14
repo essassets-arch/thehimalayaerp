@@ -672,8 +672,8 @@ export default function DailyReportEntryView({
 
   // Recalculate Row Values
   const calculateRowValues = (row) => {
-    const coverQty = Math.max(0, parseInt(row.coverQty) || 0);
-    const frameQty = Math.max(0, parseInt(row.frameQty) || 0);
+    const coverQty = (row.coverQty !== '' && row.coverQty !== null && row.coverQty !== undefined) ? Math.max(0, parseInt(row.coverQty) || 0) : 0;
+    const frameQty = (row.frameQty !== '' && row.frameQty !== null && row.frameQty !== undefined) ? Math.max(0, parseInt(row.frameQty) || 0) : 0;
     const coverUnitWeight = Number(row.coverUnitWeight) || 0;
     const frameUnitWeight = Number(row.frameUnitWeight) || 0;
 
@@ -699,15 +699,15 @@ export default function DailyReportEntryView({
     const coversPerSet = Math.max(1, parseFloat(row.coversPerSet) || 1);
     const framesPerSet = row.framesPerSet !== undefined && row.framesPerSet !== null ? parseFloat(row.framesPerSet) : 1;
 
-    let calculatedSets = Math.floor(coverQty / coversPerSet);
-    if (framesPerSet > 0) {
-      const setsFromFrames = Math.floor(frameQty / framesPerSet);
-      calculatedSets = Math.min(calculatedSets, setsFromFrames);
-    }
+    // Set is manually entered by the operator - NEVER derived from Cover or Frame
+    const rawSet = (row.setQty !== '' && row.setQty !== null && row.setQty !== undefined) 
+      ? Math.max(0, parseFloat(row.setQty) || 0) 
+      : 0;
+    const setQty = row.setQty === '' ? '' : rawSet;
+    const setQtyNum = typeof setQty === 'number' ? setQty : (parseFloat(setQty) || 0);
 
-    const setQty = row.isSetQtyCustom ? (parseFloat(row.setQty) || 0) : calculatedSets;
-    const requiredCover = setQty * coversPerSet;
-    const requiredFrame = setQty * (framesPerSet > 0 ? framesPerSet : 0);
+    const requiredCover = setQtyNum * coversPerSet;
+    const requiredFrame = setQtyNum * (framesPerSet > 0 ? framesPerSet : 0);
     const extraCoverQty = Math.max(0, Number((coverQty - requiredCover).toFixed(4)));
     const extraFrameQty = Math.max(0, Number((frameQty - requiredFrame).toFixed(4)));
 
@@ -716,8 +716,8 @@ export default function DailyReportEntryView({
 
     return {
       ...row,
-      coverQty,
-      frameQty,
+      coverQty: row.coverQty !== undefined ? row.coverQty : 0,
+      frameQty: row.frameQty !== undefined ? row.frameQty : 0,
       coverWeight: Math.round(coverWeight * 100) / 100,
       frameWeight: Math.round(frameWeight * 100) / 100,
       totalWeight: Math.round(totalWeight * 100) / 100,
@@ -810,17 +810,15 @@ export default function DailyReportEntryView({
     });
   };
 
-  // Direct Edit of Set Qty (Override Auto-Calculation) with immediate recalculation of extras
+  // Direct Manual Entry of Set Qty - Operator declares Set quantity
   const handleSetQtyChange = (rowIndex, value) => {
     setRows(prevRows => {
       const updated = [...prevRows];
       const curRow = updated[rowIndex];
-      const isCustom = value !== '';
-      const numVal = isCustom ? Math.max(0, parseFloat(value) || 0) : 0;
+      const val = value === '' ? '' : Math.max(0, parseFloat(value) || 0);
       const newRow = calculateRowValues({
         ...curRow,
-        setQty: numVal,
-        isSetQtyCustom: isCustom
+        setQty: val
       });
       updated[rowIndex] = newRow;
       return updated;
@@ -831,7 +829,11 @@ export default function DailyReportEntryView({
   const handleFieldChange = (rowIndex, field, value) => {
     setRows(prevRows => {
       const updated = [...prevRows];
-      const curRow = { ...updated[rowIndex], [field]: value };
+      let formattedValue = value;
+      if (field === 'coverQty' || field === 'frameQty') {
+        formattedValue = value === '' ? '' : Math.max(0, parseInt(value) || 0);
+      }
+      const curRow = { ...updated[rowIndex], [field]: formattedValue };
       updated[rowIndex] = calculateRowValues(curRow);
       return updated;
     });

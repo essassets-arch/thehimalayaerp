@@ -119,17 +119,14 @@ export class ProductionDailyReportService {
 
       const totalWeight = coverWeight + frameWeight;
 
-      // Complete Set calculation based on catalog recipe
+      // Operator manually declares Set quantity. Product recipe validates component sufficiency.
       const coversPerSet = Math.max(1, product?.coversPerSet || 1);
       const framesPerSet = Math.max(1, product?.framesPerSet || 1);
 
       const setQty =
         item.setQty !== undefined && item.setQty !== null
           ? Math.max(0, Math.floor(Number(item.setQty)))
-          : Math.min(
-              Math.floor(coverQty / coversPerSet),
-              Math.floor(frameQty / framesPerSet),
-            );
+          : 0;
 
       const requiredCover = setQty * coversPerSet;
       const requiredFrame = setQty * framesPerSet;
