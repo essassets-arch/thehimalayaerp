@@ -125,6 +125,24 @@ export class PlantHeadController {
     );
   }
 
+  @Get('analytics/monthly-production-report')
+  async getMonthlyProductionReport(
+    @Req() req: Request,
+    @Query('filter') filter?: string,
+    @Query('customStart') customStart?: string,
+    @Query('customEnd') customEnd?: string,
+  ) {
+    const companyId =
+      (req.headers['x-company-id'] as string) ||
+      (req as any).user?.['companyId'];
+    return this.plantHeadService.getMonthlyProductionReport(
+      companyId,
+      filter,
+      customStart,
+      customEnd,
+    );
+  }
+
   @RequirePermissions(
     'admin.planthead.read',
     'planthead.read',

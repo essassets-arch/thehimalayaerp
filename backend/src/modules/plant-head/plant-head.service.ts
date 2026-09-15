@@ -634,6 +634,101 @@ export class PlantHeadService {
     };
   }
 
+  /**
+   * Source-of-truth report for the monthly production MIS.  The completedAt
+   * predicate intentionally lives on WorkOrder: reporting order intake dates
+   * here would misstate production for a selected month.
+   */
+  async getMonthlyProductionReport(
+    companyId: string,
+    filter?: string,
+    customStart?: string,
+    customEnd?: string,
+  ) {
+    const { startDate, endDate } = this.getDateRange(filter, customStart, customEnd);
+    const completed = await this.prisma.workOrder.findMany({
+      where: {
+        completedAt: { not: null, gte: startDate, lte: endDate },
+        ...(companyId ? { productionPlan: { salesOrder: { customer: { companyId } } } } : {}),
+      },
+      include: {
+        salesOrderItem: { include: { product: true } },
+        productionPlan: {
+          include: {
+            salesOrder: {
+              include: { customer: true, salesExecutive: true },
+            },
+          },
+        },
+      },
+    });
+
+    const productMap = new Map<string, any>();
+    const sizeMap = new Map<string, number>();
+    const capacityMap = new Map<string, number>();
+    const salespersonMap = new Map<string, any>();
+    const customerMap = new Map<string, any>();
+    let totalWeight = 0, totalCovers = 0, totalFrames = 0, totalPieces = 0;
+
+    for (const workOrder of completed) {
+      const item: any = workOrder.salesOrderItem;
+      const sourceOrder: any = workOrder.productionPlan?.salesOrder;
+      const product: any = item?.product;
+      if (!product || !sourceOrder) continue; // Do not invent sales attribution.
+      const quantity = Number(workOrder.quantity || 0);
+      const coverPerSet = Number(product.coversPerSet || 1);
+      const framePerSet = Number(product.framesPerSet || 1);
+      const coverWeight = Number(product.coverUnitWeight || 0);
+      const frameWeight = Number(product.frameUnitWeight || 0);
+      const unitWeight = Number(product.weight || coverWeight + frameWeight || 0);
+      const weight = quantity * unitWeight;
+      const covers = quantity * coverPerSet;
+      const frames = quantity * framePerSet;
+      const pieces = covers + frames;
+      totalWeight += weight; totalCovers += covers; totalFrames += frames; totalPieces += pieces;
+
+      const productName = product.name || item.productNameSnapshot || 'Unclassified';
+      const productRow = productMap.get(productName) || { name: productName, weight: 0, covers: 0, frames: 0 };
+      productRow.weight += weight; productRow.covers += covers; productRow.frames += frames; productMap.set(productName, productRow);
+      const addBucket = (map: Map<string, number>, key: string) => map.set(key, (map.get(key) || 0) + weight);
+      addBucket(sizeMap, product.size || 'Other Sizes');
+      addBucket(capacityMap, product.capacity || 'Other');
+
+      const executive = sourceOrder.salesExecutive?.name || 'Unassigned';
+      const salesRow = salespersonMap.get(executive) || { name: executive, customers: new Set<string>(), orders: new Set<string>(), weight: 0, pieces: 0 };
+      salesRow.customers.add(sourceOrder.customerId); salesRow.orders.add(sourceOrder.id); salesRow.weight += weight; salesRow.pieces += pieces; salespersonMap.set(executive, salesRow);
+      const customer = sourceOrder.customer;
+      const customerRow = customerMap.get(customer.id) || { name: customer.companyName, salesperson: executive, orders: new Set<string>(), weight: 0, pieces: 0, firstOrderDate: sourceOrder.orderDate, isNew: false };
+      customerRow.orders.add(sourceOrder.id); customerRow.weight += weight; customerRow.pieces += pieces;
+      if (new Date(sourceOrder.orderDate) < new Date(customerRow.firstOrderDate)) customerRow.firstOrderDate = sourceOrder.orderDate;
+      customerMap.set(customer.id, customerRow);
+    }
+
+    // A customer is new only when their first ever sales order is in this range.
+    const customerIds = [...customerMap.keys()];
+    if (customerIds.length) {
+      const priorOrders = await this.prisma.salesOrder.groupBy({
+        by: ['customerId'], where: { customerId: { in: customerIds }, orderDate: { lt: startDate } },
+      });
+      const priorCustomerIds = new Set(priorOrders.map((row) => row.customerId));
+      customerMap.forEach((row, id) => { row.isNew = !priorCustomerIds.has(id); });
+    }
+    const serialiseBuckets = (map: Map<string, number>) => [...map.entries()].map(([name, weight]) => ({ name, weight }));
+    const rankedCustomers = [...customerMap.values()].map(row => ({ ...row, orders: row.orders.size })).sort((a,b) => b.weight - a.weight);
+    const concentration = [5, 10, 20].map(limit => ({ limit, weight: rankedCustomers.slice(0, limit).reduce((sum, row) => sum + row.weight, 0) }));
+    return {
+      period: { startDate, endDate }, source: 'completed-work-orders',
+      kpis: { totalWeight, totalCovers, totalFrames, totalPieces },
+      products: [...productMap.values()].sort((a,b) => b.weight - a.weight),
+      sizes: serialiseBuckets(sizeMap).sort((a,b) => b.weight - a.weight),
+      capacities: serialiseBuckets(capacityMap).sort((a,b) => b.weight - a.weight),
+      salespeople: [...salespersonMap.values()].map(row => ({ ...row, customers: row.customers.size, orders: row.orders.size })).sort((a,b) => b.weight - a.weight),
+      customers: rankedCustomers,
+      concentration,
+      newCustomers: rankedCustomers.filter(row => row.isNew),
+    };
+  }
+
   async getDepartmentOverview(companyId: string) {
     const activeProduction = await this.prisma.salesOrder.count({
       where: { customer: { companyId }, status: { in: ['IN_PRODUCTION'] } },
