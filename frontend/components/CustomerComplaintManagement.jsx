@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import Swal from 'sweetalert2';
 import {
   Eye,
@@ -29,6 +29,7 @@ import {
   Download,
   ExternalLink,
   ChevronRight,
+  ChevronDown,
   Filter,
 } from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
@@ -139,6 +140,14 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
   const [formAttachment, setFormAttachment] = useState('');
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
+  // Smart Customer Search State for Create Modal
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [isCustomerSearchOpen, setIsCustomerSearchOpen] = useState(false);
+  const [highlightedCustomerIndex, setHighlightedCustomerIndex] = useState(-1);
+  const customerSearchRef = useRef(null);
+  const customerSearchInputRef = useRef(null);
+  const customerListRef = useRef(null);
+
   // Fetch Complaints List
   const fetchComplaints = useCallback(async () => {
     setLoading(true);
@@ -231,8 +240,225 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
     }
   }, [selectedOrderObj]);
 
+  // Precompute map of order count per customer
+  const customerOrderCountMap = useMemo(() => {
+    const map = {};
+    metaOrders.forEach((o) => {
+      if (o.customerId) {
+        map[o.customerId] = (map[o.customerId] || 0) + 1;
+      }
+    });
+    return map;
+  }, [metaOrders]);
+
+  // Levenshtein distance for fuzzy matching (supports typos like "sharron" -> "SHANNON")
+  const levenshteinDistance = useCallback((a, b) => {
+    const an = a ? a.length : 0;
+    const bn = b ? b.length : 0;
+    if (an === 0) return bn;
+    if (bn === 0) return an;
+    const matrix = Array(an + 1).fill(0).map(() => Array(bn + 1).fill(0));
+    for (let i = 0; i <= an; i++) matrix[i][0] = i;
+    for (let j = 0; j <= bn; j++) matrix[0][j] = j;
+    for (let i = 1; i <= an; i++) {
+      for (let j = 1; j <= bn; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j - 1] + cost
+        );
+      }
+    }
+    return matrix[an][bn];
+  }, []);
+
+  const scoreCustomerMatch = useCallback((cust, query) => {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return 100;
+
+    const name = (cust.companyName || '').toLowerCase();
+    const code = (cust.customerCode || '').toLowerCase();
+    const contact = (cust.contactPerson || '').toLowerCase();
+    const phone = (cust.phone || '').toLowerCase();
+    const email = (cust.email || '').toLowerCase();
+    const words = name.split(/\s+/).filter(Boolean);
+
+    // 1. Exact start of company name (e.g. "SHANNON PROJECTS LLP" for "sha")
+    if (name.startsWith(q)) return 1000 - (name.length - q.length);
+
+    // 2. Start of any word in company name (e.g. "SUPER SHALIGRAM" for "sha")
+    if (words.some((w) => w.startsWith(q))) return 800;
+
+    // 3. Substring in company name (e.g. "VISHAN" for "sha")
+    if (name.includes(q)) return 600 - name.indexOf(q);
+
+    // 4. Code match
+    if (code.includes(q)) return 400;
+
+    // 5. Contact person / phone / email match
+    if (contact.includes(q) || phone.includes(q) || email.includes(q)) return 300;
+
+    // 6. Fuzzy match (handles typos like "sharron" -> "SHANNON", edit distance <= 2)
+    if (q.length >= 3) {
+      for (const w of words) {
+        if (Math.abs(w.length - q.length) <= 2) {
+          const dist = levenshteinDistance(q, w);
+          if (dist <= 2) return 200 - dist * 30;
+        }
+        if (w.length > q.length) {
+          const prefix = w.slice(0, q.length);
+          const dist = levenshteinDistance(q, prefix);
+          if (dist <= 1) return 180 - dist * 30;
+        }
+      }
+    }
+
+    return 0;
+  }, [levenshteinDistance]);
+
+  // Filtered & ranked customers for the Create modal smart search
+  const filteredCustomersForCreate = useMemo(() => {
+    if (!customerSearchQuery.trim()) {
+      return metaCustomers;
+    }
+    const scored = [];
+    for (const c of metaCustomers) {
+      const score = scoreCustomerMatch(c, customerSearchQuery);
+      if (score > 0) {
+        scored.push({ customer: c, score });
+      }
+    }
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return (a.customer.companyName || '').localeCompare(b.customer.companyName || '');
+    });
+    return scored.map((s) => s.customer);
+  }, [metaCustomers, customerSearchQuery, scoreCustomerMatch]);
+
+  const selectedCustomerObj = useMemo(() => {
+    if (!formCustomerId) return null;
+    return metaCustomers.find((c) => c.id === formCustomerId) || null;
+  }, [formCustomerId, metaCustomers]);
+
+  // Click outside to close customer dropdown and sync display name
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (customerSearchRef.current && !customerSearchRef.current.contains(e.target)) {
+        setIsCustomerSearchOpen(false);
+        if (selectedCustomerObj) {
+          setCustomerSearchQuery(selectedCustomerObj.companyName);
+        } else {
+          setCustomerSearchQuery('');
+        }
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectedCustomerObj]);
+
+  const handleSelectCustomer = useCallback((customer) => {
+    if (!customer) {
+      setFormCustomerId('');
+      setCustomerSearchQuery('');
+      setFormOrderId('');
+      setIsCustomerSearchOpen(false);
+      setHighlightedCustomerIndex(-1);
+      return;
+    }
+    setFormCustomerId(customer.id);
+    setCustomerSearchQuery(customer.companyName);
+    setIsCustomerSearchOpen(false);
+    setHighlightedCustomerIndex(-1);
+
+    // If this customer has exactly 1 order, auto-select it for operator convenience
+    const ordersForCust = metaOrders.filter((o) => o.customerId === customer.id);
+    if (ordersForCust.length === 1) {
+      setFormOrderId(ordersForCust[0].id);
+    } else {
+      setFormOrderId('');
+    }
+  }, [metaOrders]);
+
+  const scrollItemIntoView = (index) => {
+    if (customerListRef.current) {
+      const items = customerListRef.current.querySelectorAll('[data-cust-item]');
+      if (items[index]) {
+        items[index].scrollIntoView({ block: 'nearest' });
+      }
+    }
+  };
+
+  const handleCustomerKeyDown = (e) => {
+    if (!isCustomerSearchOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+        setIsCustomerSearchOpen(true);
+        return;
+      }
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedCustomerIndex((prev) => {
+        const next = prev < filteredCustomersForCreate.length - 1 ? prev + 1 : 0;
+        scrollItemIntoView(next);
+        return next;
+      });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedCustomerIndex((prev) => {
+        const next = prev > 0 ? prev - 1 : filteredCustomersForCreate.length - 1;
+        scrollItemIntoView(next);
+        return next;
+      });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightedCustomerIndex >= 0 && highlightedCustomerIndex < filteredCustomersForCreate.length) {
+        handleSelectCustomer(filteredCustomersForCreate[highlightedCustomerIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsCustomerSearchOpen(false);
+    }
+  };
+
+  const renderHighlightedText = (text, query) => {
+    if (!text || !query || !query.trim()) return text;
+    const q = query.trim();
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    try {
+      const regex = new RegExp(`(${escaped})`, 'gi');
+      const parts = String(text).split(regex);
+      if (parts.length <= 1) {
+        return text;
+      }
+      return parts.map((part, idx) =>
+        part.toLowerCase() === q.toLowerCase() ? (
+          <span
+            key={idx}
+            style={{
+              backgroundColor: '#fef08a',
+              color: '#854d0e',
+              fontWeight: '800',
+              padding: '1px 3px',
+              borderRadius: '3px',
+            }}
+          >
+            {part}
+          </span>
+        ) : (
+          part
+        )
+      );
+    } catch {
+      return text;
+    }
+  };
+
   const openCreateModal = () => {
     setFormCustomerId('');
+    setCustomerSearchQuery('');
+    setIsCustomerSearchOpen(false);
+    setHighlightedCustomerIndex(-1);
     setFormOrderId('');
     setFormSelectedProducts({});
     setFormComplaintType('Product Quality');
@@ -1009,30 +1235,312 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
               <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 
                 {/* 1. Customer & Order Selection Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px', position: 'relative', zIndex: isCustomerSearchOpen ? 50 : 2 }}>
                   
-                  {/* Select Customer */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                      Select Customer *
-                    </label>
-                    <select
+                  {/* Select Customer - Smart Search Combobox */}
+                  <div ref={customerSearchRef} style={{ position: 'relative' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+                        Select Customer *
+                      </label>
+                      {selectedCustomerObj && (
+                        <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '600' }}>
+                          ✓ Customer Selected
+                        </span>
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Search
+                        size={16}
+                        style={{
+                          position: 'absolute',
+                          left: '12px',
+                          color: isCustomerSearchOpen ? '#0284c7' : selectedCustomerObj ? '#0284c7' : '#94a3b8',
+                          pointerEvents: 'none',
+                        }}
+                      />
+
+                      <input
+                        ref={customerSearchInputRef}
+                        type="text"
+                        data-testid="smart-search-complaint-customer"
+                        placeholder="Type to search customer (e.g. sha, tata)..."
+                        value={customerSearchQuery}
+                        onFocus={() => setIsCustomerSearchOpen(true)}
+                        onChange={(e) => {
+                          setCustomerSearchQuery(e.target.value);
+                          if (!isCustomerSearchOpen) setIsCustomerSearchOpen(true);
+                          setHighlightedCustomerIndex(0);
+                        }}
+                        onKeyDown={handleCustomerKeyDown}
+                        style={{
+                          width: '100%',
+                          padding: '10px 60px 10px 36px',
+                          border: `1.5px solid ${isCustomerSearchOpen ? '#0284c7' : selectedCustomerObj ? '#0284c7' : '#DCE5F0'}`,
+                          borderRadius: '8px',
+                          fontSize: '13.5px',
+                          background: selectedCustomerObj && !isCustomerSearchOpen ? '#f0f9ff' : '#fff',
+                          color: '#0f172a',
+                          fontWeight: selectedCustomerObj ? '600' : '400',
+                          outline: 'none',
+                          boxShadow: isCustomerSearchOpen ? '0 0 0 3px rgba(2, 132, 199, 0.15)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      />
+
+                      {/* Right action controls */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '2px',
+                        }}
+                      >
+                        {customerSearchQuery && (
+                          <button
+                            type="button"
+                            title="Clear search"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectCustomer(null);
+                              customerSearchInputRef.current?.focus();
+                            }}
+                            style={{
+                              background: '#e2e8f0',
+                              border: 'none',
+                              borderRadius: '50%',
+                              width: '20px',
+                              height: '20px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              color: '#475569',
+                              padding: 0,
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCustomerSearchOpen((prev) => !prev);
+                            customerSearchInputRef.current?.focus();
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#64748b',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <ChevronDown
+                            size={16}
+                            style={{
+                              transform: isCustomerSearchOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s',
+                            }}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Hidden input for HTML validation and test compatibility */}
+                    <input
+                      type="hidden"
                       data-testid="select-complaint-customer"
                       value={formCustomerId}
-                      onChange={(e) => {
-                        setFormCustomerId(e.target.value);
-                        setFormOrderId('');
-                      }}
-                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #DCE5F0', borderRadius: '8px', fontSize: '13.5px', background: '#fff' }}
                       required
-                    >
-                      <option value="">-- Choose Customer --</option>
-                      {metaCustomers.map((cust) => (
-                        <option key={cust.id} value={cust.id}>
-                          {cust.companyName} {cust.customerCode ? `(${cust.customerCode})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                    />
+
+                    {/* Dropdown Menu */}
+                    {isCustomerSearchOpen && (
+                      <div
+                        ref={customerListRef}
+                        style={{
+                          position: 'absolute',
+                          top: 'calc(100% + 4px)',
+                          left: 0,
+                          right: 0,
+                          zIndex: 100,
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '10px',
+                          boxShadow: '0 12px 28px -4px rgba(15, 23, 42, 0.18), 0 4px 10px -2px rgba(15, 23, 42, 0.08)',
+                          maxHeight: '280px',
+                          overflowY: 'auto',
+                          padding: '6px 0',
+                        }}
+                      >
+                        {/* Dropdown Header / Filter Info */}
+                        <div
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            color: '#64748b',
+                            borderBottom: '1px solid #f1f5f9',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            background: '#f8fafc',
+                          }}
+                        >
+                          <span>
+                            {filteredCustomersForCreate.length}{' '}
+                            {filteredCustomersForCreate.length === 1 ? 'Customer' : 'Customers'}
+                            {customerSearchQuery.trim() ? ` matching "${customerSearchQuery}"` : ' available'}
+                          </span>
+                          <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                            ↑↓ to navigate, Enter to select
+                          </span>
+                        </div>
+
+                        {filteredCustomersForCreate.length === 0 ? (
+                          <div
+                            style={{
+                              padding: '24px 16px',
+                              textAlign: 'center',
+                              color: '#64748b',
+                              fontSize: '13px',
+                            }}
+                          >
+                            <AlertCircle size={24} style={{ margin: '0 auto 8px', color: '#f59e0b' }} />
+                            <div>No customers found matching <b>"{customerSearchQuery}"</b></div>
+                            <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>
+                              Check spelling or try searching by customer code or phone.
+                            </div>
+                          </div>
+                        ) : (
+                          filteredCustomersForCreate.map((cust, idx) => {
+                            const isSelected = cust.id === formCustomerId;
+                            const isHighlighted = idx === highlightedCustomerIndex;
+                            const orderCount = customerOrderCountMap[cust.id] || 0;
+
+                            return (
+                              <div
+                                key={cust.id}
+                                data-cust-item
+                                onMouseEnter={() => setHighlightedCustomerIndex(idx)}
+                                onClick={() => handleSelectCustomer(cust)}
+                                style={{
+                                  padding: '9px 12px',
+                                  cursor: 'pointer',
+                                  background: isSelected
+                                    ? '#e0f2fe'
+                                    : isHighlighted
+                                    ? '#f1f5f9'
+                                    : 'transparent',
+                                  borderLeft: isSelected
+                                    ? '4px solid #0284c7'
+                                    : isHighlighted
+                                    ? '4px solid #94a3b8'
+                                    : '4px solid transparent',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: '10px',
+                                  transition: 'background-color 0.1s',
+                                }}
+                              >
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <div
+                                    style={{
+                                      fontSize: '13px',
+                                      fontWeight: isSelected ? '700' : '600',
+                                      color: isSelected ? '#0369a1' : '#1e293b',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                    }}
+                                  >
+                                    <Building2 size={13} style={{ color: isSelected ? '#0284c7' : '#64748b', flexShrink: 0 }} />
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {renderHighlightedText(cust.companyName, customerSearchQuery)}
+                                    </span>
+                                  </div>
+
+                                  <div
+                                    style={{
+                                      fontSize: '11px',
+                                      color: '#64748b',
+                                      marginTop: '2px',
+                                      display: 'flex',
+                                      gap: '8px',
+                                      alignItems: 'center',
+                                    }}
+                                  >
+                                    {cust.customerCode && (
+                                      <span
+                                        style={{
+                                          fontFamily: 'monospace',
+                                          background: '#f1f5f9',
+                                          padding: '1px 5px',
+                                          borderRadius: '4px',
+                                          color: '#475569',
+                                        }}
+                                      >
+                                        {renderHighlightedText(cust.customerCode, customerSearchQuery)}
+                                      </span>
+                                    )}
+                                    {cust.phone && <span>📞 {cust.phone}</span>}
+                                  </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                  <span
+                                    style={{
+                                      fontSize: '11px',
+                                      fontWeight: '600',
+                                      padding: '2px 7px',
+                                      borderRadius: '10px',
+                                      background: orderCount > 0 ? '#ecfdf5' : '#fef2f2',
+                                      color: orderCount > 0 ? '#047857' : '#b91c1c',
+                                      border: `1px solid ${orderCount > 0 ? '#a7f3d0' : '#fecaca'}`,
+                                    }}
+                                  >
+                                    {orderCount} {orderCount === 1 ? 'Order' : 'Orders'}
+                                  </span>
+
+                                  {isSelected && (
+                                    <CheckCircle2 size={16} style={{ color: '#0284c7' }} />
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+
+                    {/* Helper text under customer input */}
+                    {selectedCustomerObj ? (
+                      <div style={{ marginTop: '5px', fontSize: '11.5px', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>Customer selected.</span>
+                        {customerOrderCountMap[selectedCustomerObj.id] === 1 ? (
+                          <span style={{ color: '#16a34a' }}>• Single order auto-selected</span>
+                        ) : (
+                          <span>• Choose order from dropdown</span>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: '5px', fontSize: '11.5px', color: '#64748b' }}>
+                        💡 Type customer name (e.g. <b>sha</b> for Shannon Projects) or code to search.
+                      </div>
+                    )}
                   </div>
 
                   {/* Select Order */}
@@ -1062,6 +1570,11 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
                         </option>
                       ))}
                     </select>
+                    {formCustomerId && availableOrdersForCustomer.length === 0 && (
+                      <div style={{ marginTop: '5px', fontSize: '11.5px', color: '#dc2626' }}>
+                        No eligible orders found for this customer.
+                      </div>
+                    )}
                   </div>
 
                 </div>

@@ -140,8 +140,12 @@ export class CustomerComplaintsService {
       }
     });
 
+    const sortedCustomers = Array.from(customersMap.values()).sort((a, b) =>
+      (a.companyName || '').localeCompare(b.companyName || '')
+    );
+
     return {
-      customers: Array.from(customersMap.values()),
+      customers: sortedCustomers,
       orders: orders.map((o) => ({
         id: o.id,
         orderNumber: o.orderNumber,
