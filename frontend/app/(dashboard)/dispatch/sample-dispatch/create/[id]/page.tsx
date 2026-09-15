@@ -143,8 +143,13 @@ export default function CreateSampleDispatchPage() {
     '';
   const salesExecutive =
     sampleDetails?.salesExecutiveName ||
-    sampleDetails?.salesExecutive?.name ||
+    sampleDetails?.salesPerson ||
+    sampleDetails?.salesPersonName ||
+    (typeof sampleDetails?.salesExecutive === 'string' ? sampleDetails.salesExecutive : sampleDetails?.salesExecutive?.name) ||
     sampleDetails?.lead?.salesExecutive?.name ||
+    sampleDetails?.lead?.salesPerson ||
+    sampleDetails?.assignedTo?.name ||
+    sampleDetails?.createdBy?.name ||
     '';
   const leadNumber =
     sampleDetails?.lead?.leadNumber ||
@@ -655,12 +660,10 @@ export default function CreateSampleDispatchPage() {
                         </span>
                       )}
                     </div>
-                    {salesExecutive && (
-                      <div className={styles.refDetailCardSub}>
-                        <User size={13} color="#64748b" />
-                        <span>Salesperson: <strong>{salesExecutive}</strong></span>
-                      </div>
-                    )}
+                    <div className={styles.refDetailCardSub}>
+                      <User size={13} color="#64748b" />
+                      <span>Salesperson: <strong>{salesExecutive || 'Unassigned'}</strong></span>
+                    </div>
                   </div>
 
                   {/* Card 2: Customer & Delivery Address */}

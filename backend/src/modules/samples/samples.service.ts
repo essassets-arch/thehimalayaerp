@@ -296,7 +296,7 @@ export class SamplesService {
 
   async findAll(companyId: string, userId?: string, role?: string) {
     const scope = getSampleSalesScope(userId, role);
-    return this.prisma.sampleRequest.findMany({
+    const samples = await this.prisma.sampleRequest.findMany({
       where: { companyId, deletedAt: null, ...scope },
       include: {
         salesExecutive: { select: { id: true, name: true, email: true } },
@@ -329,6 +329,9 @@ export class SamplesService {
             address: true,
             detailedItems: true,
             remarks: true,
+            salesExecutiveId: true,
+            assignedToId: true,
+            createdById: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
           },
         },
@@ -347,6 +350,40 @@ export class SamplesService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Batch resolve any unassigned / missing salesExecutive names
+    const missingUserIds = new Set<string>();
+    for (const s of samples) {
+      if (!s.salesExecutive && s.salesExecutiveId) missingUserIds.add(s.salesExecutiveId);
+      if (s.lead && !s.lead.salesExecutive && s.lead.salesExecutiveId) missingUserIds.add(s.lead.salesExecutiveId);
+      if (s.lead?.assignedToId) missingUserIds.add(s.lead.assignedToId);
+      if (s.lead?.createdById) missingUserIds.add(s.lead.createdById);
+      if (s.createdById) missingUserIds.add(s.createdById);
+    }
+
+    if (missingUserIds.size > 0) {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: Array.from(missingUserIds) } },
+        select: { id: true, name: true, email: true },
+      });
+      const userMap = new Map(users.map((u) => [u.id, u]));
+
+      for (const s of samples) {
+        if (!s.salesExecutive) {
+          const matchedUser =
+            (s.salesExecutiveId && userMap.get(s.salesExecutiveId)) ||
+            (s.lead?.salesExecutiveId && userMap.get(s.lead.salesExecutiveId)) ||
+            (s.lead?.assignedToId && userMap.get(s.lead.assignedToId)) ||
+            (s.lead?.createdById && userMap.get(s.lead.createdById)) ||
+            (s.createdById && userMap.get(s.createdById));
+          if (matchedUser) {
+            (s as any).salesExecutive = matchedUser;
+          }
+        }
+      }
+    }
+
+    return samples;
   }
 
   async findOne(id: string, companyId: string, userId?: string, role?: string) {
@@ -395,6 +432,9 @@ export class SamplesService {
             address: true,
             detailedItems: true,
             remarks: true,
+            salesExecutiveId: true,
+            assignedToId: true,
+            createdById: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
           },
         },
@@ -457,6 +497,9 @@ export class SamplesService {
               address: true,
               detailedItems: true,
               remarks: true,
+              salesExecutiveId: true,
+              assignedToId: true,
+              createdById: true,
               salesExecutive: { select: { id: true, name: true, email: true } },
             },
           },
@@ -481,6 +524,28 @@ export class SamplesService {
 
     if (!sample) {
       throw new NotFoundException(`Sample request ${id} not found`);
+    }
+
+    if (!sample.salesExecutive) {
+      const candidateIds = [
+        sample.salesExecutiveId,
+        sample.lead?.salesExecutiveId,
+        sample.lead?.assignedToId,
+        sample.lead?.createdById,
+        sample.createdById,
+      ].filter(Boolean) as string[];
+
+      if (candidateIds.length > 0) {
+        const users = await this.prisma.user.findMany({
+          where: { id: { in: candidateIds } },
+          select: { id: true, name: true, email: true },
+        });
+        const userMap = new Map(users.map((u) => [u.id, u]));
+        const matchedUser = candidateIds.map((cid) => userMap.get(cid)).find(Boolean);
+        if (matchedUser) {
+          (sample as any).salesExecutive = matchedUser;
+        }
+      }
     }
 
     return sample;

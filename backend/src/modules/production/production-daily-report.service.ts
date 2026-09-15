@@ -1060,18 +1060,31 @@ export class ProductionDailyReportService {
       },
     });
 
-    // 1. Group production in quantities to deduct from FinishedGoods
-    const prodInByProduct = new Map<string, number>();
-    for (const h of reportHistories) {
-      if (h.event === 'PRODUCTION_IN' && Number(h.quantity) > 0) {
-        prodInByProduct.set(
-          h.productId,
-          (prodInByProduct.get(h.productId) || 0) + Number(h.quantity),
-        );
-      }
-    }
+    // 1. Group production entries to deduct from FinishedGoods and reverse extra components
+    const prodHistories = reportHistories.filter(
+      (h) => h.event === 'PRODUCTION_IN',
+    );
+    const prodProductIds = Array.from(
+      new Set(prodHistories.map((h) => h.productId)),
+    );
 
-    for (const [productId, qtyToDeduct] of prodInByProduct.entries()) {
+    for (const productId of prodProductIds) {
+      const historiesForProd = prodHistories.filter(
+        (h) => h.productId === productId,
+      );
+      const qtyToDeduct = historiesForProd.reduce(
+        (sum, h) => sum + Number(h.quantity || 0),
+        0,
+      );
+      const extraCoverToDeduct = historiesForProd.reduce(
+        (sum, h) => sum + Number(h.extraCoverQuantity || 0),
+        0,
+      );
+      const extraFrameToDeduct = historiesForProd.reduce(
+        (sum, h) => sum + Number(h.extraFrameQuantity || 0),
+        0,
+      );
+
       const fgRecords = await tx.$queryRaw<any[]>`
         SELECT id, quantity, "availableQuantity", "reservedQuantity"
         FROM "FinishedGoods"
@@ -1096,24 +1109,26 @@ export class ProductionDailyReportService {
       );
       const beforeAvailTotal = totalAvail;
 
-      for (const fg of fgRecords) {
-        if (remainingToDeduct <= 0) break;
-        const currentAvail = Number(fg.availableQuantity || 0);
-        const deduct = Math.min(currentAvail, remainingToDeduct);
-        if (deduct <= 0) continue;
+      if (qtyToDeduct > 0) {
+        for (const fg of fgRecords) {
+          if (remainingToDeduct <= 0) break;
+          const currentAvail = Number(fg.availableQuantity || 0);
+          const deduct = Math.min(currentAvail, remainingToDeduct);
+          if (deduct <= 0) continue;
 
-        const newAvail = currentAvail - deduct;
-        const newQty = Math.max(0, Number(fg.quantity || 0) - deduct);
+          const newAvail = currentAvail - deduct;
+          const newQty = Math.max(0, Number(fg.quantity || 0) - deduct);
 
-        await tx.finishedGoods.update({
-          where: { id: fg.id },
-          data: {
-            availableQuantity: newAvail,
-            quantity: newQty,
-            status: newAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
-          },
-        });
-        remainingToDeduct -= deduct;
+          await tx.finishedGoods.update({
+            where: { id: fg.id },
+            data: {
+              availableQuantity: newAvail,
+              quantity: newQty,
+              status: newAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
+            },
+          });
+          remainingToDeduct -= deduct;
+        }
       }
 
       const afterQtyTotal = beforeQtyTotal - qtyToDeduct;
@@ -1124,6 +1139,8 @@ export class ProductionDailyReportService {
           companyId,
           productId,
           quantity: -qtyToDeduct,
+          extraCoverQuantity: -extraCoverToDeduct,
+          extraFrameQuantity: -extraFrameToDeduct,
           event: 'PRODUCTION_REVERSAL',
           actor: userId,
           beforeQuantity: beforeQtyTotal,

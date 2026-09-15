@@ -79,11 +79,12 @@ test.describe('Daily Production Report E2E Flow', () => {
     await popover.waitFor({ state: 'visible' });
     await popover.getByText('HIMALAYAFRPWGC600X900LD').first().click();
 
-    // Fill quantities: Cover Qty = 25, Frame Qty = 25
-    console.log('Entering cover and frame quantities...');
+    // Fill quantities: Cover Qty = 25, Frame Qty = 25, and Operator manually enters Set Qty = 25
+    console.log('Entering cover, frame, and set quantities...');
     const firstRowInputs = page.locator('tbody tr').first().locator('input[type="number"]');
     await firstRowInputs.nth(0).fill('25');
     await firstRowInputs.nth(2).fill('25');
+    await firstRowInputs.nth(4).fill('25');
 
     // Verify set quantity column shows 25 in the UI
     await expect(firstRowInputs.nth(4)).toHaveValue('25');
@@ -252,6 +253,7 @@ test.describe('Daily Production Report E2E Flow', () => {
     const editFirstRowInputs = page.locator('tbody tr').first().locator('input[type="number"]');
     await editFirstRowInputs.nth(0).fill('30');
     await editFirstRowInputs.nth(2).fill('30');
+    await editFirstRowInputs.nth(4).fill('30');
 
     await expect(editFirstRowInputs.nth(4)).toHaveValue('30');
 

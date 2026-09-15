@@ -194,7 +194,20 @@ export class SamplesController {
     const contactPerson = data.lead?.contactPerson || data.customer?.contactPerson || '';
     const phone = data.lead?.phone || data.customer?.phone || '';
     const email = data.lead?.email || data.customer?.email || '';
-    const salesExecutiveName = data.salesExecutive?.name || data.lead?.salesExecutive?.name || '';
+    const salesExecutiveName =
+      data.salesExecutive?.name ||
+      data.lead?.salesExecutive?.name ||
+      data.lead?.assignedTo?.name ||
+      data.lead?.createdBy?.name ||
+      data.createdBy?.name ||
+      data.assignedTo?.name ||
+      data.salesPerson ||
+      data.salesPersonName ||
+      data.salesExecutiveName ||
+      data.dispatchDetails?.salesPerson ||
+      data.dispatchDetails?.salesExecutive ||
+      (typeof data.salesExecutive === 'string' ? data.salesExecutive : '') ||
+      '';
 
     const deliveryAddress =
       formatAddress(data.deliveryAddress) ||
@@ -242,6 +255,8 @@ export class SamplesController {
       contactPhone: phone,
       email,
       salesExecutiveName,
+      salesPerson: salesExecutiveName,
+      salesPersonName: salesExecutiveName,
       transportCost,
       transportationCost: transportCost,
       dispatchStatus,

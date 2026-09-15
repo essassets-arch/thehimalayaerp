@@ -2865,9 +2865,10 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                           </span>
                         </div>
                         <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: '#5E6B82', flexWrap: 'wrap' }}>
-                          <span>≡ƒôª <strong>{sample.product}</strong> ({sample.quantity} Pcs)</span>
-                          <span>Delivered: <strong style={{ color: '#1e293b' }}>{sample.deliveredDate ? sample.deliveredDate.split('T')[0] : 'ΓÇö'}</strong></span>
-                          <span>Eval End: <strong style={{ color: '#dc2626' }}>{sample.evaluationEndDate ? sample.evaluationEndDate.split('T')[0] : 'ΓÇö'}</strong></span>
+                          <span>📦 <strong>{sample.product}</strong> ({sample.quantity} Pcs)</span>
+                          <span>Sales Person: <strong style={{ color: '#1e293b' }}>{sample.salesPerson || sample.salesPersonName || sample.salesExecutiveName || sample.salesExecutive?.name || sample.lead?.salesExecutive?.name || 'Unassigned'}</strong></span>
+                          <span>Delivered: <strong style={{ color: '#1e293b' }}>{sample.deliveredDate ? sample.deliveredDate.split('T')[0] : '—'}</strong></span>
+                          <span>Eval End: <strong style={{ color: '#dc2626' }}>{sample.evaluationEndDate ? sample.evaluationEndDate.split('T')[0] : '—'}</strong></span>
                           {sample.returnVehicleNo && <span>Return Vehicle: <strong style={{ color: '#1e293b' }}>{sample.returnVehicleNo}</strong></span>}
                           {sample.returnedDate && <span>Returned On: <strong style={{ color: '#16a34a' }}>{sample.returnedDate.split('T')[0]}</strong></span>}
                         </div>
@@ -2911,7 +2912,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                 { header: 'Customer', accessor: 'leadName' },
                 { header: 'Product', accessor: 'product' },
                 { header: 'Qty', accessor: 'quantity', render: row => `${row.quantity} Pcs` },
-                { header: 'Sales Person', accessor: 'salesPerson', render: row => row.salesPerson || row.createdBy || 'ΓÇö' },
+                { header: 'Sales Person', accessor: 'salesPerson', render: row => row.salesPerson || row.salesPersonName || row.salesExecutiveName || row.salesExecutive?.name || row.lead?.salesExecutive?.name || row.createdBy || '—' },
                 {
                   header: 'Status',
                   accessor: 'dispatchStatus',

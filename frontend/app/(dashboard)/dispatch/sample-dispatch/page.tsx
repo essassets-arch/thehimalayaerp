@@ -38,6 +38,7 @@ interface SampleDispatchItem {
   cleanId: string;
   orderNo: string;
   customer: string;
+  salesPerson?: string;
   address: string;
   product: string;
   approvedQty: number;
@@ -64,7 +65,12 @@ function SampleDispatchListContent() {
   const basePath = isDispatch2 ? '/dispatch-2' : '/dispatch';
   const targetCategory = isDispatch2 ? 'D2' : 'D1';
 
-  const [filter, setFilter] = useState('pending');
+  const initialStatusParam = searchParams?.get('status');
+  const [filter, setFilter] = useState(
+    initialStatusParam && ['pending', 'in-transit', 'delivered', 'all'].includes(initialStatusParam)
+      ? initialStatusParam
+      : 'pending'
+  );
   const [search, setSearch] = useState('');
   const [requests, setRequests] = useState<SampleDispatchItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -235,11 +241,27 @@ function SampleDispatchListContent() {
           formatAddress(sample.customer?.billingAddress) ||
           'See Lead/Customer address';
 
+        const salesPerson =
+          sample.salesPerson ||
+          sample.salesPersonName ||
+          sample.salesExecutiveName ||
+          (typeof sample.salesExecutive === 'string' ? sample.salesExecutive : sample.salesExecutive?.name) ||
+          sample.lead?.salesExecutive?.name ||
+          sample.lead?.salesPerson ||
+          sample.lead?.assignedTo?.name ||
+          sample.lead?.createdBy?.name ||
+          sample.assignedTo?.name ||
+          sample.createdBy?.name ||
+          sample.dispatchDetails?.salesPerson ||
+          sample.dispatchDetails?.salesExecutive ||
+          '';
+
         mappedList.push({
           id: `req-${sample.id}`,
           cleanId: sample.id,
           orderNo: sample.sampleNumber || sample.sampleId || `SMP-${String(sample.id).slice(0, 6)}`,
           customer: customerName,
+          salesPerson,
           address,
           product: productName,
           approvedQty: totalQty,
@@ -387,6 +409,7 @@ function SampleDispatchListContent() {
       return (
         req.orderNo.toLowerCase().includes(q) ||
         req.customer.toLowerCase().includes(q) ||
+        (req.salesPerson && req.salesPerson.toLowerCase().includes(q)) ||
         req.product.toLowerCase().includes(q) ||
         req.address.toLowerCase().includes(q) ||
         (req.vehicleNo && req.vehicleNo.toLowerCase().includes(q)) ||
@@ -660,7 +683,7 @@ function SampleDispatchListContent() {
           />
           <input
             type="text"
-            placeholder="Search by Sample No, Customer, Product, Transporter or Address..."
+            placeholder="Search by Sample No, Customer, Sales Person, Product, Transporter or Address..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
@@ -679,12 +702,13 @@ function SampleDispatchListContent() {
 
       {/* ── Desktop Data Table (>= 768px) ── */}
       <div className="hidden md:block">
-        <DispatchTableCard minTableWidth={1000}>
+        <DispatchTableCard minTableWidth={1080}>
           <table className="w-full text-sm text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="dsp-th">Sample Order</th>
                 <th className="dsp-th">Customer</th>
+                <th className="dsp-th">Sales Person</th>
                 <th className="dsp-th">Delivery Address</th>
                 <th className="dsp-th">Product</th>
                 <th className="dsp-th text-center">Approved Qty</th>
@@ -695,7 +719,7 @@ function SampleDispatchListContent() {
             <tbody className="divide-y divide-slate-100 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                     <RefreshCw size={24} className="animate-spin inline mr-2" /> Loading live sample consignments...
                   </td>
                 </tr>
@@ -726,6 +750,30 @@ function SampleDispatchListContent() {
                         )}
                       </td>
                       <td className="dsp-td font-semibold text-slate-900">{req.customer}</td>
+                      <td className="dsp-td">
+                        {req.salesPerson ? (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            background: '#f8fafc',
+                            color: '#1e293b',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            whiteSpace: 'nowrap'
+                          }}>
+                            <User size={13} color="#2563eb" />
+                            {req.salesPerson}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '12px' }}>
+                            Unassigned
+                          </span>
+                        )}
+                      </td>
                       <td className="dsp-td">
                         {req.address !== 'N/A' ? (
                           <span className="text-slate-600 font-medium">{req.address}</span>
@@ -880,7 +928,7 @@ function SampleDispatchListContent() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
                     No {filter} sample dispatch requests found.
                   </td>
                 </tr>
@@ -951,6 +999,18 @@ function SampleDispatchListContent() {
                     <div className="dsp-card-info">
                       <p className="dsp-card-label">Customer</p>
                       <p className="dsp-card-value">{req.customer}</p>
+                    </div>
+                  </div>
+
+                  <div className="dsp-card-row">
+                    <div className="dsp-card-icon">
+                      <User size={15} color="#2563eb" />
+                    </div>
+                    <div className="dsp-card-info">
+                      <p className="dsp-card-label">Sales Person</p>
+                      <p className="dsp-card-value font-semibold text-slate-800">
+                        {req.salesPerson || <span style={{ color: '#94a3b8', fontStyle: 'italic', fontWeight: 400 }}>Unassigned</span>}
+                      </p>
                     </div>
                   </div>
 
