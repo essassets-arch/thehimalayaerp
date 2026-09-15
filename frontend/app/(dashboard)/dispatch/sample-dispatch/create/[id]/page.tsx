@@ -79,6 +79,7 @@ export default function CreateSampleDispatchPage() {
   const [soNumber, setSoNumber] = useState(isNew ? '' : rawId);
   const [address, setAddress] = useState('');
   const [customer, setCustomer] = useState('');
+  const [projectName, setProjectName] = useState('');
   const [fetchedCost, setFetchedCost] = useState('0.00');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [isReturn, setIsReturn] = useState(false);
@@ -194,6 +195,13 @@ export default function CreateSampleDispatchPage() {
               'Lead / Customer';
             setCustomer(custName);
 
+            const proj =
+              (typeof sample.projectName === 'string' && sample.projectName.trim() ? sample.projectName.trim() : null) ||
+              (typeof sample.lead?.projectName === 'string' && sample.lead.projectName.trim() ? sample.lead.projectName.trim() : null) ||
+              (typeof sample.leadProjectName === 'string' && sample.leadProjectName.trim() ? sample.leadProjectName.trim() : null) ||
+              '';
+            setProjectName(proj);
+
             const addr =
               formatAddress(sample.deliveryAddress) ||
               formatAddress(sample.address) ||
@@ -268,6 +276,7 @@ export default function CreateSampleDispatchPage() {
       setSelectedPendingId(null);
       setSoNumber('');
       setCustomer('');
+      setProjectName('');
       setAddress('');
       setSelectedOrders([]);
       setFetchedCost('0.00');
@@ -280,6 +289,12 @@ export default function CreateSampleDispatchPage() {
       setSoNumber(num);
       const custName = s.customer || s.customerName || s.companyName || s.leadName || s.lead?.companyName || s.customer?.companyName || 'Customer';
       setCustomer(custName);
+      const proj =
+        (typeof s.projectName === 'string' && s.projectName.trim() ? s.projectName.trim() : null) ||
+        (typeof s.lead?.projectName === 'string' && s.lead.projectName.trim() ? s.lead.projectName.trim() : null) ||
+        (typeof s.leadProjectName === 'string' && s.leadProjectName.trim() ? s.leadProjectName.trim() : null) ||
+        '';
+      setProjectName(proj);
       const addr =
         formatAddress(s.deliveryAddress) ||
         formatAddress(s.address) ||
@@ -408,6 +423,14 @@ export default function CreateSampleDispatchPage() {
       newErrors.dispatchDate = 'Dispatch date is required';
       isValid = false;
     }
+    if (isNew && !customer.trim()) {
+      newErrors.customer = 'Customer name is required';
+      isValid = false;
+    }
+    if (isNew && !projectName.trim()) {
+      newErrors.projectName = 'Project name is required';
+      isValid = false;
+    }
     if (isNew && !address.trim()) {
       newErrors.address = 'Delivery address is required';
       isValid = false;
@@ -475,6 +498,7 @@ export default function CreateSampleDispatchPage() {
           body: {
             status: isReturn ? 'RETURN_IN_TRANSIT' : 'DISPATCHED',
             retrievalStatus: isReturn ? 'In Transit' : undefined,
+            projectName: projectName.trim() || undefined,
             dispatchDetails: dispatchDetailsPayload,
             proofOfDelivery: attachedFile?.dataUrl || undefined,
           },
@@ -487,6 +511,7 @@ export default function CreateSampleDispatchPage() {
           body: {
             status: 'DISPATCHED',
             customer: customer.trim() || 'Direct Consignment Customer',
+            projectName: projectName.trim(),
             address: address.trim(),
             expectedDeliveryDate: dispatchDate,
             items: [
@@ -613,36 +638,67 @@ export default function CreateSampleDispatchPage() {
 
                 <div className={styles.grid2} style={{ marginTop: 12 }}>
                   <div className={styles.field}>
-                    <label className={styles.label}>Customer / Project Name</label>
+                    <label className={styles.label}>
+                      Customer Name <span className={styles.requiredStar}>*</span>
+                    </label>
                     <input
                       type="text"
-                      placeholder="e.g. Acme Infra Projects / Alpha Tech"
+                      placeholder="e.g. Acme Infra Projects"
                       value={customer}
-                      onChange={(e) => setCustomer(e.target.value)}
-                      className={styles.input}
+                      onChange={(e) => {
+                        setCustomer(e.target.value);
+                        if (touched.customer) validateField('customer');
+                      }}
+                      onBlur={() => handleBlur('customer')}
+                      className={`${styles.input} ${errors.customer && touched.customer ? styles.inputError : ''}`}
+                      required
                     />
+                    {errors.customer && touched.customer && (
+                      <div className={styles.errorText}><AlertCircle size={13} /> {errors.customer}</div>
+                    )}
                   </div>
 
                   <div className={styles.field}>
                     <label className={styles.label}>
-                      Shipping To Address <span className={styles.requiredStar}>*</span>
+                      Project Name <span className={styles.requiredStar}>*</span>
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Plot No 42, Industrial Area Phase II, Delhi"
-                      value={address}
+                      placeholder="e.g. Highway Drainage / Sector 62 Plant"
+                      value={projectName}
                       onChange={(e) => {
-                        setAddress(e.target.value);
-                        if (touched.address) validateField('address');
+                        setProjectName(e.target.value);
+                        if (touched.projectName) validateField('projectName');
                       }}
-                      onBlur={() => handleBlur('address')}
-                      className={`${styles.input} ${errors.address && touched.address ? styles.inputError : ''}`}
+                      onBlur={() => handleBlur('projectName')}
+                      className={`${styles.input} ${errors.projectName && touched.projectName ? styles.inputError : ''}`}
                       required
                     />
-                    {errors.address && touched.address && (
-                      <div className={styles.errorText}><AlertCircle size={13} /> {errors.address}</div>
+                    {errors.projectName && touched.projectName && (
+                      <div className={styles.errorText}><AlertCircle size={13} /> {errors.projectName}</div>
                     )}
                   </div>
+                </div>
+
+                <div className={styles.field} style={{ marginTop: 12 }}>
+                  <label className={styles.label}>
+                    Shipping To Address <span className={styles.requiredStar}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Plot No 42, Industrial Area Phase II, Delhi"
+                    value={address}
+                    onChange={(e) => {
+                      setAddress(e.target.value);
+                      if (touched.address) validateField('address');
+                    }}
+                    onBlur={() => handleBlur('address')}
+                    className={`${styles.input} ${errors.address && touched.address ? styles.inputError : ''}`}
+                    required
+                  />
+                  {errors.address && touched.address && (
+                    <div className={styles.errorText}><AlertCircle size={13} /> {errors.address}</div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -676,6 +732,12 @@ export default function CreateSampleDispatchPage() {
                     <div className={styles.refDetailCardMain}>
                       {customer || 'Lead Customer'}
                     </div>
+                    {projectName ? (
+                      <div style={{ fontSize: '12.5px', color: '#1d4ed8', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
+                        <Layers size={13} color="#2563eb" />
+                        <span>Project: {projectName}</span>
+                      </div>
+                    ) : null}
                     <div className={styles.refDetailCardSub} style={{ color: address ? '#334155' : '#94a3b8' }}>
                       <MapPin size={14} color="#ef4444" style={{ flexShrink: 0 }} />
                       <span>{address || 'Delivery address not specified on lead'}</span>

@@ -282,9 +282,17 @@ export class SamplesController {
     const dispatchCategory = prodDispatchCat || (isTrading ? 'D2' : 'D1');
     const dispatchStatus = data.dispatchStatus || (data.deliveredAt ? 'Delivered' : data.dispatchDate ? 'In Transit' : 'Pending Dispatch');
 
+    const projectName =
+      (typeof data.projectName === 'string' && data.projectName.trim() && !isLeadIdOrCode(data.projectName.trim()) ? data.projectName.trim() : null) ||
+      (typeof data.lead?.projectName === 'string' && data.lead.projectName.trim() && !isLeadIdOrCode(data.lead.projectName.trim()) ? data.lead.projectName.trim() : null) ||
+      (typeof data.dispatchDetails?.projectName === 'string' && data.dispatchDetails.projectName.trim() ? data.dispatchDetails.projectName.trim() : null) ||
+      '';
+
     return {
       ...data,
       status: statusMap[data.status] || data.status,
+      projectName,
+      leadProjectName: projectName,
       leadName,
       customerName: leadName,
       companyName: leadName,

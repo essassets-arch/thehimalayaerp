@@ -424,6 +424,22 @@ export default function SamplesView({
     return 'Customer';
   };
 
+  const getProjectName = (sample) => {
+    if (!sample) return '';
+    const candidates = [
+      sample.projectName,
+      sample.leadProjectName,
+      sample.lead?.projectName,
+      sample.dispatchDetails?.projectName,
+    ];
+    for (const cand of candidates) {
+      if (cand && typeof cand === 'string' && cand.trim() && !isLeadIdString(cand.trim())) {
+        return cand.trim();
+      }
+    }
+    return '';
+  };
+
   const getExactCountdown = (sample) => {
     const ds = getDispatchStatus(sample);
     if (ds !== 'Delivered' && !sample?.deliveredAt && !sample?.deliveredDate && !sample?.deliveryDate) {
@@ -581,12 +597,14 @@ export default function SamplesView({
 
   const filteredSamples = samples.filter(sample => {
     const customerName = getCustomerDisplayName(sample);
+    const projectName = getProjectName(sample);
     const leadName = sample?.leadName || customerName;
     const product = sample?.product || '';
     const sampleId = sample?.id ? formatSampleId(sample.id) : '';
     const leadId = formatLeadId(sample.leadNumber || sample.leadId || sample.lead);
     
     const matchesSearch = customerName.toLowerCase().includes(search.toLowerCase()) ||
+                          projectName.toLowerCase().includes(search.toLowerCase()) ||
                           leadName.toLowerCase().includes(search.toLowerCase()) || 
                           product.toLowerCase().includes(search.toLowerCase()) ||
                           sampleId.toLowerCase().includes(search.toLowerCase()) ||
@@ -665,7 +683,9 @@ export default function SamplesView({
                 Sample Testing Details: {formatSampleId(sample.id)}
               </h2>
               <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '4px', display: 'inline-block' }}>
-                Customer: <strong>{getCustomerDisplayName(sample)}</strong> | Associated Lead: <strong>{formatLeadId(sample.leadNumber || sample.leadId || sample.lead)}</strong>
+              Customer: <strong>{getCustomerDisplayName(sample)}</strong>
+              {getProjectName(sample) ? <> | Project: <strong style={{ color: '#1d4ed8' }}>{getProjectName(sample)}</strong></> : null}
+              {' | Associated Lead: '}<strong>{formatLeadId(sample.leadNumber || sample.leadId || sample.lead)}</strong>
               </span>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -747,6 +767,12 @@ export default function SamplesView({
                   <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Customer / Company</span>
                   <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)' }}>{getCustomerDisplayName(sample)}</span>
                 </div>
+                {getProjectName(sample) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Project Name</span>
+                    <span style={{ fontSize: '13.5px', fontWeight: '700', color: '#1d4ed8' }}>{getProjectName(sample)}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
                   <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Associated Lead Ref</span>
                   <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)' }}>{formatLeadId(sample.leadNumber || sample.leadId || sample.lead)}</span>
@@ -1656,8 +1682,25 @@ export default function SamplesView({
                         {formatSampleId(sample)}
                       </td>
                       <td data-label="Customer">
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           <span style={{ fontWeight: '700', color: 'var(--color-text-primary)' }}>{getCustomerDisplayName(sample)}</span>
+                          {getProjectName(sample) ? (
+                            <span style={{
+                              fontSize: '11.5px',
+                              color: '#1d4ed8',
+                              fontWeight: '700',
+                              background: '#eff6ff',
+                              border: '1px solid #bfdbfe',
+                              padding: '1.5px 6px',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              width: 'fit-content'
+                            }}>
+                              📁 {getProjectName(sample)}
+                            </span>
+                          ) : null}
                           <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Lead: {formatLeadId(sample.leadNumber || sample.leadId || sample.lead)}</span>
                         </div>
                       </td>

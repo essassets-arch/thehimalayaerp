@@ -39,6 +39,7 @@ export class SamplesService {
       let validLeadId: string | null = null;
       let validCustomerId: string | null = null;
       let leadSalesExecutiveId: string | null = null;
+      let leadProjectName: string | null = null;
 
       if (createSampleDto.leadId) {
         const leadStr = String(createSampleDto.leadId);
@@ -57,22 +58,25 @@ export class SamplesService {
             assignedToId: true,
             createdById: true,
             customerId: true,
+            projectName: true,
           },
         });
         if (leadObj) {
           validLeadId = leadObj.id;
           leadSalesExecutiveId = leadObj.salesExecutiveId || leadObj.assignedToId || leadObj.createdById;
+          leadProjectName = leadObj.projectName || null;
           if (!validCustomerId && leadObj.customerId) {
             validCustomerId = leadObj.customerId;
           }
         } else {
           const anyLead = await tx.lead.findFirst({
             where: { id: leadStr },
-            select: { id: true, salesExecutiveId: true, assignedToId: true, createdById: true, customerId: true },
+            select: { id: true, salesExecutiveId: true, assignedToId: true, createdById: true, customerId: true, projectName: true },
           });
           if (anyLead) {
             validLeadId = anyLead.id;
             leadSalesExecutiveId = anyLead.salesExecutiveId || anyLead.assignedToId || anyLead.createdById;
+            leadProjectName = anyLead.projectName || null;
             if (!validCustomerId && anyLead.customerId) {
               validCustomerId = anyLead.customerId;
             }
@@ -112,11 +116,12 @@ export class SamplesService {
       if (!validLeadId && !validCustomerId) {
         const defaultLead = await tx.lead.findFirst({
           where: { companyId },
-          select: { id: true, salesExecutiveId: true, assignedToId: true, createdById: true },
+          select: { id: true, salesExecutiveId: true, assignedToId: true, createdById: true, projectName: true },
         });
         if (defaultLead) {
           validLeadId = defaultLead.id;
           leadSalesExecutiveId = defaultLead.salesExecutiveId || defaultLead.assignedToId || defaultLead.createdById;
+          leadProjectName = defaultLead.projectName || null;
         }
       }
 
@@ -204,6 +209,7 @@ export class SamplesService {
         data: {
           sampleNumber,
           companyId,
+          projectName: createSampleDto.projectName || leadProjectName || null,
           leadId: validLeadId,
           customerId: validCustomerId,
           salesExecutiveId,
@@ -253,6 +259,7 @@ export class SamplesService {
             select: {
               id: true,
               companyName: true,
+              projectName: true,
               leadNumber: true,
               contactPerson: true,
               phone: true,
@@ -329,6 +336,7 @@ export class SamplesService {
           select: {
             id: true,
             companyName: true,
+            projectName: true,
             leadNumber: true,
             contactPerson: true,
             phone: true,
@@ -469,6 +477,7 @@ export class SamplesService {
           select: {
             id: true,
             companyName: true,
+            projectName: true,
             leadNumber: true,
             contactPerson: true,
             phone: true,
@@ -535,6 +544,7 @@ export class SamplesService {
             select: {
               id: true,
               companyName: true,
+              projectName: true,
               leadNumber: true,
               contactPerson: true,
               phone: true,
@@ -641,6 +651,12 @@ export class SamplesService {
     const targetId = existing.id;
 
     const prismaUpdateData: any = { ...updateData };
+
+    if (updateData.projectName) {
+      prismaUpdateData.projectName = updateData.projectName;
+    } else if (dispatchDetails?.projectName) {
+      prismaUpdateData.projectName = dispatchDetails.projectName;
+    }
 
     if (updateData.status) {
       const st = String(updateData.status).toUpperCase();

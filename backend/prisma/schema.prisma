@@ -1873,6 +1873,8 @@ model SampleRequest {
   companyId    String
   nextReminder DateTime?
 
+  projectName String?
+
   leadId     String?
   customerId String?
 

@@ -192,6 +192,7 @@ export default function CreateSample({ leads = [], defaultLeadId, onAddSample, o
       leadId: lead.id,
       leadName: lead.companyName || lead.projectName || 'Lead Customer',
       customer: lead.companyName || lead.projectName || 'Lead Customer',
+      projectName: lead.projectName || '',
       product:
         formattedProducts.length === 1
           ? `${primaryProduct} (${formattedProducts[0].quantity} Pcs)`

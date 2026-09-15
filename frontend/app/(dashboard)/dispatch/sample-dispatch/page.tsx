@@ -39,6 +39,7 @@ interface SampleDispatchItem {
   cleanId: string;
   orderNo: string;
   customer: string;
+  projectName?: string;
   salesPerson?: string;
   leadNumber?: string;
   contactPerson?: string;
@@ -291,11 +292,19 @@ function SampleDispatchListContent() {
           sample.dispatchDetails?.salesExecutive ||
           '';
 
+        const projectName =
+          sample.projectName ||
+          sample.leadProjectName ||
+          sample.lead?.projectName ||
+          sample.dispatchDetails?.projectName ||
+          undefined;
+
         mappedList.push({
           id: `req-${sample.id}`,
           cleanId: sample.id,
           orderNo: sample.sampleNumber || sample.sampleId || `SMP-${String(sample.id).slice(0, 6)}`,
           customer: customerName,
+          projectName,
           leadNumber,
           contactPerson,
           contactPhone,
@@ -447,6 +456,7 @@ function SampleDispatchListContent() {
       return (
         req.orderNo.toLowerCase().includes(q) ||
         req.customer.toLowerCase().includes(q) ||
+        (req.projectName && req.projectName.toLowerCase().includes(q)) ||
         (req.contactPerson && req.contactPerson.toLowerCase().includes(q)) ||
         (req.leadNumber && req.leadNumber.toLowerCase().includes(q)) ||
         (req.salesPerson && req.salesPerson.toLowerCase().includes(q)) ||
@@ -791,6 +801,24 @@ function SampleDispatchListContent() {
                       </td>
                       <td className="dsp-td">
                         <div className="font-semibold text-slate-900">{req.customer}</div>
+                        {req.projectName && (
+                          <div style={{
+                            marginTop: '3px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            color: '#1d4ed8',
+                            background: '#eff6ff',
+                            border: '1px solid #bfdbfe',
+                            padding: '1.5px 7px',
+                            borderRadius: '4px',
+                            width: 'fit-content'
+                          }}>
+                            📁 {req.projectName}
+                          </div>
+                        )}
                         {(req.contactPerson || req.leadNumber) && (
                           <div style={{ fontSize: '11.5px', color: '#64748b', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
                             {req.contactPerson && <span>{req.contactPerson}</span>}
@@ -1048,6 +1076,11 @@ function SampleDispatchListContent() {
                     <div className="dsp-card-info">
                       <p className="dsp-card-label">Customer</p>
                       <p className="dsp-card-value font-semibold text-slate-900">{req.customer}</p>
+                      {req.projectName && (
+                        <p style={{ fontSize: '12px', color: '#1d4ed8', fontWeight: 700, marginTop: '2px' }}>
+                          📁 {req.projectName}
+                        </p>
+                      )}
                       {(req.contactPerson || req.leadNumber) && (
                         <p style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
                           {req.contactPerson}{req.contactPerson && req.leadNumber ? ` • ${req.leadNumber}` : req.leadNumber}

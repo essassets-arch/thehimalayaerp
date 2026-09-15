@@ -75,5 +75,8 @@ export class CreateSampleDto {
   productName?: string;
 
   @IsOptional()
+  projectName?: string;
+
+  @IsOptional()
   quantity?: any;
 }
