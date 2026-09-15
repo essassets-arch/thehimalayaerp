@@ -804,6 +804,11 @@ export default function CreateQuotation({
       }));
 
     const payload = {
+      // A salesperson publishing this form has explicitly chosen to create a
+      // proposal.  The backend normally de-duplicates lead quotations for
+      // automated flows, which otherwise returns an older quotation and makes
+      // a Repeat Quotation appear to have disappeared from the list.
+      forceNew: true,
       customerName: selectedCustomerRecord?.name || (customerName || '').trim(),
       groupName: selectedCustomerRecord?.groupName || (groupName || '').trim(),
       isGstRegistered: (isGstRegistered || 'YES') === 'YES',
