@@ -54,6 +54,9 @@ export function useQuotations(showToast, autoLoad = true) {
       });
 
       const payload = {
+        // Manual proposal publishing is intentionally non-idempotent: each
+        // Repeat Quotation must create its own quotation record for the lead.
+        forceNew: qData.forceNew === true,
         leadId: qData.leadId,
         customerId: qData.customerId,
         customerName: qData.customerName,

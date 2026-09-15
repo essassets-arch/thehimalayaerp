@@ -592,11 +592,13 @@ export default function CreateQuotation({
         key: `customer-${customer.id}`,
         type: 'Customer',
         id: customer.id,
-        name: customer.name || customer.customerName || '',
+        // Customer records from the live API use companyName.  Keeping that
+        // ID on the payload lets the quotations list resolve the customer.
+        name: customer.companyName || customer.name || customer.customerName || '',
         subtitle: [customer.groupName || customer.group_name, 'Customer'].filter(Boolean).join(' - '),
         groupName: customer.groupName || customer.group_name || '',
         gstNumber: customer.gst || customer.gstNumber || customer.gstin || '',
-        gstName: customer.gstName || customer.name || customer.customerName || '',
+        gstName: customer.gstName || customer.companyName || customer.name || customer.customerName || '',
       }))
     ].filter(option => option.name);
 
