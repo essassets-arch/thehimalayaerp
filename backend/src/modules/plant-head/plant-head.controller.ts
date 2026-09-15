@@ -131,6 +131,9 @@ export class PlantHeadController {
     @Query('filter') filter?: string,
     @Query('customStart') customStart?: string,
     @Query('customEnd') customEnd?: string,
+    @Query('productId') productId?: string,
+    @Query('size') size?: string,
+    @Query('capacity') capacity?: string,
   ) {
     const companyId =
       (req.headers['x-company-id'] as string) ||
@@ -140,6 +143,9 @@ export class PlantHeadController {
       filter,
       customStart,
       customEnd,
+      productId,
+      size,
+      capacity,
     );
   }
 

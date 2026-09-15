@@ -644,12 +644,23 @@ export class PlantHeadService {
     filter?: string,
     customStart?: string,
     customEnd?: string,
+    productId?: string,
+    size?: string,
+    capacity?: string,
   ) {
     const { startDate, endDate } = this.getDateRange(filter, customStart, customEnd);
+    const productWhere = {
+      ...(productId ? { id: productId } : {}),
+      ...(size ? { size } : {}),
+      ...(capacity ? { capacity } : {}),
+    };
     const completed = await this.prisma.workOrder.findMany({
       where: {
         completedAt: { not: null, gte: startDate, lte: endDate },
         ...(companyId ? { productionPlan: { salesOrder: { customer: { companyId } } } } : {}),
+        ...(Object.keys(productWhere).length
+          ? { salesOrderItem: { product: productWhere } }
+          : {}),
       },
       include: {
         salesOrderItem: { include: { product: true } },
@@ -674,7 +685,10 @@ export class PlantHeadService {
       const item: any = workOrder.salesOrderItem;
       const sourceOrder: any = workOrder.productionPlan?.salesOrder;
       const product: any = item?.product;
-      if (!product || !sourceOrder) continue; // Do not invent sales attribution.
+      // Product output remains valid even if the originating sales order was
+      // archived or its customer attribution is unavailable.  Only the
+      // customer/salesperson section needs that relation.
+      if (!product) continue;
       const quantity = Number(workOrder.quantity || 0);
       const coverPerSet = Number(product.coversPerSet || 1);
       const framePerSet = Number(product.framesPerSet || 1);
@@ -688,12 +702,13 @@ export class PlantHeadService {
       totalWeight += weight; totalCovers += covers; totalFrames += frames; totalPieces += pieces;
 
       const productName = product.name || item.productNameSnapshot || 'Unclassified';
-      const productRow = productMap.get(productName) || { name: productName, weight: 0, covers: 0, frames: 0 };
+      const productRow = productMap.get(productName) || { id: product.id, name: productName, weight: 0, covers: 0, frames: 0 };
       productRow.weight += weight; productRow.covers += covers; productRow.frames += frames; productMap.set(productName, productRow);
       const addBucket = (map: Map<string, number>, key: string) => map.set(key, (map.get(key) || 0) + weight);
       addBucket(sizeMap, product.size || 'Other Sizes');
       addBucket(capacityMap, product.capacity || 'Other');
 
+      if (!sourceOrder?.customer) continue;
       const executive = sourceOrder.salesExecutive?.name || 'Unassigned';
       const salesRow = salespersonMap.get(executive) || { name: executive, customers: new Set<string>(), orders: new Set<string>(), weight: 0, pieces: 0 };
       salesRow.customers.add(sourceOrder.customerId); salesRow.orders.add(sourceOrder.id); salesRow.weight += weight; salesRow.pieces += pieces; salespersonMap.set(executive, salesRow);
