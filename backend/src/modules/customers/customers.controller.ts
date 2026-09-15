@@ -59,7 +59,7 @@ export class CustomersController {
   findAll(
     @CurrentUser() user: any,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('pageSize', new DefaultValuePipe(25), ParseIntPipe) pageSize: number,
+    @Query('pageSize', new DefaultValuePipe(1000), ParseIntPipe) pageSize: number,
     @Query('search') search?: string,
   ) {
     return this.customersService.list(

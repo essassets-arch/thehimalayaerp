@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -12,7 +13,7 @@ import {
   withOptimisticUpdate,
 } from '../../common/utils/database.util';
 import { Prisma } from '@prisma/client';
-import { getSalesScope } from '../../common/utils/rbac.util';
+import { getSalesScope, isSalespersonScopedRole } from '../../common/utils/rbac.util';
 
 @Injectable()
 export class CustomersService {
@@ -81,15 +82,152 @@ export class CustomersService {
     return customer;
   }
 
+  private async buildSalespersonCustomerScope(
+    userId?: string,
+    role?: string,
+    companyId?: string,
+  ): Promise<Prisma.CustomerWhereInput | null> {
+    if (!isSalespersonScopedRole(role)) return null;
+    if (!userId) {
+      throw new UnauthorizedException('User ID required for sales scoping');
+    }
+
+    // Collect all customer IDs and matching company names associated with this sales user across:
+    // 1. Leads (salesExecutiveId, assignedToId, createdById)
+    // 2. Quotations (salesExecutiveId, createdById, lead.salesExecutiveId, lead.assignedToId)
+    // 3. SampleRequests (salesExecutiveId, createdById, lead.salesExecutiveId, lead.assignedToId)
+    // 4. SalesOrders (salesExecutiveId, createdById, quotation.salesExecutiveId)
+    const [leads, quotations, samples, orders] = await Promise.all([
+      this.prisma.lead.findMany({
+        where: {
+          companyId,
+          OR: [
+            { salesExecutiveId: userId },
+            { assignedToId: userId },
+            { createdById: userId },
+          ],
+          deletedAt: null,
+        },
+        select: {
+          customerId: true,
+          convertedCustomerId: true,
+          companyName: true,
+        },
+      }),
+      this.prisma.quotation.findMany({
+        where: {
+          OR: [
+            { salesExecutiveId: userId },
+            { createdById: userId },
+            { lead: { salesExecutiveId: userId } },
+            { lead: { assignedToId: userId } },
+          ],
+          deletedAt: null,
+        },
+        select: {
+          customerId: true,
+        },
+      }),
+      this.prisma.sampleRequest.findMany({
+        where: {
+          OR: [
+            { salesExecutiveId: userId },
+            { createdById: userId },
+            { lead: { salesExecutiveId: userId } },
+            { lead: { assignedToId: userId } },
+          ],
+          deletedAt: null,
+        },
+        select: {
+          customerId: true,
+        },
+      }),
+      this.prisma.salesOrder.findMany({
+        where: {
+          OR: [
+            { salesExecutiveId: userId },
+            { createdById: userId },
+            { quotation: { salesExecutiveId: userId } },
+          ],
+          deletedAt: null,
+        },
+        select: {
+          customerId: true,
+        },
+      }),
+    ]);
+
+    const directCustomerIds = new Set<string>();
+    const matchingCompanyNames: string[] = [];
+
+    for (const l of leads) {
+      if (l.customerId) directCustomerIds.add(l.customerId);
+      if (l.convertedCustomerId) directCustomerIds.add(l.convertedCustomerId);
+      if (l.companyName && l.companyName.trim()) {
+        matchingCompanyNames.push(l.companyName.trim());
+      }
+    }
+
+    for (const q of quotations) {
+      if (q.customerId) directCustomerIds.add(q.customerId);
+    }
+
+    for (const s of samples) {
+      if (s.customerId) directCustomerIds.add(s.customerId);
+    }
+
+    for (const o of orders) {
+      if (o.customerId) directCustomerIds.add(o.customerId);
+    }
+
+    const orBranches: Prisma.CustomerWhereInput[] = [
+      { createdById: userId },
+      {
+        salesOrders: {
+          some: {
+            OR: [
+              { salesExecutiveId: userId },
+              { createdById: userId },
+              { quotation: { salesExecutiveId: userId } },
+              { quotation: { createdById: userId } },
+            ],
+          },
+        },
+      },
+      {
+        sampleRequests: {
+          some: {
+            OR: [
+              { salesExecutiveId: userId },
+              { createdById: userId },
+              { lead: { salesExecutiveId: userId } },
+              { lead: { assignedToId: userId } },
+            ],
+          },
+        },
+      },
+    ];
+
+    if (directCustomerIds.size > 0) {
+      orBranches.push({ id: { in: Array.from(directCustomerIds) } });
+    }
+
+    if (matchingCompanyNames.length > 0) {
+      orBranches.push({ companyName: { in: matchingCompanyNames, mode: 'insensitive' } });
+    }
+
+    return { OR: orBranches };
+  }
+
   async list(
     companyId: string,
     page: number = 1,
-    pageSize: number = 25,
+    pageSize: number = 1000,
     search?: string,
     userId?: string,
     role?: string,
   ) {
-    const scope = getSalesScope(userId, role, 'Customer');
+    const scope = await this.buildSalespersonCustomerScope(userId, role, companyId);
     const searchConditions: Prisma.CustomerWhereInput[] = search
       ? [
           { companyName: { contains: search, mode: 'insensitive' } },
@@ -116,11 +254,14 @@ export class CustomersService {
       AND: andConditions,
     };
 
+    const takeLimit = pageSize > 0 ? pageSize : 1000;
+    const skipCount = pageSize > 0 && page > 0 ? (page - 1) * pageSize : 0;
+
     const [items, total] = await Promise.all([
       this.prisma.customer.findMany({
         where,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: skipCount,
+        take: takeLimit,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.customer.count({ where }),
@@ -130,9 +271,17 @@ export class CustomersService {
   }
 
   async getById(id: string, companyId: string, userId?: string, role?: string) {
-    const scope = getSalesScope(userId, role, 'Customer');
+    const scope = await this.buildSalespersonCustomerScope(userId, role, companyId);
+    const andConditions: Prisma.CustomerWhereInput[] = [
+      { id },
+      { companyId },
+      { deletedAt: null },
+    ];
+    if (scope && Object.keys(scope).length > 0) {
+      andConditions.push(scope);
+    }
     const customer = await this.prisma.customer.findFirst({
-      where: { id, companyId, ...scope, deletedAt: null },
+      where: { AND: andConditions },
     });
     if (!customer) throw new NotFoundException('Customer not found');
     return customer;

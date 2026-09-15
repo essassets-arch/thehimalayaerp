@@ -720,10 +720,10 @@ export const ERPProvider = ({ children }) => {
     setCustomersError(null);
     try {
       const { customersReadRepository } = await import('../../services/customers/customersReadRepository');
-      const result = await customersReadRepository.list(params);
+      const result = await customersReadRepository.list({ pageSize: 1000, ...params });
 
       setCustomers(Array.isArray(result.data) ? result.data : []);
-      setCustomersPagination(result.meta || result.pagination || { page: 1, pageSize: 25, total: 0 });
+      setCustomersPagination(result.meta || result.pagination || { page: 1, pageSize: 1000, total: (Array.isArray(result.data) ? result.data.length : 0) });
       return result;
     } catch (error) {
       setCustomers([]);
