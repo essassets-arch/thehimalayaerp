@@ -163,6 +163,9 @@ export class PlantHeadController {
     @Query('customEnd') customEnd?: string,
     @Query('month') month?: string,
     @Query('year') year?: string,
+    @Query('area') area?: string,
+    @Query('salesPerson') salesPerson?: string,
+    @Query('product') product?: string,
   ) {
     const companyId =
       (req.headers['x-company-id'] as string) ||
@@ -174,6 +177,9 @@ export class PlantHeadController {
       customEnd,
       month,
       year,
+      area,
+      salesPerson,
+      product,
     );
   }
 

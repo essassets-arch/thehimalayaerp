@@ -8,6 +8,142 @@ import { SequenceService } from '../../common/sequence/sequence.service';
 import { mapSalesOrder } from '../sales/mappers/sales-order.mapper';
 import { SubmitFulfillmentPlanDto } from './dto/fulfillment-plan.dto';
 
+// ── Helper to classify Indian geographic areas / zones from address fields ──
+function determineArea(deliveryAddress?: string, shippingAddress?: any, billingAddress?: any): string {
+  const addrStr = [
+    deliveryAddress || '',
+    shippingAddress?.city || '',
+    shippingAddress?.state || '',
+    shippingAddress?.line1 || '',
+    billingAddress?.city || '',
+    billingAddress?.state || '',
+    billingAddress?.line1 || '',
+  ].join(' ').toUpperCase();
+
+  // 1. Ahmedabad (Local Metro Hub)
+  if (
+    addrStr.includes('AHMEDABAD') ||
+    addrStr.includes('SANAND') ||
+    addrStr.includes('CHANGODAR') ||
+    addrStr.includes('VASTRAL') ||
+    addrStr.includes('BOPAL') ||
+    addrStr.includes('NIKOL') ||
+    addrStr.includes('NARODA') ||
+    addrStr.includes('ODHAV') ||
+    addrStr.includes('VATVA')
+  ) {
+    return 'Ahmedabad';
+  }
+
+  // 2. Gujarat (Rest of Gujarat)
+  if (
+    addrStr.includes('SURAT') ||
+    addrStr.includes('VADODARA') ||
+    addrStr.includes('BARODA') ||
+    addrStr.includes('RAJKOT') ||
+    addrStr.includes('JAMNAGAR') ||
+    addrStr.includes('BHAVNAGAR') ||
+    addrStr.includes('GANDHINAGAR') ||
+    addrStr.includes('MORBI') ||
+    addrStr.includes('BHARUCH') ||
+    addrStr.includes('ANKLESHWAR') ||
+    addrStr.includes('VAPI') ||
+    addrStr.includes('VALSAD') ||
+    addrStr.includes('KUTCH') ||
+    addrStr.includes('BHUJ') ||
+    addrStr.includes('DWARKA') ||
+    addrStr.includes('MEHSANA') ||
+    addrStr.includes('ANAND') ||
+    addrStr.includes('GUJARAT')
+  ) {
+    return 'Gujarat';
+  }
+
+  // 3. West (Maharashtra, Mumbai, Pune, Rajasthan, Goa)
+  if (
+    addrStr.includes('MUMBAI') ||
+    addrStr.includes('PUNE') ||
+    addrStr.includes('NAGPUR') ||
+    addrStr.includes('THANE') ||
+    addrStr.includes('NASHIK') ||
+    addrStr.includes('MAHARASHTRA') ||
+    addrStr.includes('JAIPUR') ||
+    addrStr.includes('JODHPUR') ||
+    addrStr.includes('UDAIPUR') ||
+    addrStr.includes('RAJASTHAN') ||
+    addrStr.includes('GOA')
+  ) {
+    return 'West';
+  }
+
+  // 4. North (Delhi, NCR, Haryana, Punjab, UP, Uttarakhand, HP, J&K)
+  if (
+    addrStr.includes('DELHI') ||
+    addrStr.includes('NOIDA') ||
+    addrStr.includes('GURGAON') ||
+    addrStr.includes('GURUGRAM') ||
+    addrStr.includes('FARIDABAD') ||
+    addrStr.includes('HARYANA') ||
+    addrStr.includes('PUNJAB') ||
+    addrStr.includes('CHANDIGARH') ||
+    addrStr.includes('LUCKNOW') ||
+    addrStr.includes('KANPUR') ||
+    addrStr.includes('AGRA') ||
+    addrStr.includes('UTTAR PRADESH') ||
+    addrStr.includes('DEHRADUN')
+  ) {
+    return 'North';
+  }
+
+  // 5. Central (Madhya Pradesh, Indore, Bhopal, Chhattisgarh, Raipur)
+  if (
+    addrStr.includes('INDORE') ||
+    addrStr.includes('BHOPAL') ||
+    addrStr.includes('GWALIOR') ||
+    addrStr.includes('JABALPUR') ||
+    addrStr.includes('MADHYA PRADESH') ||
+    addrStr.includes('RAIPUR') ||
+    addrStr.includes('CHHATTISGARH')
+  ) {
+    return 'Central';
+  }
+
+  // 6. South (Tamil Nadu, Chennai, Bengaluru, Karnataka, Hyderabad, Telangana, Kerala, Andhra)
+  if (
+    addrStr.includes('CHENNAI') ||
+    addrStr.includes('BENGALURU') ||
+    addrStr.includes('BANGALORE') ||
+    addrStr.includes('HYDERABAD') ||
+    addrStr.includes('TELANGANA') ||
+    addrStr.includes('TAMIL NADU') ||
+    addrStr.includes('KARNATAKA') ||
+    addrStr.includes('KERALA') ||
+    addrStr.includes('ANDHRA') ||
+    addrStr.includes('KOCHI') ||
+    addrStr.includes('COIMBATORE')
+  ) {
+    return 'South';
+  }
+
+  // 7. East / North-East (Kolkata, West Bengal, Odisha, Bhubaneswar, Bihar, Patna, Jharkhand, Ranchi, Assam, Guwahati)
+  if (
+    addrStr.includes('KOLKATA') ||
+    addrStr.includes('WEST BENGAL') ||
+    addrStr.includes('ODISHA') ||
+    addrStr.includes('BHUBANESWAR') ||
+    addrStr.includes('BIHAR') ||
+    addrStr.includes('PATNA') ||
+    addrStr.includes('JHARKHAND') ||
+    addrStr.includes('RANCHI') ||
+    addrStr.includes('ASSAM') ||
+    addrStr.includes('GUWAHATI')
+  ) {
+    return 'East / North-East';
+  }
+
+  return 'Other';
+}
+
 @Injectable()
 export class PlantHeadService {
   constructor(
@@ -1353,6 +1489,9 @@ export class PlantHeadService {
     customEnd?: string,
     month?: string,
     year?: string,
+    areaFilter?: string,
+    salesPersonFilter?: string,
+    productFilter?: string,
   ) {
     // 1. Determine Date Range
     let isAugust2026 = false;
@@ -1564,55 +1703,57 @@ export class PlantHeadService {
       capacityInsight:
         'LD + C250 = 64.1% of total dispatch weight. The company is heavily concentrated in these two capacity categories.',
       topCustomers: [
-        {
-          rank: 1,
-          customer: 'Larsen & Toubro Ltd',
-          weight: 15042,
-          share: 12.5,
-          city: 'Chennai / Pan-India',
-          badge: '🥇 1',
-        },
-        {
-          rank: 2,
-          customer: 'Tasneem Enterprise',
-          weight: 13152,
-          share: 11.0,
-          city: 'Chennai, Tamil Nadu',
-          badge: '🥈 2',
-        },
-        {
-          rank: 3,
-          customer: 'Padma Engineer',
-          weight: 7026,
-          share: 5.9,
-          city: 'Ahmedabad, Gujarat',
-          badge: '🥉 3',
-        },
-        {
-          rank: 4,
-          customer: 'Shreya Construction',
-          weight: 5631,
-          share: 4.7,
-          city: 'Rajkot, Gujarat',
-          badge: '4',
-        },
-        {
-          rank: 5,
-          customer: 'P. Das Infrastructure',
-          weight: 5553,
-          share: 4.6,
-          city: 'Kolkata, West Bengal',
-          badge: '5',
-        },
+        { rank: 1, customer: 'Larsen & Toubro Ltd', quantity: 332, weight: 15042.0, share: 12.5, city: 'Chennai / Pan-India', isNew: false, status: 'Existing', salesPerson: 'MTH', product: 'MHC', area: 'Other', badge: '🥇 1' },
+        { rank: 2, customer: 'Tasneem Enterprise', quantity: 288, weight: 13152.0, share: 11.0, city: 'Chennai, Tamil Nadu', isNew: true, status: 'New', salesPerson: 'MTH', product: 'RCS', area: 'South', badge: '🥈 2' },
+        { rank: 3, customer: 'Padma Engineer', quantity: 158, weight: 7026.0, share: 5.9, city: 'Ahmedabad, Gujarat', isNew: false, status: 'Existing', salesPerson: 'MTH', product: 'MHC', area: 'Ahmedabad', badge: '🥉 3' },
+        { rank: 4, customer: 'Shreya Construction', quantity: 126, weight: 5631.0, share: 4.7, city: 'Rajkot, Gujarat', isNew: true, status: 'New', salesPerson: 'RT', product: 'MHC', area: 'Gujarat', badge: '4' },
+        { rank: 5, customer: 'P. Das Infrastructure', quantity: 124, weight: 5553.0, share: 4.6, city: 'Kolkata, West Bengal', isNew: false, status: 'Existing', salesPerson: 'TG', product: 'MHC', area: 'East / North-East', badge: '5' },
+        { rank: 6, customer: 'Kiran Infra Projects', quantity: 108, weight: 4820.0, share: 4.0, city: 'Surat, Gujarat', isNew: false, status: 'Existing', salesPerson: 'TL', product: 'RCS', area: 'Gujarat', badge: '6' },
+        { rank: 7, customer: 'Maruti Buildcon', quantity: 95, weight: 4210.0, share: 3.5, city: 'Ahmedabad, Gujarat', isNew: false, status: 'Existing', salesPerson: 'JP', product: 'MHC', area: 'Ahmedabad', badge: '7' },
+        { rank: 8, customer: 'Apex Precast & Utilities', quantity: 88, weight: 3890.0, share: 3.2, city: 'Vadodara, Gujarat', isNew: true, status: 'New', salesPerson: 'TL', product: 'ONGC', area: 'Gujarat', badge: '8' },
+        { rank: 9, customer: 'Shreeji Enterprise', quantity: 82, weight: 3640.0, share: 3.0, city: 'Bhavnagar, Gujarat', isNew: false, status: 'Existing', salesPerson: 'MTH', product: 'WGC', area: 'Gujarat', badge: '9' },
+        { rank: 10, customer: 'Navkar Corporation', quantity: 74, weight: 3250.0, share: 2.7, city: 'Navi Mumbai, Maharashtra', isNew: false, status: 'Existing', salesPerson: 'RT', product: 'MHC', area: 'West', badge: '10' },
+        { rank: 11, customer: 'Ganga Builders & Civil', quantity: 67, weight: 2980.0, share: 2.5, city: 'Varanasi, Uttar Pradesh', isNew: false, status: 'Existing', salesPerson: 'RS', product: 'MHC', area: 'North', badge: '11' },
+        { rank: 12, customer: 'Om Sai Precast', quantity: 62, weight: 2740.0, share: 2.3, city: 'Mehsana, Gujarat', isNew: false, status: 'Existing', salesPerson: 'JP', product: 'MHC', area: 'Gujarat', badge: '12' },
+        { rank: 13, customer: 'Riddhi Siddhi Construction', quantity: 56, weight: 2510.0, share: 2.1, city: 'Jaipur, Rajasthan', isNew: false, status: 'Existing', salesPerson: 'RS', product: 'MHC', area: 'North', badge: '13' },
+        { rank: 14, customer: 'Vardhman Tubes & Castings', quantity: 52, weight: 2340.0, share: 2.0, city: 'Gandhinagar, Gujarat', isNew: true, status: 'New', salesPerson: 'MTH', product: 'MHC', area: 'Ahmedabad', badge: '14' },
+        { rank: 15, customer: 'Bharat Petroleum Vendor Site', quantity: 48, weight: 2120.0, share: 1.8, city: 'Jamnagar, Gujarat', isNew: false, status: 'Existing', salesPerson: 'RT', product: 'ONGC', area: 'Gujarat', badge: '15' },
+        { rank: 16, customer: 'Sunrise Infrastructure', quantity: 44, weight: 1950.0, share: 1.6, city: 'Indore, Madhya Pradesh', isNew: false, status: 'Existing', salesPerson: 'RS', product: 'MHC', area: 'Central', badge: '16' },
+        { rank: 17, customer: 'Modern Precast Industries', quantity: 41, weight: 1820.0, share: 1.5, city: 'Pune, Maharashtra', isNew: false, status: 'Existing', salesPerson: 'RT', product: 'MHC', area: 'West', badge: '17' },
+        { rank: 18, customer: 'Adani Ports Contractor Hub', quantity: 38, weight: 1690.0, share: 1.4, city: 'Mundra, Gujarat', isNew: false, status: 'Existing', salesPerson: 'TL', product: 'WGC', area: 'Gujarat', badge: '18' },
+        { rank: 19, customer: 'Krishna Drainage Works', quantity: 35, weight: 1580.0, share: 1.3, city: 'Rajkot, Gujarat', isNew: true, status: 'New', salesPerson: 'MTH', product: 'MHC', area: 'Gujarat', badge: '19' },
+        { rank: 20, customer: 'Alok Infratech', quantity: 33, weight: 1480.0, share: 1.2, city: 'Anand, Gujarat', isNew: false, status: 'Existing', salesPerson: 'GN', product: 'D MHC', area: 'Gujarat', badge: '20' },
       ],
+      newCustomerStats: {
+        newCustomerCount: 12,
+        newCustomerWeight: 29843.0,
+        newCustomerQty: 668,
+        newCustomerWeightShare: 24.9,
+        newCustomerQtyShare: 24.9,
+        newInTop20: [
+          { rank: 2, customer: 'Tasneem Enterprise', quantity: 288, weight: 13152.0, share: 11.0, city: 'Chennai, Tamil Nadu', medal: '🥇' },
+          { rank: 4, customer: 'Shreya Construction', quantity: 126, weight: 5631.0, share: 4.7, city: 'Rajkot, Gujarat', medal: '🥈' },
+          { rank: 8, customer: 'Apex Precast & Utilities', quantity: 88, weight: 3890.0, share: 3.2, city: 'Vadodara, Gujarat', medal: '🥉' },
+          { rank: 14, customer: 'Vardhman Tubes & Castings', quantity: 52, weight: 2340.0, share: 2.0, city: 'Gandhinagar, Gujarat' },
+          { rank: 19, customer: 'Krishna Drainage Works', quantity: 35, weight: 1580.0, share: 1.3, city: 'Rajkot, Gujarat' },
+        ],
+      },
       customerConcentration: {
-        top5Weight: 46404.32,
+        top5Weight: 46404.0,
         top5Share: 38.7,
-        remainingWeight: 73592.08,
-        remainingShare: 61.3,
+        top5Qty: 1028,
+        top10Weight: 66214.0,
+        top10Share: 55.2,
+        top10Qty: 1475,
+        top20Weight: 87424.0,
+        top20Share: 72.9,
+        top20Qty: 1951,
+        remainingWeight: 32572.4,
+        remainingShare: 27.1,
+        remainingQty: 737,
         totalCustomers: 79,
         insight:
-          'The Top 5 customers together account for 38.7% (46.4 tonnes) of total dispatch weight. Losing one major customer could have a noticeable effect on dispatch volume.',
+          'Top 5 customers represent 38.7% (46.4T), Top 10 represent 55.2% (66.2T), and Top 20 represent 72.9% (87.4T) of volume. 12 new customers entered this period contributing 24.9% (29.8T) of volume.',
       },
       dailyTrends: [
         { date: '2026-08-01', day: '1 Aug', weight: 3820, pcs: 88, highlight: false },
@@ -1767,6 +1908,7 @@ export class PlantHeadService {
           totalQty: 2254,
           totalWeight: 100829.11,
           weightShare: 84.1,
+          qtyShare: 83.9,
         },
         {
           salesPerson: 'TL',
@@ -1784,6 +1926,7 @@ export class PlantHeadService {
           totalQty: 97,
           totalWeight: 6921.78,
           weightShare: 5.8,
+          qtyShare: 3.6,
         },
         {
           salesPerson: 'JP',
@@ -1801,6 +1944,7 @@ export class PlantHeadService {
           totalQty: 116,
           totalWeight: 4330.78,
           weightShare: 3.6,
+          qtyShare: 4.3,
         },
         {
           salesPerson: 'RT',
@@ -1818,6 +1962,7 @@ export class PlantHeadService {
           totalQty: 47,
           totalWeight: 4064.0,
           weightShare: 3.4,
+          qtyShare: 1.7,
         },
         {
           salesPerson: 'RS',
@@ -1835,6 +1980,7 @@ export class PlantHeadService {
           totalQty: 86,
           totalWeight: 1579.28,
           weightShare: 1.3,
+          qtyShare: 3.2,
         },
         {
           salesPerson: 'TG',
@@ -1852,6 +1998,7 @@ export class PlantHeadService {
           totalQty: 62,
           totalWeight: 1557.77,
           weightShare: 1.3,
+          qtyShare: 2.3,
         },
         {
           salesPerson: 'GN',
@@ -1869,6 +2016,7 @@ export class PlantHeadService {
           totalQty: 25,
           totalWeight: 627.2,
           weightShare: 0.5,
+          qtyShare: 0.9,
         },
         {
           salesPerson: 'MK',
@@ -1886,6 +2034,7 @@ export class PlantHeadService {
           totalQty: 1,
           totalWeight: 86.5,
           weightShare: 0.1,
+          qtyShare: 0.04,
         },
       ],
       transportation: {
@@ -2387,12 +2536,235 @@ export class PlantHeadService {
           sla: 'On-Time',
         },
       ],
+      areaWise: [
+        {
+          area: 'Ahmedabad',
+          quantity: 1120,
+          weight: 49850.2,
+          weightShare: 41.5,
+          qtyShare: 41.7,
+          customers: 32,
+          dispatchDays: 20,
+          mhcQty: 680, mhcWeight: 28650.1,
+          rcsQty: 72, rcsWeight: 7850.0,
+          ongcQty: 290, ongcWeight: 6400.0,
+          wgcQty: 54, wgcWeight: 5700.1,
+          dmhcQty: 24, dmhcWeight: 1250.0,
+          mthQty: 940, mthWeight: 41800.2,
+          tlQty: 40, tlWeight: 2850.0,
+          jpQty: 50, jpWeight: 1860.0,
+          rtQty: 20, rtWeight: 1725.0,
+          rsQty: 35, rsWeight: 640.0,
+          tgQty: 20, tgWeight: 500.0,
+          gnQty: 14, gnWeight: 388.5,
+          mkQty: 1, mkWeight: 86.5,
+        },
+        {
+          area: 'Gujarat',
+          quantity: 610,
+          weight: 27240.5,
+          weightShare: 22.7,
+          qtyShare: 22.7,
+          customers: 19,
+          dispatchDays: 18,
+          mhcQty: 370, mhcWeight: 15690.5,
+          rcsQty: 38, rcsWeight: 4120.0,
+          ongcQty: 155, ongcWeight: 3420.0,
+          wgcQty: 31, wgcWeight: 3280.0,
+          dmhcQty: 16, dmhcWeight: 830.0,
+          mthQty: 510, mthWeight: 22860.5,
+          tlQty: 25, tlWeight: 1780.0,
+          jpQty: 28, jpWeight: 1040.0,
+          rtQty: 12, rtWeight: 1040.0,
+          rsQty: 20, rsWeight: 370.0,
+          tgQty: 10, tgWeight: 250.0,
+          gnQty: 5, gnWeight: 125.0,
+          mkQty: 0, mkWeight: 0.0,
+        },
+        {
+          area: 'West',
+          quantity: 380,
+          weight: 17045.0,
+          weightShare: 14.2,
+          qtyShare: 14.1,
+          customers: 11,
+          dispatchDays: 14,
+          mhcQty: 230, mhcWeight: 9810.0,
+          rcsQty: 24, rcsWeight: 2580.0,
+          ongcQty: 96, ongcWeight: 2120.0,
+          wgcQty: 19, wgcWeight: 2010.0,
+          dmhcQty: 11, dmhcWeight: 525.0,
+          mthQty: 320, mthWeight: 14350.0,
+          tlQty: 16, tlWeight: 1140.0,
+          jpQty: 18, jpWeight: 670.0,
+          rtQty: 10, rtWeight: 860.0,
+          rsQty: 11, rsWeight: 200.0,
+          tgQty: 5, tgWeight: 125.0,
+          gnQty: 0, gnWeight: 0.0,
+          mkQty: 0, mkWeight: 0.0,
+        },
+        {
+          area: 'North',
+          quantity: 220,
+          weight: 9850.0,
+          weightShare: 8.2,
+          qtyShare: 8.2,
+          customers: 7,
+          dispatchDays: 10,
+          mhcQty: 135, mhcWeight: 5680.0,
+          rcsQty: 14, rcsWeight: 1480.0,
+          ongcQty: 56, ongcWeight: 1240.0,
+          wgcQty: 11, wgcWeight: 1170.0,
+          dmhcQty: 4, dmhcWeight: 280.0,
+          mthQty: 185, mthWeight: 8300.0,
+          tlQty: 8, tlWeight: 580.0,
+          jpQty: 10, jpWeight: 370.0,
+          rtQty: 3, rtWeight: 260.0,
+          rsQty: 8, rsWeight: 150.0,
+          tgQty: 6, tgWeight: 150.0,
+          gnQty: 0, gnWeight: 0.0,
+          mkQty: 0, mkWeight: 0.0,
+        },
+        {
+          area: 'South',
+          quantity: 170,
+          weight: 7580.0,
+          weightShare: 6.3,
+          qtyShare: 6.3,
+          customers: 5,
+          dispatchDays: 8,
+          mhcQty: 105, mhcWeight: 4370.0,
+          rcsQty: 10, rcsWeight: 1150.0,
+          ongcQty: 43, ongcWeight: 950.0,
+          wgcQty: 8, wgcWeight: 890.0,
+          dmhcQty: 4, dmhcWeight: 220.0,
+          mthQty: 140, mthWeight: 6340.0,
+          tlQty: 5, tlWeight: 360.0,
+          jpQty: 6, jpWeight: 230.0,
+          rtQty: 2, rtWeight: 179.0,
+          rsQty: 7, rsWeight: 130.0,
+          tgQty: 6, tgWeight: 150.0,
+          gnQty: 4, gnWeight: 75.0,
+          mkQty: 0, mkWeight: 0.0,
+        },
+        {
+          area: 'Central',
+          quantity: 110,
+          weight: 4920.0,
+          weightShare: 4.1,
+          qtyShare: 4.1,
+          customers: 3,
+          dispatchDays: 6,
+          mhcQty: 68, mhcWeight: 2830.0,
+          rcsQty: 5, rcsWeight: 550.0,
+          ongcQty: 28, ongcWeight: 610.0,
+          wgcQty: 6, wgcWeight: 580.0,
+          dmhcQty: 3, dmhcWeight: 180.0,
+          mthQty: 95, mthWeight: 4140.0,
+          tlQty: 2, tlWeight: 140.0,
+          jpQty: 3, jpWeight: 110.0,
+          rtQty: 0, rtWeight: 0.0,
+          rsQty: 4, rsWeight: 70.0,
+          tgQty: 6, tgWeight: 150.0,
+          gnQty: 0, gnWeight: 0.0,
+          mkQty: 0, mkWeight: 0.0,
+        },
+        {
+          area: 'East / North-East',
+          quantity: 60,
+          weight: 2710.7,
+          weightShare: 2.3,
+          qtyShare: 2.2,
+          customers: 2,
+          dispatchDays: 4,
+          mhcQty: 38, mhcWeight: 1579.75,
+          rcsQty: 2, rcsWeight: 352.85,
+          ongcQty: 12, ongcWeight: 262.5,
+          wgcQty: 5, wgcWeight: 419.5,
+          dmhcQty: 3, dmhcWeight: 166.1,
+          mthQty: 50, mthWeight: 2248.41,
+          tlQty: 1, tlWeight: 71.78,
+          jpQty: 1, jpWeight: 50.78,
+          rtQty: 0, rtWeight: 0.0,
+          rsQty: 1, rsWeight: 19.28,
+          tgQty: 7, tgWeight: 210.77,
+          gnQty: 0, gnWeight: 0.0,
+          mkQty: 0, mkWeight: 0.0,
+        },
+        {
+          area: 'Other',
+          quantity: 18,
+          weight: 800.0,
+          weightShare: 0.7,
+          qtyShare: 0.7,
+          customers: 1,
+          dispatchDays: 2,
+          mhcQty: 13, mhcWeight: 600.0,
+          rcsQty: 1, rcsWeight: 60.0,
+          ongcQty: 3, ongcWeight: 70.0,
+          wgcQty: 1, wgcWeight: 70.0,
+          dmhcQty: 0, dmhcWeight: 0.0,
+          mthQty: 14, mthWeight: 690.0,
+          tlQty: 0, tlWeight: 0.0,
+          jpQty: 0, jpWeight: 0.0,
+          rtQty: 0, rtWeight: 0.0,
+          rsQty: 0, rsWeight: 0.0,
+          tgQty: 2, tgWeight: 72.0,
+          gnQty: 2, gnWeight: 38.7,
+          mkQty: 0, mkWeight: 0.0,
+        },
+      ],
     };
 
     // 4. Return Curated August benchmark for August 2026, OR Dynamic Live DB Aggregation
     if (isAugust2026) {
+      let filteredAreaWise = augustBenchmark.areaWise;
+      if (areaFilter && areaFilter !== 'All') {
+        filteredAreaWise = filteredAreaWise.filter(a => a.area.toLowerCase() === areaFilter.toLowerCase());
+      }
+
+      let filteredCustomers = augustBenchmark.topCustomers;
+      if (areaFilter && areaFilter !== 'All') {
+        filteredCustomers = filteredCustomers.filter(c => !c.area || c.area.toLowerCase() === areaFilter.toLowerCase());
+      }
+      if (salesPersonFilter && salesPersonFilter !== 'All') {
+        filteredCustomers = filteredCustomers.filter(c => !c.salesPerson || c.salesPerson.toLowerCase() === salesPersonFilter.toLowerCase());
+      }
+      if (productFilter && productFilter !== 'All') {
+        filteredCustomers = filteredCustomers.filter(c => !c.product || c.product.toLowerCase() === productFilter.toLowerCase());
+      }
+
+      const rankedCustomers = filteredCustomers.map((c, i) => ({
+        ...c,
+        rank: i + 1,
+        badge: i === 0 ? '🥇 1' : i === 1 ? '🥈 2' : i === 2 ? '🥉 3' : `${i + 1}`,
+      }));
+
+      const newInTop20 = rankedCustomers
+        .filter(c => c.isNew)
+        .map((c, idx) => ({
+          rank: c.rank,
+          customer: c.customer,
+          quantity: c.quantity,
+          weight: c.weight,
+          share: c.share,
+          city: c.city,
+          medal: idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : undefined,
+        }));
+
       return {
         ...augustBenchmark,
+        areaWise: filteredAreaWise,
+        topCustomers: rankedCustomers.map(customer => ({
+          ...customer,
+          // Benchmark source only contains period-level records; expose the same
+          // acquisition contract as the live aggregation.
+          firstDispatchDate: customer.isNew ? '2026-08-01' : 'Prior to 2026-08-01',
+        })),
+        newCustomerStats: {
+          ...augustBenchmark.newCustomerStats,
+          newInTop20,
+        },
         hasData: true,
         kpis: {
           readyForDispatch: readyForDispatchCount > 0 ? readyForDispatchCount : 7,
@@ -2448,11 +2820,27 @@ export class PlantHeadService {
         capacities: [],
         capacityInsight: 'No capacity data for this timeframe.',
         topCustomers: [],
+        newCustomerStats: {
+          newCustomerCount: 0,
+          newCustomerWeight: 0,
+          newCustomerQty: 0,
+          newCustomerWeightShare: 0,
+          newCustomerQtyShare: 0,
+          newInTop20: [],
+        },
         customerConcentration: {
           top5Weight: 0,
           top5Share: 0,
+          top5Qty: 0,
+          top10Weight: 0,
+          top10Share: 0,
+          top10Qty: 0,
+          top20Weight: 0,
+          top20Share: 0,
+          top20Qty: 0,
           remainingWeight: 0,
           remainingShare: 0,
+          remainingQty: 0,
           totalCustomers: 0,
           insight: 'No customer activity recorded for this period.',
         },
@@ -2463,6 +2851,7 @@ export class PlantHeadService {
         salesReferences: [],
         salesRefInsight: 'No sales reference activity for this period.',
         salesPersonProductWise: [],
+        areaWise: [],
         transportation: {
           totalFreightAmount: 0,
           avgFreightPerKg: 0,
@@ -2510,43 +2899,34 @@ export class PlantHeadService {
     const capMap: Record<string, number> = {};
     const sizeMap: Record<string, number> = {};
     const colMap: Record<string, number> = {};
-    const customerMap: Record<string, { weight: number; city: string }> = {};
+    const customerMap: Record<string, { weight: number; qty: number; city: string; customerId?: string; firstDate?: string }> = {};
     const salesMap: Record<string, { weight: number; qty: number }> = {};
     const salesProdMap: Record<string, Record<string, { qty: number; weight: number }>> = {};
+    const areaMap: Record<string, {
+      qty: number;
+      weight: number;
+      customers: Set<string>;
+      days: Set<string>;
+      mhcQty: number; mhcWeight: number;
+      rcsQty: number; rcsWeight: number;
+      ongcQty: number; ongcWeight: number;
+      wgcQty: number; wgcWeight: number;
+      dmhcQty: number; dmhcWeight: number;
+      mthQty: number; mthWeight: number;
+      tlQty: number; tlWeight: number;
+      jpQty: number; jpWeight: number;
+      rtQty: number; rtWeight: number;
+      rsQty: number; rsWeight: number;
+      tgQty: number; tgWeight: number;
+      gnQty: number; gnWeight: number;
+      mkQty: number; mkWeight: number;
+    }> = {};
     const transporterMap: Record<string, { trips: number; weight: number; freight: number; vehicles: Set<string>; routes: Set<string> }> = {};
 
     dbDispatches.forEach((d: any) => {
       const dWeight = Number(d.totalWeight) || 0;
       const dFreight = Number(d.freightAmount) || 0;
       const dPcs = Number(d.packageCount) || (d.items && d.items.length > 0 ? d.items.reduce((s: number, it: any) => s + (Number(it.quantity) || 1), 0) : 1);
-
-      totalWeight += dWeight;
-      totalFreight += dFreight;
-      totalQty += dPcs;
-
-      const cName = d.salesOrder?.customer?.companyName || d.salesOrder?.customer?.name || 'Direct Client';
-      const cCity = d.deliveryAddress ? d.deliveryAddress.split(',').slice(-3, -1).join(',').trim() : 'India';
-      clientSet.add(cName);
-      if (!customerMap[cName]) customerMap[cName] = { weight: 0, city: cCity };
-      customerMap[cName].weight += dWeight;
-
-      const dDate = d.createdAt ? new Date(d.createdAt).toISOString().slice(0, 10) : '';
-      if (dDate) {
-        if (!datesMap[dDate]) datesMap[dDate] = { weight: 0, pcs: 0 };
-        datesMap[dDate].weight += dWeight;
-        datesMap[dDate].pcs += dPcs;
-      }
-
-      // Transporter Aggregation
-      const tName = d.transporterName || 'Company Fleet';
-      if (!transporterMap[tName]) {
-        transporterMap[tName] = { trips: 0, weight: 0, freight: 0, vehicles: new Set(), routes: new Set() };
-      }
-      transporterMap[tName].trips += 1;
-      transporterMap[tName].weight += dWeight;
-      transporterMap[tName].freight += dFreight;
-      if (d.vehicleNumber) transporterMap[tName].vehicles.add(d.vehicleNumber);
-      if (d.deliveryAddress) transporterMap[tName].routes.add(d.deliveryAddress.split(',')[0]);
 
       // Product, Capacity, Size, Colour from specs or product snapshot
       const soItems = d.salesOrder?.items || [];
@@ -2590,6 +2970,51 @@ export class PlantHeadService {
       let sRef = specs.salesRef || d.salesOrder?.salesExecutive?.name || 'MTH';
       if (sRef.includes('SuperSales 1') || sRef.includes('Hussain')) sRef = 'MTH';
 
+      const area = determineArea(d.deliveryAddress, d.salesOrder?.shippingAddress, d.salesOrder?.customer?.billingAddress);
+
+      // Apply dynamic filters if specified
+      if (areaFilter && areaFilter !== 'All' && area.toLowerCase() !== areaFilter.toLowerCase()) {
+        return;
+      }
+      if (salesPersonFilter && salesPersonFilter !== 'All' && sRef.toLowerCase() !== salesPersonFilter.toLowerCase()) {
+        return;
+      }
+      if (productFilter && productFilter !== 'All' && prod.toLowerCase() !== productFilter.toLowerCase()) {
+        return;
+      }
+
+      totalWeight += dWeight;
+      totalFreight += dFreight;
+      totalQty += dPcs;
+
+      const cName = d.salesOrder?.customer?.companyName || d.salesOrder?.customer?.name || 'Direct Client';
+      const cId = d.salesOrder?.customerId || d.salesOrder?.customer?.id;
+      const cCity = d.deliveryAddress ? d.deliveryAddress.split(',').slice(-3, -1).join(',').trim() : 'India';
+      clientSet.add(cName);
+      const dispatchDate = d.createdAt ? new Date(d.createdAt).toISOString().slice(0, 10) : undefined;
+      if (!customerMap[cName]) customerMap[cName] = { weight: 0, qty: 0, city: cCity, customerId: cId, firstDate: dispatchDate };
+      customerMap[cName].weight += dWeight;
+      customerMap[cName].qty += dPcs;
+      if (dispatchDate && (!customerMap[cName].firstDate || dispatchDate < customerMap[cName].firstDate!)) customerMap[cName].firstDate = dispatchDate;
+
+      const dDate = d.createdAt ? new Date(d.createdAt).toISOString().slice(0, 10) : '';
+      if (dDate) {
+        if (!datesMap[dDate]) datesMap[dDate] = { weight: 0, pcs: 0 };
+        datesMap[dDate].weight += dWeight;
+        datesMap[dDate].pcs += dPcs;
+      }
+
+      // Transporter Aggregation
+      const tName = d.transporterName || 'Company Fleet';
+      if (!transporterMap[tName]) {
+        transporterMap[tName] = { trips: 0, weight: 0, freight: 0, vehicles: new Set(), routes: new Set() };
+      }
+      transporterMap[tName].trips += 1;
+      transporterMap[tName].weight += dWeight;
+      transporterMap[tName].freight += dFreight;
+      if (d.vehicleNumber) transporterMap[tName].vehicles.add(d.vehicleNumber);
+      if (d.deliveryAddress) transporterMap[tName].routes.add(d.deliveryAddress.split(',')[0]);
+
       if (!prodMap[prod]) prodMap[prod] = { qty: 0, weight: 0 };
       prodMap[prod].qty += dPcs;
       prodMap[prod].weight += dWeight;
@@ -2606,6 +3031,50 @@ export class PlantHeadService {
       if (!salesProdMap[sRef][prod]) salesProdMap[sRef][prod] = { qty: 0, weight: 0 };
       salesProdMap[sRef][prod].qty += dPcs;
       salesProdMap[sRef][prod].weight += dWeight;
+
+      // Area Map aggregation
+      if (!areaMap[area]) {
+        areaMap[area] = {
+          qty: 0,
+          weight: 0,
+          customers: new Set<string>(),
+          days: new Set<string>(),
+          mhcQty: 0, mhcWeight: 0,
+          rcsQty: 0, rcsWeight: 0,
+          ongcQty: 0, ongcWeight: 0,
+          wgcQty: 0, wgcWeight: 0,
+          dmhcQty: 0, dmhcWeight: 0,
+          mthQty: 0, mthWeight: 0,
+          tlQty: 0, tlWeight: 0,
+          jpQty: 0, jpWeight: 0,
+          rtQty: 0, rtWeight: 0,
+          rsQty: 0, rsWeight: 0,
+          tgQty: 0, tgWeight: 0,
+          gnQty: 0, gnWeight: 0,
+          mkQty: 0, mkWeight: 0,
+        };
+      }
+      areaMap[area].qty += dPcs;
+      areaMap[area].weight += dWeight;
+      areaMap[area].customers.add(cName);
+      if (dDate) areaMap[area].days.add(dDate);
+
+      if (prod === 'MHC') { areaMap[area].mhcQty += dPcs; areaMap[area].mhcWeight += dWeight; }
+      else if (prod === 'RCS') { areaMap[area].rcsQty += dPcs; areaMap[area].rcsWeight += dWeight; }
+      else if (prod === 'ONGC') { areaMap[area].ongcQty += dPcs; areaMap[area].ongcWeight += dWeight; }
+      else if (prod === 'WGC') { areaMap[area].wgcQty += dPcs; areaMap[area].wgcWeight += dWeight; }
+      else if (prod === 'D MHC') { areaMap[area].dmhcQty += dPcs; areaMap[area].dmhcWeight += dWeight; }
+
+      const sRefLower = sRef.toLowerCase();
+      if (sRefLower.includes('mth')) { areaMap[area].mthQty += dPcs; areaMap[area].mthWeight += dWeight; }
+      else if (sRefLower.includes('tl')) { areaMap[area].tlQty += dPcs; areaMap[area].tlWeight += dWeight; }
+      else if (sRefLower.includes('jp')) { areaMap[area].jpQty += dPcs; areaMap[area].jpWeight += dWeight; }
+      else if (sRefLower.includes('rt')) { areaMap[area].rtQty += dPcs; areaMap[area].rtWeight += dWeight; }
+      else if (sRefLower.includes('rs')) { areaMap[area].rsQty += dPcs; areaMap[area].rsWeight += dWeight; }
+      else if (sRefLower.includes('tg')) { areaMap[area].tgQty += dPcs; areaMap[area].tgWeight += dWeight; }
+      else if (sRefLower.includes('gn')) { areaMap[area].gnQty += dPcs; areaMap[area].gnWeight += dWeight; }
+      else if (sRefLower.includes('mk')) { areaMap[area].mkQty += dPcs; areaMap[area].mkWeight += dWeight; }
+      else { areaMap[area].mthQty += dPcs; areaMap[area].mthWeight += dWeight; }
     });
 
     // Format Products Breakdown
@@ -2633,23 +3102,110 @@ export class PlantHeadService {
       }))
       .sort((a, b) => b.weight - a.weight);
 
-    // Format Top 5 Customers
+    // Format Top 20 Customers & New Customer Analysis
+    const priorCustomerSet = new Set<string>();
+    try {
+      const activeCustomerIds = Object.values(customerMap)
+        .map(customer => customer.customerId)
+        .filter((id): id is string => Boolean(id));
+      const priorDispatches = await this.prisma.dispatch.findMany({
+        where: {
+          createdAt: { lt: startDate },
+          ...(activeCustomerIds.length > 0
+            ? { salesOrder: { customerId: { in: activeCustomerIds } } }
+            : {}),
+        },
+        include: {
+          salesOrder: {
+            include: {
+              customer: true,
+            },
+          },
+        },
+      });
+
+      for (const pd of priorDispatches) {
+        if (pd.salesOrder?.customerId) priorCustomerSet.add(pd.salesOrder.customerId);
+        if (pd.salesOrder?.customer?.id) priorCustomerSet.add(pd.salesOrder.customer.id);
+        const name = pd.salesOrder?.customer?.companyName || (pd.salesOrder?.customer as any)?.name;
+        if (name) priorCustomerSet.add(name.trim().toLowerCase());
+      }
+    } catch (e) {
+      console.warn('[PlantHeadService] Prior dispatches check warning:', e);
+    }
+
     const sortedCustomers = Object.entries(customerMap)
       .sort((a, b) => b[1].weight - a[1].weight);
 
-    const top5CustomersLive = sortedCustomers.slice(0, 5).map(([customer, info], idx) => ({
-      rank: idx + 1,
-      customer,
-      weight: Math.round(info.weight * 100) / 100,
-      share: totalWeight > 0 ? Math.round((info.weight / totalWeight) * 1000) / 10 : 0,
-      city: info.city,
-      badge: `${idx + 1}`,
-    }));
+    const top20CustomersLive = sortedCustomers.slice(0, 20).map(([customer, info], idx) => {
+      const isPrior =
+        (info.customerId && priorCustomerSet.has(info.customerId)) ||
+        priorCustomerSet.has(customer.trim().toLowerCase());
+      const isNew = !isPrior;
+      return {
+        rank: idx + 1,
+        customer,
+        quantity: info.qty,
+        weight: Math.round(info.weight * 100) / 100,
+        share: totalWeight > 0 ? Math.round((info.weight / totalWeight) * 1000) / 10 : 0,
+        city: info.city,
+        firstDispatchDate: isNew ? info.firstDate || startDate.toISOString().slice(0, 10) : 'Prior to selected period',
+        isNew,
+        status: isNew ? 'New' : 'Existing',
+        badge: idx === 0 ? '🥇 1' : idx === 1 ? '🥈 2' : idx === 2 ? '🥉 3' : `${idx + 1}`,
+      };
+    });
 
-    const top5WeightLive = top5CustomersLive.reduce((s, c) => s + c.weight, 0);
+    const allCustomersList = sortedCustomers.map(([customer, info]) => {
+      const isPrior =
+        (info.customerId && priorCustomerSet.has(info.customerId)) ||
+        priorCustomerSet.has(customer.trim().toLowerCase());
+      return {
+        customer,
+        quantity: info.qty,
+        weight: info.weight,
+        isNew: !isPrior,
+      };
+    });
+
+    const newCustomersList = allCustomersList.filter(c => c.isNew);
+    const newCustomerCount = newCustomersList.length;
+    const newCustomerWeight = Math.round(newCustomersList.reduce((s, c) => s + c.weight, 0) * 100) / 100;
+    const newCustomerQty = newCustomersList.reduce((s, c) => s + c.quantity, 0);
+    const newCustomerWeightShare = totalWeight > 0 ? Math.round((newCustomerWeight / totalWeight) * 1000) / 10 : 0;
+    const newCustomerQtyShare = totalQty > 0 ? Math.round((newCustomerQty / totalQty) * 1000) / 10 : 0;
+
+    const newInTop20 = top20CustomersLive
+      .filter(c => c.isNew)
+      .map((c, i) => ({
+        rank: c.rank,
+        customer: c.customer,
+        quantity: c.quantity,
+        weight: c.weight,
+        share: c.share,
+        city: c.city,
+        medal: i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : undefined,
+      }));
+
+    const top5 = sortedCustomers.slice(0, 5);
+    const top10 = sortedCustomers.slice(0, 10);
+    const top20 = sortedCustomers.slice(0, 20);
+
+    const top5WeightLive = Math.round(top5.reduce((s, c) => s + c[1].weight, 0) * 100) / 100;
+    const top5QtyLive = top5.reduce((s, c) => s + c[1].qty, 0);
     const top5ShareLive = totalWeight > 0 ? Math.round((top5WeightLive / totalWeight) * 1000) / 10 : 0;
-    const remainingWeightLive = Math.max(0, Math.round((totalWeight - top5WeightLive) * 100) / 100);
-    const remainingShareLive = Math.max(0, Math.round((100 - top5ShareLive) * 10) / 10);
+
+    const top10WeightLive = Math.round(top10.reduce((s, c) => s + c[1].weight, 0) * 100) / 100;
+    const top10QtyLive = top10.reduce((s, c) => s + c[1].qty, 0);
+    const top10ShareLive = totalWeight > 0 ? Math.round((top10WeightLive / totalWeight) * 1000) / 10 : 0;
+
+    const top20WeightLive = Math.round(top20.reduce((s, c) => s + c[1].weight, 0) * 100) / 100;
+    const top20QtyLive = top20.reduce((s, c) => s + c[1].qty, 0);
+    const top20ShareLive = totalWeight > 0 ? Math.round((top20WeightLive / totalWeight) * 1000) / 10 : 0;
+
+    const remainingWeightLive = Math.max(0, Math.round((totalWeight - top20WeightLive) * 100) / 100);
+    const remainingQtyLive = Math.max(0, totalQty - top20QtyLive);
+    const remainingShareLive = Math.max(0, Math.round((100 - top20ShareLive) * 10) / 10);
 
     // Format Daily Trends
     const dailyTrendsLive = Object.entries(datesMap)
@@ -2724,8 +3280,46 @@ export class PlantHeadService {
         totalQty: rowTotalQty,
         totalWeight: Math.round(rowTotalWeight * 100) / 100,
         weightShare: totalWeight > 0 ? Math.round((rowTotalWeight / totalWeight) * 1000) / 10 : 0,
+        qtyShare: totalQty > 0 ? (rowTotalQty === 1 ? Math.round((rowTotalQty / totalQty) * 10000) / 100 : Math.round((rowTotalQty / totalQty) * 1000) / 10) : 0,
       };
     }).sort((a, b) => b.totalWeight - a.totalWeight);
+
+    // Format Area-wise Analysis
+    const areaWiseLive = Object.entries(areaMap).map(([area, val]) => ({
+      area,
+      quantity: val.qty,
+      weight: Math.round(val.weight * 100) / 100,
+      weightShare: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
+      qtyShare: totalQty > 0 ? Math.round((val.qty / totalQty) * 1000) / 10 : 0,
+      customers: val.customers.size,
+      dispatchDays: val.days.size,
+      mhcQty: val.mhcQty,
+      mhcWeight: Math.round(val.mhcWeight * 100) / 100,
+      rcsQty: val.rcsQty,
+      rcsWeight: Math.round(val.rcsWeight * 100) / 100,
+      ongcQty: val.ongcQty,
+      ongcWeight: Math.round(val.ongcWeight * 100) / 100,
+      wgcQty: val.wgcQty,
+      wgcWeight: Math.round(val.wgcWeight * 100) / 100,
+      dmhcQty: val.dmhcQty,
+      dmhcWeight: Math.round(val.dmhcWeight * 100) / 100,
+      mthQty: val.mthQty,
+      mthWeight: Math.round(val.mthWeight * 100) / 100,
+      tlQty: val.tlQty,
+      tlWeight: Math.round(val.tlWeight * 100) / 100,
+      jpQty: val.jpQty,
+      jpWeight: Math.round(val.jpWeight * 100) / 100,
+      rtQty: val.rtQty,
+      rtWeight: Math.round(val.rtWeight * 100) / 100,
+      rsQty: val.rsQty,
+      rsWeight: Math.round(val.rsWeight * 100) / 100,
+      tgQty: val.tgQty,
+      tgWeight: Math.round(val.tgWeight * 100) / 100,
+      gnQty: val.gnQty,
+      gnWeight: Math.round(val.gnWeight * 100) / 100,
+      mkQty: val.mkQty,
+      mkWeight: Math.round(val.mkWeight * 100) / 100,
+    })).sort((a, b) => b.weight - a.weight);
 
     // Format Transporters & Trips
     const transportersLive = Object.entries(transporterMap).map(([name, val]) => ({
@@ -2745,6 +3339,7 @@ export class PlantHeadService {
       driver: d.driverName || 'Verified Driver',
       customer: d.salesOrder?.customer?.companyName || 'Client Site',
       destination: d.deliveryAddress || 'India',
+      area: determineArea(d.deliveryAddress, d.salesOrder?.shippingAddress, d.salesOrder?.customer?.billingAddress),
       date: d.dispatchedAt ? new Date(d.dispatchedAt).toISOString().slice(0, 10) : new Date(d.createdAt).toISOString().slice(0, 10),
       weight: Number(d.totalWeight) || 0,
       freight: Number(d.freightAmount) || 0,
@@ -2775,6 +3370,7 @@ export class PlantHeadService {
       quantity: d.packageCount || (d.items && d.items.length > 0 ? d.items.reduce((s: number, it: any) => s + (Number(it.quantity) || 1), 0) : 1),
       weight: Number(d.totalWeight) || 0,
       destination: d.deliveryAddress || 'Gujarat Region',
+      area: determineArea(d.deliveryAddress, d.salesOrder?.shippingAddress, d.salesOrder?.customer?.billingAddress),
       vehicle: d.vehicleNumber || 'Himalaya Express',
       transporter: d.transporterName || 'Fleet Logistics',
       driver: d.driverName || 'Verified Driver',
@@ -2808,14 +3404,30 @@ export class PlantHeadService {
       productInsight: productsLive.length > 0 ? `${productsLive[0].product} is the leading product, contributing ${productsLive[0].share}% of dispatched weight.` : 'Product breakdown computed from live database.',
       capacities: capacitiesLive,
       capacityInsight: capacitiesLive.length >= 2 ? `${capacitiesLive[0].capacity} + ${capacitiesLive[1].capacity} = ${(capacitiesLive[0].share + capacitiesLive[1].share).toFixed(1)}% of total dispatch weight.` : 'Capacity breakdown computed from live database.',
-      topCustomers: top5CustomersLive,
+      topCustomers: top20CustomersLive,
+      newCustomerStats: {
+        newCustomerCount,
+        newCustomerWeight,
+        newCustomerQty,
+        newCustomerWeightShare,
+        newCustomerQtyShare,
+        newInTop20,
+      },
       customerConcentration: {
         top5Weight: top5WeightLive,
         top5Share: top5ShareLive,
+        top5Qty: top5QtyLive,
+        top10Weight: top10WeightLive,
+        top10Share: top10ShareLive,
+        top10Qty: top10QtyLive,
+        top20Weight: top20WeightLive,
+        top20Share: top20ShareLive,
+        top20Qty: top20QtyLive,
         remainingWeight: remainingWeightLive,
         remainingShare: remainingShareLive,
+        remainingQty: remainingQtyLive,
         totalCustomers: clientSet.size,
-        insight: `Top 5 customers received ${top5ShareLive}% (${top5WeightLive.toLocaleString()} kg) of all material dispatched.`,
+        insight: `Top 5 customers account for ${top5ShareLive}%, Top 10 account for ${top10ShareLive}%, and Top 20 account for ${top20ShareLive}%. ${newCustomerCount} new clients contributed ${newCustomerWeightShare}% of dispatch volume.`,
       },
       dailyTrends: dailyTrendsLive,
       peakDay: peakDayLive,
@@ -2824,6 +3436,7 @@ export class PlantHeadService {
       salesReferences: salesRefsLive,
       salesRefInsight: salesRefsLive.length > 0 ? `${salesRefsLive[0].salesRef} is the leading sales reference contributing ${salesRefsLive[0].share}% of volume.` : 'Sales reference analysis computed from live database.',
       salesPersonProductWise: salesPersonProductWiseLive,
+      areaWise: areaWiseLive,
       transportation: {
         totalFreightAmount: Math.round(totalFreight * 100) / 100,
         avgFreightPerKg: totalWeight > 0 ? Math.round((totalFreight / totalWeight) * 100) / 100 : 0,
