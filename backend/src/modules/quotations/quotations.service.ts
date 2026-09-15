@@ -8,7 +8,6 @@ import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
-  getQuotationSalesScope,
   getLeadSalesScope,
   getSalesScope,
   canAssignSalesOwner,
@@ -73,10 +72,8 @@ export class QuotationsService {
     userId?: string,
     role?: string,
   ) {
-    const scope = getQuotationSalesScope(userId, role);
     const quotations = await this.prisma.quotation.findMany({
       where: {
-        ...scope,
         deletedAt: null,
         ...(companyId ? { companyId } : {}),
         ...(search
@@ -185,11 +182,9 @@ export class QuotationsService {
     userId?: string,
     role?: string,
   ) {
-    const scope = getQuotationSalesScope(userId, role);
     const quotation = await this.prisma.quotation.findFirst({
       where: {
         id,
-        ...scope,
         deletedAt: null,
         ...(companyId ? { companyId } : {}),
       },
