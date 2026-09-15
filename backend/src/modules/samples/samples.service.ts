@@ -56,19 +56,26 @@ export class SamplesService {
             salesExecutiveId: true,
             assignedToId: true,
             createdById: true,
+            customerId: true,
           },
         });
         if (leadObj) {
           validLeadId = leadObj.id;
           leadSalesExecutiveId = leadObj.salesExecutiveId || leadObj.assignedToId || leadObj.createdById;
+          if (!validCustomerId && leadObj.customerId) {
+            validCustomerId = leadObj.customerId;
+          }
         } else {
           const anyLead = await tx.lead.findFirst({
             where: { id: leadStr },
-            select: { id: true, salesExecutiveId: true, assignedToId: true, createdById: true },
+            select: { id: true, salesExecutiveId: true, assignedToId: true, createdById: true, customerId: true },
           });
           if (anyLead) {
             validLeadId = anyLead.id;
             leadSalesExecutiveId = anyLead.salesExecutiveId || anyLead.assignedToId || anyLead.createdById;
+            if (!validCustomerId && anyLead.customerId) {
+              validCustomerId = anyLead.customerId;
+            }
           }
         }
         if (isSalespersonScopedRole(role)) {
@@ -332,6 +339,7 @@ export class SamplesService {
             salesExecutiveId: true,
             assignedToId: true,
             createdById: true,
+            customerId: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
           },
         },
@@ -378,6 +386,42 @@ export class SamplesService {
             (s.createdById && userMap.get(s.createdById));
           if (matchedUser) {
             (s as any).salesExecutive = matchedUser;
+          }
+        }
+      }
+    }
+
+    // Batch resolve any unassigned / missing customer records
+    const missingCustomerIds = new Set<string>();
+    for (const s of samples) {
+      if (!s.customer) {
+        if (s.customerId) missingCustomerIds.add(s.customerId);
+        else if (s.lead?.customerId) missingCustomerIds.add(s.lead.customerId);
+      }
+    }
+
+    if (missingCustomerIds.size > 0) {
+      const customers = await this.prisma.customer.findMany({
+        where: { id: { in: Array.from(missingCustomerIds) } },
+        select: {
+          id: true,
+          companyName: true,
+          customerCode: true,
+          contactPerson: true,
+          phone: true,
+          email: true,
+          shippingAddress: true,
+          billingAddress: true,
+        },
+      });
+      const custMap = new Map(customers.map((c) => [c.id, c]));
+      for (const s of samples) {
+        if (!s.customer) {
+          const matchedCust =
+            (s.customerId && custMap.get(s.customerId)) ||
+            (s.lead?.customerId && custMap.get(s.lead.customerId));
+          if (matchedCust) {
+            (s as any).customer = matchedCust;
           }
         }
       }
@@ -435,6 +479,7 @@ export class SamplesService {
             salesExecutiveId: true,
             assignedToId: true,
             createdById: true,
+            customerId: true,
             salesExecutive: { select: { id: true, name: true, email: true } },
           },
         },
@@ -500,6 +545,7 @@ export class SamplesService {
               salesExecutiveId: true,
               assignedToId: true,
               createdById: true,
+              customerId: true,
               salesExecutive: { select: { id: true, name: true, email: true } },
             },
           },
@@ -544,6 +590,28 @@ export class SamplesService {
         const matchedUser = candidateIds.map((cid) => userMap.get(cid)).find(Boolean);
         if (matchedUser) {
           (sample as any).salesExecutive = matchedUser;
+        }
+      }
+    }
+
+    if (!sample.customer) {
+      const targetCustId = sample.customerId || sample.lead?.customerId;
+      if (targetCustId) {
+        const cust = await this.prisma.customer.findFirst({
+          where: { id: targetCustId },
+          select: {
+            id: true,
+            companyName: true,
+            customerCode: true,
+            contactPerson: true,
+            phone: true,
+            email: true,
+            shippingAddress: true,
+            billingAddress: true,
+          },
+        });
+        if (cust) {
+          (sample as any).customer = cust;
         }
       }
     }

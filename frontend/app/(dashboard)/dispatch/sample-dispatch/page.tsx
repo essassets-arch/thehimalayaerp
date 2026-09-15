@@ -229,21 +229,40 @@ function SampleDispatchListContent() {
           totalQty = Number(sample.quantity) || 1;
         }
 
-        const rawCust = sample.customer;
-        const customerName =
-          (typeof rawCust === 'string' && rawCust.trim() && rawCust.trim() !== 'Customer' && rawCust.trim() !== 'Lead Customer' ? rawCust.trim() : null) ||
-          (typeof sample.customerName === 'string' && sample.customerName.trim() ? sample.customerName.trim() : null) ||
-          (typeof sample.companyName === 'string' && sample.companyName.trim() ? sample.companyName.trim() : null) ||
-          (typeof sample.lead?.companyName === 'string' && sample.lead.companyName.trim() ? sample.lead.companyName.trim() : null) ||
-          (typeof sample.customer?.companyName === 'string' && sample.customer.companyName.trim() ? sample.customer.companyName.trim() : null) ||
-          (typeof sample.leadName === 'string' && sample.leadName.trim() ? sample.leadName.trim() : null) ||
-          (typeof sample.lead?.contactPerson === 'string' && sample.lead.contactPerson.trim() ? sample.lead.contactPerson.trim() : null) ||
-          (typeof sample.customer?.contactPerson === 'string' && sample.customer.contactPerson.trim() ? sample.customer.contactPerson.trim() : null) ||
-          (typeof sample.contactPerson === 'string' && sample.contactPerson.trim() ? sample.contactPerson.trim() : null) ||
-          (typeof sample.dispatchDetails?.customer === 'string' && sample.dispatchDetails.customer.trim() ? sample.dispatchDetails.customer.trim() : null) ||
-          (typeof sample.dispatchDetails?.customerName === 'string' && sample.dispatchDetails.customerName.trim() ? sample.dispatchDetails.customerName.trim() : null) ||
-          sample.lead?.leadNumber ||
-          'Customer';
+        const isLeadRef = (val: any) => {
+          if (!val || typeof val !== 'string') return true;
+          const s = val.trim();
+          if (!s) return true;
+          const upper = s.toUpperCase();
+          if (['CUSTOMER', 'LEAD CUSTOMER', 'LEAD', 'NULL', 'UNDEFINED', '—', '-', 'N/A'].includes(upper)) return true;
+          if (/^(LEAD|LD)[\/\-_0-9]+/i.test(upper)) return true;
+          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return true;
+          if (/^SMP[\-_0-9]+/i.test(upper)) return true;
+          return false;
+        };
+
+        const custCandidates = [
+          sample.customer?.companyName,
+          sample.companyName,
+          sample.customerName,
+          typeof sample.customer === 'string' ? sample.customer : null,
+          sample.lead?.companyName,
+          sample.leadName,
+          sample.lead?.projectName,
+          sample.dispatchDetails?.customer,
+          sample.dispatchDetails?.customerName,
+          sample.customer?.contactPerson,
+          sample.lead?.contactPerson,
+          sample.contactPerson,
+        ];
+
+        let customerName = 'Customer';
+        for (const cand of custCandidates) {
+          if (cand && typeof cand === 'string' && cand.trim() && !isLeadRef(cand.trim())) {
+            customerName = cand.trim();
+            break;
+          }
+        }
 
         const leadNumber = sample.lead?.leadNumber || sample.leadNumber || (String(sample.leadId || '').startsWith('LEAD') ? sample.leadId : undefined);
         const contactPerson = sample.contactPerson || sample.lead?.contactPerson || sample.customer?.contactPerson || undefined;

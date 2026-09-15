@@ -63,7 +63,7 @@ export default function SamplesView({
     } else if (onSaveReminder) {
       await onSaveReminder({
         moduleId: reminderModal.sample.id,
-        customerName: reminderModal.sample.leadName,
+        customerName: reminderModal.sample ? getCustomerDisplayName(reminderModal.sample) : reminderModal.customerName,
         moduleType: 'Sample',
         ...formData
       });
@@ -363,12 +363,65 @@ export default function SamplesView({
     return `SMP-${str.padStart(3, '0')}`;
   };
 
-  const formatLeadId = (id) => {
-    if (!id) return '';
-    const idStr = String(id);
-    if (idStr.startsWith('LD-')) return idStr;
+  const formatLeadId = (sampleOrId) => {
+    if (!sampleOrId) return '';
+    if (typeof sampleOrId === 'object') {
+      const ref = sampleOrId.leadNumber || sampleOrId.lead?.leadNumber || sampleOrId.leadId || sampleOrId.id;
+      return formatLeadId(ref);
+    }
+    const idStr = String(sampleOrId).trim();
+    if (!idStr) return '';
+    if (idStr.startsWith('LEAD/') || idStr.startsWith('LEAD-')) return idStr;
+    if (idStr.startsWith('LD-') || idStr.startsWith('LD/')) return idStr;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr)) {
+      return `LD-${idStr.slice(0, 6).toUpperCase()}`;
+    }
     if (idStr.length > 10) return `LD-${idStr.slice(0, 6).toUpperCase()}`;
-    return "LD-" + (id > 1000 ? idStr.substring(1) : idStr.padStart(3, '0'));
+    return "LD-" + (Number(idStr) > 1000 ? idStr.substring(1) : idStr.padStart(3, '0'));
+  };
+
+  const isLeadIdString = (val) => {
+    if (!val || typeof val !== 'string') return true;
+    const s = val.trim();
+    if (!s) return true;
+    const upper = s.toUpperCase();
+    if (['CUSTOMER', 'LEAD CUSTOMER', 'LEAD', 'NULL', 'UNDEFINED', '—', '-', 'N/A'].includes(upper)) return true;
+    if (/^(LEAD|LD)[\/\-_0-9]+/i.test(upper)) return true;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return true;
+    if (/^SMP[\-_0-9]+/i.test(upper)) return true;
+    return false;
+  };
+
+  const getCustomerDisplayName = (sample) => {
+    if (!sample) return 'Customer';
+    const candidates = [
+      sample.customer?.companyName,
+      sample.companyName,
+      sample.customerName,
+      sample.customer,
+      sample.lead?.companyName,
+      sample.leadName,
+      sample.lead?.projectName,
+      sample.projectName,
+      sample.dispatchDetails?.customer,
+      sample.dispatchDetails?.customerName,
+      sample.customer?.contactPerson,
+      sample.lead?.contactPerson,
+      sample.contactPerson,
+    ];
+
+    for (const cand of candidates) {
+      if (cand && typeof cand === 'string' && cand.trim() && !isLeadIdString(cand.trim())) {
+        return cand.trim();
+      }
+    }
+
+    const contact = sample.contactPerson || sample.lead?.contactPerson || sample.customer?.contactPerson;
+    if (contact && typeof contact === 'string' && contact.trim() && !isLeadIdString(contact.trim())) {
+      return contact.trim();
+    }
+
+    return 'Customer';
   };
 
   const getExactCountdown = (sample) => {
@@ -462,7 +515,7 @@ export default function SamplesView({
   const handleCreateReplacementSample = (sample) => {
     Swal.fire({
       title: 'Create Replacement Sample?',
-      text: `This will create a new replacement sample request for ${sample.leadName} for the product: ${sample.product}.`,
+      text: `This will create a new replacement sample request for ${getCustomerDisplayName(sample)} for the product: ${sample.product}.`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Yes, Create Replacement',
@@ -527,12 +580,14 @@ export default function SamplesView({
   }, [search, filter]);
 
   const filteredSamples = samples.filter(sample => {
-    const leadName = sample?.leadName || '';
+    const customerName = getCustomerDisplayName(sample);
+    const leadName = sample?.leadName || customerName;
     const product = sample?.product || '';
     const sampleId = sample?.id ? formatSampleId(sample.id) : '';
-    const leadId = sample?.leadId ? formatLeadId(sample.leadId) : '';
+    const leadId = formatLeadId(sample.leadNumber || sample.leadId || sample.lead);
     
-    const matchesSearch = leadName.toLowerCase().includes(search.toLowerCase()) || 
+    const matchesSearch = customerName.toLowerCase().includes(search.toLowerCase()) ||
+                          leadName.toLowerCase().includes(search.toLowerCase()) || 
                           product.toLowerCase().includes(search.toLowerCase()) ||
                           sampleId.toLowerCase().includes(search.toLowerCase()) ||
                           leadId.toLowerCase().includes(search.toLowerCase());
@@ -610,7 +665,7 @@ export default function SamplesView({
                 Sample Testing Details: {formatSampleId(sample.id)}
               </h2>
               <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '4px', display: 'inline-block' }}>
-                Customer: <strong>{sample.leadName}</strong> | Associated Lead: <strong>{formatLeadId(sample.leadId)}</strong>
+                Customer: <strong>{getCustomerDisplayName(sample)}</strong> | Associated Lead: <strong>{formatLeadId(sample.leadNumber || sample.leadId || sample.lead)}</strong>
               </span>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -690,11 +745,11 @@ export default function SamplesView({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
                   <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Customer / Company</span>
-                  <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)' }}>{sample.leadName}</span>
+                  <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)' }}>{getCustomerDisplayName(sample)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
                   <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Associated Lead Ref</span>
-                  <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)' }}>{formatLeadId(sample.leadId)}</span>
+                  <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text-primary)' }}>{formatLeadId(sample.leadNumber || sample.leadId || sample.lead)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
                   <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Sample Product</span>
@@ -1227,7 +1282,7 @@ export default function SamplesView({
                 <div style={{ position: 'relative', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', background: '#ffffff', borderRadius: '10px', border: '1px dashed #D6E2F0' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1 }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#16a34a' }}></div>
-                    <span style={{ fontSize: '11px', fontWeight: 'bold', marginTop: '4px', color: 'var(--color-text-primary)' }}>{sample.leadName} (Client)</span>
+                    <span style={{ fontSize: '11px', fontWeight: 'bold', marginTop: '4px', color: 'var(--color-text-primary)' }}>{getCustomerDisplayName(sample)} (Client)</span>
                   </div>
                   
                   <div style={{ flex: 1, position: 'relative', margin: '0 16px' }}>
@@ -1321,7 +1376,7 @@ export default function SamplesView({
 
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1 }}>
                       <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: dispatchStatus === 'Delivered' ? '#16a34a' : '#8893A7' }}></div>
-                      <span style={{ fontSize: '11px', fontWeight: 'bold', marginTop: '4px', color: 'var(--color-text-primary)' }}>{sample.leadName}</span>
+                      <span style={{ fontSize: '11px', fontWeight: 'bold', marginTop: '4px', color: 'var(--color-text-primary)' }}>{getCustomerDisplayName(sample)}</span>
                     </div>
                   </div>
 
@@ -1526,7 +1581,7 @@ export default function SamplesView({
                   return (
                     <tr key={reminder.id}>
                       <td data-label="Sample">#SMP-{reminder.moduleId}</td>
-                      <td data-label="Customer">{s?.leadName || reminder.customerName}</td>
+                      <td data-label="Customer">{s ? getCustomerDisplayName(s) : reminder.customerName || 'Customer'}</td>
                       <td data-label="Reminder">{reminder.reminderType}</td>
                       <td data-label="Date">
                         {formatReminderDate(reminder.reminderDate)}
@@ -1602,8 +1657,8 @@ export default function SamplesView({
                       </td>
                       <td data-label="Customer">
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          <span style={{ fontWeight: '700', color: 'var(--color-text-primary)' }}>{sample.leadName}</span>
-                          <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Lead: {formatLeadId(sample.leadId)}</span>
+                          <span style={{ fontWeight: '700', color: 'var(--color-text-primary)' }}>{getCustomerDisplayName(sample)}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Lead: {formatLeadId(sample.leadNumber || sample.leadId || sample.lead)}</span>
                         </div>
                       </td>
                       <td data-label="Product">
@@ -1838,7 +1893,7 @@ export default function SamplesView({
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#24345C' }}>
                   Sample SMP-{String(selectedSample.id).padStart(3, '0')} Details & History
                 </h3>
-                <span style={{ fontSize: '12px', color: '#5E6B82' }}>Customer: <strong>{selectedSample.leadName || selectedSample.customer}</strong></span>
+                <span style={{ fontSize: '12px', color: '#5E6B82' }}>Customer: <strong>{getCustomerDisplayName(selectedSample)}</strong></span>
               </div>
               <button 
                 type="button" 
@@ -1892,7 +1947,7 @@ export default function SamplesView({
         open={Boolean(reminderModal)}
         onClose={() => setReminderModal(null)}
         onSave={handleSaveReminder}
-        customerName={reminderModal?.sample?.leadName || reminderModal?.reminder?.customerName || ''}
+        customerName={getCustomerDisplayName(reminderModal?.sample) || reminderModal?.reminder?.customerName || ''}
         initialValues={reminderModal?.reminder}
         title={reminderModal?.reminder ? 'Edit Reminder' : 'Create Reminder'}
       />

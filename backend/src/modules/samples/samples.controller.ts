@@ -56,6 +56,21 @@ function formatAddress(addr: any): string {
   return '';
 }
 
+function isLeadIdOrCode(val: any): boolean {
+  if (!val || typeof val !== 'string') return true;
+  const s = val.trim();
+  if (!s) return true;
+  const upper = s.toUpperCase();
+  if (['CUSTOMER', 'LEAD CUSTOMER', 'LEAD', 'NULL', 'UNDEFINED', '—', '-', 'N/A'].includes(upper)) return true;
+  // Lead number formats: LEAD/..., LD-..., LD/..., LEAD-...
+  if (/^(LEAD|LD)[\/\-_0-9]+/i.test(upper)) return true;
+  // UUID format
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return true;
+  // Sample ID format
+  if (/^SMP[\-_0-9]+/i.test(upper)) return true;
+  return false;
+}
+
 @Controller(['samples', 'sales/samples'])
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class SamplesController {
@@ -95,21 +110,43 @@ export class SamplesController {
       RETURN_REQUESTED: 'RETURN_REQUESTED',
       RETURNED: 'RETURNED',
     };
-    const leadName =
-      (typeof data.customer === 'string' && data.customer.trim() && data.customer.trim() !== 'Customer' && data.customer.trim() !== 'Lead Customer' ? data.customer.trim() : null) ||
-      (typeof data.customerName === 'string' && data.customerName.trim() ? data.customerName.trim() : null) ||
-      (typeof data.companyName === 'string' && data.companyName.trim() ? data.companyName.trim() : null) ||
-      data.lead?.companyName ||
-      data.customer?.companyName ||
-      (typeof data.leadName === 'string' && data.leadName.trim() ? data.leadName.trim() : null) ||
-      (typeof data.lead?.contactPerson === 'string' && data.lead.contactPerson.trim() ? data.lead.contactPerson.trim() : null) ||
-      (typeof data.customer?.contactPerson === 'string' && data.customer.contactPerson.trim() ? data.customer.contactPerson.trim() : null) ||
-      (typeof data.dispatchDetails?.customer === 'string' && data.dispatchDetails.customer.trim() ? data.dispatchDetails.customer.trim() : null) ||
-      (typeof data.dispatchDetails?.customerName === 'string' && data.dispatchDetails.customerName.trim() ? data.dispatchDetails.customerName.trim() : null) ||
+    const customerCandidates = [
+      data.customer?.companyName,
+      data.lead?.companyName,
+      data.lead?.projectName,
+      typeof data.companyName === 'string' ? data.companyName : null,
+      typeof data.customerName === 'string' ? data.customerName : null,
+      typeof data.customer === 'string' ? data.customer : null,
+      typeof data.leadName === 'string' ? data.leadName : null,
+      typeof data.dispatchDetails?.customer === 'string' ? data.dispatchDetails.customer : null,
+      typeof data.dispatchDetails?.customerName === 'string' ? data.dispatchDetails.customerName : null,
+      data.customer?.contactPerson,
+      data.lead?.contactPerson,
+      typeof data.contactPerson === 'string' ? data.contactPerson : null,
+      data.company?.name,
+    ];
+
+    let resolvedCustomerName = '';
+    for (const cand of customerCandidates) {
+      if (cand && typeof cand === 'string' && cand.trim() && !isLeadIdOrCode(cand.trim())) {
+        resolvedCustomerName = cand.trim();
+        break;
+      }
+    }
+
+    if (!resolvedCustomerName) {
+      resolvedCustomerName =
+        (typeof data.customer?.companyName === 'string' && data.customer.companyName.trim()) ||
+        (typeof data.lead?.companyName === 'string' && data.lead.companyName.trim()) ||
+        'Customer';
+    }
+
+    const leadName = resolvedCustomerName;
+    const cleanLeadRef =
       data.lead?.leadNumber ||
-      data.customer?.customerCode ||
-      data.company?.name ||
-      'Lead Customer';
+      data.leadNumber ||
+      (typeof data.leadId === 'string' && (data.leadId.startsWith('LEAD/') || data.leadId.startsWith('LD-')) ? data.leadId : '') ||
+      '';
 
     const rawItems: any[] = data.items || data.products || data.sampleItems || [];
 
@@ -252,7 +289,7 @@ export class SamplesController {
       customerName: leadName,
       companyName: leadName,
       customer: leadName,
-      leadNumber: data.lead?.leadNumber || data.leadNumber || '',
+      leadNumber: cleanLeadRef,
       address: deliveryAddress || data.address || 'See Lead/Customer address',
       deliveryAddress,
       formattedAddress: deliveryAddress,
