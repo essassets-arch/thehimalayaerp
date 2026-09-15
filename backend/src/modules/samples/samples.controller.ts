@@ -96,9 +96,17 @@ export class SamplesController {
       RETURNED: 'RETURNED',
     };
     const leadName =
+      (typeof data.customer === 'string' && data.customer.trim() && data.customer.trim() !== 'Customer' && data.customer.trim() !== 'Lead Customer' ? data.customer.trim() : null) ||
+      (typeof data.customerName === 'string' && data.customerName.trim() ? data.customerName.trim() : null) ||
+      (typeof data.companyName === 'string' && data.companyName.trim() ? data.companyName.trim() : null) ||
       data.lead?.companyName ||
-      data.lead?.leadNumber ||
       data.customer?.companyName ||
+      (typeof data.leadName === 'string' && data.leadName.trim() ? data.leadName.trim() : null) ||
+      (typeof data.lead?.contactPerson === 'string' && data.lead.contactPerson.trim() ? data.lead.contactPerson.trim() : null) ||
+      (typeof data.customer?.contactPerson === 'string' && data.customer.contactPerson.trim() ? data.customer.contactPerson.trim() : null) ||
+      (typeof data.dispatchDetails?.customer === 'string' && data.dispatchDetails.customer.trim() ? data.dispatchDetails.customer.trim() : null) ||
+      (typeof data.dispatchDetails?.customerName === 'string' && data.dispatchDetails.customerName.trim() ? data.dispatchDetails.customerName.trim() : null) ||
+      data.lead?.leadNumber ||
       data.customer?.customerCode ||
       data.company?.name ||
       'Lead Customer';
@@ -244,6 +252,7 @@ export class SamplesController {
       customerName: leadName,
       companyName: leadName,
       customer: leadName,
+      leadNumber: data.lead?.leadNumber || data.leadNumber || '',
       address: deliveryAddress || data.address || 'See Lead/Customer address',
       deliveryAddress,
       formattedAddress: deliveryAddress,

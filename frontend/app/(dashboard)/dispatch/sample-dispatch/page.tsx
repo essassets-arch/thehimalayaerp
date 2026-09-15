@@ -11,6 +11,7 @@ import {
   Upload,
   Plus,
   User,
+  Building2,
   MapPin,
   Search,
   RefreshCw,
@@ -39,6 +40,9 @@ interface SampleDispatchItem {
   orderNo: string;
   customer: string;
   salesPerson?: string;
+  leadNumber?: string;
+  contactPerson?: string;
+  contactPhone?: string;
   address: string;
   product: string;
   approvedQty: number;
@@ -225,13 +229,25 @@ function SampleDispatchListContent() {
           totalQty = Number(sample.quantity) || 1;
         }
 
+        const rawCust = sample.customer;
         const customerName =
-          sample.customer ||
-          sample.customerName ||
-          sample.leadName ||
-          sample.lead?.companyName ||
-          sample.customer?.companyName ||
+          (typeof rawCust === 'string' && rawCust.trim() && rawCust.trim() !== 'Customer' && rawCust.trim() !== 'Lead Customer' ? rawCust.trim() : null) ||
+          (typeof sample.customerName === 'string' && sample.customerName.trim() ? sample.customerName.trim() : null) ||
+          (typeof sample.companyName === 'string' && sample.companyName.trim() ? sample.companyName.trim() : null) ||
+          (typeof sample.lead?.companyName === 'string' && sample.lead.companyName.trim() ? sample.lead.companyName.trim() : null) ||
+          (typeof sample.customer?.companyName === 'string' && sample.customer.companyName.trim() ? sample.customer.companyName.trim() : null) ||
+          (typeof sample.leadName === 'string' && sample.leadName.trim() ? sample.leadName.trim() : null) ||
+          (typeof sample.lead?.contactPerson === 'string' && sample.lead.contactPerson.trim() ? sample.lead.contactPerson.trim() : null) ||
+          (typeof sample.customer?.contactPerson === 'string' && sample.customer.contactPerson.trim() ? sample.customer.contactPerson.trim() : null) ||
+          (typeof sample.contactPerson === 'string' && sample.contactPerson.trim() ? sample.contactPerson.trim() : null) ||
+          (typeof sample.dispatchDetails?.customer === 'string' && sample.dispatchDetails.customer.trim() ? sample.dispatchDetails.customer.trim() : null) ||
+          (typeof sample.dispatchDetails?.customerName === 'string' && sample.dispatchDetails.customerName.trim() ? sample.dispatchDetails.customerName.trim() : null) ||
+          sample.lead?.leadNumber ||
           'Customer';
+
+        const leadNumber = sample.lead?.leadNumber || sample.leadNumber || (String(sample.leadId || '').startsWith('LEAD') ? sample.leadId : undefined);
+        const contactPerson = sample.contactPerson || sample.lead?.contactPerson || sample.customer?.contactPerson || undefined;
+        const contactPhone = sample.contactPhone || sample.phone || sample.lead?.phone || sample.customer?.phone || undefined;
 
         const address =
           formatAddress(sample.deliveryAddress) ||
@@ -261,6 +277,9 @@ function SampleDispatchListContent() {
           cleanId: sample.id,
           orderNo: sample.sampleNumber || sample.sampleId || `SMP-${String(sample.id).slice(0, 6)}`,
           customer: customerName,
+          leadNumber,
+          contactPerson,
+          contactPhone,
           salesPerson,
           address,
           product: productName,
@@ -409,6 +428,8 @@ function SampleDispatchListContent() {
       return (
         req.orderNo.toLowerCase().includes(q) ||
         req.customer.toLowerCase().includes(q) ||
+        (req.contactPerson && req.contactPerson.toLowerCase().includes(q)) ||
+        (req.leadNumber && req.leadNumber.toLowerCase().includes(q)) ||
         (req.salesPerson && req.salesPerson.toLowerCase().includes(q)) ||
         req.product.toLowerCase().includes(q) ||
         req.address.toLowerCase().includes(q) ||
@@ -749,7 +770,16 @@ function SampleDispatchListContent() {
                           </span>
                         )}
                       </td>
-                      <td className="dsp-td font-semibold text-slate-900">{req.customer}</td>
+                      <td className="dsp-td">
+                        <div className="font-semibold text-slate-900">{req.customer}</div>
+                        {(req.contactPerson || req.leadNumber) && (
+                          <div style={{ fontSize: '11.5px', color: '#64748b', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+                            {req.contactPerson && <span>{req.contactPerson}</span>}
+                            {req.contactPerson && req.leadNumber && <span>•</span>}
+                            {req.leadNumber && <span style={{ fontFamily: 'monospace' }}>{req.leadNumber}</span>}
+                          </div>
+                        )}
+                      </td>
                       <td className="dsp-td">
                         {req.salesPerson ? (
                           <span style={{
@@ -994,11 +1024,16 @@ function SampleDispatchListContent() {
                 <div className="dsp-card-body">
                   <div className="dsp-card-row">
                     <div className="dsp-card-icon">
-                      <User size={15} />
+                      <Building2 size={15} color="#2563eb" />
                     </div>
                     <div className="dsp-card-info">
                       <p className="dsp-card-label">Customer</p>
-                      <p className="dsp-card-value">{req.customer}</p>
+                      <p className="dsp-card-value font-semibold text-slate-900">{req.customer}</p>
+                      {(req.contactPerson || req.leadNumber) && (
+                        <p style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                          {req.contactPerson}{req.contactPerson && req.leadNumber ? ` • ${req.leadNumber}` : req.leadNumber}
+                        </p>
+                      )}
                     </div>
                   </div>
 

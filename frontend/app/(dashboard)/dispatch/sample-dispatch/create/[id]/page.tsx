@@ -182,13 +182,15 @@ export default function CreateSampleDispatchPage() {
             const num = sample.sampleNumber || sample.sampleId || (sample.id ? `SMP-${String(sample.id).slice(0, 6)}` : rawId);
             setSoNumber(num);
 
+            const rawCust = sample.customer;
             const custName =
-              sample.customer ||
-              sample.customerName ||
-              sample.companyName ||
-              sample.leadName ||
-              sample.lead?.companyName ||
-              sample.customer?.companyName ||
+              (typeof rawCust === 'string' && rawCust.trim() && rawCust.trim() !== 'Customer' ? rawCust.trim() : null) ||
+              (typeof sample.customerName === 'string' && sample.customerName.trim() ? sample.customerName.trim() : null) ||
+              (typeof sample.companyName === 'string' && sample.companyName.trim() ? sample.companyName.trim() : null) ||
+              (typeof sample.leadName === 'string' && sample.leadName.trim() ? sample.leadName.trim() : null) ||
+              (typeof sample.lead?.companyName === 'string' && sample.lead.companyName.trim() ? sample.lead.companyName.trim() : null) ||
+              (typeof sample.customer?.companyName === 'string' && sample.customer.companyName.trim() ? sample.customer.companyName.trim() : null) ||
+              (typeof sample.lead?.contactPerson === 'string' && sample.lead.contactPerson.trim() ? sample.lead.contactPerson.trim() : null) ||
               'Lead / Customer';
             setCustomer(custName);
 

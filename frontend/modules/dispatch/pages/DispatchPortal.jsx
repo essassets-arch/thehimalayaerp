@@ -2909,7 +2909,22 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
               columns={[
                 { header: 'Sample ID', accessor: 'id', render: row => <strong>SMP-{String(row.id).padStart(3, '0')}</strong> },
                 { header: 'Lead Ref', accessor: 'leadId', render: row => <span style={{ color: '#2563eb', fontWeight: '700' }}>LD-{String(row.leadId || row.id).padStart(3, '0')}</span> },
-                { header: 'Customer', accessor: 'leadName' },
+                { 
+                  header: 'Customer', 
+                  accessor: 'customer', 
+                  render: row => (
+                    <div>
+                      <div style={{ fontWeight: '700', color: '#0f172a' }}>
+                        {typeof row.customer === 'string' && row.customer ? row.customer : row.customerName || row.leadName || row.companyName || row.lead?.companyName || row.customer?.companyName || 'Customer'}
+                      </div>
+                      {(row.leadNumber || row.contactPerson) && (
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                          {row.contactPerson ? `${row.contactPerson}${row.leadNumber ? ` (${row.leadNumber})` : ''}` : row.leadNumber}
+                        </div>
+                      )}
+                    </div>
+                  )
+                },
                 { header: 'Product', accessor: 'product' },
                 { header: 'Qty', accessor: 'quantity', render: row => `${row.quantity} Pcs` },
                 { header: 'Sales Person', accessor: 'salesPerson', render: row => row.salesPerson || row.salesPersonName || row.salesExecutiveName || row.salesExecutive?.name || row.lead?.salesExecutive?.name || row.createdBy || '—' },
