@@ -2237,7 +2237,7 @@ export const PlantHeadDispatchAnalytics = () => {
                   <MapPin size={20} color="#0284c7" /> Area-wise Dispatch Analysis & Regional Logistics
                 </h3>
                 <p style={{ fontSize: '12.5px', color: '#64748b', margin: '3px 0 0 0' }}>
-                  Geographic distribution across state & national territories &bull; Reconciled with total volume ({(summary.totalQuantity ?? areaTotals.quantity).toLocaleString()} pcs / {(summary.totalWeight ?? areaTotals.weight).toLocaleString()} kg)
+                  Region and zone analysis—Ahmedabad, Gujarat, West, North, South, Central and East/North-East—not a city-only view. Reconciled with total volume ({(summary.totalQuantity ?? areaTotals.quantity).toLocaleString()} pcs / {(summary.totalWeight ?? areaTotals.weight).toLocaleString()} kg)
                 </p>
               </div>
 
@@ -2581,6 +2581,9 @@ export const PlantHeadDispatchAnalytics = () => {
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Quantity Share %</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Customers</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Dispatch Days</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Trips</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Regional Freight</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Freight / kg</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2597,6 +2600,9 @@ export const PlantHeadDispatchAnalytics = () => {
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#059669' }}>{row.qtyShare}%</td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{row.customers}</td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{row.dispatchDays} days</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{row.trips ?? 0}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#059669' }}>₹{Number(row.freight || 0).toLocaleString()}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>₹{Number(row.freightPerKg || 0).toLocaleString()}</td>
                       </tr>
                     ))}
                     {/* Reconciled Totals Row */}
@@ -2608,6 +2614,9 @@ export const PlantHeadDispatchAnalytics = () => {
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>{areaTotals.quantity > 0 ? '100.0%' : '0%'}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>{areaTotals.customers}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>{summary.dispatchDays ?? areaTotals.dispatchDays} days</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>{areaWiseData.reduce((sum, row) => sum + Number(row.trips || 0), 0)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>₹{areaWiseData.reduce((sum, row) => sum + Number(row.freight || 0), 0).toLocaleString()}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>₹{areaTotals.weight > 0 ? (areaWiseData.reduce((sum, row) => sum + Number(row.freight || 0), 0) / areaTotals.weight).toFixed(2) : '0.00'}</td>
                     </tr>
                   </tbody>
                 </table>

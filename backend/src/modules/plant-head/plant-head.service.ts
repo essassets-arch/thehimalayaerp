@@ -2905,6 +2905,9 @@ export class PlantHeadService {
     const areaMap: Record<string, {
       qty: number;
       weight: number;
+      freight: number;
+      trips: number;
+      vehicles: Set<string>;
       customers: Set<string>;
       days: Set<string>;
       mhcQty: number; mhcWeight: number;
@@ -3037,6 +3040,9 @@ export class PlantHeadService {
         areaMap[area] = {
           qty: 0,
           weight: 0,
+          freight: 0,
+          trips: 0,
+          vehicles: new Set<string>(),
           customers: new Set<string>(),
           days: new Set<string>(),
           mhcQty: 0, mhcWeight: 0,
@@ -3056,6 +3062,9 @@ export class PlantHeadService {
       }
       areaMap[area].qty += dPcs;
       areaMap[area].weight += dWeight;
+      areaMap[area].freight += dFreight;
+      areaMap[area].trips += 1;
+      if (d.vehicleNumber) areaMap[area].vehicles.add(d.vehicleNumber);
       areaMap[area].customers.add(cName);
       if (dDate) areaMap[area].days.add(dDate);
 
@@ -3289,6 +3298,10 @@ export class PlantHeadService {
       area,
       quantity: val.qty,
       weight: Math.round(val.weight * 100) / 100,
+      freight: Math.round(val.freight * 100) / 100,
+      trips: val.trips,
+      vehicles: val.vehicles.size,
+      freightPerKg: val.weight > 0 ? Math.round((val.freight / val.weight) * 100) / 100 : 0,
       weightShare: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
       qtyShare: totalQty > 0 ? Math.round((val.qty / totalQty) * 1000) / 10 : 0,
       customers: val.customers.size,
