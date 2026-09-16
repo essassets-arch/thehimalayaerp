@@ -701,9 +701,16 @@ export const PlantHeadDispatchAnalytics = () => {
               }}
             >
               <option value="All">All Delivery Areas / Localities</option>
-              {(analyticsData?.filterOptions?.areas || areaWiseData.map(a => a.locality || a.area)).map(a => (
-                <option key={a} value={a}>{a}</option>
-              ))}
+              {(analyticsData?.filterOptions?.areas || areaWiseData.map(a => a.locality || a.area)).map((a, idx) => {
+                const locName = typeof a === 'object' && a !== null ? (a.locality || a.area || a.name || '') : String(a || '');
+                if (!locName) return null;
+                const extra = typeof a === 'object' && a !== null && a.city && a.city !== locName ? ` (${a.city}${a.pincode ? ` · ${a.pincode}` : ''})` : '';
+                return (
+                  <option key={`${locName}-${idx}`} value={locName}>
+                    {locName}{extra}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
