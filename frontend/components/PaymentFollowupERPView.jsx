@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuthStore } from '../store/authStore';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import Swal from 'sweetalert2';
@@ -282,7 +283,13 @@ export const extractPodUrl = (o, dispatchesList = []) => {
   return null;
 };
 
-export default function PaymentFollowupERPView({ orders = [] }) {
+export default function PaymentFollowupERPView(props) {
+  const user = useAuthStore(s => s.user);
+  const userKey = JSON.stringify([user?.id || user?.sub, user?.role]);
+  return <PaymentFollowupContent key={userKey} {...props} />;
+}
+
+function PaymentFollowupContent({ orders = [] }) {
   const navigate = useRouter();
   const searchParams = useSearchParams();
   const canonicalState = useERPStore(store => store.state);
@@ -430,7 +437,9 @@ export default function PaymentFollowupERPView({ orders = [] }) {
   }, [deliveredDispatches, consignments, canonicalState?.dispatches, canonicalState?.dispatch?.dispatches]);
 
   const completedOrders = useMemo(() => {
-    const allCandidates = [...(pendingCollection || []), ...(orders || []), ...canonicalOrders];
+    const allCandidates = process.env.NEXT_PUBLIC_DATA_SOURCE_MODE === 'local'
+      ? [...(pendingCollection || []), ...(orders || []), ...canonicalOrders]
+      : (pendingCollection || []);
     const deliveredWithPod = allCandidates.filter(o => isOrderDeliveredWithPod(o, allDispatchesList));
     const map = new Map();
     deliveredWithPod.forEach(o => {
@@ -782,7 +791,9 @@ export default function PaymentFollowupERPView({ orders = [] }) {
       deliveredAt: c.createdAt || new Date().toISOString()
     }));
     // API records from delivered/pending-payment already enforce delivered status + POD upload
-    const allCandidates = [...apiRows, ...syntheticCandidates, ...(orders || []), ...canonicalOrders];
+    const allCandidates = process.env.NEXT_PUBLIC_DATA_SOURCE_MODE === 'local'
+      ? [...apiRows, ...syntheticCandidates, ...(orders || []), ...canonicalOrders]
+      : apiRows;
     
     const map = new Map();
     allCandidates.forEach(o => {

@@ -39,14 +39,14 @@ export class PaymentsController {
 
   @Get('delivered-orders')
   @RequirePermissions('finance.payment.read')
-  async listDeliveredOrders() {
-    return this.paymentsService.listDeliveredOrders();
+  async listDeliveredOrders(@Req() req: any) {
+    return this.paymentsService.listDeliveredOrders(req.user?.sub, req.user?.role);
   }
 
   @Get('order/:orderId/history')
   @RequirePermissions('finance.payment.read')
-  async getOrderPaymentHistory(@Param('orderId') orderId: string) {
-    return this.paymentsService.getOrderPaymentHistory(orderId);
+  async getOrderPaymentHistory(@Param('orderId') orderId: string, @Req() req: any) {
+    return this.paymentsService.getOrderPaymentHistory(orderId, req.user?.sub, req.user?.role);
   }
 
   @Post('run-daily-followup')
@@ -83,7 +83,7 @@ export class PaymentsController {
     },
     @Req() req: any,
   ) {
-    return this.paymentsService.createPayment(dto, req.user?.sub);
+    return this.paymentsService.createPayment(dto, req.user?.sub, req.user?.role);
   }
 
   @Post('sales-record')
@@ -103,7 +103,7 @@ export class PaymentsController {
     },
     @Req() req: any,
   ) {
-    return this.paymentsService.recordPaymentFromSales(dto, req.user?.sub);
+    return this.paymentsService.recordPaymentFromSales(dto, req.user?.sub, req.user?.role);
   }
 
   @Post(':id/submit-verification')

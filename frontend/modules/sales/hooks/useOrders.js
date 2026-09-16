@@ -67,6 +67,10 @@ export function useOrders(showToast, currentView) {
         }
       }
     }
+    if (process.env.NEXT_PUBLIC_DATA_SOURCE_MODE !== 'local') {
+      const authorizedIds = new Set(backendOrdersArr.map(o => String(o.id || o.orderNo || o.orderNumber || '')));
+      return Array.from(map.entries()).filter(([id]) => authorizedIds.has(id)).map(([, order]) => order);
+    }
     return Array.from(map.values());
   }, [storeOrders, backendOrdersArr]);
 

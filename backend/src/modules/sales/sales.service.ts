@@ -131,24 +131,8 @@ export class SalesService {
     const { search, status } = query;
     const skip = (page - 1) * pageSize;
     const take = pageSize;
-    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const isOperationalScope =
-      normalizedRole.includes('DISPATCH') ||
-      normalizedRole === 'DISPATCH_EXECUTIVE' ||
-      normalizedRole === 'DISPATCH_2' ||
-      normalizedRole === 'DISPATCH_1' ||
-      normalizedRole === 'SUPER_ADMIN' ||
-      normalizedRole === 'ADMIN' ||
-      normalizedRole === 'PLANT_HEAD' ||
-      normalizedRole === 'FINANCE_MANAGER' ||
-      normalizedRole === 'FINANCE_EXECUTIVE' ||
-      normalizedRole === 'SUPER_SALES' ||
-      normalizedRole.startsWith('SUPER_SALES') ||
-      normalizedRole.startsWith('SUPERSALES') ||
-      normalizedRole === 'SALES_MANAGER' ||
-      normalizedRole.includes('SALES');
-    const scope = isOperationalScope ? {} : getOrderSalesScope(userId, role);
-    const where: Prisma.SalesOrderWhereInput = { ...scope, deletedAt: null };
+    const scope = getOrderSalesScope(userId, role);
+    const where: Prisma.SalesOrderWhereInput = { AND: [scope], deletedAt: null };
 
     if (status) {
       if (status.includes(',')) {
@@ -183,7 +167,7 @@ export class SalesService {
         },
       ];
       if (where.OR) {
-        where.AND = [{ OR: where.OR }, { OR: searchOR }];
+        where.AND = [scope, { OR: where.OR }, { OR: searchOR }];
         delete where.OR;
       } else {
         where.OR = searchOR;
@@ -277,23 +261,7 @@ export class SalesService {
   }
 
   async getOrder(id: string, userId?: string, role?: string) {
-    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const isOperationalScope =
-      normalizedRole.includes('DISPATCH') ||
-      normalizedRole === 'DISPATCH_EXECUTIVE' ||
-      normalizedRole === 'DISPATCH_2' ||
-      normalizedRole === 'DISPATCH_1' ||
-      normalizedRole === 'SUPER_ADMIN' ||
-      normalizedRole === 'ADMIN' ||
-      normalizedRole === 'PLANT_HEAD' ||
-      normalizedRole === 'FINANCE_MANAGER' ||
-      normalizedRole === 'FINANCE_EXECUTIVE' ||
-      normalizedRole === 'SUPER_SALES' ||
-      normalizedRole.startsWith('SUPER_SALES') ||
-      normalizedRole.startsWith('SUPERSALES') ||
-      normalizedRole === 'SALES_MANAGER' ||
-      normalizedRole.includes('SALES');
-    const scope = isOperationalScope ? {} : getOrderSalesScope(userId, role);
+    const scope = getOrderSalesScope(userId, role);
     const rawId = String(id || '').trim();
     let decodedId = rawId;
     try {
@@ -420,18 +388,7 @@ export class SalesService {
   }
 
   async listDeliveredPendingPayment(userId?: string, role?: string) {
-    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    const isUnrestrictedSales =
-      normalizedRole === 'SUPER_SALES' ||
-      normalizedRole === 'SUPER_ADMIN' ||
-      normalizedRole === 'ADMIN' ||
-      normalizedRole === 'SALES_MANAGER' ||
-      normalizedRole === 'FINANCE_MANAGER' ||
-      normalizedRole === 'FINANCE_EXECUTIVE';
-
-    const scope = isUnrestrictedSales
-      ? {}
-      : (isSalespersonScopedRole(role) && userId ? getOrderSalesScope(userId, role) : {});
+    const scope = getOrderSalesScope(userId, role);
 
     // Fetch real dispatch invoices from Postgres to link any dispatches created by dispatch user
     const [dispatchesWithInvoice, salesInvoicesWithInvoice] = await Promise.all([
@@ -720,6 +677,7 @@ export class SalesService {
     orderIdOrNumber: string,
     invoiceNumber: string,
     userId?: string,
+    role?: string,
   ) {
     const cleanInv = String(invoiceNumber || '').trim();
     if (!cleanInv) {
@@ -731,6 +689,8 @@ export class SalesService {
 
     const order = await this.prisma.salesOrder.findFirst({
       where: {
+        AND: [getOrderSalesScope(userId, role)],
+        deletedAt: null,
         OR: [
           { id: orderTarget },
           { orderNumber: orderTarget },

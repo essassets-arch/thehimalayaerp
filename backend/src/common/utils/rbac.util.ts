@@ -90,14 +90,20 @@ export function getOrderSalesScope(
   if (!isSalespersonScopedRole(role)) return {};
   if (!userId)
     throw new UnauthorizedException('User ID required for sales scoping');
+  // An explicit order owner is authoritative; legacy orders fall back to their origin.
   return {
     OR: [
-      { createdById: userId },
       { salesExecutiveId: userId },
-      { quotation: { salesExecutiveId: userId } },
-      { quotation: { createdById: userId } },
-      { sourceQuotation: { salesExecutiveId: userId } },
-      { sourceQuotation: { createdById: userId } },
+      {
+        salesExecutiveId: null,
+        OR: [
+          { createdById: userId },
+          { quotation: { salesExecutiveId: userId } },
+          { quotation: { createdById: userId } },
+          { sourceQuotation: { salesExecutiveId: userId } },
+          { sourceQuotation: { createdById: userId } },
+        ],
+      },
     ],
   };
 }
@@ -177,11 +183,8 @@ export function getPaymentSalesScope(
     throw new UnauthorizedException('User ID required for sales scoping');
   return {
     OR: [
-      { createdById: userId },
-      { salesOrder: { salesExecutiveId: userId } },
-      { salesOrder: { createdById: userId } },
-      { salesOrder: { quotation: { salesExecutiveId: userId } } },
-      { salesOrder: { sourceQuotation: { salesExecutiveId: userId } } },
+      { salesOrder: getOrderSalesScope(userId, role) },
+      { salesOrderId: null, createdById: userId },
     ],
   };
 }
@@ -202,29 +205,8 @@ export function getDispatchSalesScope(
   userId?: string,
   role?: string,
 ): Record<string, any> {
-  const normalizedRole = String(role || '')
-    .toUpperCase()
-    .replace(/[\s-]+/g, '_');
-  if (
-    normalizedRole === 'SUPER_SALES' ||
-    normalizedRole === 'SUPER_ADMIN' ||
-    normalizedRole === 'ADMIN' ||
-    normalizedRole === 'SALES_MANAGER' ||
-    !isSalespersonScopedRole(role)
-  ) {
-    return {};
-  }
-  if (!userId)
-    throw new UnauthorizedException('User ID required for sales scoping');
-  return {
-    OR: [
-      { createdById: userId },
-      { salesOrder: { salesExecutiveId: userId } },
-      { salesOrder: { createdById: userId } },
-      { salesOrder: { quotation: { salesExecutiveId: userId } } },
-      { salesOrder: { sourceQuotation: { salesExecutiveId: userId } } },
-    ],
-  };
+  if (!isSalespersonScopedRole(role)) return {};
+  return { salesOrder: getOrderSalesScope(userId, role) };
 }
 
 export function getProductionPlanSalesScope(

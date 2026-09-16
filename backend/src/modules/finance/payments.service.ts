@@ -8,7 +8,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import { Prisma, SalesOrderStatus, NotificationPriority } from '@prisma/client';
-import { getAdvancedScope, getSalesScope } from '../../common/utils/rbac.util';
+import { getOrderSalesScope, getSalesScope } from '../../common/utils/rbac.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentFollowupEngineService } from './payment-followup-engine.service';
 
@@ -27,12 +27,7 @@ export class PaymentsService {
    * Returns live summary counts and fully evaluated order rows with server-side filters.
    */
   async getVerificationQueue(query: any = {}, userId?: string, role?: string) {
-    const isSalesperson = [
-      'SALES_EXECUTIVE',
-      'SALES_REP',
-      'SALESPERSON',
-    ].includes(String(role || '').toUpperCase());
-    const salesScope = isSalesperson ? { createdById: userId } : {};
+    const salesScope = getOrderSalesScope(userId, role);
 
     const baseOrderInclude = {
       customer: true,
@@ -341,7 +336,8 @@ export class PaymentsService {
   /**
    * Complete payment history for an order.
    */
-  async getOrderPaymentHistory(orderId: string) {
+  async getOrderPaymentHistory(orderId: string, userId?: string, role?: string) {
+    const scope = getOrderSalesScope(userId, role);
     const baseHistoryInclude = {
       customer: true,
       salesExecutive: { select: { id: true, name: true, email: true } },
@@ -354,7 +350,7 @@ export class PaymentsService {
     let order: any = null;
     try {
       order = await this.prisma.salesOrder.findUnique({
-        where: { id: orderId },
+        where: { id: orderId, AND: [scope], deletedAt: null },
         include: {
           ...baseHistoryInclude,
           complaintAdjustments: true,
@@ -364,6 +360,8 @@ export class PaymentsService {
       if (!order) {
         order = await this.prisma.salesOrder.findFirst({
           where: {
+            AND: [scope],
+            deletedAt: null,
             OR: [
               { orderNumber: orderId },
               { orderNumber: `ORD-${orderId}` },
@@ -379,13 +377,15 @@ export class PaymentsService {
     } catch (err: any) {
       if (String(err?.message || '').includes('ComplaintFinancialAdjustment') || String(err?.message || '').includes('complaintAdjustments')) {
         order = await this.prisma.salesOrder.findUnique({
-          where: { id: orderId },
+          where: { id: orderId, AND: [scope], deletedAt: null },
           include: baseHistoryInclude,
         });
 
         if (!order) {
           order = await this.prisma.salesOrder.findFirst({
             where: {
+              AND: [scope],
+              deletedAt: null,
               OR: [
                 { orderNumber: orderId },
                 { orderNumber: `ORD-${orderId}` },
@@ -541,7 +541,8 @@ export class PaymentsService {
     });
   }
 
-  async listDeliveredOrders() {
+  async listDeliveredOrders(userId?: string, role?: string) {
+    const scope = getOrderSalesScope(userId, role);
     const completedStatuses = [
       'DELIVERED',
       'POD_RECEIVED',
@@ -550,6 +551,7 @@ export class PaymentsService {
     const orders = await this.prisma.salesOrder.findMany({
       where: {
         deletedAt: null,
+        AND: [scope],
         status: { not: 'CANCELLED' },
       },
       include: {
@@ -687,9 +689,7 @@ export class PaymentsService {
   }
 
   async getPayment(id: string, userId?: string, role?: string) {
-    const scope = getAdvancedScope(userId, role, {
-      SALES: { customer: { createdById: userId } },
-    });
+    const scope = getSalesScope(userId, role, 'CustomerPayment');
     const payment = await this.prisma.customerPayment.findFirst({
       where: {
         id,
@@ -716,10 +716,19 @@ export class PaymentsService {
       remarks?: string;
     },
     userId?: string,
+    role?: string,
   ) {
     if (Number(dto.amount) <= 0)
       throw new BadRequestException('Payment amount must be greater than zero');
+    const scope = getOrderSalesScope(userId, role);
     return this.prisma.$transaction(async (tx) => {
+      if (dto.salesOrderId) {
+        const order = await tx.salesOrder.findFirst({
+          where: { id: dto.salesOrderId, customerId: dto.customerId, deletedAt: null, AND: [scope] },
+          select: { id: true },
+        });
+        if (!order) throw new NotFoundException('Sales Order not found');
+      }
       const customer = await tx.customer.findUnique({
         where: { id: dto.customerId },
       });
@@ -767,10 +776,12 @@ export class PaymentsService {
       remarks?: string;
     },
     userId?: string,
+    role?: string,
   ) {
+    const scope = getOrderSalesScope(userId, role);
     let order = await this.prisma.salesOrder
       .findUnique({
-        where: { id: dto.salesOrderId },
+        where: { id: dto.salesOrderId, deletedAt: null, AND: [scope] },
         select: { id: true, customerId: true, orderNumber: true },
       })
       .catch(() => null);
@@ -779,6 +790,8 @@ export class PaymentsService {
       order = await this.prisma.salesOrder
         .findFirst({
           where: {
+            AND: [scope],
+            deletedAt: null,
             OR: [
               { orderNumber: dto.salesOrderId },
               { orderNumber: `ORD-${dto.salesOrderId}` },
@@ -789,6 +802,8 @@ export class PaymentsService {
         })
         .catch(() => null);
     }
+
+    if (!order) throw new NotFoundException('Sales Order not found');
 
     if (order) {
       dto.salesOrderId = order.id;
@@ -804,24 +819,12 @@ export class PaymentsService {
     ].filter(Boolean);
     const combinedRemarks = remarksParts.join(' | ') || undefined;
 
-    try {
-      const payment = await this.createPayment(
-        {
-          ...dto,
-          remarks: combinedRemarks,
-        },
-        userId,
-      );
-      return this.submitForVerification(payment.id, userId);
-    } catch (e) {
-      return {
-        id: `pay-${Date.now()}`,
-        status: 'AWAITING_FINANCE_VERIFICATION',
-        amount: dto.amount,
-        proofUrl: dto.proofUrl,
-        message: 'Payment logged for verification',
-      };
-    }
+    const payment = await this.createPayment(
+      { ...dto, remarks: combinedRemarks },
+      userId,
+      role,
+    );
+    return this.submitForVerification(payment.id, userId);
   }
 
   async submitForVerification(id: string, userId?: string) {

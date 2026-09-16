@@ -101,6 +101,7 @@ export class SalesController {
       id,
       invoiceNumber,
       req.user?.sub,
+      req.user?.role,
     );
   }
 
@@ -120,6 +121,7 @@ export class SalesController {
       id,
       invoiceNumber,
       req.user?.sub,
+      req.user?.role,
     );
   }
 

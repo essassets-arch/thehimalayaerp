@@ -9,6 +9,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { backendFetch } from '../lib/backendFetch';
 import { useERPStore } from '../store/erpStore';
+import { useAuthStore } from '../store/authStore';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { getBackendAssetUrl } from '../lib/assetUrl';
 import './erp-premium-ui.css';
@@ -19,6 +20,8 @@ export default function PaymentHistoryView({
   searchQuery = '', 
   setSearchQuery 
 }) {
+  const user = useAuthStore(s => s.user);
+  const isLocalMode = process.env.NEXT_PUBLIC_DATA_SOURCE_MODE === 'local';
   const isCompact = useMediaQuery('(max-width: 1024px)');
   const storeState = useERPStore((s) => s.state);
   const localConfirmations = useMemo(() => storeState?.sales?.paymentConfirmations || [], [storeState?.sales?.paymentConfirmations]);
@@ -62,7 +65,8 @@ export default function PaymentHistoryView({
 
   // Fetch Payment Records from Backend API
   const { data: backendPayments = [], isLoading, refetch } = useQuery({
-    queryKey: ['sales-payment-history'],
+    queryKey: ['sales-payment-history', user?.id || user?.sub, user?.role],
+    enabled: Boolean(user),
     queryFn: async () => {
       try {
         const response = await backendFetch('/api/backend/finance/payments');
@@ -105,7 +109,7 @@ export default function PaymentHistoryView({
     });
 
     // 2. Process local store confirmations
-    localConfirmations.forEach((c) => {
+    (isLocalMode ? localConfirmations : []).forEach((c) => {
       const id = String(c.id || c.orderId || c.orderNo);
       if (!map.has(id)) {
         const matchedOrder = orders.find(
@@ -132,7 +136,7 @@ export default function PaymentHistoryView({
     });
 
     // 3. Process orders with verified payments
-    orders.forEach((o) => {
+    (isLocalMode ? orders : []).forEach((o) => {
       if (o.paymentConfirmations && Array.isArray(o.paymentConfirmations)) {
         o.paymentConfirmations.forEach((pc, idx) => {
           const key = `ORDER-${o.id}-${idx}`;
@@ -159,7 +163,7 @@ export default function PaymentHistoryView({
     });
 
     return Array.from(map.values()).sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
-  }, [backendPayments, localConfirmations, orders]);
+  }, [backendPayments, localConfirmations, orders, isLocalMode]);
 
   // Metric Computations
   const metrics = useMemo(() => {

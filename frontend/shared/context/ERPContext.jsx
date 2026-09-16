@@ -626,6 +626,8 @@ export const ERPProvider = ({ children }) => {
   const shouldLoadLeads = Boolean(currentUser) && isSalesOrAdmin;
   const shouldLoadCustomers = Boolean(currentUser) && isSalesOrAdmin;
 
+  const salesUserKey = JSON.stringify([currentUser?.id || currentUser?.sub, currentUser?.role]);
+  const [salesOrdersUserKey, setSalesOrdersUserKey] = React.useState(null);
   const [salesOrders, setSalesOrders] = React.useState([]);
   const [salesOrdersPagination, setSalesOrdersPagination] = React.useState({
     page: 1,
@@ -671,6 +673,12 @@ export const ERPProvider = ({ children }) => {
   const [samplesError, setSamplesError] = React.useState(null);
 
   const loadSalesOrders = useCallback(async (params = {}) => {
+    const requestUser = useAuthStore.getState().user;
+    const requestUserKey = JSON.stringify([requestUser?.id || requestUser?.sub, requestUser?.role]);
+    const isCurrentUser = () => {
+      const user = useAuthStore.getState().user;
+      return requestUserKey === JSON.stringify([user?.id || user?.sub, user?.role]);
+    };
     setSalesOrdersLoading(true);
     setSalesOrdersError(null);
     try {
@@ -680,17 +688,20 @@ export const ERPProvider = ({ children }) => {
       
       const result = await salesReadRepository.listOrders(params);
 
+      if (!isCurrentUser()) return result;
+      setSalesOrdersUserKey(requestUserKey);
       setSalesOrders(Array.isArray(result.data) ? result.data : []);
       setSalesOrdersPagination(result.pagination);
       return result;
     } catch (error) {
+      if (!isCurrentUser()) throw error;
       console.error('Failed to load sales orders:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
       setSalesOrdersError(errorMsg);
-      setSalesOrders(prev => (Array.isArray(prev) && prev.length > 0 ? prev : []));
+      setSalesOrders([]);
       throw error;
     } finally {
-      setSalesOrdersLoading(false);
+      if (isCurrentUser()) setSalesOrdersLoading(false);
     }
   }, []);
 
@@ -845,8 +856,8 @@ export const ERPProvider = ({ children }) => {
   const updateSampleStatus = useCallback((sampleId, status, expectedVersion, options) => callSampleWriteMethod('updateStatus', sampleId, status, expectedVersion, options), [callSampleWriteMethod]);
 
   const salesContextValue = React.useMemo(() => ({
-    salesOrders,
-    salesOrdersPagination,
+    salesOrders: salesOrdersUserKey === salesUserKey ? salesOrders : [],
+    salesOrdersPagination: salesOrdersUserKey === salesUserKey ? salesOrdersPagination : { page: 1, pageSize: 25, total: 0, totalPages: 0 },
     leads,
     leadsPagination,
     customers,
@@ -904,7 +915,7 @@ export const ERPProvider = ({ children }) => {
     loadQuotations,
     refreshQuotations: loadQuotations,
   }), [
-    salesOrders, salesOrdersPagination, leads, leadsPagination, customers, customersPagination, samples, samplesPagination, quotations,
+    salesUserKey, salesOrdersUserKey, salesOrders, salesOrdersPagination, leads, leadsPagination, customers, customersPagination, samples, samplesPagination, quotations,
     salesOrdersLoading, leadsLoading, customersLoading, samplesLoading, quotationsLoading, salesOrdersError, leadsError, customersError, samplesError, quotationsError,
     loadSalesOrders, loadLeads, loadCustomers, loadSamples, createOrder, convertQuotationToOrder, attachCustomerPo, 
     runCreditCheck, approveCreditException, confirmOrder, sendToPlantHead, cancelOrder, raiseCustomerComplaint, 
@@ -925,13 +936,13 @@ export const ERPProvider = ({ children }) => {
   const shouldLoadQuotations = Boolean(currentUser) && (isSalesOrAdmin || hasPermission(currentUser, 'crm.quotations.read'));
 
   useEffect(() => {
-    if (shouldLoadSalesOrders && salesOrders.length === 0) loadSalesOrders().catch(e => console.warn('Skipping salesOrders:', e.message));
+    if (shouldLoadSalesOrders && (salesOrdersUserKey !== salesUserKey || salesOrders.length === 0)) loadSalesOrders().catch(e => console.warn('Skipping salesOrders:', e.message));
     if (shouldLoadLeads && leads.length === 0) loadLeads().catch(e => console.warn('Skipping leads:', e.message));
     if (shouldLoadCustomers && customers.length === 0) loadCustomers().catch(e => console.warn('Skipping customers:', e.message));
     if (isSalesOrAdmin && samples.length === 0) loadSamples().catch(e => console.warn('Skipping samples:', e.message));
     if (shouldLoadQuotations && quotations.length === 0) loadQuotations().catch(e => console.warn('Skipping quotations:', e.message));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldLoadSalesOrders, shouldLoadLeads, shouldLoadCustomers, isSalesOrAdmin, shouldLoadQuotations]);
+  }, [salesUserKey, shouldLoadSalesOrders, shouldLoadLeads, shouldLoadCustomers, isSalesOrAdmin, shouldLoadQuotations]);
 
   return (
     <SalesBackendContext.Provider value={salesContextValue}>
