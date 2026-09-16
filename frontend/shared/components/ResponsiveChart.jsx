@@ -72,10 +72,7 @@ export default function ResponsiveChart({
       const scale = is12K ? 2.0 : is8K ? 1.7 : is4K ? 1.35 : isMobile ? 0.9 : windowWidth >= 1920 ? 1.15 : 1.0;
 
       const dynamicTargetHeight = getDynamicHeight(baseHeight);
-      const measuredHeight = Math.max(
-        minHeight || dynamicTargetHeight,
-        rect.height > 50 ? Math.floor(rect.height) : dynamicTargetHeight
-      );
+      const measuredHeight = Math.max(minHeight || 0, dynamicTargetHeight);
 
       setDimensions({
         width: Math.max(150, measuredWidth),

@@ -25,7 +25,6 @@ import {
   Bell
 } from 'lucide-react';
 import {
-  ResponsiveContainer,
   AreaChart,
   Area,
   BarChart,
@@ -36,6 +35,7 @@ import {
   Tooltip,
   Legend
 } from 'recharts';
+import ResponsiveChart from '../shared/components/ResponsiveChart';
 import DailyAgendaCalendar from './DailyAgendaCalendar';
 import { formatReminderTime, getTodayPendingReminders } from '../shared/utils/reminderUtils.js';
 
@@ -466,11 +466,12 @@ export default function DashboardView({
   const confirmedOrdersTotal = orders
     .filter(isConfirmedSalesOrder)
     .reduce((sum, order) => sum + orderValue(order), 0);
+  const fallbackBaselineTarget = 500000;
   const effectiveMonthlyTarget = salesTarget > 0 
     ? salesTarget 
     : (targetData?.monthlyTarget > 0 
         ? targetData.monthlyTarget 
-        : (confirmedOrdersTotal > 0 ? Math.round((confirmedOrdersTotal / 3) * 1.15) : 0));
+        : (confirmedOrdersTotal > 0 ? Math.round((confirmedOrdersTotal / 3) * 1.15) : fallbackBaselineTarget));
 
   const monthlyTargetData = Array.from({ length: 6 }, (_, index) => {
     const date = new Date(nowForSales.getFullYear(), nowForSales.getMonth() - 5 + index, 1);
@@ -481,12 +482,19 @@ export default function DashboardView({
     return { month: date.toLocaleDateString('en-IN', { month: 'short' }), Target: effectiveMonthlyTarget, Achieved: achieved };
   });
 
+  const maxTargetOrAchieved = Math.max(
+    effectiveMonthlyTarget,
+    ...monthlyTargetData.map(d => Math.max(Number(d.Target) || 0, Number(d.Achieved) || 0))
+  );
+
   const deliveredOrdersForReturns = orders.filter(order => ['delivered','completed','closed'].includes(String(order.status || '').toLowerCase()) || String(order.dispatchStatus || order.deliveryStatus || '').toLowerCase().includes('deliver'));
   const returnOrders = orders.filter(order => order.activeReturnExists || order.returnStatus || Number(order.returnQty) > 0);
   const returnedQuantity = returnOrders.reduce((sum, order) => sum + Number(order.returnQty || order.returnedQuantity || 0), 0);
   const returnValue = returnOrders.reduce((sum, order) => { const qty = Number(order.returnQty || order.returnedQuantity || 0); const totalQty = orderQuantity(order); return sum + Number(order.returnValue || (totalQty > 0 ? (orderValue(order) / totalQty) * qty : 0)); }, 0);
   const returnRate = deliveredOrdersForReturns.length > 0 ? (returnOrders.length / deliveredOrdersForReturns.length) * 100 : 0;
   const monthlyReturnData = Array.from({ length: 6 }, (_, index) => { const date = new Date(nowForSales.getFullYear(), nowForSales.getMonth() - 5 + index, 1); const rows = returnOrders.filter(order => { const d = getCreatedAtDate({ ...order, createdAt: order.returnRequestedAt || order.updatedAt || order.createdAt }); return d && d.getFullYear() === date.getFullYear() && d.getMonth() === date.getMonth(); }); return { month: date.toLocaleDateString('en-IN', { month: 'short' }), ReturnQuantity: rows.reduce((sum, order) => sum + Number(order.returnQty || order.returnedQuantity || 0), 0), ReturnValue: rows.reduce((sum, order) => { const qty = Number(order.returnQty || order.returnedQuantity || 0); const totalQty = orderQuantity(order); return sum + Number(order.returnValue || (totalQty > 0 ? (orderValue(order) / totalQty) * qty : 0)); }, 0) }; });
+  const maxReturnQty = Math.max(10, ...monthlyReturnData.map(d => Number(d.ReturnQuantity) || 0));
+  const maxReturnValue = Math.max(50000, ...monthlyReturnData.map(d => Number(d.ReturnValue) || 0));
   const reasonCategories = ['Product Quality','Damaged During Transit','Wrong Product','Quantity Issue','Customer Rejection','Other'];
   const topReturnReasons = reasonCategories.map(reason => ({ reason, count: returnOrders.filter(order => { const text = String(order.returnReason || '').toLowerCase(); if (reason === 'Product Quality') return text.includes('quality') || text.includes('defect'); if (reason === 'Damaged During Transit') return text.includes('damage') || text.includes('transit'); if (reason === 'Wrong Product') return text.includes('wrong'); if (reason === 'Quantity Issue') return text.includes('quantity') || text.includes('short'); if (reason === 'Customer Rejection') return text.includes('reject'); return !['quality','defect','damage','transit','wrong','quantity','short','reject'].some(term => text.includes(term)); }).length })).sort((a,b) => b.count - a.count);
   const collectionAmount = filteredPayments
@@ -624,6 +632,10 @@ export default function DashboardView({
   };
   
   const trendData = getDynamicTrendData();
+  const maxPipelineCount = Math.max(
+    5,
+    ...trendData.map(d => Math.max(Number(d.Leads) || 0, Number(d.Quotations) || 0, Number(d.Conversions) || 0))
+  );
   const hasPipelineActivity = trendData.some((row) => row.Leads > 0 || row.Quotations > 0 || row.Conversions > 0);
   const hasReturnActivity = monthlyReturnData.some((row) => row.ReturnQuantity > 0 || row.ReturnValue > 0);
   const EmptyChartState = ({ message, height }) => (
@@ -1024,40 +1036,36 @@ export default function DashboardView({
                 </div>
               </div>
 
-              <div className="sales-pipeline-chart-container" style={{ width: '100%', height: '260px', minHeight: '260px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
-                {isMounted && hasPipelineActivity ? (
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
-                    <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.02} />
-                        </linearGradient>
-                        <linearGradient id="colorQuotes" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
-                        </linearGradient>
-                        <linearGradient id="colorConvs" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="name" stroke="#5E6B82" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#5E6B82" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} domain={[0, 'auto']} />
-                      <Tooltip
-                        contentStyle={{ background: '#ffffff', border: '1px solid #D6E2F0', borderRadius: '8px', fontSize: '12px', color: 'var(--color-text-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                        itemStyle={{ color: 'var(--color-text-primary)' }}
-                        labelStyle={{ fontWeight: 'bold', color: 'var(--color-text-secondary)' }}
-                      />
-                      <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={2.5} fillOpacity={1} fill="url(#colorLeads)" isAnimationActive={false} />
-                      <Area type="monotone" dataKey="Quotations" stroke="#8b5cf6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorQuotes)" isAnimationActive={false} />
-                      <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorConvs)" isAnimationActive={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <EmptyChartState height="260px" message="No lead, quotation, or won-order activity has been recorded in the last six months." />
-                )}
+              <div className="sales-pipeline-chart-container" style={{ width: '100%', minWidth: 0, position: 'relative' }}>
+                <ResponsiveChart height={280} minHeight={240}>
+                  <AreaChart data={trendData} margin={{ top: 10, right: 12, left: -15, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="colorQuotes" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="colorConvs" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="name" stroke="#5E6B82" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#5E6B82" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} domain={[0, maxPipelineCount > 0 ? 'auto' : 5]} />
+                    <Tooltip
+                      contentStyle={{ background: '#ffffff', border: '1px solid #D6E2F0', borderRadius: '8px', fontSize: '12px', color: 'var(--color-text-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                      itemStyle={{ color: 'var(--color-text-primary)' }}
+                      labelStyle={{ fontWeight: 'bold', color: 'var(--color-text-secondary)' }}
+                    />
+                    <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={2.5} fillOpacity={1} fill="url(#colorLeads)" isAnimationActive={false} />
+                    <Area type="monotone" dataKey="Quotations" stroke="#8b5cf6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorQuotes)" isAnimationActive={false} />
+                    <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorConvs)" isAnimationActive={false} />
+                  </AreaChart>
+                </ResponsiveChart>
               </div>
             </div>
 
@@ -1291,36 +1299,32 @@ export default function DashboardView({
                     <span style={{ color: '#10b981' }}>● Won</span>
                   </div>
                 </div>
-                <div style={{ width: '100%', height: '200px', minHeight: '200px', marginTop: '6px', minWidth: 0, position: 'relative' }}>
-                  {isMounted && hasPipelineActivity ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
-                      <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="colorLeadsMobile" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25} />
-                            <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.02} />
-                          </linearGradient>
-                          <linearGradient id="colorQuotesMobile" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
-                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
-                          </linearGradient>
-                          <linearGradient id="colorConvsMobile" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                        <XAxis dataKey="name" stroke="#5E6B82" fontSize={10} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#5E6B82" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} domain={[0, 'auto']} />
-                        <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', border: '1px solid #D6E2F0' }} />
-                        <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={1.8} fillOpacity={1} fill="url(#colorLeadsMobile)" isAnimationActive={false} />
-                        <Area type="monotone" dataKey="Quotations" stroke="#8b5cf6" strokeWidth={1.8} fillOpacity={1} fill="url(#colorQuotesMobile)" isAnimationActive={false} />
-                        <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={1.8} fillOpacity={1} fill="url(#colorConvsMobile)" isAnimationActive={false} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <EmptyChartState height="200px" message="No pipeline activity is available for this period." />
-                  )}
+                <div style={{ width: '100%', minWidth: 0, position: 'relative' }}>
+                  <ResponsiveChart height={220} minHeight={200}>
+                    <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorLeadsMobile" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.02} />
+                        </linearGradient>
+                        <linearGradient id="colorQuotesMobile" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.02} />
+                        </linearGradient>
+                        <linearGradient id="colorConvsMobile" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis dataKey="name" stroke="#5E6B82" fontSize={10} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#5E6B82" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} domain={[0, maxPipelineCount > 0 ? 'auto' : 5]} />
+                      <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px', border: '1px solid #D6E2F0' }} />
+                      <Area type="monotone" dataKey="Leads" stroke="#0ea5e9" strokeWidth={1.8} fillOpacity={1} fill="url(#colorLeadsMobile)" isAnimationActive={false} />
+                      <Area type="monotone" dataKey="Quotations" stroke="#8b5cf6" strokeWidth={1.8} fillOpacity={1} fill="url(#colorQuotesMobile)" isAnimationActive={false} />
+                      <Area type="monotone" dataKey="Conversions" name="Won Orders" stroke="#10b981" strokeWidth={1.8} fillOpacity={1} fill="url(#colorConvsMobile)" isAnimationActive={false} />
+                    </AreaChart>
+                  </ResponsiveChart>
                 </div>
               </div>
 
@@ -1384,23 +1388,26 @@ export default function DashboardView({
             </div>
           )}
           
-          <div className="sales-analytics-chart" style={{ width: '100%', height: '280px', minHeight: '280px', minWidth: 0, position: 'relative' }}>
-            {isMounted && (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
-                <BarChart data={monthlyTargetData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
-                  <YAxis stroke="#64748b" tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 100000)}L`} />
-                  <Tooltip 
-                    formatter={value => `₹${Number(value).toLocaleString('en-IN')}`} 
-                    contentStyle={{ background: '#fff', borderRadius: '8px', border: '1px solid #DCE5F0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} 
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11.5px', paddingTop: '8px' }} />
-                  <Bar dataKey="Target" fill="#cbd5e1" radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 20} isAnimationActive={false} />
-                  <Bar dataKey="Achieved" fill="#16a34a" radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 20} isAnimationActive={false} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+          <div className="sales-analytics-chart" style={{ width: '100%', minWidth: 0, position: 'relative' }}>
+            <ResponsiveChart height={300} minHeight={260}>
+              <BarChart data={monthlyTargetData} margin={{ top: 10, right: 12, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
+                <YAxis 
+                  stroke="#64748b" 
+                  tick={{ fontSize: 10 }} 
+                  domain={[0, maxTargetOrAchieved > 0 ? 'auto' : 500000]}
+                  tickFormatter={value => `${Math.round(value / 100000)}L`} 
+                />
+                <Tooltip 
+                  formatter={value => `₹${Number(value).toLocaleString('en-IN')}`} 
+                  contentStyle={{ background: '#fff', borderRadius: '8px', border: '1px solid #DCE5F0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} 
+                />
+                <Legend wrapperStyle={{ fontSize: '11.5px', paddingTop: '8px' }} />
+                <Bar dataKey="Target" fill="#cbd5e1" radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 20} isAnimationActive={false} />
+                <Bar dataKey="Achieved" fill="#16a34a" radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 20} isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveChart>
           </div>
         </section>
 
@@ -1408,10 +1415,10 @@ export default function DashboardView({
           <div style={{ marginBottom: '18px' }}><h2 style={{ margin: 0, fontSize: '17px', fontWeight: 850, color: '#24345C' }}>Sales Return Analysis</h2><p style={{ margin: '4px 0 0', fontSize: '12px', color: '#5E6B82' }}>Delivered orders and recorded customer return requests</p></div>
           
           {returnOrders.length === 0 ? (
-            <div style={{ padding: '30px 20px', textAlign: 'center', background: '#F5FAFE', borderRadius: '9px', border: '1px dashed #DCE5F0', color: '#5E6B82', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
-              <Package size={32} style={{ opacity: 0.4, marginBottom: '8px', color: '#3b82f6' }} />
-              <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#24345C' }}>Zero returns recorded</p>
-              <p style={{ margin: '4px 0 0', fontSize: '11.5px', maxWidth: '320px' }}>Your delivered orders have 100% acceptance. Any RMA or return requests will display below.</p>
+            <div style={{ padding: '20px 20px', textAlign: 'center', background: '#F5FAFE', borderRadius: '9px', border: '1px dashed #DCE5F0', color: '#5E6B82', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+              <Package size={28} style={{ opacity: 0.5, marginBottom: '6px', color: '#3b82f6' }} />
+              <p style={{ margin: 0, fontWeight: 750, fontSize: '13px', color: '#24345C' }}>Zero returns recorded · 100% Order Acceptance</p>
+              <p style={{ margin: '4px 0 0', fontSize: '11.5px', maxWidth: '360px' }}>Your delivered orders maintain 100% acceptance integrity. Zero return movement recorded over the last 6 months.</p>
             </div>
           ) : (
             <div className="sales-return-kpis" style={{ marginBottom: '18px' }}>
@@ -1421,26 +1428,22 @@ export default function DashboardView({
             </div>
           )}
 
-          <div className="sales-analytics-chart" style={{ width: '100%', height: '260px', minHeight: '260px', minWidth: 0, position: 'relative' }}>
-            {isMounted && hasReturnActivity ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={260}>
-                <BarChart data={monthlyReturnData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
-                  <YAxis yAxisId="qty" stroke="#64748b" tick={{ fontSize: 10 }} allowDecimals={false} />
-                  <YAxis yAxisId="value" orientation="right" stroke="#64748b" tick={{ fontSize: 10 }} tickFormatter={value => `${Math.round(value / 1000)}k`} />
-                  <Tooltip 
-                    formatter={(value, name) => name === 'ReturnValue' || name === 'Return Value' ? `₹${Number(value).toLocaleString('en-IN')}` : Number(value).toLocaleString('en-IN')} 
-                    contentStyle={{ background: '#fff', borderRadius: '8px', border: '1px solid #DCE5F0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} 
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11.5px', paddingTop: '8px' }} />
-                  <Bar yAxisId="qty" dataKey="ReturnQuantity" name="Return Quantity" fill="#f97316" radius={[6, 6, 0, 0]} barSize={isMobile ? 10 : 16} isAnimationActive={false} />
-                  <Bar yAxisId="value" dataKey="ReturnValue" name="Return Value" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={isMobile ? 10 : 16} isAnimationActive={false} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyChartState height="260px" message="No return movement has been recorded in the last six months." />
-            )}
+          <div className="sales-analytics-chart" style={{ width: '100%', minWidth: 0, position: 'relative' }}>
+            <ResponsiveChart height={280} minHeight={240}>
+              <BarChart data={monthlyReturnData} margin={{ top: 10, right: 12, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <XAxis dataKey="month" stroke="#64748b" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="qty" stroke="#64748b" tick={{ fontSize: 10 }} allowDecimals={false} domain={[0, maxReturnQty > 0 ? 'auto' : 10]} />
+                <YAxis yAxisId="value" orientation="right" stroke="#64748b" tick={{ fontSize: 10 }} domain={[0, maxReturnValue > 0 ? 'auto' : 50000]} tickFormatter={value => `${Math.round(value / 1000)}k`} />
+                <Tooltip 
+                  formatter={(value, name) => name === 'ReturnValue' || name === 'Return Value' ? `₹${Number(value).toLocaleString('en-IN')}` : Number(value).toLocaleString('en-IN')} 
+                  contentStyle={{ background: '#fff', borderRadius: '8px', border: '1px solid #DCE5F0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} 
+                />
+                <Legend wrapperStyle={{ fontSize: '11.5px', paddingTop: '8px' }} />
+                <Bar yAxisId="qty" dataKey="ReturnQuantity" name="Return Quantity" fill="#f97316" radius={[6, 6, 0, 0]} barSize={isMobile ? 10 : 16} isAnimationActive={false} />
+                <Bar yAxisId="value" dataKey="ReturnValue" name="Return Value" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={isMobile ? 10 : 16} isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveChart>
           </div>
           {returnOrders.length > 0 && (
             <div style={{ borderTop: '1px solid #DCE5F0', paddingTop: '14px', marginTop: '8px' }}><h3 style={{ fontSize: '12px', fontWeight: 800, margin: '0 0 10px', color: '#334155' }}>Top Return Reasons</h3><div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>{topReturnReasons.map(item => <span key={item.reason} style={{ padding: '5px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, background: item.count ? '#fff7ed' : '#F5FAFE', color: item.count ? '#c2410c' : '#8893A7', border: `1px solid ${item.count ? '#fed7aa' : '#DCE5F0'}` }}>{item.reason} · {item.count}</span>)}</div></div>
