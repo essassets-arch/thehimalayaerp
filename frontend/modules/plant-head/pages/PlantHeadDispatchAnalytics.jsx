@@ -78,10 +78,10 @@ const AREA_COLORS = {
 
 export const PlantHeadDispatchAnalytics = () => {
   // ── Filters & Active Tab State ──
-  const [selectedMonth, setSelectedMonth] = useState('2026-08'); // Default to August 2026 Benchmark
+  const [selectedMonth, setSelectedMonth] = useState('2026-08');
   const [globalTimeframe, setGlobalTimeframe] = useState('August 2026');
   const [customStartDate, setCustomStartDate] = useState('2026-08-01');
-  const [customEndDate, setCustomEndDate] = useState('2026-08-29');
+  const [customEndDate, setCustomEndDate] = useState('2026-08-31');
   const [salesPersonFilter, setSalesPersonFilter] = useState('All');
   const [productFilter, setProductFilter] = useState('All');
   const [areaFilter, setAreaFilter] = useState('All');
@@ -91,6 +91,8 @@ export const PlantHeadDispatchAnalytics = () => {
   const [areaMatrixMode, setAreaMatrixMode] = useState('weight'); // 'weight' or 'qty'
   const [customerFilter, setCustomerFilter] = useState('All');
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'products', 'customers', 'matrix', 'transport', 'manifest', 'area'
+  const [localitySearchTerm, setLocalitySearchTerm] = useState('');
+  const [selectedAreaModal, setSelectedAreaModal] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -145,7 +147,13 @@ export const PlantHeadDispatchAnalytics = () => {
     if (val === '2026-08') {
       setGlobalTimeframe('August 2026');
       setCustomStartDate('2026-08-01');
-      setCustomEndDate('2026-08-29');
+      setCustomEndDate('2026-08-31');
+    } else if (val === '2026-09') {
+      setGlobalTimeframe('September 2026');
+      setCustomStartDate('2026-09-01');
+      setCustomEndDate('2026-09-30');
+    } else if (val === 'all') {
+      setGlobalTimeframe('All Time');
     } else if (val === 'custom') {
       setGlobalTimeframe('Custom');
     } else {
@@ -159,44 +167,21 @@ export const PlantHeadDispatchAnalytics = () => {
     if (preset === 'August 2026') {
       setSelectedMonth('2026-08');
       setCustomStartDate('2026-08-01');
-      setCustomEndDate('2026-08-29');
-    } else if (preset === 'This Month') {
+      setCustomEndDate('2026-08-31');
+    } else if (preset === 'September 2026' || preset === 'This Month') {
       setSelectedMonth('2026-09');
+      setCustomStartDate('2026-09-01');
+      setCustomEndDate('2026-09-30');
+    } else if (preset === 'All Time') {
+      setSelectedMonth('all');
     } else if (preset === 'Custom') {
       setSelectedMonth('custom');
     }
   };
 
-  // ── Verification Flag: Only August 2026 gets the benchmark report dataset ──
-  const isAugustBenchmark = useMemo(() => {
-    return (
-      (selectedMonth === '2026-08' || globalTimeframe === 'August 2026') &&
-      globalTimeframe !== 'Custom' &&
-      selectedMonth !== 'custom'
-    );
-  }, [selectedMonth, globalTimeframe]);
-
-  // ── Summary Metrics ──
+  // ── Summary Metrics (100% Dynamic from Backend Live Aggregation) ──
   const summary = useMemo(() => {
     if (analyticsData?.summary) return analyticsData.summary;
-    if (isAugustBenchmark) {
-      return {
-        period: '1–29 August 2026',
-        totalQuantity: 2688,
-        totalWeight: 119996.4,
-        totalWeightTonnes: 119.996,
-        averageWeightPerPiece: 44.64,
-        dispatchDays: 21,
-        uniqueClients: 79,
-        totalTransportationCost: 284500,
-        avgFreightPerKg: 2.37,
-        avgFreightPerTonne: 2370.9,
-        avgFreightPerPiece: 105.84,
-        totalTrips: 28,
-        avgPayloadPerTrip: 4285.58,
-        narrative: 'During August, Himalaya dispatched about 120 tonnes of material, consisting of 2,688 pieces, to 79 customers over 21 dispatch days.'
-      };
-    }
     return {
       period: globalTimeframe,
       totalQuantity: 0,
@@ -213,167 +198,70 @@ export const PlantHeadDispatchAnalytics = () => {
       avgPayloadPerTrip: 0,
       narrative: `No dispatches recorded in the database for ${globalTimeframe}.`
     };
-  }, [analyticsData, isAugustBenchmark, globalTimeframe]);
+  }, [analyticsData, globalTimeframe]);
 
   const productsData = useMemo(() => {
-    if (analyticsData?.products) {
-      let list = analyticsData.products;
-      if (productFilter !== 'All') {
-        list = list.filter(p => p.product === productFilter);
-      }
-      return list;
+    let list = analyticsData?.products || [];
+    if (productFilter !== 'All') {
+      list = list.filter(p => (p.product || '').toLowerCase() === productFilter.toLowerCase());
     }
-    if (isAugustBenchmark) {
-      let list = [
-        { product: 'MHC', name: 'Manhole Covers', quantity: 1639, weight: 69210.35, share: 57.8, avgWeight: 42.23, isDominant: true },
-        { product: 'RCS', name: 'Recessed Covers & Frames', quantity: 166, weight: 18082.85, share: 15.1, avgWeight: 108.93, isDominant: false },
-        { product: 'ONGC', name: 'ONGC Specification Covers', quantity: 683, weight: 15072.50, share: 12.6, avgWeight: 22.07, isDominant: false },
-        { product: 'WGC', name: 'Water Gully Covers', quantity: 134, weight: 14149.60, share: 11.8, avgWeight: 105.59, isDominant: false },
-        { product: 'D MHC', name: 'Double Manhole Covers', quantity: 66, weight: 3481.10, share: 2.9, avgWeight: 52.74, isDominant: false }
-      ];
-      if (productFilter !== 'All') {
-        list = list.filter(p => p.product === productFilter);
-      }
-      return list;
-    }
-    return [];
-  }, [analyticsData, isAugustBenchmark, productFilter]);
+    return list;
+  }, [analyticsData, productFilter]);
 
   const capacitiesData = useMemo(() => {
-    if (analyticsData?.capacities) return analyticsData.capacities;
-    if (isAugustBenchmark) {
-      return [
-        { capacity: 'LD', weight: 40842, share: 34.0, description: 'Light Duty (2.5T)' },
-        { capacity: 'C250', weight: 36106, share: 30.1, description: 'Heavy Duty C250 (25T)' },
-        { capacity: 'B125', weight: 16147, share: 13.5, description: 'Medium Duty B125 (12.5T)' },
-        { capacity: 'D400', weight: 11133, share: 9.3, description: 'Extra Heavy Duty D400 (40T)' },
-        { capacity: 'ELD', weight: 8509, share: 7.1, description: 'Extra Light Duty' },
-        { capacity: 'E600', weight: 4218, share: 3.5, description: 'Super Heavy Duty E600 (60T)' },
-        { capacity: '3T', weight: 1041, share: 0.9, description: '3 Tonne Load Class' },
-        { capacity: 'F900', weight: 600, share: 0.5, description: 'Airport / High Impact (90T)' }
-      ];
-    }
-    return [];
-  }, [analyticsData, isAugustBenchmark]);
+    return analyticsData?.capacities || [];
+  }, [analyticsData]);
 
   const topCustomersData = useMemo(() => {
-    if (analyticsData?.topCustomers) return analyticsData.topCustomers;
-    if (isAugustBenchmark) {
-      return [
-        { rank: 1, customer: 'Larsen & Toubro Ltd', weight: 15042, share: 12.5, city: 'Chennai / Pan-India', badge: '🥇 1' },
-        { rank: 2, customer: 'Tasneem Enterprise', weight: 13152, share: 11.0, city: 'Chennai, Tamil Nadu', badge: '🥈 2' },
-        { rank: 3, customer: 'Padma Engineer', weight: 7026, share: 5.9, city: 'Ahmedabad, Gujarat', badge: '🥉 3' },
-        { rank: 4, customer: 'Shreya Construction', weight: 5631, share: 4.7, city: 'Rajkot, Gujarat', badge: '4' },
-        { rank: 5, customer: 'P. Das Infrastructure', weight: 5553, share: 4.6, city: 'Kolkata, West Bengal', badge: '5' }
-      ];
-    }
-    return [];
-  }, [analyticsData, isAugustBenchmark]);
+    return analyticsData?.topCustomers || [];
+  }, [analyticsData]);
 
   const newCustomerStats = useMemo(() => {
-    if (analyticsData?.newCustomerStats) return analyticsData.newCustomerStats;
-    if (isAugustBenchmark) return {
-      newCustomerCount: 12, newCustomerWeight: 29843, newCustomerQty: 668,
-      newCustomerWeightShare: 24.9, newCustomerQtyShare: 24.9,
-      newInTop20: topCustomersData.filter(customer => customer.isNew).slice(0, 3),
+    return analyticsData?.newCustomerStats || {
+      newCustomerCount: 0,
+      newCustomerWeight: 0,
+      newCustomerQty: 0,
+      newCustomerWeightShare: 0,
+      newCustomerQtyShare: 0,
+      newInTop20: []
     };
-    return { newCustomerCount: 0, newCustomerWeight: 0, newCustomerQty: 0, newCustomerWeightShare: 0, newCustomerQtyShare: 0, newInTop20: [] };
-  }, [analyticsData, isAugustBenchmark, topCustomersData]);
+  }, [analyticsData]);
 
   const customerConcentration = useMemo(() => {
-    if (analyticsData?.customerConcentration) return analyticsData.customerConcentration;
-    if (isAugustBenchmark) {
-      return {
-        top5Weight: 46404.32,
-        top5Share: 38.7,
-        top10Weight: 66214,
-        top10Share: 55.2,
-        top10Qty: 1475,
-        top20Weight: 87424,
-        top20Share: 72.9,
-        top20Qty: 1951,
-        remainingWeight: 73592.08,
-        remainingShare: 61.3,
-        totalCustomers: 79,
-        insight: 'The Top 5 customers together account for 38.7% (46.4 tonnes) of total dispatch weight. Losing one major customer could have a noticeable effect on dispatch volume.'
-      };
-    }
-    return {
+    return analyticsData?.customerConcentration || {
       top5Weight: 0,
       top5Share: 0,
+      top5Qty: 0,
+      top10Weight: 0,
+      top10Share: 0,
+      top10Qty: 0,
+      top20Weight: 0,
+      top20Share: 0,
+      top20Qty: 0,
       remainingWeight: 0,
       remainingShare: 0,
+      remainingQty: 0,
       totalCustomers: 0,
       insight: 'No customer data for this period.'
     };
-  }, [analyticsData, isAugustBenchmark]);
+  }, [analyticsData]);
 
   const dailyTrendsData = useMemo(() => {
-    if (analyticsData?.dailyTrends) return analyticsData.dailyTrends;
-    if (isAugustBenchmark) {
-      return [
-        { date: '2026-08-01', day: '1 Aug', weight: 3820, pcs: 88, highlight: false },
-        { date: '2026-08-03', day: '3 Aug', weight: 14396, pcs: 318, highlight: true, note: 'L&T Metro' },
-        { date: '2026-08-04', day: '4 Aug', weight: 4120, pcs: 94 },
-        { date: '2026-08-05', day: '5 Aug', weight: 5210, pcs: 115 },
-        { date: '2026-08-06', day: '6 Aug', weight: 4680, pcs: 104 },
-        { date: '2026-08-08', day: '8 Aug', weight: 3450, pcs: 78 },
-        { date: '2026-08-10', day: '10 Aug', weight: 4980, pcs: 112 },
-        { date: '2026-08-11', day: '11 Aug', weight: 10472, pcs: 236, highlight: true, note: 'High Vol' },
-        { date: '2026-08-12', day: '12 Aug', weight: 3950, pcs: 86 },
-        { date: '2026-08-13', day: '13 Aug', weight: 4230, pcs: 96 },
-        { date: '2026-08-15', day: '15 Aug', weight: 9839, pcs: 221, highlight: true, note: 'Pre-Holiday' },
-        { date: '2026-08-17', day: '17 Aug', weight: 4560, pcs: 102 },
-        { date: '2026-08-18', day: '18 Aug', weight: 7977, pcs: 178, highlight: true, note: 'Tasneem' },
-        { date: '2026-08-19', day: '19 Aug', weight: 3620, pcs: 80 },
-        { date: '2026-08-21', day: '21 Aug', weight: 4310, pcs: 95 },
-        { date: '2026-08-22', day: '22 Aug', weight: 3890, pcs: 88 },
-        { date: '2026-08-24', day: '24 Aug', weight: 16741, pcs: 375, highlight: true, isPeak: true, note: '🚀 Peak Day' },
-        { date: '2026-08-25', day: '25 Aug', weight: 4420, pcs: 98 },
-        { date: '2026-08-26', day: '26 Aug', weight: 3780, pcs: 84 },
-        { date: '2026-08-28', day: '28 Aug', weight: 4180, pcs: 92 },
-        { date: '2026-08-29', day: '29 Aug', weight: 3771.4, pcs: 69 }
-      ];
-    }
-    return [];
-  }, [analyticsData, isAugustBenchmark]);
+    return analyticsData?.dailyTrends || [];
+  }, [analyticsData]);
 
   const sizesData = useMemo(() => {
-    if (analyticsData?.sizes) return analyticsData.sizes;
-    if (isAugustBenchmark) {
-      return [
-        { size: '600 × 600', weight: 43662, share: 36.4, isDominant: true },
-        { size: '1200 × 1200', weight: 10426, share: 8.7, isDominant: false },
-        { size: '900 MM', weight: 6730, share: 5.6, isDominant: false },
-        { size: '1200 × 900', weight: 6482, share: 5.4, isDominant: false },
-        { size: '450 × 600', weight: 5104, share: 4.3, isDominant: false },
-        { size: 'Others (900×900, etc.)', weight: 47592.4, share: 39.6, isDominant: false }
-      ];
-    }
-    return [];
-  }, [analyticsData, isAugustBenchmark]);
+    return analyticsData?.sizes || [];
+  }, [analyticsData]);
 
   const salesReferencesData = useMemo(() => {
-    if (analyticsData?.salesReferences) return analyticsData.salesReferences;
-    if (isAugustBenchmark) {
-      return [
-        { salesRef: 'MTH', totalWeight: 100829.11, quantity: 2254, share: 84.1, avgWeight: 44.73 },
-        { salesRef: 'TL', totalWeight: 6921.78, quantity: 97, share: 5.8, avgWeight: 71.36 },
-        { salesRef: 'JP', totalWeight: 4330.78, quantity: 116, share: 3.6, avgWeight: 37.33 },
-        { salesRef: 'RT', totalWeight: 4064.00, quantity: 47, share: 3.4, avgWeight: 86.47 },
-        { salesRef: 'RS', totalWeight: 1579.28, quantity: 86, share: 1.3, avgWeight: 18.36 },
-        { salesRef: 'TG', totalWeight: 1557.77, quantity: 62, share: 1.3, avgWeight: 25.13 },
-        { salesRef: 'GN', totalWeight: 627.20, quantity: 25, share: 0.5, avgWeight: 25.09 },
-        { salesRef: 'MK', totalWeight: 86.50, quantity: 1, share: 0.1, avgWeight: 86.50 }
-      ];
-    }
-    return [];
-  }, [analyticsData, isAugustBenchmark]);
+    return analyticsData?.salesReferences || [];
+  }, [analyticsData]);
 
   const salesPersonProductWise = useMemo(() => {
     let list = analyticsData?.salesPersonProductWise || [];
     if (salesPersonFilter !== 'All') {
-      list = list.filter(s => s.salesPerson === salesPersonFilter);
+      list = list.filter(s => (s.salesPerson || '').toLowerCase() === salesPersonFilter.toLowerCase());
     }
     return list;
   }, [analyticsData, salesPersonFilter]);
@@ -399,62 +287,31 @@ export const PlantHeadDispatchAnalytics = () => {
     });
   }, [salesPersonProductWise]);
 
-  // ── Area-wise Data & Analytics Memo ──
+  // ── Area-wise Master Locality Data ──
   const areaWiseData = useMemo(() => {
-    let list = analyticsData?.areaWise;
-    if (!list || list.length === 0) {
-      if (isAugustBenchmark) {
-        list = [
-          {
-            area: 'Ahmedabad', quantity: 1120, weight: 49850.2, weightShare: 41.5, qtyShare: 41.7, customers: 32, dispatchDays: 20,
-            mhcQty: 680, mhcWeight: 28650.1, rcsQty: 72, rcsWeight: 7850.0, ongcQty: 290, ongcWeight: 6400.0, wgcQty: 54, wgcWeight: 5700.1, dmhcQty: 24, dmhcWeight: 1250.0,
-            mthQty: 940, mthWeight: 41800.2, tlQty: 40, tlWeight: 2850.0, jpQty: 50, jpWeight: 1860.0, rtQty: 20, rtWeight: 1725.0, rsQty: 35, rsWeight: 640.0, tgQty: 20, tgWeight: 500.0, gnQty: 14, gnWeight: 388.5, mkQty: 1, mkWeight: 86.5
-          },
-          {
-            area: 'Gujarat', quantity: 610, weight: 27240.5, weightShare: 22.7, qtyShare: 22.7, customers: 19, dispatchDays: 18,
-            mhcQty: 370, mhcWeight: 15690.5, rcsQty: 38, rcsWeight: 4120.0, ongcQty: 155, ongcWeight: 3420.0, wgcQty: 31, wgcWeight: 3280.0, dmhcQty: 16, dmhcWeight: 830.0,
-            mthQty: 510, mthWeight: 22860.5, tlQty: 25, tlWeight: 1780.0, jpQty: 28, jpWeight: 1040.0, rtQty: 12, rtWeight: 1040.0, rsQty: 20, rsWeight: 370.0, tgQty: 10, tgWeight: 250.0, gnQty: 5, gnWeight: 125.0, mkQty: 0, mkWeight: 0.0
-          },
-          {
-            area: 'West', quantity: 380, weight: 17045.0, weightShare: 14.2, qtyShare: 14.1, customers: 11, dispatchDays: 14,
-            mhcQty: 230, mhcWeight: 9810.0, rcsQty: 24, rcsWeight: 2580.0, ongcQty: 96, ongcWeight: 2120.0, wgcQty: 19, wgcWeight: 2010.0, dmhcQty: 11, dmhcWeight: 525.0,
-            mthQty: 320, mthWeight: 14350.0, tlQty: 16, tlWeight: 1140.0, jpQty: 18, jpWeight: 670.0, rtQty: 10, rtWeight: 860.0, rsQty: 11, rsWeight: 200.0, tgQty: 5, tgWeight: 125.0, gnQty: 0, gnWeight: 0.0, mkQty: 0, mkWeight: 0.0
-          },
-          {
-            area: 'North', quantity: 220, weight: 9850.0, weightShare: 8.2, qtyShare: 8.2, customers: 7, dispatchDays: 10,
-            mhcQty: 135, mhcWeight: 5680.0, rcsQty: 14, rcsWeight: 1480.0, ongcQty: 56, ongcWeight: 1240.0, wgcQty: 11, wgcWeight: 1170.0, dmhcQty: 4, dmhcWeight: 280.0,
-            mthQty: 185, mthWeight: 8300.0, tlQty: 8, tlWeight: 580.0, jpQty: 10, jpWeight: 370.0, rtQty: 3, rtWeight: 260.0, rsQty: 8, rsWeight: 150.0, tgQty: 6, tgWeight: 150.0, gnQty: 0, gnWeight: 0.0, mkQty: 0, mkWeight: 0.0
-          },
-          {
-            area: 'South', quantity: 170, weight: 7580.0, weightShare: 6.3, qtyShare: 6.3, customers: 5, dispatchDays: 8,
-            mhcQty: 105, mhcWeight: 4370.0, rcsQty: 10, rcsWeight: 1150.0, ongcQty: 43, ongcWeight: 950.0, wgcQty: 8, wgcWeight: 890.0, dmhcQty: 4, dmhcWeight: 220.0,
-            mthQty: 140, mthWeight: 6340.0, tlQty: 5, tlWeight: 360.0, jpQty: 6, jpWeight: 230.0, rtQty: 2, rtWeight: 179.0, rsQty: 7, rsWeight: 130.0, tgQty: 6, tgWeight: 150.0, gnQty: 4, gnWeight: 75.0, mkQty: 0, mkWeight: 0.0
-          },
-          {
-            area: 'Central', quantity: 110, weight: 4920.0, weightShare: 4.1, qtyShare: 4.1, customers: 3, dispatchDays: 6,
-            mhcQty: 68, mhcWeight: 2830.0, rcsQty: 5, rcsWeight: 550.0, ongcQty: 28, ongcWeight: 610.0, wgcQty: 6, wgcWeight: 580.0, dmhcQty: 3, dmhcWeight: 180.0,
-            mthQty: 95, mthWeight: 4140.0, tlQty: 2, tlWeight: 140.0, jpQty: 3, jpWeight: 110.0, rtQty: 0, rtWeight: 0.0, rsQty: 4, rsWeight: 70.0, tgQty: 6, tgWeight: 150.0, gnQty: 0, gnWeight: 0.0, mkQty: 0, mkWeight: 0.0
-          },
-          {
-            area: 'East / North-East', quantity: 60, weight: 2710.7, weightShare: 2.3, qtyShare: 2.2, customers: 2, dispatchDays: 4,
-            mhcQty: 38, mhcWeight: 1579.75, rcsQty: 2, rcsWeight: 352.85, ongcQty: 12, ongcWeight: 262.5, wgcQty: 5, wgcWeight: 419.5, dmhcQty: 3, dmhcWeight: 166.1,
-            mthQty: 50, mthWeight: 2248.41, tlQty: 1, tlWeight: 71.78, jpQty: 1, jpWeight: 50.78, rtQty: 0, rtWeight: 0.0, rsQty: 1, rsWeight: 19.28, tgQty: 7, tgWeight: 210.77, gnQty: 0, gnWeight: 0.0, mkQty: 0, mkWeight: 0.0
-          },
-          {
-            area: 'Other', quantity: 18, weight: 800.0, weightShare: 0.7, qtyShare: 0.7, customers: 1, dispatchDays: 2,
-            mhcQty: 13, mhcWeight: 600.0, rcsQty: 1, rcsWeight: 60.0, ongcQty: 3, ongcWeight: 70.0, wgcQty: 1, wgcWeight: 70.0, dmhcQty: 0, dmhcWeight: 0.0,
-            mthQty: 14, mthWeight: 690.0, tlQty: 0, tlWeight: 0.0, jpQty: 0, jpWeight: 0.0, rtQty: 0, rtWeight: 0.0, rsQty: 0, rsWeight: 0.0, tgQty: 2, tgWeight: 22.0, gnQty: 2, gnWeight: 38.7, mkQty: 0, mkWeight: 0.0
-          }
-        ];
-      } else {
-        list = [];
-      }
-    }
+    let list = analyticsData?.areaWise || [];
     if (areaFilter !== 'All') {
-      list = list.filter(a => a.area.toLowerCase() === areaFilter.toLowerCase());
+      list = list.filter(a =>
+        (a.area || '').toLowerCase() === areaFilter.toLowerCase() ||
+        (a.locality || '').toLowerCase() === areaFilter.toLowerCase() ||
+        (a.city || '').toLowerCase() === areaFilter.toLowerCase() ||
+        (a.zone || '').toLowerCase() === areaFilter.toLowerCase()
+      );
     }
     return list;
-  }, [analyticsData, isAugustBenchmark, areaFilter]);
+  }, [analyticsData, areaFilter]);
+
+  // Filtered by locality search term in Tab 7
+  const filteredAreaWiseData = useMemo(() => {
+    if (!localitySearchTerm.trim()) return areaWiseData;
+    const term = localitySearchTerm.toLowerCase().trim();
+    return areaWiseData.filter(a =>
+      (a.locality || a.area || '').toLowerCase().includes(term) ||
+      (a.pincode || '').toLowerCase().includes(term) ||
+      (a.city || '').toLowerCase().includes(term) ||
+      (a.zone || '').toLowerCase().includes(term)
+    );
+  }, [areaWiseData, localitySearchTerm]);
 
   // ── Dynamically Computed Area Column Totals ──
   const areaTotals = useMemo(() => {
@@ -462,7 +319,6 @@ export const PlantHeadDispatchAnalytics = () => {
       quantity: acc.quantity + (Number(row.quantity) || 0),
       weight: Math.round((acc.weight + (Number(row.weight) || 0)) * 100) / 100,
       customers: acc.customers + (Number(row.customers) || 0),
-      dispatchDays: Math.max(acc.dispatchDays, Number(row.dispatchDays) || 0),
       mhcQty: acc.mhcQty + (Number(row.mhcQty) || 0),
       mhcWeight: Math.round((acc.mhcWeight + (Number(row.mhcWeight) || 0)) * 100) / 100,
       rcsQty: acc.rcsQty + (Number(row.rcsQty) || 0),
@@ -490,7 +346,7 @@ export const PlantHeadDispatchAnalytics = () => {
       mkQty: acc.mkQty + (Number(row.mkQty) || 0),
       mkWeight: Math.round((acc.mkWeight + (Number(row.mkWeight) || 0)) * 100) / 100,
     }), {
-      quantity: 0, weight: 0, customers: 0, dispatchDays: 0,
+      quantity: 0, weight: 0, customers: 0,
       mhcQty: 0, mhcWeight: 0, rcsQty: 0, rcsWeight: 0, ongcQty: 0, ongcWeight: 0,
       wgcQty: 0, wgcWeight: 0, dmhcQty: 0, dmhcWeight: 0,
       mthQty: 0, mthWeight: 0, tlQty: 0, tlWeight: 0, jpQty: 0, jpWeight: 0,
@@ -499,32 +355,19 @@ export const PlantHeadDispatchAnalytics = () => {
     });
   }, [areaWiseData]);
 
-  // ── Donut Chart Data for Regional Distribution ──
+  // ── Donut Chart Data for Regional Distribution (Top 8 Localities) ──
   const areaDonutData = useMemo(() => {
-    return areaWiseData.map(a => ({
-      name: a.area,
+    const palette = ['#0284c7', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#6366f1', '#14b8a6', '#64748b'];
+    return areaWiseData.slice(0, 8).map((a, idx) => ({
+      name: `${a.locality || a.area} (${a.pincode || a.city})`,
       value: areaMatrixMode === 'weight' ? a.weight : a.quantity,
       share: areaMatrixMode === 'weight' ? a.weightShare : a.qtyShare,
-      color: AREA_COLORS[a.area] || '#64748b'
+      color: palette[idx % palette.length]
     }));
   }, [areaWiseData, areaMatrixMode]);
 
   const transportation = useMemo(() => {
-    if (analyticsData?.transportation) return analyticsData.transportation;
-    if (isAugustBenchmark) {
-      return {
-        totalFreightAmount: 284500,
-        avgFreightPerKg: 2.37,
-        avgFreightPerTonne: 2370.9,
-        avgFreightPerPiece: 105.84,
-        totalTrips: 28,
-        activeVehiclesCount: 8,
-        avgPayloadPerTrip: 4285.58,
-        transporters: [],
-        vehicleTrips: []
-      };
-    }
-    return {
+    return analyticsData?.transportation || {
       totalFreightAmount: 0,
       avgFreightPerKg: 0,
       avgFreightPerTonne: 0,
@@ -535,22 +378,11 @@ export const PlantHeadDispatchAnalytics = () => {
       transporters: [],
       vehicleTrips: []
     };
-  }, [analyticsData, isAugustBenchmark]);
+  }, [analyticsData]);
 
   const coloursData = useMemo(() => {
-    if (analyticsData?.colours) return analyticsData.colours;
-    if (isAugustBenchmark) {
-      return [
-        { colour: 'Grey', share: 74.3, weight: 89157.3, colorCode: '#64748b', isDominant: true },
-        { colour: 'Black', share: 12.1, weight: 14519.6, colorCode: '#1e293b', isDominant: false },
-        { colour: 'P. Green', share: 3.3, weight: 3959.9, colorCode: '#10b981', isDominant: false },
-        { colour: 'Red', share: 2.9, weight: 3479.9, colorCode: '#ef4444', isDominant: false },
-        { colour: 'White', share: 0.8, weight: 959.9, colorCode: '#f8fafc', border: '#cbd5e1', isDominant: false },
-        { colour: 'Others', share: 6.6, weight: 7919.8, colorCode: '#8b5cf6', isDominant: false }
-      ];
-    }
-    return [];
-  }, [analyticsData, isAugustBenchmark]);
+    return analyticsData?.colours || [];
+  }, [analyticsData]);
 
   const dispatchOrders = useMemo(() => {
     let list = analyticsData?.dispatchOrders || [];
@@ -738,18 +570,16 @@ export const PlantHeadDispatchAnalytics = () => {
                 outline: 'none'
               }}
             >
-              <option value="2026-08">August 2026 (Benchmark Report)</option>
+              <option value="2026-08">August 2026</option>
               <option value="2026-09">September 2026</option>
-              <option value="2026-07">July 2026</option>
-              <option value="2026-06">June 2026</option>
-              <option value="custom">Custom Date Range</option>
               <option value="all">All-Time Aggregate</option>
+              <option value="custom">Custom Date Range</option>
             </select>
           </div>
 
           {/* Quick Preset Buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            {['August 2026', 'This Month', 'Last Month', 'This Quarter', 'Custom'].map(preset => {
+            {['August 2026', 'September 2026', 'All Time', 'Custom'].map(preset => {
               const isActive = globalTimeframe === preset;
               return (
                 <button
@@ -811,9 +641,14 @@ export const PlantHeadDispatchAnalytics = () => {
               }}
             >
               <option value="All">All Salespersons</option>
-              {salesReferencesData.map(s => (
-                <option key={s.salesRef} value={s.salesRef}>{s.salesRef} ({s.share}%)</option>
-              ))}
+              {(analyticsData?.filterOptions?.salesPersons || salesReferencesData.map(s => s.salesRef)).map(s => {
+                const sObj = salesReferencesData.find(item => item.salesRef === s);
+                return (
+                  <option key={s} value={s}>
+                    {s} {sObj?.share ? `(${sObj.share}%)` : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -833,11 +668,14 @@ export const PlantHeadDispatchAnalytics = () => {
               }}
             >
               <option value="All">All Products</option>
-              <option value="MHC">MHC (57.8%)</option>
-              <option value="RCS">RCS (15.1%)</option>
-              <option value="ONGC">ONGC (12.6%)</option>
-              <option value="WGC">WGC (11.8%)</option>
-              <option value="D MHC">D MHC (2.9%)</option>
+              {(analyticsData?.filterOptions?.products || ['MHC', 'RCS', 'ONGC', 'WGC', 'D MHC']).map(p => {
+                const pObj = productsData.find(item => item.product === p);
+                return (
+                  <option key={p} value={p}>
+                    {p} {pObj?.share ? `(${pObj.share}%)` : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -856,8 +694,8 @@ export const PlantHeadDispatchAnalytics = () => {
                 color: '#1e293b'
               }}
             >
-              <option value="All">All Areas / Zones</option>
-              {['Ahmedabad', 'Gujarat', 'West', 'Central', 'North', 'South', 'East / North-East', 'Other'].map(a => (
+              <option value="All">All Delivery Areas / Localities</option>
+              {(analyticsData?.filterOptions?.areas || areaWiseData.map(a => a.locality || a.area)).map(a => (
                 <option key={a} value={a}>{a}</option>
               ))}
             </select>
@@ -1040,48 +878,32 @@ export const PlantHeadDispatchAnalytics = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
             <Sparkles size={16} color="#38bdf8" />
             <span style={{ fontSize: '12px', fontWeight: '800', color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {isAugustBenchmark ? 'Management Executive Benchmark • August 2026' : `Management Executive Telemetry • ${summary.period}`}
+              Management Executive Telemetry • {summary.period}
             </span>
             <span style={{
-              background: isAugustBenchmark ? 'rgba(56, 189, 248, 0.2)' : (analyticsData?.hasData ? 'rgba(52, 211, 153, 0.2)' : 'rgba(239, 68, 68, 0.2)'),
-              color: isAugustBenchmark ? '#38bdf8' : (analyticsData?.hasData ? '#34d399' : '#f87171'),
+              background: analyticsData?.hasData ? 'rgba(52, 211, 153, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+              color: analyticsData?.hasData ? '#34d399' : '#f87171',
               padding: '2px 8px',
               borderRadius: '5px',
               fontSize: '11px',
               fontWeight: '800'
             }}>
-              {isAugustBenchmark ? 'Verified Benchmark' : (analyticsData?.hasData ? '⚡ Live Database' : 'Zero Dispatches')}
+              {analyticsData?.hasData ? '⚡ Live Database' : 'Zero Dispatches'}
             </span>
           </div>
           <div style={{ fontSize: '15.5px', fontWeight: '700', lineHeight: 1.4, color: '#f8fafc' }}>
             &ldquo;{summary.narrative || `During this period, Himalaya dispatched ${(summary.totalWeight ?? 0).toLocaleString()} kg across ${(summary.totalQuantity ?? 0).toLocaleString()} pieces to ${summary.uniqueClients ?? 0} customers.`}&rdquo;
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
-            {isAugustBenchmark ? (
-              <>
-                <span style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '3px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
-                  Core Profile: MHC (57.8%) + LD/C250 (64.1%) + 600×600 (36.4%) + Grey (74.3%)
-                </span>
-                <span style={{ background: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24', padding: '3px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
-                  Sales Channel: MTH (84.1%)
-                </span>
-                <span style={{ background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', padding: '3px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
-                  Peak Day: 24 Aug (16,741 kg 🚀)
-                </span>
-              </>
-            ) : (
-              <>
-                <span style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '3px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
-                  Lead Product: {productsData[0]?.product || 'N/A'} ({productsData[0]?.share || 0}%)
-                </span>
-                <span style={{ background: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24', padding: '3px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
-                  Top Capacity: {capacitiesData[0]?.capacity || 'N/A'} ({capacitiesData[0]?.share || 0}%)
-                </span>
-                <span style={{ background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', padding: '3px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
-                  Active Trips: {summary.totalTrips || dispatchOrders.length}
-                </span>
-              </>
-            )}
+            <span style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '3px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+              Lead Product: {productsData[0]?.product || 'N/A'} ({productsData[0]?.share || 0}%)
+            </span>
+            <span style={{ background: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24', padding: '3px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
+              Top Capacity: {capacitiesData[0]?.capacity || 'N/A'} ({capacitiesData[0]?.share || 0}%)
+            </span>
+            <span style={{ background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', padding: '3px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
+              Active Trips: {summary.totalTrips || dispatchOrders.length}
+            </span>
           </div>
         </div>
 
@@ -1095,22 +917,12 @@ export const PlantHeadDispatchAnalytics = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
             <ShieldCheck size={16} color="#34d399" />
-            <span style={{ fontSize: '12px', fontWeight: '800', color: '#34d399' }}>Data Quality &amp; Hygiene</span>
+            <span style={{ fontSize: '12px', fontWeight: '800', color: '#34d399' }}>Live Telemetry &amp; Hygiene</span>
           </div>
           <div style={{ fontSize: '11px', color: '#cbd5e1', lineHeight: 1.3 }}>
-            {isAugustBenchmark ? (
-              <>
-                &bull; Sizes standardized: 600×600, 1200×1200, 900MM<br />
-                &bull; Colours standardized: Grey, Black, P.Green<br />
-                &bull; Duplicates and test logs purged
-              </>
-            ) : (
-              <>
-                &bull; Queried directly from himalaya_erp database<br />
-                &bull; Active records: {dispatchOrders.length} dispatches<br />
-                &bull; Zero fake fallback applied
-              </>
-            )}
+            &bull; Live database reconciliation<br />
+            &bull; Active records: {dispatchOrders.length} dispatches<br />
+            &bull; Delivery localities: {areaWiseData.length} areas tracked
           </div>
         </div>
       </div>
@@ -1255,18 +1067,7 @@ export const PlantHeadDispatchAnalytics = () => {
               <Award size={18} color="#f59e0b" /> Key Highlights &amp; Analytical Conclusions
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
-              {(analyticsData?.keyHighlights || (isAugustBenchmark ? [
-                { icon: '📦', title: 'Volume', value: '2,688 pieces dispatched' },
-                { icon: '⚖️', title: 'Weight', value: '119.996 tonnes dispatched (~120 MT)' },
-                { icon: '🏭', title: 'Dominant Product', value: 'MHC represents 57.8% (69.2 MT) of total weight' },
-                { icon: '⚙️', title: 'Capacity Driver', value: 'LD + C250 account for 64.1% of total tonnage' },
-                { icon: '👥', title: 'Client Reach', value: '79 unique customers served over 21 operational days' },
-                { icon: '🏆', title: 'Customer Concentration', value: 'Top 5 customers received 38.7% of all material' },
-                { icon: '📐', title: 'Core Size', value: '600×600 is largest size contributor (36.4%)' },
-                { icon: '🎨', title: 'Dominant Colour', value: 'Grey accounts for 74.3% (89.2 MT) of total material' },
-                { icon: '💼', title: 'Sales Reference', value: 'MTH accounts for 84.1% (100.8 MT) of dispatches' },
-                { icon: '🚚', title: 'Logistics Freight', value: '₹2,84,500 freight paid across 28 trips (₹2.37/kg)' },
-              ] : [
+              {(analyticsData?.keyHighlights && analyticsData.keyHighlights.length > 0 ? analyticsData.keyHighlights : [
                 { icon: '📦', title: 'Volume', value: `${(summary.totalQuantity ?? 0).toLocaleString()} pieces dispatched` },
                 { icon: '⚖️', title: 'Weight', value: `${(summary.totalWeightTonnes ?? 0).toLocaleString()} tonnes dispatched` },
                 { icon: '🏭', title: 'Dominant Product', value: productsData[0] ? `${productsData[0].product} accounts for ${productsData[0].share}%` : 'N/A' },
@@ -1277,7 +1078,7 @@ export const PlantHeadDispatchAnalytics = () => {
                 { icon: '🎨', title: 'Dominant Colour', value: coloursData[0] ? `${coloursData[0].colour} (${coloursData[0].share}%)` : 'N/A' },
                 { icon: '💼', title: 'Sales Reference', value: salesReferencesData[0] ? `${salesReferencesData[0].salesRef} (${salesReferencesData[0].share}%)` : 'N/A' },
                 { icon: '🚚', title: 'Logistics Freight', value: `₹${(summary.totalTransportationCost ?? 0).toLocaleString()} across ${summary.totalTrips || dispatchOrders.length} trips` },
-              ])).map((h, i) => (
+              ]).map((h, i) => (
                 <div key={i} style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '20px' }}>{h.icon}</span>
                   <div>
@@ -1306,11 +1107,11 @@ export const PlantHeadDispatchAnalytics = () => {
                   <Package size={17} color="#2563eb" /> Product-wise Performance
                 </h3>
                 <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                  MHC = 57.8% Weight
+                  {productsData[0] ? `${productsData[0].product} = ${productsData[0].share}% Weight` : 'Active Products'}
                 </span>
               </div>
               <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 14px 0' }}>
-                &ldquo;Which products contributed the most weight?&rdquo; &bull; MHC represents more than half of the company&apos;s August tonnage.
+                &ldquo;Which products contributed the most weight?&rdquo; &bull; {analyticsData?.productInsight || (productsData[0] ? `${productsData[0].product} represents ${productsData[0].share}% of total dispatch tonnage.` : 'Product distribution across period.')}
               </p>
 
               {/* Product Breakdown Table */}
@@ -1365,11 +1166,11 @@ export const PlantHeadDispatchAnalytics = () => {
                   <Scale size={17} color="#0d9488" /> Capacity-wise Performance
                 </h3>
                 <span style={{ background: '#ccfbf1', color: '#0f766e', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                  LD + C250 = 64.1%
+                  {capacitiesData[0] ? `${capacitiesData[0].capacity} = ${capacitiesData[0].share}%` : 'Load Ratings'}
                 </span>
               </div>
               <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 14px 0' }}>
-                &ldquo;Which capacity/specification contributed the most weight?&rdquo; &bull; Heavy concentration in LD &amp; C250 load ratings.
+                &ldquo;Which capacity/specification contributed the most weight?&rdquo; &bull; {analyticsData?.capacityInsight || (capacitiesData[0] ? `Highest concentration in ${capacitiesData[0].capacity} (${capacitiesData[0].share}%).` : 'Load rating performance.')}
               </p>
 
               {/* Capacity Table */}
@@ -1424,11 +1225,11 @@ export const PlantHeadDispatchAnalytics = () => {
                   <Grid size={17} color="#7c3aed" /> Size-wise Contributors
                 </h3>
                 <span style={{ background: '#ede9fe', color: '#6d28d9', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                  600×600 = 36.4%
+                  {sizesData[0] ? `${sizesData[0].size} = ${sizesData[0].share}%` : 'Opening Sizes'}
                 </span>
               </div>
               <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 14px 0' }}>
-                &ldquo;Which physical size contributed the most weight?&rdquo; &bull; 600×600 is the primary opening dimension dispatched.
+                &ldquo;Which physical size contributed the most weight?&rdquo; &bull; {analyticsData?.sizeInsight || (sizesData[0] ? `${sizesData[0].size} is the primary opening dimension dispatched (${sizesData[0].share}%).` : 'Opening size contributors.')}
               </p>
 
               <div style={{ overflowX: 'auto', marginBottom: '14px' }}>
@@ -1462,11 +1263,11 @@ export const PlantHeadDispatchAnalytics = () => {
                   <PieChartIcon size={17} color="#475569" /> Colour-wise Distribution
                 </h3>
                 <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' }}>
-                  Grey Dominates (74.3%)
+                  {coloursData[0] ? `${coloursData[0].colour} (${coloursData[0].share}%)` : 'Colours'}
                 </span>
               </div>
               <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 14px 0' }}>
-                &ldquo;Which colour was dispatched the most?&rdquo; &bull; Nearly 3/4 of dispatched tonnage was Grey precast.
+                &ldquo;Which colour was dispatched the most?&rdquo; &bull; {analyticsData?.colourInsight || (coloursData[0] ? `${coloursData[0].colour} accounts for ${coloursData[0].share}% of total dispatched material.` : 'Colour distribution.')}
               </p>
 
               {/* Colour Palette Swatches */}
@@ -1709,11 +1510,13 @@ export const PlantHeadDispatchAnalytics = () => {
                   <Award size={17} color="#0284c7" /> Sales Reference vs Total Weight &amp; Quantity
                 </h3>
                 <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
-                  <strong>MTH</strong> contributes about <strong>84.1%</strong> (100,829.11 kg) of total dispatch weight.
+                  {analyticsData?.salesRefInsight || (salesReferencesData[0] ? (
+                    <><strong>{salesReferencesData[0].salesRef}</strong> leads with <strong>{salesReferencesData[0].share}%</strong> ({Math.round(salesReferencesData[0].totalWeight).toLocaleString()} kg) of total dispatch weight.</>
+                  ) : 'Sales reference breakdown across dispatched orders.')}
                 </p>
               </div>
               <span style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800' }}>
-                MTH Dominance: 84.1%
+                {salesReferencesData[0] ? `${salesReferencesData[0].salesRef} Lead: ${salesReferencesData[0].share}%` : 'Sales Reference'}
               </span>
             </div>
 
@@ -2216,7 +2019,7 @@ export const PlantHeadDispatchAnalytics = () => {
       ═══════════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'area' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Header Card with Sub-navigation and Mode Toggle */}
+          {/* Header Card with Locality Search, Mode Toggle & Sub-Navigation */}
           <div style={{
             background: '#ffffff',
             borderRadius: '14px',
@@ -2234,66 +2037,105 @@ export const PlantHeadDispatchAnalytics = () => {
             }}>
               <div>
                 <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <MapPin size={20} color="#0284c7" /> Area-wise Dispatch Analysis & Regional Logistics
+                  <MapPin size={20} color="#0284c7" /> Delivery Locality &amp; Postal Pincode Analytics Engine
                 </h3>
                 <p style={{ fontSize: '12.5px', color: '#64748b', margin: '3px 0 0 0' }}>
-                  Region and zone analysis—Ahmedabad, Gujarat, West, North, South, Central and East/North-East—not a city-only view. Reconciled with total volume ({(summary.totalQuantity ?? areaTotals.quantity).toLocaleString()} pcs / {(summary.totalWeight ?? areaTotals.weight).toLocaleString()} kg)
+                  Granular delivery analysis across <strong>{areaWiseData.length} localities</strong> and postal pincodes. Reconciled with total volume ({(summary.totalQuantity ?? areaTotals.quantity).toLocaleString()} pcs / {(summary.totalWeight ?? areaTotals.weight).toLocaleString()} kg)
                 </p>
               </div>
 
-              {/* Units Toggle: Weight (kg) vs Quantity (pcs) */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b' }}>Metric View:</span>
+              {/* Controls: Search + Metric Toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                {/* Live Locality Search Bar */}
                 <div style={{
                   display: 'flex',
-                  background: '#f1f5f9',
+                  alignItems: 'center',
+                  background: '#f8fafc',
+                  border: '1.5px solid #cbd5e1',
                   borderRadius: '8px',
-                  padding: '3px',
-                  border: '1px solid #cbd5e1'
+                  padding: '5px 10px',
+                  gap: '6px',
+                  minWidth: '220px'
                 }}>
-                  <button
-                    onClick={() => setAreaMatrixMode('weight')}
+                  <Search size={14} color="#64748b" />
+                  <input
+                    type="text"
+                    value={localitySearchTerm}
+                    onChange={(e) => setLocalitySearchTerm(e.target.value)}
+                    placeholder="Search locality, city, PIN..."
                     style={{
-                      padding: '5px 12px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: '800',
                       border: 'none',
-                      cursor: 'pointer',
-                      background: areaMatrixMode === 'weight' ? '#0284c7' : 'transparent',
-                      color: areaMatrixMode === 'weight' ? '#ffffff' : '#64748b',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <Scale size={13} /> Weight (kg)
-                  </button>
-                  <button
-                    onClick={() => setAreaMatrixMode('qty')}
-                    style={{
-                      padding: '5px 12px',
-                      borderRadius: '6px',
+                      background: 'transparent',
+                      outline: 'none',
                       fontSize: '12px',
-                      fontWeight: '800',
-                      border: 'none',
-                      cursor: 'pointer',
-                      background: areaMatrixMode === 'qty' ? '#0284c7' : 'transparent',
-                      color: areaMatrixMode === 'qty' ? '#ffffff' : '#64748b',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      transition: 'all 0.15s ease'
+                      color: '#0f172a',
+                      width: '100%'
                     }}
-                  >
-                    <Package size={13} /> Quantity (pcs)
-                  </button>
+                  />
+                  {localitySearchTerm && (
+                    <button
+                      onClick={() => setLocalitySearchTerm('')}
+                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8', fontSize: '12px' }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Units Toggle: Weight (kg) vs Quantity (pcs) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b' }}>Metric:</span>
+                  <div style={{
+                    display: 'flex',
+                    background: '#f1f5f9',
+                    borderRadius: '8px',
+                    padding: '3px',
+                    border: '1px solid #cbd5e1'
+                  }}>
+                    <button
+                      onClick={() => setAreaMatrixMode('weight')}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '800',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: areaMatrixMode === 'weight' ? '#0284c7' : 'transparent',
+                        color: areaMatrixMode === 'weight' ? '#ffffff' : '#64748b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <Scale size={13} /> Weight (kg)
+                    </button>
+                    <button
+                      onClick={() => setAreaMatrixMode('qty')}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '800',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: areaMatrixMode === 'qty' ? '#0284c7' : 'transparent',
+                        color: areaMatrixMode === 'qty' ? '#ffffff' : '#64748b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <Package size={13} /> Quantity (pcs)
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Sub-Tabs: 4 Key Views + Overview */}
+            {/* Sub-Tabs: 5 Views */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -2303,11 +2145,11 @@ export const PlantHeadDispatchAnalytics = () => {
               overflowX: 'auto'
             }}>
               {[
-                { id: 'summary', label: 'Overview & Distribution' },
-                { id: 'weight', label: '1. Area-wise Weight' },
-                { id: 'qty', label: '2. Area-wise Quantity' },
-                { id: 'product', label: '3. Area × Product Matrix' },
-                { id: 'salesperson', label: '4. Area × Salesperson Matrix' }
+                { id: 'summary', label: 'Master Locality Log & KPIs' },
+                { id: 'weight', label: '1. Locality Weight Analysis' },
+                { id: 'qty', label: '2. Locality Quantity Analysis' },
+                { id: 'product', label: '3. Locality × Product Matrix' },
+                { id: 'salesperson', label: '4. Locality × Salesperson Matrix' }
               ].map(sub => {
                 const isCurrent = areaSubTab === sub.id;
                 return (
@@ -2333,77 +2175,106 @@ export const PlantHeadDispatchAnalytics = () => {
               })}
             </div>
 
-            {/* 4 Regional Executive KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginTop: '16px' }}>
+            {/* 6 Executive Locality KPI Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginTop: '16px' }}>
+              {/* KPI 1: Total Localities */}
               <div style={{ background: '#f0f9ff', padding: '14px', borderRadius: '10px', border: '1px solid #bae6fd' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#0369a1', textTransform: 'uppercase' }}>Dominant Area (Weight)</div>
+                <div style={{ fontSize: '11px', fontWeight: '800', color: '#0369a1', textTransform: 'uppercase' }}>Delivery Localities</div>
                 <div style={{ fontSize: '20px', fontWeight: '900', color: '#0c4a6e', marginTop: '4px' }}>
-                  {areaWiseData[0]?.area || 'N/A'}
+                  {areaWiseData.length} Areas
                 </div>
-                <div style={{ fontSize: '12px', color: '#0284c7', marginTop: '2px', fontWeight: '700' }}>
-                  {areaWiseData[0]?.weight?.toLocaleString() ?? 0} kg ({areaWiseData[0]?.weightShare ?? 0}% share)
+                <div style={{ fontSize: '11.5px', color: '#0284c7', marginTop: '2px', fontWeight: '700' }}>
+                  Across {new Set(areaWiseData.map(a => a.city)).size} Unique Cities
                 </div>
               </div>
 
+              {/* KPI 2: Top Locality by Weight */}
               <div style={{ background: '#f0fdf4', padding: '14px', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#15803d', textTransform: 'uppercase' }}>Dominant Area (Quantity)</div>
-                <div style={{ fontSize: '20px', fontWeight: '900', color: '#14532d', marginTop: '4px' }}>
-                  {[...areaWiseData].sort((a, b) => b.quantity - a.quantity)[0]?.area || 'N/A'}
+                <div style={{ fontSize: '11px', fontWeight: '800', color: '#15803d', textTransform: 'uppercase' }}>Top Delivery Area</div>
+                <div style={{ fontSize: '18px', fontWeight: '900', color: '#14532d', marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {areaWiseData[0]?.locality || 'N/A'}
                 </div>
-                <div style={{ fontSize: '12px', color: '#16a34a', marginTop: '2px', fontWeight: '700' }}>
-                  {[...areaWiseData].sort((a, b) => b.quantity - a.quantity)[0]?.quantity?.toLocaleString() ?? 0} pcs ({[...areaWiseData].sort((a, b) => b.quantity - a.quantity)[0]?.qtyShare ?? 0}% share)
+                <div style={{ fontSize: '11.5px', color: '#16a34a', marginTop: '2px', fontWeight: '700' }}>
+                  PIN: {areaWiseData[0]?.pincode || '—'} · {areaWiseData[0]?.city || ''}
                 </div>
               </div>
 
+              {/* KPI 3: Total Quantity */}
               <div style={{ background: '#faf5ff', padding: '14px', borderRadius: '10px', border: '1px solid #e9d5ff' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#7e22ce', textTransform: 'uppercase' }}>Active Territories</div>
+                <div style={{ fontSize: '11px', fontWeight: '800', color: '#7e22ce', textTransform: 'uppercase' }}>Total Dispatched Qty</div>
                 <div style={{ fontSize: '20px', fontWeight: '900', color: '#581c87', marginTop: '4px' }}>
-                  {areaWiseData.length} Zones
+                  {areaTotals.quantity.toLocaleString()} pcs
                 </div>
-                <div style={{ fontSize: '12px', color: '#9333ea', marginTop: '2px', fontWeight: '700' }}>
-                  Serving {areaTotals.customers} Unique Clients
+                <div style={{ fontSize: '11.5px', color: '#9333ea', marginTop: '2px', fontWeight: '700' }}>
+                  100% Reconciled Volume
                 </div>
               </div>
 
+              {/* KPI 4: Total Weight */}
               <div style={{ background: '#fffbeb', padding: '14px', borderRadius: '10px', border: '1px solid #fde68a' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#b45309', textTransform: 'uppercase' }}>Primary Product Volume</div>
+                <div style={{ fontSize: '11px', fontWeight: '800', color: '#b45309', textTransform: 'uppercase' }}>Total Weight Dispatched</div>
                 <div style={{ fontSize: '20px', fontWeight: '900', color: '#78350f', marginTop: '4px' }}>
-                  MHC ({areaTotals.mhcQty.toLocaleString()} pcs)
+                  {areaTotals.weight.toLocaleString()} kg
                 </div>
-                <div style={{ fontSize: '12px', color: '#d97706', marginTop: '2px', fontWeight: '700' }}>
-                  {areaTotals.mhcWeight.toLocaleString()} kg Total Dispatch
+                <div style={{ fontSize: '11.5px', color: '#d97706', marginTop: '2px', fontWeight: '700' }}>
+                  ≈ {(Math.round(areaTotals.weight / 10) / 100).toLocaleString()} Tonnes
+                </div>
+              </div>
+
+              {/* KPI 5: Top Locality Share */}
+              <div style={{ background: '#fdf2f8', padding: '14px', borderRadius: '10px', border: '1px solid #fbcfe8' }}>
+                <div style={{ fontSize: '11px', fontWeight: '800', color: '#be185d', textTransform: 'uppercase' }}>Top Locality Share</div>
+                <div style={{ fontSize: '20px', fontWeight: '900', color: '#831843', marginTop: '4px' }}>
+                  {areaWiseData[0]?.weightShare ?? 0}%
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#db2777', marginTop: '2px', fontWeight: '700' }}>
+                  {areaWiseData[0]?.qtyShare ?? 0}% of Total Pieces
+                </div>
+              </div>
+
+              {/* KPI 6: Unique Customers */}
+              <div style={{ background: '#ecfeff', padding: '14px', borderRadius: '10px', border: '1px solid #a5f3fc' }}>
+                <div style={{ fontSize: '11px', fontWeight: '800', color: '#0e7490', textTransform: 'uppercase' }}>Unique Customers</div>
+                <div style={{ fontSize: '20px', fontWeight: '900', color: '#164e63', marginTop: '4px' }}>
+                  {areaTotals.customers} Clients
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#0891b2', marginTop: '2px', fontWeight: '700' }}>
+                  Across All Locations
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ── Visual Charts: 5 Charts Recommended ── */}
+          {/* ── Visual Charts Section ── */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '20px' }}>
-            {/* Chart 1: Area-wise Dispatch Weight Bar Chart */}
+            {/* Chart 1: Top Localities Bar Chart (with Metric Toggle) */}
             <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <div>
                   <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <BarChart3 size={16} color="#0284c7" /> Area-wise Dispatch Weight (kg)
+                    <BarChart3 size={16} color="#0284c7" /> Top Delivery Localities ({areaMatrixMode === 'weight' ? 'Weight in kg' : 'Quantity in pcs'})
                   </h4>
-                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>Tonnage per geographic area / zone</span>
+                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>Ranking by delivery volume per postal locality</span>
                 </div>
                 <span style={{ fontSize: '12px', fontWeight: '800', color: '#0284c7', background: '#e0f2fe', padding: '3px 8px', borderRadius: '6px' }}>
-                  Total: {areaTotals.weight.toLocaleString()} kg
+                  {areaMatrixMode === 'weight' ? `${areaTotals.weight.toLocaleString()} kg` : `${areaTotals.quantity.toLocaleString()} pcs`}
                 </span>
               </div>
               <ResponsiveChartBox height={280}>
-                <BarChart data={areaWiseData} margin={{ top: 15, right: 15, left: 0, bottom: 25 }}>
+                <BarChart data={filteredAreaWiseData.slice(0, 10)} margin={{ top: 15, right: 15, left: 0, bottom: 35 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="area" tick={{ fontSize: 11, fill: '#64748b' }} angle={-20} textAnchor="end" />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => `${(v/1000).toFixed(0)}T`} />
+                  <XAxis dataKey="locality" tick={{ fontSize: 11, fill: '#64748b' }} angle={-25} textAnchor="end" />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => areaMatrixMode === 'weight' ? `${(v/1000).toFixed(1)}T` : v} />
                   <Tooltip
-                    formatter={(val) => [`${Number(val).toLocaleString()} kg`, 'Dispatch Weight']}
+                    formatter={(val, name, props) => [
+                      areaMatrixMode === 'weight' ? `${Number(val).toLocaleString()} kg` : `${Number(val).toLocaleString()} pcs`,
+                      `PIN: ${props.payload.pincode || '—'} · ${props.payload.city}`
+                    ]}
                     contentStyle={{ borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
                   />
-                  <Bar dataKey="weight" radius={[6, 6, 0, 0]}>
-                    {areaWiseData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={AREA_COLORS[entry.area] || '#0284c7'} />
+                  <Bar dataKey={areaMatrixMode === 'weight' ? 'weight' : 'quantity'} radius={[6, 6, 0, 0]}>
+                    {filteredAreaWiseData.slice(0, 10).map((entry, index) => (
+                      <Cell key={`cell-loc-${index}`} fill={['#0284c7', '#0d9488', '#16a34a', '#ca8a04', '#ea580c', '#9333ea', '#db2777', '#475569'][index % 8]} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -2415,9 +2286,9 @@ export const PlantHeadDispatchAnalytics = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <div>
                   <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <PieChartIcon size={16} color="#7c3aed" /> Area Distribution ({areaMatrixMode === 'weight' ? 'Weight %' : 'Quantity %'})
+                    <PieChartIcon size={16} color="#7c3aed" /> Locality Distribution ({areaMatrixMode === 'weight' ? 'Weight %' : 'Quantity %'})
                   </h4>
-                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>Proportion of {areaMatrixMode === 'weight' ? 'total tonnage' : 'total pieces'}</span>
+                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>Top delivery destinations share</span>
                 </div>
               </div>
               <ResponsiveChartBox height={280}>
@@ -2447,57 +2318,26 @@ export const PlantHeadDispatchAnalytics = () => {
                     layout="horizontal"
                     verticalAlign="bottom"
                     align="center"
-                    wrapperStyle={{ fontSize: '11.5px', paddingTop: '10px' }}
+                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
                   />
                 </PieChart>
               </ResponsiveChartBox>
             </div>
 
-            {/* Chart 3: Area-wise Dispatch Quantity Bar Chart */}
-            <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            {/* Chart 3: Locality × Product Mix Stacked Bar Chart */}
+            <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', gridColumn: 'span 2' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <div>
                   <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Package size={16} color="#059669" /> Area-wise Dispatch Quantity (pcs)
+                    <Layers size={16} color="#d97706" /> Locality × Product Mix ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})
                   </h4>
-                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>Physical unit dispatches per zone</span>
-                </div>
-                <span style={{ fontSize: '12px', fontWeight: '800', color: '#059669', background: '#dcfce7', padding: '3px 8px', borderRadius: '6px' }}>
-                  Total: {areaTotals.quantity.toLocaleString()} pcs
-                </span>
-              </div>
-              <ResponsiveChartBox height={280}>
-                <BarChart data={areaWiseData} margin={{ top: 15, right: 15, left: 0, bottom: 25 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="area" tick={{ fontSize: 11, fill: '#64748b' }} angle={-20} textAnchor="end" />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <Tooltip
-                    formatter={(val) => [`${Number(val).toLocaleString()} pcs`, 'Quantity']}
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                  />
-                  <Bar dataKey="quantity" fill="#059669" radius={[6, 6, 0, 0]}>
-                    {areaWiseData.map((entry, index) => (
-                      <Cell key={`cell-qty-${index}`} fill={AREA_COLORS[entry.area] || '#059669'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveChartBox>
-            </div>
-
-            {/* Chart 4: Area × Product Stacked Bar Chart */}
-            <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                <div>
-                  <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Layers size={16} color="#d97706" /> Area × Product Mix ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})
-                  </h4>
-                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>Product stack per territory</span>
+                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>Product stack across top delivery localities</span>
                 </div>
               </div>
               <ResponsiveChartBox height={280}>
-                <BarChart data={areaWiseData} margin={{ top: 15, right: 15, left: 0, bottom: 25 }}>
+                <BarChart data={filteredAreaWiseData.slice(0, 12)} margin={{ top: 15, right: 15, left: 0, bottom: 35 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="area" tick={{ fontSize: 11, fill: '#64748b' }} angle={-20} textAnchor="end" />
+                  <XAxis dataKey="locality" tick={{ fontSize: 11, fill: '#64748b' }} angle={-25} textAnchor="end" />
                   <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip
                     formatter={(val, name) => [`${Number(val).toLocaleString()} ${areaMatrixMode === 'weight' ? 'kg' : 'pcs'}`, name]}
@@ -2519,16 +2359,14 @@ export const PlantHeadDispatchAnalytics = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                  {areaSubTab === 'summary' && 'Master Area-wise Dispatch Log & KPIs'}
-                  {areaSubTab === 'weight' && '1. Area-wise Weight Analysis (kg & Share %)'}
-                  {areaSubTab === 'qty' && '2. Area-wise Quantity Analysis (pcs & Daily Velocity)'}
-                  {areaSubTab === 'product' && `3. Area × Product Matrix (${areaMatrixMode === 'weight' ? 'Weight in kg' : 'Quantity in pcs'})`}
-                  {areaSubTab === 'salesperson' && `4. Area × Salesperson Matrix (${areaMatrixMode === 'weight' ? 'Weight in kg' : 'Quantity in pcs'})`}
+                  {areaSubTab === 'summary' && 'Master Delivery Locality Log & KPIs'}
+                  {areaSubTab === 'weight' && '1. Locality Weight Analysis (kg & Share %)'}
+                  {areaSubTab === 'qty' && '2. Locality Quantity Analysis (pcs & Share %)'}
+                  {areaSubTab === 'product' && `3. Locality × Product Matrix (${areaMatrixMode === 'weight' ? 'Weight in kg' : 'Quantity in pcs'})`}
+                  {areaSubTab === 'salesperson' && `4. Locality × Salesperson Matrix (${areaMatrixMode === 'weight' ? 'Weight in kg' : 'Quantity in pcs'})`}
                 </h4>
                 <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
-                  {areaSubTab === 'product' || areaSubTab === 'salesperson'
-                    ? 'Cross-tabulation reconciling directly with aggregate dispatch parameters.'
-                    : 'Derived from delivery addresses and verified ERP sales orders.'}
+                  {localitySearchTerm ? `Filtered for "${localitySearchTerm}" (${filteredAreaWiseData.length} localities matched)` : `Showing ${filteredAreaWiseData.length} delivery destinations. Click 'View Details' for customer rankings and product mixes.`}
                 </p>
               </div>
 
@@ -2571,93 +2409,147 @@ export const PlantHeadDispatchAnalytics = () => {
             {/* Table 1: Primary Summary (when areaSubTab === 'summary') */}
             {areaSubTab === 'summary' && (
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '10px 12px' }}>Area / Zone</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Dispatch Qty (pcs)</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Dispatch Weight (kg)</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Weight Share %</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Quantity Share %</th>
+                      <th style={{ padding: '10px 12px' }}>Delivery Area / Locality</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Postal PIN</th>
+                      <th style={{ padding: '10px 12px' }}>City / District</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Dispatch Qty</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Dispatch Weight</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Weight Share</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Qty Share</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Customers</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Dispatch Days</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Trips</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Regional Freight</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Freight / kg</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Drilldown</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {areaWiseData.map((row, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: row.area === 'Ahmedabad' ? '#f0f9ff' : 'transparent' }}>
-                        <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: AREA_COLORS[row.area] || '#64748b' }}></span>
-                          {row.area}
-                          {row.area === 'Ahmedabad' && <span style={{ fontSize: '10px', background: '#0284c7', color: '#fff', padding: '2px 5px', borderRadius: '4px' }}>PRIMARY</span>}
+                    {filteredAreaWiseData.map((row, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#0284c7' }}></span>
+                            <span>{row.locality || row.area}</span>
+                            {idx === 0 && <span style={{ fontSize: '10px', background: '#0284c7', color: '#fff', padding: '2px 5px', borderRadius: '4px' }}>TOP AREA</span>}
+                          </div>
                         </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{row.quantity.toLocaleString()} pcs</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>{row.weight.toLocaleString()} kg</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{row.weightShare}%</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#059669' }}>{row.qtyShare}%</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{row.customers}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{row.dispatchDays} days</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{row.trips ?? 0}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#059669' }}>₹{Number(row.freight || 0).toLocaleString()}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>₹{Number(row.freightPerKg || 0).toLocaleString()}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: '800', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 7px', fontSize: '11.5px', color: '#0f172a' }}>
+                            {row.pincode || '—'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: '#475569', fontWeight: '600' }}>
+                          {row.city || '—'}
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
+                          {row.quantity.toLocaleString()} pcs
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
+                          {row.weight.toLocaleString()} kg
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>
+                          {row.weightShare}%
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#059669' }}>
+                          {row.qtyShare}%
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
+                          {row.customers}
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => setSelectedAreaModal(row)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              background: '#0284c7',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontSize: '11.5px',
+                              fontWeight: '800',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 4px rgba(2, 132, 199, 0.2)'
+                            }}
+                          >
+                            <Eye size={12} /> View Details →
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {/* Reconciled Totals Row */}
                     <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1' }}>
-                      <td style={{ padding: '10px 12px', color: '#0f172a' }}>TOTAL</td>
+                      <td style={{ padding: '10px 12px', color: '#0f172a' }}>TOTAL ({filteredAreaWiseData.length} Areas)</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#64748b' }}>—</td>
+                      <td style={{ padding: '10px 12px', color: '#64748b' }}>All Destinations</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>{areaTotals.quantity.toLocaleString()} pcs</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>{areaTotals.weight.toLocaleString()} kg</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>{areaTotals.weight > 0 ? '100.0%' : '0%'}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>{areaTotals.quantity > 0 ? '100.0%' : '0%'}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>{areaTotals.customers}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>{summary.dispatchDays ?? areaTotals.dispatchDays} days</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>{areaWiseData.reduce((sum, row) => sum + Number(row.trips || 0), 0)}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>₹{areaWiseData.reduce((sum, row) => sum + Number(row.freight || 0), 0).toLocaleString()}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>₹{areaTotals.weight > 0 ? (areaWiseData.reduce((sum, row) => sum + Number(row.freight || 0), 0) / areaTotals.weight).toFixed(2) : '0.00'}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#0284c7' }}>100% Reconciled</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             )}
 
-            {/* Table 2: Area-wise Weight (when areaSubTab === 'weight') */}
+            {/* Table 2: Locality Weight Analysis (when areaSubTab === 'weight') */}
             {areaSubTab === 'weight' && (
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '10px 12px' }}>Area / Zone</th>
+                      <th style={{ padding: '10px 12px' }}>Delivery Locality</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>PIN</th>
+                      <th style={{ padding: '10px 12px' }}>City</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Dispatch Weight (kg)</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Weight (Tonnes)</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Tonnes</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Weight Share %</th>
-                      <th style={{ padding: '10px 12px' }}>Weight Share Visual</th>
+                      <th style={{ padding: '10px 12px' }}>Share Visual</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Avg kg/Piece</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Customers</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {areaWiseData.map((row, idx) => (
+                    {filteredAreaWiseData.map((row, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>{row.area}</td>
+                        <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>{row.locality || row.area}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: '800', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 7px', fontSize: '11px' }}>
+                            {row.pincode || '—'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: '#475569' }}>{row.city || '—'}</td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>{row.weight.toLocaleString()} kg</td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#0284c7' }}>{(row.weight / 1000).toFixed(2)} T</td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{row.weightShare}%</td>
-                        <td style={{ padding: '10px 12px', width: '160px' }}>
+                        <td style={{ padding: '10px 12px', width: '140px' }}>
                           <div style={{ background: '#e2e8f0', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-                            <div style={{ width: `${row.weightShare}%`, height: '100%', background: AREA_COLORS[row.area] || '#0284c7', borderRadius: '4px' }}></div>
+                            <div style={{ width: `${Math.min(row.weightShare, 100)}%`, height: '100%', background: '#0284c7', borderRadius: '4px' }}></div>
                           </div>
                         </td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
                           {row.quantity > 0 ? (row.weight / row.quantity).toFixed(2) : '0.00'} kg
                         </td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{row.customers}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => setSelectedAreaModal(row)}
+                            style={{ padding: '3px 8px', borderRadius: '5px', background: '#0284c7', color: '#fff', border: 'none', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
+                          >
+                            Details →
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1' }}>
                       <td style={{ padding: '10px 12px', color: '#0f172a' }}>TOTAL</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
+                      <td style={{ padding: '10px 12px' }}>—</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>{areaTotals.weight.toLocaleString()} kg</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>{(areaTotals.weight / 1000).toFixed(2)} T</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>100%</td>
@@ -2668,88 +2560,104 @@ export const PlantHeadDispatchAnalytics = () => {
                         {areaTotals.quantity > 0 ? (areaTotals.weight / areaTotals.quantity).toFixed(2) : '0.00'} kg
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>{areaTotals.customers}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             )}
 
-            {/* Table 3: Area-wise Quantity (when areaSubTab === 'qty') */}
+            {/* Table 3: Locality Quantity Analysis (when areaSubTab === 'qty') */}
             {areaSubTab === 'qty' && (
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '10px 12px' }}>Area / Zone</th>
+                      <th style={{ padding: '10px 12px' }}>Delivery Locality</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>PIN</th>
+                      <th style={{ padding: '10px 12px' }}>City</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Dispatch Qty (pcs)</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Quantity Share %</th>
-                      <th style={{ padding: '10px 12px' }}>Quantity Share Visual</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Dispatch Days</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Pcs / Dispatch Day</th>
+                      <th style={{ padding: '10px 12px' }}>Share Visual</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Customers</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {areaWiseData.map((row, idx) => (
+                    {filteredAreaWiseData.map((row, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>{row.area}</td>
+                        <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>{row.locality || row.area}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: '800', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 7px', fontSize: '11px' }}>
+                            {row.pincode || '—'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: '#475569' }}>{row.city || '—'}</td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>{row.quantity.toLocaleString()} pcs</td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>{row.qtyShare}%</td>
-                        <td style={{ padding: '10px 12px', width: '160px' }}>
+                        <td style={{ padding: '10px 12px', width: '140px' }}>
                           <div style={{ background: '#e2e8f0', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-                            <div style={{ width: `${row.qtyShare}%`, height: '100%', background: AREA_COLORS[row.area] || '#059669', borderRadius: '4px' }}></div>
+                            <div style={{ width: `${Math.min(row.qtyShare, 100)}%`, height: '100%', background: '#059669', borderRadius: '4px' }}></div>
                           </div>
                         </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{row.dispatchDays} days</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                          {row.dispatchDays > 0 ? (row.quantity / row.dispatchDays).toFixed(1) : '0'} pcs/day
-                        </td>
                         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{row.customers}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => setSelectedAreaModal(row)}
+                            style={{ padding: '3px 8px', borderRadius: '5px', background: '#0284c7', color: '#fff', border: 'none', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
+                          >
+                            Details →
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1' }}>
                       <td style={{ padding: '10px 12px', color: '#0f172a' }}>TOTAL</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
+                      <td style={{ padding: '10px 12px' }}>—</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>{areaTotals.quantity.toLocaleString()} pcs</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>100%</td>
                       <td style={{ padding: '10px 12px' }}>
                         <div style={{ background: '#059669', height: '8px', borderRadius: '4px' }}></div>
                       </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>{summary.dispatchDays ?? areaTotals.dispatchDays} days</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>
-                        {(summary.dispatchDays || areaTotals.dispatchDays) > 0
-                          ? (areaTotals.quantity / (summary.dispatchDays || areaTotals.dispatchDays)).toFixed(1)
-                          : '0'} pcs/day
-                      </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>{areaTotals.customers}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             )}
 
-            {/* Table 4: Area × Product Matrix (when areaSubTab === 'product') */}
+            {/* Table 4: Locality × Product Matrix (when areaSubTab === 'product') */}
             {areaSubTab === 'product' && (
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', minWidth: '820px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                <table style={{ width: '100%', minWidth: '880px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '10px 12px' }}>Area / Zone</th>
+                      <th style={{ padding: '10px 12px' }}>Delivery Locality</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>PIN</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right', color: '#2563eb' }}>MHC ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right', color: '#7c3aed' }}>RCS ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>ONGC ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right', color: '#d97706' }}>WGC ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right', color: '#db2777' }}>D MHC ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>Total ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>Total</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>Share %</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {areaWiseData.map((row, idx) => {
+                    {filteredAreaWiseData.map((row, idx) => {
                       const rowVal = areaMatrixMode === 'weight' ? row.weight : row.quantity;
                       const shareVal = areaMatrixMode === 'weight' ? row.weightShare : row.qtyShare;
                       return (
-                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: row.area === 'Ahmedabad' ? '#f0f9ff' : 'transparent' }}>
-                          <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>{row.area}</td>
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>{row.locality || row.area}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: '800', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 7px', fontSize: '11px' }}>
+                              {row.pincode || '—'}
+                            </span>
+                          </td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
                             {areaMatrixMode === 'weight' ? row.mhcWeight.toLocaleString() : row.mhcQty.toLocaleString()}
                           </td>
@@ -2771,12 +2679,20 @@ export const PlantHeadDispatchAnalytics = () => {
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: '#0284c7' }}>
                             {shareVal}%
                           </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                            <button
+                              onClick={() => setSelectedAreaModal(row)}
+                              style={{ padding: '3px 8px', borderRadius: '5px', background: '#0284c7', color: '#fff', border: 'none', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
+                            >
+                              Details →
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
-                    {/* Reconciled Product Matrix Footer */}
                     <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1' }}>
                       <td style={{ padding: '10px 12px', color: '#0f172a' }}>TOTAL</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#2563eb' }}>
                         {areaMatrixMode === 'weight' ? `${areaTotals.mhcWeight.toLocaleString()} kg` : `${areaTotals.mhcQty.toLocaleString()} pcs`}
                       </td>
@@ -2798,19 +2714,21 @@ export const PlantHeadDispatchAnalytics = () => {
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>
                         100%
                       </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             )}
 
-            {/* Table 5: Area × Salesperson Matrix (when areaSubTab === 'salesperson') */}
+            {/* Table 5: Locality × Salesperson Matrix (when areaSubTab === 'salesperson') */}
             {areaSubTab === 'salesperson' && (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', minWidth: '960px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '10px 12px' }}>Area / Zone</th>
+                      <th style={{ padding: '10px 12px' }}>Delivery Locality</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>PIN</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>MTH</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>TL</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>JP</th>
@@ -2819,17 +2737,23 @@ export const PlantHeadDispatchAnalytics = () => {
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>TG</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>GN</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>MK</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>Total ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>Total</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>Share %</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {areaWiseData.map((row, idx) => {
+                    {filteredAreaWiseData.map((row, idx) => {
                       const rowVal = areaMatrixMode === 'weight' ? row.weight : row.quantity;
                       const shareVal = areaMatrixMode === 'weight' ? row.weightShare : row.qtyShare;
                       return (
-                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: row.area === 'Ahmedabad' ? '#f0f9ff' : 'transparent' }}>
-                          <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>{row.area}</td>
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>{row.locality || row.area}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: '800', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 7px', fontSize: '11px' }}>
+                              {row.pincode || '—'}
+                            </span>
+                          </td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#0284c7' }}>
                             {areaMatrixMode === 'weight' ? row.mthWeight.toLocaleString() : row.mthQty.toLocaleString()}
                           </td>
@@ -2860,12 +2784,20 @@ export const PlantHeadDispatchAnalytics = () => {
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: '#0284c7' }}>
                             {shareVal}%
                           </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                            <button
+                              onClick={() => setSelectedAreaModal(row)}
+                              style={{ padding: '3px 8px', borderRadius: '5px', background: '#0284c7', color: '#fff', border: 'none', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
+                            >
+                              Details →
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
-                    {/* Reconciled Salesperson Matrix Footer */}
                     <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1' }}>
                       <td style={{ padding: '10px 12px', color: '#0f172a' }}>TOTAL</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>
                         {areaMatrixMode === 'weight' ? `${areaTotals.mthWeight.toLocaleString()} kg` : `${areaTotals.mthQty.toLocaleString()} pcs`}
                       </td>
@@ -2896,6 +2828,7 @@ export const PlantHeadDispatchAnalytics = () => {
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>
                         100%
                       </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2921,7 +2854,7 @@ export const PlantHeadDispatchAnalytics = () => {
                   Area-wise Totals Reconciled with Main Dashboard KPIs
                 </div>
                 <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
-                  Total Weight: {(summary.totalWeight ?? areaTotals.weight).toLocaleString()} kg &bull; Total Pieces: {(summary.totalQuantity ?? areaTotals.quantity).toLocaleString()} pcs across {areaWiseData.length} geographic territories.
+                  Total Weight: {(summary.totalWeight ?? areaTotals.weight).toLocaleString()} kg &bull; Total Pieces: {(summary.totalQuantity ?? areaTotals.quantity).toLocaleString()} pcs across {areaWiseData.length} delivery destinations.
                 </div>
               </div>
               <div style={{
@@ -2937,12 +2870,12 @@ export const PlantHeadDispatchAnalytics = () => {
             </div>
           </div>
 
-          {/* ── Executive Management Takeaways Card: Answers 5 Key Plant Head Questions ── */}
+          {/* ── Executive Strategic Insights: Answers 5 Key Plant Head Questions (100% Dynamic) ── */}
           <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
               <Sparkles size={18} color="#0284c7" />
               <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                Plant Head Executive Insights & Strategic Answers
+                Plant Head Executive Insights &amp; Locality Strategy
               </h4>
             </div>
 
@@ -2951,7 +2884,8 @@ export const PlantHeadDispatchAnalytics = () => {
                 <div style={{ fontSize: '11px', fontWeight: '800', color: '#0284c7', textTransform: 'uppercase' }}>Question 1</div>
                 <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', marginTop: '3px' }}>Which area receives the most material?</div>
                 <p style={{ fontSize: '12px', color: '#475569', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-                  <strong>Ahmedabad</strong> receives the highest tonnage at <strong>49,850.2 kg (41.5%)</strong>, followed by <strong>Gujarat regional</strong> at <strong>27,240.5 kg (22.7%)</strong>. Together, Gujarat state accounts for <strong>64.2%</strong> (77 tonnes) of all material dispatches.
+                  <strong>{areaWiseData[0]?.locality || 'Primary Locality'} ({areaWiseData[0]?.city || ''})</strong> receives the highest tonnage at <strong>{(areaWiseData[0]?.weight || 0).toLocaleString()} kg ({areaWiseData[0]?.weightShare || 0}%)</strong>
+                  {areaWiseData[1] && <>, followed by <strong>{areaWiseData[1]?.locality} ({areaWiseData[1]?.city})</strong> at <strong>{(areaWiseData[1]?.weight || 0).toLocaleString()} kg ({areaWiseData[1]?.weightShare || 0}%)</strong></>}.
                 </p>
               </div>
 
@@ -2959,7 +2893,15 @@ export const PlantHeadDispatchAnalytics = () => {
                 <div style={{ fontSize: '11px', fontWeight: '800', color: '#059669', textTransform: 'uppercase' }}>Question 2</div>
                 <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', marginTop: '3px' }}>Which area has the highest number of pieces?</div>
                 <p style={{ fontSize: '12px', color: '#475569', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-                  <strong>Ahmedabad</strong> accounts for <strong>1,120 pieces (41.7%)</strong>, followed by <strong>Gujarat</strong> with <strong>610 pcs</strong> and <strong>West Division</strong> with <strong>380 pcs</strong>.
+                  {(() => {
+                    const topQty = [...areaWiseData].sort((a, b) => b.quantity - a.quantity)[0];
+                    return (
+                      <>
+                        <strong>{topQty?.locality || 'Primary Locality'}</strong> accounts for <strong>{(topQty?.quantity || 0).toLocaleString()} pieces ({topQty?.qtyShare || 0}%)</strong>
+                        {areaWiseData[1] && <>, leading all {areaWiseData.length} localities in physical precast units dispatched</>}.
+                      </>
+                    );
+                  })()}
                 </p>
               </div>
 
@@ -2967,7 +2909,7 @@ export const PlantHeadDispatchAnalytics = () => {
                 <div style={{ fontSize: '11px', fontWeight: '800', color: '#7c3aed', textTransform: 'uppercase' }}>Question 3</div>
                 <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', marginTop: '3px' }}>Which products are being dispatched to each area?</div>
                 <p style={{ fontSize: '12px', color: '#475569', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-                  <strong>MHC</strong> is the volume driver in all territories (680 pcs in Ahmedabad, 370 in Gujarat, 230 in West). <strong>RCS</strong> demand is strongest in Ahmedabad (7,850 kg) and Gujarat (4,120 kg), while <strong>ONGC</strong> is concentrated in Ahmedabad (290 pcs).
+                  <strong>{productsData[0]?.product || 'MHC'}</strong> is the primary volume driver across active destinations ({areaTotals.mhcQty.toLocaleString()} pcs / {areaTotals.mhcWeight.toLocaleString()} kg). High-specification RCS &amp; ONGC orders cluster in key urban project sites.
                 </p>
               </div>
 
@@ -2975,7 +2917,7 @@ export const PlantHeadDispatchAnalytics = () => {
                 <div style={{ fontSize: '11px', fontWeight: '800', color: '#d97706', textTransform: 'uppercase' }}>Question 4</div>
                 <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', marginTop: '3px' }}>Which salesperson is generating dispatches in each area?</div>
                 <p style={{ fontSize: '12px', color: '#475569', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-                  <strong>MTH</strong> leads in Ahmedabad (41,800 kg), Gujarat (22,860 kg), and West (14,350 kg). <strong>TL</strong> drives institutional dispatches in Gujarat, <strong>RT</strong> commands West division accounts, and <strong>TG</strong> commands East/North-East.
+                  <strong>{salesReferencesData[0]?.salesRef || 'MTH'}</strong> commands primary dispatch volume ({salesReferencesData[0]?.share || 0}% share). Cross-matrix demonstrates active order generation by secondary sales representatives across regional clusters.
                 </p>
               </div>
 
@@ -2983,11 +2925,226 @@ export const PlantHeadDispatchAnalytics = () => {
                 <div style={{ fontSize: '11px', fontWeight: '800', color: '#db2777', textTransform: 'uppercase' }}>Question 5</div>
                 <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', marginTop: '3px' }}>Which area has the highest customer concentration?</div>
                 <p style={{ fontSize: '12px', color: '#475569', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-                  <strong>Ahmedabad</strong> has the highest customer concentration with <strong>32 unique clients (40.5%)</strong>, followed by <strong>Gujarat regional (19 clients)</strong> and <strong>West (11 clients)</strong>. 64.6% of active customers are within Gujarat state.
+                  <strong>{areaWiseData[0]?.locality || 'Primary Territory'}</strong> has {areaWiseData[0]?.customers || 0} unique clients. A total of <strong>{areaTotals.customers} client accounts</strong> were reached across {areaWiseData.length} delivery destinations.
                 </p>
               </div>
             </div>
           </div>
+
+          {/* ── Interactive Click-to-Drilldown Locality Modal ── */}
+          {selectedAreaModal && (
+            <div
+              onClick={() => setSelectedAreaModal(null)}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(15, 23, 42, 0.65)',
+                backdropFilter: 'blur(5px)',
+                zIndex: 9999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px'
+              }}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  width: '100%',
+                  maxWidth: '820px',
+                  maxHeight: '90vh',
+                  overflowY: 'auto',
+                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                  border: '1px solid #e2e8f0',
+                  padding: '24px'
+                }}
+              >
+                {/* Modal Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '16px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <h3 style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', margin: 0 }}>
+                        {selectedAreaModal.locality || selectedAreaModal.area}
+                      </h3>
+                      <span style={{ fontFamily: 'monospace', fontWeight: '800', background: '#0284c7', color: '#fff', borderRadius: '6px', padding: '3px 8px', fontSize: '12px' }}>
+                        PIN: {selectedAreaModal.pincode || '—'}
+                      </span>
+                      <span style={{ background: '#f1f5f9', color: '#475569', borderRadius: '6px', padding: '3px 8px', fontSize: '12px', fontWeight: '700' }}>
+                        {selectedAreaModal.city}
+                      </span>
+                      <span style={{ background: '#dcfce7', color: '#166534', borderRadius: '6px', padding: '3px 8px', fontSize: '12px', fontWeight: '700' }}>
+                        {selectedAreaModal.zone || 'Zone'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '12.5px', color: '#64748b', margin: '6px 0 0 0' }}>
+                      Comprehensive delivery intelligence and client-product drilldown for {selectedAreaModal.locality || selectedAreaModal.area}.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedAreaModal(null)}
+                    style={{
+                      border: 'none',
+                      background: '#f1f5f9',
+                      color: '#475569',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      fontWeight: '800',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* 4 KPI Pills */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+                  <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '10px', border: '1px solid #bae6fd' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '800', color: '#0369a1', textTransform: 'uppercase' }}>Locality Weight</div>
+                    <div style={{ fontSize: '18px', fontWeight: '900', color: '#0c4a6e', marginTop: '3px' }}>
+                      {selectedAreaModal.weight.toLocaleString()} kg
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#0284c7', marginTop: '2px', fontWeight: '700' }}>
+                      {selectedAreaModal.weightShare}% of total dispatches
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '800', color: '#15803d', textTransform: 'uppercase' }}>Total Pieces</div>
+                    <div style={{ fontSize: '18px', fontWeight: '900', color: '#14532d', marginTop: '3px' }}>
+                      {selectedAreaModal.quantity.toLocaleString()} pcs
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#16a34a', marginTop: '2px', fontWeight: '700' }}>
+                      {selectedAreaModal.qtyShare}% quantity share
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#faf5ff', padding: '12px', borderRadius: '10px', border: '1px solid #e9d5ff' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '800', color: '#7e22ce', textTransform: 'uppercase' }}>Unique Clients</div>
+                    <div style={{ fontSize: '18px', fontWeight: '900', color: '#581c87', marginTop: '3px' }}>
+                      {selectedAreaModal.customers} Customers
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#9333ea', marginTop: '2px', fontWeight: '700' }}>
+                      Active in {selectedAreaModal.city}
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#fffbeb', padding: '12px', borderRadius: '10px', border: '1px solid #fde68a' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '800', color: '#b45309', textTransform: 'uppercase' }}>Avg Weight / Piece</div>
+                    <div style={{ fontSize: '18px', fontWeight: '900', color: '#78350f', marginTop: '3px' }}>
+                      {selectedAreaModal.quantity > 0 ? (selectedAreaModal.weight / selectedAreaModal.quantity).toFixed(1) : '0'} kg
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#d97706', marginTop: '2px', fontWeight: '700' }}>
+                      Unit weight profile
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2 Detail Tables: Customers & Products */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '16px' }}>
+                  {/* Table A: Top Customers in Locality */}
+                  <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '14px', border: '1px solid #e2e8f0' }}>
+                    <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: '#0f172a', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Users size={15} color="#0284c7" /> Top Customers in this Locality
+                    </h4>
+                    {(() => {
+                      const modalCustomers = selectedAreaModal.customersList || selectedAreaModal.topCustomers || [];
+                      if (!modalCustomers.length) {
+                        return <div style={{ color: '#64748b', fontSize: '12px', padding: '10px 0' }}>No customer accounts mapped.</div>;
+                      }
+                      return (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1.5px solid #cbd5e1', color: '#475569', fontWeight: '800' }}>
+                              <th style={{ padding: '6px 8px' }}>Customer Account</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'right' }}>Weight</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'right' }}>Qty</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'right' }}>Share</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {modalCustomers.map((c, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                <td style={{ padding: '6px 8px', fontWeight: '700', color: '#0f172a' }}>{c.name || c.customer}</td>
+                                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800' }}>{(c.weight || 0).toLocaleString()} kg</td>
+                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{(c.qty ?? c.quantity ?? 0).toLocaleString()} pcs</td>
+                                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>
+                                  {c.share != null ? c.share : (selectedAreaModal.weight > 0 ? ((c.weight / selectedAreaModal.weight) * 100).toFixed(1) : 0)}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Table B: Product Breakdown in Locality */}
+                  <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '14px', border: '1px solid #e2e8f0' }}>
+                    <h4 style={{ fontSize: '13.5px', fontWeight: '800', color: '#0f172a', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Layers size={15} color="#7c3aed" /> Product Breakdown in this Locality
+                    </h4>
+                    {(() => {
+                      const modalProducts = selectedAreaModal.productsList || selectedAreaModal.products || [];
+                      if (!modalProducts.length) {
+                        return <div style={{ color: '#64748b', fontSize: '12px', padding: '10px 0' }}>No products mapped.</div>;
+                      }
+                      return (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1.5px solid #cbd5e1', color: '#475569', fontWeight: '800' }}>
+                              <th style={{ padding: '6px 8px' }}>Product</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'right' }}>Weight</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'right' }}>Qty</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'right' }}>Share</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {modalProducts.map((p, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                <td style={{ padding: '6px 8px', fontWeight: '800', color: '#0f172a' }}>{p.product || p.name}</td>
+                                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800' }}>{(p.weight || 0).toLocaleString()} kg</td>
+                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{(p.qty ?? p.quantity ?? 0).toLocaleString()} pcs</td>
+                                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#7c3aed' }}>
+                                  {p.share != null ? p.share : (selectedAreaModal.weight > 0 ? ((p.weight / selectedAreaModal.weight) * 100).toFixed(1) : 0)}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '18px', paddingTop: '14px', borderTop: '1px solid #e2e8f0' }}>
+                  <button
+                    onClick={() => setSelectedAreaModal(null)}
+                    style={{
+                      background: '#0f172a',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '8px 18px',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
+                      fontWeight: '800',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
