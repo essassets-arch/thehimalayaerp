@@ -108,6 +108,17 @@ export class ProductsController {
   }
 
   @RequirePermissions(
+    'admin.products.delete',
+    'products.delete',
+    'store.materials.delete',
+    'store.delete',
+  )
+  @Delete('raw-materials/clear-all')
+  clearAllRawMaterials(@CurrentUser() user: any) {
+    return this.productsService.clearAllRawMaterials(user.companyId);
+  }
+
+  @RequirePermissions(
     'admin.products.update',
     'admin.products.delete',
     'products.update',

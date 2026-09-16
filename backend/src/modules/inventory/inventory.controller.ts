@@ -7,6 +7,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -165,5 +166,37 @@ export class InventoryController {
   @Patch('items/:id')
   updateItemBalance(@Param('id') id: string, @Body('balance') balance: number) {
     return this.inventoryService.updateItemBalance(id, balance);
+  }
+
+  @RequirePermissions(
+    'inventory.inventory.delete',
+    'inventory.delete',
+    'store.inventory.delete',
+    'store.delete',
+    'store.materials.delete',
+    'admin.products.delete',
+    'products.delete',
+    'products.read',
+    'store.read',
+  )
+  @Delete('raw-materials/clear-all')
+  clearAllRawMaterials(@CurrentUser() user: any) {
+    return this.inventoryService.clearAllRawMaterials(user.companyId);
+  }
+
+  @RequirePermissions(
+    'inventory.inventory.delete',
+    'inventory.delete',
+    'store.inventory.delete',
+    'store.delete',
+    'store.materials.delete',
+    'admin.products.delete',
+    'products.delete',
+    'products.read',
+    'store.read',
+  )
+  @Delete('raw-materials/:id')
+  deleteRawMaterial(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.inventoryService.deleteRawMaterial(user.companyId, id);
   }
 }

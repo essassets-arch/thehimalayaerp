@@ -1452,6 +1452,7 @@ export default function StorePortal() {
           try {
             await apiClient.delete(`/store/raw-materials/${item.id}`);
             await syncData();
+            await fetchRawInventory();
           } catch (err) {
             dispatch({ type: 'DELETE_RAW_MATERIAL', payload: { id: item.id, material: item.material } });
             showToast(`Deleted (local). Note: ${err.message}`);

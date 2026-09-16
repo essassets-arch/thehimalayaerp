@@ -533,19 +533,73 @@ export class ProductsService {
     const prod = await this.prisma.product.findFirst({
       where: { id },
     });
-    if (!prod) {
-      throw new NotFoundException(`Product with ID ${id} not found.`);
+    if (prod) {
+      await this.prisma.inventoryTransaction.deleteMany({
+        where: { productId: id },
+      });
+      if (prod.sku) {
+        await this.prisma.rawMaterial.deleteMany({
+          where: { sku: prod.sku },
+        });
+      }
+      try {
+        return await this.prisma.product.delete({
+          where: { id },
+        });
+      } catch (e) {
+        return await this.prisma.product.update({
+          where: { id },
+          data: { isActive: false },
+        });
+      }
     }
 
-    try {
-      return await this.prisma.product.delete({
-        where: { id },
+    const rm = await this.prisma.rawMaterial.findFirst({
+      where: { id },
+    });
+    if (rm) {
+      await this.prisma.inventoryTransaction.deleteMany({
+        where: {
+          OR: [
+            { rawMaterialId: id },
+            ...(rm.sku ? [{ product: { sku: rm.sku } }] : []),
+          ],
+        },
       });
-    } catch (e) {
-      return await this.prisma.product.update({
+      if (rm.sku) {
+        await this.prisma.product.updateMany({
+          where: { sku: rm.sku },
+          data: { isActive: false },
+        });
+      }
+      return await this.prisma.rawMaterial.delete({
         where: { id },
-        data: { isActive: false },
       });
     }
+
+    throw new NotFoundException(`Product or Raw Material with ID ${id} not found.`);
+  }
+
+  async clearAllRawMaterials(companyId?: string) {
+    await this.prisma.inventoryTransaction.deleteMany({
+      where: {
+        OR: [
+          { rawMaterialId: { not: null } },
+          { product: { productType: 'RAW_MATERIAL' } },
+        ],
+      },
+    });
+    await this.prisma.rawMaterial.deleteMany({});
+    await this.prisma.product.updateMany({
+      where: {
+        OR: [
+          { productType: 'RAW_MATERIAL' },
+          { type: 'RAW_MATERIAL' },
+          { category: { contains: 'Raw', mode: 'insensitive' } },
+        ],
+      },
+      data: { isActive: false },
+    });
+    return { success: true, message: 'All raw materials and inventory data cleared.' };
   }
 }
