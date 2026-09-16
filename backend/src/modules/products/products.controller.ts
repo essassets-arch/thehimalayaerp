@@ -108,6 +108,24 @@ export class ProductsController {
   }
 
   @RequirePermissions(
+    'admin.products.create',
+    'products.create',
+  )
+  @Post('bulk')
+  bulkCreate(@CurrentUser() user: any, @Body() body: { items: any[] }) {
+    return this.productsService.bulkCreate(user.companyId, body.items);
+  }
+
+  @RequirePermissions(
+    'admin.products.delete',
+    'products.delete',
+  )
+  @Delete('catalog/clear-all')
+  clearAllCatalogProducts(@CurrentUser() user: any) {
+    return this.productsService.clearAllCatalogProducts(user.companyId);
+  }
+
+  @RequirePermissions(
     'admin.products.delete',
     'products.delete',
     'store.materials.delete',
@@ -131,3 +149,4 @@ export class ProductsController {
     return this.productsService.remove(user.companyId, id);
   }
 }
+

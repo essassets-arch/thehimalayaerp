@@ -580,6 +580,112 @@ export class ProductsService {
     throw new NotFoundException(`Product or Raw Material with ID ${id} not found.`);
   }
 
+  async bulkCreate(companyId: string, items: any[]) {
+    if (!Array.isArray(items) || items.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    const results: any[] = [];
+    const chunkSize = 200;
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize);
+      const created = await this.prisma.$transaction(
+        chunk.map((dto) => {
+          const randomId = crypto.randomBytes(5).toString('hex');
+          return this.prisma.product.create({
+            data: {
+              publicId: `PRD-${randomId}`,
+              companyId,
+              name: dto.name,
+              sku: dto.sku,
+              description: dto.description || dto.name,
+              category: dto.category || 'FRP COVERS',
+              productType: dto.productType || 'MANUFACTURING',
+              brand: dto.brand || 'HIMALAYA',
+              dispatchCategory: dto.dispatchCategory || 'D1',
+              gstRate: dto.gstRate !== undefined ? dto.gstRate : 18,
+              hsnCode: dto.hsnCode || '39259090',
+              variantDetails: dto.variantDetails || null,
+              unit: dto.unit || 'SET',
+              unitPrice: dto.unitPrice || 0,
+              minimumStock: dto.minimumStock || 0,
+              coversPerSet: dto.coversPerSet || 1,
+              framesPerSet: dto.framesPerSet || 1,
+              type: dto.type || null,
+              size: dto.size || null,
+              capacity: dto.capacity || null,
+              isActive: true,
+            },
+          });
+        }),
+      );
+      results.push(...created);
+    }
+    return { success: true, count: results.length };
+  }
+
+  async clearAllCatalogProducts(companyId?: string) {
+    // 1. Delete stock histories and inventory transactions for catalog products
+    await this.prisma.stockHistory.deleteMany({
+      where: {
+        product: {
+          productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] },
+        },
+      },
+    });
+
+    await this.prisma.inventoryTransaction.deleteMany({
+      where: {
+        product: {
+          productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] },
+        },
+      },
+    });
+
+    // 2. Clear FinishedGoods stock entries for catalog products
+    await this.prisma.finishedGoods.deleteMany({
+      where: {
+        product: {
+          productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] },
+        },
+      },
+    });
+
+    // 3. Delete unreferenced catalog products
+    const referencedProductIds = await this.prisma.$queryRaw<{ productId: string }[]>`
+      SELECT DISTINCT "productId" FROM "SalesOrderItem" WHERE "productId" IS NOT NULL
+      UNION
+      SELECT DISTINCT "productId" FROM "QuotationItem" WHERE "productId" IS NOT NULL
+      UNION
+      SELECT DISTINCT "productId" FROM "PurchaseOrderItem" WHERE "productId" IS NOT NULL
+      UNION
+      SELECT DISTINCT "productId" FROM "PurchaseIndentItem" WHERE "productId" IS NOT NULL
+      UNION
+      SELECT DISTINCT "productId" FROM "GoodsReceiptNoteItem" WHERE "productId" IS NOT NULL
+      UNION
+      SELECT DISTINCT "productId" FROM "MaterialRequestItem" WHERE "productId" IS NOT NULL
+    `;
+
+    const refIds = referencedProductIds.map((r) => r.productId);
+
+    await this.prisma.product.deleteMany({
+      where: {
+        productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] },
+        id: { notIn: refIds },
+      },
+    });
+
+    // 4. Deactivate any remaining referenced catalog products so they are hidden from plant-head/products
+    await this.prisma.product.updateMany({
+      where: {
+        productType: { notIn: ['RAW_MATERIAL', 'HARDWARE'] },
+      },
+      data: { isActive: false },
+    });
+
+    return { success: true, message: 'All catalog products cleared.' };
+  }
+
   async clearAllRawMaterials(companyId?: string) {
     await this.prisma.inventoryTransaction.deleteMany({
       where: {
