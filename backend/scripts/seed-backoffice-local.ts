@@ -53,7 +53,7 @@ async function main() {
   }
 
   if (!boUser) {
-    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const hashedPassword = await bcrypt.hash('ARHIMALAYA12', 10);
     boUser = await prisma.user.create({
       data: {
         publicId: 'USR-BACKOFFICE-LOCAL',

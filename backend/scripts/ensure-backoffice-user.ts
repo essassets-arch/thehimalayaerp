@@ -144,7 +144,7 @@ async function main() {
 
   // 6. Ensure Back Office User
   const email = 'backoffice@himalayaerp.com';
-  const hashedPassword = await bcrypt.hash('admin123', 10);
+  const hashedPassword = await bcrypt.hash('ARHIMALAYA12', 10);
 
   let user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
