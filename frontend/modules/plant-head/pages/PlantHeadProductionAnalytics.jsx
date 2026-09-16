@@ -87,36 +87,99 @@ const fmt = (val, decimals = 0) => {
     : Math.round(n).toLocaleString('en-IN');
 };
 
-// ResizeObserver-safe container to prevent Recharts -1 width errors
-function ResponsiveChartBox({ height = 280, children }) {
+// ── Ultra-Responsive Zero-Blank Chart Container (Mobile 320px to Ultra-12K) ──
+function ResponsiveChartBox({ height = 280, minHeight, children }) {
   const containerRef = useRef(null);
-  const [ready, setReady] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [dims, setDims] = useState({ width: 600, height });
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const checkSize = () => {
-      if (el.clientWidth > 0 && el.clientHeight > 0) {
-        setReady(true);
-      }
-    };
-    checkSize();
-    const observer = new ResizeObserver(checkSize);
-    observer.observe(el);
-    return () => observer.disconnect();
+  // Calculate dynamic responsive target height based on screen resolution
+  const getDynamicHeight = useCallback((base) => {
+    if (typeof window === 'undefined') return base;
+    const screenW = window.innerWidth;
+    if (screenW >= 7680) return Math.round(base * 1.75); // 8K / 12K displays
+    if (screenW >= 3840) return Math.round(base * 1.4);  // 4K / 5K ultrawide
+    if (screenW >= 2560) return Math.round(base * 1.25); // 2K / QHD
+    if (screenW <= 480) return Math.max(180, Math.min(base, 230)); // Small mobile
+    return base;
   }, []);
 
+  const currentHeight = minHeight || getDynamicHeight(height);
+
+  useEffect(() => {
+    setMounted(true);
+    const updateSize = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const parentW = containerRef.current.parentElement?.clientWidth || 0;
+      const winW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+      const rawW = Math.floor(rect.width > 0 ? rect.width : (parentW > 0 ? parentW : winW * 0.9));
+      
+      // Minimum: 160px for tiny mobile (320px screen width)
+      // Maximum: 2400px to strictly prevent GPU texture overflow on 4K/8K/12K displays (>8192px texture crash)
+      const SAFE_MAX_CHART_WIDTH = 2400;
+      const safeW = Math.min(Math.max(160, rawW), SAFE_MAX_CHART_WIDTH);
+      
+      setDims({ width: safeW, height: currentHeight });
+    };
+
+    updateSize();
+    const animId = requestAnimationFrame(updateSize);
+    window.addEventListener('resize', updateSize);
+
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      ro = new ResizeObserver(() => updateSize());
+      ro.observe(containerRef.current);
+    }
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', updateSize);
+      ro?.disconnect();
+    };
+  }, [currentHeight]);
+
   return (
-    <div ref={containerRef} style={{ width: '100%', height, position: 'relative', minHeight: height }}>
-      {ready ? (
-        <ResponsiveContainer width="100%" height="100%">
-          {children}
-        </ResponsiveContainer>
-      ) : (
-        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '12px' }}>
-          Initializing Visualization...
-        </div>
-      )}
+    <div
+      ref={containerRef}
+      style={{
+        width: '100%',
+        maxWidth: '100%',
+        height: `${currentHeight}px`,
+        minHeight: `${currentHeight}px`,
+        position: 'relative',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        boxSizing: 'border-box'
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '2400px',
+          height: `${currentHeight}px`,
+          minHeight: `${currentHeight}px`,
+          position: 'relative'
+        }}
+      >
+        {mounted ? (
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            minWidth={0}
+            minHeight={0}
+            initialDimension={{ width: dims.width, height: currentHeight }}
+          >
+            {children}
+          </ResponsiveContainer>
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '12px' }}>
+            Initializing Visualization...
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -301,7 +364,7 @@ export const PlantHeadProductionAnalytics = () => {
   };
 
   return (
-    <div style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a' }}>
+    <div style={{ padding: 'clamp(12px, 2vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a', width: '100%', maxWidth: '3840px', margin: '0 auto', boxSizing: 'border-box' }}>
 
       {/* ── Top Header Banner ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
@@ -580,7 +643,7 @@ export const PlantHeadProductionAnalytics = () => {
       </div>
 
       {/* ── Executive 6 KPI Metric Cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '14px', marginBottom: '20px' }}>
         {/* KPI 1: Production Weight */}
         <div style={{
           background: '#ffffff',
@@ -776,11 +839,11 @@ export const PlantHeadProductionAnalytics = () => {
 
             {dailyTrendData.length > 0 ? (
               <ResponsiveChartBox height={320}>
-                <ComposedChart data={dailyTrendData} margin={{ top: 10, right: 20, bottom: 20, left: 10 }}>
+                <ComposedChart data={dailyTrendData} margin={{ top: 10, right: 15, bottom: 20, left: -5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#0284c7' }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#0d9488' }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} interval="preserveStartEnd" minTickGap={12} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#0284c7' }} axisLine={false} tickLine={false} width={42} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(0)}T` : val} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#0d9488' }} axisLine={false} tickLine={false} width={36} />
                   <Tooltip
                     contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '12px' }}
                     formatter={(val, name) => [name === 'weight' ? `${fmt(val)} kg` : `${fmt(val)} pcs`, name === 'weight' ? 'Weight' : 'Pieces']}
@@ -797,7 +860,7 @@ export const PlantHeadProductionAnalytics = () => {
           </div>
 
           {/* Component Balance & Highlights Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
             {/* Covers vs Frames Balance */}
             <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
@@ -930,16 +993,16 @@ export const PlantHeadProductionAnalytics = () => {
           </div>
 
           {/* 2 Charts Grid: Load Class Bars & Product Weight Donut */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
             {/* Chart 1: Load Class Distribution */}
             <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
               <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 14px 0' }}>
                 Load Capacity Rating Distribution (EN 124 Standard)
               </h4>
               <ResponsiveChartBox height={260}>
-                <BarChart data={capacitiesData} layout="vertical" margin={{ left: 10, right: 30, top: 10, bottom: 10 }}>
+                <BarChart data={capacitiesData} layout="vertical" margin={{ left: 0, right: 35, top: 10, bottom: 10 }}>
                   <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#0f172a', fontWeight: '700' }} axisLine={false} tickLine={false} width={60} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#0f172a', fontWeight: '700' }} axisLine={false} tickLine={false} width={48} />
                   <Tooltip
                     contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '12px' }}
                     formatter={(val) => [`${fmt(val)} kg (${capacitiesData.find(c => c.weight === val)?.share || 0}%)`, 'Volume']}
@@ -965,8 +1028,10 @@ export const PlantHeadProductionAnalytics = () => {
                     data={productsData.slice(0, 6)}
                     dataKey="weight"
                     nameKey="name"
-                    innerRadius={55}
-                    outerRadius={85}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
                     paddingAngle={3}
                   >
                     {productsData.slice(0, 6).map((entry, idx) => (
@@ -1030,7 +1095,7 @@ export const PlantHeadProductionAnalytics = () => {
       {activeTab === 'workorders' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Pipeline Status Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '14px' }}>
             {pipelineStatuses.map((st, idx) => (
               <div key={idx} style={{
                 background: '#ffffff',
@@ -1179,7 +1244,7 @@ export const PlantHeadProductionAnalytics = () => {
       {activeTab === 'quality' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* QC KPI strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '16px' }}>
             <div style={{ background: '#ffffff', borderRadius: '12px', padding: '18px', border: '1px solid #e2e8f0', borderLeft: '4px solid #10b981' }}>
               <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#15803d', textTransform: 'uppercase' }}>First Pass Yield (FPY)</div>
               <div style={{ fontSize: '28px', fontWeight: '900', color: '#047857', marginTop: '4px' }}>{kpis.fpyRate}%</div>
@@ -1208,7 +1273,7 @@ export const PlantHeadProductionAnalytics = () => {
               Every composite work order undergoes load testing under IS 1726 / EN 124 protocols, dimension tolerance inspection, and visual defect checks prior to dispatch staging.
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '14px' }}>
               <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                 <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <CheckCircle size={16} color="#10b981" /> Load Rating Verification
@@ -1268,7 +1333,7 @@ export const PlantHeadProductionAnalytics = () => {
           </div>
 
           {/* 6 Hydraulic Press Cards Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '16px' }}>
             {machineFleetData.map((m, idx) => (
               <div key={idx} style={{
                 background: '#ffffff',

@@ -295,10 +295,10 @@ export const PlantHeadExecutiveReports = () => {
       </div>
 
       {/* Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px', marginBottom: '24px' }}>
         <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0' }}>Monthly Production Volume Trend (Planned vs Actual)</h3>
-          <div style={{ width: '100%', height: '260px' }}>
+          <div style={{ width: '100%', maxWidth: '2400px', margin: '0 auto', height: '260px' }}>
             {mounted && (
               <ResponsiveContainer width="100%" height={260}>
                 <ComposedChart data={monthlyTrendData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
@@ -317,7 +317,7 @@ export const PlantHeadExecutiveReports = () => {
 
         <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 16px 0' }}>QC Inspection Breakdown (Pass vs Rejection)</h3>
-          <div style={{ width: '100%', height: '260px' }}>
+          <div style={{ width: '100%', maxWidth: '2400px', margin: '0 auto', height: '260px' }}>
             {mounted && (
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>

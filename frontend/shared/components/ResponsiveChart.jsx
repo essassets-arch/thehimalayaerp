@@ -29,6 +29,7 @@ export default function ResponsiveChart({
     isMobile: false,
     is4K: false,
     is8K: false,
+    is12K: false,
     scale: 1,
   });
 
@@ -36,10 +37,11 @@ export default function ResponsiveChart({
   const getDynamicHeight = (base) => {
     if (typeof window === 'undefined') return base;
     const screenW = window.innerWidth;
-    if (screenW >= 5120) return Math.round(base * 2.2); // 8K / 5K ultrawide
-    if (screenW >= 2560) return Math.round(base * 1.5); // 4K / QHD
+    if (screenW >= 7680) return Math.round(base * 1.8); // 8K / 12K ultra-resolution
+    if (screenW >= 3840) return Math.round(base * 1.5); // 4K / 5K ultrawide
+    if (screenW >= 2560) return Math.round(base * 1.3); // 2K / QHD
     if (screenW >= 1920) return Math.round(base * 1.15); // Full HD
-    if (screenW <= 480) return Math.max(220, Math.min(base, 260)); // Mobile
+    if (screenW <= 480) return Math.max(180, Math.min(base, 240)); // Mobile
     return base;
   };
 
@@ -53,14 +55,21 @@ export default function ResponsiveChart({
       const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
 
       // Determine robust width (never 0)
-      const measuredWidth = Math.floor(
+      const rawWidth = Math.floor(
         rect.width > 0 ? rect.width : (parentWidth > 0 ? parentWidth : Math.max(200, windowWidth * 0.9))
       );
 
-      const is8K = windowWidth >= 5120;
+      // Safe rendering bounds:
+      // Minimum: 160px (ultra-small mobile 320px screen width)
+      // Maximum: 2560px (prevents GPU hardware texture buffer overflow and SVG drops on 4K/8K/12K displays)
+      const SAFE_MAX_CHART_WIDTH = 2560;
+      const measuredWidth = Math.min(Math.max(160, rawWidth), SAFE_MAX_CHART_WIDTH);
+
+      const is12K = windowWidth >= 7680;
+      const is8K = windowWidth >= 5120 && windowWidth < 7680;
       const is4K = windowWidth >= 2560 && windowWidth < 5120;
       const isMobile = windowWidth <= 640;
-      const scale = is8K ? 2.0 : is4K ? 1.5 : isMobile ? 0.9 : windowWidth >= 1920 ? 1.15 : 1.0;
+      const scale = is12K ? 2.0 : is8K ? 1.7 : is4K ? 1.35 : isMobile ? 0.9 : windowWidth >= 1920 ? 1.15 : 1.0;
 
       const dynamicTargetHeight = getDynamicHeight(baseHeight);
       const measuredHeight = Math.max(
@@ -74,6 +83,7 @@ export default function ResponsiveChart({
         isMobile,
         is4K,
         is8K,
+        is12K,
         scale,
       });
     };
@@ -155,8 +165,20 @@ export default function ResponsiveChart({
         boxSizing: 'border-box',
       }}
     >
-      {/* Active Chart Rendering */}
-      {dimensions.width > 0 && renderedChart}
+      {/* Active Chart Rendering (Clamped to safe 2560px GPU limit) */}
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '2560px',
+          height: '100%',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          position: 'relative'
+        }}
+      >
+        {dimensions.width > 0 && renderedChart}
+      </div>
 
       {/* Empty Fallback when explicitly requested and data is empty [] */}
       {mounted && !hasData && allowEmptyFallback && (

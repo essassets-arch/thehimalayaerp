@@ -11,40 +11,96 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend
 } from 'recharts';
 
-// ── Responsive Container Box Helper ──
-const ResponsiveChartBox = ({ children, height = 260 }) => {
+// ── Ultra-Responsive Zero-Blank Chart Container (Mobile 320px to Ultra-12K) ──
+const ResponsiveChartBox = ({ children, height = 260, minHeight }) => {
   const containerRef = React.useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height });
+  const [mounted, setMounted] = useState(false);
+  const [dims, setDims] = useState({ width: 600, height });
+
+  const getDynamicHeight = useCallback((base) => {
+    if (typeof window === 'undefined') return base;
+    const screenW = window.innerWidth;
+    if (screenW >= 7680) return Math.round(base * 1.75);
+    if (screenW >= 3840) return Math.round(base * 1.4);
+    if (screenW >= 2560) return Math.round(base * 1.25);
+    if (screenW <= 480) return Math.max(180, Math.min(base, 230));
+    return base;
+  }, []);
+
+  const currentHeight = minHeight || getDynamicHeight(height);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    setMounted(true);
     const updateSize = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const w = rect.width || containerRef.current.clientWidth || 360;
-        setDimensions({ width: Math.max(w, 280), height });
-      }
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const parentW = containerRef.current.parentElement?.clientWidth || 0;
+      const winW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+      const rawW = Math.floor(rect.width > 0 ? rect.width : (parentW > 0 ? parentW : winW * 0.9));
+
+      const SAFE_MAX_CHART_WIDTH = 2400;
+      const safeW = Math.min(Math.max(160, rawW), SAFE_MAX_CHART_WIDTH);
+
+      setDims({ width: safeW, height: currentHeight });
     };
 
     updateSize();
-    const ro = new ResizeObserver(updateSize);
-    ro.observe(containerRef.current);
-    return () => ro.disconnect();
-  }, [height]);
+    const animId = requestAnimationFrame(updateSize);
+    window.addEventListener('resize', updateSize);
+
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      ro = new ResizeObserver(() => updateSize());
+      ro.observe(containerRef.current);
+    }
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', updateSize);
+      ro?.disconnect();
+    };
+  }, [currentHeight]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: `${height}px`, minHeight: `${height}px`, position: 'relative', overflow: 'hidden' }}>
-      {dimensions.width > 0 ? (
-        React.isValidElement(children) ? (
-          React.cloneElement(children, { width: dimensions.width, height })
+    <div
+      ref={containerRef}
+      style={{
+        width: '100%',
+        maxWidth: '100%',
+        height: `${currentHeight}px`,
+        minHeight: `${currentHeight}px`,
+        position: 'relative',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        boxSizing: 'border-box'
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '2400px',
+          height: `${currentHeight}px`,
+          minHeight: `${currentHeight}px`,
+          position: 'relative'
+        }}
+      >
+        {mounted ? (
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            minWidth={0}
+            minHeight={0}
+            initialDimension={{ width: dims.width, height: currentHeight }}
+          >
+            {children}
+          </ResponsiveContainer>
         ) : (
-          children
-        )
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: `${height}px`, color: '#94a3b8', fontSize: '13px', fontWeight: '600' }}>
-          Loading department chart...
-        </div>
-      )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: `${currentHeight}px`, color: '#94a3b8', fontSize: '13px', fontWeight: '600' }}>
+            Loading department chart...
+          </div>
+        )}
+      </div>
     </div>
   );
 };

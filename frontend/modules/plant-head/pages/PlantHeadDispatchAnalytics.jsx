@@ -13,40 +13,98 @@ import {
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList
 } from 'recharts';
 
-// ── Responsive Container Box Helper ──
-const ResponsiveChartBox = ({ children, height = 280 }) => {
+// ── Ultra-Responsive Zero-Blank Chart Container (Mobile 320px to Ultra-12K) ──
+const ResponsiveChartBox = ({ children, height = 280, minHeight }) => {
   const containerRef = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height });
+  const [mounted, setMounted] = useState(false);
+  const [dims, setDims] = useState({ width: 600, height });
+
+  const getDynamicHeight = useCallback((base) => {
+    if (typeof window === 'undefined') return base;
+    const screenW = window.innerWidth;
+    if (screenW >= 7680) return Math.round(base * 1.75); // 8K / 12K displays
+    if (screenW >= 3840) return Math.round(base * 1.4);  // 4K / 5K ultrawide
+    if (screenW >= 2560) return Math.round(base * 1.25); // 2K / QHD
+    if (screenW <= 480) return Math.max(180, Math.min(base, 230)); // Small mobile
+    return base;
+  }, []);
+
+  const currentHeight = minHeight || getDynamicHeight(height);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    setMounted(true);
     const updateSize = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const w = rect.width || containerRef.current.clientWidth || 360;
-        setDimensions({ width: Math.max(w, 280), height });
-      }
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const parentW = containerRef.current.parentElement?.clientWidth || 0;
+      const winW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+      const rawW = Math.floor(rect.width > 0 ? rect.width : (parentW > 0 ? parentW : winW * 0.9));
+
+      // Minimum: 160px (mobile 320px screen width)
+      // Maximum: 2400px (prevents GPU hardware texture buffer overflow and SVG drops on 4K/8K/12K displays)
+      const SAFE_MAX_CHART_WIDTH = 2400;
+      const safeW = Math.min(Math.max(160, rawW), SAFE_MAX_CHART_WIDTH);
+
+      setDims({ width: safeW, height: currentHeight });
     };
 
     updateSize();
-    const ro = new ResizeObserver(updateSize);
-    ro.observe(containerRef.current);
-    return () => ro.disconnect();
-  }, [height]);
+    const animId = requestAnimationFrame(updateSize);
+    window.addEventListener('resize', updateSize);
+
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      ro = new ResizeObserver(() => updateSize());
+      ro.observe(containerRef.current);
+    }
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', updateSize);
+      ro?.disconnect();
+    };
+  }, [currentHeight]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: `${height}px`, minHeight: `${height}px`, position: 'relative', overflow: 'hidden' }}>
-      {dimensions.width > 0 ? (
-        React.isValidElement(children) ? (
-          React.cloneElement(children, { width: dimensions.width, height })
+    <div
+      ref={containerRef}
+      style={{
+        width: '100%',
+        maxWidth: '100%',
+        height: `${currentHeight}px`,
+        minHeight: `${currentHeight}px`,
+        position: 'relative',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        boxSizing: 'border-box'
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '2400px',
+          height: `${currentHeight}px`,
+          minHeight: `${currentHeight}px`,
+          position: 'relative'
+        }}
+      >
+        {mounted ? (
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            minWidth={0}
+            minHeight={0}
+            initialDimension={{ width: dims.width, height: currentHeight }}
+          >
+            {children}
+          </ResponsiveContainer>
         ) : (
-          children
-        )
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: `${height}px`, color: '#94a3b8', fontSize: '13px', fontWeight: '600' }}>
-          Loading dispatch analytics chart...
-        </div>
-      )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: `${currentHeight}px`, color: '#94a3b8', fontSize: '13px', fontWeight: '600' }}>
+            Loading dispatch analytics chart...
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -436,7 +494,7 @@ export const PlantHeadDispatchAnalytics = () => {
   };
 
   return (
-    <div style={{ padding: '24px', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a' }}>
+    <div style={{ padding: 'clamp(12px, 2vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a', width: '100%', maxWidth: '3840px', margin: '0 auto', boxSizing: 'border-box' }}>
 
       {/* ── Top Header Bar ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
@@ -717,7 +775,7 @@ export const PlantHeadDispatchAnalytics = () => {
       </div>
 
       {/* ── Section 1: Executive Overall Summary (6 Main KPIs Grid) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '14px', marginBottom: '20px' }}>
         {/* KPI 1: Quantity */}
         <div style={{
           background: '#ffffff',
@@ -1017,7 +1075,7 @@ export const PlantHeadDispatchAnalytics = () => {
             </div>
 
             <ResponsiveChartBox height={320}>
-              <AreaChart data={dailyTrendsData} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+              <AreaChart data={dailyTrendsData} margin={{ top: 15, right: 15, left: -10, bottom: 20 }}>
                 <defs>
                   <linearGradient id="dispatchWeightGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0284c7" stopOpacity={0.4} />
@@ -1025,8 +1083,8 @@ export const PlantHeadDispatchAnalytics = () => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#475569', fontWeight: 700 }} axisLine={{ stroke: '#cbd5e1' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(val) => `${(val / 1000).toFixed(0)}T`} />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#475569', fontWeight: 700 }} axisLine={{ stroke: '#cbd5e1' }} interval="preserveStartEnd" minTickGap={12} />
+                <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={40} tickFormatter={(val) => `${(val / 1000).toFixed(0)}T`} />
                 <Tooltip
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
@@ -1111,7 +1169,7 @@ export const PlantHeadDispatchAnalytics = () => {
       {activeTab === 'products' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Product & Capacity 2-Column Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '20px' }}>
             
             {/* 1. Product-wise Performance */}
             <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
@@ -1156,11 +1214,11 @@ export const PlantHeadDispatchAnalytics = () => {
               </div>
 
               {/* Product Share Bar Chart */}
-              <ResponsiveChartBox height={180}>
-                <BarChart data={productsData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <ResponsiveChartBox height={200}>
+                <BarChart data={productsData} layout="vertical" margin={{ top: 5, right: 35, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                   <XAxis type="number" tickFormatter={(val) => `${val}%`} domain={[0, 65]} tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis type="category" dataKey="product" tick={{ fontSize: 11, fill: '#0f172a', fontWeight: 800 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="product" tick={{ fontSize: 11, fill: '#0f172a', fontWeight: 800 }} axisLine={false} tickLine={false} width={50} />
                   <Tooltip formatter={(val) => [`${val}%`, 'Share']} />
                   <Bar dataKey="share" radius={[0, 6, 6, 0]}>
                     {productsData.map((entry, index) => (
@@ -1211,11 +1269,11 @@ export const PlantHeadDispatchAnalytics = () => {
               </div>
 
               {/* Capacity Breakdown Horizontal Chart */}
-              <ResponsiveChartBox height={180}>
-                <BarChart data={capacitiesData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <ResponsiveChartBox height={200}>
+                <BarChart data={capacitiesData} layout="vertical" margin={{ top: 5, right: 35, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                   <XAxis type="number" tickFormatter={(val) => `${val}%`} domain={[0, 40]} tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis type="category" dataKey="capacity" tick={{ fontSize: 11, fill: '#0f172a', fontWeight: 800 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="capacity" tick={{ fontSize: 11, fill: '#0f172a', fontWeight: 800 }} axisLine={false} tickLine={false} width={48} />
                   <Tooltip formatter={(val) => [`${val}%`, 'Share']} />
                   <Bar dataKey="share" radius={[0, 6, 6, 0]}>
                     {capacitiesData.map((entry, index) => (
@@ -1229,7 +1287,7 @@ export const PlantHeadDispatchAnalytics = () => {
           </div>
 
           {/* Size-wise & Colour-wise 2-Column Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '20px' }}>
             
             {/* 3. Physical Size-wise Contributors */}
             <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
@@ -1312,7 +1370,7 @@ export const PlantHeadDispatchAnalytics = () => {
               </div>
 
               {/* Donut Chart of Colours */}
-              <ResponsiveChartBox height={160}>
+              <ResponsiveChartBox height={180}>
                 <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                   <Pie
                     data={coloursData}
@@ -1320,8 +1378,8 @@ export const PlantHeadDispatchAnalytics = () => {
                     nameKey="colour"
                     cx="50%"
                     cy="50%"
-                    innerRadius={45}
-                    outerRadius={70}
+                    innerRadius={42}
+                    outerRadius={68}
                     paddingAngle={3}
                   >
                     {coloursData.map((entry, index) => (
@@ -1461,7 +1519,7 @@ export const PlantHeadDispatchAnalytics = () => {
               <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <PieChartIcon size={17} color="#10b981" /> Customer Weight Concentration
               </h3>
-              <ResponsiveChartBox height={250}>
+              <ResponsiveChartBox height={260}>
                 <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                   <Pie
                     data={
@@ -1484,8 +1542,8 @@ export const PlantHeadDispatchAnalytics = () => {
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    innerRadius={55}
-                    outerRadius={90}
+                    innerRadius={50}
+                    outerRadius={85}
                     paddingAngle={3}
                   >
                     {[
@@ -2259,7 +2317,7 @@ export const PlantHeadDispatchAnalytics = () => {
           </div>
 
           {/* ── Visual Charts Section ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px' }}>
             {/* Chart 1: Top Localities Bar Chart (with Metric Toggle) */}
             <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -2274,10 +2332,10 @@ export const PlantHeadDispatchAnalytics = () => {
                 </span>
               </div>
               <ResponsiveChartBox height={280}>
-                <BarChart data={filteredAreaWiseData.slice(0, 10)} margin={{ top: 15, right: 15, left: 0, bottom: 35 }}>
+                <BarChart data={filteredAreaWiseData.slice(0, 10)} margin={{ top: 15, right: 15, left: -10, bottom: 35 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="locality" tick={{ fontSize: 11, fill: '#64748b' }} angle={-25} textAnchor="end" />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => areaMatrixMode === 'weight' ? `${(v/1000).toFixed(1)}T` : v} />
+                  <XAxis dataKey="locality" tick={{ fontSize: 10, fill: '#64748b' }} angle={-25} textAnchor="end" interval="preserveStartEnd" minTickGap={8} />
+                  <YAxis tick={{ fontSize: 10, fill: '#64748b' }} width={40} tickFormatter={(v) => areaMatrixMode === 'weight' ? `${(v/1000).toFixed(1)}T` : v} />
                   <Tooltip
                     formatter={(val, name, props) => [
                       areaMatrixMode === 'weight' ? `${Number(val).toLocaleString()} kg` : `${Number(val).toLocaleString()} pcs`,
@@ -2312,8 +2370,8 @@ export const PlantHeadDispatchAnalytics = () => {
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    innerRadius={65}
-                    outerRadius={95}
+                    innerRadius={50}
+                    outerRadius={80}
                     paddingAngle={3}
                   >
                     {areaDonutData.map((entry, index) => (
@@ -2338,7 +2396,7 @@ export const PlantHeadDispatchAnalytics = () => {
             </div>
 
             {/* Chart 3: Locality × Product Mix Stacked Bar Chart */}
-            <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', gridColumn: 'span 2' }}>
+            <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', gridColumn: '1 / -1' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <div>
                   <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -2348,10 +2406,10 @@ export const PlantHeadDispatchAnalytics = () => {
                 </div>
               </div>
               <ResponsiveChartBox height={280}>
-                <BarChart data={filteredAreaWiseData.slice(0, 12)} margin={{ top: 15, right: 15, left: 0, bottom: 35 }}>
+                <BarChart data={filteredAreaWiseData.slice(0, 12)} margin={{ top: 15, right: 15, left: -10, bottom: 35 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="locality" tick={{ fontSize: 11, fill: '#64748b' }} angle={-25} textAnchor="end" />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <XAxis dataKey="locality" tick={{ fontSize: 10, fill: '#64748b' }} angle={-25} textAnchor="end" interval="preserveStartEnd" minTickGap={8} />
+                  <YAxis tick={{ fontSize: 10, fill: '#64748b' }} width={40} />
                   <Tooltip
                     formatter={(val, name) => [`${Number(val).toLocaleString()} ${areaMatrixMode === 'weight' ? 'kg' : 'pcs'}`, name]}
                     contentStyle={{ borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
