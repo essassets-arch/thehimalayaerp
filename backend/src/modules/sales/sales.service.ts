@@ -142,7 +142,11 @@ export class SalesService {
       normalizedRole === 'PLANT_HEAD' ||
       normalizedRole === 'FINANCE_MANAGER' ||
       normalizedRole === 'FINANCE_EXECUTIVE' ||
-      !isSalespersonScopedRole(role);
+      normalizedRole === 'SUPER_SALES' ||
+      normalizedRole.startsWith('SUPER_SALES') ||
+      normalizedRole.startsWith('SUPERSALES') ||
+      normalizedRole === 'SALES_MANAGER' ||
+      normalizedRole.includes('SALES');
     const scope = isOperationalScope ? {} : getOrderSalesScope(userId, role);
     const where: Prisma.SalesOrderWhereInput = { ...scope, deletedAt: null };
 
@@ -186,51 +190,74 @@ export class SalesService {
       }
     }
 
-    const [total, records] = await this.prisma.$transaction([
-      this.prisma.salesOrder.count({ where }),
-      this.prisma.salesOrder.findMany({
-        where,
+    const baseFindManyInclude = {
+      customer: true,
+      quotation: {
         include: {
-          customer: true,
-          quotation: {
-            include: {
-              lead: true,
-            },
-          },
-          sourceQuotation: {
-            include: {
-              lead: true,
-            },
-          },
-          salesExecutive: { select: { id: true, name: true, email: true } },
-          items: { include: { product: true, dispatchItems: true } },
-          workflowState: true,
-          productionPlans: {
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-            include: { workOrders: true },
-          },
-          dispatches: {
-            include: { items: true },
-            orderBy: { updatedAt: 'desc' },
-          },
-          returns: {
-            include: { items: true },
-            orderBy: { requestedAt: 'desc' },
-          },
-          replacementRequests: {
-            include: { items: true },
-            orderBy: { requestedAt: 'desc' },
-          },
-          customerPayments: true,
-          complaintAdjustments: true,
-          lossRecord: true,
+          lead: true,
         },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take,
-      }),
-    ]);
+      },
+      sourceQuotation: {
+        include: {
+          lead: true,
+        },
+      },
+      salesExecutive: { select: { id: true, name: true, email: true } },
+      items: { include: { product: true, dispatchItems: true } },
+      workflowState: true,
+      productionPlans: {
+        orderBy: { createdAt: 'desc' as const },
+        take: 1,
+        include: { workOrders: true },
+      },
+      dispatches: {
+        include: { items: true },
+        orderBy: { updatedAt: 'desc' as const },
+      },
+      returns: {
+        include: { items: true },
+        orderBy: { requestedAt: 'desc' as const },
+      },
+      replacementRequests: {
+        include: { items: true },
+        orderBy: { requestedAt: 'desc' as const },
+      },
+      customerPayments: true,
+      lossRecord: true,
+    };
+
+    let total = 0;
+    let records: any[] = [];
+    try {
+      [total, records] = await this.prisma.$transaction([
+        this.prisma.salesOrder.count({ where }),
+        this.prisma.salesOrder.findMany({
+          where,
+          include: {
+            ...baseFindManyInclude,
+            complaintAdjustments: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take,
+        }),
+      ]);
+    } catch (err: any) {
+      if (String(err?.message || '').includes('ComplaintFinancialAdjustment') || String(err?.message || '').includes('complaintAdjustments')) {
+        [total, records] = await this.prisma.$transaction([
+          this.prisma.salesOrder.count({ where }),
+          this.prisma.salesOrder.findMany({
+            where,
+            include: baseFindManyInclude,
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take,
+          }),
+        ]);
+      } else {
+        throw err;
+      }
+    }
     const resolvedCompanyId =
       (await this.prisma.company.findFirst())?.id ||
       'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
@@ -261,7 +288,11 @@ export class SalesService {
       normalizedRole === 'PLANT_HEAD' ||
       normalizedRole === 'FINANCE_MANAGER' ||
       normalizedRole === 'FINANCE_EXECUTIVE' ||
-      !isSalespersonScopedRole(role);
+      normalizedRole === 'SUPER_SALES' ||
+      normalizedRole.startsWith('SUPER_SALES') ||
+      normalizedRole.startsWith('SUPERSALES') ||
+      normalizedRole === 'SALES_MANAGER' ||
+      normalizedRole.includes('SALES');
     const scope = isOperationalScope ? {} : getOrderSalesScope(userId, role);
     const rawId = String(id || '').trim();
     let decodedId = rawId;
@@ -293,56 +324,80 @@ export class SalesService {
       orConditions.push({ orderNumber: cleanId.replace(/-/g, '/') });
     }
 
-    const order = await this.prisma.salesOrder.findFirst({
-      where: {
-        AND: [
-          {
-            OR: orConditions,
-          },
-          scope,
-          { deletedAt: null },
-        ],
+    const baseGetOrderInclude = {
+      customer: true,
+      quotation: {
+        include: {
+          lead: true,
+        },
       },
-      include: {
-        customer: true,
-        quotation: {
-          include: {
-            lead: true,
-          },
+      sourceQuotation: {
+        include: {
+          lead: true,
         },
-        sourceQuotation: {
-          include: {
-            lead: true,
-          },
-        },
-        salesExecutive: { select: { id: true, name: true, email: true } },
-        items: {
-          include: {
-            product: true,
-          },
-        },
-        workflowState: true,
-        productionPlans: {
-          orderBy: { createdAt: 'desc' },
-          include: { workOrders: true },
-        },
-        dispatches: {
-          include: { items: true },
-          orderBy: { updatedAt: 'desc' },
-        },
-        invoices: true,
-        histories: {
-          orderBy: { createdAt: 'desc' },
-        },
-        returns: { include: { items: true }, orderBy: { requestedAt: 'desc' } },
-        replacementRequests: {
-          include: { items: true },
-          orderBy: { requestedAt: 'desc' },
-        },
-        customerPayments: true,
-        complaintAdjustments: true,
       },
-    });
+      salesExecutive: { select: { id: true, name: true, email: true } },
+      items: {
+        include: {
+          product: true,
+        },
+      },
+      workflowState: true,
+      productionPlans: {
+        orderBy: { createdAt: 'desc' as const },
+        include: { workOrders: true },
+      },
+      dispatches: {
+        include: { items: true },
+        orderBy: { updatedAt: 'desc' as const },
+      },
+      invoices: true,
+      histories: {
+        orderBy: { createdAt: 'desc' as const },
+      },
+      returns: { include: { items: true }, orderBy: { requestedAt: 'desc' as const } },
+      replacementRequests: {
+        include: { items: true },
+        orderBy: { requestedAt: 'desc' as const },
+      },
+      customerPayments: true,
+    };
+
+    let order: any = null;
+    try {
+      order = await this.prisma.salesOrder.findFirst({
+        where: {
+          AND: [
+            {
+              OR: orConditions,
+            },
+            scope,
+            { deletedAt: null },
+          ],
+        },
+        include: {
+          ...baseGetOrderInclude,
+          complaintAdjustments: true,
+        },
+      });
+    } catch (err: any) {
+      if (String(err?.message || '').includes('ComplaintFinancialAdjustment') || String(err?.message || '').includes('complaintAdjustments')) {
+        order = await this.prisma.salesOrder.findFirst({
+          where: {
+            AND: [
+              {
+                OR: orConditions,
+              },
+              scope,
+              { deletedAt: null },
+            ],
+          },
+          include: baseGetOrderInclude,
+        });
+      } else {
+        throw err;
+      }
+    }
     if (!order)
       throw new NotFoundException(`SalesOrder with ID ${id} not found`);
 

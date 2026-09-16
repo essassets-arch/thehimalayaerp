@@ -622,7 +622,7 @@ export const ERPProvider = ({ children }) => {
   const currentUser = useAuthStore(auth => auth.user);
   const userRoleStr = String(currentUser?.role || '').toLowerCase();
   const isSalesOrAdmin = userRoleStr.includes('sales') || userRoleStr.includes('admin') || userRoleStr.includes('super');
-  const shouldLoadSalesOrders = Boolean(currentUser) && isSalesOrAdmin;
+  const shouldLoadSalesOrders = Boolean(currentUser);
   const shouldLoadLeads = Boolean(currentUser) && isSalesOrAdmin;
   const shouldLoadCustomers = Boolean(currentUser) && isSalesOrAdmin;
 
@@ -684,9 +684,10 @@ export const ERPProvider = ({ children }) => {
       setSalesOrdersPagination(result.pagination);
       return result;
     } catch (error) {
-      setSalesOrders([]);
+      console.error('Failed to load sales orders:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
       setSalesOrdersError(errorMsg);
+      setSalesOrders(prev => (Array.isArray(prev) && prev.length > 0 ? prev : []));
       throw error;
     } finally {
       setSalesOrdersLoading(false);

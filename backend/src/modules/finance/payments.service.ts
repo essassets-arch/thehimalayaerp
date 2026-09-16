@@ -34,44 +34,65 @@ export class PaymentsService {
     ].includes(String(role || '').toUpperCase());
     const salesScope = isSalesperson ? { createdById: userId } : {};
 
-    const orders = await this.prisma.salesOrder.findMany({
-      where: {
-        deletedAt: null,
-        status: { not: 'CANCELLED' },
-        ...salesScope,
-      },
-      include: {
-        customer: true,
-        salesExecutive: { select: { id: true, name: true, email: true } },
-        quotation: {
-          select: {
-            paymentTerms: true,
-            paymentTermDays: true,
-          },
+    const baseOrderInclude = {
+      customer: true,
+      salesExecutive: { select: { id: true, name: true, email: true } },
+      quotation: {
+        select: {
+          paymentTerms: true,
+          paymentTermDays: true,
         },
-        complaintAdjustments: true,
-        customerPayments: {
+      },
+      customerPayments: {
+        orderBy: { createdAt: 'desc' as const },
+      },
+      invoices: {
+        select: {
+          id: true,
+          invoiceNumber: true,
+          createdAt: true,
+          totalAmount: true,
+          status: true,
+        },
+      },
+      dispatches: {
+        select: {
+          status: true,
+          deliveredAt: true,
+          podUrl: true,
+        },
+      },
+    };
+
+    let orders: any[] = [];
+    try {
+      orders = await this.prisma.salesOrder.findMany({
+        where: {
+          deletedAt: null,
+          status: { not: 'CANCELLED' },
+          ...salesScope,
+        },
+        include: {
+          ...baseOrderInclude,
+          complaintAdjustments: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } catch (err: any) {
+      if (String(err?.message || '').includes('ComplaintFinancialAdjustment') || String(err?.message || '').includes('complaintAdjustments')) {
+        orders = await this.prisma.salesOrder.findMany({
+          where: {
+            deletedAt: null,
+            status: { not: 'CANCELLED' },
+            ...salesScope,
+          },
+          include: baseOrderInclude,
           orderBy: { createdAt: 'desc' },
-        },
-        invoices: {
-          select: {
-            id: true,
-            invoiceNumber: true,
-            createdAt: true,
-            totalAmount: true,
-            status: true,
-          },
-        },
-        dispatches: {
-          select: {
-            status: true,
-            deliveredAt: true,
-            podUrl: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        });
+      } else {
+        throw err;
+      }
+    }
 
     const evaluatedRows = orders.map((order) => {
       const evaluation = this.engineService
@@ -272,7 +293,7 @@ export class PaymentsService {
           r.orderNumber.toLowerCase().includes(q) ||
           r.customerName.toLowerCase().includes(q) ||
           r.salespersonName?.toLowerCase().includes(q) ||
-          r.paymentReference?.toLowerCase().includes(q) ||
+          (r as any).paymentReference?.toLowerCase().includes(q) ||
           r.payments.some(
             (p) =>
               p.paymentNo?.toLowerCase().includes(q) ||
@@ -321,38 +342,62 @@ export class PaymentsService {
    * Complete payment history for an order.
    */
   async getOrderPaymentHistory(orderId: string) {
-    let order = await this.prisma.salesOrder.findUnique({
-      where: { id: orderId },
-      include: {
-        customer: true,
-        salesExecutive: { select: { id: true, name: true, email: true } },
-        quotation: true,
-        complaintAdjustments: true,
-        customerPayments: {
-          orderBy: { createdAt: 'desc' },
-        },
+    const baseHistoryInclude = {
+      customer: true,
+      salesExecutive: { select: { id: true, name: true, email: true } },
+      quotation: true,
+      customerPayments: {
+        orderBy: { createdAt: 'desc' as const },
       },
-    });
+    };
 
-    if (!order) {
-      order = await this.prisma.salesOrder.findFirst({
-        where: {
-          OR: [
-            { orderNumber: orderId },
-            { orderNumber: `ORD-${orderId}` },
-            { orderNumber: orderId.replace(/^#/, '') },
-          ],
-        },
+    let order: any = null;
+    try {
+      order = await this.prisma.salesOrder.findUnique({
+        where: { id: orderId },
         include: {
-          customer: true,
-          salesExecutive: { select: { id: true, name: true, email: true } },
-          quotation: true,
+          ...baseHistoryInclude,
           complaintAdjustments: true,
-          customerPayments: {
-            orderBy: { createdAt: 'desc' },
-          },
         },
       });
+
+      if (!order) {
+        order = await this.prisma.salesOrder.findFirst({
+          where: {
+            OR: [
+              { orderNumber: orderId },
+              { orderNumber: `ORD-${orderId}` },
+              { orderNumber: orderId.replace(/^#/, '') },
+            ],
+          },
+          include: {
+            ...baseHistoryInclude,
+            complaintAdjustments: true,
+          },
+        });
+      }
+    } catch (err: any) {
+      if (String(err?.message || '').includes('ComplaintFinancialAdjustment') || String(err?.message || '').includes('complaintAdjustments')) {
+        order = await this.prisma.salesOrder.findUnique({
+          where: { id: orderId },
+          include: baseHistoryInclude,
+        });
+
+        if (!order) {
+          order = await this.prisma.salesOrder.findFirst({
+            where: {
+              OR: [
+                { orderNumber: orderId },
+                { orderNumber: `ORD-${orderId}` },
+                { orderNumber: orderId.replace(/^#/, '') },
+              ],
+            },
+            include: baseHistoryInclude,
+          });
+        }
+      } else {
+        throw err;
+      }
     }
 
     if (!order) throw new NotFoundException('Sales Order not found');
