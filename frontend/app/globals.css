@@ -10974,7 +10974,7 @@ body, #root, .app-container {
 
 .finance-kpi-grid {
   display: grid !important;
-  grid-template-columns: repeat(5, 1fr) !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)) !important;
   gap: 16px !important;
   width: 100% !important;
 }
