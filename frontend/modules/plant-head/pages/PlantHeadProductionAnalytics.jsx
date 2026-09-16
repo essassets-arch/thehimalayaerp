@@ -78,6 +78,15 @@ const CAPACITY_COLORS = {
   Other: '#64748b',
 };
 
+// Safe number formatter avoiding null/undefined toLocaleString runtime crashes
+const fmt = (val, decimals = 0) => {
+  const n = Number(val || 0);
+  if (isNaN(n)) return '0';
+  return decimals > 0
+    ? n.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    : Math.round(n).toLocaleString('en-IN');
+};
+
 // ResizeObserver-safe container to prevent Recharts -1 width errors
 function ResponsiveChartBox({ height = 280, children }) {
   const containerRef = useRef(null);
@@ -209,24 +218,25 @@ export const PlantHeadProductionAnalytics = () => {
 
   // ── Memoized Data Collections ──
   const kpis = useMemo(() => {
-    return report?.kpis || {
-      totalWeight: 0,
-      totalWeightTonnes: 0,
-      totalCovers: 0,
-      totalFrames: 0,
-      totalPieces: 0,
-      averageWeightPerPiece: 0,
-      totalWorkOrders: 0,
-      completedWorkOrders: 0,
-      activeWorkOrders: 0,
-      completionRate: 0,
-      fpyRate: 98.5,
-      totalQcInspections: 0,
-      passedQcCount: 0,
-      rejectedQcCount: 0,
-      activeMachines: 6,
-      uniqueCustomers: 0,
-      narrative: 'No completed production data for this timeframe.'
+    const raw = report?.kpis || {};
+    return {
+      totalWeight: Number(raw.totalWeight || 0),
+      totalWeightTonnes: Number(raw.totalWeightTonnes || (raw.totalWeight ? raw.totalWeight / 1000 : 0)),
+      totalCovers: Number(raw.totalCovers || 0),
+      totalFrames: Number(raw.totalFrames || 0),
+      totalPieces: Number(raw.totalPieces || 0),
+      averageWeightPerPiece: Number(raw.averageWeightPerPiece || 0),
+      totalWorkOrders: Number(raw.totalWorkOrders || 0),
+      completedWorkOrders: Number(raw.completedWorkOrders || 0),
+      activeWorkOrders: Number(raw.activeWorkOrders || 0),
+      completionRate: Number(raw.completionRate || 0),
+      fpyRate: Number(raw.fpyRate || 98.5),
+      totalQcInspections: Number(raw.totalQcInspections || 0),
+      passedQcCount: Number(raw.passedQcCount || 0),
+      rejectedQcCount: Number(raw.rejectedQcCount || 0),
+      activeMachines: Number(raw.activeMachines || 6),
+      uniqueCustomers: Number(raw.uniqueCustomers || 0),
+      narrative: raw.narrative || 'No completed production data for this timeframe.'
     };
   }, [report]);
 
@@ -585,7 +595,7 @@ export const PlantHeadProductionAnalytics = () => {
             <Factory size={16} color="#0284c7" />
           </div>
           <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '6px 0 2px 0' }}>
-            {kpis.totalWeight.toLocaleString()} <span style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>kg</span>
+            {fmt(kpis.totalWeight)} <span style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>kg</span>
           </div>
           <div style={{ fontSize: '12px', fontWeight: '700', color: '#0284c7' }}>
             {kpis.totalWeightTonnes} Tonnes &bull; Avg {kpis.averageWeightPerPiece} kg/pc
@@ -606,10 +616,10 @@ export const PlantHeadProductionAnalytics = () => {
             <Package size={16} color="#0d9488" />
           </div>
           <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '6px 0 2px 0' }}>
-            {kpis.totalPieces.toLocaleString()} <span style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>pcs</span>
+            {fmt(kpis.totalPieces)} <span style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>pcs</span>
           </div>
           <div style={{ fontSize: '12px', fontWeight: '700', color: '#0d9488' }}>
-            {kpis.totalCovers.toLocaleString()} Covers &bull; {kpis.totalFrames.toLocaleString()} Frames
+            {fmt(kpis.totalCovers)} Covers &bull; {fmt(kpis.totalFrames)} Frames
           </div>
         </div>
 
@@ -773,7 +783,7 @@ export const PlantHeadProductionAnalytics = () => {
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#0d9488' }} axisLine={false} tickLine={false} />
                   <Tooltip
                     contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '12px' }}
-                    formatter={(val, name) => [name === 'weight' ? `${val.toLocaleString()} kg` : `${val.toLocaleString()} pcs`, name === 'weight' ? 'Weight' : 'Pieces']}
+                    formatter={(val, name) => [name === 'weight' ? `${fmt(val)} kg` : `${fmt(val)} pcs`, name === 'weight' ? 'Weight' : 'Pieces']}
                   />
                   <Area yAxisId="left" type="monotone" dataKey="weight" fill="#e0f2fe" stroke="#0284c7" strokeWidth={2.5} />
                   <Bar yAxisId="right" dataKey="pieces" fill="#0d9488" radius={[4, 4, 0, 0]} maxBarSize={30} />
@@ -804,7 +814,7 @@ export const PlantHeadProductionAnalytics = () => {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', fontWeight: '800', marginBottom: '5px' }}>
                     <span style={{ color: '#0284c7' }}>Covers Produced</span>
-                    <span style={{ color: '#0f172a' }}>{kpis.totalCovers.toLocaleString()} pcs ({kpis.totalPieces > 0 ? ((kpis.totalCovers / kpis.totalPieces) * 100).toFixed(1) : 50}%)</span>
+                    <span style={{ color: '#0f172a' }}>{fmt(kpis.totalCovers)} pcs ({kpis.totalPieces > 0 ? ((kpis.totalCovers / kpis.totalPieces) * 100).toFixed(1) : 50}%)</span>
                   </div>
                   <div style={{ height: '10px', background: '#f1f5f9', borderRadius: '6px', overflow: 'hidden' }}>
                     <div style={{ width: `${kpis.totalPieces > 0 ? (kpis.totalCovers / kpis.totalPieces) * 100 : 50}%`, height: '100%', background: '#0284c7' }}></div>
@@ -814,7 +824,7 @@ export const PlantHeadProductionAnalytics = () => {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', fontWeight: '800', marginBottom: '5px' }}>
                     <span style={{ color: '#0d9488' }}>Frames Produced</span>
-                    <span style={{ color: '#0f172a' }}>{kpis.totalFrames.toLocaleString()} pcs ({kpis.totalPieces > 0 ? ((kpis.totalFrames / kpis.totalPieces) * 100).toFixed(1) : 50}%)</span>
+                    <span style={{ color: '#0f172a' }}>{fmt(kpis.totalFrames)} pcs ({kpis.totalPieces > 0 ? ((kpis.totalFrames / kpis.totalPieces) * 100).toFixed(1) : 50}%)</span>
                   </div>
                   <div style={{ height: '10px', background: '#f1f5f9', borderRadius: '6px', overflow: 'hidden' }}>
                     <div style={{ width: `${kpis.totalPieces > 0 ? (kpis.totalFrames / kpis.totalPieces) * 100 : 50}%`, height: '100%', background: '#0d9488' }}></div>
@@ -932,7 +942,7 @@ export const PlantHeadProductionAnalytics = () => {
                   <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#0f172a', fontWeight: '700' }} axisLine={false} tickLine={false} width={60} />
                   <Tooltip
                     contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '12px' }}
-                    formatter={(val) => [`${val.toLocaleString()} kg (${capacitiesData.find(c => c.weight === val)?.share || 0}%)`, 'Volume']}
+                    formatter={(val) => [`${fmt(val)} kg (${capacitiesData.find(c => c.weight === val)?.share || 0}%)`, 'Volume']}
                   />
                   <Bar dataKey="weight" radius={[0, 6, 6, 0]}>
                     {capacitiesData.map((entry, idx) => (
@@ -965,7 +975,7 @@ export const PlantHeadProductionAnalytics = () => {
                   </Pie>
                   <Tooltip
                     contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '12px' }}
-                    formatter={(val) => [`${val.toLocaleString()} kg`, 'Weight']}
+                    formatter={(val) => [`${fmt(val)} kg`, 'Weight']}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
                 </PieChart>
@@ -1002,11 +1012,11 @@ export const PlantHeadProductionAnalytics = () => {
                         {p.capacity || '—'}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{p.weight.toLocaleString()} kg</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{fmt(p.weight)} kg</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#0369a1' }}>{p.share}%</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>{p.covers.toLocaleString()}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>{p.frames.toLocaleString()}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>{p.pieces.toLocaleString()}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>{fmt(p.covers)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>{fmt(p.frames)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>{fmt(p.pieces)}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{p.workOrders}</td>
                   </tr>
                 ))}
@@ -1037,7 +1047,7 @@ export const PlantHeadProductionAnalytics = () => {
                   {st.count} Work Orders
                 </div>
                 <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b' }}>
-                  {st.weight.toLocaleString()} kg &bull; {st.share}% of total volume
+                  {fmt(st.weight)} kg &bull; {st.share}% of total volume
                 </div>
               </div>
             ))}
@@ -1113,7 +1123,7 @@ export const PlantHeadProductionAnalytics = () => {
                         {wo.quantity}
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>
-                        {wo.weight.toLocaleString()}
+                        {fmt(wo.weight)}
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                         <span style={{
@@ -1295,7 +1305,7 @@ export const PlantHeadProductionAnalytics = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '14px' }}>
                     <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
                       <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Throughput Output</div>
-                      <div style={{ fontSize: '16px', fontWeight: '900', color: '#0284c7', marginTop: '2px' }}>{m.weight.toLocaleString()} kg</div>
+                      <div style={{ fontSize: '16px', fontWeight: '900', color: '#0284c7', marginTop: '2px' }}>{fmt(m.weight)} kg</div>
                     </div>
                     <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
                       <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Work Orders</div>
@@ -1347,7 +1357,7 @@ export const PlantHeadProductionAnalytics = () => {
                       </td>
                       <td style={{ padding: '10px 12px', color: '#475569' }}>{c.salesperson}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>{c.orders}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{c.weight.toLocaleString()} kg</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{fmt(c.weight)} kg</td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0369a1' }}>{c.share}%</td>
                     </tr>
                   ))}
@@ -1392,7 +1402,7 @@ export const PlantHeadProductionAnalytics = () => {
           <div style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
             <div style={{ fontSize: '12px', fontWeight: '800', color: '#0f172a' }}>3. Component Balancing Ratio</div>
             <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>
-              Output stands at {kpis.totalCovers.toLocaleString()} covers and {kpis.totalFrames.toLocaleString()} frames. Molding lines are operating in balanced pairing synchronization.
+              Output stands at {fmt(kpis.totalCovers)} covers and {fmt(kpis.totalFrames)} frames. Molding lines are operating in balanced pairing synchronization.
             </div>
           </div>
 
