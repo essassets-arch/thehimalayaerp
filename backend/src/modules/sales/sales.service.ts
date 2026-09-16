@@ -223,6 +223,7 @@ export class SalesService {
             orderBy: { requestedAt: 'desc' },
           },
           customerPayments: true,
+          complaintAdjustments: true,
           lossRecord: true,
         },
         orderBy: { createdAt: 'desc' },
@@ -339,6 +340,7 @@ export class SalesService {
           orderBy: { requestedAt: 'desc' },
         },
         customerPayments: true,
+        complaintAdjustments: true,
       },
     });
     if (!order)

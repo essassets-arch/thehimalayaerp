@@ -28,6 +28,9 @@ export interface PaymentCalculationResult {
   reminderDay: number;
   dueDay: number;
   orderTotal: number;
+  originalOrderTotal?: number;
+  complaintDeduction?: number;
+  netOrderTotal?: number;
   verifiedPaidAmount: number;
   outstandingAmount: number;
   paymentStatus: string;
@@ -380,10 +383,21 @@ export class PaymentFollowupEngineService
       order.createdAt ||
       new Date();
 
+    const appliedDeductions = ((order as any).complaintAdjustments || [])
+      .filter((adj: any) => adj.status === 'APPLIED')
+      .reduce(
+        (sum: number, adj: any) => sum + Number(adj.approvedReturnAmount || 0),
+        0,
+      );
+    const effectiveOrderTotal = Math.max(
+      0,
+      Number(order.totalAmount || 0) - appliedDeductions,
+    );
+
     const evaluation = this.evaluateOrderState({
       paymentTermStartDate: startDate,
       paymentTermDays: termDays,
-      orderTotal: Number(order.totalAmount || 0),
+      orderTotal: effectiveOrderTotal,
       verifiedPaidAmount,
       currentDate,
       hasPendingVerification: pendingPayments.length > 0,
@@ -426,6 +440,9 @@ export class PaymentFollowupEngineService
       reminderDay: evaluation.reminderDay,
       dueDay: evaluation.dueDay,
       orderTotal: Number(order.totalAmount || 0),
+      originalOrderTotal: Number(order.totalAmount || 0),
+      complaintDeduction: appliedDeductions,
+      netOrderTotal: effectiveOrderTotal,
       verifiedPaidAmount,
       outstandingAmount: evaluation.outstandingAmount,
       paymentStatus: evaluation.paymentStatus,

@@ -8,8 +8,12 @@ import { ComplaintStatus, Prisma, SalesOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { SequenceService } from '../../common/sequence/sequence.service';
 import {
+  AdminRemarksDto,
+  CompleteDispatchDto,
   CreateCustomerComplaintDto,
   CustomerComplaintItemDto,
+  RejectComplaintDto,
+  ResolveFinanceDto,
 } from './dto/create-customer-complaint.dto';
 import {
   getComplaintSalesScope,
@@ -25,6 +29,8 @@ const includeRelations = {
       customerCode: true,
       email: true,
       phone: true,
+      billingAddress: true,
+      shippingAddress: true,
     },
   },
   product: {
@@ -36,6 +42,11 @@ const includeRelations = {
       orderNumber: true,
       orderDate: true,
       totalAmount: true,
+      paidAmount: true,
+      outstandingAmount: true,
+      paymentStatus: true,
+      billingAddress: true,
+      shippingAddress: true,
       status: true,
       salesExecutiveId: true,
       createdById: true,
@@ -49,6 +60,8 @@ const includeRelations = {
           orderedQuantity: true,
           unit: true,
           unitPrice: true,
+          taxRate: true,
+          taxAmount: true,
           lineTotal: true,
           product: {
             select: { id: true, name: true, sku: true },
@@ -69,6 +82,9 @@ const includeRelations = {
           orderedQuantity: true,
           unit: true,
           unitPrice: true,
+          taxRate: true,
+          taxAmount: true,
+          lineTotal: true,
         },
       },
     },
@@ -77,6 +93,13 @@ const includeRelations = {
     select: { id: true, name: true, email: true },
   },
   lossRecord: true,
+  financeAdjustment: true,
+  attachments: {
+    orderBy: { uploadedAt: 'asc' },
+  },
+  statusHistory: {
+    orderBy: { createdAt: 'asc' },
+  },
 } satisfies Prisma.CustomerComplaintInclude;
 
 @Injectable()
@@ -141,7 +164,7 @@ export class CustomerComplaintsService {
     });
 
     const sortedCustomers = Array.from(customersMap.values()).sort((a, b) =>
-      (a.companyName || '').localeCompare(b.companyName || '')
+      (a.companyName || '').localeCompare(b.companyName || ''),
     );
 
     return {
@@ -216,6 +239,8 @@ export class CustomerComplaintsService {
 
     const orderProductIds = new Set(order.items.map((i) => i.productId));
     const orderItemIds = new Set(order.items.map((i) => i.id));
+    const orderItemsById = new Map(order.items.map((i) => [i.id, i]));
+    const orderItemsByProduct = new Map(order.items.map((i) => [i.productId, i]));
 
     for (const item of itemsDto) {
       if (!orderProductIds.has(item.productId)) {
@@ -244,7 +269,34 @@ export class CustomerComplaintsService {
 
     const status = isDraft
       ? ComplaintStatus.DRAFT
-      : ComplaintStatus.PENDING_PLANT_HEAD;
+      : ComplaintStatus.PLANT_HEAD_PENDING;
+
+    // Calculate snapshot pricing and complaint value per product
+    let totalComplaintCalc = 0;
+    const mappedItems = itemsDto.map((item) => {
+      const matched =
+        (item.orderItemId && orderItemsById.get(item.orderItemId)) ||
+        orderItemsByProduct.get(item.productId);
+      const unitPrice = Number(matched?.unitPrice || 0);
+      const qty = Number(item.complaintQuantity || 0);
+      const complaintAmount = unitPrice * qty;
+      totalComplaintCalc += complaintAmount;
+
+      return {
+        orderItemId: item.orderItemId || matched?.id || null,
+        productId: item.productId,
+        orderedQuantity: item.orderedQuantity ?? matched?.orderedQuantity ?? 0,
+        deliveredQuantity:
+          item.deliveredQuantity ?? item.orderedQuantity ?? matched?.orderedQuantity ?? 0,
+        complaintQuantity: item.complaintQuantity,
+        unitPrice,
+        complaintAmount,
+        productNameSnapshot: matched?.productNameSnapshot || null,
+        productCodeSnapshot: matched?.productCodeSnapshot || null,
+      };
+    });
+
+    const originalBill = Number(order.totalAmount || 0);
 
     return this.prisma.$transaction(async (tx) => {
       const complaintNo =
@@ -266,20 +318,35 @@ export class CustomerComplaintsService {
           description: dto.description,
           salesRemarks: dto.salesRemarks,
           attachment: dto.attachment,
+          originalBillAmount: originalBill,
+          calculatedComplaintAmount: totalComplaintCalc,
           status,
           submittedBy: isDraft ? null : userId,
           submittedAt: isDraft ? null : new Date(),
           createdBy: userId,
           salesExecutiveId: order.salesExecutiveId || userId,
           items: {
-            create: itemsDto.map((item) => ({
-              orderItemId: item.orderItemId,
-              productId: item.productId,
-              orderedQuantity: item.orderedQuantity ?? 0,
-              deliveredQuantity:
-                item.deliveredQuantity ?? item.orderedQuantity ?? 0,
-              complaintQuantity: item.complaintQuantity,
-            })),
+            create: mappedItems,
+          },
+          ...(dto.attachment
+            ? {
+                attachments: {
+                  create: {
+                    fileUrl: dto.attachment,
+                    category: 'SALES_EVIDENCE',
+                    uploadedById: userId,
+                  },
+                },
+              }
+            : {}),
+          statusHistory: {
+            create: {
+              fromStatus: null,
+              toStatus: status,
+              action: isDraft ? 'DRAFT_CREATED' : 'SUBMITTED_TO_PLANT_HEAD',
+              actorId: userId,
+              remarks: dto.salesRemarks || 'Customer complaint created',
+            },
           },
         },
         include: includeRelations,
@@ -311,12 +378,32 @@ export class CustomerComplaintsService {
 
     if (query.status && query.status !== 'ALL') {
       const st = String(query.status).toUpperCase();
-      if (st === 'SUBMITTED' || st === 'PENDING') {
+      if (
+        st === 'SUBMITTED' ||
+        st === 'PENDING' ||
+        st === 'PLANT_HEAD_PENDING' ||
+        st === 'PENDING_PLANT_HEAD'
+      ) {
         where.status = {
           in: [
+            ComplaintStatus.PLANT_HEAD_PENDING,
             ComplaintStatus.PENDING_PLANT_HEAD,
             ComplaintStatus.PENDING_SUPER_ADMIN,
             ComplaintStatus.SUBMITTED,
+          ],
+        };
+      } else if (st === 'DISPATCH_PENDING' || st === 'PLANT_HEAD_APPROVED') {
+        where.status = {
+          in: [
+            ComplaintStatus.DISPATCH_PENDING,
+            ComplaintStatus.PLANT_HEAD_APPROVED,
+          ],
+        };
+      } else if (st === 'FINANCE_PENDING' || st === 'DISPATCH_COMPLETED') {
+        where.status = {
+          in: [
+            ComplaintStatus.FINANCE_PENDING,
+            ComplaintStatus.DISPATCH_COMPLETED,
           ],
         };
       } else {
@@ -379,24 +466,21 @@ export class CustomerComplaintsService {
       existing.status !== ComplaintStatus.REJECTED
     ) {
       throw new BadRequestException(
-        'Only draft or rejected complaints can be edited',
+        'Only draft or rejected complaints can be modified by salesperson',
       );
     }
 
     const itemsDto = dto.items || [];
     const isSubmit =
-      dto.status === 'SUBMIT' ||
-      dto.status === 'PENDING_PLANT_HEAD' ||
-      dto.status === 'SUBMITTED';
+      String(dto.status || '').toUpperCase() === 'SUBMIT' ||
+      String(dto.status || '').toUpperCase() === 'PLANT_HEAD_PENDING' ||
+      String(dto.status || '').toUpperCase() === 'SUBMITTED';
 
     const newStatus = isSubmit
-      ? ComplaintStatus.PENDING_PLANT_HEAD
-      : existing.status === ComplaintStatus.DRAFT
-        ? ComplaintStatus.DRAFT
-        : ComplaintStatus.REJECTED;
+      ? ComplaintStatus.PLANT_HEAD_PENDING
+      : existing.status;
 
     return this.prisma.$transaction(async (tx) => {
-      // Re-create items if provided
       if (itemsDto.length > 0) {
         await tx.customerComplaintItem.deleteMany({
           where: { complaintId: id },
@@ -455,6 +539,19 @@ export class CustomerComplaintsService {
         include: includeRelations,
       });
 
+      if (isSubmit) {
+        await tx.complaintStatusHistory.create({
+          data: {
+            complaintId: id,
+            fromStatus: existing.status,
+            toStatus: newStatus,
+            action: 'SUBMITTED_TO_PLANT_HEAD',
+            actorId: userId,
+            remarks: dto.salesRemarks || 'Complaint submitted to Plant Head',
+          },
+        });
+      }
+
       await tx.auditLog.create({
         data: {
           actorUserId: userId,
@@ -470,51 +567,95 @@ export class CustomerComplaintsService {
   }
 
   async removeSales(id: string, userId: string, role?: string) {
-    const c = await this.findSales(id, userId, role);
-    if (c.status !== ComplaintStatus.DRAFT) {
-      throw new BadRequestException('Only drafts can be deleted');
+    const existing = await this.findSales(id, userId, role);
+    if (existing.status !== ComplaintStatus.DRAFT) {
+      throw new BadRequestException('Only draft complaints can be deleted');
     }
     await this.prisma.customerComplaint.delete({ where: { id } });
-    return { id, message: 'Draft complaint deleted' };
+    return { success: true, message: 'Draft complaint removed' };
   }
 
   async resubmit(id: string, userId: string, role?: string) {
-    const c = await this.findSales(id, userId, role);
-    if (c.status !== ComplaintStatus.REJECTED) {
+    const complaint = await this.findSales(id, userId, role);
+    if (
+      complaint.status !== ComplaintStatus.REJECTED &&
+      complaint.status !== ComplaintStatus.DRAFT
+    ) {
       throw new BadRequestException(
-        'Only rejected complaints can be resubmitted',
+        'Only rejected or draft complaints can be submitted',
       );
     }
-    return this.prisma.customerComplaint.update({
-      where: { id },
-      data: {
-        status: ComplaintStatus.PENDING_PLANT_HEAD,
-        submittedBy: userId,
-        submittedAt: new Date(),
-        updatedBy: userId,
-        rejectedBy: null,
-        rejectedAt: null,
-      },
-      include: includeRelations,
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.customerComplaint.update({
+        where: { id },
+        data: {
+          status: ComplaintStatus.PLANT_HEAD_PENDING,
+          submittedBy: userId,
+          submittedAt: new Date(),
+          rejectedBy: null,
+          rejectedAt: null,
+          rejectionReason: null,
+          updatedBy: userId,
+        },
+        include: includeRelations,
+      });
+
+      await tx.complaintStatusHistory.create({
+        data: {
+          complaintId: id,
+          fromStatus: complaint.status,
+          toStatus: ComplaintStatus.PLANT_HEAD_PENDING,
+          action: 'SUBMITTED_TO_PLANT_HEAD',
+          actorId: userId,
+          remarks: 'Resubmitted to Plant Head for review',
+        },
+      });
+
+      return updated;
     });
   }
+
+  // ─── Plant Head Operations ───
 
   async listPlantHead(query: any = {}) {
     const where: Prisma.CustomerComplaintWhereInput = {};
 
     if (query.status && query.status !== 'ALL') {
       const st = String(query.status).toUpperCase();
-      if (st === 'PENDING' || st === 'PENDING_PLANT_HEAD') {
+      if (
+        st === 'PENDING' ||
+        st === 'PENDING_PLANT_HEAD' ||
+        st === 'PLANT_HEAD_PENDING'
+      ) {
         where.status = {
           in: [
+            ComplaintStatus.PLANT_HEAD_PENDING,
             ComplaintStatus.PENDING_PLANT_HEAD,
             ComplaintStatus.PENDING_SUPER_ADMIN,
             ComplaintStatus.SUBMITTED,
           ],
         };
+      } else if (st === 'HISTORY') {
+        where.status = {
+          in: [
+            ComplaintStatus.RESOLVED,
+            ComplaintStatus.REJECTED,
+            ComplaintStatus.CLOSED,
+          ],
+        };
       } else {
         where.status = st as any;
       }
+    } else if (!query.status) {
+      where.status = {
+        in: [
+          ComplaintStatus.PLANT_HEAD_PENDING,
+          ComplaintStatus.PENDING_PLANT_HEAD,
+          ComplaintStatus.PENDING_SUPER_ADMIN,
+          ComplaintStatus.SUBMITTED,
+        ],
+      };
     }
 
     if (query.search) {
@@ -540,32 +681,16 @@ export class CustomerComplaintsService {
   }
 
   /**
-   * Plant Head APPROVE Transaction:
-   * 1. Validate complaint is pending
-   * 2. Invariant Check: Verify Order is not already LOST / CANCELLED_LOSS
-   * 3. Update CustomerComplaint -> APPROVED
-   * 4. Update SalesOrder -> LOST (lostReason, lostAt, lostComplaintId)
-   * 5. Create SalesOrderLoss record
-   * 6. Update linked Quotation -> LOST
-   * 7. Update linked Lead -> LOST
-   * 8. Create AuditLog records
+   * Plant Head APPROVE:
+   * Transitions PLANT_HEAD_PENDING -> DISPATCH_PENDING.
+   * Sends complaint to Dispatch for physical return/quality inspection.
+   * NOTE: Does NOT mark SalesOrder as LOST!
    */
   async approve(id: string, userId: string, adminRemarks?: string) {
     return this.prisma.$transaction(async (tx) => {
       const c = await tx.customerComplaint.findUnique({
         where: { id },
-        include: {
-          order: {
-            include: {
-              quotation: {
-                include: {
-                  lead: true,
-                },
-              },
-            },
-          },
-          lossRecord: true,
-        },
+        include: includeRelations,
       });
 
       if (!c) {
@@ -573,43 +698,24 @@ export class CustomerComplaintsService {
       }
 
       const isPending =
+        c.status === ComplaintStatus.PLANT_HEAD_PENDING ||
         c.status === ComplaintStatus.PENDING_PLANT_HEAD ||
         c.status === ComplaintStatus.PENDING_SUPER_ADMIN ||
         c.status === ComplaintStatus.SUBMITTED;
 
       if (!isPending) {
         throw new BadRequestException(
-          'Only pending complaints can be approved',
-        );
-      }
-
-      if (!c.order) {
-        throw new BadRequestException(
-          'Complaint must be linked to a valid Sales Order to be approved',
-        );
-      }
-
-      // CRITICAL INVARIANT: Order can transition to LOST only once!
-      if (
-        c.order.status === SalesOrderStatus.LOST ||
-        c.lossRecord ||
-        (await tx.salesOrderLoss.findUnique({
-          where: { salesOrderId: c.order.id },
-        }))
-      ) {
-        throw new BadRequestException(
-          'ORDER_ALREADY_LOST: This order is already marked as Lost and cannot be deducted again.',
+          'Only complaints pending Plant Head review can be approved',
         );
       }
 
       const now = new Date();
-      const orderValue = Number(c.order.totalAmount || 0);
 
-      // 1. Update Complaint status -> APPROVED
+      // Update complaint status -> DISPATCH_PENDING
       const approvedComplaint = await tx.customerComplaint.update({
         where: { id },
         data: {
-          status: ComplaintStatus.APPROVED,
+          status: ComplaintStatus.DISPATCH_PENDING,
           approvedBy: userId,
           approvedAt: now,
           plantHeadDecisionAt: now,
@@ -619,110 +725,35 @@ export class CustomerComplaintsService {
         include: includeRelations,
       });
 
-      // 2. Update Order status -> LOST
-      await tx.salesOrder.update({
-        where: { id: c.order.id },
+      // Status history record
+      await tx.complaintStatusHistory.create({
         data: {
-          status: SalesOrderStatus.LOST,
-          lostReason: c.complaintType,
-          lostAt: now,
-          lostComplaintId: c.id,
-          updatedById: userId,
+          complaintId: id,
+          fromStatus: c.status,
+          toStatus: ComplaintStatus.DISPATCH_PENDING,
+          action: 'PLANT_HEAD_APPROVED',
+          actorId: userId,
+          remarks:
+            adminRemarks ||
+            'Approved by Plant Head and forwarded to Dispatch for verification',
         },
       });
 
-      // 3. Create SalesOrderLoss record
-      const lossRecord = await tx.salesOrderLoss.create({
+      await tx.auditLog.create({
         data: {
-          salesOrderId: c.order.id,
-          complaintId: c.id,
-          salesExecutiveId:
-            c.order.salesExecutiveId ||
-            c.order.createdById ||
-            c.salesExecutiveId,
-          customerId: c.customerId,
-          orderValue: orderValue,
-          lostValue: orderValue,
-          reason: c.complaintType,
-          remarks: adminRemarks || `Customer Complaint ${c.complaintNo} Approved by Plant Head`,
-          lostDate: now,
-          createdById: userId,
+          actorUserId: userId,
+          action: 'COMPLAINT_APPROVED_PLANT_HEAD',
+          entityType: 'CustomerComplaint',
+          entityId: c.id,
+          after: {
+            complaintNo: c.complaintNo,
+            status: 'DISPATCH_PENDING',
+            approvedBy: userId,
+          },
         },
       });
 
-      // 4. Update linked Quotation -> LOST
-      if (c.order.quotationId) {
-        await tx.quotation.update({
-          where: { id: c.order.quotationId },
-          data: {
-            lostReason: c.complaintType,
-            lostAt: now,
-            lostComplaintId: c.id,
-            updatedById: userId,
-          },
-        });
-      }
-
-      // 5. Update linked Lead -> LOST
-      const leadId = c.order.quotation?.leadId;
-      if (leadId) {
-        await tx.lead.update({
-          where: { id: leadId },
-          data: {
-            lostReason: 'Customer Complaint',
-            lostAt: now,
-            lostComplaintId: c.id,
-            updatedById: userId,
-          },
-        });
-      }
-
-      // 6. Record Audit Trail
-      await tx.auditLog.createMany({
-        data: [
-          {
-            actorUserId: userId,
-            action: 'COMPLAINT_APPROVED_PLANT_HEAD',
-            entityType: 'CustomerComplaint',
-            entityId: c.id,
-            after: {
-              complaintNo: c.complaintNo,
-              status: 'APPROVED',
-              orderNumber: c.order.orderNumber,
-              lostValue: orderValue,
-            },
-          },
-          {
-            actorUserId: userId,
-            action: 'ORDER_MARKED_LOST',
-            entityType: 'SalesOrder',
-            entityId: c.order.id,
-            after: {
-              orderNumber: c.order.orderNumber,
-              status: 'LOST',
-              lostValue: orderValue,
-              complaintNo: c.complaintNo,
-            },
-          },
-          {
-            actorUserId: userId,
-            action: 'SALES_LOSS_RECORDED',
-            entityType: 'SalesOrderLoss',
-            entityId: lossRecord.id,
-            after: {
-              orderId: c.order.id,
-              complaintId: c.id,
-              lostValue: orderValue,
-              salesExecutiveId: lossRecord.salesExecutiveId,
-            },
-          },
-        ],
-      });
-
-      return {
-        ...approvedComplaint,
-        lossRecord,
-      };
+      return approvedComplaint;
     });
   }
 
@@ -738,6 +769,7 @@ export class CustomerComplaintsService {
 
     const c = await this.get(id);
     const isPending =
+      c.status === ComplaintStatus.PLANT_HEAD_PENDING ||
       c.status === ComplaintStatus.PENDING_PLANT_HEAD ||
       c.status === ComplaintStatus.PENDING_SUPER_ADMIN ||
       c.status === ComplaintStatus.SUBMITTED;
@@ -765,6 +797,17 @@ export class CustomerComplaintsService {
         include: includeRelations,
       });
 
+      await tx.complaintStatusHistory.create({
+        data: {
+          complaintId: id,
+          fromStatus: c.status,
+          toStatus: ComplaintStatus.REJECTED,
+          action: 'PLANT_HEAD_REJECTED',
+          actorId: userId,
+          remarks: rejectionReason,
+        },
+      });
+
       await tx.auditLog.create({
         data: {
           actorUserId: userId,
@@ -783,6 +826,359 @@ export class CustomerComplaintsService {
     });
   }
 
+  // ─── Dispatch Operations ───
+
+  async listDispatch(query: any = {}) {
+    const where: Prisma.CustomerComplaintWhereInput = {};
+
+    if (query.all === 'true' || query.all === true || query.status === 'ALL') {
+      // Return all dispatch-relevant complaints without status restriction
+    } else if (query.status) {
+      const st = String(query.status).toUpperCase();
+      if (st === 'PENDING' || st === 'DISPATCH_PENDING') {
+        where.status = {
+          in: [
+            ComplaintStatus.DISPATCH_PENDING,
+            ComplaintStatus.PLANT_HEAD_APPROVED,
+          ],
+        };
+      } else {
+        where.status = st as any;
+      }
+    } else {
+      where.status = {
+        in: [
+          ComplaintStatus.DISPATCH_PENDING,
+          ComplaintStatus.PLANT_HEAD_APPROVED,
+        ],
+      };
+    }
+
+    if (query.search) {
+      const q = String(query.search).trim();
+      where.OR = [
+        { complaintNo: { contains: q, mode: 'insensitive' } },
+        { subject: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { customer: { companyName: { contains: q, mode: 'insensitive' } } },
+        { order: { orderNumber: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+
+    return this.prisma.customerComplaint.findMany({
+      where,
+      include: includeRelations,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async completeDispatch(
+    id: string,
+    userId: string,
+    dto: CompleteDispatchDto,
+  ) {
+    const finalEvidence = (dto.evidenceUrl || dto.dispatchEvidence || '').trim();
+    const finalRemarks = (dto.remarks || dto.dispatchRemarks || '').trim();
+
+    if (!finalEvidence) {
+      throw new BadRequestException(
+        'Complaint completion evidence image is required from Dispatch',
+      );
+    }
+
+    const complaint = await this.get(id);
+    const isDispatchPending =
+      complaint.status === ComplaintStatus.DISPATCH_PENDING ||
+      complaint.status === ComplaintStatus.PLANT_HEAD_APPROVED;
+
+    if (!isDispatchPending) {
+      throw new BadRequestException(
+        'Only complaints pending dispatch inspection can be marked done',
+      );
+    }
+
+    const now = new Date();
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Create DISPATCH_EVIDENCE attachment record
+      await tx.complaintAttachment.create({
+        data: {
+          complaintId: id,
+          fileUrl: finalEvidence,
+          category: 'DISPATCH_EVIDENCE',
+          uploadedById: userId,
+          uploadedAt: now,
+        },
+      });
+
+      // 2. Advance status to FINANCE_PENDING
+      const updated = await tx.customerComplaint.update({
+        where: { id },
+        data: {
+          status: ComplaintStatus.FINANCE_PENDING,
+          dispatchCompletedAt: now,
+          dispatchCompletedBy: userId,
+          dispatchRemarks:
+            finalRemarks || 'Physical inspection and photo evidence captured',
+          dispatchEvidence: finalEvidence,
+          updatedBy: userId,
+        },
+        include: includeRelations,
+      });
+
+      // 3. Record status history
+      await tx.complaintStatusHistory.create({
+        data: {
+          complaintId: id,
+          fromStatus: complaint.status,
+          toStatus: ComplaintStatus.FINANCE_PENDING,
+          action: 'DISPATCH_COMPLETED',
+          actorId: userId,
+          remarks:
+            finalRemarks ||
+            'Dispatch completed physical check and sent to Finance',
+          metadata: {
+            evidenceUrl: finalEvidence,
+            dispatchCompletedAt: now,
+          },
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: userId,
+          action: 'COMPLAINT_DISPATCH_COMPLETED',
+          entityType: 'CustomerComplaint',
+          entityId: id,
+          after: {
+            complaintNo: complaint.complaintNo,
+            status: 'FINANCE_PENDING',
+            evidenceUrl: dto.evidenceUrl,
+          },
+        },
+      });
+
+      return updated;
+    });
+  }
+
+  // ─── Finance Operations ───
+
+  async listFinance(query: any = {}) {
+    const where: Prisma.CustomerComplaintWhereInput = {};
+
+    if (query.all === 'true' || query.all === true || query.status === 'ALL') {
+      // Return all finance-relevant complaints without status restriction
+    } else if (query.status) {
+      const st = String(query.status).toUpperCase();
+      if (st === 'PENDING' || st === 'FINANCE_PENDING') {
+        where.status = ComplaintStatus.FINANCE_PENDING;
+      } else {
+        where.status = st as any;
+      }
+    } else {
+      where.status = ComplaintStatus.FINANCE_PENDING;
+    }
+
+    if (query.search) {
+      const q = String(query.search).trim();
+      where.OR = [
+        { complaintNo: { contains: q, mode: 'insensitive' } },
+        { subject: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { customer: { companyName: { contains: q, mode: 'insensitive' } } },
+        { order: { orderNumber: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+
+    return this.prisma.customerComplaint.findMany({
+      where,
+      include: includeRelations,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Finance RESOLVE Transaction:
+   * 1. Validates complaint is in FINANCE_PENDING
+   * 2. Validates approvedReturnAmount: 0 <= return <= originalOrderAmount
+   * 3. Validates mandatory financeRemarks
+   * 4. Idempotency Check: Guaranteed via complaintFinancialAdjustment uniqueness
+   * 5. Creates ComplaintFinancialAdjustment (keeps SalesOrder.totalAmount permanently intact)
+   * 6. Updates CustomerComplaint -> RESOLVED
+   * 7. Records audit history
+   */
+  async resolveFinance(id: string, userId: string, dto: ResolveFinanceDto) {
+    if (
+      dto.approvedReturnAmount === undefined ||
+      dto.approvedReturnAmount === null
+    ) {
+      throw new BadRequestException('Approved return amount is required');
+    }
+    const approvedReturnAmount = Number(dto.approvedReturnAmount);
+    if (isNaN(approvedReturnAmount) || approvedReturnAmount < 0) {
+      throw new BadRequestException(
+        'Approved return amount must be a valid non-negative number',
+      );
+    }
+    if (!dto.financeRemarks || !dto.financeRemarks.trim()) {
+      throw new BadRequestException(
+        'Return Reason / Finance Remarks is required',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const complaint = await tx.customerComplaint.findUnique({
+        where: { id },
+        include: {
+          order: true,
+          financeAdjustment: true,
+        },
+      });
+
+      if (!complaint) {
+        throw new NotFoundException('Complaint not found');
+      }
+
+      if (complaint.status !== ComplaintStatus.FINANCE_PENDING) {
+        throw new BadRequestException(
+          `Invalid status for finance resolution. Current status: ${complaint.status}. Expected: FINANCE_PENDING`,
+        );
+      }
+
+      if (!complaint.order) {
+        throw new BadRequestException(
+          'Complaint is not linked to a valid Sales Order',
+        );
+      }
+
+      // Idempotency guard: Prevent duplicate financial adjustment
+      if (complaint.financeAdjustment) {
+        throw new BadRequestException(
+          `DUPLICATE_DEDUCTION_PREVENTED: Complaint ${complaint.complaintNo} has already been deducted via ${complaint.financeAdjustment.referenceNumber}`,
+        );
+      }
+
+      const existingAdj = await tx.complaintFinancialAdjustment.findUnique({
+        where: { complaintId: id },
+      });
+      if (existingAdj) {
+        throw new BadRequestException(
+          `DUPLICATE_DEDUCTION_PREVENTED: A financial adjustment already exists for complaint ${complaint.complaintNo}`,
+        );
+      }
+
+      const originalOrderAmount = Number(complaint.order.totalAmount || 0);
+      if (approvedReturnAmount > originalOrderAmount) {
+        throw new BadRequestException(
+          `Approved return amount (₹${approvedReturnAmount}) cannot exceed original order bill (₹${originalOrderAmount})`,
+        );
+      }
+
+      const netOrderAmount = Math.max(
+        0,
+        originalOrderAmount - approvedReturnAmount,
+      );
+      const referenceNumber = `ADJ-${complaint.complaintNo.replace(/\//g, '-')}`;
+      const now = new Date();
+
+      // 1. Create ComplaintFinancialAdjustment (Permanent auditable record, original SalesOrder untouched!)
+      const adjustment = await tx.complaintFinancialAdjustment.create({
+        data: {
+          complaintId: id,
+          salesOrderId: complaint.order.id,
+          customerId: complaint.customerId,
+          salesExecutiveId:
+            complaint.order.salesExecutiveId ||
+            complaint.order.createdById ||
+            complaint.salesExecutiveId,
+          referenceNumber,
+          originalOrderAmount,
+          calculatedReturnAmount: Number(
+            complaint.calculatedComplaintAmount || approvedReturnAmount,
+          ),
+          approvedReturnAmount,
+          netOrderAmount,
+          adjustmentType: 'RETURN_ADJUSTMENT',
+          status: 'APPLIED',
+          remarks: dto.financeRemarks.trim(),
+          createdById: userId,
+        },
+      });
+
+      // 2. Update CustomerComplaint status -> RESOLVED
+      const resolvedComplaint = await tx.customerComplaint.update({
+        where: { id },
+        data: {
+          status: ComplaintStatus.RESOLVED,
+          financeApprovedReturnAmount: approvedReturnAmount,
+          originalBillAmount: originalOrderAmount,
+          netOrderValue: netOrderAmount,
+          financeRemarks: dto.financeRemarks.trim(),
+          financeResolvedAt: now,
+          financeResolvedBy: userId,
+          updatedBy: userId,
+        },
+        include: includeRelations,
+      });
+
+      // 3. Recalculate SalesOrder outstandingAmount and paymentStatus
+      const currentPaid = Number(complaint.order.paidAmount || 0);
+      const newOutstanding = Math.max(0, netOrderAmount - currentPaid);
+      const isFullPaid = newOutstanding <= 0 && netOrderAmount > 0;
+      const isZeroOrderPaid = netOrderAmount === 0 && originalOrderAmount > 0;
+
+      await tx.salesOrder.update({
+        where: { id: complaint.order.id },
+        data: {
+          outstandingAmount: newOutstanding,
+          ...(isFullPaid || isZeroOrderPaid ? { paymentStatus: 'FULLY_PAID' } : {}),
+        },
+      });
+
+      // 4. Status History record
+      await tx.complaintStatusHistory.create({
+        data: {
+          complaintId: id,
+          fromStatus: ComplaintStatus.FINANCE_PENDING,
+          toStatus: ComplaintStatus.RESOLVED,
+          action: 'FINANCE_APPROVED',
+          actorId: userId,
+          remarks: dto.financeRemarks.trim(),
+          metadata: {
+            referenceNumber,
+            originalOrderAmount,
+            approvedReturnAmount,
+            netOrderAmount,
+            financeResolvedAt: now,
+          },
+        },
+      });
+
+      // 4. Audit Log
+      await tx.auditLog.create({
+        data: {
+          actorUserId: userId,
+          action: 'COMPLAINT_FINANCE_RESOLVED',
+          entityType: 'CustomerComplaint',
+          entityId: id,
+          after: {
+            complaintNo: complaint.complaintNo,
+            status: 'RESOLVED',
+            referenceNumber,
+            approvedReturnAmount,
+            netOrderAmount,
+          },
+        },
+      });
+
+      return {
+        ...resolvedComplaint,
+        financeAdjustment: adjustment,
+      };
+    });
+  }
+
   async remarks(id: string, userId: string, adminRemarks: string) {
     await this.get(id);
     return this.prisma.customerComplaint.update({
@@ -792,4 +1188,3 @@ export class CustomerComplaintsService {
     });
   }
 }
-

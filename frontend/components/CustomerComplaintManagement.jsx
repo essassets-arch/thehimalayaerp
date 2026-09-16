@@ -31,6 +31,9 @@ import {
   ChevronRight,
   ChevronDown,
   Filter,
+  Receipt,
+  UploadCloud,
+  Sparkles,
 } from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
 import { useERPStore } from '@/store/erpStore';
@@ -39,12 +42,12 @@ import './CustomerComplaints.css';
 
 const COMPLAINT_TYPES = [
   'Product Quality',
-  'Damage',
   'Wrong Product',
-  'Quantity Shortage',
-  'Delivery',
-  'Billing',
-  'Service',
+  'Damaged Product',
+  'Short Quantity',
+  'Excess Quantity',
+  'Missing Product',
+  'Product Defect',
   'Other',
 ];
 
@@ -74,17 +77,26 @@ const getStatusBadge = (status) => {
   if (s === 'DRAFT') {
     return { label: 'Draft', bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
   }
-  if (s === 'PENDING_PLANT_HEAD' || s === 'PENDING_SUPER_ADMIN' || s === 'SUBMITTED' || s === 'PENDING') {
+  if (s === 'PLANT_HEAD_PENDING' || s === 'PENDING_PLANT_HEAD' || s === 'PENDING_SUPER_ADMIN' || s === 'SUBMITTED' || s === 'PENDING') {
     return { label: 'Plant Head Pending', bg: '#fef3c7', color: '#b45309', border: '#fcd34d' };
   }
-  if (s === 'APPROVED') {
-    return { label: 'Approved', bg: '#dcfce7', color: '#15803d', border: '#86efac' };
+  if (s === 'DISPATCH_PENDING') {
+    return { label: 'Dispatch Pending', bg: '#ede9fe', color: '#6d28d9', border: '#ddd6fe' };
+  }
+  if (s === 'DISPATCH_COMPLETED') {
+    return { label: 'Dispatch Completed', bg: '#dbeafe', color: '#1d4ed8', border: '#bfdbfe' };
+  }
+  if (s === 'FINANCE_PENDING') {
+    return { label: 'Finance Pending', bg: '#ffedd5', color: '#c2410c', border: '#fed7aa' };
+  }
+  if (s === 'RESOLVED') {
+    return { label: 'Resolved', bg: '#dcfce7', color: '#15803d', border: '#86efac' };
   }
   if (s === 'REJECTED') {
     return { label: 'Rejected', bg: '#fee2e2', color: '#b91c1c', border: '#fca5a5' };
   }
-  if (s === 'RESOLVED') {
-    return { label: 'Resolved', bg: '#e0e7ff', color: '#4338ca', border: '#a5b4fc' };
+  if (s === 'APPROVED') {
+    return { label: 'Approved', bg: '#ede9fe', color: '#6d28d9', border: '#ddd6fe' };
   }
   if (s === 'CLOSED') {
     return { label: 'Closed', bg: '#f3f4f6', color: '#374151', border: '#d1d5db' };
@@ -160,8 +172,9 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
       if (typeFilter) params.set('complaintType', typeFilter);
       if (priorityFilter) params.set('priority', priorityFilter);
       
-      const st = isPlantHead ? activeTab : statusFilter;
+      const st = isPlantHead ? 'ALL' : statusFilter;
       if (st && st !== 'ALL') params.set('status', st);
+      if (isPlantHead) params.set('status', 'ALL');
 
       const qs = params.toString() ? `?${params.toString()}` : '';
       const res = await backendFetch(`${endpoint}${qs}`);
@@ -177,7 +190,7 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
     } finally {
       setLoading(false);
     }
-  }, [isPlantHead, activeTab, statusFilter, searchQuery, customerFilter, orderFilter, typeFilter, priorityFilter]);
+  }, [isPlantHead, statusFilter, searchQuery, customerFilter, orderFilter, typeFilter, priorityFilter]);
 
   // Fetch Meta Data (Orders & Customers) for Super Sales Create Modal
   const fetchMeta = useCallback(async () => {
@@ -548,7 +561,7 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
       description: formDescription.trim(),
       salesRemarks: formSalesRemarks.trim(),
       attachment: formAttachment,
-      status: targetStatus === 'DRAFT' ? 'DRAFT' : 'PENDING_PLANT_HEAD',
+      status: targetStatus === 'DRAFT' ? 'DRAFT' : 'PLANT_HEAD_PENDING',
       items: selectedItems.map((item) => ({
         orderItemId: item.orderItemId,
         productId: item.productId,
@@ -591,27 +604,23 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
   // Plant Head Decision Handlers
   const handlePlantHeadApprove = async (complaint) => {
     const orderNo = complaint.order?.orderNumber || 'Order';
-    const orderVal = formatCurrency(complaint.order?.totalAmount || 0);
 
     const { isConfirmed } = await Swal.fire({
       title: `Approve Complaint ${complaint.complaintNo}?`,
       html: `
         <div style="text-align:left; font-size:13.5px; line-height:1.6; color:#334155;">
-          <p>Approving this complaint will initiate a transactional business impact:</p>
+          <p>Approving this complaint will forward it to <b>Dispatch</b> for physical inspection and evidence upload:</p>
           <ul style="margin:8px 0; padding-left:20px; font-weight:600;">
-            <li>Complaint Status <span style="color:#16a34a;">→ APPROVED</span></li>
-            <li>Order <span style="color:#2563eb;">${orderNo}</span> Status <span style="color:#dc2626;">→ LOST</span></li>
-            <li>Sales Order Loss Record created (${orderVal})</li>
-            <li>Linked Quotation & Lead updated to <span style="color:#dc2626;">LOST</span></li>
-            <li>Deducts <span style="color:#dc2626;">${orderVal}</span> from active salesperson targets</li>
+            <li>Complaint Status <span style="color:#6d28d9;">→ DISPATCH_PENDING</span></li>
+            <li>Order <span style="color:#2563eb;">${orderNo}</span> remains intact</li>
+            <li>Dispatch will inspect affected items and upload photo evidence before forwarding to Finance</li>
           </ul>
-          <p style="font-size:12px; color:#64748b; margin-top:10px;">This action cannot be undone and will be permanently recorded in audit logs.</p>
         </div>
       `,
-      icon: 'warning',
+      icon: 'question',
       showCancelButton: true,
-      confirmButtonText: 'Yes, Approve & Mark Order LOST',
-      confirmButtonColor: '#16a34a',
+      confirmButtonText: 'Yes, Approve & Send to Dispatch',
+      confirmButtonColor: '#2563eb',
       cancelButtonText: 'Cancel',
     });
 
@@ -620,65 +629,13 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
     try {
       await backendFetch(`/plant-head/complaints/${complaint.id}/approve`, {
         method: 'PUT',
-        body: { adminRemarks: 'Approved by Plant Head' },
+        body: { adminRemarks: 'Approved by Plant Head, forwarded to Dispatch for physical verification.' },
       });
-
-      // Update in-memory ERP store and localStorage
-      const store = useERPStore.getState();
-      const targetOrderId = complaint.order?.id || complaint.orderId;
-      const targetOrderNo = complaint.order?.orderNumber || complaint.orderNo;
-
-      if (store?.state?.sales?.orders) {
-        const orderItem = store.state.sales.orders.find(o =>
-          [o.id, o.orderNo, o.orderNumber, o.order_number].filter(Boolean).some(r =>
-            String(r).toLowerCase() === String(targetOrderId).toLowerCase() ||
-            String(r).toLowerCase() === String(targetOrderNo).toLowerCase()
-          )
-        );
-        if (orderItem) {
-          orderItem.status = 'LOST';
-          orderItem.orderStatus = 'LOST';
-          orderItem.workflowStatus = 'LOST';
-          orderItem.workflowStateCode = 'LOST';
-          orderItem.lostReason = `Customer Complaint Approved: ${complaint.subject || complaint.complaintType || 'Quality Issue'}`;
-          orderItem.lostComplaintId = complaint.complaintNo;
-          orderItem.lostAt = new Date().toISOString();
-        }
-      }
-
-      try {
-        const raw = localStorage.getItem('himalaya_erp_store');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const updateInArr = (arr) => {
-            if (!Array.isArray(arr)) return;
-            arr.forEach(o => {
-              if (
-                [o.id, o.orderNo, o.orderNumber, o.order_number].filter(Boolean).some(r =>
-                  String(r).toLowerCase() === String(targetOrderId).toLowerCase() ||
-                  String(r).toLowerCase() === String(targetOrderNo).toLowerCase()
-                )
-              ) {
-                o.status = 'LOST';
-                o.orderStatus = 'LOST';
-                o.workflowStatus = 'LOST';
-                o.workflowStateCode = 'LOST';
-                o.lostReason = `Customer Complaint Approved: ${complaint.subject || complaint.complaintType || 'Quality Issue'}`;
-                o.lostComplaintId = complaint.complaintNo;
-                o.lostAt = new Date().toISOString();
-              }
-            });
-          };
-          updateInArr(parsed?.state?.sales?.orders);
-          updateInArr(parsed?.sales?.orders);
-          localStorage.setItem('himalaya_erp_store', JSON.stringify(parsed));
-        }
-      } catch (e) {}
 
       Swal.fire({
         icon: 'success',
-        title: 'Complaint Approved',
-        text: `Order ${orderNo} marked as LOST and moved to Lost Orders.`,
+        title: 'Sent to Dispatch',
+        text: `Complaint ${complaint.complaintNo} forwarded to Dispatch for physical inspection.`,
         timer: 2200,
         showConfirmButton: false,
       });
@@ -765,20 +722,33 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
         const cDate = (c.complaintDate || '').slice(0, 10);
         if (cDate !== dateFilter) return false;
       }
+      if (isPlantHead && activeTab && activeTab !== 'ALL') {
+        const s = String(c.status || '').toUpperCase();
+        if (activeTab === 'PLANT_HEAD_PENDING') {
+          if (!['PLANT_HEAD_PENDING', 'PENDING_PLANT_HEAD', 'SUBMITTED', 'PENDING'].includes(s)) return false;
+        } else if (activeTab === 'HISTORY') {
+          if (!['RESOLVED', 'REJECTED', 'CLOSED'].includes(s)) return false;
+        } else if (s !== activeTab) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [complaints, dateFilter]);
+  }, [complaints, dateFilter, isPlantHead, activeTab]);
 
   // Status Counts for Summary
   const stats = useMemo(() => {
     const total = complaints.length;
-    const pending = complaints.filter((c) => {
+    const plantHeadPending = complaints.filter((c) => {
       const s = String(c.status).toUpperCase();
-      return s === 'PENDING_PLANT_HEAD' || s === 'PENDING_SUPER_ADMIN' || s === 'SUBMITTED';
+      return s === 'PLANT_HEAD_PENDING' || s === 'PENDING_PLANT_HEAD' || s === 'SUBMITTED' || s === 'PENDING';
     }).length;
-    const approved = complaints.filter((c) => String(c.status).toUpperCase() === 'APPROVED').length;
+    const dispatchPending = complaints.filter((c) => String(c.status).toUpperCase() === 'DISPATCH_PENDING').length;
+    const financePending = complaints.filter((c) => String(c.status).toUpperCase() === 'FINANCE_PENDING').length;
+    const resolved = complaints.filter((c) => String(c.status).toUpperCase() === 'RESOLVED').length;
     const rejected = complaints.filter((c) => String(c.status).toUpperCase() === 'REJECTED').length;
-    return { total, pending, approved, rejected };
+    const history = complaints.filter((c) => ['RESOLVED', 'REJECTED', 'CLOSED'].includes(String(c.status).toUpperCase())).length;
+    return { total, pending: plantHeadPending, plantHeadPending, dispatchPending, financePending, resolved, rejected, history };
   }, [complaints]);
 
   return (
@@ -794,7 +764,7 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
             </h1>
             <p style={{ margin: '4px 0 0', fontSize: '13.5px', color: '#64748b' }}>
               {isPlantHead
-                ? 'Review customer complaints and authorize order state transitions to Lost.'
+                ? 'Review customer complaints and authorize forwarding to Dispatch for physical inspection.'
                 : 'Manage customer complaints against sales orders and track resolution status.'}
             </p>
           </div>
@@ -829,9 +799,12 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
         {isPlantHead && (
           <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
             {[
-              { id: 'PENDING', label: 'Pending Review', count: stats.pending },
-              { id: 'APPROVED', label: 'Approved (Lost Orders)', count: stats.approved },
+              { id: 'PLANT_HEAD_PENDING', label: 'Pending Review', count: stats.plantHeadPending },
+              { id: 'DISPATCH_PENDING', label: 'Sent to Dispatch', count: stats.dispatchPending },
+              { id: 'FINANCE_PENDING', label: 'In Finance', count: stats.financePending },
+              { id: 'RESOLVED', label: 'Resolved', count: stats.resolved },
               { id: 'REJECTED', label: 'Rejected', count: stats.rejected },
+              { id: 'HISTORY', label: 'History', count: stats.history },
               { id: 'ALL', label: 'All Complaints', count: stats.total },
             ].map((tab) => {
               const active = activeTab === tab.id;
@@ -961,11 +934,11 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
                 >
                   <option value="ALL">All Statuses</option>
                   <option value="DRAFT">Draft</option>
-                  <option value="SUBMITTED">Plant Head Pending</option>
-                  <option value="APPROVED">Approved</option>
-                  <option value="REJECTED">Rejected</option>
+                  <option value="PLANT_HEAD_PENDING">Plant Head Pending</option>
+                  <option value="DISPATCH_PENDING">Dispatch Pending</option>
+                  <option value="FINANCE_PENDING">Finance Pending</option>
                   <option value="RESOLVED">Resolved</option>
-                  <option value="CLOSED">Closed</option>
+                  <option value="REJECTED">Rejected</option>
                 </select>
               </div>
             )}
@@ -1193,8 +1166,8 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: 'rgba(15, 23, 42, 0.6)',
-              backdropFilter: 'blur(4px)',
+              backgroundColor: 'rgba(15, 23, 42, 0.68)',
+              backdropFilter: 'blur(6px)',
               padding: '16px',
             }}
           >
@@ -1202,620 +1175,1284 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
               className="complaint-modal"
               onClick={(e) => e.stopPropagation()}
               style={{
-                background: '#fff',
-                borderRadius: '16px',
-                width: 'min(860px, 100%)',
-                maxHeight: '92vh',
+                background: '#f8fafc',
+                borderRadius: '20px',
+                width: 'min(940px, 98vw)',
+                maxHeight: '94vh',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.4), 0 0 0 1px rgba(226, 232, 240, 0.8)',
               }}
             >
               {/* Modal Header */}
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1e293b' }}>
-                    Create Customer Complaint
-                  </h2>
-                  <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
-                    Select customer, choose order, specify affected products and complaint details.
-                  </p>
+              <div
+                style={{
+                  padding: '20px 28px',
+                  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #1e3a8a 100%)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                  flexShrink: 0,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div
+                    style={{
+                      width: '46px',
+                      height: '46px',
+                      borderRadius: '12px',
+                      background: 'rgba(255, 255, 255, 0.12)',
+                      backdropFilter: 'blur(8px)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#60a5fa',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <FilePenLine size={24} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', letterSpacing: '-0.02em', color: '#ffffff' }}>
+                        Create Customer Complaint
+                      </h2>
+                      <span
+                        style={{
+                          background: 'rgba(96, 165, 250, 0.2)',
+                          color: '#93c5fd',
+                          border: '1px solid rgba(147, 197, 253, 0.35)',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        Sales Ticket
+                      </span>
+                    </div>
+                    <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#cbd5e1', fontWeight: '400' }}>
+                      Select customer, choose order, specify affected products and complaint details.
+                    </p>
+                  </div>
                 </div>
+
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    color: '#e2e8f0',
+                    width: '36px',
+                    height: '36px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; }}
                 >
-                  <X size={22} />
+                  <X size={20} />
                 </button>
               </div>
 
               {/* Modal Form Body */}
-              <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 
-                {/* 1. Customer & Order Selection Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px', position: 'relative', zIndex: isCustomerSearchOpen ? 50 : 2 }}>
-                  
-                  {/* Select Customer - Smart Search Combobox */}
-                  <div ref={customerSearchRef} style={{ position: 'relative' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <label style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
-                        Select Customer *
-                      </label>
-                      {selectedCustomerObj && (
-                        <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '600' }}>
-                          ✓ Customer Selected
-                        </span>
-                      )}
-                    </div>
-
-                    <div
-                      style={{
-                        position: 'relative',
-                        display: 'flex',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <Search
-                        size={16}
+                {/* ── CARD 1: Customer & Sales Order Association ── */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '14px',
+                    border: '1px solid #e2e8f0',
+                    padding: '18px 20px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '14px',
+                  }}
+                >
+                  {/* Section Title */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span
                         style={{
-                          position: 'absolute',
-                          left: '12px',
-                          color: isCustomerSearchOpen ? '#0284c7' : selectedCustomerObj ? '#0284c7' : '#94a3b8',
-                          pointerEvents: 'none',
-                        }}
-                      />
-
-                      <input
-                        ref={customerSearchInputRef}
-                        type="text"
-                        data-testid="smart-search-complaint-customer"
-                        placeholder="Type to search customer (e.g. sha, tata)..."
-                        value={customerSearchQuery}
-                        onFocus={() => setIsCustomerSearchOpen(true)}
-                        onChange={(e) => {
-                          setCustomerSearchQuery(e.target.value);
-                          if (!isCustomerSearchOpen) setIsCustomerSearchOpen(true);
-                          setHighlightedCustomerIndex(0);
-                        }}
-                        onKeyDown={handleCustomerKeyDown}
-                        style={{
-                          width: '100%',
-                          padding: '10px 60px 10px 36px',
-                          border: `1.5px solid ${isCustomerSearchOpen ? '#0284c7' : selectedCustomerObj ? '#0284c7' : '#DCE5F0'}`,
-                          borderRadius: '8px',
-                          fontSize: '13.5px',
-                          background: selectedCustomerObj && !isCustomerSearchOpen ? '#f0f9ff' : '#fff',
-                          color: '#0f172a',
-                          fontWeight: selectedCustomerObj ? '600' : '400',
-                          outline: 'none',
-                          boxShadow: isCustomerSearchOpen ? '0 0 0 3px rgba(2, 132, 199, 0.15)' : 'none',
-                          transition: 'all 0.15s ease',
-                        }}
-                      />
-
-                      {/* Right action controls */}
-                      <div
-                        style={{
-                          position: 'absolute',
-                          right: '8px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '2px',
+                          background: '#eff6ff',
+                          color: '#2563eb',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #dbeafe',
                         }}
                       >
-                        {customerSearchQuery && (
+                        01
+                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Customer & Sales Order
+                      </span>
+                    </div>
+
+                    {selectedCustomerObj && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          color: '#059669',
+                          background: '#ecfdf5',
+                          border: '1px solid #a7f3d0',
+                          padding: '3px 9px',
+                          borderRadius: '12px',
+                        }}
+                      >
+                        <CheckCircle2 size={13} />
+                        Customer Selected
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Customer Search & Order Dropdown Grid */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                      gap: '16px',
+                      position: 'relative',
+                      zIndex: isCustomerSearchOpen ? 50 : 2,
+                    }}
+                  >
+                    {/* Customer Combobox */}
+                    <div ref={customerSearchRef} style={{ position: 'relative' }}>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                        Select Customer <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <Search
+                          size={16}
+                          style={{
+                            position: 'absolute',
+                            left: '12px',
+                            color: isCustomerSearchOpen || selectedCustomerObj ? '#2563eb' : '#94a3b8',
+                            pointerEvents: 'none',
+                          }}
+                        />
+                        <input
+                          ref={customerSearchInputRef}
+                          type="text"
+                          data-testid="smart-search-complaint-customer"
+                          placeholder="Type customer name (e.g. DAKSH, TATA)..."
+                          value={customerSearchQuery}
+                          onFocus={() => setIsCustomerSearchOpen(true)}
+                          onChange={(e) => {
+                            setCustomerSearchQuery(e.target.value);
+                            if (!isCustomerSearchOpen) setIsCustomerSearchOpen(true);
+                            setHighlightedCustomerIndex(0);
+                          }}
+                          onKeyDown={handleCustomerKeyDown}
+                          style={{
+                            width: '100%',
+                            height: '42px',
+                            padding: '0 64px 0 36px',
+                            border: `1.5px solid ${isCustomerSearchOpen ? '#2563eb' : selectedCustomerObj ? '#93c5fd' : '#cbd5e1'}`,
+                            borderRadius: '10px',
+                            fontSize: '13.5px',
+                            background: selectedCustomerObj && !isCustomerSearchOpen ? '#f0f9ff' : '#ffffff',
+                            color: '#0f172a',
+                            fontWeight: selectedCustomerObj ? '600' : '400',
+                            outline: 'none',
+                            boxShadow: isCustomerSearchOpen ? '0 0 0 3px rgba(37, 99, 235, 0.12)' : 'none',
+                            transition: 'all 0.15s ease',
+                          }}
+                        />
+
+                        {/* Right action controls */}
+                        <div style={{ position: 'absolute', right: '8px', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                          {customerSearchQuery && (
+                            <button
+                              type="button"
+                              title="Clear search"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectCustomer(null);
+                                customerSearchInputRef.current?.focus();
+                              }}
+                              style={{
+                                background: '#e2e8f0',
+                                border: 'none',
+                                borderRadius: '50%',
+                                width: '20px',
+                                height: '20px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                color: '#475569',
+                                padding: 0,
+                              }}
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
                           <button
                             type="button"
-                            title="Clear search"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSelectCustomer(null);
+                            onClick={() => {
+                              setIsCustomerSearchOpen((prev) => !prev);
                               customerSearchInputRef.current?.focus();
                             }}
                             style={{
-                              background: '#e2e8f0',
+                              background: 'none',
                               border: 'none',
-                              borderRadius: '50%',
-                              width: '20px',
-                              height: '20px',
+                              cursor: 'pointer',
+                              color: '#64748b',
+                              padding: '4px',
                               display: 'flex',
                               alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              color: '#475569',
-                              padding: 0,
                             }}
                           >
-                            <X size={12} />
+                            <ChevronDown
+                              size={16}
+                              style={{
+                                transform: isCustomerSearchOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.2s',
+                              }}
+                            />
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsCustomerSearchOpen((prev) => !prev);
-                            customerSearchInputRef.current?.focus();
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: '#64748b',
-                            padding: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <ChevronDown
-                            size={16}
-                            style={{
-                              transform: isCustomerSearchOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                              transition: 'transform 0.2s',
-                            }}
-                          />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Hidden input for HTML validation and test compatibility */}
-                    <input
-                      type="hidden"
-                      data-testid="select-complaint-customer"
-                      value={formCustomerId}
-                      required
-                    />
-
-                    {/* Dropdown Menu */}
-                    {isCustomerSearchOpen && (
-                      <div
-                        ref={customerListRef}
-                        style={{
-                          position: 'absolute',
-                          top: 'calc(100% + 4px)',
-                          left: 0,
-                          right: 0,
-                          zIndex: 100,
-                          background: '#ffffff',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: '10px',
-                          boxShadow: '0 12px 28px -4px rgba(15, 23, 42, 0.18), 0 4px 10px -2px rgba(15, 23, 42, 0.08)',
-                          maxHeight: '280px',
-                          overflowY: 'auto',
-                          padding: '6px 0',
-                        }}
-                      >
-                        {/* Dropdown Header / Filter Info */}
-                        <div
-                          style={{
-                            padding: '6px 12px',
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            color: '#64748b',
-                            borderBottom: '1px solid #f1f5f9',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            background: '#f8fafc',
-                          }}
-                        >
-                          <span>
-                            {filteredCustomersForCreate.length}{' '}
-                            {filteredCustomersForCreate.length === 1 ? 'Customer' : 'Customers'}
-                            {customerSearchQuery.trim() ? ` matching "${customerSearchQuery}"` : ' available'}
-                          </span>
-                          <span style={{ fontSize: '10px', color: '#94a3b8' }}>
-                            ↑↓ to navigate, Enter to select
-                          </span>
                         </div>
+                      </div>
 
-                        {filteredCustomersForCreate.length === 0 ? (
+                      {/* Hidden input for HTML validation and test compatibility */}
+                      <input
+                        type="hidden"
+                        data-testid="select-complaint-customer"
+                        value={formCustomerId}
+                        required
+                      />
+
+                      {/* Customer Dropdown Results */}
+                      {isCustomerSearchOpen && (
+                        <div
+                          ref={customerListRef}
+                          style={{
+                            position: 'absolute',
+                            top: 'calc(100% + 4px)',
+                            left: 0,
+                            right: 0,
+                            zIndex: 100,
+                            background: '#ffffff',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '10px',
+                            boxShadow: '0 12px 28px -4px rgba(15, 23, 42, 0.2), 0 4px 10px -2px rgba(15, 23, 42, 0.08)',
+                            maxHeight: '280px',
+                            overflowY: 'auto',
+                            padding: '6px 0',
+                          }}
+                        >
                           <div
                             style={{
-                              padding: '24px 16px',
-                              textAlign: 'center',
+                              padding: '6px 12px',
+                              fontSize: '11px',
+                              fontWeight: '700',
                               color: '#64748b',
-                              fontSize: '13px',
+                              borderBottom: '1px solid #f1f5f9',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              background: '#f8fafc',
                             }}
                           >
-                            <AlertCircle size={24} style={{ margin: '0 auto 8px', color: '#f59e0b' }} />
-                            <div>No customers found matching <b>"{customerSearchQuery}"</b></div>
-                            <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>
-                              Check spelling or try searching by customer code or phone.
-                            </div>
+                            <span>
+                              {filteredCustomersForCreate.length}{' '}
+                              {filteredCustomersForCreate.length === 1 ? 'Customer' : 'Customers'}
+                              {customerSearchQuery.trim() ? ` matching "${customerSearchQuery}"` : ' available'}
+                            </span>
+                            <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                              ↑↓ to navigate, Enter to select
+                            </span>
                           </div>
-                        ) : (
-                          filteredCustomersForCreate.map((cust, idx) => {
-                            const isSelected = cust.id === formCustomerId;
-                            const isHighlighted = idx === highlightedCustomerIndex;
-                            const orderCount = customerOrderCountMap[cust.id] || 0;
 
-                            return (
-                              <div
-                                key={cust.id}
-                                data-cust-item
-                                onMouseEnter={() => setHighlightedCustomerIndex(idx)}
-                                onClick={() => handleSelectCustomer(cust)}
-                                style={{
-                                  padding: '9px 12px',
-                                  cursor: 'pointer',
-                                  background: isSelected
-                                    ? '#e0f2fe'
-                                    : isHighlighted
-                                    ? '#f1f5f9'
-                                    : 'transparent',
-                                  borderLeft: isSelected
-                                    ? '4px solid #0284c7'
-                                    : isHighlighted
-                                    ? '4px solid #94a3b8'
-                                    : '4px solid transparent',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  gap: '10px',
-                                  transition: 'background-color 0.1s',
-                                }}
-                              >
-                                <div style={{ minWidth: 0, flex: 1 }}>
-                                  <div
-                                    style={{
-                                      fontSize: '13px',
-                                      fontWeight: isSelected ? '700' : '600',
-                                      color: isSelected ? '#0369a1' : '#1e293b',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                    }}
-                                  >
-                                    <Building2 size={13} style={{ color: isSelected ? '#0284c7' : '#64748b', flexShrink: 0 }} />
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      {renderHighlightedText(cust.companyName, customerSearchQuery)}
-                                    </span>
-                                  </div>
-
-                                  <div
-                                    style={{
-                                      fontSize: '11px',
-                                      color: '#64748b',
-                                      marginTop: '2px',
-                                      display: 'flex',
-                                      gap: '8px',
-                                      alignItems: 'center',
-                                    }}
-                                  >
-                                    {cust.customerCode && (
-                                      <span
-                                        style={{
-                                          fontFamily: 'monospace',
-                                          background: '#f1f5f9',
-                                          padding: '1px 5px',
-                                          borderRadius: '4px',
-                                          color: '#475569',
-                                        }}
-                                      >
-                                        {renderHighlightedText(cust.customerCode, customerSearchQuery)}
-                                      </span>
-                                    )}
-                                    {cust.phone && <span>📞 {cust.phone}</span>}
-                                  </div>
-                                </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                                  <span
-                                    style={{
-                                      fontSize: '11px',
-                                      fontWeight: '600',
-                                      padding: '2px 7px',
-                                      borderRadius: '10px',
-                                      background: orderCount > 0 ? '#ecfdf5' : '#fef2f2',
-                                      color: orderCount > 0 ? '#047857' : '#b91c1c',
-                                      border: `1px solid ${orderCount > 0 ? '#a7f3d0' : '#fecaca'}`,
-                                    }}
-                                  >
-                                    {orderCount} {orderCount === 1 ? 'Order' : 'Orders'}
-                                  </span>
-
-                                  {isSelected && (
-                                    <CheckCircle2 size={16} style={{ color: '#0284c7' }} />
-                                  )}
-                                </div>
+                          {filteredCustomersForCreate.length === 0 ? (
+                            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                              <AlertCircle size={24} style={{ margin: '0 auto 8px', color: '#f59e0b' }} />
+                              <div>No customers found matching <b>"{customerSearchQuery}"</b></div>
+                              <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>
+                                Check spelling or try searching by customer code or phone.
                               </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    )}
+                            </div>
+                          ) : (
+                            filteredCustomersForCreate.map((cust, idx) => {
+                              const isSelected = cust.id === formCustomerId;
+                              const isHighlighted = idx === highlightedCustomerIndex;
+                              const orderCount = customerOrderCountMap[cust.id] || 0;
 
-                    {/* Helper text under customer input */}
-                    {selectedCustomerObj ? (
-                      <div style={{ marginTop: '5px', fontSize: '11.5px', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span>Customer selected.</span>
-                        {customerOrderCountMap[selectedCustomerObj.id] === 1 ? (
-                          <span style={{ color: '#16a34a' }}>• Single order auto-selected</span>
-                        ) : (
-                          <span>• Choose order from dropdown</span>
-                        )}
+                              return (
+                                <div
+                                  key={cust.id}
+                                  data-cust-item
+                                  onMouseEnter={() => setHighlightedCustomerIndex(idx)}
+                                  onClick={() => handleSelectCustomer(cust)}
+                                  style={{
+                                    padding: '9px 12px',
+                                    cursor: 'pointer',
+                                    background: isSelected
+                                      ? '#e0f2fe'
+                                      : isHighlighted
+                                      ? '#f1f5f9'
+                                      : 'transparent',
+                                    borderLeft: isSelected
+                                      ? '4px solid #0284c7'
+                                      : isHighlighted
+                                      ? '4px solid #94a3b8'
+                                      : '4px solid transparent',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '10px',
+                                    transition: 'background-color 0.1s',
+                                  }}
+                                >
+                                  <div style={{ minWidth: 0, flex: 1 }}>
+                                    <div
+                                      style={{
+                                        fontSize: '13px',
+                                        fontWeight: isSelected ? '700' : '600',
+                                        color: isSelected ? '#0369a1' : '#1e293b',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                      }}
+                                    >
+                                      <Building2 size={13} style={{ color: isSelected ? '#0284c7' : '#64748b', flexShrink: 0 }} />
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {renderHighlightedText(cust.companyName, customerSearchQuery)}
+                                      </span>
+                                    </div>
+
+                                    <div
+                                      style={{
+                                        fontSize: '11px',
+                                        color: '#64748b',
+                                        marginTop: '2px',
+                                        display: 'flex',
+                                        gap: '8px',
+                                        alignItems: 'center',
+                                      }}
+                                    >
+                                      {cust.customerCode && (
+                                        <span
+                                          style={{
+                                            fontFamily: 'monospace',
+                                            background: '#f1f5f9',
+                                            padding: '1px 5px',
+                                            borderRadius: '4px',
+                                            color: '#475569',
+                                          }}
+                                        >
+                                          {renderHighlightedText(cust.customerCode, customerSearchQuery)}
+                                        </span>
+                                      )}
+                                      {cust.phone && <span>📞 {cust.phone}</span>}
+                                    </div>
+                                  </div>
+
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                    <span
+                                      style={{
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        padding: '2px 7px',
+                                        borderRadius: '10px',
+                                        background: orderCount > 0 ? '#ecfdf5' : '#fef2f2',
+                                        color: orderCount > 0 ? '#047857' : '#b91c1c',
+                                        border: `1px solid ${orderCount > 0 ? '#a7f3d0' : '#fecaca'}`,
+                                      }}
+                                    >
+                                      {orderCount} {orderCount === 1 ? 'Order' : 'Orders'}
+                                    </span>
+
+                                    {isSelected && (
+                                      <CheckCircle2 size={16} style={{ color: '#0284c7' }} />
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+
+                      {/* Selected Customer Mini Card */}
+                      {selectedCustomerObj && (
+                        <div
+                          style={{
+                            marginTop: '8px',
+                            padding: '8px 12px',
+                            background: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            fontSize: '12px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Building2 size={13} style={{ color: '#2563eb' }} />
+                            <span style={{ fontWeight: '700', color: '#0f172a' }}>{selectedCustomerObj.companyName}</span>
+                            {selectedCustomerObj.customerCode && (
+                              <span style={{ fontFamily: 'monospace', fontSize: '11px', background: '#e2e8f0', padding: '1px 5px', borderRadius: '4px', color: '#475569' }}>
+                                {selectedCustomerObj.customerCode}
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ color: '#0369a1', fontWeight: '600', fontSize: '11px' }}>
+                            {customerOrderCountMap[selectedCustomerObj.id] === 1 ? '• 1 Order auto-selected' : `• ${customerOrderCountMap[selectedCustomerObj.id] || 0} Orders available`}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Order Selection */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                        Select Order <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <select
+                          data-testid="select-complaint-order"
+                          value={formOrderId}
+                          onChange={(e) => setFormOrderId(e.target.value)}
+                          disabled={!formCustomerId}
+                          style={{
+                            width: '100%',
+                            height: '42px',
+                            padding: '0 36px 0 12px',
+                            border: `1.5px solid ${formOrderId ? '#93c5fd' : '#cbd5e1'}`,
+                            borderRadius: '10px',
+                            fontSize: '13.5px',
+                            background: formCustomerId ? '#ffffff' : '#f8fafc',
+                            color: formOrderId ? '#0f172a' : '#64748b',
+                            fontWeight: formOrderId ? '600' : '400',
+                            appearance: 'none',
+                            outline: 'none',
+                            cursor: formCustomerId ? 'pointer' : 'not-allowed',
+                          }}
+                          required
+                        >
+                          <option value="">{formCustomerId ? '-- Choose Customer Order --' : 'Select Customer First'}</option>
+                          {availableOrdersForCustomer.map((ord) => (
+                            <option key={ord.id} value={ord.id}>
+                              {ord.orderNumber || ord.orderNo} ({formatDate(ord.orderDate)}) - {formatCurrency(ord.totalAmount)}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          size={16}
+                          style={{
+                            position: 'absolute',
+                            right: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#64748b',
+                            pointerEvents: 'none',
+                          }}
+                        />
                       </div>
-                    ) : (
-                      <div style={{ marginTop: '5px', fontSize: '11.5px', color: '#64748b' }}>
-                        💡 Type customer name (e.g. <b>sha</b> for Shannon Projects) or code to search.
-                      </div>
-                    )}
+                      {formCustomerId && availableOrdersForCustomer.length === 0 && (
+                        <div style={{ marginTop: '5px', fontSize: '11.5px', color: '#dc2626' }}>
+                          No eligible orders found for this customer.
+                        </div>
+                      )}
+                    </div>
+
                   </div>
 
-                  {/* Select Order */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                      Select Order *
-                    </label>
-                    <select
-                      data-testid="select-complaint-order"
-                      value={formOrderId}
-                      onChange={(e) => setFormOrderId(e.target.value)}
-                      disabled={!formCustomerId}
+                  {/* Order Information Banner */}
+                  {selectedOrderObj && (
+                    <div
                       style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        border: '1px solid #DCE5F0',
-                        borderRadius: '8px',
-                        fontSize: '13.5px',
-                        background: formCustomerId ? '#fff' : '#f8fafc',
+                        background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '12px',
+                        padding: '14px 18px',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                        gap: '12px',
+                        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)',
                       }}
-                      required
                     >
-                      <option value="">{formCustomerId ? '-- Choose Customer Order --' : 'Select Customer First'}</option>
-                      {availableOrdersForCustomer.map((ord) => (
-                        <option key={ord.id} value={ord.id}>
-                          {ord.orderNumber || ord.orderNo} ({formatDate(ord.orderDate)}) - {formatCurrency(ord.totalAmount)}
-                        </option>
-                      ))}
-                    </select>
-                    {formCustomerId && availableOrdersForCustomer.length === 0 && (
-                      <div style={{ marginTop: '5px', fontSize: '11.5px', color: '#dc2626' }}>
-                        No eligible orders found for this customer.
+                      <div>
+                        <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                          <FileText size={11} style={{ color: '#2563eb' }} /> ORDER NO
+                        </span>
+                        <strong style={{ color: '#0f172a', fontSize: '13.5px', marginTop: '2px', display: 'block' }}>
+                          {selectedOrderObj.orderNumber || selectedOrderObj.orderNo}
+                        </strong>
                       </div>
-                    )}
-                  </div>
+                      <div>
+                        <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                          <Calendar size={11} style={{ color: '#2563eb' }} /> ORDER DATE
+                        </span>
+                        <strong style={{ color: '#0f172a', fontSize: '13.5px', marginTop: '2px', display: 'block' }}>
+                          {formatDate(selectedOrderObj.orderDate)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                          <Building2 size={11} style={{ color: '#2563eb' }} /> CUSTOMER
+                        </span>
+                        <strong style={{ color: '#0f172a', fontSize: '13.5px', marginTop: '2px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {selectedOrderObj.customerName}
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                          <User size={11} style={{ color: '#2563eb' }} /> SALES PERSON
+                        </span>
+                        <strong style={{ color: '#0f172a', fontSize: '13.5px', marginTop: '2px', display: 'block' }}>
+                          {selectedOrderObj.salesPersonName || 'Salesperson'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                          <Receipt size={11} style={{ color: '#059669' }} /> ORDER AMOUNT
+                        </span>
+                        <strong style={{ color: '#059669', fontSize: '13.5px', marginTop: '2px', display: 'block' }}>
+                          {formatCurrency(selectedOrderObj.totalAmount)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: '800', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                          STATUS
+                        </span>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            marginTop: '2px',
+                            background: '#dbeafe',
+                            color: '#1d4ed8',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid #bfdbfe',
+                          }}
+                        >
+                          {selectedOrderObj.status}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                 </div>
 
-                {/* 2. Auto-loaded Order Information Banner */}
+                {/* ── CARD 2: Affected Products & Quantities ── */}
                 {selectedOrderObj && (
                   <div
                     style={{
-                      background: '#f8fafc',
+                      background: '#ffffff',
+                      borderRadius: '14px',
                       border: '1px solid #e2e8f0',
-                      borderRadius: '10px',
-                      padding: '14px 18px',
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                      gap: '12px',
-                      fontSize: '12.5px',
+                      padding: '18px 20px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '14px',
                     }}
                   >
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: '700' }}>ORDER NO</span>
-                      <strong style={{ color: '#1e293b' }}>{selectedOrderObj.orderNumber || selectedOrderObj.orderNo}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: '700' }}>ORDER DATE</span>
-                      <strong style={{ color: '#1e293b' }}>{formatDate(selectedOrderObj.orderDate)}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: '700' }}>CUSTOMER</span>
-                      <strong style={{ color: '#1e293b' }}>{selectedOrderObj.customerName}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: '700' }}>SALES PERSON</span>
-                      <strong style={{ color: '#1e293b' }}>{selectedOrderObj.salesPersonName || 'Salesperson'}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: '700' }}>STATUS</span>
-                      <strong style={{ color: '#2563eb' }}>{selectedOrderObj.status}</strong>
-                    </div>
-                  </div>
-                )}
+                    {/* Header with Title & Quick Select Toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span
+                          style={{
+                            background: '#eff6ff',
+                            color: '#2563eb',
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid #dbeafe',
+                          }}
+                        >
+                          02
+                        </span>
+                        <div>
+                          <span style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Affected Product(s) & Specify Complaint Quantity
+                          </span>
+                          <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+                        </div>
+                      </div>
 
-                {/* 3. Ordered Products Table (Show ALL products from order) */}
-                {selectedOrderObj && (
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '8px' }}>
-                      Select Affected Product(s) & Specify Complaint Quantity *
-                    </label>
-                    <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
+                      {/* Selected count and Select All toggle */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {(() => {
+                          const prods = Object.values(formSelectedProducts);
+                          const selCount = prods.filter((p) => p.selected).length;
+                          const allChecked = prods.length > 0 && selCount === prods.length;
+                          return (
+                            <>
+                              <span style={{ fontSize: '12px', fontWeight: '600', color: selCount > 0 ? '#2563eb' : '#64748b' }}>
+                                {selCount} of {prods.length} selected
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFormSelectedProducts((prev) => {
+                                    const next = {};
+                                    Object.values(prev).forEach((p) => {
+                                      next[p.productId] = { ...p, selected: !allChecked };
+                                    });
+                                    return next;
+                                  });
+                                }}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #cbd5e1',
+                                  background: '#f8fafc',
+                                  color: '#334155',
+                                  fontSize: '11.5px',
+                                  fontWeight: '600',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {allChecked ? 'Deselect All' : 'Select All'}
+                              </button>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Products Table */}
+                    <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
                       <table data-testid="complaint-products-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                         <thead>
-                          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #E2E8F0' }}>
-                            <th style={{ padding: '10px 14px', width: '40px', textAlign: 'center' }}>Select</th>
-                            <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: '700', color: '#475569' }}>Product</th>
-                            <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '700', color: '#475569' }}>Ordered Qty</th>
-                            <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '700', color: '#475569' }}>Delivered Qty</th>
-                            <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '700', color: '#475569', width: '170px' }}>Complaint Qty *</th>
+                          <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
+                            <th style={{ padding: '10px 14px', width: '48px', textAlign: 'center' }}>
+                              <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Select</span>
+                            </th>
+                            <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              Product & SKU
+                            </th>
+                            <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              Ordered Qty
+                            </th>
+                            <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              Delivered Qty
+                            </th>
+                            <th style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '800', color: '#475569', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', width: '220px' }}>
+                              Complaint Qty *
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
-                          {Object.values(formSelectedProducts).map((prod) => (
-                            <tr key={prod.productId} style={{ borderBottom: '1px solid #f1f5f9', background: prod.selected ? '#ffffff' : '#fcfcfc' }}>
-                              <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                                <input
-                                  data-testid={`checkbox-product-${prod.orderItemId || prod.productId}`}
-                                  type="checkbox"
-                                  checked={prod.selected}
-                                  onChange={(e) => {
-                                    const checked = e.target.checked;
-                                    setFormSelectedProducts((prev) => ({
-                                      ...prev,
-                                      [prod.productId]: { ...prev[prod.productId], selected: checked },
-                                    }));
-                                  }}
-                                  style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                                />
-                              </td>
-                              <td style={{ padding: '10px 14px', fontWeight: '600', color: '#1e293b' }}>
-                                {prod.productName}
-                                {prod.sku && <span style={{ display: 'block', fontSize: '11px', color: '#64748b' }}>SKU: {prod.sku}</span>}
-                              </td>
-                              <td style={{ padding: '10px 14px', textAlign: 'right', color: '#475569' }}>
-                                {prod.orderedQuantity} {prod.unit}
-                              </td>
-                              <td style={{ padding: '10px 14px', textAlign: 'right', color: '#475569' }}>
-                                {prod.deliveredQuantity} {prod.unit}
-                              </td>
-                              <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                                <input
-                                  data-testid={`input-complaint-qty-${prod.orderItemId || prod.productId}`}
-                                  type="number"
-                                  min="0.01"
-                                  max={prod.orderedQuantity}
-                                  step="any"
-                                  disabled={!prod.selected}
-                                  value={prod.complaintQuantity}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setFormSelectedProducts((prev) => ({
-                                      ...prev,
-                                      [prod.productId]: { ...prev[prod.productId], complaintQuantity: val },
-                                    }));
-                                  }}
-                                  style={{
-                                    width: '120px',
-                                    padding: '6px 10px',
-                                    border: '1px solid #DCE5F0',
-                                    borderRadius: '6px',
-                                    fontSize: '13px',
-                                    textAlign: 'right',
-                                    background: prod.selected ? '#fff' : '#f1f5f9',
-                                  }}
-                                />
-                              </td>
-                            </tr>
-                          ))}
+                          {Object.values(formSelectedProducts).map((prod) => {
+                            const isQtyOver = Number(prod.complaintQuantity) > Number(prod.orderedQuantity);
+                            const isQtyZero = !prod.complaintQuantity || Number(prod.complaintQuantity) <= 0;
+                            return (
+                              <tr
+                                key={prod.productId}
+                                style={{
+                                  borderBottom: '1px solid #f1f5f9',
+                                  background: prod.selected ? '#f8faff' : '#ffffff',
+                                  borderLeft: prod.selected ? '3px solid #2563eb' : '3px solid transparent',
+                                  transition: 'background 0.15s ease',
+                                }}
+                              >
+                                <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                                  <input
+                                    data-testid={`checkbox-product-${prod.orderItemId || prod.productId}`}
+                                    type="checkbox"
+                                    checked={prod.selected}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      setFormSelectedProducts((prev) => ({
+                                        ...prev,
+                                        [prod.productId]: { ...prev[prod.productId], selected: checked },
+                                      }));
+                                    }}
+                                    style={{ cursor: 'pointer', width: '17px', height: '17px', accentColor: '#2563eb' }}
+                                  />
+                                </td>
+                                <td style={{ padding: '12px 14px' }}>
+                                  <div style={{ fontWeight: '700', color: prod.selected ? '#0f172a' : '#475569', fontSize: '13.5px' }}>
+                                    {prod.productName}
+                                  </div>
+                                  {prod.sku && (
+                                    <span
+                                      style={{
+                                        display: 'inline-block',
+                                        marginTop: '3px',
+                                        fontSize: '11px',
+                                        fontFamily: 'monospace',
+                                        background: '#f1f5f9',
+                                        color: '#475569',
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                        border: '1px solid #e2e8f0',
+                                      }}
+                                    >
+                                      SKU: {prod.sku}
+                                    </span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                                  <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#475569', background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px' }}>
+                                    {prod.orderedQuantity} {prod.unit}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                                  <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#0369a1', background: '#e0f2fe', padding: '3px 8px', borderRadius: '6px' }}>
+                                    {prod.deliveredQuantity} {prod.unit}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                      <input
+                                        data-testid={`input-complaint-qty-${prod.orderItemId || prod.productId}`}
+                                        type="number"
+                                        min="0.01"
+                                        max={prod.orderedQuantity}
+                                        step="any"
+                                        disabled={!prod.selected}
+                                        value={prod.complaintQuantity}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setFormSelectedProducts((prev) => ({
+                                            ...prev,
+                                            [prod.productId]: { ...prev[prod.productId], complaintQuantity: val },
+                                          }));
+                                        }}
+                                        style={{
+                                          width: '100px',
+                                          height: '34px',
+                                          padding: '0 8px',
+                                          border: `1.5px solid ${prod.selected && (isQtyOver || isQtyZero) ? '#f87171' : prod.selected ? '#93c5fd' : '#e2e8f0'}`,
+                                          borderRadius: '8px',
+                                          fontSize: '13px',
+                                          fontWeight: '700',
+                                          textAlign: 'right',
+                                          background: prod.selected ? '#ffffff' : '#f8fafc',
+                                          color: prod.selected ? '#0f172a' : '#94a3b8',
+                                          outline: 'none',
+                                        }}
+                                      />
+                                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', marginLeft: '4px' }}>
+                                        {prod.unit}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      disabled={!prod.selected}
+                                      onClick={() => {
+                                        setFormSelectedProducts((prev) => ({
+                                          ...prev,
+                                          [prod.productId]: { ...prev[prod.productId], complaintQuantity: prod.deliveredQuantity || prod.orderedQuantity },
+                                        }));
+                                      }}
+                                      title="Set to max delivered quantity"
+                                      style={{
+                                        padding: '4px 7px',
+                                        borderRadius: '6px',
+                                        border: '1px solid #cbd5e1',
+                                        background: '#f8fafc',
+                                        color: '#475569',
+                                        fontSize: '11px',
+                                        fontWeight: '700',
+                                        cursor: prod.selected ? 'pointer' : 'not-allowed',
+                                        opacity: prod.selected ? 1 : 0.4,
+                                      }}
+                                    >
+                                      Max
+                                    </button>
+                                  </div>
+                                  {prod.selected && isQtyOver && (
+                                    <div style={{ fontSize: '11px', color: '#ef4444', marginTop: '3px', textAlign: 'right' }}>
+                                      Exceeds ordered ({prod.orderedQuantity})
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
                   </div>
                 )}
 
-                {/* 4. Complaint Type, Priority, Date */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-                  
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                      Complaint Type *
-                    </label>
-                    <select
-                      data-testid="select-complaint-type"
-                      value={formComplaintType}
-                      onChange={(e) => setFormComplaintType(e.target.value)}
-                      style={{ width: '100%', padding: '9px 12px', border: '1px solid #DCE5F0', borderRadius: '8px', fontSize: '13px', background: '#fff' }}
-                      required
+                {/* ── CARD 3: Classification & Urgency ── */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '14px',
+                    border: '1px solid #e2e8f0',
+                    padding: '18px 20px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{
+                        background: '#eff6ff',
+                        color: '#2563eb',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid #dbeafe',
+                      }}
                     >
-                      {COMPLAINT_TYPES.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
+                      03
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Classification & Priority
+                    </span>
                   </div>
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                      Priority *
-                    </label>
-                    <select
-                      data-testid="select-complaint-priority"
-                      value={formPriority}
-                      onChange={(e) => setFormPriority(e.target.value)}
-                      style={{ width: '100%', padding: '9px 12px', border: '1px solid #DCE5F0', borderRadius: '8px', fontSize: '13px', background: '#fff' }}
-                      required
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.2fr 1.2fr 0.8fr', gap: '16px' }}>
+                    {/* Complaint Type */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                        Complaint Type <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <input
+                        data-testid="select-complaint-type"
+                        list="complaint-types-list"
+                        type="text"
+                        placeholder="Type or select type..."
+                        value={formComplaintType}
+                        onChange={(e) => setFormComplaintType(e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: '38px',
+                          padding: '0 12px',
+                          border: '1.5px solid #cbd5e1',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          background: '#ffffff',
+                          fontWeight: '600',
+                          color: '#0f172a',
+                          outline: 'none',
+                        }}
+                        required
+                      />
+                      <datalist id="complaint-types-list">
+                        {COMPLAINT_TYPES.map((t) => (
+                          <option key={t} value={t} />
+                        ))}
+                      </datalist>
+
+                      {/* Quick Chips */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '8px' }}>
+                        {COMPLAINT_TYPES.map((t) => {
+                          const active = formComplaintType === t;
+                          return (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setFormComplaintType(t)}
+                              style={{
+                                padding: '3px 9px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: active ? '700' : '600',
+                                border: active ? '1px solid #1e3a8a' : '1px solid #e2e8f0',
+                                background: active ? '#1e3a8a' : '#f8fafc',
+                                color: active ? '#ffffff' : '#475569',
+                                cursor: 'pointer',
+                                transition: 'all 0.1s ease',
+                              }}
+                            >
+                              {active && '✓ '}{t}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Priority */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                        Priority <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <input
+                        data-testid="select-complaint-priority"
+                        list="priorities-list"
+                        type="text"
+                        placeholder="Type or select priority..."
+                        value={formPriority}
+                        onChange={(e) => setFormPriority(e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: '38px',
+                          padding: '0 12px',
+                          border: '1.5px solid #cbd5e1',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          background: '#ffffff',
+                          fontWeight: '600',
+                          color: '#0f172a',
+                          outline: 'none',
+                        }}
+                        required
+                      />
+                      <datalist id="priorities-list">
+                        {PRIORITIES.map((p) => (
+                          <option key={p} value={p} />
+                        ))}
+                      </datalist>
+
+                      {/* Styled 4 Priority Segment Cards */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '5px', marginTop: '8px' }}>
+                        {PRIORITIES.map((p) => {
+                          const active = formPriority === p;
+                          const styles = {
+                            Low: { bg: active ? '#10b981' : '#ecfdf5', color: active ? '#fff' : '#047857', border: '#a7f3d0' },
+                            Medium: { bg: active ? '#0284c7' : '#eff6ff', color: active ? '#fff' : '#0369a1', border: '#bae6fd' },
+                            High: { bg: active ? '#f59e0b' : '#fffbeb', color: active ? '#fff' : '#b45309', border: '#fde68a' },
+                            Critical: { bg: active ? '#ef4444' : '#fef2f2', color: active ? '#fff' : '#b91c1c', border: '#fecaca' },
+                          }[p] || { bg: '#f1f5f9', color: '#334155', border: '#cbd5e1' };
+
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => setFormPriority(p)}
+                              style={{
+                                padding: '6px 4px',
+                                borderRadius: '8px',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                border: `1.5px solid ${active ? styles.bg : styles.border}`,
+                                background: styles.bg,
+                                color: styles.color,
+                                cursor: 'pointer',
+                                textAlign: 'center',
+                                transition: 'all 0.15s ease',
+                                boxShadow: active ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
+                              }}
+                            >
+                              {p}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Complaint Date */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                        Complaint Date <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <input
+                        data-testid="input-complaint-date"
+                        type="date"
+                        value={formComplaintDate}
+                        onChange={(e) => setFormComplaintDate(e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: '38px',
+                          padding: '0 12px',
+                          border: '1.5px solid #cbd5e1',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          background: '#ffffff',
+                          fontWeight: '600',
+                          color: '#0f172a',
+                          outline: 'none',
+                        }}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── CARD 4: Defect Summary & Remarks ── */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '14px',
+                    border: '1px solid #e2e8f0',
+                    padding: '18px 20px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{
+                        background: '#eff6ff',
+                        color: '#2563eb',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid #dbeafe',
+                      }}
                     >
-                      {PRIORITIES.map((p) => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
+                      04
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Defect Summary & Analysis
+                    </span>
                   </div>
 
+                  {/* Subject */}
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                      Complaint Date *
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                      Subject / Summary <span style={{ color: '#ef4444' }}>*</span>
                     </label>
                     <input
-                      data-testid="input-complaint-date"
-                      type="date"
-                      value={formComplaintDate}
-                      onChange={(e) => setFormComplaintDate(e.target.value)}
-                      style={{ width: '100%', padding: '8px 12px', border: '1px solid #DCE5F0', borderRadius: '8px', fontSize: '13px', background: '#fff' }}
+                      data-testid="input-complaint-subject"
+                      type="text"
+                      placeholder="e.g. Broken tiles upon delivery / Color variation detected in batch #02"
+                      value={formSubject}
+                      onChange={(e) => setFormSubject(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: '40px',
+                        padding: '0 14px',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '8px',
+                        fontSize: '13.5px',
+                        background: '#ffffff',
+                        color: '#0f172a',
+                        fontWeight: '500',
+                        outline: 'none',
+                      }}
                       required
                     />
                   </div>
 
+                  {/* Description & Sales Remarks */}
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                        Complaint Description <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <textarea
+                        data-testid="textarea-complaint-description"
+                        rows={3}
+                        placeholder="Detailed explanation of the customer complaint and defect findings..."
+                        value={formDescription}
+                        onChange={(e) => setFormDescription(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          border: '1.5px solid #cbd5e1',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          resize: 'vertical',
+                          outline: 'none',
+                          lineHeight: '1.5',
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
+                        Sales Remarks <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <textarea
+                        data-testid="textarea-complaint-remarks"
+                        rows={3}
+                        placeholder="Sales executive analysis and recommended resolution for Plant Head..."
+                        value={formSalesRemarks}
+                        onChange={(e) => setFormSalesRemarks(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          border: '1.5px solid #cbd5e1',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          resize: 'vertical',
+                          outline: 'none',
+                          lineHeight: '1.5',
+                        }}
+                        required
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* 5. Subject */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                    Subject / Summary *
-                  </label>
-                  <input
-                    data-testid="input-complaint-subject"
-                    type="text"
-                    placeholder="e.g. Broken tiles upon delivery / Color variation detected"
-                    value={formSubject}
-                    onChange={(e) => setFormSubject(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #DCE5F0', borderRadius: '8px', fontSize: '13.5px', background: '#fff' }}
-                    required
-                  />
-                </div>
+                {/* ── CARD 5: Evidence Attachment ── */}
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '14px',
+                    border: '1px solid #e2e8f0',
+                    padding: '18px 20px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span
+                        style={{
+                          background: '#eff6ff',
+                          color: '#2563eb',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid #dbeafe',
+                        }}
+                      >
+                        05
+                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Evidence Attachment (Photo / Document)
+                      </span>
+                    </div>
 
-                {/* 6. Complaint Description */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                    Complaint Description *
-                  </label>
-                  <textarea
-                    data-testid="textarea-complaint-description"
-                    rows={3}
-                    placeholder="Detailed explanation of the customer complaint and defect findings..."
-                    value={formDescription}
-                    onChange={(e) => setFormDescription(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #DCE5F0', borderRadius: '8px', fontSize: '13.5px', resize: 'vertical' }}
-                    required
-                  />
-                </div>
-
-                {/* 7. Sales Remarks */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                    Sales Remarks *
-                  </label>
-                  <textarea
-                    data-testid="textarea-complaint-remarks"
-                    rows={2}
-                    placeholder="Sales executive analysis and recommended resolution for Plant Head..."
-                    value={formSalesRemarks}
-                    onChange={(e) => setFormSalesRemarks(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #DCE5F0', borderRadius: '8px', fontSize: '13.5px', resize: 'vertical' }}
-                    required
-                  />
-                </div>
-
-                {/* 8. Attachment Upload */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                    Evidence Attachment (Photo / Document)
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <input
-                      type="file"
-                      onChange={handleFileUpload}
-                      disabled={uploadingAttachment}
-                      style={{ fontSize: '13px' }}
-                    />
-                    {uploadingAttachment && <span style={{ fontSize: '12px', color: '#2563eb' }}>Uploading...</span>}
                     {formAttachment && (
-                      <a href={formAttachment} target="_blank" rel="noreferrer" style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: '600' }}>
-                        View Uploaded File
-                      </a>
+                      <span style={{ fontSize: '12px', color: '#059669', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <CheckCircle2 size={13} />
+                        File Attached
+                      </span>
                     )}
                   </div>
+
+                  {/* Upload Box */}
+                  <div
+                    style={{
+                      border: '1.5px dashed #cbd5e1',
+                      borderRadius: '10px',
+                      padding: '16px 20px',
+                      background: '#f8fafc',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div
+                        style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '10px',
+                          background: '#eff6ff',
+                          border: '1px solid #dbeafe',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#2563eb',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Paperclip size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>
+                          Upload Defect Photos or Documents
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                          PNG, JPG, PDF up to 15MB (photos of broken/damaged items, inspection report)
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <input
+                        type="file"
+                        onChange={handleFileUpload}
+                        disabled={uploadingAttachment}
+                        style={{ fontSize: '12.5px', color: '#475569' }}
+                      />
+                      {uploadingAttachment && (
+                        <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: '700' }}>
+                          Uploading...
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Attached File Preview Card */}
+                  {formAttachment && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        background: '#ecfdf5',
+                        border: '1px solid #a7f3d0',
+                        borderRadius: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                        <CheckCircle2 size={16} style={{ color: '#059669', flexShrink: 0 }} />
+                        <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#065f46', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          Evidence file uploaded successfully
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <a
+                          href={formAttachment}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            color: '#0284c7',
+                            textDecoration: 'none',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: '#ffffff',
+                            border: '1px solid #bae6fd',
+                          }}
+                        >
+                          <ExternalLink size={12} />
+                          View File
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setFormAttachment('')}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#ef4444',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            padding: '3px 6px',
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -1823,68 +2460,98 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
               {/* Modal Footer with Actions */}
               <div
                 style={{
-                  padding: '16px 24px',
-                  borderTop: '1px solid #E2E8F0',
-                  background: '#f8fafc',
+                  padding: '16px 28px',
+                  borderTop: '1px solid #e2e8f0',
+                  background: '#ffffff',
                   display: 'flex',
-                  justifyContent: 'flex-end',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
                   gap: '12px',
+                  flexShrink: 0,
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  disabled={saving}
-                  style={{
-                    padding: '10px 18px',
-                    background: '#fff',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '8px',
-                    fontSize: '13.5px',
-                    fontWeight: '700',
-                    color: '#475569',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  data-testid="btn-save-draft"
-                  type="button"
-                  onClick={() => handleSubmitComplaint('DRAFT')}
-                  disabled={saving}
-                  style={{
-                    padding: '10px 18px',
-                    background: '#f1f5f9',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '8px',
-                    fontSize: '13.5px',
-                    fontWeight: '700',
-                    color: '#1e293b',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Save Draft
-                </button>
-                <button
-                  data-testid="btn-submit-plant-head"
-                  type="button"
-                  onClick={() => handleSubmitComplaint('SUBMIT')}
-                  disabled={saving}
-                  style={{
-                    padding: '10px 22px',
-                    background: '#2F4375',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '13.5px',
-                    fontWeight: '800',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(47,67,117,0.3)',
-                  }}
-                >
-                  {saving ? 'Submitting...' : 'Submit to Plant Head'}
-                </button>
+                <div style={{ fontSize: '12.5px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {selectedCustomerObj && selectedOrderObj ? (
+                    <span style={{ color: '#047857', fontWeight: '600' }}>
+                      Ready: <b>{selectedCustomerObj.companyName}</b> • Order <b>{selectedOrderObj.orderNumber || selectedOrderObj.orderNo}</b>
+                    </span>
+                  ) : (
+                    <span>💡 Please select customer & order to proceed.</span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    disabled={saving}
+                    style={{
+                      padding: '10px 18px',
+                      background: '#ffffff',
+                      border: '1.5px solid #cbd5e1',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      color: '#475569',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    data-testid="btn-save-draft"
+                    type="button"
+                    onClick={() => handleSubmitComplaint('DRAFT')}
+                    disabled={saving}
+                    style={{
+                      padding: '10px 18px',
+                      background: '#f8fafc',
+                      border: '1.5px solid #cbd5e1',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      color: '#1e293b',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    Save Draft
+                  </button>
+
+                  <button
+                    data-testid="btn-submit-plant-head"
+                    type="button"
+                    onClick={() => handleSubmitComplaint('SUBMIT')}
+                    disabled={saving}
+                    style={{
+                      padding: '10px 24px',
+                      background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '13.5px',
+                      fontWeight: '800',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {saving ? (
+                      'Submitting...'
+                    ) : (
+                      <>
+                        <Send size={15} />
+                        Submit to Plant Head
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
             </div>
@@ -1898,6 +2565,7 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
           const badge = getStatusBadge(selectedComplaint.status);
           const pBadge = getPriorityBadge(selectedComplaint.priority);
           const isPending =
+            selectedComplaint.status === 'PLANT_HEAD_PENDING' ||
             selectedComplaint.status === 'PENDING_PLANT_HEAD' ||
             selectedComplaint.status === 'PENDING_SUPER_ADMIN' ||
             selectedComplaint.status === 'SUBMITTED';
@@ -2130,14 +2798,78 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
                       </div>
                     )}
 
-                    {selectedComplaint.status === 'APPROVED' && selectedComplaint.lossRecord && (
-                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '12px 16px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#15803d', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                          TRANSACTIONAL IMPACT RECORDED
+                    {/* Dispatch Evidence Section */}
+                    {selectedComplaint.dispatchEvidence && (
+                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '14px 16px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#15803d', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                          ✓ DISPATCH INSPECTION EVIDENCE
                         </span>
-                        <div style={{ fontSize: '13px', color: '#166534' }}>
-                          Order marked as <strong>LOST</strong>. Deducted {formatCurrency(selectedComplaint.lossRecord.lostValue)} on {formatDate(selectedComplaint.lossRecord.lostDate)}.
+                        <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+                          <img
+                            src={selectedComplaint.dispatchEvidence}
+                            alt="Dispatch Inspection Evidence"
+                            style={{ width: '120px', height: '90px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #86efac' }}
+                          />
+                          <div>
+                            <div style={{ fontSize: '13px', color: '#166534', fontWeight: '600' }}>
+                              Notes: {selectedComplaint.dispatchRemarks || 'Inspected at dispatch bay'}
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px' }}>
+                              Completed by {selectedComplaint.dispatchCompletedBy || 'Dispatch Team'} on {formatDate(selectedComplaint.dispatchCompletedAt)}
+                            </div>
+                            <a
+                              href={selectedComplaint.dispatchEvidence}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#2563eb', marginTop: '6px', fontWeight: '700' }}
+                            >
+                              Enlarge Evidence <ExternalLink size={12} />
+                            </a>
+                          </div>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Financial Resolution & Realization Section */}
+                    {(selectedComplaint.status === 'RESOLVED' || selectedComplaint.financeApprovedReturnAmount !== null) && (
+                      <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '12px', padding: '16px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#047857', textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>
+                          FINANCIAL ADJUSTMENT & SALES REALIZATION
+                        </span>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '12px' }}>
+                          <div style={{ background: '#fff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>ORIGINAL ORDER BILL</span>
+                            <div style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', marginTop: '2px' }}>
+                              {formatCurrency(selectedComplaint.originalBillAmount || selectedComplaint.order?.totalAmount)}
+                            </div>
+                          </div>
+
+                          <div style={{ background: '#fff', padding: '10px 12px', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+                            <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: '700' }}>APPROVED RETURN DEDUCTION</span>
+                            <div style={{ fontSize: '15px', fontWeight: '800', color: '#dc2626', marginTop: '2px' }}>
+                              -{formatCurrency(selectedComplaint.financeApprovedReturnAmount)}
+                            </div>
+                          </div>
+
+                          <div style={{ background: '#f0fdf4', padding: '10px 12px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                            <span style={{ fontSize: '11px', color: '#15803d', fontWeight: '700' }}>NET SALES REALIZATION</span>
+                            <div style={{ fontSize: '15px', fontWeight: '800', color: '#16a34a', marginTop: '2px' }}>
+                              {formatCurrency(
+                                selectedComplaint.netOrderValue ??
+                                Math.max(0, Number(selectedComplaint.originalBillAmount || selectedComplaint.order?.totalAmount || 0) - Number(selectedComplaint.financeApprovedReturnAmount || 0))
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {selectedComplaint.financeRemarks && (
+                          <div style={{ fontSize: '12.5px', color: '#334155', background: '#fff', padding: '8px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                            <strong>Finance Remarks:</strong> {selectedComplaint.financeRemarks}
+                            <span style={{ display: 'block', fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                              Resolved by {selectedComplaint.financeResolvedBy || 'Finance'} on {formatDate(selectedComplaint.financeResolvedAt)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2197,17 +2929,17 @@ export default function CustomerComplaintManagement({ mode = 'sales', currentUse
                         onClick={() => handlePlantHeadApprove(selectedComplaint)}
                         style={{
                           padding: '10px 24px',
-                          background: '#16a34a',
+                          background: '#2563eb',
                           border: 'none',
                           borderRadius: '8px',
                           fontSize: '13.5px',
                           fontWeight: '800',
                           color: '#fff',
                           cursor: 'pointer',
-                          boxShadow: '0 2px 8px rgba(22,163,74,0.3)',
+                          boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
                         }}
                       >
-                        Approve & Mark Order LOST
+                        Approve & Send to Dispatch
                       </button>
                     </div>
                   )}

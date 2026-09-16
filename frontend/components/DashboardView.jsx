@@ -22,8 +22,10 @@ import {
   Sparkles,
   AlertTriangle,
   TrendingDown,
-  Bell
+  Bell,
+  RotateCcw
 } from 'lucide-react';
+import { backendFetch } from '../lib/backendFetch';
 import {
   AreaChart,
   Area,
@@ -125,6 +127,19 @@ export default function DashboardView({
   const { data: targetData, isLoading: isLoadingTarget, isError } = useQuery({
     queryKey: ['sales-target-dashboard'],
     queryFn: fetchDashboard,
+    staleTime: 60000,
+  });
+
+  const { data: complaintsData } = useQuery({
+    queryKey: ['sales-dashboard-complaints'],
+    queryFn: async () => {
+      try {
+        const res = await backendFetch('/sales/complaints');
+        return Array.isArray(res) ? res : (res?.data || []);
+      } catch (e) {
+        return [];
+      }
+    },
     staleTime: 60000,
   });
 
@@ -259,6 +274,15 @@ export default function DashboardView({
 
   // Order helpers
   const orderValue = (order) => Number(order?.grandTotal ?? order?.grand_total ?? order?.totalValue ?? order?.totalAmount ?? order?.total_amount ?? order?.total ?? order?.invoiceAmount ?? order?.payment?.totalAmount ?? 0);
+  const orderComplaintDeduction = (order) => Number(order?.complaintDeduction || 0);
+  const orderRealizedValue = (order) => {
+    if (order?.netTotalAmount !== undefined && order?.netTotalAmount !== null) {
+      return Number(order.netTotalAmount);
+    }
+    const base = orderValue(order);
+    const deduction = orderComplaintDeduction(order);
+    return Math.max(0, base - deduction);
+  };
   const orderQuantity = (order) => Number(order?.quantity || order?.totalQuantity || order?.qty || (Array.isArray(order?.items) ? order.items.reduce((sum, item) => sum + Number(item.quantity || item.qty || 0), 0) : 0));
 
   const isLostOrder = (order) => {
@@ -447,7 +471,9 @@ export default function DashboardView({
 
   const wonOrders = filteredOrders.filter(isWonOrderSentToPlant);
   const wonOrdersCount = wonOrders.length;
-  const mySalesTotal = wonOrders.reduce((sum, o) => sum + orderValue(o), 0);
+  const mySalesGross = wonOrders.reduce((sum, o) => sum + orderValue(o), 0);
+  const myComplaintAdjustments = wonOrders.reduce((sum, o) => sum + orderComplaintDeduction(o), 0);
+  const mySalesTotal = wonOrders.reduce((sum, o) => sum + orderRealizedValue(o), 0);
   const lostOrders = filteredOrders.filter(isLostOrder);
   const lostOrdersCount = lostOrders.length;
   const lostSalesTotal = lostOrders.reduce((sum, o) => sum + (Number(o.lossRecord?.lostValue) || orderValue(o)), 0);
@@ -510,13 +536,41 @@ export default function DashboardView({
   // Active non-lost orders
   const activePayableOrders = eligiblePaymentOrders.filter(o => !isLostOrder(o));
 
+  // ── Customer Complaint Return & Deduction Metrics ──
+  const filteredComplaints = (complaintsData || []).filter(filterByDate);
+  const resolvedComplaints = filteredComplaints.filter(c => 
+    ['RESOLVED', 'CLOSED'].includes(String(c?.status || '').toUpperCase()) || Boolean(c?.financeAdjustment)
+  );
+  
+  const complaintsApprovedReturn = resolvedComplaints.reduce((sum, c) => {
+    return sum + Number(c?.financeAdjustment?.approvedReturnAmount ?? c?.approvedReturnAmount ?? 0);
+  }, 0);
+
+  const complaintsOriginalOrdersValue = resolvedComplaints.reduce((sum, c) => {
+    return sum + Number(c?.financeAdjustment?.originalOrderAmount ?? c?.order?.totalAmount ?? 0);
+  }, 0);
+
+  const ordersWithComplaintDeductions = eligiblePaymentOrders.filter(o => Number(o.complaintDeduction || 0) > 0);
+  const orderReturnDeductions = eligiblePaymentOrders.reduce((sum, o) => {
+    return sum + Number(o.complaintDeduction || 0);
+  }, 0);
+
+  const orderComplaintOrdersValue = ordersWithComplaintDeductions.reduce((sum, o) => {
+    return sum + orderValue(o);
+  }, 0);
+
+  // Unified complaint return deduction amount across orders and complaints
+  const totalComplaintReturnAmount = Math.max(orderReturnDeductions, complaintsApprovedReturn);
+  const totalComplaintOrdersValue = Math.max(orderComplaintOrdersValue, complaintsOriginalOrdersValue);
+  const complaintOrdersCount = Math.max(ordersWithComplaintDeductions.length, resolvedComplaints.length);
+
   // Gross orders value before lost sales deduction
   const grossPaymentAmount = eligiblePaymentOrders.reduce((sum, o) => {
     return sum + Number(o.grandTotal ?? o.totalAmount ?? o.payment?.totalAmount ?? o.totalValue ?? 0);
   }, 0) || filteredPayments.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0);
 
-  // Total Payment amount with Lost Sales (Complaint loss) deducted
-  const totalPaymentAmount = Math.max(0, grossPaymentAmount - lostSalesTotal);
+  // Total Payment amount with Lost Sales (Complaint loss) and Return Deductions deducted
+  const totalPaymentAmount = Math.max(0, grossPaymentAmount - lostSalesTotal - totalComplaintReturnAmount);
 
   const totalPaymentReceivedAmount = activePayableOrders.reduce((sum, o) => {
     const paid = Number(o.verifiedPaidAmount ?? o.payment?.paidAmount ?? o.payment?.paid ?? 0);
@@ -528,7 +582,7 @@ export default function DashboardView({
     return sum;
   }, 0) || filteredPayments.reduce((sum, p) => sum + Number(p.paidAmount || p.paymentAmount || 0), 0);
 
-  // Due amount automatically accounts for lost orders deduction
+  // Due amount automatically accounts for lost orders deduction and return deduction
   const totalPaymentDueAmount = Math.max(0, totalPaymentAmount - totalPaymentReceivedAmount);
 
   const totalCustomersCount = new Set([
@@ -867,6 +921,9 @@ export default function DashboardView({
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#3730a3' }}>
                     {formatINR(totalPaymentAmount)}
                   </span>
+                  <span style={{ fontSize: '10.5px', color: '#6366f1', fontWeight: '600' }}>
+                    {totalComplaintReturnAmount > 0 ? `Net of ${formatINR(totalComplaintReturnAmount)} returns` : 'Eligible orders'}
+                  </span>
                 </div>
 
                 {/* 2. Total Payment Due */}
@@ -881,20 +938,48 @@ export default function DashboardView({
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#dc2626' }}>
                     {formatINR(totalPaymentDueAmount)}
                   </span>
+                  <span style={{ fontSize: '10.5px', color: '#dc2626', fontWeight: '600' }}>
+                    {totalComplaintReturnAmount > 0 ? 'Adjusted with returns' : 'Pending collection'}
+                  </span>
                 </div>
 
-                {/* 3. Total Customers */}
-                <div style={{
-                  background: '#ffffff', border: '1px solid #dbeafe',
-                  borderLeft: '4px solid #3b82f6',
-                  padding: '16px 18px', borderRadius: '12px',
-                  display: 'flex', flexDirection: 'column', gap: '6px',
-                  boxShadow: '0 2px 6px rgba(59,130,246,0.08)'
-                }}>
-                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#2563eb' }}>Total Customers</span>
-                  <span style={{ fontSize: '22px', fontWeight: '900', color: '#1d4ed8' }}>
-                    {totalCustomersCount}
+                {/* 3. Return Amount (Customer Complaints) */}
+                <div 
+                  onClick={() => handleNav('/sales/customer-complaints')}
+                  style={{
+                    cursor: 'pointer',
+                    background: '#ffffff', border: '1px solid #fed7aa',
+                    borderLeft: '4px solid #f97316',
+                    padding: '16px 18px', borderRadius: '12px',
+                    display: 'flex', flexDirection: 'column', gap: '6px',
+                    boxShadow: '0 2px 6px rgba(249,115,22,0.08)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(249,115,22,0.14)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(249,115,22,0.08)';
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#ea580c', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <RotateCcw size={13} />
+                      Return Amount
+                    </span>
+                    <span style={{ fontSize: '10px', fontWeight: '800', color: '#c2410c', background: '#ffedd5', padding: '2px 7px', borderRadius: '10px' }}>
+                      {complaintOrdersCount} {complaintOrdersCount === 1 ? 'Complaint' : 'Complaints'}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '22px', fontWeight: '900', color: '#c2410c' }}>
+                    {formatINR(totalComplaintReturnAmount)}
                   </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px', color: '#9a3412', fontWeight: '600' }}>
+                    <span>Order Total: {formatINR(totalComplaintOrdersValue)}</span>
+                    <span style={{ color: '#ea580c', fontWeight: '700' }}>View Details →</span>
+                  </div>
                 </div>
 
                 {/* 4. Payment Received */}
@@ -909,6 +994,22 @@ export default function DashboardView({
                   <span style={{ fontSize: '22px', fontWeight: '900', color: '#15803d' }}>
                     {formatINR(totalPaymentReceivedAmount)}
                   </span>
+                  <span style={{ fontSize: '10.5px', color: '#16a34a', fontWeight: '600' }}>Verified collected</span>
+                </div>
+
+                {/* 5. Total Customers */}
+                <div style={{
+                  background: '#ffffff', border: '1px solid #dbeafe',
+                  borderLeft: '4px solid #3b82f6',
+                  padding: '16px 18px', borderRadius: '12px',
+                  display: 'flex', flexDirection: 'column', gap: '6px',
+                  boxShadow: '0 2px 6px rgba(59,130,246,0.08)'
+                }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#2563eb' }}>Total Customers</span>
+                  <span style={{ fontSize: '22px', fontWeight: '900', color: '#1d4ed8' }}>
+                    {totalCustomersCount}
+                  </span>
+                  <span style={{ fontSize: '10.5px', color: '#2563eb', fontWeight: '600' }}>Active accounts</span>
                 </div>
 
               </div>
@@ -953,7 +1054,7 @@ export default function DashboardView({
                     {formatINR(mySalesTotal)}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10.5px', color: 'var(--color-text-secondary)', fontWeight: '600' }}>
-                    <span>Won order value</span>
+                    <span>{myComplaintAdjustments > 0 ? `Net Realized (-${formatINR(myComplaintAdjustments)})` : 'Won order value'}</span>
                     <span style={{ color: '#10b981', fontWeight: '800', background: '#dcfce7', padding: '1px 6px', borderRadius: '10px' }}>
                       {wonOrdersCount} {wonOrdersCount === 1 ? 'Won Order' : 'Won Orders'}
                     </span>
@@ -1171,6 +1272,34 @@ export default function DashboardView({
                   </span>
                 </div>
 
+                {/* Return Amount (Complaint Deductions) */}
+                <div 
+                  className="mobile-2col-card" 
+                  onClick={() => handleNav('/sales/customer-complaints')}
+                  style={{
+                    cursor: 'pointer',
+                    background: '#ffffff', border: '1px solid #fed7aa', borderLeft: '4px solid #f97316',
+                    padding: '12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
+                    boxShadow: '0 1px 4px rgba(249,115,22,0.06)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#ea580c', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <RotateCcw size={11} />
+                      Return Amount
+                    </span>
+                    <span style={{ fontSize: '9px', fontWeight: '800', color: '#c2410c', background: '#ffedd5', padding: '1px 5px', borderRadius: '8px' }}>
+                      {complaintOrdersCount}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '15px', fontWeight: '900', color: '#c2410c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {formatINR(totalComplaintReturnAmount)}
+                  </span>
+                  <span style={{ fontSize: '9.5px', color: '#9a3412', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    Orders: {formatINR(totalComplaintOrdersValue)}
+                  </span>
+                </div>
+
                 {/* Total Customers */}
                 <div className="mobile-2col-card" style={{
                   background: '#ffffff', border: '1px solid #dbeafe', borderLeft: '4px solid #3b82f6',
@@ -1215,7 +1344,9 @@ export default function DashboardView({
                   <span style={{ fontSize: '15px', fontWeight: '900', color: '#10b981', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {formatINR(mySalesTotal)}
                   </span>
-                  <span style={{ fontSize: '9.5px', color: '#10b981', fontWeight: '700' }}>{wonOrdersCount} Won Orders</span>
+                  <span style={{ fontSize: '9.5px', color: '#10b981', fontWeight: '700' }}>
+                    {wonOrdersCount} Won Orders {myComplaintAdjustments > 0 ? `(-${formatINR(myComplaintAdjustments)})` : ''}
+                  </span>
                 </div>
 
                 {/* Lost Sales */}

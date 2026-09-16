@@ -100,12 +100,22 @@ export function mapSalesOrder(
   const verifiedPaidAmount = (order.customerPayments ?? [])
     .filter((payment) => financeApprovedStatuses.has(payment.status))
     .reduce((total, payment) => total + Number(payment.amount), 0);
+  const complaintDeductions = ((order as any).complaintAdjustments || [])
+    .filter((adj: any) => adj.status === 'APPLIED')
+    .reduce(
+      (sum: number, adj: any) => sum + Number(adj.approvedReturnAmount || 0),
+      0,
+    );
+  const effectiveTotalAmount = Math.max(
+    0,
+    Number(order.totalAmount) - complaintDeductions,
+  );
   const balanceAmount = Math.max(
     0,
-    Number(order.totalAmount) - verifiedPaidAmount,
+    effectiveTotalAmount - verifiedPaidAmount,
   );
   const paymentStatus =
-    verifiedPaidAmount >= Number(order.totalAmount)
+    verifiedPaidAmount >= effectiveTotalAmount && effectiveTotalAmount > 0
       ? 'FULLY_PAID'
       : verifiedPaidAmount > 0
         ? 'PARTIALLY_PAID'
@@ -115,7 +125,9 @@ export function mapSalesOrder(
               ),
             )
           ? 'FINANCE_VERIFICATION_PENDING'
-          : 'NOT_DUE';
+          : effectiveTotalAmount === 0 && Number(order.totalAmount) > 0
+            ? 'FULLY_PAID'
+            : 'NOT_DUE';
   const returnStatus = latestReturn
     ? latestReturn.status === 'CLOSED'
       ? 'COMPLETED'
@@ -383,8 +395,12 @@ export function mapSalesOrder(
     taxAmount: Number(order.taxAmount),
     freightAmount: Number(order.freightAmount || 0),
     totalAmount: Number(order.totalAmount),
+    complaintDeduction: complaintDeductions,
+    netTotalAmount: effectiveTotalAmount,
+    complaintAdjustments: (order as any).complaintAdjustments || [],
     verifiedPaidAmount,
     balanceAmount,
+    outstandingAmount: balanceAmount,
     paymentStatus,
 
     // Unified lifecycle status

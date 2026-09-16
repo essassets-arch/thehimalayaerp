@@ -14,8 +14,10 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
   AdminRemarksDto,
+  CompleteDispatchDto,
   CreateCustomerComplaintDto,
   RejectComplaintDto,
+  ResolveFinanceDto,
 } from './dto/create-customer-complaint.dto';
 import { CustomerComplaintsService } from './customer-complaints.service';
 
@@ -148,6 +150,89 @@ export class CustomerComplaintsController {
       dto.rejectionReason,
       dto.adminRemarks,
     );
+  }
+
+  // ─── Dispatch Endpoints ───
+  @RequirePermissions(
+    'logistics.dispatches.read',
+    'dispatch.read',
+    'admin.planthead.read',
+    'sales.customercomplaints.read',
+  )
+  @Get('dispatch/complaints')
+  listDispatch(@Query() query: any) {
+    return this.service.listDispatch(query);
+  }
+
+  @RequirePermissions(
+    'logistics.dispatches.read',
+    'dispatch.read',
+    'admin.planthead.read',
+    'sales.customercomplaints.read',
+  )
+  @Get('dispatch/complaints/:id')
+  dispatchOne(@Param('id') id: string) {
+    return this.service.get(id);
+  }
+
+  @RequirePermissions(
+    'logistics.dispatches.update',
+    'dispatch.update',
+    'admin.planthead.create',
+    'sales.customercomplaints.update',
+  )
+  @Put('dispatch/complaints/:id/complete')
+  completeDispatch(
+    @Param('id') id: string,
+    @Body() dto: CompleteDispatchDto,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.id || req.user?.sub || 'system';
+    return this.service.completeDispatch(id, userId, dto);
+  }
+
+  // ─── Finance Endpoints ───
+  @RequirePermissions(
+    'finance.payments.read',
+    'finance.read',
+    'admin.finance.read',
+    'sales.customercomplaints.read',
+  )
+  @Get('finance/complaints')
+  listFinance(@Query() query: any) {
+    return this.service.listFinance(query);
+  }
+
+  @RequirePermissions(
+    'finance.payments.read',
+    'finance.read',
+    'admin.finance.read',
+    'sales.customercomplaints.read',
+  )
+  @Get('finance/complaints/:id')
+  financeOne(@Param('id') id: string) {
+    return this.service.get(id);
+  }
+
+  @RequirePermissions(
+    'finance.payments.approve',
+    'finance.create',
+    'admin.finance.create',
+    'sales.customercomplaints.approve',
+    'finance.payments.update',
+    'finance.payment.update',
+    'finance.payment.verify',
+    'finance.read',
+    'sales.customercomplaints.update',
+  )
+  @Put('finance/complaints/:id/resolve')
+  resolveFinance(
+    @Param('id') id: string,
+    @Body() dto: ResolveFinanceDto,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.id || req.user?.sub || 'system';
+    return this.service.resolveFinance(id, userId, dto);
   }
 
   // ─── Admin Endpoints (backward compatibility) ───

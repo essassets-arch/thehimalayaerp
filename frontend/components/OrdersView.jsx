@@ -920,9 +920,23 @@ export default function OrdersView({
                       <td data-label="Order No" className={styles.orderIdCol} style={{ fontWeight: 800, fontFamily: 'monospace' }}>{o.orderNo || o.orderNumber}</td>
                       <td data-label="Customer" className={styles.customerCol} style={{ fontWeight: 700 }}>{resolveOrderCustomerName(o)}</td>
                       <td data-label="Delivery Date">{deliveryDate}</td>
-                      <td data-label="Order Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800 }}>{formatINR(total)}</td>
+                      <td data-label="Order Value" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800 }}>
+                        {formatINR(total)}
+                        {Number(o.complaintDeduction || 0) > 0 && (
+                          <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: '700' }}>
+                            - {formatINR(o.complaintDeduction)} return
+                          </div>
+                        )}
+                      </td>
                       <td data-label="Paid Amount" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>{formatINR(paid)}</td>
-                      <td data-label="Balance Amount" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800, color: '#ef4444' }}>{formatINR(balance)}</td>
+                      <td data-label="Balance Amount" className={styles.valueCol} style={{ textAlign: 'right', fontWeight: 800, color: '#ef4444' }}>
+                        {formatINR(balance)}
+                        {Number(o.complaintDeduction || 0) > 0 && (
+                          <div style={{ fontSize: '10.5px', color: '#059669', fontWeight: '700' }}>
+                            (Adjusted Net)
+                          </div>
+                        )}
+                      </td>
                       <td data-label="Payment Status" className={styles.statusCol}>
                         <StatusBadge status={paymentLabel} />
                       </td>

@@ -49,6 +49,7 @@ export class PaymentsService {
             paymentTermDays: true,
           },
         },
+        complaintAdjustments: true,
         customerPayments: {
           orderBy: { createdAt: 'desc' },
         },
@@ -326,6 +327,7 @@ export class PaymentsService {
         customer: true,
         salesExecutive: { select: { id: true, name: true, email: true } },
         quotation: true,
+        complaintAdjustments: true,
         customerPayments: {
           orderBy: { createdAt: 'desc' },
         },
@@ -345,6 +347,7 @@ export class PaymentsService {
           customer: true,
           salesExecutive: { select: { id: true, name: true, email: true } },
           quotation: true,
+          complaintAdjustments: true,
           customerPayments: {
             orderBy: { createdAt: 'desc' },
           },
@@ -903,8 +906,17 @@ export class PaymentsService {
             0,
           );
           const orderTotal = Number(order.totalAmount || 0);
-          newOutstanding = Math.max(0, orderTotal - newPaidAmount);
-          isFullPaid = newOutstanding <= 0 && orderTotal > 0;
+          const adjustments = await tx.complaintFinancialAdjustment.findMany({
+            where: { salesOrderId: order.id, status: 'APPLIED' },
+            select: { approvedReturnAmount: true },
+          });
+          const totalDeductions = adjustments.reduce(
+            (sum, a) => sum + Number(a.approvedReturnAmount || 0),
+            0,
+          );
+          const effectiveOrderTotal = Math.max(0, orderTotal - totalDeductions);
+          newOutstanding = Math.max(0, effectiveOrderTotal - newPaidAmount);
+          isFullPaid = newOutstanding <= 0 && effectiveOrderTotal > 0;
 
           const newPaymentStatus = isFullPaid
             ? 'PAID'

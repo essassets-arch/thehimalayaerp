@@ -707,6 +707,11 @@ export default function FinanceSalesConfirmationView() {
                       {/* Order Total */}
                       <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#334155' }}>
                         {formatINR(r.orderTotal)}
+                        {Number(r.complaintDeduction || 0) > 0 && (
+                          <div style={{ fontSize: '11px', color: '#DC2626', fontWeight: 700 }}>
+                            - {formatINR(r.complaintDeduction)} return
+                          </div>
+                        )}
                       </td>
 
                       {/* Paid Amount */}
@@ -717,6 +722,11 @@ export default function FinanceSalesConfirmationView() {
                       {/* Outstanding Amount */}
                       <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 900, color: r.outstandingAmount > 0 ? '#DC2626' : '#16A34A' }}>
                         {formatINR(r.outstandingAmount)}
+                        {Number(r.complaintDeduction || 0) > 0 && (
+                          <div style={{ fontSize: '10.5px', color: '#059669', fontWeight: 700 }}>
+                            (Adjusted)
+                          </div>
+                        )}
                       </td>
 
                       {/* Payment Status */}

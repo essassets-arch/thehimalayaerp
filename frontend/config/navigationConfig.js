@@ -198,6 +198,7 @@ export const navigationConfig = {
       ],
     },
     { id: 'daily-report', label: 'Daily Dispatch Report', icon: FileText, path: '/dispatch/daily-report', group: 'Logistics' },
+    { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/dispatch/customer-complaints', group: 'Logistics' },
     { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch/remaining' },
     { id: 'history', label: 'Dispatch History', icon: History, path: '/dispatch/history', group: 'Logistics' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/dispatch/profile' }
@@ -250,6 +251,7 @@ export const navigationConfig = {
       ],
     },
     { id: 'daily-report', label: 'Daily Dispatch Report', icon: FileText, path: '/dispatch-2/daily-report', group: 'Logistics' },
+    { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/dispatch-2/customer-complaints', group: 'Logistics' },
     { id: 'remaining', label: 'Remaining Dispatch', icon: ClipboardList, path: '/dispatch-2/remaining' },
     { id: 'history', label: 'Dispatch History', icon: History, path: '/dispatch-2/history', group: 'Logistics' },
     { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/dispatch-2/profile' }
@@ -308,6 +310,7 @@ export const navigationConfig = {
       ]
     },
     { id: 'rejection-management', label: 'Material Rejections', icon: AlertTriangle, path: '/finance/rejection-management' },
+    { id: 'customer-complaints', label: 'Customer Complaints', icon: MessageSquare, path: '/finance/customer-complaints' },
 
     {
       id: 'salary',

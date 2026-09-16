@@ -175,6 +175,7 @@ model User {
   salesExecutiveLeads           Lead[]                 @relation("SalesExecutiveLeads")
   salesExecutiveQuotations      Quotation[]            @relation("SalesExecutiveQuotations")
   customerComplaints            CustomerComplaint[]    @relation("CustomerComplaintSalesExecutive")
+  complaintAdjustments          ComplaintFinancialAdjustment[]
   salesOrderLosses              SalesOrderLoss[]       @relation("SalesOrderLossExecutive")
   salesExecutiveOrders          SalesOrder[]           @relation("SalesExecutiveOrders")
   salesExecutiveSamples         SampleRequest[]        @relation("SalesExecutiveSamples")
@@ -238,6 +239,7 @@ model Customer {
   payments        CustomerPayment[]
   ledgers         CustomerLedger[]
   complaints      CustomerComplaint[]
+  complaintAdjustments ComplaintFinancialAdjustment[]
   salesOrderLosses SalesOrderLoss[]
 
   @@unique([companyId, gstin])
@@ -1288,6 +1290,7 @@ model SalesOrder {
   paymentAllocations  CustomerPaymentAllocation[]
   FinishedGoods       FinishedGoods[]
   complaints          CustomerComplaint[]
+  complaintAdjustments ComplaintFinancialAdjustment[]
   lossRecord          SalesOrderLoss?
   lostReason          String?
   lostAt              DateTime?
@@ -1369,41 +1372,55 @@ model SalesOrderAllocation {
 }
 
 model CustomerComplaint {
-  id                  String                  @id @default(cuid())
-  complaintNo         String                  @unique
-  customerId          String
-  orderId             String?
-  productId           String?
-  complaintType       String
-  priority            String
-  complaintDate       DateTime
-  subject             String
-  description         String
-  salesRemarks        String?
-  attachment          String?
-  status              ComplaintStatus         @default(DRAFT)
-  adminRemarks        String?
-  rejectionReason     String?
-  submittedBy         String?
-  submittedAt         DateTime?
-  approvedBy          String?
-  approvedAt          DateTime?
-  rejectedBy          String?
-  rejectedAt          DateTime?
-  plantHeadDecisionAt DateTime?
-  createdBy           String
-  updatedBy           String?
-  version             Int                     @default(1)
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
-  salesExecutiveId    String?
+  id                          String                        @id @default(cuid())
+  complaintNo                 String                        @unique
+  customerId                  String
+  orderId                     String?
+  productId                   String?
+  complaintType               String
+  priority                    String
+  complaintDate               DateTime
+  subject                     String
+  description                 String
+  salesRemarks                String?
+  attachment                  String?
+  status                      ComplaintStatus               @default(DRAFT)
+  adminRemarks                String?
+  rejectionReason             String?
+  submittedBy                 String?
+  submittedAt                 DateTime?
+  approvedBy                  String?
+  approvedAt                  DateTime?
+  rejectedBy                  String?
+  rejectedAt                  DateTime?
+  plantHeadDecisionAt         DateTime?
+  dispatchCompletedAt         DateTime?
+  dispatchCompletedBy         String?
+  dispatchRemarks             String?
+  dispatchEvidence            String?
+  financeApprovedReturnAmount Decimal?                      @db.Decimal(18, 2)
+  financeRemarks              String?
+  financeResolvedAt           DateTime?
+  financeResolvedBy           String?
+  originalBillAmount          Decimal?                      @db.Decimal(18, 2)
+  calculatedComplaintAmount   Decimal?                      @db.Decimal(18, 2)
+  netOrderValue               Decimal?                      @db.Decimal(18, 2)
+  createdBy                   String
+  updatedBy                   String?
+  version                     Int                           @default(1)
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime                      @updatedAt
+  salesExecutiveId            String?
 
-  salesExecutive      User?                   @relation("CustomerComplaintSalesExecutive", fields: [salesExecutiveId], references: [id])
-  customer            Customer                @relation(fields: [customerId], references: [id])
-  order               SalesOrder?             @relation(fields: [orderId], references: [id])
-  product             Product?                @relation(fields: [productId], references: [id])
-  items               CustomerComplaintItem[]
-  lossRecord          SalesOrderLoss?
+  salesExecutive              User?                         @relation("CustomerComplaintSalesExecutive", fields: [salesExecutiveId], references: [id])
+  customer                    Customer                      @relation(fields: [customerId], references: [id])
+  order                       SalesOrder?                   @relation(fields: [orderId], references: [id])
+  product                     Product?                      @relation(fields: [productId], references: [id])
+  items                       CustomerComplaintItem[]
+  lossRecord                  SalesOrderLoss?
+  financeAdjustment           ComplaintFinancialAdjustment?
+  attachments                 ComplaintAttachment[]
+  statusHistory               ComplaintStatusHistory[]
 
   @@index([customerId])
   @@index([orderId])
@@ -1413,23 +1430,87 @@ model CustomerComplaint {
 }
 
 model CustomerComplaintItem {
-  id                String            @id @default(cuid())
-  complaintId       String
-  orderItemId       String?
-  productId         String
-  orderedQuantity   Decimal           @default(0) @db.Decimal(18, 3)
-  deliveredQuantity Decimal           @default(0) @db.Decimal(18, 3)
-  complaintQuantity Decimal           @default(0) @db.Decimal(18, 3)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  id                  String            @id @default(cuid())
+  complaintId         String
+  orderItemId         String?
+  productId           String
+  orderedQuantity     Decimal           @default(0) @db.Decimal(18, 3)
+  deliveredQuantity   Decimal           @default(0) @db.Decimal(18, 3)
+  complaintQuantity   Decimal           @default(0) @db.Decimal(18, 3)
+  unitPrice           Decimal           @default(0) @db.Decimal(18, 2)
+  complaintAmount     Decimal           @default(0) @db.Decimal(18, 2)
+  productNameSnapshot String?
+  productCodeSnapshot String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
-  complaint         CustomerComplaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
-  product           Product           @relation(fields: [productId], references: [id])
-  orderItem         SalesOrderItem?   @relation(fields: [orderItemId], references: [id])
+  complaint           CustomerComplaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  product             Product           @relation(fields: [productId], references: [id])
+  orderItem           SalesOrderItem?   @relation(fields: [orderItemId], references: [id])
 
   @@index([complaintId])
   @@index([productId])
   @@index([orderItemId])
+}
+
+model ComplaintFinancialAdjustment {
+  id                     String            @id @default(cuid())
+  complaintId            String            @unique
+  salesOrderId           String
+  customerId             String
+  salesExecutiveId       String?
+  referenceNumber        String            @unique
+  originalOrderAmount    Decimal           @db.Decimal(18, 2)
+  calculatedReturnAmount Decimal           @db.Decimal(18, 2)
+  approvedReturnAmount   Decimal           @db.Decimal(18, 2)
+  netOrderAmount         Decimal           @db.Decimal(18, 2)
+  adjustmentType         String            @default("RETURN_ADJUSTMENT")
+  status                 String            @default("APPLIED")
+  remarks                String
+  createdById            String
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  complaint              CustomerComplaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  salesOrder             SalesOrder        @relation(fields: [salesOrderId], references: [id])
+  customer               Customer          @relation(fields: [customerId], references: [id])
+  salesExecutive         User?             @relation(fields: [salesExecutiveId], references: [id])
+
+  @@index([salesOrderId])
+  @@index([customerId])
+  @@index([salesExecutiveId])
+}
+
+model ComplaintStatusHistory {
+  id          String            @id @default(cuid())
+  complaintId String
+  fromStatus  String?
+  toStatus    String
+  action      String
+  actorId     String?
+  remarks     String?
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+
+  complaint   CustomerComplaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+}
+
+model ComplaintAttachment {
+  id          String            @id @default(cuid())
+  complaintId String
+  fileUrl     String
+  fileName    String?
+  fileType    String?
+  fileSize    Int?
+  category    String
+  uploadedById String?
+  uploadedAt  DateTime          @default(now())
+
+  complaint   CustomerComplaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
 }
 
 model SalesOrderLoss {
@@ -1818,11 +1899,16 @@ enum SalesAllocationType {
 enum ComplaintStatus {
   DRAFT
   SUBMITTED
+  PLANT_HEAD_PENDING
   PENDING_PLANT_HEAD
   PENDING_SUPER_ADMIN
   APPROVED
-  REJECTED
+  PLANT_HEAD_APPROVED
+  DISPATCH_PENDING
+  DISPATCH_COMPLETED
+  FINANCE_PENDING
   RESOLVED
+  REJECTED
   CLOSED
 }
 

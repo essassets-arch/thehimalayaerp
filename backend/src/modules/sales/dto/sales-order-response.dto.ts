@@ -97,6 +97,11 @@ export interface SalesOrderResponseDto {
   lostComplaintId?: string | null;
   lossRecord?: any;
 
+  complaintDeduction?: number;
+  netTotalAmount?: number;
+  outstandingAmount?: number;
+  complaintAdjustments?: any[];
+
   createdAt: string;
   updatedAt: string;
   version: number;

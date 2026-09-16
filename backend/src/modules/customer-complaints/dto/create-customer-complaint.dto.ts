@@ -95,3 +95,31 @@ export class RejectComplaintDto {
   @IsString()
   adminRemarks?: string;
 }
+
+export class CompleteDispatchDto {
+  @IsOptional()
+  @IsString()
+  evidenceUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  dispatchEvidence?: string;
+
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+
+  @IsOptional()
+  @IsString()
+  dispatchRemarks?: string;
+}
+
+export class ResolveFinanceDto {
+  @IsNumber()
+  @Min(0)
+  approvedReturnAmount: number;
+
+  @IsString()
+  financeRemarks: string;
+}
+
