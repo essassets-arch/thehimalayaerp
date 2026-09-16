@@ -164,7 +164,7 @@ export class BackOfficeController {
    * AR — APPL SHEET (Invoice-level register, 21 columns)
    */
   @Get('appl-ar')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN')
   async getApplAr(@Query() query: any) {
     return this.backOfficeService.getApplArRegister(query);
   }
@@ -191,13 +191,13 @@ export class BackOfficeController {
    * AR — HCPPL SHEET (Summary sheet: Unpaid & RT matrices)
    */
   @Get('hcppl-ar')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN')
   async getHcpplAr() {
     return this.backOfficeService.getHcpplArSummary();
   }
 
   @Get('hcppl-ar/entries')
-  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office', 'Finance Manager', 'FINANCE_MANAGER', 'Finance', 'FINANCE', 'Super Admin', 'SUPER_ADMIN')
   async getHcpplArEntries(@Query() query: any) {
     return this.backOfficeService.getHcpplArEntries(query);
   }
