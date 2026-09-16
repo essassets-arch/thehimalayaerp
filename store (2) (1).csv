@@ -1,0 +1,1000 @@
+STORE INVENTORY — CURRENT STOCK | As of 23 Feb 2026 16:12,,,
+SR NO,Item Code,Item Name,Unit
+1,HM001,White Mold Release Wax Polish,KG
+2,HM002,Benjo Mold Release Wax Polish,KG
+3,HM003,Polyvinyl Alcohol (PVA) Release Agent,LTR
+4,HM004,NC-50 Solvent-Based Mold Release Agent,PCS
+5,HM005,White Pigment (TiO?),KG
+6,HM006,LIGHT GREY PIGMENT,KG
+7,HM007,Black Pigment,PCS
+8,HM008,Phthalocyanine Blue Pigment,PCS
+9,HM009,Polyethylene Terephthalate Resin (PET),BAREL
+10,HM010,General Purpose Unsaturated Polyester Resin (Clear),BAREL
+11,HM011,Isophthalic Polyester Resin,KGS
+12,HM012,Vinyl Ester Resin,PCS
+13,HM013,Isophthalic Gel Coat (Pre-accelerated),KG
+14,HM014,Surface Tissue Mat (30 GSM),ROLL
+15,HM015,Chopped Strand Mat – 225 GSM,KGS
+16,HM016,Chopped Strand Mat – 450 GSM,ROLL
+17,HM017,Woven Roving – 610 GSM,ROLL
+18,HM018,Unidirectional Fiberglass Mat – 1230 GSM,ROLL
+19,HM019,Methyl Ethyl Ketone Peroxide (Catalyst),KG
+20,HM020,Cobalt Octoate Solution (Accelerator),KGS
+21,HM021,Dimethylaniline (DMA) Promoter,PCS
+22,HM022,Quartz Powder – small,KGS
+23,HM023,Quartz Powder – medium,KGS
+24,HM024,Quartz Powder – big,KGS
+25,HM025,Quartz Powder – black and white,PCS
+26,HM026,"General Mineral Filler (e.g., Dolomite Powder)",KG
+27,HM027,Gel Coat Grade Filler Powder,KG
+28,HM028,Acetone (Solvent),PCS
+29,HM029,Thinner (General Purpose Paint/Resin Thinner),LTR
+30,HM030,Paint Brush 50mm,PCS
+31,HM031,Paint Brush 75mm,PCS
+32,HM032,Brush 25mm,PCS
+33,HM033,Paint Brush 100mm,PCS
+34,HM034,thapi SMALL,PCS
+35,HM035,thapi 6,PCS
+36,HM036,thapi 8,PCS
+37,HM037,thapi 10,PCS
+38,HM038,thapi 12,PCS
+39,HM039,bucket 8no,PCS
+40,HM040,bucket 12no,PCS
+41,HM041,bucket 10no,PCS
+42,HM042,bucket 19no,PCS
+43,HM043,bucket 14no,PCS
+44,HM044,mugga small,PCS
+45,HM045,mugga big,PCS
+46,HM046,balti small 5 to 18,PCS
+47,HM047,balti big 20,PCS
+48,HM048,"Steel Putty blade (4"")",PCS
+49,HM049,"Steel Putty blade (2"")",PCS
+50,HM050,Hacksaw Blade,NOS
+51,HM051,Steel Measuring Tape (5m,PCS
+52,HM052,Steel Measuring Tape (3m,PCS
+53,HM053,Steel Ruler / Engineer Scale Medium,NOS
+54,HM054,Steel Ruler / Engineer Scale small 1.5 feet,PCS
+55,HM055,Steel Ruler / Engineer Scale small 2 feet,PCS
+56,HM056,Flat Chisel –40,PCS
+57,HM057,Flat Chisel -25,PCS
+58,HM058,Flat Chisel - 32,PCS
+59,HM059,Flat Chisel –50,PCS
+60,HM060,General Purpose Chisel,PCS
+61,HM061,head screwdriver big,NOS
+62,HM062,head screwdriver small,NOS
+63,HM063,Electric Jigsaw Machine,PCS
+64,HM064,jigsaw blade,PCS
+65,HM065,Wood/Composite Router Machine,PCS
+66,HM066,wood cutter blade,PCS
+67,HM067,"Angle Grinder (4""/5"")",PCS
+68,HM068,dimanod cutter,PCS
+69,HM069,gc wheel,PCS
+70,HM070,bear disc 60,PKT
+71,HM071,grinder lock nut,PCS
+72,HM072,Digital Vernier Caliper (0.01 mm accuracy),PCS
+73,HM073,Air Spray Gun for Gel Coat/Primer Application,PCS
+74,HM074,spary gun nozzel 4mm,PCS
+75,HM075,Electric Polishing Machine (Rotary/Orbital),PCS
+76,HM076,Cotton Wool Buffing Pad,PCS
+77,HM077,Orbital/Eccentric Sanding Machine,PCS
+78,HM078,buffing compond,PCS
+79,HM079,Surface Primer for FRP Application,PCS
+80,HM080,Plaster of Paris (CaSO?·½H?O),PCS
+81,HM081,Electric Drill Machine (Variable Speed),PCS
+82,HM082,Masonry Drill Bit,PCS
+83,HM083,HSS Twist Drill Bit – 3mm,PCS
+84,HM084,HSS Twist Drill Bit – 4mm,PCS
+85,HM085,HSS Twist Drill Bit – 6mm,PCS
+86,HM086,HSS Twist Drill Bit – 6mm *210mm,PCS
+87,HM087,HSS Twist Drill Bit – 8mm,PCS
+88,HM088,HSS Twist Drill Bit – 10mm,PCS
+89,HM089,HSS Twist Drill Bit – 12mm,PCS
+90,HM090,Hole Saw Cutter – 25mm Diameter,PCS
+91,HM091,Hole Saw Cutter – 50mm Diameter,PCS
+92,HM092,Emery Paper (Grit 60),ROLL
+93,HM093,Emery Paper (Grit 120),PCS
+94,HM094,Emery Paper (Grit 150),PCS
+95,HM095,Emery Paper (Grit 220),PCS
+96,HM096,Emery Paper (Grit 320),PCS
+97,HM097,Emery Paper (Grit 400),PCS
+98,HM098,Emery Paper (Grit 600),PCS
+99,HM099,Emery Paper (Grit 800),PCS
+100,HM100,Emery Paper (Grit 1000),PCS
+101,HM101,Emery Paper (Grit 1200),PCS
+102,HM102,Sandpaper (Grit 80),PCS
+103,HM103,Sandpaper (Grit 120),PCS
+104,HM104,Sandpaper (Grit 180),PCS
+105,HM105,Sandpaper (Grit 220),PCS
+106,HM106,Sandpaper (Grit 320),PCS
+107,HM107,Sandpaper (Grit 400),PCS
+108,HM108,Buffing/Polishing Compound (Paste Form),KG
+109,HM109,ply wood 6mm,PCS
+110,HM110,ply wood 12mm,PCS
+111,HM111,ply wood 18mm,PCS
+112,HM112,pen,PCS
+113,HM113,permenent marker,PCS
+114,HM114,board marker,PCS
+115,HM115,pencile,PCS
+116,HM116,sharpner,PCS
+117,HM117,eraser,PCS
+118,HM118,NOTEBOOK,PCS
+119,HM119,attandance sheet,PCS
+120,HM120,c handel,PCS
+121,HM121,roundhandel,PCS
+122,HM122,c clamp,PCS
+123,HM123,cloth,KG
+124,HM124,flap disc,PCS
+125,HM125,masking tape,PCS
+126,HM126,raping role,ROLL
+127,HM127,stone bit,PKT
+128,HM128,raping White tape,PCS
+129,HM129,packing role thread,PCS
+130,HM130,knife blade,PCS
+131,HM131,knife blade frame,PCS
+132,HM132,jadu,PCS
+133,HM133,desil,PCS
+134,HM134,grey colour,CAN
+135,HM135,black colour,CAN
+136,HM136,blue colour,CAN
+137,HM137,grinder carbon,PCS
+138,HM138,hand mixter,PCS
+139,HM139,hand mixture sterer 10mm,PCS
+140,HM140,hand mixture sterer 8mm,PCS
+141,HM141,hand mixture carbon,PCS
+142,HM142,fevikick,PCS
+143,HM143,yellow gloves,SET
+144,HM144,mask,PKT
+145,HM145,gogels,PCS
+146,HM146,plug box,PCS
+147,HM147,duble seel rubber 4mm,METER
+148,HM148,spaner kit,PCS
+149,HM149,hamer,PCS
+150,HM150,hydralic oil,LTR
+151,HM151,patra,PCS
+152,HM152,iron cutter disc,PCS
+153,HM153,glinder paid wheel,PCS
+154,HM154,fingure,PKT
+155,HM155,Cloth Gloves,SET
+156,HM156,Belcha,NOS
+157,HM157,Wire BUNDLE,PCS
+158,HM158,Grees,KG
+159,HM159,Admixture CHEMICAL,BRL'
+160,HM160,Reileas Chemicale,BRL(200LTR)
+161,HM161,Acid Gloves,SET
+162,HM162,Ecodrive Belt,PCS
+163,HM163,Fawda,PCS
+164,HM164,pvc farsi white,PCS
+165,HM165,handle patra,PCS
+166,HM166,allen key,PCS
+167,HM167,write angle,PCS
+168,HM168,wire tape,PKT
+169,HM169,grey moja,PAIR
+170,HM170,rassi/plastic sulti,KGS
+171,HM171,dhaga,BOX
+172,HM172,NYLON BLOCK PATTI SMALL,NOS
+173,HM173,balti small 8 NO,PCS
+174,HM174,D A GREY,PCS
+175,HM175,emery paper 80,PCS
+176,HM176,sand paper 600,PCS
+177,HM177,sterar 8mm,PCS
+178,HM178,sterar 10mm,PCS
+179,HM179,p v,PCS
+180,HM180,steel putty blade 50*150mm,PCS
+181,HM181,"steel putty blade 8""",PCS
+182,HM182,"steel putty blade 5/6""",PCS
+183,HM183,BALTI MID,PCS
+184,HM184,bucket 12no,PCS
+185,HM185,MEASURING TAPE,NOS
+186,HM186,sand paper 180,PCS
+187,HM186,bear disc 80,PCS
+188,HM187,bear disc 120,PCS
+189,HM188,welcro paper 600 grit,PCS
+190,HM189,WELDING ROD,PCS
+191,HM190,buffing machine,PCS
+192,HM191,c clamp big,PCS
+193,HM192,RED BRICK PIGMENT,PCS
+194,HM193,bear disc 80,PCS
+195,HM194,bear disc 120,PCS
+196,HM195,welcro paper 80,PCS
+197,HM196,welcro paper 120,PCS
+198,HM197,welcro paper 180,PCS
+199,HM198,welcro paper 220,PCS
+200,HM199,welcro paper 320,PCS
+201,HM200,welcro paper 400,PCS
+202,HM201,welcro paper 600,PCS
+203,HM202,sending machine pad,PCS
+204,HM203,bear disc 36,PCS
+205,HM204,handle,PCS
+206,HM205,Pliers (Pakkad),PCS
+207,HM206,Round File,PCS
+208,HM207,Flat File,PCS
+209,HM208,Thundor File,PCS
+210,HM209,FAVDE HANDLE,PCS
+211,HM210,BROWAN Pigment,PCS
+212,HM211,TERRA COATA Pigment,PCS
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
