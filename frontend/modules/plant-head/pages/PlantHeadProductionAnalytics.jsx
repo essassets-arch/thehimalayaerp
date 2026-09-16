@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import {
   ComposedChart,
+  BarChart,
   Area,
   Bar,
   Line,
