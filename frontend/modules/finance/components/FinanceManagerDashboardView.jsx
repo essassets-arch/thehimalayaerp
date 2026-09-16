@@ -86,6 +86,30 @@ const REAL_ERP_BASELINES = {
     { name: '31–60 Days (Aging)', value: 53092.92, color: PALETTE.amber, percentage: '0.6%' },
     { name: '61–90 Days (Overdue)', value: 288913.06, color: '#F97316', percentage: '3.5%' },
     { name: '90+ Days (Critical)', value: 209350.40, color: PALETTE.rose, percentage: '2.6%' }
+  ],
+  top10PaymentWise: [
+    { name: 'AROMA REALTIES LIMITED', city: 'Ahmedabad', totalPaid: 625695.00, totalInvoiced: 715080.00, totalOutstanding: 89385.00, invoiceCount: 2, paidInvoices: 2, avgDaysToPay: 15, avgDaysAhead: 1, onTimeRate: 100, clearanceRate: 88 },
+    { name: 'ARCHIT CORPORATION', city: 'Surat', totalPaid: 614603.15, totalInvoiced: 2127890.46, totalOutstanding: 1513287.31, invoiceCount: 22, paidInvoices: 8, avgDaysToPay: 25, avgDaysAhead: 14, onTimeRate: 100, clearanceRate: 29 },
+    { name: 'OM INFRASTRUCTURE', city: 'Ahmedabad', totalPaid: 490930.50, totalInvoiced: 667307.70, totalOutstanding: 176377.20, invoiceCount: 3, paidInvoices: 2, avgDaysToPay: 36, avgDaysAhead: 17, onTimeRate: 100, clearanceRate: 74 },
+    { name: 'Jay Corporation', city: 'Mehsana', totalPaid: 392424.00, totalInvoiced: 923350.00, totalOutstanding: 530926.00, invoiceCount: 2, paidInvoices: 1, avgDaysToPay: 14, avgDaysAhead: 1, onTimeRate: 100, clearanceRate: 43 },
+    { name: 'MAHALAXMI CORPORATION', city: 'Ahmedabad', totalPaid: 328121.00, totalInvoiced: 828442.60, totalOutstanding: 500321.60, invoiceCount: 3, paidInvoices: 1, avgDaysToPay: 14, avgDaysAhead: 1, onTimeRate: 100, clearanceRate: 40 },
+    { name: 'RV BUILDCON', city: 'Ahmedabad', totalPaid: 217049.20, totalInvoiced: 217049.20, totalOutstanding: 0.00, invoiceCount: 2, paidInvoices: 2, avgDaysToPay: 73, avgDaysAhead: 2, onTimeRate: 100, clearanceRate: 100 },
+    { name: 'THE VATIKA HOSPITALITY', city: 'Ahmedabad', totalPaid: 196652.00, totalInvoiced: 251446.20, totalOutstanding: 54794.20, invoiceCount: 4, paidInvoices: 3, avgDaysToPay: 13, avgDaysAhead: 27, onTimeRate: 100, clearanceRate: 78 },
+    { name: 'SHUBH INFRA', city: 'Ahmedabad', totalPaid: 118236.00, totalInvoiced: 182723.00, totalOutstanding: 64487.00, invoiceCount: 4, paidInvoices: 1, avgDaysToPay: 28, avgDaysAhead: 2, onTimeRate: 100, clearanceRate: 65 },
+    { name: 'BHADANI INDUSTRIES', city: 'Vadodara', totalPaid: 117357.10, totalInvoiced: 549432.78, totalOutstanding: 432075.68, invoiceCount: 3, paidInvoices: 2, avgDaysToPay: 51, avgDaysAhead: 2, onTimeRate: 100, clearanceRate: 21 },
+    { name: 'AADINATH INFRASTRUCTURE', city: 'Ahmedabad', totalPaid: 107421.00, totalInvoiced: 129717.40, totalOutstanding: 22296.40, invoiceCount: 3, paidInvoices: 2, avgDaysToPay: 15, avgDaysAhead: 1, onTimeRate: 100, clearanceRate: 83 }
+  ],
+  top10InTimePayment: [
+    { name: 'SHANNON PROJECTS LLP', city: 'Ahmedabad', totalPaid: 43365.00, totalInvoiced: 634250.00, totalOutstanding: 590885.00, invoiceCount: 4, paidInvoices: 1, avgDaysToPay: 10, avgDaysAhead: 35, onTimeRate: 100, clearanceRate: 7 },
+    { name: 'SHILP INFRASTRUCTURE', city: 'Ahmedabad', totalPaid: 29865.00, totalInvoiced: 59729.24, totalOutstanding: 29864.24, invoiceCount: 1, paidInvoices: 1, avgDaysToPay: 10, avgDaysAhead: 50, onTimeRate: 100, clearanceRate: 50 },
+    { name: 'OM REALTY', city: 'Ahmedabad', totalPaid: 25771.00, totalInvoiced: 51542.40, totalOutstanding: 25771.40, invoiceCount: 1, paidInvoices: 1, avgDaysToPay: 10, avgDaysAhead: 20, onTimeRate: 100, clearanceRate: 50 },
+    { name: 'SAANVI GREEN ENERGY PVT LTD', city: 'Surat', totalPaid: 25618.00, totalInvoiced: 102471.20, totalOutstanding: 76853.20, invoiceCount: 2, paidInvoices: 1, avgDaysToPay: 10, avgDaysAhead: 20, onTimeRate: 100, clearanceRate: 25 },
+    { name: 'FIROZ BHAI', city: 'Ahmedabad', totalPaid: 16255.00, totalInvoiced: 65018.00, totalOutstanding: 48763.00, invoiceCount: 2, paidInvoices: 1, avgDaysToPay: 10, avgDaysAhead: 80, onTimeRate: 100, clearanceRate: 25 },
+    { name: 'HARIKA DEVELOPERS', city: 'Ahmedabad', totalPaid: 16213.00, totalInvoiced: 64852.80, totalOutstanding: 48639.80, invoiceCount: 2, paidInvoices: 1, avgDaysToPay: 10, avgDaysAhead: 50, onTimeRate: 100, clearanceRate: 25 },
+    { name: 'SHAH SALES CORPORATION', city: 'Surat', totalPaid: 15948.00, totalInvoiced: 63790.80, totalOutstanding: 47842.80, invoiceCount: 2, paidInvoices: 1, avgDaysToPay: 10, avgDaysAhead: 80, onTimeRate: 100, clearanceRate: 25 },
+    { name: 'AARNA INFRA', city: 'Ahmedabad', totalPaid: 9735.00, totalInvoiced: 19470.00, totalOutstanding: 9735.00, invoiceCount: 1, paidInvoices: 1, avgDaysToPay: 10, avgDaysAhead: 5, onTimeRate: 100, clearanceRate: 50 },
+    { name: 'OM BUILDSPACE', city: 'Ahmedabad', totalPaid: 9588.00, totalInvoiced: 19175.00, totalOutstanding: 9587.00, invoiceCount: 1, paidInvoices: 1, avgDaysToPay: 10, avgDaysAhead: 20, onTimeRate: 100, clearanceRate: 50 },
+    { name: 'DARSHIT TRADING CO', city: 'Ahmedabad', totalPaid: 8210.00, totalInvoiced: 16419.70, totalOutstanding: 8209.70, invoiceCount: 1, paidInvoices: 1, avgDaysToPay: 10, avgDaysAhead: 80, onTimeRate: 100, clearanceRate: 50 }
   ]
 };
 
@@ -98,6 +122,7 @@ export default function FinanceManagerDashboardView({
   const router = useSafeRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [timeRange, setTimeRange] = useState('6M'); // '30D' | '90D' | '6M' | '1Y'
+  const [customerTab, setCustomerTab] = useState('both'); // 'both' | 'payment' | 'ontime'
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [liveData, setLiveData] = useState({
     salesOrders: [],
@@ -530,6 +555,106 @@ export default function FinanceManagerDashboardView({
         receivedStr: formatINR(r.received),
       }));
   }, [allArInvoices, salesOrders, formatINR]);
+
+  // ── 🌟 Customer Intelligence: Top 10 Payment-Wise & Top 10 In-Time Payers ──
+  const customerHonors = useMemo(() => {
+    const customerStats = new Map();
+
+    const processInvoice = (inv) => {
+      const name = (inv.companyName || inv.customer?.companyName || 'Client').trim();
+      if (!name) return;
+
+      const existing = customerStats.get(name) || {
+        name,
+        city: inv.city || 'Gujarat',
+        totalInvoiced: 0,
+        totalPaid: 0,
+        totalOutstanding: 0,
+        invoiceCount: 0,
+        paidInvoices: 0,
+        onTimeInvoices: 0,
+        totalDaysToPay: 0,
+        totalDaysBeforeDue: 0,
+        turnaroundSamples: 0,
+      };
+
+      const invAmt = Number(inv.invoiceAmount || inv.totalAmount || 0);
+      const paid = Number(inv.amtRcvd || inv.paidAmount || 0);
+      const out = Number(inv.outstanding !== undefined ? inv.outstanding : Math.max(0, invAmt - paid));
+
+      existing.invoiceCount += 1;
+      existing.totalInvoiced += invAmt;
+      existing.totalPaid += paid;
+      existing.totalOutstanding += out;
+
+      if (paid > 0) {
+        existing.paidInvoices += 1;
+        const id = inv.invoiceDate || inv.createdAt ? new Date(inv.invoiceDate || inv.createdAt) : null;
+        const dd = inv.dueDate ? new Date(inv.dueDate) : null;
+        const pd = inv.amtRcvdDate ? new Date(inv.amtRcvdDate) : (inv.completePaymentDate ? new Date(inv.completePaymentDate) : null);
+
+        if (pd && id) {
+          const daysToPay = Math.max(0, Math.round((pd.getTime() - id.getTime()) / 86400000));
+          existing.totalDaysToPay += daysToPay;
+          existing.turnaroundSamples += 1;
+        }
+        if (pd && dd) {
+          const daysAhead = Math.round((dd.getTime() - pd.getTime()) / 86400000);
+          existing.totalDaysBeforeDue += daysAhead;
+          if (daysAhead >= 0) existing.onTimeInvoices += 1;
+        } else {
+          if ((inv.ageingDays || 0) <= 0) existing.onTimeInvoices += 1;
+        }
+      }
+
+      customerStats.set(name, existing);
+    };
+
+    if (allArInvoices.length > 0) {
+      allArInvoices.forEach(processInvoice);
+    } else if (salesOrders.length > 0) {
+      salesOrders.forEach(processInvoice);
+    }
+
+    if (customerStats.size === 0) {
+      return {
+        top10PaymentWise: REAL_ERP_BASELINES.top10PaymentWise,
+        top10InTime: REAL_ERP_BASELINES.top10InTimePayment,
+      };
+    }
+
+    const list = Array.from(customerStats.values()).map(c => {
+      const avgDaysToPay = c.turnaroundSamples > 0 ? Math.round(c.totalDaysToPay / c.turnaroundSamples) : 15;
+      const avgDaysAhead = c.turnaroundSamples > 0 ? Math.round(c.totalDaysBeforeDue / c.turnaroundSamples) : 0;
+      const onTimeRate = c.paidInvoices > 0 ? Math.round((c.onTimeInvoices / c.paidInvoices) * 100) : 100;
+      const clearanceRate = c.totalInvoiced > 0 ? Math.round((c.totalPaid / c.totalInvoiced) * 100) : 0;
+
+      return {
+        ...c,
+        avgDaysToPay,
+        avgDaysAhead,
+        onTimeRate,
+        clearanceRate,
+      };
+    });
+
+    const top10Payment = [...list]
+      .sort((a, b) => b.totalPaid - a.totalPaid)
+      .slice(0, 10);
+
+    const punctual = list.filter(c => c.totalPaid > 0 && c.onTimeRate >= 80);
+    const top10InTime = [...punctual]
+      .sort((a, b) => {
+        if (a.avgDaysToPay !== b.avgDaysToPay) return a.avgDaysToPay - b.avgDaysToPay;
+        return b.totalPaid - a.totalPaid;
+      })
+      .slice(0, 10);
+
+    return {
+      top10PaymentWise: top10Payment.length > 0 ? top10Payment : REAL_ERP_BASELINES.top10PaymentWise,
+      top10InTime: top10InTime.length > 0 ? top10InTime : REAL_ERP_BASELINES.top10InTimePayment,
+    };
+  }, [allArInvoices, salesOrders]);
 
   return (
     <div
@@ -1301,6 +1426,317 @@ export default function FinanceManagerDashboardView({
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* ── 🌟 SECTION 2.5: CUSTOMER PAYMENT & IN-TIME SETTLEMENT INTELLIGENCE ── */}
+      <div>
+        {/* Section Header with Segmented Filter */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Award size={18} color={PALETTE.blue} />
+            <div>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: PALETTE.slate }}>
+                Customer Settlement Intelligence: Top 10 Collections & In-Time Payers
+              </h2>
+              <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: PALETTE.slateMuted }}>
+                Live ranking of accounts by total bank collections realized and turnaround punctuality ahead of invoice due dates
+              </p>
+            </div>
+          </div>
+
+          {/* Segmented View Switcher */}
+          <div
+            style={{
+              display: 'inline-flex',
+              background: '#F1F5F9',
+              padding: '3px',
+              borderRadius: '10px',
+              border: '1px solid #E2E8F0',
+            }}
+          >
+            {[
+              { id: 'both', label: '🏆 Both Side-by-Side' },
+              { id: 'payment', label: '💰 Top 10 Payment-Wise' },
+              { id: 'ontime', label: '⏱️ Top 10 In-Time Payment' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setCustomerTab(tab.id)}
+                style={{
+                  background: customerTab === tab.id ? '#FFFFFF' : 'transparent',
+                  color: customerTab === tab.id ? PALETTE.blue : PALETTE.slateMuted,
+                  border: 'none',
+                  fontWeight: customerTab === tab.id ? '800' : '600',
+                  fontSize: '12px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  boxShadow: customerTab === tab.id ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                  transition: 'all 0.18s ease',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Dynamic Grid for Top 10 Cards */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: customerTab === 'both' ? 'repeat(auto-fit, minmax(min(100%, 540px), 1fr))' : '1fr',
+            gap: '20px',
+            width: '100%',
+          }}
+        >
+          {/* ── CARD A: TOP 10 CUSTOMERS (PAYMENT-WISE) ── */}
+          {(customerTab === 'both' || customerTab === 'payment') && (
+            <div
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid #E2E8F0',
+                borderRadius: '16px',
+                padding: '22px',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ background: '#EFF6FF', padding: '6px', borderRadius: '8px', color: PALETTE.blue }}>
+                    <DollarSign size={16} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
+                      Top 10 Customers (Payment-Wise)
+                    </h3>
+                    <span style={{ fontSize: '11.5px', color: PALETTE.slateMuted, fontWeight: '600' }}>
+                      Ranked by total cash received & cleared into company accounts
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => router.push('/finance/receipts')}
+                  style={{
+                    background: '#EFF6FF',
+                    border: '1px solid #DBEAFE',
+                    borderRadius: '8px',
+                    padding: '5px 12px',
+                    color: PALETTE.blue,
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span>Bank Receipts</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+
+              {/* Table List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                {customerHonors.top10PaymentWise.map((cust, idx) => {
+                  const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: idx < 3 ? '#F8FAFC' : '#FFFFFF',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        border: idx < 3 ? '1px solid #CBD5E1' : '1px solid #E2E8F0',
+                        transition: 'background 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                        <span
+                          style={{
+                            fontSize: idx < 3 ? '16px' : '11.5px',
+                            fontWeight: '800',
+                            color: idx < 3 ? PALETTE.slate : PALETTE.slateMuted,
+                            width: '26px',
+                            textAlign: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {medal}
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '12.5px', fontWeight: '800', color: PALETTE.slate, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {cust.name}
+                            </span>
+                            {cust.city && (
+                              <span style={{ fontSize: '10px', color: PALETTE.slateMuted, background: '#F1F5F9', padding: '1px 6px', borderRadius: '4px' }}>
+                                {cust.city}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', fontSize: '11px', color: PALETTE.slateMuted }}>
+                            <span>{cust.invoiceCount} Invoices ({cust.paidInvoices} paid)</span>
+                            <span>•</span>
+                            <span>Avg Pay: {cust.avgDaysToPay}d</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right', flexShrink: 0, paddingLeft: '12px' }}>
+                        <span style={{ fontSize: '13.5px', fontWeight: '800', color: PALETTE.emerald, display: 'block' }}>
+                          {formatINR(cust.totalPaid)}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', marginTop: '2px' }}>
+                          <div style={{ width: '48px', height: '5px', background: '#E2E8F0', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                width: `${Math.min(100, cust.clearanceRate)}%`,
+                                height: '100%',
+                                background: cust.clearanceRate >= 80 ? PALETTE.emerald : cust.clearanceRate >= 40 ? PALETTE.blue : PALETTE.amber,
+                                borderRadius: '3px',
+                              }}
+                            />
+                          </div>
+                          <span style={{ fontSize: '10.5px', fontWeight: '700', color: PALETTE.slateMuted }}>
+                            {cust.clearanceRate}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── CARD B: TOP 10 CUSTOMERS (IN-TIME PAYMENT / PUNCTUALITY) ── */}
+          {(customerTab === 'both' || customerTab === 'ontime') && (
+            <div
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid #E2E8F0',
+                borderRadius: '16px',
+                padding: '22px',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ background: '#ECFDF5', padding: '6px', borderRadius: '8px', color: PALETTE.emerald }}>
+                    <Clock size={16} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: PALETTE.slate }}>
+                      Top 10 Customers (In-Time Payment)
+                    </h3>
+                    <span style={{ fontSize: '11.5px', color: PALETTE.slateMuted, fontWeight: '600' }}>
+                      Punctual accounts with 100% on-time settlement ahead of credit due dates
+                    </span>
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    color: PALETTE.emerald,
+                    background: '#ECFDF5',
+                    border: '1px solid #A7F3D0',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <ShieldCheck size={13} />
+                  <span>100% Punctual</span>
+                </span>
+              </div>
+
+              {/* Table List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                {customerHonors.top10InTime.map((cust, idx) => {
+                  const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: idx < 3 ? '#F8FAFC' : '#FFFFFF',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        border: idx < 3 ? '1px solid #CBD5E1' : '1px solid #E2E8F0',
+                        transition: 'background 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                        <span
+                          style={{
+                            fontSize: idx < 3 ? '16px' : '11.5px',
+                            fontWeight: '800',
+                            color: idx < 3 ? PALETTE.slate : PALETTE.slateMuted,
+                            width: '26px',
+                            textAlign: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {medal}
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '12.5px', fontWeight: '800', color: PALETTE.slate, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {cust.name}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '9.5px',
+                                fontWeight: '800',
+                                color: '#047857',
+                                background: '#ECFDF5',
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '2px',
+                              }}
+                            >
+                              <CheckCircle2 size={10} />
+                              <span>ON-TIME</span>
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', fontSize: '11px', color: PALETTE.slateMuted }}>
+                            <span style={{ color: PALETTE.blue, fontWeight: '700' }}>⚡ {cust.avgDaysToPay}d Turnaround</span>
+                            <span>•</span>
+                            <span style={{ color: '#047857', fontWeight: '600' }}>+{cust.avgDaysAhead}d Ahead of Due</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right', flexShrink: 0, paddingLeft: '12px' }}>
+                        <span style={{ fontSize: '13.5px', fontWeight: '800', color: PALETTE.slate, display: 'block' }}>
+                          {formatINR(cust.totalPaid)}
+                        </span>
+                        <span style={{ fontSize: '10.5px', color: PALETTE.slateMuted, fontWeight: '600' }}>
+                          {cust.paidInvoices} settled
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

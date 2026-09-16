@@ -270,8 +270,12 @@ export default function BackOfficeHcpplAr() {
       setFormError('Invoice Number and Company Name are required.');
       return;
     }
-    if (!formData.basicAmount || Number(formData.basicAmount) < 0) {
+    if (!formData.basicAmount || isNaN(Number(formData.basicAmount)) || Number(formData.basicAmount) < 0) {
       setFormError('Please enter a valid Basic Amount.');
+      return;
+    }
+    if (!formData.invoiceAmount || isNaN(Number(formData.invoiceAmount)) || Number(formData.invoiceAmount) < 0) {
+      setFormError('Please enter a valid Invoice Amount (Total with GST).');
       return;
     }
 
@@ -279,10 +283,14 @@ export default function BackOfficeHcpplAr() {
     setFormError(null);
     try {
       const isRt = formData.salesType === 'RT' || formData.status === 'RT';
+      const invAmt = Number(formData.invoiceAmount);
+      const rcvd = Number(formData.amtRcvd) || 0;
       const payload = {
         ...formData,
+        basicAmount: Number(formData.basicAmount),
+        invoiceAmount: invAmt,
         isRt,
-        status: isRt ? 'RT' : (Number(formData.invoiceAmount || formData.basicAmount) - Number(formData.amtRcvd) <= 0 ? 'PAID' : (Number(formData.amtRcvd) > 0 ? 'PARTIAL' : 'UNPAID'))
+        status: isRt ? 'RT' : (invAmt - rcvd <= 0 ? 'PAID' : (rcvd > 0 ? 'PARTIAL' : 'UNPAID'))
       };
 
       if (modalMode === 'create') {
@@ -1266,27 +1274,28 @@ export default function BackOfficeHcpplAr() {
                     type="number"
                     step="0.01"
                     required
+                    placeholder="0.00"
                     value={formData.basicAmount}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const gross = (!formData.invoiceAmount || formData.invoiceAmount === formData.basicAmount)
-                        ? (Number(val) * 1.18).toFixed(2)
-                        : formData.invoiceAmount;
-                      setFormData({ ...formData, basicAmount: val, invoiceAmount: gross });
-                    }}
+                    onChange={(e) => setFormData({ ...formData, basicAmount: e.target.value })}
                     style={{ width: '100%', padding: '8px 12px', fontSize: '13px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                   />
                 </div>
 
                 {/* Invoice Amount */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
-                    Invoice Amount (Total with GST) *
-                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#334155' }}>
+                      Invoice Amount (Total with GST) *
+                    </label>
+                    <span style={{ fontSize: '11px', fontWeight: '600', color: '#2563eb', background: '#eff6ff', padding: '1px 6px', borderRadius: '4px' }}>
+                      Manual Input
+                    </span>
+                  </div>
                   <input
                     type="number"
                     step="0.01"
                     required
+                    placeholder="Enter total invoice amount with GST..."
                     value={formData.invoiceAmount}
                     onChange={(e) => setFormData({ ...formData, invoiceAmount: e.target.value })}
                     style={{ width: '100%', padding: '8px 12px', fontSize: '13px', borderRadius: '6px', border: '1px solid #cbd5e1' }}

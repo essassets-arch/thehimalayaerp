@@ -811,16 +811,16 @@ export class BackOfficeService implements OnApplicationBootstrap {
         const amt = Number(inv.outstanding || inv.invoiceAmount);
         const q = inv.quarter;
 
-        if (q === 'Q1-2026/27') {
+        if (q === 'Q1-2026/27' || (q && q.startsWith('Q1'))) {
           matrix[bucket].q1.billCount += 1;
           matrix[bucket].q1.invAmount += amt;
-        } else if (q === 'Q2-2026/27') {
+        } else if (q === 'Q2-2026/27' || (q && q.startsWith('Q2'))) {
           matrix[bucket].q2.billCount += 1;
           matrix[bucket].q2.invAmount += amt;
-        } else if (q === 'Q3-2026/27') {
+        } else if (q === 'Q3-2026/27' || (q && q.startsWith('Q3'))) {
           matrix[bucket].q3.billCount += 1;
           matrix[bucket].q3.invAmount += amt;
-        } else if (q === 'Q4-2026/27') {
+        } else if (q === 'Q4-2026/27' || (q && q.startsWith('Q4'))) {
           matrix[bucket].q4.billCount += 1;
           matrix[bucket].q4.invAmount += amt;
         }

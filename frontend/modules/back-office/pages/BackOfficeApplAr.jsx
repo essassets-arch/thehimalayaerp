@@ -325,15 +325,7 @@ export default function BackOfficeApplAr() {
       const updated = { ...prev, [field]: value };
 
       if (field === 'basicAmount') {
-        const val = Number(value);
-        if (!isNaN(val) && val >= 0) {
-          if (!prev.invoiceAmount || Number(prev.invoiceAmount) === Number(prev.basicAmount) || Number(prev.invoiceAmount) === 0) {
-            const gross = Number((val * 1.18).toFixed(2));
-            updated.invoiceAmount = gross;
-            const rcvd = Number(prev.amtRcvd) || 0;
-            updated.outstanding = Number((gross - rcvd).toFixed(2));
-          }
-        }
+        // Basic Amount is kept independent; Invoice Amount is manually entered
       }
 
       if (field === 'invoiceAmount') {
