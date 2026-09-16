@@ -641,11 +641,14 @@ export const PlantHeadDispatchAnalytics = () => {
               }}
             >
               <option value="All">All Salespersons</option>
-              {(analyticsData?.filterOptions?.salesPersons || salesReferencesData.map(s => s.salesRef)).map(s => {
-                const sObj = salesReferencesData.find(item => item.salesRef === s);
+              {(analyticsData?.filterOptions?.salesPersons || salesReferencesData.map(s => s.salesRef)).map((item, idx) => {
+                const sName = typeof item === 'object' && item !== null ? (item.name || item.salesRef || '') : String(item || '');
+                const sObj = salesReferencesData.find(ref => ref.salesRef === sName);
+                const shareVal = typeof item === 'object' && item !== null && item.share != null ? item.share : sObj?.share;
+                if (!sName) return null;
                 return (
-                  <option key={s} value={s}>
-                    {s} {sObj?.share ? `(${sObj.share}%)` : ''}
+                  <option key={sName + idx} value={sName}>
+                    {sName} {shareVal ? `(${shareVal}%)` : ''}
                   </option>
                 );
               })}
@@ -668,11 +671,14 @@ export const PlantHeadDispatchAnalytics = () => {
               }}
             >
               <option value="All">All Products</option>
-              {(analyticsData?.filterOptions?.products || ['MHC', 'RCS', 'ONGC', 'WGC', 'D MHC']).map(p => {
-                const pObj = productsData.find(item => item.product === p);
+              {(analyticsData?.filterOptions?.products || ['MHC', 'RCS', 'ONGC', 'WGC', 'D MHC']).map((item, idx) => {
+                const pName = typeof item === 'object' && item !== null ? (item.product || item.name || '') : String(item || '');
+                const pObj = productsData.find(prod => prod.product === pName);
+                const shareVal = typeof item === 'object' && item !== null && item.share != null ? item.share : pObj?.share;
+                if (!pName) return null;
                 return (
-                  <option key={p} value={p}>
-                    {p} {pObj?.share ? `(${pObj.share}%)` : ''}
+                  <option key={pName + idx} value={pName}>
+                    {pName} {shareVal ? `(${shareVal}%)` : ''}
                   </option>
                 );
               })}
@@ -3151,4 +3157,5 @@ export const PlantHeadDispatchAnalytics = () => {
     </div>
   );
 };
+
 export default PlantHeadDispatchAnalytics;
