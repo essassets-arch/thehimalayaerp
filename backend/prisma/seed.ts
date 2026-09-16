@@ -4395,6 +4395,29 @@ async function main() {
     });
   }
 
+  // ── 9. Back Office User (Additive & Safe) ──────────────────────────────────
+  const boRole = await prisma.role.findFirst({
+    where: { OR: [{ code: 'BACK_OFFICE' }, { name: 'Back Office' }] },
+  });
+  if (boRole) {
+    const boEmail = 'backoffice@himalayaerp.com';
+    const boPassword = await bcrypt.hash('admin123', 10);
+    await prisma.user.upsert({
+      where: { email: boEmail },
+      update: { password: boPassword, roleId: boRole.id, isActive: true },
+      create: {
+        publicId: uid('USR'),
+        email: boEmail,
+        password: boPassword,
+        name: 'Back Office Executive',
+        roleId: boRole.id,
+        companyId: company.id,
+        isActive: true,
+      },
+    });
+    console.log(`  ✓ Back Office user ensured: ${boEmail}`);
+  }
+
   console.log('\n✅ Seed complete!');
   console.log(`\n🏢 Company: Himalaya Wellness Pvt. Ltd.`);
   console.log(`📦 Products: ${createdCount} created, ${skippedCount} skipped`);

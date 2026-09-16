@@ -8,7 +8,7 @@ import {
   ArrowUpRight, BookOpen, Wallet, Building, Book, Notebook, Library, Scale, Landmark,
   Calculator, ShoppingBag, CalendarOff, Award, Files, MessageSquare, BellRing, Hash, Ruler, Grid,
   RotateCcw, Monitor, Server, ActivitySquare, Terminal, Eye, Navigation2,
-  BadgeCheck, FileCheck
+  BadgeCheck, FileCheck, FileSpreadsheet, TableProperties
 } from 'lucide-react';
 
 export const navigationConfig = {
@@ -356,19 +356,20 @@ export const navigationConfig = {
     { id: 'complain-center', label: 'Complaint Center', icon: ShieldAlert, path: '/hr/complain-center' }
   ],
   'Back Office': [
-    { id: 'dashboard', label: 'Daily Reports Dashboard', icon: LayoutGrid, path: '/back-office/daily-report' },
-    { id: 'create-report', label: 'Submit Daily Report', icon: FileText, path: '/back-office/daily-report/create' },
-    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/back-office/profile' }
+    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
   ],
   'BACK_OFFICE': [
-    { id: 'dashboard', label: 'Daily Reports Dashboard', icon: LayoutGrid, path: '/back-office/daily-report' },
-    { id: 'create-report', label: 'Submit Daily Report', icon: FileText, path: '/back-office/daily-report/create' },
-    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/back-office/profile' }
+    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
+  ],
+  'back-office': [
+    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
   ],
   'Back Office / Admin': [
-    { id: 'dashboard', label: 'Daily Reports Dashboard', icon: LayoutGrid, path: '/back-office/daily-report' },
-    { id: 'create-report', label: 'Submit Daily Report', icon: FileText, path: '/back-office/daily-report/create' },
-    { id: 'profile', label: 'My Profile', icon: UserCircle, path: '/back-office/profile' }
+    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
   ],
   'Admin': [
     { id: 'dashboard', label: 'Daily Reports Dashboard', icon: LayoutGrid, path: '/back-office/daily-report' },

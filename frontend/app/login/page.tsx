@@ -27,7 +27,8 @@ function getDefaultPath(role: string): string {
     'FINANCE_EXECUTIVE': '/finance-executive/dashboard',
     'FINANCE_MANAGER': '/finance/dashboard',
     'HR': '/hr/dashboard',
-    'BACK_OFFICE': '/back-office/daily-report',
+    'BACK_OFFICE': '/back-office/appl-ar',
+    'back-office': '/back-office/appl-ar',
     'ADMIN': '/admin/dashboard',
     'SUPER_ADMIN': '/super-admin/dashboard',
   };
@@ -54,8 +55,9 @@ function getDefaultPath(role: string): string {
     'Finance Executive': '/finance-executive/dashboard',
     'Finance Manager': '/finance/dashboard',
     'HR': '/hr/dashboard',
-    'Back Office': '/back-office/daily-report',
-    'BACK_OFFICE': '/back-office/daily-report',
+    'Back Office': '/back-office/appl-ar',
+    'BACK_OFFICE': '/back-office/appl-ar',
+    'back-office': '/back-office/appl-ar',
     'Admin': '/admin/dashboard',
     'Super Admin': '/super-admin/dashboard',
   };

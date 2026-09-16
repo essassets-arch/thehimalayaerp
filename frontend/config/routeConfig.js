@@ -22,12 +22,12 @@ export const DASHBOARD_REDIRECTS = {
   'Finance Executive': '/finance-executive/dashboard',
   'finance-executive': '/finance-executive/dashboard',
   'HR':             '/hr/dashboard',
-  'Back Office':    '/back-office/daily-report',
-  'BACK_OFFICE':    '/back-office/daily-report',
-  'back-office':    '/back-office/daily-report',
-  'Back Office / Admin': '/back-office/daily-report',
-  'Back Office Lead': '/back-office/daily-report',
-  'Data Analyst & Back Office Lead': '/back-office/daily-report',
+  'Back Office':    '/back-office/appl-ar',
+  'BACK_OFFICE':    '/back-office/appl-ar',
+  'back-office':    '/back-office/appl-ar',
+  'Back Office / Admin': '/back-office/appl-ar',
+  'Back Office Lead': '/back-office/appl-ar',
+  'Data Analyst & Back Office Lead': '/back-office/appl-ar',
 };
 
 export const ROLE_ROUTES = {

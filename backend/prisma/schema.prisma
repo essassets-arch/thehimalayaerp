@@ -4184,6 +4184,50 @@ model ExpenseClaimApprovalHistory {
   @@index([expenseClaimId, createdAt])
 }
 
+// Additive Back Office AR reporting model strictly isolated from core sales/finance tables
+model BackOfficeArInvoice {
+  id                  String    @id @default(uuid())
+  entity              String    @default("APPL") // "APPL" or "HCPPL"
+  srNo                Int?
+  invoiceNumber       String
+  invoiceDate         DateTime
+  basicAmount         Decimal   @default(0) @db.Decimal(18, 2)
+  invoiceAmount       Decimal   @default(0) @db.Decimal(18, 2)
+  companyName         String
+  siteName            String?
+  city                String?
+  salesType           String    @default("Regular")
+  salesPerson         String?
+  paymentTermDays     Int       @default(30)
+  dueDate             DateTime
+  status              String    @default("UNPAID") // "UNPAID", "PARTIAL", "PAID", "RT"
+  amtRcvd             Decimal   @default(0) @db.Decimal(18, 2)
+  amtRcvdDate         DateTime?
+  completePaymentDate DateTime?
+  outstanding         Decimal   @default(0) @db.Decimal(18, 2)
+  remarks             String?
+  quarter             String    // "Q1-2026/27", "Q2-2026/27", "Q3-2026/27", "Q4-2026/27"
+  ageingDays          Int?
+  ageingBucket        String?
+
+  salesOrderId        String?
+  dispatchId          String?
+  salesInvoiceId      String?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([entity, invoiceNumber])
+  @@index([entity])
+  @@index([quarter])
+  @@index([status])
+  @@index([salesPerson])
+  @@index([companyName])
+  @@index([invoiceDate])
+  @@index([dueDate])
+}
+
+
 
 
 

@@ -595,4 +595,731 @@ export class BackOfficeService implements OnApplicationBootstrap {
       orderBy: { name: 'asc' },
     });
   }
+
+  /**
+   * Helper: calculate ageing bucket and days overdue
+   */
+  private calculateAgeing(dueDate: Date, status: string) {
+    const now = new Date();
+    const due = new Date(dueDate);
+    const diffTime = now.getTime() - due.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (status === 'PAID') {
+      return { ageingDays: 0, ageingBucket: 'Paid / Settled' };
+    }
+
+    if (diffDays <= 0) {
+      return { ageingDays: 0, ageingBucket: 'Yet To Due' };
+    } else if (diffDays <= 30) {
+      return { ageingDays: diffDays, ageingBucket: '1-30 Days' };
+    } else if (diffDays <= 45) {
+      return { ageingDays: diffDays, ageingBucket: '31-45 Days' };
+    } else if (diffDays <= 60) {
+      return { ageingDays: diffDays, ageingBucket: '46-60 Days' };
+    } else if (diffDays <= 90) {
+      return { ageingDays: diffDays, ageingBucket: '61-90 Days' };
+    } else if (diffDays <= 120) {
+      return { ageingDays: diffDays, ageingBucket: '91-120 Days' };
+    } else {
+      return { ageingDays: diffDays, ageingBucket: 'More than 120 Days' };
+    }
+  }
+
+  /**
+   * APPL AR — Invoice / Receivable Register (21 columns)
+   */
+  async getApplArRegister(query: any) {
+    const {
+      search,
+      quarter,
+      ageingBucket,
+      status,
+      salesPerson,
+      companyName,
+      salesType,
+      dateFrom,
+      dateTo,
+      sortBy = 'srNo',
+      sortOrder = 'asc',
+      page = 1,
+      limit = 25,
+    } = query;
+
+    const where: any = {
+      entity: 'APPL',
+    };
+
+    if (quarter && quarter !== 'ALL') {
+      where.quarter = quarter;
+    }
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+    if (salesPerson && salesPerson !== 'ALL') {
+      where.salesPerson = { contains: salesPerson, mode: 'insensitive' };
+    }
+    if (companyName && companyName !== 'ALL') {
+      where.companyName = { contains: companyName, mode: 'insensitive' };
+    }
+    if (salesType && salesType !== 'ALL') {
+      where.salesType = salesType;
+    }
+    if (dateFrom || dateTo) {
+      where.invoiceDate = {};
+      if (dateFrom) where.invoiceDate.gte = new Date(dateFrom);
+      if (dateTo) where.invoiceDate.lte = new Date(dateTo);
+    }
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { invoiceNumber: { contains: q, mode: 'insensitive' } },
+        { companyName: { contains: q, mode: 'insensitive' } },
+        { siteName: { contains: q, mode: 'insensitive' } },
+        { city: { contains: q, mode: 'insensitive' } },
+        { salesPerson: { contains: q, mode: 'insensitive' } },
+        { remarks: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    const allMatches = await (this.prisma as any).backOfficeArInvoice.findMany({
+      where,
+      orderBy: { [sortBy]: sortOrder.toLowerCase() === 'desc' ? 'desc' : 'asc' },
+    });
+
+    const mapped = allMatches.map((row: any) => {
+      const calculated = this.calculateAgeing(row.dueDate, row.status);
+      const ageingDays = (row.ageingDays !== null && row.ageingDays !== undefined) ? Number(row.ageingDays) : calculated.ageingDays;
+      const bucket = (row.ageingBucket && row.ageingBucket.trim()) ? row.ageingBucket.trim() : calculated.ageingBucket;
+      return {
+        id: row.id,
+        srNo: row.srNo,
+        invoiceNo: row.invoiceNumber,
+        invoiceDate: row.invoiceDate,
+        basicAmount: Number(row.basicAmount),
+        invoiceAmount: Number(row.invoiceAmount),
+        companyName: row.companyName,
+        siteName: row.siteName || '-',
+        city: row.city || '-',
+        salesType: row.salesType,
+        salesPerson: row.salesPerson || '-',
+        paymentTermDays: row.paymentTermDays,
+        dueDate: row.dueDate,
+        ageingDays,
+        ageingBucket: bucket,
+        status: row.status,
+        amtRcvd: Number(row.amtRcvd),
+        amtRcvdDate: row.amtRcvdDate,
+        completePaymentDate: row.completePaymentDate,
+        outstanding: Number(row.outstanding),
+        remarks: row.remarks || '',
+        quarter: row.quarter,
+      };
+    });
+
+    const filtered = (ageingBucket && ageingBucket !== 'ALL')
+      ? mapped.filter((r: any) => r.ageingBucket === ageingBucket)
+      : mapped;
+
+    const totals = filtered.reduce(
+      (acc: any, r: any) => {
+        acc.basicAmount += r.basicAmount;
+        acc.invoiceAmount += r.invoiceAmount;
+        acc.amtRcvd += r.amtRcvd;
+        acc.outstanding += r.outstanding;
+        acc.count += 1;
+        return acc;
+      },
+      { basicAmount: 0, invoiceAmount: 0, amtRcvd: 0, outstanding: 0, count: 0 }
+    );
+
+    totals.basicAmount = Number(totals.basicAmount.toFixed(2));
+    totals.invoiceAmount = Number(totals.invoiceAmount.toFixed(2));
+    totals.amtRcvd = Number(totals.amtRcvd.toFixed(2));
+    totals.outstanding = Number(totals.outstanding.toFixed(2));
+
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Number(limit) || 25);
+    const startIndex = (pageNum - 1) * limitNum;
+    const paginatedItems = filtered.slice(startIndex, startIndex + limitNum);
+
+    const quarters = Array.from(new Set(allMatches.map((r: any) => r.quarter))).sort();
+    const salesPersons = Array.from(new Set(allMatches.map((r: any) => r.salesPerson).filter(Boolean))).sort();
+    const statuses = Array.from(new Set(allMatches.map((r: any) => r.status))).sort();
+
+    return {
+      items: paginatedItems,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems: filtered.length,
+        totalPages: Math.ceil(filtered.length / limitNum),
+      },
+      totals,
+      filterOptions: {
+        quarters,
+        salesPersons,
+        statuses,
+      },
+    };
+  }
+
+  /**
+   * HCPPL AR — Summary Sheet (Section 1: Unpaid, Section 2: RT)
+   */
+  async getHcpplArSummary() {
+    const invoices = await (this.prisma as any).backOfficeArInvoice.findMany({
+      where: { entity: 'HCPPL' },
+    });
+
+    const quarters = ['Q1-2026/27', 'Q2-2026/27', 'Q3-2026/27', 'Q4-2026/27'];
+    const ageingBuckets = [
+      'Yet To Due',
+      '1-30 Days',
+      '31-45 Days',
+      '46-60 Days',
+      '61-90 Days',
+      '91-120 Days',
+      'More than 120 Days',
+    ];
+
+    const createMatrix = () => {
+      const rows: any = {};
+      for (const bucket of ageingBuckets) {
+        rows[bucket] = {
+          ageing: bucket,
+          q1: { billCount: 0, invAmount: 0 },
+          q2: { billCount: 0, invAmount: 0 },
+          q3: { billCount: 0, invAmount: 0 },
+          q4: { billCount: 0, invAmount: 0 },
+          overall: { billCount: 0, invAmount: 0 },
+        };
+      }
+      return rows;
+    };
+
+    const unpaidMatrix = createMatrix();
+    const rtMatrix = createMatrix();
+
+    for (const inv of invoices) {
+      const isRt = inv.status === 'RT' || inv.salesType === 'RT';
+      const matrix = isRt ? rtMatrix : unpaidMatrix;
+
+      const { ageingBucket: bucket } = this.calculateAgeing(inv.dueDate, inv.status);
+
+      if (matrix[bucket]) {
+        const amt = Number(inv.outstanding || inv.invoiceAmount);
+        const q = inv.quarter;
+
+        if (q === 'Q1-2026/27') {
+          matrix[bucket].q1.billCount += 1;
+          matrix[bucket].q1.invAmount += amt;
+        } else if (q === 'Q2-2026/27') {
+          matrix[bucket].q2.billCount += 1;
+          matrix[bucket].q2.invAmount += amt;
+        } else if (q === 'Q3-2026/27') {
+          matrix[bucket].q3.billCount += 1;
+          matrix[bucket].q3.invAmount += amt;
+        } else if (q === 'Q4-2026/27') {
+          matrix[bucket].q4.billCount += 1;
+          matrix[bucket].q4.invAmount += amt;
+        }
+
+        matrix[bucket].overall.billCount += 1;
+        matrix[bucket].overall.invAmount += amt;
+      }
+    }
+
+    const finalizeSection = (matrixRows: any) => {
+      const list = ageingBuckets.map((b) => {
+        const r = matrixRows[b];
+        return {
+          ageing: r.ageing,
+          q1: { billCount: r.q1.billCount, invAmount: Number(r.q1.invAmount.toFixed(2)) },
+          q2: { billCount: r.q2.billCount, invAmount: Number(r.q2.invAmount.toFixed(2)) },
+          q3: { billCount: r.q3.billCount, invAmount: Number(r.q3.invAmount.toFixed(2)) },
+          q4: { billCount: r.q4.billCount, invAmount: Number(r.q4.invAmount.toFixed(2)) },
+          overall: { billCount: r.overall.billCount, invAmount: Number(r.overall.invAmount.toFixed(2)) },
+        };
+      });
+
+      const totalRow = list.reduce(
+        (acc: any, r: any) => {
+          acc.q1.billCount += r.q1.billCount;
+          acc.q1.invAmount += r.q1.invAmount;
+          acc.q2.billCount += r.q2.billCount;
+          acc.q2.invAmount += r.q2.invAmount;
+          acc.q3.billCount += r.q3.billCount;
+          acc.q3.invAmount += r.q3.invAmount;
+          acc.q4.billCount += r.q4.billCount;
+          acc.q4.invAmount += r.q4.invAmount;
+          acc.overall.billCount += r.overall.billCount;
+          acc.overall.invAmount += r.overall.invAmount;
+          return acc;
+        },
+        {
+          ageing: 'Total',
+          q1: { billCount: 0, invAmount: 0 },
+          q2: { billCount: 0, invAmount: 0 },
+          q3: { billCount: 0, invAmount: 0 },
+          q4: { billCount: 0, invAmount: 0 },
+          overall: { billCount: 0, invAmount: 0 },
+        }
+      );
+
+      totalRow.q1.invAmount = Number(totalRow.q1.invAmount.toFixed(2));
+      totalRow.q2.invAmount = Number(totalRow.q2.invAmount.toFixed(2));
+      totalRow.q3.invAmount = Number(totalRow.q3.invAmount.toFixed(2));
+      totalRow.q4.invAmount = Number(totalRow.q4.invAmount.toFixed(2));
+      totalRow.overall.invAmount = Number(totalRow.overall.invAmount.toFixed(2));
+
+      return {
+        rows: list,
+        total: totalRow,
+      };
+    };
+
+    const unpaidSection = finalizeSection(unpaidMatrix);
+    const rtSection = finalizeSection(rtMatrix);
+
+    const overallTotal = {
+      unpaidInvAmount: unpaidSection.total.overall.invAmount,
+      unpaidBillCount: unpaidSection.total.overall.billCount,
+      rtInvAmount: rtSection.total.overall.invAmount,
+      rtBillCount: rtSection.total.overall.billCount,
+      combinedInvAmount: Number(
+        (unpaidSection.total.overall.invAmount + rtSection.total.overall.invAmount).toFixed(2)
+      ),
+      combinedBillCount: unpaidSection.total.overall.billCount + rtSection.total.overall.billCount,
+    };
+
+    return {
+      unpaid: unpaidSection,
+      rt: rtSection,
+      summary: overallTotal,
+      quarters,
+    };
+  }
+
+  /**
+   * Helper: calculate fiscal quarter from date
+   */
+  private calculateQuarter(date: Date): string {
+    const d = new Date(date);
+    const month = d.getMonth();
+    const year = d.getFullYear();
+    let qNum: number;
+    let startYear: number;
+    let endYear: number;
+
+    if (month >= 3 && month <= 5) {
+      qNum = 1;
+      startYear = year;
+      endYear = year + 1;
+    } else if (month >= 6 && month <= 8) {
+      qNum = 2;
+      startYear = year;
+      endYear = year + 1;
+    } else if (month >= 9 && month <= 11) {
+      qNum = 3;
+      startYear = year;
+      endYear = year + 1;
+    } else {
+      qNum = 4;
+      startYear = year - 1;
+      endYear = year;
+    }
+    const endShort = String(endYear).slice(-2);
+    return `Q${qNum}-${startYear}/${endShort}`;
+  }
+
+  /**
+   * DATA ENTRY: Create new APPL AR invoice record (all 21 fields writable)
+   */
+  async createApplArInvoice(dto: any) {
+    if (!dto.invoiceNumber || !dto.companyName) {
+      throw new BadRequestException('Invoice number and Company name are required.');
+    }
+
+    const invoiceDate = dto.invoiceDate ? new Date(dto.invoiceDate) : new Date();
+    const paymentTermDays = dto.paymentTermDays !== undefined && dto.paymentTermDays !== '' ? Number(dto.paymentTermDays) : 30;
+    const dueDate = dto.dueDate ? new Date(dto.dueDate) : new Date(invoiceDate.getTime() + paymentTermDays * 24 * 60 * 60 * 1000);
+    const quarter = dto.quarter && String(dto.quarter).trim() ? String(dto.quarter).trim() : this.calculateQuarter(invoiceDate);
+
+    const basicAmount = dto.basicAmount !== undefined && dto.basicAmount !== '' ? Number(dto.basicAmount) : 0;
+    const invoiceAmount = dto.invoiceAmount !== undefined && dto.invoiceAmount !== '' ? Number(dto.invoiceAmount) : basicAmount;
+    const amtRcvd = dto.amtRcvd !== undefined && dto.amtRcvd !== '' ? Number(dto.amtRcvd) : 0;
+    const outstanding = dto.outstanding !== undefined && dto.outstanding !== '' ? Number(dto.outstanding) : Number((invoiceAmount - amtRcvd).toFixed(2));
+
+    let status = dto.status || (outstanding <= 0 ? 'PAID' : (amtRcvd > 0 ? 'PARTIAL' : 'UNPAID'));
+    if (dto.salesType === 'RT') {
+      status = 'RT';
+    }
+
+    let completePaymentDate: Date | null = null;
+    if (dto.completePaymentDate) {
+      completePaymentDate = new Date(dto.completePaymentDate);
+    } else if (outstanding <= 0 && amtRcvd > 0) {
+      completePaymentDate = new Date();
+    }
+
+    let amtRcvdDate: Date | null = null;
+    if (dto.amtRcvdDate) {
+      amtRcvdDate = new Date(dto.amtRcvdDate);
+    } else if (amtRcvd > 0) {
+      amtRcvdDate = new Date();
+    }
+
+    let srNo: number;
+    if (dto.srNo !== undefined && dto.srNo !== null && dto.srNo !== '' && !isNaN(Number(dto.srNo))) {
+      srNo = Number(dto.srNo);
+    } else {
+      const lastSr = await (this.prisma as any).backOfficeArInvoice.findFirst({
+        where: { entity: 'APPL' },
+        orderBy: { srNo: 'desc' },
+        select: { srNo: true },
+      });
+      srNo = (lastSr?.srNo || 0) + 1;
+    }
+
+    const calculatedAgeing = this.calculateAgeing(dueDate, status);
+    const ageingDays = dto.ageingDays !== undefined && dto.ageingDays !== null && dto.ageingDays !== ''
+      ? Number(dto.ageingDays)
+      : calculatedAgeing.ageingDays;
+    const ageingBucket = dto.ageingBucket && String(dto.ageingBucket).trim()
+      ? String(dto.ageingBucket).trim()
+      : calculatedAgeing.ageingBucket;
+
+    return (this.prisma as any).backOfficeArInvoice.create({
+      data: {
+        entity: 'APPL',
+        srNo,
+        invoiceNumber: String(dto.invoiceNumber).trim(),
+        invoiceDate,
+        basicAmount: basicAmount.toFixed(2),
+        invoiceAmount: invoiceAmount.toFixed(2),
+        companyName: String(dto.companyName).trim(),
+        siteName: dto.siteName ? String(dto.siteName).trim() : null,
+        city: dto.city ? String(dto.city).trim() : null,
+        salesType: dto.salesType || 'Regular',
+        salesPerson: dto.salesPerson ? String(dto.salesPerson).trim() : null,
+        paymentTermDays,
+        dueDate,
+        status,
+        amtRcvd: amtRcvd.toFixed(2),
+        amtRcvdDate,
+        completePaymentDate,
+        outstanding: outstanding.toFixed(2),
+        remarks: dto.remarks ? String(dto.remarks).trim() : null,
+        quarter,
+        ageingDays,
+        ageingBucket,
+      },
+    });
+  }
+
+  /**
+   * DATA ENTRY: Update existing APPL AR invoice record (all 21 fields writable)
+   */
+  async updateApplArInvoice(id: string, dto: any) {
+    const existing = await (this.prisma as any).backOfficeArInvoice.findFirst({
+      where: { id, entity: 'APPL' },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('APPL invoice not found');
+    }
+
+    const invoiceDate = dto.invoiceDate ? new Date(dto.invoiceDate) : existing.invoiceDate;
+    const paymentTermDays = dto.paymentTermDays !== undefined && dto.paymentTermDays !== '' ? Number(dto.paymentTermDays) : existing.paymentTermDays;
+    const dueDate = dto.dueDate ? new Date(dto.dueDate) : (dto.invoiceDate || dto.paymentTermDays !== undefined
+      ? new Date(invoiceDate.getTime() + paymentTermDays * 24 * 60 * 60 * 1000)
+      : existing.dueDate);
+    const quarter = dto.quarter && String(dto.quarter).trim() ? String(dto.quarter).trim() : (dto.invoiceDate ? this.calculateQuarter(invoiceDate) : existing.quarter);
+
+    const basicAmount = dto.basicAmount !== undefined && dto.basicAmount !== '' ? Number(dto.basicAmount) : Number(existing.basicAmount);
+    const invoiceAmount = dto.invoiceAmount !== undefined && dto.invoiceAmount !== '' ? Number(dto.invoiceAmount) : Number(existing.invoiceAmount);
+    const amtRcvd = dto.amtRcvd !== undefined && dto.amtRcvd !== '' ? Number(dto.amtRcvd) : Number(existing.amtRcvd);
+    const outstanding = dto.outstanding !== undefined && dto.outstanding !== '' ? Number(dto.outstanding) : Number((invoiceAmount - amtRcvd).toFixed(2));
+
+    let status = dto.status || existing.status;
+    if (dto.status === undefined) {
+      if (outstanding <= 0 && amtRcvd > 0 && status !== 'RT') {
+        status = 'PAID';
+      } else if (dto.salesType === 'RT') {
+        status = 'RT';
+      }
+    }
+
+    let completePaymentDate = existing.completePaymentDate;
+    if (dto.completePaymentDate !== undefined) {
+      completePaymentDate = dto.completePaymentDate ? new Date(dto.completePaymentDate) : null;
+    } else if (outstanding <= 0 && amtRcvd > 0) {
+      completePaymentDate = existing.completePaymentDate || new Date();
+    } else if (outstanding > 0) {
+      completePaymentDate = null;
+    }
+
+    let amtRcvdDate = existing.amtRcvdDate;
+    if (dto.amtRcvdDate !== undefined) {
+      amtRcvdDate = dto.amtRcvdDate ? new Date(dto.amtRcvdDate) : null;
+    } else if (amtRcvd > 0 && !existing.amtRcvdDate) {
+      amtRcvdDate = new Date();
+    }
+
+    const srNo = (dto.srNo !== undefined && dto.srNo !== null && dto.srNo !== '' && !isNaN(Number(dto.srNo)))
+      ? Number(dto.srNo)
+      : existing.srNo;
+
+    const calculatedAgeing = this.calculateAgeing(dueDate, status);
+    const ageingDays = dto.ageingDays !== undefined && dto.ageingDays !== null && dto.ageingDays !== ''
+      ? Number(dto.ageingDays)
+      : (existing.ageingDays !== null ? existing.ageingDays : calculatedAgeing.ageingDays);
+    const ageingBucket = dto.ageingBucket && String(dto.ageingBucket).trim()
+      ? String(dto.ageingBucket).trim()
+      : (existing.ageingBucket || calculatedAgeing.ageingBucket);
+
+    return (this.prisma as any).backOfficeArInvoice.update({
+      where: { id },
+      data: {
+        srNo,
+        invoiceNumber: dto.invoiceNumber ? String(dto.invoiceNumber).trim() : existing.invoiceNumber,
+        invoiceDate,
+        basicAmount: basicAmount.toFixed(2),
+        invoiceAmount: invoiceAmount.toFixed(2),
+        companyName: dto.companyName ? String(dto.companyName).trim() : existing.companyName,
+        siteName: dto.siteName !== undefined ? dto.siteName : existing.siteName,
+        city: dto.city !== undefined ? dto.city : existing.city,
+        salesType: dto.salesType || existing.salesType,
+        salesPerson: dto.salesPerson !== undefined ? dto.salesPerson : existing.salesPerson,
+        paymentTermDays,
+        dueDate,
+        status,
+        amtRcvd: amtRcvd.toFixed(2),
+        amtRcvdDate,
+        completePaymentDate,
+        outstanding: outstanding.toFixed(2),
+        remarks: dto.remarks !== undefined ? dto.remarks : existing.remarks,
+        quarter,
+        ageingDays,
+        ageingBucket,
+      },
+    });
+  }
+
+  /**
+   * DATA ENTRY: Delete APPL invoice record
+   */
+  async deleteApplArInvoice(id: string) {
+    const existing = await (this.prisma as any).backOfficeArInvoice.findFirst({
+      where: { id, entity: 'APPL' },
+    });
+    if (!existing) throw new NotFoundException('APPL invoice not found');
+
+    return (this.prisma as any).backOfficeArInvoice.delete({
+      where: { id },
+    });
+  }
+
+  /**
+   * DATA ENTRY: Create new HCPPL AR invoice record
+   */
+  async createHcpplArInvoice(dto: any) {
+    if (!dto.invoiceNumber || !dto.companyName) {
+      throw new BadRequestException('Invoice number and Company name are required.');
+    }
+
+    const invoiceDate = dto.invoiceDate ? new Date(dto.invoiceDate) : new Date();
+    const paymentTermDays = Number(dto.paymentTermDays) || 30;
+    const dueDate = new Date(invoiceDate.getTime() + paymentTermDays * 24 * 60 * 60 * 1000);
+    const quarter = this.calculateQuarter(invoiceDate);
+
+    const basicAmount = Number(dto.basicAmount) || 0;
+    const invoiceAmount = Number(dto.invoiceAmount) || basicAmount;
+    const amtRcvd = Number(dto.amtRcvd) || 0;
+    const outstanding = Number((invoiceAmount - amtRcvd).toFixed(2));
+
+    const isRt = dto.status === 'RT' || dto.salesType === 'RT' || dto.isRt === true;
+    const status = isRt ? 'RT' : (dto.status || (outstanding <= 0 ? 'PAID' : (amtRcvd > 0 ? 'PARTIAL' : 'UNPAID')));
+    const salesType = isRt ? 'RT' : (dto.salesType || 'Regular');
+
+    const lastSr = await (this.prisma as any).backOfficeArInvoice.findFirst({
+      where: { entity: 'HCPPL' },
+      orderBy: { srNo: 'desc' },
+      select: { srNo: true },
+    });
+    const srNo = (lastSr?.srNo || 0) + 1;
+
+    return (this.prisma as any).backOfficeArInvoice.create({
+      data: {
+        entity: 'HCPPL',
+        srNo,
+        invoiceNumber: String(dto.invoiceNumber).trim(),
+        invoiceDate,
+        basicAmount: basicAmount.toFixed(2),
+        invoiceAmount: invoiceAmount.toFixed(2),
+        companyName: String(dto.companyName).trim(),
+        siteName: dto.siteName ? String(dto.siteName).trim() : null,
+        city: dto.city ? String(dto.city).trim() : null,
+        salesType,
+        salesPerson: dto.salesPerson ? String(dto.salesPerson).trim() : null,
+        paymentTermDays,
+        dueDate,
+        status,
+        amtRcvd: amtRcvd.toFixed(2),
+        amtRcvdDate: dto.amtRcvdDate ? new Date(dto.amtRcvdDate) : (amtRcvd > 0 ? new Date() : null),
+        completePaymentDate: (outstanding <= 0 && amtRcvd > 0) ? new Date() : null,
+        outstanding: outstanding.toFixed(2),
+        remarks: dto.remarks ? String(dto.remarks).trim() : null,
+        quarter,
+      },
+    });
+  }
+
+  /**
+   * DATA ENTRY: Update existing HCPPL AR invoice record
+   */
+  async updateHcpplArInvoice(id: string, dto: any) {
+    const existing = await (this.prisma as any).backOfficeArInvoice.findFirst({
+      where: { id, entity: 'HCPPL' },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('HCPPL record not found');
+    }
+
+    const invoiceDate = dto.invoiceDate ? new Date(dto.invoiceDate) : existing.invoiceDate;
+    const paymentTermDays = dto.paymentTermDays !== undefined ? Number(dto.paymentTermDays) : existing.paymentTermDays;
+    const dueDate = new Date(invoiceDate.getTime() + paymentTermDays * 24 * 60 * 60 * 1000);
+    const quarter = this.calculateQuarter(invoiceDate);
+
+    const basicAmount = dto.basicAmount !== undefined ? Number(dto.basicAmount) : Number(existing.basicAmount);
+    const invoiceAmount = dto.invoiceAmount !== undefined ? Number(dto.invoiceAmount) : Number(existing.invoiceAmount);
+    const amtRcvd = dto.amtRcvd !== undefined ? Number(dto.amtRcvd) : Number(existing.amtRcvd);
+    const outstanding = Number((invoiceAmount - amtRcvd).toFixed(2));
+
+    const isRt = dto.status === 'RT' || dto.salesType === 'RT' || (dto.isRt !== undefined ? dto.isRt : existing.status === 'RT');
+    const status = isRt ? 'RT' : (dto.status || existing.status);
+    const salesType = isRt ? 'RT' : (dto.salesType || existing.salesType);
+
+    return (this.prisma as any).backOfficeArInvoice.update({
+      where: { id },
+      data: {
+        invoiceNumber: dto.invoiceNumber ? String(dto.invoiceNumber).trim() : existing.invoiceNumber,
+        invoiceDate,
+        basicAmount: basicAmount.toFixed(2),
+        invoiceAmount: invoiceAmount.toFixed(2),
+        companyName: dto.companyName ? String(dto.companyName).trim() : existing.companyName,
+        siteName: dto.siteName !== undefined ? dto.siteName : existing.siteName,
+        city: dto.city !== undefined ? dto.city : existing.city,
+        salesType,
+        salesPerson: dto.salesPerson !== undefined ? dto.salesPerson : existing.salesPerson,
+        paymentTermDays,
+        dueDate,
+        status,
+        amtRcvd: amtRcvd.toFixed(2),
+        amtRcvdDate: dto.amtRcvdDate ? new Date(dto.amtRcvdDate) : existing.amtRcvdDate,
+        outstanding: outstanding.toFixed(2),
+        remarks: dto.remarks !== undefined ? dto.remarks : existing.remarks,
+        quarter,
+      },
+    });
+  }
+
+  /**
+   * DATA ENTRY: Delete HCPPL AR invoice record
+   */
+  async deleteHcpplArInvoice(id: string) {
+    const existing = await (this.prisma as any).backOfficeArInvoice.findFirst({
+      where: { id, entity: 'HCPPL' },
+    });
+    if (!existing) throw new NotFoundException('HCPPL record not found');
+
+    return (this.prisma as any).backOfficeArInvoice.delete({
+      where: { id },
+    });
+  }
+
+  /**
+   * DATA ENTRY: Retrieve underlying HCPPL records for maintenance/editing
+   */
+  async getHcpplArEntries(query: any) {
+    const {
+      search,
+      quarter,
+      section,
+      page = 1,
+      limit = 20,
+    } = query;
+
+    const where: any = { entity: 'HCPPL' };
+
+    if (quarter && quarter !== 'ALL') {
+      where.quarter = quarter;
+    }
+    if (section === 'RT') {
+      where.OR = [{ status: 'RT' }, { salesType: 'RT' }];
+    } else if (section === 'UNPAID') {
+      where.status = { not: 'RT' };
+      where.salesType = { not: 'RT' };
+    }
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.AND = [
+        {
+          OR: [
+            { invoiceNumber: { contains: q, mode: 'insensitive' } },
+            { companyName: { contains: q, mode: 'insensitive' } },
+            { salesPerson: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+
+    const totalItems = await (this.prisma as any).backOfficeArInvoice.count({ where });
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Number(limit) || 20);
+
+    const items = await (this.prisma as any).backOfficeArInvoice.findMany({
+      where,
+      orderBy: { invoiceDate: 'desc' },
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum,
+    });
+
+    return {
+      items: items.map((r: any) => {
+        const { ageingDays, ageingBucket } = this.calculateAgeing(r.dueDate, r.status);
+        return {
+          id: r.id,
+          srNo: r.srNo,
+          invoiceNumber: r.invoiceNumber,
+          invoiceDate: r.invoiceDate,
+          basicAmount: Number(r.basicAmount),
+          invoiceAmount: Number(r.invoiceAmount),
+          companyName: r.companyName,
+          salesPerson: r.salesPerson,
+          salesType: r.salesType,
+          paymentTermDays: r.paymentTermDays,
+          dueDate: r.dueDate,
+          status: r.status,
+          amtRcvd: Number(r.amtRcvd),
+          outstanding: Number(r.outstanding),
+          quarter: r.quarter,
+          ageingDays,
+          ageingBucket,
+          remarks: r.remarks,
+        };
+      }),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems,
+        totalPages: Math.ceil(totalItems / limitNum),
+      },
+    };
+  }
 }
+
+

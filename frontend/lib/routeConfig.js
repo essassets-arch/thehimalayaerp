@@ -22,9 +22,9 @@ export const DASHBOARD_REDIRECTS = {
   'Finance Executive': '/finance-executive/dashboard',
   'finance-executive': '/finance-executive/dashboard',
   'HR':             '/hr/dashboard',
-  'Back Office':    '/back-office/daily-report',
-  'BACK_OFFICE':    '/back-office/daily-report',
-  'back-office':    '/back-office/daily-report',
+  'Back Office':    '/back-office/appl-ar',
+  'BACK_OFFICE':    '/back-office/appl-ar',
+  'back-office':    '/back-office/appl-ar',
 };
 
 export const ROLE_ROUTES = {

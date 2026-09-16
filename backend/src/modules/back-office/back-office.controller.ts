@@ -159,4 +159,66 @@ export class BackOfficeController {
       req.user?.companyId || 'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
     return this.backOfficeService.getBackOfficeStaffList(companyId);
   }
+
+  /**
+   * AR — APPL SHEET (Invoice-level register, 21 columns)
+   */
+  @Get('appl-ar')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async getApplAr(@Query() query: any) {
+    return this.backOfficeService.getApplArRegister(query);
+  }
+
+  @Post('appl-ar')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async createApplAr(@Body() dto: any) {
+    return this.backOfficeService.createApplArInvoice(dto);
+  }
+
+  @Put('appl-ar/:id')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async updateApplAr(@Param('id') id: string, @Body() dto: any) {
+    return this.backOfficeService.updateApplArInvoice(id, dto);
+  }
+
+  @Delete('appl-ar/:id')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async deleteApplAr(@Param('id') id: string) {
+    return this.backOfficeService.deleteApplArInvoice(id);
+  }
+
+  /**
+   * AR — HCPPL SHEET (Summary sheet: Unpaid & RT matrices)
+   */
+  @Get('hcppl-ar')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async getHcpplAr() {
+    return this.backOfficeService.getHcpplArSummary();
+  }
+
+  @Get('hcppl-ar/entries')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async getHcpplArEntries(@Query() query: any) {
+    return this.backOfficeService.getHcpplArEntries(query);
+  }
+
+  @Post('hcppl-ar/entry')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async createHcpplArEntry(@Body() dto: any) {
+    return this.backOfficeService.createHcpplArInvoice(dto);
+  }
+
+  @Put('hcppl-ar/entry/:id')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async updateHcpplArEntry(@Param('id') id: string, @Body() dto: any) {
+    return this.backOfficeService.updateHcpplArInvoice(id, dto);
+  }
+
+  @Delete('hcppl-ar/entry/:id')
+  @Roles('Back Office', 'BACK_OFFICE', 'back-office')
+  async deleteHcpplArEntry(@Param('id') id: string) {
+    return this.backOfficeService.deleteHcpplArInvoice(id);
+  }
 }
+
+
