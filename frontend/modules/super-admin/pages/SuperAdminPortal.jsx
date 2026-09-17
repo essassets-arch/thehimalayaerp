@@ -50,6 +50,7 @@ import ProductMasterUI from '../../../shared/components/ProductMasterUI';
 import CategoryMasterUI from '../../../shared/components/CategoryMasterUI';
 import DailyReportHistoryView from '../../production/components/DailyReportHistoryView';
 import AttendanceView from '../../../shared/components/AttendanceView';
+import FinishedGoodsStockView from '../../../components/FinishedGoodsStockView';
 
 
 // Analytics & Filter Control Modules
@@ -7826,6 +7827,15 @@ export default function SuperAdminPortal() {
         return renderModules();
       case 'products':
         return renderProducts();
+      case 'all-stock':
+        return (
+          <FinishedGoodsStockView
+            readOnly={false}
+            role="super-admin"
+            title="Super Admin Inventory — Finished Goods — All Stock"
+            subtitle="Full management view of finished goods inventory, production in, dispatch out, and live stock adjustments"
+          />
+        );
       case 'direct-orders':
         return renderDirectOrders();
       case 'samples':

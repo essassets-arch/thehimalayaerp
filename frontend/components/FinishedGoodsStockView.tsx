@@ -796,7 +796,7 @@ export default function FinishedGoodsStockView({
               >
                 <History size={15} /> Stock Movement Logs
               </button>
-              {(role === "dispatch" || historyItems.length > 0) && (
+              {(role === "dispatch" || role === "super-admin" || historyItems.length > 0) && (
                 <button
                   type="button"
                   style={{
