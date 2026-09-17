@@ -785,7 +785,13 @@ export const PlantHeadProductionAnalytics = () => {
               switchButtonLabel="View Active September 2026 Production"
             >
               {(metrics) => (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <ResponsiveContainer
+                  width="100%"
+                  height={metrics?.height || 320}
+                  minWidth={0}
+                  minHeight={metrics?.height || 320}
+                  initialDimension={{ width: metrics?.width || 800, height: metrics?.height || 320 }}
+                >
                   <ComposedChart
                     data={dailyTrendData}
                     margin={{
@@ -999,7 +1005,13 @@ export const PlantHeadProductionAnalytics = () => {
                 switchButtonLabel="View Active September 2026 Telemetry"
               >
                 {(metrics) => (
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <ResponsiveContainer
+                    width="100%"
+                    height={metrics?.height || 260}
+                    minWidth={0}
+                    minHeight={metrics?.height || 260}
+                    initialDimension={{ width: metrics?.width || 800, height: metrics?.height || 260 }}
+                  >
                     <BarChart
                       data={capacitiesData}
                       layout="vertical"
@@ -1060,7 +1072,13 @@ export const PlantHeadProductionAnalytics = () => {
                 switchButtonLabel="View Active September 2026 Telemetry"
               >
                 {(metrics) => (
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <ResponsiveContainer
+                    width="100%"
+                    height={metrics?.height || 260}
+                    minWidth={0}
+                    minHeight={metrics?.height || 260}
+                    initialDimension={{ width: metrics?.width || 800, height: metrics?.height || 260 }}
+                  >
                     <PieChart>
                       <Pie
                         data={productsData.slice(0, 6)}

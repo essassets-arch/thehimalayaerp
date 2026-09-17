@@ -128,12 +128,8 @@ export default function UltraResponsiveChart({
         height: `${currentHeight}px`,
         minHeight: `${currentHeight}px`,
         position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
+        display: 'block',
         boxSizing: 'border-box',
-        overflow: 'hidden',
       }}
     >
       {/* ── Active Chart Visualizer ── */}
@@ -141,13 +137,10 @@ export default function UltraResponsiveChart({
         <div
           style={{
             width: '100%',
-            height: '100%',
+            height: `${currentHeight}px`,
+            minHeight: `${currentHeight}px`,
             position: 'relative',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minWidth: 0,
-            minHeight: 0,
+            display: 'block',
           }}
         >
           {typeof children === 'function' ? (
@@ -173,7 +166,8 @@ export default function UltraResponsiveChart({
         <div
           style={{
             width: '100%',
-            height: '100%',
+            height: `${currentHeight}px`,
+            minHeight: `${currentHeight}px`,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',

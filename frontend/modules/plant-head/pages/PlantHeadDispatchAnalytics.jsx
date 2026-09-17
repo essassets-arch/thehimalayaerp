@@ -1041,8 +1041,14 @@ export const PlantHeadDispatchAnalytics = () => {
               onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
               switchButtonLabel="View September 2026 Telemetry"
             >
-              {({ scale, isMobile }) => (
-                <ResponsiveContainer width="100%" height="100%">
+              {({ scale, isMobile, height, width }) => (
+                <ResponsiveContainer
+                  width="100%"
+                  height={height || 340}
+                  minWidth={0}
+                  minHeight={height || 340}
+                  initialDimension={{ width: width || 800, height: height || 340 }}
+                >
                   <AreaChart data={dailyTrendsData} margin={{ top: 15 * scale, right: 15 * scale, left: isMobile ? -20 : -5, bottom: 20 * scale }}>
                     <defs>
                       <linearGradient id="dispatchWeightGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1203,8 +1209,14 @@ export const PlantHeadDispatchAnalytics = () => {
                 emptySubtitle="Switch to September 2026 to view product weight shares."
                 onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
               >
-                {({ scale }) => (
-                  <ResponsiveContainer width="100%" height="100%">
+                {({ scale, height, width }) => (
+                  <ResponsiveContainer
+                    width="100%"
+                    height={height || 220}
+                    minWidth={0}
+                    minHeight={height || 220}
+                    initialDimension={{ width: width || 800, height: height || 220 }}
+                  >
                     <BarChart data={productsData} layout="vertical" margin={{ top: 5, right: Math.round(40 * scale), left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                       <XAxis type="number" tickFormatter={(val) => `${val}%`} domain={[0, 75]} tick={{ fontSize: Math.max(9, Math.round(10.5 * scale)), fill: '#64748b' }} />
@@ -1268,8 +1280,14 @@ export const PlantHeadDispatchAnalytics = () => {
                 emptySubtitle="Switch to September 2026 to view load ratings."
                 onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
               >
-                {({ scale }) => (
-                  <ResponsiveContainer width="100%" height="100%">
+                {({ scale, height, width }) => (
+                  <ResponsiveContainer
+                    width="100%"
+                    height={height || 220}
+                    minWidth={0}
+                    minHeight={height || 220}
+                    initialDimension={{ width: width || 800, height: height || 220 }}
+                  >
                     <BarChart data={capacitiesData} layout="vertical" margin={{ top: 5, right: Math.round(40 * scale), left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                       <XAxis type="number" tickFormatter={(val) => `${val}%`} domain={[0, 45]} tick={{ fontSize: Math.max(9, Math.round(10.5 * scale)), fill: '#64748b' }} />
@@ -1379,8 +1397,14 @@ export const PlantHeadDispatchAnalytics = () => {
                 emptySubtitle="Switch to September 2026 to view colour distribution."
                 onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
               >
-                {({ scale }) => (
-                  <ResponsiveContainer width="100%" height="100%">
+                {({ scale, height, width }) => (
+                  <ResponsiveContainer
+                    width="100%"
+                    height={height || 200}
+                    minWidth={0}
+                    minHeight={height || 200}
+                    initialDimension={{ width: width || 800, height: height || 200 }}
+                  >
                     <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                       <Pie
                         data={coloursData}
@@ -1538,8 +1562,14 @@ export const PlantHeadDispatchAnalytics = () => {
                 emptySubtitle="Switch to September 2026 to view client concentration tiers."
                 onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
               >
-                {({ scale }) => (
-                  <ResponsiveContainer width="100%" height="100%">
+                {({ scale, height, width }) => (
+                  <ResponsiveContainer
+                    width="100%"
+                    height={height || 280}
+                    minWidth={0}
+                    minHeight={height || 280}
+                    initialDimension={{ width: width || 800, height: height || 280 }}
+                  >
                     <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                       <Pie
                         data={
@@ -2360,8 +2390,14 @@ export const PlantHeadDispatchAnalytics = () => {
                 emptySubtitle="Switch to September 2026 to view destination metrics."
                 onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
               >
-                {({ scale, isMobile }) => (
-                  <ResponsiveContainer width="100%" height="100%">
+                {({ scale, isMobile, height, width }) => (
+                  <ResponsiveContainer
+                    width="100%"
+                    height={height || 300}
+                    minWidth={0}
+                    minHeight={height || 300}
+                    initialDimension={{ width: width || 800, height: height || 300 }}
+                  >
                     <BarChart data={filteredAreaWiseData.slice(0, 10)} margin={{ top: 15, right: 15, left: isMobile ? -20 : -5, bottom: 40 * scale }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="locality" tick={{ fontSize: Math.max(8.5, Math.round(10 * scale)), fill: '#64748b' }} angle={-25} textAnchor="end" interval={isMobile ? 1 : 'preserveStartEnd'} minTickGap={6} />
@@ -2401,8 +2437,14 @@ export const PlantHeadDispatchAnalytics = () => {
                 emptySubtitle="Switch to September 2026 to view locality shares."
                 onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
               >
-                {({ scale }) => (
-                  <ResponsiveContainer width="100%" height="100%">
+                {({ scale, height, width }) => (
+                  <ResponsiveContainer
+                    width="100%"
+                    height={height || 300}
+                    minWidth={0}
+                    minHeight={height || 300}
+                    initialDimension={{ width: width || 800, height: height || 300 }}
+                  >
                     <PieChart>
                       <Pie
                         data={areaDonutData}
@@ -2454,8 +2496,14 @@ export const PlantHeadDispatchAnalytics = () => {
                 emptySubtitle="Switch to September 2026 to view product stack."
                 onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
               >
-                {({ scale, isMobile }) => (
-                  <ResponsiveContainer width="100%" height="100%">
+                {({ scale, isMobile, height, width }) => (
+                  <ResponsiveContainer
+                    width="100%"
+                    height={height || 300}
+                    minWidth={0}
+                    minHeight={height || 300}
+                    initialDimension={{ width: width || 800, height: height || 300 }}
+                  >
                     <BarChart data={filteredAreaWiseData.slice(0, 12)} margin={{ top: 15, right: 15, left: isMobile ? -20 : -5, bottom: 40 * scale }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="locality" tick={{ fontSize: Math.max(8.5, Math.round(10 * scale)), fill: '#64748b' }} angle={-25} textAnchor="end" interval={isMobile ? 1 : 'preserveStartEnd'} minTickGap={6} />
