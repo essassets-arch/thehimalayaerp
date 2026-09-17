@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { Prisma, StockHistoryEvent } from '@prisma/client';
+import { isCatalogProduct, getCatalogProductsPrismaWhere } from '../products/catalog-product.filter';
 
 @Injectable()
 export class InventoryService {
@@ -338,13 +339,20 @@ export class InventoryService {
       where,
       orderBy: { createdAt: 'desc' },
       include: {
-        product: { select: { name: true, sku: true, unit: true } },
-        rawMaterial: { select: { name: true, sku: true, unit: true } },
+        product: { select: { name: true, sku: true, unit: true, productType: true, category: true } },
+        rawMaterial: { select: { name: true, sku: true, unit: true, category: true } },
         warehouse: { select: { name: true } },
       },
     });
 
-    return txs.map((t) => ({
+    // Strictly show only raw materials in store inventory transactions (exclude finished catalog products)
+    const filteredTxs = txs.filter((t) => {
+      if (t.rawMaterialId || t.rawMaterial) return true;
+      if (t.product && isCatalogProduct(t.product)) return false;
+      return true;
+    });
+
+    return filteredTxs.map((t) => ({
       ...t,
       productId: t.productId || t.rawMaterialId,
       product: t.product || t.rawMaterial,
@@ -1110,9 +1118,12 @@ export class InventoryService {
       },
     });
 
-    if (prod) {
-      resolvedProductId = prod.id;
+    // In All Stock Finished Goods History: show ONLY products, not raw materials
+    if (!prod || !isCatalogProduct(prod)) {
+      return [];
     }
+
+    resolvedProductId = prod.id;
 
     const histories = await this.prisma.stockHistory.findMany({
       where: {
@@ -1217,8 +1228,13 @@ export class InventoryService {
     const limit = Math.max(1, Math.min(100, Number(query.limit || 25)));
     const skip = (page - 1) * limit;
 
+    // In All Stock: show log JUST products, NOT raw materials
+    const catalogWhere = getCatalogProductsPrismaWhere();
     const where: Prisma.StockHistoryWhereInput = {
       companyId,
+      product: {
+        ...catalogWhere,
+      },
     };
 
     if (query.productId) {
@@ -1231,11 +1247,15 @@ export class InventoryService {
 
     if (query.search && query.search.trim()) {
       const s = query.search.trim();
-      where.OR = [
-        { referenceNumber: { contains: s, mode: 'insensitive' } },
-        { remarks: { contains: s, mode: 'insensitive' } },
-        { product: { name: { contains: s, mode: 'insensitive' } } },
-        { product: { sku: { contains: s, mode: 'insensitive' } } },
+      where.AND = [
+        {
+          OR: [
+            { referenceNumber: { contains: s, mode: 'insensitive' } },
+            { remarks: { contains: s, mode: 'insensitive' } },
+            { product: { name: { contains: s, mode: 'insensitive' } } },
+            { product: { sku: { contains: s, mode: 'insensitive' } } },
+          ],
+        },
       ];
     }
 
@@ -1252,7 +1272,9 @@ export class InventoryService {
               id: true,
               name: true,
               sku: true,
+              publicId: true,
               category: true,
+              productType: true,
               unit: true,
             },
           },
@@ -1273,7 +1295,10 @@ export class InventoryService {
         : [];
     const userMap = new Map(users.map((u) => [u.id, u.name || u.email]));
 
-    const items = histories.map((h) => ({
+    // Strictly filter out any non-catalog / raw material items
+    const validHistories = histories.filter((h) => h.product && isCatalogProduct(h.product));
+
+    const items = validHistories.map((h) => ({
       id: h.id,
       createdAt: h.createdAt,
       event: h.event,
@@ -1385,32 +1410,36 @@ export class InventoryService {
       ]);
     }
 
-    // Pair up Product and RawMaterial by SKU or name so both IDs are recognized
+    // In raw material log: show ONLY raw material, not product
+    if (product && isCatalogProduct(product)) {
+      product = null;
+    }
+
+    if (!rawMaterial && !product) {
+      throw new NotFoundException(`Raw material "${materialIdentifier}" not found.`);
+    }
+
+    // Pair up Product and RawMaterial ONLY if candidate product is strictly a raw material
     if (rawMaterial && !product) {
-      product = await this.prisma.product.findFirst({
+      const candidate = await this.prisma.product.findFirst({
         where: {
+          companyId,
           OR: [
             { sku: rawMaterial.sku },
             { name: { equals: rawMaterial.name, mode: 'insensitive' } },
           ],
         },
       });
-    } else if (product && !rawMaterial) {
-      rawMaterial = await this.prisma.rawMaterial.findFirst({
-        where: {
-          OR: [
-            { sku: product.sku },
-            { name: { equals: product.name, mode: 'insensitive' } },
-          ],
-        },
-      });
+      if (candidate && !isCatalogProduct(candidate)) {
+        product = candidate;
+      }
     }
 
     const targetMaterialName = rawMaterial?.name || product?.name || materialIdentifier;
     const targetUnit = rawMaterial?.unit || product?.unit || 'PCS';
     const targetCode = rawMaterial?.sku || product?.sku || rawMaterial?.publicId || product?.publicId || '—';
 
-    // Target IDs to query across InventoryTransaction & StockHistory
+    // Target IDs to query across InventoryTransaction & StockHistory (strictly raw material IDs)
     const targetIds = Array.from(
       new Set(
         [
@@ -1422,13 +1451,13 @@ export class InventoryService {
       ),
     );
 
-    // 2. Query all InventoryTransactions for this material
+    // 2. Query all InventoryTransactions strictly for this raw material
     const transactions = await this.prisma.inventoryTransaction.findMany({
       where: {
         companyId,
         OR: [
-          { productId: { in: targetIds } },
           { rawMaterialId: { in: targetIds } },
+          ...(product?.id ? [{ productId: product.id }] : []),
         ],
       },
       orderBy: { createdAt: 'asc' }, // Oldest first to calculate running balance
@@ -1437,11 +1466,23 @@ export class InventoryService {
       },
     });
 
-    // 3. Query all StockHistory records for this material
+    // 3. Query all StockHistory records strictly for raw material (exclude finished goods production & dispatches)
     const stockHistories = await this.prisma.stockHistory.findMany({
       where: {
         companyId,
         productId: { in: targetIds },
+        event: {
+          notIn: [
+            'PRODUCTION_IN',
+            'PRODUCTION_REVERSAL',
+            'DISPATCH_OUT',
+            'DISPATCH_REVERSAL',
+            'EXTRA_COVER_IN',
+            'EXTRA_FRAME_IN',
+            'EXTRA_COVER_REVERSAL',
+            'EXTRA_FRAME_REVERSAL',
+          ],
+        },
       },
       orderBy: { createdAt: 'asc' },
     });

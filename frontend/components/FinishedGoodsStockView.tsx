@@ -212,9 +212,22 @@ export default function FinishedGoodsStockView({
   });
 
   const stockLogsItems = useMemo(() => {
-    return Array.isArray(stockLogsResponse?.items)
-      ? stockLogsResponse.items
-      : [];
+    if (!Array.isArray(stockLogsResponse?.items)) return [];
+    return stockLogsResponse.items.filter((item: any) => {
+      const cat = String(item.category || '').toLowerCase();
+      const sku = String(item.productCode || item.sku || '').toUpperCase();
+      const name = String(item.productName || item.name || '').toLowerCase();
+      if (
+        cat.includes('raw') ||
+        cat.includes('hardware') ||
+        cat.includes('consumable') ||
+        sku.startsWith('RM-') ||
+        sku.startsWith('HCPPL')
+      ) {
+        return false;
+      }
+      return true;
+    });
   }, [stockLogsResponse]);
 
   const stockLogsTotal = stockLogsResponse?.total || 0;

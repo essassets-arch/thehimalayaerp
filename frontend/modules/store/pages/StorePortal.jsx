@@ -798,6 +798,19 @@ export default function StorePortal() {
       const queryId = matItem.id || matItem.material;
       const res = await apiClient.get(`/inventory/material-log/${encodeURIComponent(queryId)}`);
       const data = res?.data?.data || res?.data || null;
+      if (data && Array.isArray(data.history)) {
+        // Strict separation: exclude any finished product manufacturing / dispatch events
+        data.history = data.history.filter((entry) => {
+          const src = String(entry.source || '').toUpperCase();
+          const evt = String(entry.movementType || entry.type || '').toUpperCase();
+          return (
+            !src.includes('DISPATCH') &&
+            !src.includes('PRODUCTION') &&
+            !evt.includes('DISPATCH') &&
+            !evt.includes('PRODUCTION')
+          );
+        });
+      }
       setMaterialLogData(data);
     } catch (err) {
       console.error('Failed to fetch material log:', err);
