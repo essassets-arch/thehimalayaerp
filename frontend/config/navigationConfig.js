@@ -8,7 +8,7 @@ import {
   ArrowUpRight, BookOpen, Wallet, Building, Book, Notebook, Library, Scale, Landmark,
   Calculator, ShoppingBag, CalendarOff, Award, Files, MessageSquare, BellRing, Hash, Ruler, Grid,
   RotateCcw, Monitor, Server, ActivitySquare, Terminal, Eye, Navigation2,
-  BadgeCheck, FileCheck, FileSpreadsheet, TableProperties
+  BadgeCheck, FileCheck
 } from 'lucide-react';
 
 export const navigationConfig = {
@@ -360,24 +360,16 @@ export const navigationConfig = {
     { id: 'complain-center', label: 'Complaint Center', icon: ShieldAlert, path: '/hr/complain-center' }
   ],
   'Back Office': [
-    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
-    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
-    { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' }
   ],
   'BACK_OFFICE': [
-    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
-    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
-    { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' }
   ],
   'back-office': [
-    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
-    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
-    { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' }
   ],
   'Back Office / Admin': [
-    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
-    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
-    { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' }
   ],
   'Admin': [
     { id: 'dashboard', label: 'Daily Reports Dashboard', icon: LayoutGrid, path: '/back-office/daily-report' },
