@@ -186,11 +186,14 @@ export default function ProductMasterUI({ role }) {
   const filteredProducts = useMemo(() => {
     return rawProducts.filter(p => {
       const q = searchQuery.toLowerCase().trim();
-      const matchesSearch = !q || 
-        p.product_code.toLowerCase().includes(q) || 
-        p.product_name.toLowerCase().includes(q) ||
-        p.brand.toLowerCase().includes(q) ||
-        p.product_family.toLowerCase().includes(q);
+      const tokens = q.split(/\s+/).filter(Boolean);
+      const matchesSearch = tokens.length === 0 || tokens.every(token => 
+        p.product_code.toLowerCase().includes(token) || 
+        p.product_name.toLowerCase().includes(token) ||
+        p.brand.toLowerCase().includes(token) ||
+        (p.variant_details && p.variant_details.toLowerCase().includes(token)) ||
+        p.product_family.toLowerCase().includes(token)
+      );
 
       const matchesFamily = filterFamily === 'All' || p.product_family === filterFamily;
       
