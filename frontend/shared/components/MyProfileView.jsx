@@ -1364,22 +1364,6 @@ export default function MyProfileView() {
         {/* Leave Management Tab */}
         {activeTab === 'leaves' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            
-            {/* Leave Balance Grid */}
-            <div className="leave-balance-grid">
-              <div className="leave-balance-card quota">
-                <span className="leave-balance-title" style={{ color: '#64748b' }}>Annual Quota</span>
-                <h2 className="leave-balance-val" style={{ color: '#0f172a' }}>{leaveBalance.total} Days</h2>
-              </div>
-              <div className="leave-balance-card approved">
-                <span className="leave-balance-title" style={{ color: '#16a34a' }}>Approved</span>
-                <h2 className="leave-balance-val" style={{ color: '#16a34a' }}>{leaveBalance.used} Days</h2>
-              </div>
-              <div className="leave-balance-card remaining">
-                <span className="leave-balance-title" style={{ color: '#2563eb' }}>Remaining</span>
-                <h2 className="leave-balance-val" style={{ color: '#2563eb' }}>{leaveBalance.remaining} Days</h2>
-              </div>
-            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', alignItems: 'start' }}>
               
