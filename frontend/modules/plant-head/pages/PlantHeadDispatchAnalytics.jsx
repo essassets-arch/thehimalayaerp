@@ -65,6 +65,15 @@ const AREA_COLORS = {
   Other: '#64748b',     // Slate
 };
 
+// Safe number formatter avoiding null/undefined toLocaleString runtime crashes
+const fmt = (val, decimals = 0) => {
+  const n = Number(val || 0);
+  if (isNaN(n)) return '0';
+  return decimals > 0
+    ? n.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    : Math.round(n).toLocaleString('en-IN');
+};
+
 export const PlantHeadDispatchAnalytics = () => {
   // ── Filters & Active Tab State ──
   const [selectedMonth, setSelectedMonth] = useState('2026-09');
