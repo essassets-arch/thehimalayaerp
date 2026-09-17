@@ -14,6 +14,7 @@ import { getBackendAssetUrl } from '../../lib/assetUrl';
 import SecureImage from './SecureImage';
 import { complaintsService } from '../../services/hr/complaintsService';
 import { expenseService } from '../../services/expenseService';
+import { SalarySlipDocument } from '../../components/payroll/SalarySlipDocument';
 import { useSearchParams } from 'next/navigation';
 
 export default function MyProfileView() {
@@ -27,6 +28,7 @@ export default function MyProfileView() {
   const [profile, setProfile] = useState(null);
   const [attendance, setAttendance] = useState([]);
   const [salarySlips, setSalarySlips] = useState([]);
+  const [viewingSlip, setViewingSlip] = useState(null);
   const [expenses, setExpenses] = useState([]);
 
   // Local punch log from NestJS database & localStorage
@@ -530,27 +532,43 @@ export default function MyProfileView() {
 
   const handleDownloadPdf = async (slipId, slipNumber) => {
     try {
-      const targetUrl = `/api/backend/payroll/salary-slips/${slipId}/pdf`;
-      const token = typeof window !== 'undefined' ? (window.localStorage.getItem('token') || window.localStorage.getItem('himalaya_token')) : null;
-      
-      const response = await fetch(targetUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      const targetUrl = `/api/backend/hr/salary-slips/${slipId}/pdf`;
+      let token = null;
+      if (typeof window !== 'undefined') {
+        const authStorageStr = window.localStorage.getItem('auth-storage');
+        if (authStorageStr) {
+          try {
+            const parsed = JSON.parse(authStorageStr);
+            token = parsed?.state?.accessToken;
+          } catch (_) {}
         }
+        if (!token) {
+          token = window.sessionStorage.getItem('token') || window.sessionStorage.getItem('himalaya_token') || window.localStorage.getItem('token') || window.localStorage.getItem('himalaya_token');
+        }
+      }
+
+      const response = await fetch(targetUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      if (!response.ok) throw new Error('PDF generation failed on server.');
+      if (!response.ok) throw new Error('PDF download failed. Please verify that this salary slip has been disbursed.');
       
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `salary-slip-${slipNumber}.pdf`;
+      a.download = `Salary_Slip_${slipNumber || slipId}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Failed to download salary slip PDF:', err);
-      alert('Failed to download salary slip PDF. Please try again.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Download Failed',
+        text: err?.message || 'Unable to download salary slip PDF.',
+        confirmButtonColor: '#0f172a'
+      });
     }
   };
 
@@ -575,6 +593,15 @@ export default function MyProfileView() {
 
   return (
     <div className="hr-page my-profile-root" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', maxWidth: '100%', overflowX: 'hidden', paddingBottom: '32px', boxSizing: 'border-box' }}>
+      
+      {/* ── Official Salary Slip Modal ── */}
+      {viewingSlip && (
+        <SalarySlipDocument
+          slip={viewingSlip}
+          onClose={() => setViewingSlip(null)}
+          isModal={true}
+        />
+      )}
       
       {/* 1. Header Profile Info Card */}
       <div className="app-card profile-header-card profile-header" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 14px rgba(0,0,0,0.03)', width: '100%', boxSizing: 'border-box' }}>
@@ -989,49 +1016,155 @@ export default function MyProfileView() {
 
         {/* Salary Slips Tab */}
         {activeTab === 'salary' && (
-          <div className="app-card" style={{ background: '#ffffff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px', margin: '0 0 16px 0' }}>
-              Historical Salary Slip Registry
-            </h3>
+          <div className="app-card" style={{ background: '#ffffff', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '14px', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FileText size={20} color="#0284c7" />
+                  My Salary Slips
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                  Official disbursed monthly salary slips with frozen payroll calculation snapshots
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={fetchSalarySlips}
+                disabled={loadingSalary}
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '6px 14px', color: '#0f172a', cursor: 'pointer', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <RefreshCw size={13} className={loadingSalary ? 'spin' : ''} /> Refresh
+              </button>
+            </div>
 
             {loadingSalary && salarySlips.length === 0 ? (
-              <p style={{ color: '#64748b' }}>Querying payroll systems...</p>
+              <div style={{ padding: '40px 0', textAlign: 'center', color: '#64748b' }}>
+                <div style={{ display: 'inline-block', width: '24px', height: '24px', border: '2px solid #0284c7', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '8px' }}></div>
+                <p style={{ margin: 0, fontSize: '13.5px' }}>Retrieving your official salary slips...</p>
+              </div>
             ) : salarySlips.length === 0 ? (
-              <p style={{ color: '#64748b' }}>No salary slips generated yet.</p>
+              <div style={{ padding: '48px 24px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1.5px dashed #e2e8f0' }}>
+                <FileText size={36} color="#94a3b8" style={{ margin: '0 auto 12px auto' }} />
+                <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 4px 0' }}>
+                  No Disbursed Salary Slips Found
+                </h4>
+                <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '420px', margin: '0 auto' }}>
+                  Salary slips are released here immediately after HR preparation, Super Admin approval, and Finance disbursement.
+                </p>
+              </div>
             ) : (
-              <div className="crm-table-container scroll-mode erp-table-responsive">
-                <table className="crm-table responsive-table" style={{ width: '100%', minWidth: '600px' }}>
-                  <thead>
-                    <tr>
-                      <th>Slip Number</th>
-                      <th>Salary Period</th>
-                      <th>Gross Earnings</th>
-                      <th>Deductions</th>
-                      <th>Net Paid Amount</th>
-                      <th style={{ textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {salarySlips.map(slip => (
-                      <tr key={slip.id}>
-                        <td style={{ fontWeight: '800', fontFamily: 'monospace' }}>{slip.slipNumber}</td>
-                        <td>{slip.monthName} {slip.year}</td>
-                        <td style={{ fontWeight: '700' }}>₹{Number(slip.grossEarnings).toLocaleString('en-IN')}</td>
-                        <td style={{ color: '#ef4444' }}>-₹{Number(slip.totalDeductions).toLocaleString('en-IN')}</td>
-                        <td style={{ color: '#16a34a', fontWeight: '800' }}>₹{Number(slip.netPaid).toLocaleString('en-IN')}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button
-                            onClick={() => handleDownloadPdf(slip.id, slip.slipNumber)}
-                            className="action-btn"
-                            style={{ background: '#e0f2fe', color: '#0369a1', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
-                          >
-                            <FileDown size={14} /> Download PDF
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
+                {salarySlips.map((slip) => {
+                  const monthYear = `${slip.monthName || ''} ${slip.year || ''}`.trim() || slip.slipNumber;
+                  const paidDate = slip.disbursedAt || slip.paymentDate || slip.createdAt;
+                  const formattedPaidDate = paidDate
+                    ? new Date(paidDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : null;
+                  const utr = slip.paymentReference || slip.utr;
+
+                  return (
+                    <div
+                      key={slip.id}
+                      style={{
+                        background: '#ffffff',
+                        border: '1.5px solid #e2e8f0',
+                        borderRadius: '14px',
+                        padding: '18px 20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '14px',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                      }}
+                    >
+                      {/* Card Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
+                            {monthYear}
+                          </div>
+                          <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#64748b', fontWeight: '700' }}>
+                            {slip.slipNumber}
+                          </span>
+                        </div>
+                        <span style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', fontSize: '11px', fontWeight: '800', padding: '3px 8px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          🟢 Disbursed &amp; Paid
+                        </span>
+                      </div>
+
+                      {/* Amounts Grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', background: '#f8fafc', padding: '12px 14px', borderRadius: '10px', border: '1px solid #edf2f7' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', color: '#64748b', display: 'block', fontWeight: '600' }}>Gross Earnings</span>
+                          <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>₹{Number(slip.grossEarnings || 0).toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '11px', color: '#e11d48', display: 'block', fontWeight: '600' }}>Deductions</span>
+                          <strong style={{ fontSize: '13.5px', color: '#e11d48' }}>-₹{Number(slip.totalDeductions || 0).toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '11px', color: '#059669', display: 'block', fontWeight: '700' }}>Net In-Hand</span>
+                          <strong style={{ fontSize: '14.5px', color: '#059669', fontWeight: '800' }}>₹{Number(slip.netPaid || slip.netPayable || 0).toLocaleString('en-IN')}</strong>
+                        </div>
+                      </div>
+
+                      {/* Payment Metadata */}
+                      <div style={{ fontSize: '11.5px', color: '#64748b', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {formattedPaidDate && (
+                          <span>Disbursed on: <strong style={{ color: '#0f172a' }}>{formattedPaidDate}</strong></span>
+                        )}
+                        {utr && (
+                          <span>Reference / UTR: <strong style={{ color: '#0f172a', fontFamily: 'monospace' }}>{utr}</strong></span>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingTop: '4px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setViewingSlip(slip)}
+                          style={{
+                            background: '#f1f5f9',
+                            color: '#0f172a',
+                            border: '1px solid #cbd5e1',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          👁 View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadPdf(slip.id, slip.slipNumber)}
+                          style={{
+                            background: '#0f172a',
+                            color: '#ffffff',
+                            border: 'none',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <FileDown size={14} /> Download PDF
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

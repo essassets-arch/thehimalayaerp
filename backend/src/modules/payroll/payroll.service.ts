@@ -59,7 +59,7 @@ export class PayrollService {
   private getCompanyId(user: any): string {
     const companyId = user?.companyId;
     if (companyId) return companyId;
-    return '46be0689-1169-4adc-bcf9-d4100032a0ee';
+    return '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
   }
 
   // 1. Generate Monthly Payroll with Attendance & Salary Structure Snapshots
@@ -944,6 +944,23 @@ export class PayrollService {
       );
     }
 
+    // Role / RBAC Validation: Only Finance or Super Admin can disburse salary payments
+    const normRole = (user.role?.code || user.role || '').toUpperCase();
+    const hasFinanceRole =
+      normRole.includes('FINANCE') ||
+      normRole.includes('SUPER_ADMIN') ||
+      normRole.includes('ADMIN');
+    const hasFinancePerm =
+      user.permissions &&
+      (user.permissions.includes('payroll.salary_slips.disburse') ||
+        user.permissions.includes('finance.payments.manage'));
+
+    if (!hasFinanceRole && !hasFinancePerm) {
+      throw new ForbiddenException(
+        'Only Finance or Super Admin can disburse salary payments.',
+      );
+    }
+
     return await this.prisma.$transaction(async (tx) => {
       // Authoritative status lock inside transaction
       const record = await tx.payrollRecord.findFirst({
@@ -951,17 +968,10 @@ export class PayrollService {
           id: payrollId,
           companyId,
           status: {
-            in: [
-              'PROCESSING',
-              'PENDING_FINANCE',
-              'SUPER_ADMIN_APPROVED',
-              'PENDING_SUPER_ADMIN_APPROVAL',
-              'HR_VERIFIED',
-              'DRAFT',
-            ],
+            in: ['PROCESSING', 'PENDING_FINANCE'],
           },
         },
-        include: { payrollPeriod: true },
+        include: { payrollPeriod: true, payment: true },
       });
 
       if (!record) {
@@ -977,11 +987,18 @@ export class PayrollService {
             message: 'Payroll record is already marked as PAID.',
             record: existingPaid,
             payment: existingPaid.payment,
+            salarySlip: existingPaid.salarySlip,
           };
         }
 
         throw new BadRequestException(
-          'Payroll record is not in PROCESSING state or was not found.',
+          'Payroll record is not in PROCESSING or PENDING_FINANCE state or was not found.',
+        );
+      }
+
+      if (record.payment) {
+        throw new ConflictException(
+          'Payment already exists for this payroll record.',
         );
       }
 
@@ -1014,20 +1031,22 @@ export class PayrollService {
         },
       });
 
-      // 3. Create Immutable SalarySlip Snapshot (snapshotVersion: 1)
-      const salarySlip = await tx.salarySlip.create({
-        data: {
+      // 3. Upsert Immutable SalarySlip Snapshot (frozen at PAID, availableToEmployee = true)
+      const salarySlip = await tx.salarySlip.upsert({
+        where: { payrollRecordId: payrollId },
+        create: {
           payrollRecordId: payrollId,
-          slipNumber: `SLIP-${record.payrollPeriod.year}${record.payrollPeriod.month.toString().padStart(2, '0')}-${record.employeeCodeSnapshot}`,
+          slipNumber: `SLIP-${record.payrollPeriod.year}${record.payrollPeriod.month.toString().padStart(2, '0')}-${record.employeeCodeSnapshot || 'EMP'}`,
           employeeId: record.employeeId,
           salaryMonth: record.payrollPeriod.month,
           salaryYear: record.payrollPeriod.year,
           grossEarnings: record.grossEarnings,
           totalDeductions: record.totalDeductions,
           netPaid: paymentAmount,
+          availableToEmployee: true,
           snapshotJson: {
             snapshotVersion: 1,
-            company: { name: 'Himalaya FRP & Construction Products' },
+            company: { name: 'HIMALAYA FRP & CONSTRUCTION PRODUCTS' },
             employee: {
               code: record.employeeCodeSnapshot,
               name: record.employeeNameSnapshot,
@@ -1038,7 +1057,8 @@ export class PayrollService {
               ifsc: record.ifscCodeSnapshot,
             },
             attendance: {
-              scheduledWorkingDays: Number(record.scheduledWorkingDays),
+              calendarDays: Number(record.calendarDays || 31),
+              scheduledWorkingDays: Number(record.scheduledWorkingDays || 25),
               presentDays: Number(record.presentDays),
               paidLeaveDays: Number(record.paidLeaveDays),
               unpaidLeaveDays: Number(record.unpaidLeaveDays),
@@ -1046,6 +1066,7 @@ export class PayrollService {
               halfDays: Number(record.halfDays),
               payableDays: Number(record.payableDays),
               unpaidDays: Number(record.unpaidDays),
+              overtimeHours: Number(record.overtimeHours || 0),
             },
             earnings: {
               basic: Number(record.basicSalary),
@@ -1074,19 +1095,80 @@ export class PayrollService {
               paymentMode: body.paymentMode || 'NEFT',
               utrNumber: body.utrNumber,
               remarks: body.remarks,
+              processedBy: user.name || 'Finance User',
+            },
+          },
+        },
+        update: {
+          availableToEmployee: true,
+          grossEarnings: record.grossEarnings,
+          totalDeductions: record.totalDeductions,
+          netPaid: paymentAmount,
+          snapshotJson: {
+            snapshotVersion: 1,
+            company: { name: 'HIMALAYA FRP & CONSTRUCTION PRODUCTS' },
+            employee: {
+              code: record.employeeCodeSnapshot,
+              name: record.employeeNameSnapshot,
+              department: record.departmentSnapshot,
+              jobTitle: record.jobTitleSnapshot,
+              bankName: record.bankNameSnapshot,
+              accountLast4: record.accountNumberLast4,
+              ifsc: record.ifscCodeSnapshot,
+            },
+            attendance: {
+              calendarDays: Number(record.calendarDays || 31),
+              scheduledWorkingDays: Number(record.scheduledWorkingDays || 25),
+              presentDays: Number(record.presentDays),
+              paidLeaveDays: Number(record.paidLeaveDays),
+              unpaidLeaveDays: Number(record.unpaidLeaveDays),
+              absentDays: Number(record.absentDays),
+              halfDays: Number(record.halfDays),
+              payableDays: Number(record.payableDays),
+              unpaidDays: Number(record.unpaidDays),
+              overtimeHours: Number(record.overtimeHours || 0),
+            },
+            earnings: {
+              basic: Number(record.basicSalary),
+              hra: Number(record.hra),
+              conveyance: Number(record.conveyanceAllowance),
+              special: Number(record.specialAllowance),
+              other: Number(record.otherAllowance),
+              gross: Number(record.grossEarnings),
+            },
+            deductions: {
+              lop: Number(record.leaveDeduction),
+              pf: Number(record.pfDeduction),
+              esic: Number(record.esicDeduction),
+              pt: Number(record.professionalTax),
+              tds: Number(record.tdsDeduction),
+              total: Number(record.totalDeductions),
+            },
+            employerContributions: {
+              pf: Number(record.employerPf),
+              esic: Number(record.employerEsic),
+              totalCost: Number(record.employerTotalCost),
+            },
+            payment: {
+              netPaid: Number(paymentAmount),
+              paymentDate: body.paymentDate,
+              paymentMode: body.paymentMode || 'NEFT',
+              utrNumber: body.utrNumber,
+              remarks: body.remarks,
+              processedBy: user.name || 'Finance User',
             },
           },
         },
       });
 
-      // 4. Log PayrollStatusHistory
+      // 4. Log Immutable PayrollStatusHistory
       await tx.payrollStatusHistory.create({
         data: {
           payrollRecordId: payrollId,
-          fromStatus: 'PROCESSING',
+          fromStatus: record.status,
           toStatus: 'PAID',
-          action: 'PAYMENT_COMPLETED',
-          remarks: `Payment completed via ${body.paymentMode || 'NEFT'}. UTR: ${body.utrNumber}`,
+          action: 'SALARY_DISBURSED',
+          remarks: body.remarks || `Salary disbursed via ${body.paymentMode || 'NEFT'}. UTR: ${body.utrNumber}`,
           changedById: userId,
         },
       });
@@ -1103,45 +1185,107 @@ export class PayrollService {
   // 14. Employee Profile Self-Service: Fetch Own Paid Salary Slips
   async getOwnSalarySlips(user: any) {
     const userId = user.sub || user.id;
-    const userRecord = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { employee: true },
+    const companyId = this.getCompanyId(user);
+
+    // Strictly resolve employee from authenticated userId and company context
+    // No cross-company fallback, no employeeId parameter supplied by frontend
+    const employee = await this.prisma.employee.findFirst({
+      where: {
+        userId,
+        companyId,
+      },
     });
 
-    if (!userRecord?.employee?.id) {
-      throw new ForbiddenException(
-        'Authenticated user does not have a linked Employee profile.',
-      );
+    if (!employee) {
+      return [];
     }
 
-    const employeeId = userRecord.employee.id;
-
+    // Dual-layer query: require BOTH PayrollRecord.status = PAID AND SalarySlip.availableToEmployee = true
     const slips = await this.prisma.salarySlip.findMany({
       where: {
-        employeeId,
-        payrollRecord: { status: 'PAID' },
+        employeeId: employee.id,
+        availableToEmployee: true,
+        payrollRecord: {
+          status: 'PAID',
+          companyId,
+        },
       },
       include: {
         payrollRecord: {
-          select: { payrollNumber: true, paidAt: true, payment: true },
+          select: { payrollNumber: true, paidAt: true, payment: true, status: true },
         },
       },
       orderBy: [{ salaryYear: 'desc' }, { salaryMonth: 'desc' }],
     });
 
-    return slips.map((s) => ({
-      id: s.id,
-      slipNumber: s.slipNumber,
-      month: s.salaryMonth,
-      year: s.salaryYear,
-      grossEarnings: Number(s.grossEarnings),
-      totalDeductions: Number(s.totalDeductions),
-      netPaid: Number(s.netPaid),
-      paymentDate: s.payrollRecord?.paidAt || s.generatedAt,
-      utrNumber: s.payrollRecord?.payment?.utrNumber || '—',
-      status: 'PAID',
-      snapshot: s.snapshotJson,
-    }));
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    return slips.map((s) => {
+      const snap = (s.snapshotJson as any) || {};
+      const earn = snap.earnings || {};
+      const ded = snap.deductions || {};
+      return {
+        id: s.id,
+        slipNumber: s.slipNumber,
+        month: s.salaryMonth,
+        year: s.salaryYear,
+        monthName: monthNames[s.salaryMonth - 1] || 'Month',
+        grossEarnings: Number(s.grossEarnings || earn.gross || 0),
+        totalDeductions: Number(s.totalDeductions || ded.total || 0),
+        netPaid: Number(s.netPaid || snap.payment?.netPaid || 0),
+        paidDate: s.payrollRecord?.paidAt || snap.payment?.paymentDate || s.generatedAt,
+        paymentDate: s.payrollRecord?.paidAt || snap.payment?.paymentDate || s.generatedAt,
+        utrNumber: s.payrollRecord?.payment?.utrNumber || snap.payment?.utrNumber || '—',
+        status: 'PAID',
+        snapshot: s.snapshotJson,
+        payrollRecordId: s.payrollRecordId,
+      };
+    });
+  }
+
+  // Helper to independently verify salary slip ownership / access
+  private async verifySlipAccess(slip: any, record: any, user: any) {
+    const userId = user.sub || user.id;
+    const companyId = this.getCompanyId(user);
+    const normRole = (user.role?.code || user.role || '').toUpperCase();
+
+    // Check administrative permissions / roles
+    const isPrivileged =
+      normRole.includes('SUPER_ADMIN') ||
+      normRole.includes('ADMIN') ||
+      normRole.includes('HR') ||
+      normRole.includes('FINANCE') ||
+      (user.permissions && (
+        user.permissions.includes('payroll.salary_slips.read') ||
+        user.permissions.includes('payroll.salary_slips.manage') ||
+        user.permissions.includes('payroll.salary_slips.disburse')
+      ));
+
+    if (isPrivileged) {
+      return true;
+    }
+
+    // Normal employee: strictly verify ownership
+    const employee = await this.prisma.employee.findFirst({
+      where: { userId, companyId },
+    });
+
+    if (!employee) {
+      throw new ForbiddenException('You do not have an active employee profile in this organization.');
+    }
+
+    if ((slip && slip.employeeId !== employee.id) || (record && record.employeeId !== employee.id)) {
+      throw new ForbiddenException('You are not authorized to access this salary slip.');
+    }
+
+    if (slip && !slip.availableToEmployee && record?.status !== 'PAID') {
+      throw new ForbiddenException('This salary slip has not been disbursed yet.');
+    }
+
+    return true;
   }
 
   // 15. PDF Generator / Detail payload for Salary Slip
@@ -1180,6 +1324,8 @@ export class PayrollService {
       });
     }
 
+    await this.verifySlipAccess(slip, record, user);
+
     const enriched = this.enrichSalarySlipPayload(slip, record);
     return {
       filename: `Salary_Slip_${enriched.slipNumber}.pdf`,
@@ -1204,6 +1350,7 @@ export class PayrollService {
     });
 
     if (!slip && record) {
+      // Unpaid slips must NEVER have availableToEmployee = true
       slip = await this.prisma.salarySlip.create({
         data: {
           payrollRecordId,
@@ -1214,10 +1361,11 @@ export class PayrollService {
           grossEarnings: record.grossEarnings,
           totalDeductions: record.totalDeductions,
           netPaid: record.paidAmount || record.netPayable,
+          availableToEmployee: record.status === 'PAID',
           snapshotJson: {
             snapshotVersion: 1,
             company: {
-              name: 'Himalaya ERP & Construction Products',
+              name: 'HIMALAYA FRP & CONSTRUCTION PRODUCTS',
               address:
                 'Plot 12, Industrial Area, Sector 5, Solan, Himachal Pradesh',
               email: 'finance@himalayaerp.com',
@@ -1290,6 +1438,7 @@ export class PayrollService {
       );
     }
 
+    await this.verifySlipAccess(slip, record, user);
     return this.enrichSalarySlipPayload(slip, record);
   }
 
@@ -1322,7 +1471,7 @@ export class PayrollService {
 
     return {
       company: {
-        name: comp.name || 'Himalaya ERP & Construction Products',
+        name: comp.name || 'HIMALAYA FRP & CONSTRUCTION PRODUCTS',
         address: comp.address || 'Industrial Area, Solan, Himachal Pradesh',
         email: comp.email || 'finance@himalayaerp.com',
         phone: comp.phone || '+91 98160 00000',
@@ -1342,6 +1491,11 @@ export class PayrollService {
           record?.employee?.fullName ||
           'Staff Member',
         employeeId:
+          emp.code ||
+          record?.employeeCodeSnapshot ||
+          record?.employee?.employeeCode ||
+          'EMP-001',
+        employeeCode:
           emp.code ||
           record?.employeeCodeSnapshot ||
           record?.employee?.employeeCode ||
@@ -1399,20 +1553,16 @@ export class PayrollService {
       grossEarnings: gross,
       deductions: [
         {
-          label: 'Leave Deduction (LOP)',
+          label: 'Loss of Pay (LOP)',
           amount: Number(ded.lop || record?.leaveDeduction || 0),
         },
         {
-          label: 'Provident Fund (PF)',
+          label: 'Provident Fund (EPF)',
           amount: Number(ded.pf || record?.pfDeduction || 0),
         },
         {
           label: 'Professional Tax (PT)',
           amount: Number(ded.pt || record?.professionalTax || 0),
-        },
-        {
-          label: 'ESIC & TDS',
-          amount: Number((ded.esic || 0) + (ded.tds || 0)),
         },
       ],
       totalDeductions: totalDed,
@@ -1460,6 +1610,8 @@ export class PayrollService {
         },
       });
     }
+
+    await this.verifySlipAccess(slip, record, user);
 
     const payload = this.buildPdfPayload(slip, record);
     const pdfBuffer = createSalarySlipPdf(payload);
@@ -2811,4 +2963,370 @@ export class PayrollService {
       days,
     };
   }
+
+  // 19. Batch Submission Summary & Live Timeline for HR / Super Admin
+  async getSubmissionSummary(query: { month?: number; year?: number }, user: any) {
+    const companyId = this.getCompanyId(user);
+    const now = new Date();
+    const qMonth = query?.month ? Number(query.month) : now.getMonth() + 1;
+    const qYear = query?.year ? Number(query.year) : now.getFullYear();
+
+    let records = await this.prisma.payrollRecord.findMany({
+      where: {
+        companyId,
+        payrollPeriod: {
+          month: qMonth,
+          year: qYear,
+        },
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeCode: true,
+            fullName: true,
+            department: { select: { name: true } },
+            jobTitle: true,
+          },
+        },
+        payrollPeriod: true,
+        payment: true,
+        salarySlip: {
+          select: { id: true, slipNumber: true, availableToEmployee: true },
+        },
+        statusHistory: { orderBy: { changedAt: 'desc' } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // If no records for selected month, fallback to most recent period that has records
+    let effectiveMonth = qMonth;
+    let effectiveYear = qYear;
+    if (records.length === 0) {
+      const latestRec = await this.prisma.payrollRecord.findFirst({
+        where: { companyId },
+        include: { payrollPeriod: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (latestRec) {
+        effectiveMonth = latestRec.payrollPeriod.month;
+        effectiveYear = latestRec.payrollPeriod.year;
+        records = await this.prisma.payrollRecord.findMany({
+          where: {
+            companyId,
+            payrollPeriodId: latestRec.payrollPeriodId,
+          },
+          include: {
+            employee: {
+              select: {
+                id: true,
+                employeeCode: true,
+                fullName: true,
+                department: { select: { name: true } },
+                jobTitle: true,
+              },
+            },
+            payrollPeriod: true,
+            payment: true,
+            salarySlip: {
+              select: { id: true, slipNumber: true, availableToEmployee: true },
+            },
+            statusHistory: { orderBy: { changedAt: 'desc' } },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+    }
+
+    // Collect actor user IDs from status histories to resolve User name and Role
+    const actorIds = new Set<string>();
+    records.forEach((r) => {
+      if (r.preparedById) actorIds.add(r.preparedById);
+      if (r.hrVerifiedById) actorIds.add(r.hrVerifiedById);
+      if (r.submittedById) actorIds.add(r.submittedById);
+      if (r.approvedById) actorIds.add(r.approvedById);
+      if (r.sentToFinanceById) actorIds.add(r.sentToFinanceById);
+      if (r.paidById) actorIds.add(r.paidById);
+      (r.statusHistory || []).forEach((h) => {
+        if (h.changedById) actorIds.add(h.changedById);
+      });
+    });
+
+    const actors = await this.prisma.user.findMany({
+      where: { id: { in: Array.from(actorIds) } },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: { select: { name: true, code: true } },
+      },
+    });
+    const actorMap = new Map(actors.map((a) => [a.id, a]));
+
+    const formatActor = (id?: string | null) => {
+      if (!id) return null;
+      const u = actorMap.get(id);
+      if (!u) return { name: 'Admin', role: 'Staff' };
+      return {
+        name: u.name,
+        role: u.role?.name || u.role?.code || 'User',
+      };
+    };
+
+    // Calculate totals
+    const totalEmployees = records.length;
+    const grossPayroll = records.reduce(
+      (sum, r) => sum + Number(r.grossEarnings || 0),
+      0,
+    );
+    const totalDeductions = records.reduce(
+      (sum, r) => sum + Number(r.totalDeductions || 0),
+      0,
+    );
+    const netPayroll = records.reduce(
+      (sum, r) => sum + Number(r.netPayable || 0),
+      0,
+    );
+
+    // Determine batch status
+    let batchStatus = 'DRAFT';
+    if (records.length > 0) {
+      const allPaid = records.every((r) => r.status === 'PAID');
+      const allProcessing = records.every(
+        (r) => r.status === 'PROCESSING' || r.status === 'PAID',
+      );
+      const anyFinance = records.some(
+        (r) => r.status === 'PENDING_FINANCE' || r.status === 'PROCESSING',
+      );
+      const anyApproved = records.some(
+        (r) => r.status === 'SUPER_ADMIN_APPROVED',
+      );
+      const anyPendingApproval = records.some(
+        (r) => r.status === 'PENDING_SUPER_ADMIN_APPROVAL',
+      );
+      const anyVerified = records.some((r) => r.status === 'HR_VERIFIED');
+
+      if (allPaid) batchStatus = 'PAID';
+      else if (allProcessing) batchStatus = 'PROCESSING';
+      else if (anyFinance) batchStatus = 'PENDING_FINANCE';
+      else if (anyApproved) batchStatus = 'SUPER_ADMIN_APPROVED';
+      else if (anyPendingApproval) batchStatus = 'PENDING_SUPER_ADMIN_APPROVAL';
+      else if (anyVerified) batchStatus = 'HR_VERIFIED';
+    }
+
+    const sampleRecord = records[0];
+    const submitterActor = formatActor(
+      sampleRecord?.submittedById ||
+        sampleRecord?.hrVerifiedById ||
+        sampleRecord?.preparedById,
+    );
+    const submittedDate =
+      sampleRecord?.submittedAt ||
+      sampleRecord?.hrVerifiedAt ||
+      sampleRecord?.createdAt ||
+      null;
+
+    // Timeline stages
+    const timeline = [
+      {
+        id: 'PREPARED',
+        label: 'Salary Prepared',
+        completed: records.some((r) => !!r.preparedAt || r.status !== 'DRAFT'),
+        actor: formatActor(sampleRecord?.preparedById)?.name || 'HR Admin',
+        role: formatActor(sampleRecord?.preparedById)?.role || 'HR Admin',
+        timestamp: sampleRecord?.preparedAt || sampleRecord?.createdAt || null,
+      },
+      {
+        id: 'HR_VERIFIED',
+        label: 'HR Verified',
+        completed: records.some(
+          (r) =>
+            !!r.hrVerifiedAt ||
+            [
+              'HR_VERIFIED',
+              'PENDING_SUPER_ADMIN_APPROVAL',
+              'SUPER_ADMIN_APPROVED',
+              'PENDING_FINANCE',
+              'PROCESSING',
+              'PAID',
+            ].includes(r.status),
+        ),
+        actor: formatActor(sampleRecord?.hrVerifiedById)?.name || 'HR Admin',
+        role: formatActor(sampleRecord?.hrVerifiedById)?.role || 'HR Admin',
+        timestamp: sampleRecord?.hrVerifiedAt || null,
+      },
+      {
+        id: 'SUBMITTED',
+        label: 'Submitted for Approval',
+        completed: records.some(
+          (r) =>
+            !!r.submittedAt ||
+            [
+              'PENDING_SUPER_ADMIN_APPROVAL',
+              'SUPER_ADMIN_APPROVED',
+              'PENDING_FINANCE',
+              'PROCESSING',
+              'PAID',
+            ].includes(r.status),
+        ),
+        actor: formatActor(sampleRecord?.submittedById)?.name || 'HR Admin',
+        role: formatActor(sampleRecord?.submittedById)?.role || 'HR Admin',
+        timestamp: sampleRecord?.submittedAt || null,
+      },
+      {
+        id: 'SUPER_ADMIN_APPROVED',
+        label: 'Approved',
+        completed: records.some(
+          (r) =>
+            !!r.approvedAt ||
+            [
+              'SUPER_ADMIN_APPROVED',
+              'PENDING_FINANCE',
+              'PROCESSING',
+              'PAID',
+            ].includes(r.status),
+        ),
+        actor: formatActor(sampleRecord?.approvedById)?.name || 'Super Admin',
+        role: formatActor(sampleRecord?.approvedById)?.role || 'Super Admin',
+        timestamp: sampleRecord?.approvedAt || null,
+      },
+      {
+        id: 'SENT_TO_FINANCE',
+        label: 'Sent to Finance',
+        completed: records.some(
+          (r) =>
+            !!r.sentToFinanceAt ||
+            ['PENDING_FINANCE', 'PROCESSING', 'PAID'].includes(r.status),
+        ),
+        actor: formatActor(sampleRecord?.sentToFinanceById)?.name || 'System',
+        role: formatActor(sampleRecord?.sentToFinanceById)?.role || 'System',
+        timestamp: sampleRecord?.sentToFinanceAt || null,
+      },
+      {
+        id: 'PAID',
+        label: 'Disbursed / Paid',
+        completed: records.some((r) => r.status === 'PAID'),
+        actor: formatActor(sampleRecord?.paidById)?.name || 'Finance',
+        role: formatActor(sampleRecord?.paidById)?.role || 'Finance Manager',
+        timestamp: sampleRecord?.paidAt || null,
+      },
+    ];
+
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
+    return {
+      month: effectiveMonth,
+      year: effectiveYear,
+      periodName: `${monthNames[effectiveMonth - 1] || 'Month'} ${effectiveYear}`,
+      submittedBy: submitterActor?.name || 'HR Admin',
+      submittedByRole: submitterActor?.role || 'HR Admin',
+      submittedDate,
+      totalEmployees,
+      grossPayroll,
+      totalDeductions,
+      netPayroll,
+      status: batchStatus,
+      timeline,
+      records: records.map((r) => ({
+        id: r.id,
+        payrollNumber: r.payrollNumber,
+        employeeId: r.employeeId,
+        employeeCode: r.employeeCodeSnapshot || r.employee?.employeeCode,
+        employeeName: r.employeeNameSnapshot || r.employee?.fullName,
+        department: r.departmentSnapshot || r.employee?.department?.name,
+        jobTitle: r.jobTitleSnapshot || r.employee?.jobTitle,
+        month: r.payrollPeriod.month,
+        year: r.payrollPeriod.year,
+        status: r.status,
+        scheduledWorkingDays: Number(r.scheduledWorkingDays),
+        presentDays: Number(r.presentDays),
+        payableDays: Number(r.payableDays),
+        unpaidDays: Number(r.unpaidDays),
+        grossEarnings: Number(r.grossEarnings),
+        totalDeductions: Number(r.totalDeductions),
+        netPayable: Number(r.netPayable),
+        paidAmount: Number(r.paidAmount),
+        paidAt: r.paidAt,
+        utrNumber: r.payment?.utrNumber,
+        slipId: r.salarySlip?.id,
+        availableToEmployee: r.salarySlip?.availableToEmployee || false,
+        historyCount: r.statusHistory?.length || 0,
+      })),
+    };
+  }
+
+  // 20. Full Audit Trail for a single Payroll Record
+  async getRecordHistory(payrollRecordId: string, user: any) {
+    const companyId = this.getCompanyId(user);
+    const record = await this.prisma.payrollRecord.findFirst({
+      where: { id: payrollRecordId, companyId },
+      include: {
+        employee: true,
+        payrollPeriod: true,
+        statusHistory: { orderBy: { changedAt: 'asc' } },
+      },
+    });
+
+    if (!record) {
+      throw new NotFoundException('Payroll record not found.');
+    }
+
+    const actorIds = Array.from(
+      new Set(record.statusHistory.map((h) => h.changedById).filter(Boolean)),
+    );
+    const actors = await this.prisma.user.findMany({
+      where: { id: { in: actorIds } },
+      select: {
+        id: true,
+        name: true,
+        role: { select: { name: true, code: true } },
+      },
+    });
+    const actorMap = new Map(actors.map((a) => [a.id, a]));
+
+    const enrichedHistory = record.statusHistory.map((h) => {
+      const a = actorMap.get(h.changedById);
+      return {
+        id: h.id,
+        payrollRecordId: h.payrollRecordId,
+        fromStatus: h.fromStatus,
+        toStatus: h.toStatus,
+        action: h.action,
+        remarks: h.remarks,
+        changedAt: h.changedAt,
+        createdAt: h.changedAt,
+        userName: a?.name || 'System User',
+        actorName: a?.name || 'System User',
+        userRole: a?.role?.name || a?.role?.code || 'System',
+        role: a?.role?.name || a?.role?.code || 'System',
+      };
+    });
+
+    return {
+      record: {
+        id: record.id,
+        payrollNumber: record.payrollNumber,
+        employeeName: record.employeeNameSnapshot || record.employee?.fullName,
+        employeeCode: record.employeeCodeSnapshot || record.employee?.employeeCode,
+        month: record.payrollPeriod.month,
+        year: record.payrollPeriod.year,
+        status: record.status,
+      },
+      history: enrichedHistory,
+    };
+  }
 }
+

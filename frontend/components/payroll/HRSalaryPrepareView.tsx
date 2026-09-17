@@ -18,6 +18,10 @@ export default function HRSalaryPrepareView() {
   const [structures, setStructures] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [payrollRecords, setPayrollRecords] = useState<any[]>([]);
+  const [submissionSummary, setSubmissionSummary] = useState<any | null>(null);
+  const [historyModalRecord, setHistoryModalRecord] = useState<any | null>(null);
+  const [recordHistoryLogs, setRecordHistoryLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [search, setSearch] = useState<string>('');
@@ -29,10 +33,11 @@ export default function HRSalaryPrepareView() {
     setLoading(true);
     setError('');
     try {
-      const [structRes, empRes, recordsRes] = await Promise.all([
+      const [structRes, empRes, recordsRes, summaryRes] = await Promise.all([
         payrollService.getSalaryStructures().catch(() => []),
         employeesService.listEmployees({ page: 1, limit: 100 }).catch(() => ({ items: [] })),
         payrollService.getPayrollRecords({ page: 1, pageSize: 100 }).catch(() => ({ items: [] })),
+        payrollService.getSubmissionSummary().catch(() => null),
       ]);
 
       const structList = Array.isArray(structRes) ? structRes : (structRes as any)?.items || [];
@@ -42,6 +47,27 @@ export default function HRSalaryPrepareView() {
       setStructures(structList);
       setEmployees(empList);
       setPayrollRecords(recList);
+
+      const batch = summaryRes?.batchSummary || (summaryRes?.periodName ? {
+        period: summaryRes.periodName,
+        submittedBy: summaryRes.submittedBy,
+        submittedAt: summaryRes.submittedDate,
+        totalEmployees: summaryRes.totalEmployees,
+        grossPayroll: summaryRes.grossPayroll,
+        totalDeductions: summaryRes.totalDeductions,
+        netPayroll: summaryRes.netPayroll,
+        status: summaryRes.status,
+      } : null);
+
+      const stages = summaryRes?.timelineStages || (summaryRes?.timeline ? summaryRes.timeline.map((t: any) => ({
+        id: t.key || t.status || t.title,
+        label: t.title || t.label,
+        completed: t.completed,
+        actor: t.actorName || t.actor,
+        timestamp: t.date || t.timestamp,
+      })) : []);
+
+      setSubmissionSummary(batch ? { batchSummary: batch, timelineStages: stages } : null);
     } catch (err: any) {
       console.error('Failed to load salary data:', err);
       setError(err?.message || 'Failed to load salary structures.');
@@ -209,6 +235,21 @@ export default function HRSalaryPrepareView() {
     router.push(`/hr/salary/prepare/edit/${structure.id}`);
   };
 
+  const handleOpenRecordHistory = async (rec: any) => {
+    setHistoryModalRecord(rec);
+    setLoadingLogs(true);
+    setRecordHistoryLogs([]);
+    try {
+      const res = await payrollService.getPayrollRecordHistory(rec.id);
+      const logs = Array.isArray(res) ? res : (res as any)?.history || [];
+      setRecordHistoryLogs(logs);
+    } catch (e: any) {
+      console.error('Failed to load payroll record history:', e);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
   const handleSendToSuperAdmin = async (structure: any) => {
     const empName = getEmpName(structure);
     const result = await Swal.fire({
@@ -358,6 +399,151 @@ export default function HRSalaryPrepareView() {
           onClose={() => setViewingSlipStructure(null)}
           isModal={true}
         />
+      )}
+
+      {/* ── Audit History Modal ── */}
+      {historyModalRecord && (
+        <div
+          onClick={() => setHistoryModalRecord(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '16px',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '640px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+              border: '1.5px solid #cbd5e1',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '18px 24px',
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderTopLeftRadius: '15px',
+                borderTopRightRadius: '15px',
+              }}
+            >
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: '800', margin: 0 }}>
+                  📜 Payroll Status &amp; Audit Trail
+                </h3>
+                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                  {historyModalRecord.employeeName || historyModalRecord.employee?.fullName} ({historyModalRecord.employeeCode || historyModalRecord.employee?.employeeCode})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryModalRecord(null)}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  fontSize: '18px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px' }}>
+              {loadingLogs ? (
+                <div style={{ textAlign: 'center', padding: '30px 0', color: '#64748b' }}>
+                  <div style={{ display: 'inline-block', width: '24px', height: '24px', border: '2px solid #2563eb', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '8px' }}></div>
+                  <p style={{ margin: 0, fontSize: '13px' }}>Loading audit logs...</p>
+                </div>
+              ) : recordHistoryLogs.length === 0 ? (
+                <p style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
+                  No historical transition logs recorded yet for this record.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {recordHistoryLogs.map((log: any, idx: number) => (
+                    <div
+                      key={log.id || idx}
+                      style={{
+                        display: 'flex',
+                        gap: '14px',
+                        alignItems: 'flex-start',
+                        borderLeft: '2px solid #e2e8f0',
+                        paddingLeft: '16px',
+                        position: 'relative',
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: '-7px',
+                          top: '2px',
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          background: '#2563eb',
+                          border: '2px solid #ffffff',
+                        }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#0f172a' }}>
+                            {log.action?.replace(/_/g, ' ') || 'STATUS CHANGE'}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>
+                            {log.createdAt ? new Date(log.createdAt).toLocaleString('en-IN') : '—'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px' }}>
+                          <span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '11px' }}>
+                            {log.fromStatus || log.previousStatus || 'INIT'}
+                          </span>
+                          {' ➔ '}
+                          <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '11px', fontWeight: '700' }}>
+                            {log.toStatus || log.newStatus}
+                          </span>
+                        </div>
+                        {log.remarks && (
+                          <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', marginTop: '4px' }}>
+                            "{log.remarks}"
+                          </div>
+                        )}
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                          By: <strong style={{ color: '#475569' }}>{log.actorName || log.user?.name || 'System User'}</strong>
+                          {log.actorRole || log.user?.role ? ` (${log.actorRole || log.user?.role})` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Top Hero Banner ── */}
@@ -802,6 +988,105 @@ export default function HRSalaryPrepareView() {
               </div>
             </div>
 
+            {/* ── Monthly Batch Summary Banner ── */}
+            {submissionSummary?.batchSummary && (
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                  borderRadius: '14px',
+                  padding: '20px 24px',
+                  color: '#ffffff',
+                  marginBottom: '24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#38bdf8', fontWeight: '800' }}>
+                      Official Monthly Payroll Batch
+                    </span>
+                    <h2 style={{ fontSize: '22px', fontWeight: '900', margin: '4px 0 0 0', color: '#ffffff' }}>
+                      {submissionSummary.batchSummary.period} Payroll
+                    </h2>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: '#94a3b8' }}>
+                      Submitted by <strong style={{ color: '#e2e8f0' }}>{submissionSummary.batchSummary.submittedBy}</strong>
+                      {submissionSummary.batchSummary.submittedAt && ` on ${new Date(submissionSummary.batchSummary.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                    </p>
+                  </div>
+                  <div>
+                    {getStatusBadge(submissionSummary.batchSummary.status)}
+                  </div>
+                </div>
+
+                {/* Batch KPI Numbers */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', background: 'rgba(255,255,255,0.05)', padding: '12px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Total Employees</span>
+                    <strong style={{ fontSize: '16px', color: '#ffffff' }}>{submissionSummary.batchSummary.totalEmployees} Staff</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>Gross Payroll</span>
+                    <strong style={{ fontSize: '16px', color: '#38bdf8' }}>{money(submissionSummary.batchSummary.grossPayroll)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#fda4af', display: 'block' }}>Total Deductions</span>
+                    <strong style={{ fontSize: '16px', color: '#fb7185' }}>-{money(submissionSummary.batchSummary.totalDeductions)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#86efac', display: 'block' }}>Net Disbursed</span>
+                    <strong style={{ fontSize: '17px', color: '#4ade80' }}>{money(submissionSummary.batchSummary.netPayroll)}</strong>
+                  </div>
+                </div>
+
+                {/* Visual 6-Stage Timeline */}
+                {submissionSummary.timelineStages && submissionSummary.timelineStages.length > 0 && (
+                  <div style={{ marginTop: '4px' }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#cbd5e1', display: 'block', marginBottom: '10px' }}>
+                      Workflow Lifecycle Progression:
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(140px, 1fr))`, gap: '8px' }}>
+                      {submissionSummary.timelineStages.map((stage: any, idx: number) => {
+                        const isDone = stage.completed;
+                        return (
+                          <div
+                            key={stage.id || idx}
+                            style={{
+                              background: isDone ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                              border: isDone ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.1)',
+                              borderRadius: '8px',
+                              padding: '8px 10px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '3px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontSize: '13px' }}>{isDone ? '✅' : '○'}</span>
+                              <span style={{ fontSize: '11.5px', fontWeight: '800', color: isDone ? '#a7f3d0' : '#94a3b8' }}>
+                                {stage.label}
+                              </span>
+                            </div>
+                            {stage.actor && (
+                              <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                                {stage.actor}
+                              </span>
+                            )}
+                            {stage.timestamp && (
+                              <span style={{ fontSize: '9.5px', color: '#64748b' }}>
+                                {new Date(stage.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── History Data Table (≥ 768px) ── */}
             <div className="salary-table-responsive">
               <table className="salary-data-table">
@@ -945,6 +1230,14 @@ export default function HRSalaryPrepareView() {
                                 📄 View Slip
                               </button>
 
+                              <button
+                                onClick={() => handleOpenRecordHistory(rec)}
+                                className="btn-action-sm btn-edit"
+                                title="View Audit History"
+                              >
+                                📜 History
+                              </button>
+
                               {rec.status === 'RETURNED_TO_HR' && (
                                 <button
                                   onClick={() => handleSendToSuperAdmin(rec)}
@@ -1039,9 +1332,16 @@ export default function HRSalaryPrepareView() {
                             );
                           }}
                           className="btn-action-sm btn-view"
-                          style={{ textAlign: 'center', padding: '8px', gridColumn: 'span 2' }}
+                          style={{ textAlign: 'center', padding: '8px' }}
                         >
                           📄 View Salary Slip
+                        </button>
+                        <button
+                          onClick={() => handleOpenRecordHistory(rec)}
+                          className="btn-action-sm btn-edit"
+                          style={{ textAlign: 'center', padding: '8px' }}
+                        >
+                          📜 Audit History
                         </button>
                       </div>
                     </div>

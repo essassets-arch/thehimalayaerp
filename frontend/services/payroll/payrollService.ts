@@ -30,6 +30,8 @@ export const payrollService = {
   getEmployeePayrollDetails: (id: string) => backendFetch<PayrollRecord>(`${root}/payroll/${id}`, { cacheTtlMs: 0 }),
   getPayrollRecords: (params = {}) => backendFetch<PayrollPage>(`${root}/payroll?${qs(params)}`, { cacheTtlMs: 0 }),
   getPayrollRecord: (id: string) => backendFetch<PayrollRecord>(`${root}/payroll/${id}`, { cacheTtlMs: 0 }),
+  getSubmissionSummary: (params = {}) => backendFetch<any>(`${root}/payroll/submissions/summary?${qs(params)}`, { cacheTtlMs: 0 }),
+  getPayrollRecordHistory: (id: string) => backendFetch<any>(`${root}/payroll/${id}/history`, { cacheTtlMs: 0 }),
   generatePayroll: (body: unknown) => post<any[]>(`${root}/payroll/generate`, body),
   generateBulkPayroll: (body: unknown) => post<any[]>(`${root}/payroll/generate-bulk`, body),
   recalculatePayroll: (id: string, body: unknown) => post<PayrollRecord>(`${root}/payroll/${id}/recalculate`, body),
@@ -51,7 +53,7 @@ export const payrollService = {
   getSalarySlipByPayrollId: (payrollRecordId: string) => backendFetch<any>(`${root}/salary-slips/payroll/${payrollRecordId}`, { cacheTtlMs: 0 }),
   getSalarySlip: (id: string) => backendFetch<any>(`${root}/salary-slips/${id}`, { cacheTtlMs: 0 }),
   getEmployeeSalarySlips: (employeeId: string) => backendFetch<any[]>(`${root}/employees/${employeeId}/salary-slips`, { cacheTtlMs: 0 }),
-  getMySalarySlips: () => backendFetch<any[]>(`${root}/salary-slips/mine`, { cacheTtlMs: 0 }),
+  getMySalarySlips: () => backendFetch<any[]>('/api/backend/payroll/me', { cacheTtlMs: 0 }),
   downloadSalarySlipPdf: async (id: string) => {
     const token = await ensureAccessToken();
     const response = await fetch(`${root}/salary-slips/${id}/pdf`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });

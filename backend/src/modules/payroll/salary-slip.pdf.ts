@@ -46,7 +46,7 @@ export function createSalarySlipPdf(slip: any): Buffer {
 
   // 1. Company Header
   drawText(
-    slip.company?.name || 'Himalaya Composites & Precast Pvt. Ltd.',
+    slip.company?.name || 'HIMALAYA FRP & CONSTRUCTION PRODUCTS',
     48,
     y,
     15,
@@ -83,10 +83,10 @@ export function createSalarySlipPdf(slip: any): Buffer {
   // 2. Document Title
   drawText('SALARY SLIP', 48, y, 14, true);
   drawText(
-    `${(slip.salaryMonthName || 'August').toUpperCase()} ${slip.salaryYear || 2026}`,
-    400,
+    `Salary Slip — ${(slip.salaryMonthName || 'September')} ${slip.salaryYear || 2026}`,
+    360,
     y,
-    12,
+    11,
     true,
   );
   y -= 15;

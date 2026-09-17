@@ -67,8 +67,15 @@ export function SalarySlipDocument({
 }: SalarySlipDocumentProps) {
   const [downloading, setDownloading] = useState<boolean>(false);
 
-  // Normalize data from either structure or slip
-  const data = structure || slip || {};
+  // Normalize data from either snapshot, structure or slip
+  const rawData = structure || slip || {};
+  let snapshot: any = null;
+  if (rawData.snapshotJson) {
+    try {
+      snapshot = typeof rawData.snapshotJson === 'string' ? JSON.parse(rawData.snapshotJson) : rawData.snapshotJson;
+    } catch (_) {}
+  }
+  const data = snapshot ? { ...rawData, ...snapshot } : rawData;
 
   if (!data || Object.keys(data).length === 0) {
     return (
@@ -353,8 +360,8 @@ export function SalarySlipDocument({
         </div>
 
         <div className="salary-slip-company-info">
-          <h1 className="salary-slip-company-name">Himalaya Composites &amp; Precast Pvt. Ltd.</h1>
-          <p className="salary-slip-company-sub">DURABLE Manhole Covers • Since 2004</p>
+          <h1 className="salary-slip-company-name">HIMALAYA FRP &amp; CONSTRUCTION PRODUCTS</h1>
+          <p className="salary-slip-company-sub">DURABLE Manhole Covers &amp; FRP Solutions • Since 2004</p>
           <p className="salary-slip-company-addr">
             An ISO 9001:2015 Certified Company<br />
             Besides Anand Niketan School, Opp. Shyam Village Hotel, Mehmedabad Highway,<br />
@@ -367,7 +374,13 @@ export function SalarySlipDocument({
 
       {/* ── Document Title Ribbon ── */}
       <div className="salary-slip-title-ribbon">
-        <h2>EMPLOYEE SALARY SLIP &amp; CTC BREAKDOWN STATEMENT</h2>
+        <h2>
+          {data.monthName && data.year
+            ? `SALARY SLIP — ${data.monthName.toUpperCase()} ${data.year}`
+            : data.slipNumber
+            ? `SALARY SLIP — ${data.slipNumber}`
+            : 'EMPLOYEE SALARY SLIP & CTC BREAKDOWN STATEMENT'}
+        </h2>
         <p>Statutory Salary Structure &amp; Cost to Company (CTC) Record</p>
       </div>
 

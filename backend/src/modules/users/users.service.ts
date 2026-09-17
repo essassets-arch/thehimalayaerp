@@ -479,6 +479,10 @@ export class UsersService {
             code: 'backoffice.report.review',
             name: 'Review Back Office Daily Reports',
           },
+          { code: 'payroll.salary_slips.read', name: 'View Salary Slips' },
+          { code: 'payroll.salary_slips.manage', name: 'Manage Salary Slips' },
+          { code: 'payroll.salary_slips.disburse', name: 'Disburse Salary Payments' },
+          { code: 'payroll.audit.read', name: 'View Payroll Audit Logs' },
         ],
         ADMIN: [
           { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
@@ -493,6 +497,10 @@ export class UsersService {
             code: 'backoffice.report.review',
             name: 'Review Back Office Daily Reports',
           },
+          { code: 'payroll.salary_slips.read', name: 'View Salary Slips' },
+          { code: 'payroll.salary_slips.manage', name: 'Manage Salary Slips' },
+          { code: 'payroll.salary_slips.disburse', name: 'Disburse Salary Payments' },
+          { code: 'payroll.audit.read', name: 'View Payroll Audit Logs' },
         ],
         BACK_OFFICE: [
           {
@@ -626,6 +634,9 @@ export class UsersService {
           },
           { code: 'procurement.invoices.read', name: 'View Invoices' },
           { code: 'procurement.payments.read', name: 'View Payments' },
+          { code: 'payroll.salary_slips.read', name: 'View Salary Slips' },
+          { code: 'payroll.salary_slips.disburse', name: 'Disburse Salary Payments' },
+          { code: 'payroll.audit.read', name: 'View Payroll Audit Logs' },
           { code: 'user.read', name: 'View Users' },
         ],
         HR: [
@@ -633,6 +644,9 @@ export class UsersService {
           { code: 'hr.employees.manage', name: 'Manage Employees' },
           { code: 'hr.payroll.read', name: 'View Payroll' },
           { code: 'hr.attendance.read', name: 'View Attendance' },
+          { code: 'payroll.salary_slips.read', name: 'View Salary Slips' },
+          { code: 'payroll.salary_slips.manage', name: 'Manage Salary Slips' },
+          { code: 'payroll.audit.read', name: 'View Payroll Audit Logs' },
           { code: 'LIVE_USER_MAP_VIEW', name: 'Live User Map View' },
           { code: 'user.read', name: 'View Users' },
         ],

@@ -129,37 +129,55 @@ export class ProfileService {
     }
 
     const slips = await this.prisma.salarySlip.findMany({
-      where: { employeeId: employee.id, availableToEmployee: true },
+      where: {
+        employeeId: employee.id,
+        availableToEmployee: true,
+        payrollRecord: { status: 'PAID', companyId },
+      },
+      include: {
+        payrollRecord: {
+          select: { payrollNumber: true, paidAt: true, payment: true },
+        },
+      },
       orderBy: [{ salaryYear: 'desc' }, { salaryMonth: 'desc' }],
     });
 
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
     return {
       success: true,
-      data: slips.map((s) => ({
-        id: s.id,
-        slipNumber: s.slipNumber,
-        month: s.salaryMonth,
-        year: s.salaryYear,
-        monthName:
-          [
-            'January',
-            'February',
-            'March',
-            'April',
-            'May',
-            'June',
-            'July',
-            'August',
-            'September',
-            'October',
-            'November',
-            'December',
-          ][s.salaryMonth - 1] || 'Month',
-        grossEarnings: s.grossEarnings,
-        totalDeductions: s.totalDeductions,
-        netPaid: s.netPaid,
-        generatedAt: s.generatedAt,
-      })),
+      data: slips.map((s) => {
+        const snap = (s.snapshotJson as any) || {};
+        return {
+          id: s.id,
+          slipNumber: s.slipNumber,
+          month: s.salaryMonth,
+          year: s.salaryYear,
+          monthName: monthNames[s.salaryMonth - 1] || 'Month',
+          grossEarnings: Number(s.grossEarnings),
+          totalDeductions: Number(s.totalDeductions),
+          netPaid: Number(s.netPaid),
+          paidDate: s.payrollRecord?.paidAt || snap.payment?.paymentDate || s.generatedAt,
+          paymentDate: s.payrollRecord?.paidAt || snap.payment?.paymentDate || s.generatedAt,
+          utrNumber: s.payrollRecord?.payment?.utrNumber || snap.payment?.utrNumber || '—',
+          status: 'PAID',
+          snapshot: s.snapshotJson,
+          payrollRecordId: s.payrollRecordId,
+        };
+      }),
     };
   }
 
