@@ -4388,6 +4388,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
         <div data-testid="dispatch-daily-report-print-view" className="sales-portal-view">
           <DailyReportPrintView
             isDispatch={true}
+            dispatchType={isDispatch2Portal ? 'DISPATCH_2' : 'DISPATCH_1'}
             reportId={params?.slug?.[1] || (pathname ? pathname.split('/daily-report/')[1] : null)}
             onBack={() => navigate.push(`${basePath}/daily-report/history`)}
           />

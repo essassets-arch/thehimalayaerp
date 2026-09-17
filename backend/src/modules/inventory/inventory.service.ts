@@ -732,24 +732,56 @@ export class InventoryService {
     userId: string,
     remarks?: string,
     eventType: StockHistoryEvent = 'DISPATCH_OUT',
+    extraCoverQuantity: number = 0,
+    extraFrameQuantity: number = 0,
   ) {
-    const qty = Number(quantity);
-    if (qty <= 0) return;
+    const qty = Number(quantity || 0);
+    const extraCover = Number(extraCoverQuantity || 0);
+    const extraFrame = Number(extraFrameQuantity || 0);
+    if (qty <= 0 && extraCover <= 0 && extraFrame <= 0) return;
 
-    // 1. SELECT ... FOR UPDATE row-level locking
-    const fgRecords = await tx.$queryRaw<any[]>`
-      SELECT id, quantity, "availableQuantity", "reservedQuantity"
-      FROM "FinishedGoods"
-      WHERE "productId" = ${productId}
-      FOR UPDATE
-    `;
+    // 1. Fetch available finished goods records for this product
+    console.log('[DEBUG stockOutFinishedGoods ENTER]', {
+      companyId,
+      productId,
+      qty,
+      extraCover,
+      extraFrame,
+    });
+
+    let fgRecords: any[] = await tx.finishedGoods.findMany({
+      where: { productId },
+    });
+
+    if (fgRecords.length === 0) {
+      try {
+        fgRecords = await tx.$queryRaw<any[]>`
+          SELECT id, quantity, "availableQuantity", "reservedQuantity"
+          FROM "FinishedGoods"
+          WHERE "productId" = ${productId}
+          FOR UPDATE
+        `;
+      } catch (rawErr) {
+        console.warn('[DEBUG stockOutFinishedGoods queryRaw fallback err]', rawErr);
+      }
+    }
+
+    console.log('[DEBUG stockOutFinishedGoods records found]', {
+      count: fgRecords.length,
+      records: fgRecords.map((r) => ({
+        id: r.id,
+        productId: r.productId,
+        qty: Number(r.quantity),
+        avail: Number(r.availableQuantity),
+      })),
+    });
 
     let totalAvail = fgRecords.reduce(
       (sum, r) => sum + Number(r.availableQuantity || 0),
       0,
     );
 
-    // Auto-materialize any unmaterialized ready work orders for this product if needed
+    // Auto-materialize any unmaterialized ready work orders or opening stock if needed
     if (totalAvail < qty) {
       const readyWos = await tx.workOrder.findMany({
         where: {
@@ -780,6 +812,82 @@ export class InventoryService {
         fgRecords.push(createdFg);
         totalAvail += woQty;
       }
+
+      // If still insufficient, check if opening stock transactions exist for this product
+      if (totalAvail < qty) {
+        try {
+          const openingTxGroup = await tx.inventoryTransaction.groupBy({
+            by: ['productId'],
+            where: {
+              productId,
+              OR: [
+                { type: { in: ['OPENING_STOCK', 'OPENING', 'INITIAL_STOCK'] } },
+                { referenceType: { in: ['OPENING_STOCK', 'OPENING', 'INITIAL_STOCK'] } },
+              ],
+            },
+            _sum: { quantity: true },
+          });
+          const openingQty = Number(openingTxGroup[0]?._sum?.quantity || 0);
+          const existingFgQty = fgRecords.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+          const unmaterializedOpening = Math.max(0, openingQty - existingFgQty);
+
+          if (unmaterializedOpening > 0) {
+            const plan =
+              (await tx.productionPlan.findFirst({
+                where: { salesOrder: { customer: { companyId } } },
+              })) ||
+              (await tx.productionPlan.create({
+                data: {
+                  planNumber: `PP-OPEN-${Date.now().toString().slice(-6)}`,
+                  status: 'APPROVED',
+                  salesOrder: {
+                    create: {
+                      orderNumber: `SO-OPEN-${Date.now().toString().slice(-6)}`,
+                      status: 'CONFIRMED',
+                      totalAmount: 0,
+                      subtotal: 0,
+                      taxableAmount: 0,
+                      createdById: userId,
+                      customer: {
+                        create: {
+                          companyId,
+                          companyName: 'Internal Stock Customer',
+                          customerCode: `CUST-OPEN-${Date.now().toString().slice(-6)}`,
+                        },
+                      },
+                    },
+                  },
+                },
+              }));
+
+            const wo = await tx.workOrder.create({
+              data: {
+                workOrderNumber: `WO-OPEN-${Date.now().toString().slice(-6)}`,
+                productionPlanId: plan.id,
+                quantity: unmaterializedOpening,
+                status: 'COMPLETED',
+              },
+            });
+
+            const createdFg = await tx.finishedGoods.create({
+              data: {
+                workOrderId: wo.id,
+                productId,
+                quantity: unmaterializedOpening,
+                availableQuantity: unmaterializedOpening,
+                reservedQuantity: 0,
+                unit: 'PCS',
+                status: 'AVAILABLE',
+                receivedById: userId,
+              },
+            });
+            fgRecords.push(createdFg);
+            totalAvail += unmaterializedOpening;
+          }
+        } catch (openErr) {
+          console.warn('[stockOutFinishedGoods] Opening stock check warning:', openErr);
+        }
+      }
     }
 
     if (qty > totalAvail) {
@@ -801,24 +909,26 @@ export class InventoryService {
     );
     const beforeAvailTotal = totalAvail;
 
-    for (const fg of fgRecords) {
-      if (remainingToDeduct <= 0) break;
-      const currentAvail = Number(fg.availableQuantity || 0);
-      const deduct = Math.min(currentAvail, remainingToDeduct);
-      if (deduct <= 0) continue;
+    if (qty > 0) {
+      for (const fg of fgRecords) {
+        if (remainingToDeduct <= 0) break;
+        const currentAvail = Number(fg.availableQuantity || 0);
+        const deduct = Math.min(currentAvail, remainingToDeduct);
+        if (deduct <= 0) continue;
 
-      const newAvail = Math.max(0, currentAvail - deduct);
-      const newQty = Math.max(0, Number(fg.quantity || 0) - deduct);
+        const newAvail = Math.max(0, currentAvail - deduct);
+        const newQty = Math.max(0, Number(fg.quantity || 0) - deduct);
 
-      await tx.finishedGoods.update({
-        where: { id: fg.id },
-        data: {
-          availableQuantity: newAvail,
-          quantity: newQty,
-          status: newAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
-        },
-      });
-      remainingToDeduct -= deduct;
+        await tx.finishedGoods.update({
+          where: { id: fg.id },
+          data: {
+            availableQuantity: newAvail,
+            quantity: newQty,
+            status: newAvail <= 0 ? 'OUT_OF_STOCK' : 'AVAILABLE',
+          },
+        });
+        remainingToDeduct -= deduct;
+      }
     }
 
     const afterQtyTotal = Math.max(0, beforeQtyTotal - qty);
@@ -830,6 +940,8 @@ export class InventoryService {
         companyId,
         productId,
         quantity: -qty, // negative for stock-out
+        extraCoverQuantity: -extraCover,
+        extraFrameQuantity: -extraFrame,
         event: eventType,
         actor: userId,
         beforeQuantity: beforeQtyTotal,

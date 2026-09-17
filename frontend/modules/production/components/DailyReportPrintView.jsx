@@ -5,7 +5,13 @@ import { backendFetch } from '../../../lib/backendFetch';
 import Swal from 'sweetalert2';
 import { ArrowLeft, Printer, FileDown, CheckCircle, Clock } from 'lucide-react';
 
-export default function DailyReportPrintView({ reportId, onBack, title, isDispatch = false }) {
+export default function DailyReportPrintView({
+  reportId,
+  onBack,
+  title,
+  isDispatch = false,
+  dispatchType = 'DISPATCH_1',
+}) {
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState(null);
   const printRef = useRef(null);
@@ -14,7 +20,12 @@ export default function DailyReportPrintView({ reportId, onBack, title, isDispat
     if (!reportId) return;
     try {
       setLoading(true);
-      const data = await backendFetch(`/api/backend/production/daily-reports/${reportId}`, { cacheTtlMs: 0 });
+      const endpoint = !isDispatch
+        ? `/api/backend/production/daily-reports/${reportId}`
+        : dispatchType === 'DISPATCH_2'
+        ? `/api/backend/dispatch-2/daily-reports/${reportId}`
+        : `/api/backend/dispatch/daily-reports/${reportId}`;
+      const data = await backendFetch(endpoint, { cacheTtlMs: 0 });
       setReport(data);
     } catch (err) {
       console.error('[DailyReportPrintView] Error fetching report details:', err);

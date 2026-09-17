@@ -115,14 +115,17 @@ export class DispatchDailyReportService {
 
       const totalWeight = coverWeight + frameWeight;
 
-      const isSetProduct = product?.componentType === 'SET';
+      const hasRatios =
+        Number(product?.coversPerSet || 0) > 0 &&
+        Number(product?.framesPerSet || 0) > 0;
+      const isSetProduct = product?.componentType === 'SET' || hasRatios;
       const coversPerSet =
-        isSetProduct && product?.coversPerSet !== undefined && product?.coversPerSet !== null
-          ? Math.max(0, product.coversPerSet)
+        isSetProduct && hasRatios
+          ? Math.max(0, Number(product?.coversPerSet || 0))
           : 1;
       const framesPerSet =
-        isSetProduct && product?.framesPerSet !== undefined && product?.framesPerSet !== null
-          ? Math.max(0, product.framesPerSet)
+        isSetProduct && hasRatios
+          ? Math.max(0, Number(product?.framesPerSet || 0))
           : 1;
 
       const setsFromCovers = coversPerSet > 0 ? Math.floor(coverQty / coversPerSet) : 0;
@@ -130,17 +133,17 @@ export class DispatchDailyReportService {
       const setQty =
         item.setQty !== undefined && item.setQty !== null
           ? Math.max(0, Math.floor(Number(item.setQty)))
-          : (isSetProduct ? Math.min(setsFromCovers, setsFromFrames) : 0);
+          : (isSetProduct && hasRatios ? Math.min(setsFromCovers, setsFromFrames) : (coverQty || frameQty || 0));
 
       const extraCoverQty =
         item.extraCoverQty !== undefined && item.extraCoverQty !== null
           ? Math.max(0, Math.floor(Number(item.extraCoverQty)))
-          : (isSetProduct ? Math.max(0, coverQty - setQty * coversPerSet) : 0);
+          : (isSetProduct && hasRatios ? Math.max(0, coverQty - setQty * coversPerSet) : 0);
 
       const extraFrameQty =
         item.extraFrameQty !== undefined && item.extraFrameQty !== null
           ? Math.max(0, Math.floor(Number(item.extraFrameQty)))
-          : (isSetProduct ? Math.max(0, frameQty - setQty * framesPerSet) : 0);
+          : (isSetProduct && hasRatios ? Math.max(0, frameQty - setQty * framesPerSet) : 0);
 
       totalCovers += coverQty;
       totalFrames += frameQty;
@@ -736,31 +739,55 @@ export class DispatchDailyReportService {
         }
       }
 
-      // Aggregate duplicate product lines before stock deduction
-      const productSetsMap = new Map<string, number>();
+      // Aggregate duplicate product lines before stock deduction (sets and loose components)
+      const productSetsMap = new Map<
+        string,
+        { setQty: number; extraCoverQty: number; extraFrameQty: number }
+      >();
       for (const item of items) {
-        if (item.productId && item.setQty > 0) {
-          const current = productSetsMap.get(item.productId) || 0;
-          productSetsMap.set(
-            item.productId,
-            current + Number(item.setQty || 0),
-          );
+        if (
+          item.productId &&
+          (Number(item.setQty || 0) > 0 ||
+            Number(item.extraCoverQty || 0) > 0 ||
+            Number(item.extraFrameQty || 0) > 0)
+        ) {
+          const current = productSetsMap.get(item.productId) || {
+            setQty: 0,
+            extraCoverQty: 0,
+            extraFrameQty: 0,
+          };
+          productSetsMap.set(item.productId, {
+            setQty: current.setQty + Number(item.setQty || 0),
+            extraCoverQty:
+              current.extraCoverQty + Number(item.extraCoverQty || 0),
+            extraFrameQty:
+              current.extraFrameQty + Number(item.extraFrameQty || 0),
+          });
         }
       }
 
       // Deduct stock for each distinct product line (atomic rollback on any failure)
-      for (const [productId, setQty] of productSetsMap.entries()) {
+      console.log('[DEBUG submitReport productSetsMap]', {
+        reportNo: report.reportNo,
+        companyId,
+        itemsCount: items.length,
+        entries: Array.from(productSetsMap.entries()),
+      });
+      for (const [productId, totals] of productSetsMap.entries()) {
         await this.inventoryService.stockOutFinishedGoods(
           tx,
           companyId,
           productId,
-          setQty,
+          totals.setQty,
           'DISPATCH_REPORT',
           report.id,
           null,
           report.reportNo,
           userId,
           `Dispatch Report submission ${report.reportNo}`,
+          'DISPATCH_OUT',
+          totals.extraCoverQty,
+          totals.extraFrameQty,
         );
       }
 
@@ -825,23 +852,38 @@ export class DispatchDailyReportService {
         });
 
         // Aggregate duplicate product lines before reversal
-        const productSetsMap = new Map<string, number>();
+        const productSetsMap = new Map<
+          string,
+          { setQty: number; extraCoverQty: number; extraFrameQty: number }
+        >();
         for (const item of items) {
-          if (item.productId && item.setQty > 0) {
-            const current = productSetsMap.get(item.productId) || 0;
-            productSetsMap.set(
-              item.productId,
-              current + Number(item.setQty || 0),
-            );
+          if (
+            item.productId &&
+            (Number(item.setQty || 0) > 0 ||
+              Number(item.extraCoverQty || 0) > 0 ||
+              Number(item.extraFrameQty || 0) > 0)
+          ) {
+            const current = productSetsMap.get(item.productId) || {
+              setQty: 0,
+              extraCoverQty: 0,
+              extraFrameQty: 0,
+            };
+            productSetsMap.set(item.productId, {
+              setQty: current.setQty + Number(item.setQty || 0),
+              extraCoverQty:
+                current.extraCoverQty + Number(item.extraCoverQty || 0),
+              extraFrameQty:
+                current.extraFrameQty + Number(item.extraFrameQty || 0),
+            });
           }
         }
 
-        for (const [productId, setQty] of productSetsMap.entries()) {
+        for (const [productId, totals] of productSetsMap.entries()) {
           await this.inventoryService.stockInFinishedGoods(
             tx,
             companyId,
             productId,
-            setQty,
+            totals.setQty,
             'DISPATCH_REPORT_REVERSAL',
             report.id,
             null,
@@ -849,6 +891,8 @@ export class DispatchDailyReportService {
             userId,
             `Stock reversal for reopened dispatch report ${report.reportNo}`,
             'DISPATCH_REVERSAL',
+            totals.extraCoverQty,
+            totals.extraFrameQty,
           );
         }
       }
@@ -916,23 +960,38 @@ export class DispatchDailyReportService {
         });
 
         // Aggregate duplicate product lines before reversal
-        const productSetsMap = new Map<string, number>();
+        const productSetsMap = new Map<
+          string,
+          { setQty: number; extraCoverQty: number; extraFrameQty: number }
+        >();
         for (const item of items) {
-          if (item.productId && item.setQty > 0) {
-            const current = productSetsMap.get(item.productId) || 0;
-            productSetsMap.set(
-              item.productId,
-              current + Number(item.setQty || 0),
-            );
+          if (
+            item.productId &&
+            (Number(item.setQty || 0) > 0 ||
+              Number(item.extraCoverQty || 0) > 0 ||
+              Number(item.extraFrameQty || 0) > 0)
+          ) {
+            const current = productSetsMap.get(item.productId) || {
+              setQty: 0,
+              extraCoverQty: 0,
+              extraFrameQty: 0,
+            };
+            productSetsMap.set(item.productId, {
+              setQty: current.setQty + Number(item.setQty || 0),
+              extraCoverQty:
+                current.extraCoverQty + Number(item.extraCoverQty || 0),
+              extraFrameQty:
+                current.extraFrameQty + Number(item.extraFrameQty || 0),
+            });
           }
         }
 
-        for (const [productId, setQty] of productSetsMap.entries()) {
+        for (const [productId, totals] of productSetsMap.entries()) {
           await this.inventoryService.stockInFinishedGoods(
             tx,
             companyId,
             productId,
-            setQty,
+            totals.setQty,
             'DISPATCH_REPORT_CANCEL',
             report.id,
             null,
@@ -940,6 +999,8 @@ export class DispatchDailyReportService {
             userId,
             `Cancellation reversal of Dispatch Report ${report.reportNo}`,
             'DISPATCH_REVERSAL',
+            totals.extraCoverQty,
+            totals.extraFrameQty,
           );
         }
       }

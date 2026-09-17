@@ -204,8 +204,10 @@ export default function DailyReportHistoryView({
 
   const handleReopenReport = async (reportId) => {
     const confirm = await Swal.fire({
-      title: 'Reopen Daily Production Report?',
-      text: 'This will reverse the finished goods stock posted from this report in the inventory ledger and return the report to REOPENED so it can be edited.',
+      title: isDispatch ? 'Reopen Daily Dispatch Report?' : 'Reopen Daily Production Report?',
+      text: isDispatch
+        ? 'This will restore the finished goods stock deducted by this report in the inventory ledger and return the report to REOPENED so it can be edited.'
+        : 'This will reverse the finished goods stock posted from this report in the inventory ledger and return the report to REOPENED so it can be edited.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#2563eb',
@@ -224,10 +226,15 @@ export default function DailyReportHistoryView({
       if (res) {
         queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock"] });
         queryClient.invalidateQueries({ queryKey: ["finished-goods"] });
+        queryClient.invalidateQueries({ queryKey: ["finished-goods-all-stock-logs"] });
+        queryClient.invalidateQueries({ queryKey: ["dispatch-daily-reports"] });
+        queryClient.invalidateQueries({ queryKey: ["production-daily-reports"] });
         Swal.fire({
           icon: 'success',
           title: 'Report Reopened',
-          text: `Daily Report ${res.reportNo} reopened and posted stock reversed successfully.`
+          text: isDispatch
+            ? `Daily Dispatch Report ${res.reportNo} reopened and deducted stock restored successfully.`
+            : `Daily Report ${res.reportNo} reopened and posted stock reversed successfully.`
         });
         fetchHistory();
       }
@@ -660,7 +667,7 @@ export default function DailyReportHistoryView({
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Report No</th>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Date</th>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Shift</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Supervisor</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>{isDispatch ? 'Executive' : 'Supervisor'}</th>
                 <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Rows</th>
                 <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Covers</th>
                 <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Frames</th>
@@ -728,9 +735,9 @@ export default function DailyReportHistoryView({
                         {report.shift || 'Morning'}
                       </td>
 
-                      {/* Supervisor */}
+                      {/* Supervisor / Executive */}
                       <td style={{ padding: '12px 16px', fontWeight: '600', color: '#334155' }}>
-                        {report.supervisorName || '—'}
+                        {report.dispatchExecutive || report.supervisorName || '—'}
                       </td>
 
                       {/* Rows */}

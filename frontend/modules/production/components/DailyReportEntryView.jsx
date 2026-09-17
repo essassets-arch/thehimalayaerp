@@ -710,7 +710,10 @@ export default function DailyReportEntryView({
       ? Number(row.framesPerSet)
       : null;
 
-    const isCompositionMissing = !!row.productId && (cPerSet === null || fPerSet === null || cPerSet <= 0 || fPerSet <= 0);
+    const isCompositionMissing =
+      !isDispatch &&
+      !!row.productId &&
+      (cPerSet === null || fPerSet === null || cPerSet <= 0 || fPerSet <= 0);
 
     let setQty = 0;
     let extraCoverQty = 0;
@@ -727,6 +730,14 @@ export default function DailyReportEntryView({
 
       extraCoverQty = Math.max(0, coverQty - usedCover);
       extraFrameQty = Math.max(0, frameQty - usedFrame);
+    } else if (isDispatch) {
+      // In dispatch mode, products without cover/frame composition (e.g. trading products) are dispatched 1:1 by entered quantity
+      setQty =
+        row.setQty !== undefined && row.setQty !== '' && Number(row.setQty) > 0
+          ? Number(row.setQty)
+          : (coverQty || frameQty || 0);
+      extraCoverQty = 0;
+      extraFrameQty = 0;
     } else {
       setQty = 0;
       extraCoverQty = coverQty;

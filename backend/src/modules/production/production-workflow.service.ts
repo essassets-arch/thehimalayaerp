@@ -1451,11 +1451,7 @@ export class ProductionWorkflowService {
 
     const fgWhere: any = {};
     if (companyId) {
-      fgWhere.OR = [
-        { product: { companyId } },
-        { product: { companyId: null } },
-        { product: null },
-      ];
+      fgWhere.product = { companyId };
     }
 
     const qcPassedInspections = await this.prisma.qCInspection.findMany({
@@ -1476,15 +1472,13 @@ export class ProductionWorkflowService {
               'READY_FOR_DISPATCH',
               'COMPLETED',
               'QC_APPROVED',
-              'QC_PASSED',
-              'PASSED',
               'CLOSED',
             ],
           },
         },
         {
           productionStatus: {
-            in: ['READY_FOR_DISPATCH', 'COMPLETED', 'QC_PASSED', 'FINISHED'],
+            in: ['READY_FOR_DISPATCH'],
           },
         },
         { qcResult: 'PASS' },
@@ -2161,19 +2155,20 @@ export class ProductionWorkflowService {
       // Opening stock from authoritative opening transaction source (never double-counted)
       const openingStock = openingMap.get(pId) || 0;
 
+      // Dispatch Out: dispatch daily reports or dispatch out transactions
+      const reportDispatchOut = ddr.setQty;
+      const shDispatchReversals = shEvents.get('DISPATCH_REVERSAL') || 0;
+      const netShDispatchOut = Math.max(0, Math.abs(shEvents.get('DISPATCH_OUT') || 0) - shDispatchReversals);
+      const dispatchOut = reportDispatchOut > 0 ? reportDispatchOut : netShDispatchOut;
+
       // Production In: production daily reports (audit source) or finished goods balance (if legacy)
       const productionIn = pdr.setQty > 0
         ? pdr.setQty
-        : (openingStock > 0 ? 0 : fg.quantity);
+        : (openingStock > 0 ? 0 : fg.quantity + dispatchOut);
 
       // Extra Cover and Extra Frame remain strictly separate component balances (never added to finished sets)
       const extraCover = Math.max(0, pdr.extraCoverQty - ddr.extraCoverQty);
       const extraFrame = Math.max(0, pdr.extraFrameQty - ddr.extraFrameQty);
-
-      // Dispatch Out: dispatch daily reports or dispatch out transactions
-      const reportDispatchOut = ddr.setQty;
-      const shDispatchOut = Math.abs(shEvents.get('DISPATCH_OUT') || 0);
-      const dispatchOut = Math.max(reportDispatchOut, shDispatchOut);
 
       // Reserved quantity
       const reservedQty = Math.max(0, fg.reservedQuantity);
