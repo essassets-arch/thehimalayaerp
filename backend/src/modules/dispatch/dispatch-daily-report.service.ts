@@ -115,29 +115,32 @@ export class DispatchDailyReportService {
 
       const totalWeight = coverWeight + frameWeight;
 
-      const coversPerSet = Math.max(1, product?.coversPerSet || 1);
-      const framesPerSet = Math.max(1, product?.framesPerSet || 1);
+      const isSetProduct = product?.componentType === 'SET';
+      const coversPerSet =
+        isSetProduct && product?.coversPerSet !== undefined && product?.coversPerSet !== null
+          ? Math.max(0, product.coversPerSet)
+          : 1;
+      const framesPerSet =
+        isSetProduct && product?.framesPerSet !== undefined && product?.framesPerSet !== null
+          ? Math.max(0, product.framesPerSet)
+          : 1;
 
-      const setsFromCovers = Math.floor(coverQty / coversPerSet);
-      const setsFromFrames =
-        frameQty > 0 ? Math.floor(frameQty / framesPerSet) : 0;
+      const setsFromCovers = coversPerSet > 0 ? Math.floor(coverQty / coversPerSet) : 0;
+      const setsFromFrames = framesPerSet > 0 ? Math.floor(frameQty / framesPerSet) : 0;
       const setQty =
         item.setQty !== undefined && item.setQty !== null
           ? Math.max(0, Math.floor(Number(item.setQty)))
-          : Math.min(setsFromCovers, setsFromFrames);
+          : (isSetProduct ? Math.min(setsFromCovers, setsFromFrames) : 0);
 
       const extraCoverQty =
         item.extraCoverQty !== undefined && item.extraCoverQty !== null
           ? Math.max(0, Math.floor(Number(item.extraCoverQty)))
-          : Math.max(0, coverQty - setQty * coversPerSet);
+          : (isSetProduct ? Math.max(0, coverQty - setQty * coversPerSet) : 0);
 
       const extraFrameQty =
         item.extraFrameQty !== undefined && item.extraFrameQty !== null
           ? Math.max(0, Math.floor(Number(item.extraFrameQty)))
-          : Math.max(
-              0,
-              frameQty - setQty * (framesPerSet > 0 ? framesPerSet : 0),
-            );
+          : (isSetProduct ? Math.max(0, frameQty - setQty * framesPerSet) : 0);
 
       totalCovers += coverQty;
       totalFrames += frameQty;

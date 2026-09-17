@@ -19,7 +19,7 @@ import { backendFetch } from '../../../lib/backendFetch';
 import { hasPermission } from '../../../services/permissions/permissionService';
 import DataTable from '../../../shared/components/DataTable';
 import StatusBadge from '../../../shared/components/StatusBadge';
-import { ChevronLeft, ChevronRight, Search, Download, Edit3, Trash2, Box, Package, Plus, ShieldAlert, ArrowRight, X, User, BarChart2, Activity, Settings, Truck, ClipboardList, CheckCircle2, Clock, Upload, ArrowLeft, ClipboardCheck, AlertTriangle, Pencil, Layers, BarChart3, TrendingUp, Percent, AlertCircle, AlertOctagon, Loader2, FileText, DollarSign, RefreshCw, ShieldCheck, Filter } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Download, Edit3, Trash2, Box, Package, Plus, ShieldAlert, ArrowRight, X, User, BarChart2, Activity, Settings, Truck, ClipboardList, CheckCircle2, Clock, Upload, ArrowLeft, ClipboardCheck, AlertTriangle, Pencil, Layers, BarChart3, TrendingUp, Percent, AlertCircle, AlertOctagon, Loader2, FileText, DollarSign, RefreshCw, ShieldCheck, Filter, Lock, Eye } from 'lucide-react';
 import ProductMasterUI from '../../../shared/components/ProductMasterUI';
 import CategoryMasterUI from '../../../shared/components/CategoryMasterUI';
 import OrderDetailsModal from '../../../shared/components/OrderDetailsModal';
@@ -47,6 +47,7 @@ import DailyReportHistoryView from '../../production/components/DailyReportHisto
 import AttendanceView from '../../../shared/components/AttendanceView';
 import CustomerComplaintManagement from '../../../components/CustomerComplaintManagement';
 import HRSOPsView from '../../hr/components/HRSOPsView';
+import FinishedGoodsStockView from '../../../components/FinishedGoodsStockView';
 
 const isMaterialMatch = (invName, reqName) => {
   const inv = (invName || '').toLowerCase();
@@ -506,8 +507,10 @@ export default function PlantHeadPortal({ overrideView } = {}) {
         const combined = Array.isArray(phData) && phData.length ? phData : (Array.isArray(inspData) ? inspData : []);
         setDirectQCFailures(combined);
       }).catch(console.error);
+    } else if (currentView === 'add-material' || currentView === 'edit-material') {
+      navigate.replace('/plant-head/raw-inventory');
     }
-  }, [currentView]);
+  }, [currentView, navigate]);
 
   const [backendWorkOrders, setBackendWorkOrders] = useState([]);
 
@@ -4804,21 +4807,17 @@ export default function PlantHeadPortal({ overrideView } = {}) {
         {/* Module Header Area */}
         <div className="m-theme-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h2 className="m-theme-title">Raw Inventory Management</h2>
-            <p className="m-theme-subtitle">
-              Roster, register and restock raw materials storage categories
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h2 className="m-theme-title" style={{ margin: 0 }}>Raw Inventory Management</h2>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', padding: '4px 10px', background: '#FEF3C7', color: '#92400E', border: '1px solid #FCD34D', borderRadius: '6px', fontWeight: 600 }}>
+                <Lock size={13} /> Read Only View
+              </span>
+            </div>
+            <p className="m-theme-subtitle" style={{ marginTop: '4px' }}>
+              Executive read-only overview of raw materials inventory, stock balances, and reorder levels
             </p>
           </div>
           <div className="m-theme-actions">
-            <button
-              className="m-theme-btn-primary"
-              onClick={() => {
-                resetAddMaterialForm();
-                navigate.push('/plant-head/add-material');
-              }}
-            >
-              <Plus size={16} /> Add Material
-            </button>
             <button
               className="m-theme-btn-secondary"
               onClick={handleExport}
@@ -4932,7 +4931,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                 <th style={{ width: '130px', minWidth: '130px', textAlign: 'right', whiteSpace: 'nowrap' }}>Current Stock</th>
                 <th style={{ width: '130px', minWidth: '130px', textAlign: 'right', whiteSpace: 'nowrap' }}>Minimum Stock</th>
                 <th style={{ width: '140px', minWidth: '140px', textAlign: 'center', whiteSpace: 'nowrap' }}>Status</th>
-                <th style={{ width: '230px', minWidth: '230px', textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
+                <th style={{ width: '110px', minWidth: '110px', textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -4990,41 +4989,32 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                       <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <span className={`m-theme-badge m-theme-badge-${badgeColor}`}>{statusText}</span>
                       </td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '230px', width: '230px' }}>
-                        <div style={{ display: 'inline-flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
-                          <button
-                            className="m-theme-btn-action-green"
-                            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-                            onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }}
-                            title="Stock In"
-                          >
-                            + In
-                          </button>
-                          <button
-                            className="m-theme-btn-action-gray"
-                            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-                            onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }}
-                            title="Stock Out"
-                          >
-                            - Out
-                          </button>
-                          <button
-                            className="m-theme-btn-action-gray"
-                            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-                            onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }}
-                            title="Adjust Stock"
-                          >
-                            Adj
-                          </button>
-                          <button
-                            className="m-theme-btn-action-gray"
-                            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-                            onClick={(e) => { e.stopPropagation(); navigate.push(`/plant-head/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`); }}
-                            title="Edit Material"
-                          >
-                            Edit
-                          </button>
-                        </div>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap', minWidth: '110px', width: '110px' }}>
+                        <button
+                          type="button"
+                          className="m-theme-btn-action-gray"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '5px 12px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: '#0f766e',
+                            background: '#f0fdf4',
+                            border: '1px solid #bbf7d0',
+                            cursor: 'pointer'
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedInventoryItem(item);
+                            setShowDetailDrawer(true);
+                          }}
+                          title="View Details & Ledger"
+                        >
+                          <Eye size={13} /> View
+                        </button>
                       </td>
                     </tr>
                   );
@@ -5084,42 +5074,34 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                     </div>
                   </div>
 
-                  {/* Bottom Row: 4 Action Buttons */}
-                  <div className="raw-inv-card-actions-row">
+                  {/* Bottom Row: Read Only View Details Button */}
+                  <div style={{ marginTop: '10px', width: '100%', boxSizing: 'border-box' }}>
                     <button
                       type="button"
-                      className="m-theme-btn-action-green raw-inv-action-btn raw-inv-btn-in"
-                      onClick={(e) => { e.stopPropagation(); handleQuickStockIn(item); }}
-                      title="Stock In"
-                    >
-                      + In
-                    </button>
-                    <button
-                      type="button"
-                      className="m-theme-btn-action-gray raw-inv-action-btn"
-                      onClick={(e) => { e.stopPropagation(); handleQuickStockOut(item); }}
-                      title="Stock Out"
-                    >
-                      - Out
-                    </button>
-                    <button
-                      type="button"
-                      className="m-theme-btn-action-gray raw-inv-action-btn"
-                      onClick={(e) => { e.stopPropagation(); handleQuickAdjust(item); }}
-                      title="Adjust Stock"
-                    >
-                      Adj
-                    </button>
-                    <button
-                      type="button"
-                      className="m-theme-btn-action-gray raw-inv-action-btn"
+                      style={{
+                        width: '100%',
+                        height: '38px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '0 16px',
+                        background: '#f0fdf4',
+                        border: '1px solid #bbf7d0',
+                        borderRadius: '8px',
+                        color: '#0f766e',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        boxSizing: 'border-box'
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate.push(`/plant-head/edit-material?id=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.material)}`);
+                        setSelectedInventoryItem(item);
+                        setShowDetailDrawer(true);
                       }}
-                      title="Edit Material"
                     >
-                      Edit
+                      <Eye size={15} /> View Details & Ledger
                     </button>
                   </div>
                 </div>
@@ -5239,20 +5221,39 @@ export default function PlantHeadPortal({ overrideView } = {}) {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{
+                    padding: '10px 14px',
+                    background: '#FEF3C7',
+                    border: '1px solid #FCD34D',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#92400E',
+                    textAlign: 'center'
+                  }}>
+                    <Lock size={14} style={{ flexShrink: 0 }} /> Read-only ledger view. Inventory adjustments are handled by Store Department.
+                  </div>
                   <button
-                    className="action-btn"
-                    style={{ flex: 1, padding: '10px', background: 'var(--color-primary)', border: 'none', borderRadius: '8px', fontWeight: 'bold', color: '#000', cursor: 'pointer' }}
-                    onClick={() => handleQuickStockIn(item)}
+                    type="button"
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      background: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#475569',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setShowDetailDrawer(false)}
                   >
-                    + Stock In
-                  </button>
-                  <button
-                    className="action-btn btn-outline"
-                    style={{ flex: 1, padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
-                    onClick={() => handleQuickStockOut(item)}
-                  >
-                    - Issue Out
+                    Close Details
                   </button>
                 </div>
               </div>
@@ -5961,6 +5962,9 @@ export default function PlantHeadPortal({ overrideView } = {}) {
       {currentView === 'qc-failures' && renderQCFailures()}
       {currentView === 'products' && renderProducts()}
       {currentView === 'categories' && renderCategories()}
+      {(currentView === 'all-stock' || currentView === 'finished-goods') && (
+        <FinishedGoodsStockView readOnly={true} role="plant-head" />
+      )}
       {(currentView === 'products-add' || currentView === 'products-edit') && renderProductFormPage()}
       {currentView === 'raw-inventory' && renderRawInventory()}
       {currentView === 'add-material' && renderAddMaterialPage()}

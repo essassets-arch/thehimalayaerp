@@ -64,6 +64,32 @@ export class ProductsService {
       }
     }
 
+    const rawComponentType = dto.componentType || dto.component_type;
+    let componentType = 'STANDARD';
+    if (rawComponentType) {
+      const upper = String(rawComponentType).trim().toUpperCase();
+      if (['SET', 'COVER', 'FRAME', 'STANDARD'].includes(upper)) {
+        componentType = upper;
+      }
+    }
+
+    const rawCovers = dto.coversPerSet !== undefined ? dto.coversPerSet : dto.covers_per_set;
+    const rawFrames = dto.framesPerSet !== undefined ? dto.framesPerSet : dto.frames_per_set;
+    const rawSetRatio = dto.setRatio !== undefined ? dto.setRatio : dto.set_ratio;
+
+    const coversPerSet =
+      rawCovers !== undefined && rawCovers !== null
+        ? Math.max(0, Math.floor(Number(rawCovers)))
+        : 1;
+    const framesPerSet =
+      rawFrames !== undefined && rawFrames !== null
+        ? Math.max(0, Math.floor(Number(rawFrames)))
+        : 1;
+    const setRatio =
+      rawSetRatio !== undefined && rawSetRatio !== null
+        ? Math.max(0, Math.floor(Number(rawSetRatio)))
+        : 1;
+
     const randomId = crypto.randomBytes(5).toString('hex');
     return this.prisma.product.create({
       data: {
@@ -84,6 +110,10 @@ export class ProductsService {
         unit,
         unitPrice: dto.unitPrice || 0,
         minimumStock: dto.minimumStock || 0,
+        componentType,
+        coversPerSet,
+        framesPerSet,
+        setRatio,
       },
     });
   }
@@ -522,6 +552,29 @@ export class ProductsService {
     if (dto.storageLocation !== undefined || dto.storage_location !== undefined)
       updateData.storageLocation = dto.storageLocation || dto.storage_location;
     if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
+    if (dto.componentType !== undefined || dto.component_type !== undefined) {
+      const rawComp = dto.componentType || dto.component_type;
+      let comp = 'STANDARD';
+      if (rawComp) {
+        const upper = String(rawComp).trim().toUpperCase();
+        if (['SET', 'COVER', 'FRAME', 'STANDARD'].includes(upper)) {
+          comp = upper;
+        }
+      }
+      updateData.componentType = comp;
+    }
+    if (dto.coversPerSet !== undefined || dto.covers_per_set !== undefined) {
+      const c = dto.coversPerSet !== undefined ? dto.coversPerSet : dto.covers_per_set;
+      updateData.coversPerSet = c !== null && c !== undefined ? Math.max(0, Math.floor(Number(c))) : 1;
+    }
+    if (dto.framesPerSet !== undefined || dto.frames_per_set !== undefined) {
+      const f = dto.framesPerSet !== undefined ? dto.framesPerSet : dto.frames_per_set;
+      updateData.framesPerSet = f !== null && f !== undefined ? Math.max(0, Math.floor(Number(f))) : 1;
+    }
+    if (dto.setRatio !== undefined || dto.set_ratio !== undefined) {
+      const s = dto.setRatio !== undefined ? dto.setRatio : dto.set_ratio;
+      updateData.setRatio = s !== null && s !== undefined ? Math.max(0, Math.floor(Number(s))) : 1;
+    }
 
     return this.prisma.product.update({
       where: { id: existing.id },

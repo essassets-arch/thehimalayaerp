@@ -403,6 +403,8 @@ model Product {
   frameUnitWeight             Decimal?                     @db.Decimal(10, 3)
   coversPerSet                Int?                         @default(1)
   framesPerSet                Int?                         @default(1)
+  setRatio                    Int?                         @default(1)
+  componentType               String?                      @default("STANDARD")
   dailyReportItems            ProductionDailyReportItem[]
   dispatchReportItems         DispatchDailyReportItem[]
   stockHistories              StockHistory[]

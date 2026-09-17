@@ -88,6 +88,7 @@ export const navigationConfig = {
 
     { id: 'products', label: 'Products', icon: Package, path: '/plant-head/products', group: 'Catalog Management' },
     { id: 'categories', label: 'Categories', icon: Grid, path: '/plant-head/categories', group: 'Catalog Management' },
+    { id: 'all-stock', label: 'All Stock', icon: Boxes, path: '/plant-head/all-stock', group: 'Catalog Management' },
     { id: 'material-approvals', label: 'Material Approvals', icon: FileCheck, path: '/plant-head/material-approvals' },
     { id: 'indent-approvals', label: 'Indent Approvals', icon: CheckCircle, path: '/plant-head/indent-approvals' },
     { id: 'purchase-approvals', label: 'Purchase Approvals', icon: FileCheck, path: '/plant-head/purchase-approvals' },

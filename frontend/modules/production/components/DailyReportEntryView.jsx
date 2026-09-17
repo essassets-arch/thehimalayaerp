@@ -504,8 +504,10 @@ export default function DailyReportEntryView({
       extraCoverQty: 0,
       extraFrameQty: 0,
       totalWeight: 0,
-      coversPerSet: 1,
-      framesPerSet: 1,
+      componentType: 'STANDARD',
+      coversPerSet: null,
+      framesPerSet: null,
+      setRatio: null,
       remarks: ''
     }
   ]);
@@ -570,8 +572,10 @@ export default function DailyReportEntryView({
             capacity: p.capacity || specs.capacity || '',
             coverUnitWeight: Number(p.coverUnitWeight || p.weight || 0),
             frameUnitWeight: Number(p.frameUnitWeight || 0),
-            coversPerSet: p.coversPerSet || 1,
-            framesPerSet: p.framesPerSet || 1,
+            componentType: (p.componentType || p.component_type || 'STANDARD').toUpperCase(),
+            coversPerSet: p.coversPerSet !== undefined && p.coversPerSet !== null ? Number(p.coversPerSet) : (p.covers_per_set !== undefined && p.covers_per_set !== null ? Number(p.covers_per_set) : null),
+            framesPerSet: p.framesPerSet !== undefined && p.framesPerSet !== null ? Number(p.framesPerSet) : (p.frames_per_set !== undefined && p.frames_per_set !== null ? Number(p.frames_per_set) : null),
+            setRatio: p.setRatio !== undefined && p.setRatio !== null ? Number(p.setRatio) : (p.set_ratio !== undefined && p.set_ratio !== null ? Number(p.set_ratio) : null),
           };
         })
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -640,8 +644,10 @@ export default function DailyReportEntryView({
             weightOverrideReason: item.weightOverrideReason || '',
             setQty: item.setQty || 0,
             totalWeight: Number(item.totalWeight || 0),
-            coversPerSet: item.product?.coversPerSet || 1,
-            framesPerSet: item.product?.framesPerSet || 1,
+            componentType: (item.product?.componentType || 'STANDARD').toUpperCase(),
+            coversPerSet: item.product?.coversPerSet !== undefined && item.product?.coversPerSet !== null ? Number(item.product.coversPerSet) : null,
+            framesPerSet: item.product?.framesPerSet !== undefined && item.product?.framesPerSet !== null ? Number(item.product.framesPerSet) : null,
+            setRatio: item.product?.setRatio !== undefined && item.product?.setRatio !== null ? Number(item.product.setRatio) : null,
             remarks: item.remarks || ''
           }));
           setRows(loadedRows);
@@ -696,23 +702,36 @@ export default function DailyReportEntryView({
 
     const totalWeight = coverWeight + frameWeight;
 
-    const coversPerSet = Math.max(1, parseFloat(row.coversPerSet) || 1);
-    const framesPerSet = row.framesPerSet !== undefined && row.framesPerSet !== null ? parseFloat(row.framesPerSet) : 1;
+    // Product composition: Cover, Frame
+    const cPerSet = row.coversPerSet !== undefined && row.coversPerSet !== null
+      ? Number(row.coversPerSet)
+      : null;
+    const fPerSet = row.framesPerSet !== undefined && row.framesPerSet !== null
+      ? Number(row.framesPerSet)
+      : null;
 
-    // Set is manually entered by the operator - NEVER derived from Cover or Frame
-    const rawSet = (row.setQty !== '' && row.setQty !== null && row.setQty !== undefined) 
-      ? Math.max(0, parseFloat(row.setQty) || 0) 
-      : 0;
-    const setQty = row.setQty === '' ? '' : rawSet;
-    const setQtyNum = typeof setQty === 'number' ? setQty : (parseFloat(setQty) || 0);
+    const isCompositionMissing = !!row.productId && (cPerSet === null || fPerSet === null || cPerSet <= 0 || fPerSet <= 0);
 
-    const requiredCover = setQtyNum * coversPerSet;
-    const requiredFrame = setQtyNum * (framesPerSet > 0 ? framesPerSet : 0);
-    const extraCoverQty = Math.max(0, Number((coverQty - requiredCover).toFixed(4)));
-    const extraFrameQty = Math.max(0, Number((frameQty - requiredFrame).toFixed(4)));
+    let setQty = 0;
+    let extraCoverQty = 0;
+    let extraFrameQty = 0;
 
-    const isCoverInsufficient = coverQty < requiredCover;
-    const isFrameInsufficient = frameQty < requiredFrame;
+    if (cPerSet > 0 && fPerSet > 0) {
+      // Automatic calculation of completed Sets from actual Cover and Frame inputs
+      const coverBasedSets = Math.floor(coverQty / cPerSet);
+      const frameBasedSets = Math.floor(frameQty / fPerSet);
+      setQty = Math.min(coverBasedSets, frameBasedSets);
+
+      const usedCover = setQty * cPerSet;
+      const usedFrame = setQty * fPerSet;
+
+      extraCoverQty = Math.max(0, coverQty - usedCover);
+      extraFrameQty = Math.max(0, frameQty - usedFrame);
+    } else {
+      setQty = 0;
+      extraCoverQty = coverQty;
+      extraFrameQty = frameQty;
+    }
 
     return {
       ...row,
@@ -724,10 +743,7 @@ export default function DailyReportEntryView({
       setQty,
       extraCoverQty,
       extraFrameQty,
-      requiredCover,
-      requiredFrame,
-      isCoverInsufficient,
-      isFrameInsufficient
+      isCompositionMissing
     };
   };
 
@@ -748,8 +764,15 @@ export default function DailyReportEntryView({
       const capacity = selectedProd.capacity || specs.capacity || curRow.capacity || '';
       const coverUnitWeight = Number(selectedProd.coverUnitWeight || selectedProd.weight || 0);
       const frameUnitWeight = Number(selectedProd.frameUnitWeight || 0);
-      const coversPerSet = selectedProd.coversPerSet || 1;
-      const framesPerSet = selectedProd.framesPerSet || 1;
+      const coversPerSet = selectedProd.coversPerSet !== undefined && selectedProd.coversPerSet !== null
+        ? Number(selectedProd.coversPerSet)
+        : (selectedProd.covers_per_set !== undefined && selectedProd.covers_per_set !== null ? Number(selectedProd.covers_per_set) : null);
+      const framesPerSet = selectedProd.framesPerSet !== undefined && selectedProd.framesPerSet !== null
+        ? Number(selectedProd.framesPerSet)
+        : (selectedProd.frames_per_set !== undefined && selectedProd.frames_per_set !== null ? Number(selectedProd.frames_per_set) : null);
+      const setRatio = selectedProd.setRatio !== undefined && selectedProd.setRatio !== null
+        ? Number(selectedProd.setRatio)
+        : (selectedProd.set_ratio !== undefined && selectedProd.set_ratio !== null ? Number(selectedProd.set_ratio) : null);
 
       const newRow = calculateRowValues({
         ...curRow,
@@ -760,7 +783,8 @@ export default function DailyReportEntryView({
         coverUnitWeight,
         frameUnitWeight,
         coversPerSet,
-        framesPerSet
+        framesPerSet,
+        setRatio
       });
 
       updated[rowIndex] = newRow;
@@ -816,9 +840,36 @@ export default function DailyReportEntryView({
       const updated = [...prevRows];
       const curRow = updated[rowIndex];
       const val = value === '' ? '' : Math.max(0, parseFloat(value) || 0);
+      const cPerSet = curRow.coversPerSet !== undefined && curRow.coversPerSet !== null ? Math.max(0, parseFloat(curRow.coversPerSet)) : 0;
+      const fPerSet = curRow.framesPerSet !== undefined && curRow.framesPerSet !== null ? Math.max(0, parseFloat(curRow.framesPerSet)) : 0;
+      const sRatio = curRow.setRatio !== undefined && curRow.setRatio !== null && parseFloat(curRow.setRatio) > 0 ? parseFloat(curRow.setRatio) : 1;
+      const hasComposition = cPerSet > 0 || fPerSet > 0;
+
+      let nextCover = curRow.coverQty;
+      let nextFrame = curRow.frameQty;
+
+      if (hasComposition && val !== '') {
+        const prevSet = parseFloat(curRow.setQty) || 0;
+        const prevReqC = (prevSet / sRatio) * cPerSet;
+        const prevReqF = (prevSet / sRatio) * fPerSet;
+        const curCover = parseFloat(curRow.coverQty) || 0;
+        const curFrame = parseFloat(curRow.frameQty) || 0;
+        const extraC = Math.max(0, curCover - prevReqC);
+        const extraF = Math.max(0, curFrame - prevReqF);
+
+        // If cover/frame was 0, uninitialized, or matched to previous set:
+        if (curCover === 0 || curCover === prevReqC || curRow.isSetDriven) {
+          nextCover = ((val / sRatio) * cPerSet) + extraC;
+          nextFrame = ((val / sRatio) * fPerSet) + extraF;
+        }
+      }
+
       const newRow = calculateRowValues({
         ...curRow,
-        setQty: val
+        setQty: val,
+        coverQty: nextCover,
+        frameQty: nextFrame,
+        isSetDriven: true
       });
       updated[rowIndex] = newRow;
       return updated;
@@ -833,7 +884,11 @@ export default function DailyReportEntryView({
       if (field === 'coverQty' || field === 'frameQty') {
         formattedValue = value === '' ? '' : Math.max(0, parseInt(value) || 0);
       }
-      const curRow = { ...updated[rowIndex], [field]: formattedValue };
+      const curRow = { 
+        ...updated[rowIndex], 
+        [field]: formattedValue,
+        isSetDriven: field === 'coverQty' || field === 'frameQty' ? false : updated[rowIndex].isSetDriven
+      };
       updated[rowIndex] = calculateRowValues(curRow);
       return updated;
     });
@@ -862,8 +917,9 @@ export default function DailyReportEntryView({
         extraCoverQty: 0,
         extraFrameQty: 0,
         totalWeight: 0,
-        coversPerSet: 1,
-        framesPerSet: 1,
+        componentType: 'STANDARD',
+        coversPerSet: null,
+        framesPerSet: null,
         remarks: ''
       }
     ]);
@@ -1101,32 +1157,17 @@ export default function DailyReportEntryView({
       return;
     }
 
-    // Authoritative component recipe sufficiency check before submission
+    // Check for missing composition before submission
     if (!isDispatch) {
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (!r.productId) continue;
-        const coversPerSet = Math.max(1, parseFloat(r.coversPerSet) || 1);
-        const framesPerSet = r.framesPerSet !== undefined && r.framesPerSet !== null ? parseFloat(r.framesPerSet) : 1;
-        const setQty = parseFloat(r.setQty) || 0;
-        const coverQty = parseFloat(r.coverQty) || 0;
-        const frameQty = parseFloat(r.frameQty) || 0;
-        const requiredCover = setQty * coversPerSet;
-        const requiredFrame = setQty * framesPerSet;
 
-        if (coverQty < requiredCover) {
+        if (r.isCompositionMissing) {
           Swal.fire({
             icon: 'error',
-            title: 'Component Quantity Insufficient',
-            text: `Line item #${i + 1}: Cover quantity (${coverQty}) is less than required (${requiredCover}) for ${setQty} set(s) [Recipe: ${coversPerSet} cover(s)/set]. Please adjust Cover quantity or Set count.`
-          });
-          return;
-        }
-        if (frameQty < requiredFrame) {
-          Swal.fire({
-            icon: 'error',
-            title: 'Component Quantity Insufficient',
-            text: `Line item #${i + 1}: Frame quantity (${frameQty}) is less than required (${requiredFrame}) for ${setQty} set(s) [Recipe: ${framesPerSet} frame(s)/set]. Please adjust Frame quantity or Set count.`
+            title: 'Missing Product Composition',
+            text: `Line item #${i + 1} (${r.size || 'Product'}): Missing Cover / Frame composition in Product Master. Please configure Cover and Frame quantities in Product Master before producing this item.`
           });
           return;
         }
@@ -1370,6 +1411,7 @@ export default function DailyReportEntryView({
         weightOverrideReason: '',
         setQty: 0,
         totalWeight: 0,
+        componentType: 'STANDARD',
         coversPerSet: 1,
         framesPerSet: 1,
         remarks: ''
@@ -1393,8 +1435,15 @@ export default function DailyReportEntryView({
         const firstProd = selectedList[0];
         const coverUnitWeight = Number(firstProd.coverUnitWeight || firstProd.weight || 0);
         const frameUnitWeight = Number(firstProd.frameUnitWeight || 0);
-        const coversPerSet = firstProd.coversPerSet || 1;
-        const framesPerSet = firstProd.framesPerSet || 1;
+        const coversPerSet = firstProd.coversPerSet !== undefined && firstProd.coversPerSet !== null
+          ? Number(firstProd.coversPerSet)
+          : (firstProd.covers_per_set !== undefined && firstProd.covers_per_set !== null ? Number(firstProd.covers_per_set) : null);
+        const framesPerSet = firstProd.framesPerSet !== undefined && firstProd.framesPerSet !== null
+          ? Number(firstProd.framesPerSet)
+          : (firstProd.frames_per_set !== undefined && firstProd.frames_per_set !== null ? Number(firstProd.frames_per_set) : null);
+        const setRatio = firstProd.setRatio !== undefined && firstProd.setRatio !== null
+          ? Number(firstProd.setRatio)
+          : (firstProd.set_ratio !== undefined && firstProd.set_ratio !== null ? Number(firstProd.set_ratio) : null);
 
         nextRows[0] = calculateRowValues({
           ...nextRows[0],
@@ -1405,7 +1454,8 @@ export default function DailyReportEntryView({
           coverUnitWeight,
           frameUnitWeight,
           coversPerSet,
-          framesPerSet
+          framesPerSet,
+          setRatio
         });
         startIdx = 1;
       }
@@ -1414,8 +1464,15 @@ export default function DailyReportEntryView({
         const prod = selectedList[i];
         const coverUnitWeight = Number(prod.coverUnitWeight || prod.weight || 0);
         const frameUnitWeight = Number(prod.frameUnitWeight || 0);
-        const coversPerSet = prod.coversPerSet || 1;
-        const framesPerSet = prod.framesPerSet || 1;
+        const coversPerSet = prod.coversPerSet !== undefined && prod.coversPerSet !== null
+          ? Number(prod.coversPerSet)
+          : (prod.covers_per_set !== undefined && prod.covers_per_set !== null ? Number(prod.covers_per_set) : null);
+        const framesPerSet = prod.framesPerSet !== undefined && prod.framesPerSet !== null
+          ? Number(prod.framesPerSet)
+          : (prod.frames_per_set !== undefined && prod.frames_per_set !== null ? Number(prod.frames_per_set) : null);
+        const setRatio = prod.setRatio !== undefined && prod.setRatio !== null
+          ? Number(prod.setRatio)
+          : (prod.set_ratio !== undefined && prod.set_ratio !== null ? Number(prod.set_ratio) : null);
 
         const newRow = calculateRowValues({
           id: `row-${Date.now()}-${i}`,
@@ -1436,6 +1493,7 @@ export default function DailyReportEntryView({
           totalWeight: 0,
           coversPerSet,
           framesPerSet,
+          setRatio,
           remarks: ''
         });
         nextRows.push(newRow);
@@ -2295,28 +2353,26 @@ export default function DailyReportEntryView({
                     gap: '8px'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ fontSize: '11px', fontWeight: '800', color: '#059669' }}>Sets:</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={row.setQty}
-                          disabled={isReadOnly}
-                          onChange={(e) => handleSetQtyChange(index, e.target.value)}
-                          className="form-input"
-                          style={{
-                            width: '65px',
-                            margin: 0,
-                            padding: '3px 6px',
-                            fontWeight: '800',
-                            fontSize: '12.5px',
-                            textAlign: 'right',
+                        {row.isCompositionMissing ? (
+                          <span style={{ fontSize: '10px', fontWeight: '800', color: '#dc2626', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>
+                            ⚠️ Missing Composition
+                          </span>
+                        ) : (
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            fontWeight: '900',
+                            fontSize: '13px',
                             color: '#059669',
-                            background: 'rgba(16, 185, 129, 0.08)',
-                            borderColor: row.isCoverInsufficient || row.isFrameInsufficient ? '#ef4444' : 'rgba(16, 185, 129, 0.3)'
-                          }}
-                        />
+                            background: 'rgba(16, 185, 129, 0.12)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)'
+                          }}>
+                            {row.setQty || 0} <span style={{ fontSize: '9px', fontWeight: '800', color: '#059669', opacity: 0.85 }}>(AUTO)</span>
+                          </span>
+                        )}
                       </div>
                       {Number(row.extraCoverQty) > 0 && (
                         <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#2563eb', background: 'rgba(37, 99, 235, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
@@ -2326,16 +2382,6 @@ export default function DailyReportEntryView({
                       {Number(row.extraFrameQty) > 0 && (
                         <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#7c3aed', background: 'rgba(124, 58, 237, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
                           +{row.extraFrameQty} Extra Frm
-                        </span>
-                      )}
-                      {row.isCoverInsufficient && (
-                        <span style={{ fontSize: '10px', fontWeight: '800', color: '#dc2626', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>
-                          ⚠️ Cover &lt; {row.requiredCover} req
-                        </span>
-                      )}
-                      {row.isFrameInsufficient && (
-                        <span style={{ fontSize: '10px', fontWeight: '800', color: '#dc2626', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>
-                          ⚠️ Frame &lt; {row.requiredFrame} req
                         </span>
                       )}
                     </div>
@@ -2521,25 +2567,41 @@ export default function DailyReportEntryView({
 
                     {/* Set Qty */}
                     <td data-label="SET" style={{ padding: '10px 14px', textAlign: 'right' }}>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={row.setQty}
-                        disabled={isReadOnly}
-                        onChange={(e) => handleSetQtyChange(index, e.target.value)}
-                        className="form-input"
-                        style={{
-                          width: '100%',
-                          margin: 0,
-                          textAlign: 'right',
-                          fontWeight: '900',
-                          fontSize: '13px',
-                          color: row.isCoverInsufficient || row.isFrameInsufficient ? '#dc2626' : '#059669',
-                          background: row.isCoverInsufficient || row.isFrameInsufficient ? '#fee2e2' : 'rgba(16, 185, 129, 0.06)',
-                          borderColor: row.isCoverInsufficient || row.isFrameInsufficient ? '#ef4444' : 'rgba(16, 185, 129, 0.3)'
-                        }}
-                      />
+                      {row.isCompositionMissing ? (
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          fontWeight: '800',
+                          fontSize: '11px',
+                          color: '#dc2626',
+                          background: '#fee2e2',
+                          border: '1px solid #fca5a5',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          ⚠️ Missing Composition
+                        </span>
+                      ) : (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            fontWeight: '900',
+                            fontSize: '13.5px',
+                            color: '#059669',
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            border: '1.5px solid rgba(16, 185, 129, 0.35)',
+                            minWidth: '42px',
+                            textAlign: 'center'
+                          }}>
+                            {row.setQty || 0}
+                          </span>
+                          <span style={{ fontSize: '10px', fontWeight: '800', color: '#059669', background: '#d1fae5', padding: '1px 5px', borderRadius: '4px' }}>
+                            AUTO
+                          </span>
+                        </div>
+                      )}
                     </td>
 
                     {/* Extra Cover */}
@@ -2550,11 +2612,11 @@ export default function DailyReportEntryView({
                         borderRadius: '6px',
                         fontWeight: '800',
                         fontSize: '12px',
-                        background: row.isCoverInsufficient ? '#fee2e2' : Number(row.extraCoverQty || 0) > 0 ? 'rgba(37, 99, 235, 0.1)' : '#f8fafc',
-                        color: row.isCoverInsufficient ? '#dc2626' : Number(row.extraCoverQty || 0) > 0 ? '#2563eb' : '#94a3b8',
-                        border: row.isCoverInsufficient ? '1px solid #fca5a5' : Number(row.extraCoverQty || 0) > 0 ? '1px solid #bfdbfe' : '1px solid #e2e8f0'
+                        background: Number(row.extraCoverQty || 0) > 0 ? 'rgba(37, 99, 235, 0.1)' : '#f8fafc',
+                        color: Number(row.extraCoverQty || 0) > 0 ? '#2563eb' : '#94a3b8',
+                        border: Number(row.extraCoverQty || 0) > 0 ? '1px solid #bfdbfe' : '1px solid #e2e8f0'
                       }}>
-                        {row.isCoverInsufficient ? `Short (-${row.requiredCover - row.coverQty})` : Number(row.extraCoverQty || 0) > 0 ? `+${row.extraCoverQty}` : '0'}
+                        {Number(row.extraCoverQty || 0) > 0 ? `+${row.extraCoverQty}` : '0'}
                       </span>
                     </td>
 
@@ -2566,11 +2628,11 @@ export default function DailyReportEntryView({
                         borderRadius: '6px',
                         fontWeight: '800',
                         fontSize: '12px',
-                        background: row.isFrameInsufficient ? '#fee2e2' : Number(row.extraFrameQty || 0) > 0 ? 'rgba(124, 58, 237, 0.1)' : '#f8fafc',
-                        color: row.isFrameInsufficient ? '#dc2626' : Number(row.extraFrameQty || 0) > 0 ? '#7c3aed' : '#94a3b8',
-                        border: row.isFrameInsufficient ? '1px solid #fca5a5' : Number(row.extraFrameQty || 0) > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0'
+                        background: Number(row.extraFrameQty || 0) > 0 ? 'rgba(124, 58, 237, 0.1)' : '#f8fafc',
+                        color: Number(row.extraFrameQty || 0) > 0 ? '#7c3aed' : '#94a3b8',
+                        border: Number(row.extraFrameQty || 0) > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0'
                       }}>
-                        {row.isFrameInsufficient ? `Short (-${row.requiredFrame - row.frameQty})` : Number(row.extraFrameQty || 0) > 0 ? `+${row.extraFrameQty}` : '0'}
+                        {Number(row.extraFrameQty || 0) > 0 ? `+${row.extraFrameQty}` : '0'}
                       </span>
                     </td>
 

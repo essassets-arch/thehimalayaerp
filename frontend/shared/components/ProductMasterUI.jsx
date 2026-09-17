@@ -51,7 +51,10 @@ export default function ProductMasterUI({ role }) {
     id: null,
     product_name: '',
     product_code: '',
-    product_type: 'Manufactured', // Manufactured, Trading, Service
+    product_type: 'MANUFACTURING', // Manufactured, Trading, Service
+    covers_per_set: 1,
+    frames_per_set: 1,
+    set_ratio: 1,
     product_family: '',
     variant_details: '',
     unit_of_measure: 'PCS',
@@ -90,6 +93,12 @@ export default function ProductMasterUI({ role }) {
           product_family: p.product_family || p.category || '',
           unit_of_measure: p.unit_of_measure || p.unit || 'PCS',
           product_type: normalizeProductType(p.product_type || p.productType),
+          covers_per_set: p.coversPerSet !== undefined && p.coversPerSet !== null ? p.coversPerSet : (p.covers_per_set ?? 1),
+          coversPerSet: p.coversPerSet !== undefined && p.coversPerSet !== null ? p.coversPerSet : (p.covers_per_set ?? 1),
+          frames_per_set: p.framesPerSet !== undefined && p.framesPerSet !== null ? p.framesPerSet : (p.frames_per_set ?? 1),
+          framesPerSet: p.framesPerSet !== undefined && p.framesPerSet !== null ? p.framesPerSet : (p.frames_per_set ?? 1),
+          set_ratio: p.setRatio !== undefined && p.setRatio !== null ? p.setRatio : (p.set_ratio ?? 1),
+          setRatio: p.setRatio !== undefined && p.setRatio !== null ? p.setRatio : (p.set_ratio ?? 1),
           brand: p.brand || 'HIMALAYA',
           gst_rate: p.gst_rate ?? p.gstRate ?? 18,
           hsn_sac_code: p.hsn_sac_code || p.hsnSacCode || '',
@@ -255,6 +264,9 @@ export default function ProductMasterUI({ role }) {
       product_name: p.product_name || p.name || '',
       product_code: p.product_code || p.sku || '',
       product_type: pType,
+      covers_per_set: p.covers_per_set !== undefined && p.covers_per_set !== null ? p.covers_per_set : (p.coversPerSet ?? 1),
+      frames_per_set: p.frames_per_set !== undefined && p.frames_per_set !== null ? p.frames_per_set : (p.framesPerSet ?? 1),
+      set_ratio: p.set_ratio !== undefined && p.set_ratio !== null ? p.set_ratio : (p.setRatio ?? 1),
       product_family: p.product_family || p.category || '',
       variant_details: p.variant_details || '',
       unit_of_measure: p.unit_of_measure || p.unit || 'PCS',
@@ -263,7 +275,7 @@ export default function ProductMasterUI({ role }) {
       hsn_sac_code: p.hsn_sac_code || '',
       dispatch_category: autoDispatch,
       weight: p.weight || '',
-      image_url: p.imageUrl || ''
+      image_url: p.imageUrl || p.image_url || ''
     });
     setIsModalOpen(true);
   };
@@ -275,6 +287,9 @@ export default function ProductMasterUI({ role }) {
     setFormData({ 
       ...initialFormState, 
       product_type: defaultType,
+      covers_per_set: 1,
+      frames_per_set: 1,
+      set_ratio: 1,
       dispatch_category: defaultDispatch
     });
     setIsModalOpen(true);
@@ -285,6 +300,10 @@ export default function ProductMasterUI({ role }) {
       showToast('Name and Code are required.');
       return;
     }
+
+    const coversPerSet = formData.covers_per_set === '' ? 0 : Math.max(0, parseInt(formData.covers_per_set) || 0);
+    const framesPerSet = formData.frames_per_set === '' ? 0 : Math.max(0, parseInt(formData.frames_per_set) || 0);
+    const setRatio = formData.set_ratio === '' ? 1 : Math.max(0, parseInt(formData.set_ratio) || 0);
 
     setIsSubmitting(true);
     const resolvedType = normalizeProductType(formData.product_type);
@@ -299,12 +318,18 @@ export default function ProductMasterUI({ role }) {
       unit: formData.unit_of_measure,
       unitPrice: Number(formData.unitPrice || 0),
       productType: resolvedType,
+      coversPerSet,
+      covers_per_set: coversPerSet,
+      framesPerSet,
+      frames_per_set: framesPerSet,
+      setRatio,
+      set_ratio: setRatio,
       brand: formData.brand || 'HIMALAYA',
       dispatchCategory: resolvedDispatch,
       gstRate: Number(formData.gst_rate || 18),
       hsnCode: formData.hsn_sac_code || '',
       variantDetails: formData.variant_details || '',
-      weight: Number(formData.weight || 0),
+      weight: formData.weight !== '' ? Number(formData.weight) : null,
       imageUrl: formData.image_url || '',
     };
 
@@ -911,27 +936,30 @@ export default function ProductMasterUI({ role }) {
               <thead>
                 <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #E2E8F0' }}>
                   <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', width: '64px' }}>Image</th>
-                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Code</th>
-                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Name</th>
-                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type / Family</th>
-                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unit</th>
-                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Brand</th>
-                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>GST / HSN</th>
-                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dispatch</th>
-                  <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>
+                  <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Code</th>
+                  <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Product Name</th>
+                  <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type / Family</th>
+                  <th style={{ padding: '14px 12px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Cover</th>
+                  <th style={{ padding: '14px 12px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Frame</th>
+                  <th style={{ padding: '14px 12px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Set</th>
+                  <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unit</th>
+                  <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Brand</th>
+                  <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>GST / HSN</th>
+                  <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dispatch</th>
+                  <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
                <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={9} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
+                    <td colSpan={12} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
                       <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 8px auto', display: 'block', color: '#6366F1' }} />
                       Loading catalog items...
                     </td>
                   </tr>
                 ) : currentPageData.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
+                    <td colSpan={12} style={{ padding: '48px', textAlign: 'center', color: '#64748B', fontSize: '14px' }}>
                       No matching products found.
                     </td>
                   </tr>
@@ -973,21 +1001,47 @@ export default function ProductMasterUI({ role }) {
   
                       {/* Type / Family */}
                       <td style={{ padding: '16px 20px' }}>
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          fontSize: '11.5px',
-                          fontWeight: 800,
-                          background: p.product_type === 'TRADING' ? '#ECFDF5' : '#EEF2FF',
-                          color: p.product_type === 'TRADING' ? '#047857' : '#4338CA',
-                          border: p.product_type === 'TRADING' ? '1px solid #A7F3D0' : '1px solid #C7D2FE'
-                        }}>
-                          {p.product_type === 'TRADING' ? '🛍️ Trading' : '🏭 Manufactured'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11.5px',
+                            fontWeight: 800,
+                            background: p.product_type === 'TRADING' ? '#ECFDF5' : '#EEF2FF',
+                            color: p.product_type === 'TRADING' ? '#047857' : '#4338CA',
+                            border: p.product_type === 'TRADING' ? '1px solid #A7F3D0' : '1px solid #C7D2FE'
+                          }}>
+                            {p.product_type === 'TRADING' ? '🛍️ Trading' : '🏭 Manufactured'}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', fontWeight: 600 }}>{p.product_family || '—'}</div>
+
+                        <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', fontWeight: 600 }}>
+                          {p.product_family || '—'}
+                        </div>
+                      </td>
+
+                      {/* Cover */}
+                      <td style={{ padding: '16px 12px', textAlign: 'center', fontWeight: 700, color: '#0F172A', fontSize: '13.5px' }}>
+                        <span style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '3px 9px', borderRadius: '6px' }}>
+                          {p.covers_per_set !== undefined && p.covers_per_set !== null ? p.covers_per_set : (p.coversPerSet ?? 1)}
+                        </span>
+                      </td>
+
+                      {/* Frame */}
+                      <td style={{ padding: '16px 12px', textAlign: 'center', fontWeight: 700, color: '#0F172A', fontSize: '13.5px' }}>
+                        <span style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '3px 9px', borderRadius: '6px' }}>
+                          {p.frames_per_set !== undefined && p.frames_per_set !== null ? p.frames_per_set : (p.framesPerSet ?? 1)}
+                        </span>
+                      </td>
+
+                      {/* Set */}
+                      <td style={{ padding: '16px 12px', textAlign: 'center', fontWeight: 700, color: '#0F172A', fontSize: '13.5px' }}>
+                        <span style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', color: '#4338CA', padding: '3px 9px', borderRadius: '6px' }}>
+                          {p.set_ratio !== undefined && p.set_ratio !== null ? p.set_ratio : (p.setRatio ?? 1)}
+                        </span>
                       </td>
   
                       {/* Unit */}
@@ -1226,6 +1280,8 @@ export default function ProductMasterUI({ role }) {
                   </span>
                 </div>
 
+
+
                 <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Family / Category</label>
                   <select 
@@ -1333,6 +1389,94 @@ export default function ProductMasterUI({ role }) {
                       style={{ width: '100%', padding: '10px 14px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', outline: 'none' }} 
                     />
                   </div>
+
+                  {/* Product Composition (Cover, Frame, Set manual numeric inputs) */}
+                  <div style={{
+                    gridColumn: isMobile ? '1' : 'span 2',
+                    padding: '18px 20px',
+                    background: 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)',
+                    border: '1.5px solid #CBD5E1',
+                    borderRadius: '14px',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#4F46E5', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '15px' }}>
+                        🧩
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#1E293B' }}>Product Composition</h4>
+                        <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748B' }}>
+                          Specify the Cover, Frame, and Set quantities for this product.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '12.5px', fontWeight: 700, color: '#334155' }}>
+                          Cover
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={formData.covers_per_set}
+                          onChange={e => {
+                            const val = e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0);
+                            setFormData({ ...formData, covers_per_set: val });
+                          }}
+                          placeholder="1"
+                          style={{ width: '100%', padding: '10px 14px', background: '#FFFFFF', border: '1.5px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', fontWeight: 700, outline: 'none' }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '12.5px', fontWeight: 700, color: '#334155' }}>
+                          Frame
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={formData.frames_per_set}
+                          onChange={e => {
+                            const val = e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0);
+                            setFormData({ ...formData, frames_per_set: val });
+                          }}
+                          placeholder="1"
+                          style={{ width: '100%', padding: '10px 14px', background: '#FFFFFF', border: '1.5px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', fontWeight: 700, outline: 'none' }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '12.5px', fontWeight: 700, color: '#334155' }}>
+                          Set
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={formData.set_ratio}
+                          onChange={e => {
+                            const val = e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0);
+                            setFormData({ ...formData, set_ratio: val });
+                          }}
+                          placeholder="1"
+                          style={{ width: '100%', padding: '10px 14px', background: '#FFFFFF', border: '1.5px solid #CBD5E1', borderRadius: '8px', color: '#0F172A', fontSize: '14px', fontWeight: 700, outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#1E293B' }}>
+                        {formData.set_ratio === '' ? 1 : formData.set_ratio} Set = {formData.covers_per_set === '' ? 0 : formData.covers_per_set} {Number(formData.covers_per_set) === 1 ? 'Cover' : 'Covers'} + {formData.frames_per_set === '' ? 0 : formData.frames_per_set} {Number(formData.frames_per_set) === 1 ? 'Frame' : 'Frames'}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#4F46E5', background: '#EEF2FF', padding: '3px 10px', borderRadius: '6px', fontWeight: 700, border: '1px solid #C7D2FE' }}>
+                        Product Composition
+                      </span>
+                    </div>
+                  </div>
+
                   <div style={{ gridColumn: 'span 2' }}>
                     <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>Product Image & Preview</label>
                     <input 

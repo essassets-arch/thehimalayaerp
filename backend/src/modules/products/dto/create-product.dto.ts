@@ -148,4 +148,48 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   storage_location?: string;
+
+  @IsString()
+  @IsOptional()
+  componentType?: string;
+
+  @IsString()
+  @IsOptional()
+  component_type?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Type(() => Number)
+  coversPerSet?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Type(() => Number)
+  covers_per_set?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Type(() => Number)
+  framesPerSet?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Type(() => Number)
+  frames_per_set?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Type(() => Number)
+  setRatio?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Type(() => Number)
+  set_ratio?: number;
 }

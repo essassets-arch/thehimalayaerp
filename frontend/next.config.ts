@@ -72,11 +72,6 @@ const nextConfig: NextConfig = {
         destination: '/super-admin/dashboard',
         permanent: false,
       },
-      {
-        source: '/plant-head/finished-goods',
-        destination: '/plant-head/dashboard',
-        permanent: false,
-      },
     ];
   },
 };

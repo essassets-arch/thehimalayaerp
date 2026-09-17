@@ -119,33 +119,44 @@ export class ProductionDailyReportService {
 
       const totalWeight = coverWeight + frameWeight;
 
-      // Operator manually declares Set quantity. Product recipe validates component sufficiency.
-      const coversPerSet = Math.max(1, product?.coversPerSet || 1);
-      const framesPerSet = Math.max(1, product?.framesPerSet || 1);
+      let setQty = 0;
+      let extraCoverQty = 0;
+      let extraFrameQty = 0;
 
-      const setQty =
-        item.setQty !== undefined && item.setQty !== null
-          ? Math.max(0, Math.floor(Number(item.setQty)))
-          : 0;
+      if (product) {
+        const cPerSet =
+          product.coversPerSet !== undefined && product.coversPerSet !== null
+            ? Number(product.coversPerSet)
+            : null;
+        const fPerSet =
+          product.framesPerSet !== undefined && product.framesPerSet !== null
+            ? Number(product.framesPerSet)
+            : null;
 
-      const requiredCover = setQty * coversPerSet;
-      const requiredFrame = setQty * framesPerSet;
+        if (cPerSet === null || fPerSet === null || cPerSet <= 0 || fPerSet <= 0) {
+          throw new BadRequestException(
+            `Line item Sr #${srNo} (${product.name || 'Product'}): Missing Cover / Frame composition in Product Master. Please configure Cover and Frame quantities in Product Master before producing this item.`,
+          );
+        }
 
-      // Authoritative validation: Component quantities must be sufficient for declared finished sets
-      if (coverQty < requiredCover) {
-        throw new BadRequestException(
-          `Line item Sr #${srNo} (${product?.name || customProductName || 'Product'}): Cover quantity (${coverQty}) is less than required (${requiredCover}) for ${setQty} set(s) [recipe: ${coversPerSet} cover(s)/set].`,
-        );
+        // Automatic Set Calculation from Actual Cover and Frame inputs
+        const coverBasedSets = Math.floor(coverQty / cPerSet);
+        const frameBasedSets = Math.floor(frameQty / fPerSet);
+        setQty = Math.min(coverBasedSets, frameBasedSets);
+
+        const usedCover = setQty * cPerSet;
+        const usedFrame = setQty * fPerSet;
+
+        extraCoverQty = Math.max(0, coverQty - usedCover);
+        extraFrameQty = Math.max(0, frameQty - usedFrame);
+      } else {
+        setQty =
+          item.setQty !== undefined && item.setQty !== null
+            ? Math.max(0, Math.floor(Number(item.setQty)))
+            : 0;
+        extraCoverQty = coverQty;
+        extraFrameQty = frameQty;
       }
-      if (frameQty < requiredFrame) {
-        throw new BadRequestException(
-          `Line item Sr #${srNo} (${product?.name || customProductName || 'Product'}): Frame quantity (${frameQty}) is less than required (${requiredFrame}) for ${setQty} set(s) [recipe: ${framesPerSet} frame(s)/set].`,
-        );
-      }
-
-      // Backend authoritatively calculates extra components (never trust client-supplied extras)
-      const extraCoverQty = coverQty - requiredCover;
-      const extraFrameQty = frameQty - requiredFrame;
 
       totalCovers += coverQty;
       totalFrames += frameQty;
@@ -397,6 +408,7 @@ export class ProductionDailyReportService {
                 frameUnitWeight: true,
                 coversPerSet: true,
                 framesPerSet: true,
+                setRatio: true,
               },
             },
           },
@@ -742,21 +754,21 @@ export class ProductionDailyReportService {
           );
         }
 
-        const coversPerSet = Math.max(1, item.product?.coversPerSet || 1);
-        const framesPerSet = Math.max(1, item.product?.framesPerSet || 1);
-        const setQty = item.setQty || 0;
-        const requiredCover = setQty * coversPerSet;
-        const requiredFrame = setQty * framesPerSet;
+        if (item.product) {
+          const cPerSet =
+            item.product.coversPerSet !== undefined && item.product.coversPerSet !== null
+              ? Number(item.product.coversPerSet)
+              : null;
+          const fPerSet =
+            item.product.framesPerSet !== undefined && item.product.framesPerSet !== null
+              ? Number(item.product.framesPerSet)
+              : null;
 
-        if (item.coverQty < requiredCover) {
-          throw new BadRequestException(
-            `Line item Sr #${item.srNo} (${item.product?.name || 'Product'}): Cover quantity (${item.coverQty}) is less than required (${requiredCover}) for ${setQty} set(s) [recipe: ${coversPerSet} cover(s)/set].`,
-          );
-        }
-        if (item.frameQty < requiredFrame) {
-          throw new BadRequestException(
-            `Line item Sr #${item.srNo} (${item.product?.name || 'Product'}): Frame quantity (${item.frameQty}) is less than required (${requiredFrame}) for ${setQty} set(s) [recipe: ${framesPerSet} frame(s)/set].`,
-          );
+          if (cPerSet === null || fPerSet === null || cPerSet <= 0 || fPerSet <= 0) {
+            throw new BadRequestException(
+              `Line item Sr #${item.srNo} (${item.product.name || 'Product'}): Missing Cover / Frame composition in Product Master.`,
+            );
+          }
         }
       }
 
@@ -768,16 +780,8 @@ export class ProductionDailyReportService {
       for (const productId of allProductIds) {
         const prodItems = items.filter((i) => i.productId === productId);
         const directSets = prodItems.reduce((s, i) => s + (i.setQty || 0), 0);
-        let newExtraCovers = 0;
-        let newExtraFrames = 0;
-        for (const itm of prodItems) {
-          const cPerSet = Math.max(1, itm.product?.coversPerSet || 1);
-          const fPerSet = Math.max(1, itm.product?.framesPerSet || 1);
-          const reqC = (itm.setQty || 0) * cPerSet;
-          const reqF = (itm.setQty || 0) * fPerSet;
-          newExtraCovers += Math.max(0, itm.coverQty - reqC);
-          newExtraFrames += Math.max(0, itm.frameQty - reqF);
-        }
+        const newExtraCovers = prodItems.reduce((s, i) => s + (i.extraCoverQty || 0), 0);
+        const newExtraFrames = prodItems.reduce((s, i) => s + (i.extraFrameQty || 0), 0);
 
         // Fetch current extra balances before transaction for immutable ledger audit
         let curExtCover = 0;

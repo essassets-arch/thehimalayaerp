@@ -135,6 +135,9 @@ export class ProductionWorkflowController {
     'production.floor.read',
     'admin.products.read',
     'products.read',
+    'planthead.read',
+    'plant-head.read',
+    'admin.planthead.read',
   )
   @Get('production/all-stock')
   async getAllStock(@Req() req: any) {
@@ -164,6 +167,9 @@ export class ProductionWorkflowController {
     'production.floor.read',
     'admin.products.read',
     'products.read',
+    'planthead.read',
+    'plant-head.read',
+    'admin.planthead.read',
   )
   @Get('production/all-stock/logs')
   async getAllStockLogs(@Req() req: any, @Query() query: any) {

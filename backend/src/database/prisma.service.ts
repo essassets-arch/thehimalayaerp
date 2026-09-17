@@ -132,6 +132,12 @@ export class PrismaService
         ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "afterExtraCover" DECIMAL(14,3);
         ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "beforeExtraFrame" DECIMAL(14,3);
         ALTER TABLE "StockHistory" ADD COLUMN IF NOT EXISTS "afterExtraFrame" DECIMAL(14,3);
+
+        -- Auto-heal Product composition fields
+        ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "componentType" TEXT DEFAULT 'STANDARD';
+        ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "coversPerSet" INTEGER DEFAULT 1;
+        ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "framesPerSet" INTEGER DEFAULT 1;
+        ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "setRatio" INTEGER DEFAULT 1;
       `);
     } catch (e) {
       // Ignore if table does not exist yet
