@@ -5,7 +5,7 @@ import {
   Truck, Calendar, Download, RefreshCw, BarChart3, Clock, MapPin, Award, CheckCircle,
   TrendingUp, Layers, Package, ShieldCheck, AlertTriangle, DollarSign, Filter, Search,
   Users, PieChart as PieChartIcon, Printer, ArrowUpRight, ChevronRight, Sparkles,
-  Scale, Grid, FileSpreadsheet, Eye, Info, ClipboardList
+  Scale, Grid, FileSpreadsheet, Eye, Info, ClipboardList, Camera
 } from 'lucide-react';
 import { backendFetch } from '../../../lib/backendFetch';
 import {
@@ -80,6 +80,8 @@ export const PlantHeadDispatchAnalytics = () => {
   const [globalTimeframe, setGlobalTimeframe] = useState('September 2026');
   const [customStartDate, setCustomStartDate] = useState('2026-09-01');
   const [customEndDate, setCustomEndDate] = useState('2026-09-30');
+  const reportRef = useRef(null);
+  const [downloadingImage, setDownloadingImage] = useState(false);
   const [salesPersonFilter, setSalesPersonFilter] = useState('All');
   const [productFilter, setProductFilter] = useState('All');
   const [areaFilter, setAreaFilter] = useState('All');
@@ -553,8 +555,73 @@ export const PlantHeadDispatchAnalytics = () => {
     window.print();
   };
 
+  // ── Download Dashboard Image ──
+  const handleDownloadImage = async () => {
+    if (!reportRef.current || downloadingImage) return;
+    setDownloadingImage(true);
+
+    const fileName = `Himalaya_Dispatch_Analytics_${(globalTimeframe || 'September_2026').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.png`;
+
+    try {
+      const { toPng } = await import('html-to-image');
+      const dataUrl = await toPng(reportRef.current, {
+        quality: 0.95,
+        pixelRatio: 2,
+        backgroundColor: '#f8fafc',
+        filter: (node) => {
+          if (node.classList && (node.classList.contains('no-capture') || node.classList.contains('no-print') || node.classList.contains('print-only-report'))) {
+            return false;
+          }
+          return true;
+        }
+      });
+
+      if (dataUrl) {
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => document.body.removeChild(link), 150);
+        setDownloadingImage(false);
+        return;
+      }
+    } catch (h2iErr) {
+      console.warn('[html-to-image failed, falling back to html2canvas]:', h2iErr);
+    }
+
+    try {
+      const html2canvasModule = await import('html2canvas');
+      const html2canvasFn = html2canvasModule.default || html2canvasModule;
+
+      const canvas = await html2canvasFn(reportRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#f8fafc',
+        ignoreElements: (el) => {
+          return el.classList && (el.classList.contains('no-capture') || el.classList.contains('no-print') || el.classList.contains('print-only-report'));
+        }
+      });
+
+      if (canvas) {
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = canvas.toDataURL('image/png');
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => document.body.removeChild(link), 150);
+      }
+    } catch (err) {
+      console.error('Failed to capture dashboard image:', err);
+      alert('Unable to capture dashboard image. Please try again.');
+    } finally {
+      setDownloadingImage(false);
+    }
+  };
+
   return (
-    <div style={{ padding: 'clamp(12px, 2vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a', width: '100%', maxWidth: '3840px', margin: '0 auto', boxSizing: 'border-box' }}>
+    <div ref={reportRef} style={{ padding: 'clamp(12px, 2vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a', width: '100%', maxWidth: '3840px', margin: '0 auto', boxSizing: 'border-box' }}>
 
       {/* Screen Interactive Layout */}
       <div className="screen-only-view">
@@ -595,7 +662,7 @@ export const PlantHeadDispatchAnalytics = () => {
         </div>
 
         {/* Global Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="no-capture" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
             onClick={fetchDispatchData}
             disabled={loading}
@@ -617,42 +684,25 @@ export const PlantHeadDispatchAnalytics = () => {
             <RefreshCw size={14} className={loading ? 'spin' : ''} /> {loading ? 'Syncing...' : 'Sync Data'}
           </button>
           <button
-            onClick={handleExportCSV}
+            onClick={handleDownloadImage}
+            disabled={downloadingImage}
             style={{
-              background: '#059669',
+              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
               color: '#ffffff',
               border: 'none',
-              padding: '8px 14px',
+              padding: '8px 16px',
               borderRadius: '9px',
               fontSize: '12.5px',
               fontWeight: '700',
-              cursor: 'pointer',
+              cursor: downloadingImage ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '7px',
-              boxShadow: '0 3px 8px rgba(5, 150, 105, 0.25)'
+              boxShadow: '0 3px 8px rgba(2, 132, 199, 0.25)',
+              opacity: downloadingImage ? 0.75 : 1
             }}
           >
-            <Download size={14} /> Export CSV
-          </button>
-          <button
-            onClick={handlePrint}
-            style={{
-              background: '#1e293b',
-              color: '#ffffff',
-              border: 'none',
-              padding: '8px 14px',
-              borderRadius: '9px',
-              fontSize: '12.5px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '7px',
-              boxShadow: '0 3px 8px rgba(30, 41, 59, 0.2)'
-            }}
-          >
-            <Printer size={14} /> Print Report
+            <Camera size={14} className={downloadingImage ? 'spin' : ''} /> {downloadingImage ? 'Generating Image...' : 'Download Image'}
           </button>
         </div>
       </div>
