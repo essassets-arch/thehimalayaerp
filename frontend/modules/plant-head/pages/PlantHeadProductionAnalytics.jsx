@@ -266,36 +266,94 @@ export const PlantHeadProductionAnalytics = () => {
     );
   }, [rawWorkOrders, searchQuery]);
 
-  // ── Export CSV Handler ──
+  // ── Enhanced UTF-8 BOM CSV Export ──
   const handleExportCSV = () => {
-    if (!filteredWorkOrders.length) {
-      alert('No work order records available to export.');
+    const listToExport = (rawWorkOrders && rawWorkOrders.length > 0) ? rawWorkOrders : filteredWorkOrders;
+    if (!listToExport || listToExport.length === 0) {
+      alert('No production work order records found to export for this period.');
       return;
     }
-    const headers = ['Work Order', 'Plan No', 'Sales Order', 'Customer', 'Product', 'Capacity', 'Size', 'Quantity', 'Weight (kg)', 'Covers', 'Frames', 'Status', 'QC Result'];
-    const rows = filteredWorkOrders.map(w => [
-      `"${w.workOrderNumber || ''}"`,
-      `"${w.planNumber || ''}"`,
-      `"${w.orderNumber || ''}"`,
-      `"${(w.customer || '').replace(/"/g, '""')}"`,
-      `"${(w.product || '').replace(/"/g, '""')}"`,
-      `"${w.capacity || ''}"`,
-      `"${w.size || ''}"`,
-      w.quantity || 0,
-      w.weight || 0,
-      w.covers || 0,
-      w.frames || 0,
-      `"${w.status || ''}"`,
-      `"${w.qcResult || ''}"`
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const headers = [
+      'Work Order No',
+      'Production Plan',
+      'Sales Order No',
+      'Customer Account',
+      'Product Specification',
+      'Category',
+      'Capacity / Rating',
+      'Size / Dimension',
+      'Quantity (pcs)',
+      'Covers (pcs)',
+      'Frames (pcs)',
+      'Unit Weight (kg)',
+      'Total Weight (kg)',
+      'Total Weight (MT)',
+      'Machine / Press',
+      'QC Result',
+      'QC Remarks',
+      'Production Status',
+      'Created Date',
+      'Completed Date'
+    ];
+
+    const rows = listToExport.map(w => {
+      const qty = Number(w.quantity) || 0;
+      const wt = Number(w.weight) || 0;
+      const unitWt = qty > 0 ? (Math.round((wt / qty) * 10) / 10) : 0;
+      return [
+        escapeCSV(w.workOrderNumber),
+        escapeCSV(w.planNumber),
+        escapeCSV(w.orderNumber),
+        escapeCSV(w.customer),
+        escapeCSV(w.product),
+        escapeCSV(w.category),
+        escapeCSV(w.capacity),
+        escapeCSV(w.size),
+        qty,
+        Number(w.covers) || 0,
+        Number(w.frames) || 0,
+        unitWt,
+        wt,
+        (wt / 1000).toFixed(3),
+        escapeCSV(w.machine),
+        escapeCSV(w.qcResult),
+        escapeCSV(w.qcRemarks),
+        escapeCSV(w.status || w.productionStatus),
+        escapeCSV(w.createdAt ? new Date(w.createdAt).toISOString().slice(0, 10) : ''),
+        escapeCSV(w.completedAt ? new Date(w.completedAt).toISOString().slice(0, 10) : '')
+      ].join(',');
+    });
+
+    const summaryBlock = [
+      `"HIMALAYA COMPOSITES PVT. LTD. - PRODUCTION TELEMETRY AUDIT REPORT"`,
+      `"Reporting Timeframe:","${globalTimeframe}"`,
+      `"Generated On:","${new Date().toLocaleString('en-IN')}"`,
+      `"Total Work Orders:","${listToExport.length}"`,
+      `"Total Finished Pieces:","${kpis.totalPieces || listToExport.reduce((s, w) => s + (w.pieces || w.quantity || 0), 0)}"`,
+      `"Total Production Weight (kg):","${kpis.totalWeight || listToExport.reduce((s, w) => s + (w.weight || 0), 0)}"`,
+      `"Total Production Weight (MT):","${(kpis.totalWeightTonnes || ((kpis.totalWeight || 0) / 1000)).toFixed(2)}"`,
+      `"Quality First Pass Yield (FPY):","${kpis.fpyRate}%"`,
+      ''
+    ].join('\n');
+
+    const csvContent = summaryBlock + headers.join(',') + '\n' + rows.join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `himalaya-production-${globalTimeframe.replace(/\s+/g, '-').toLowerCase()}.csv`);
+    link.href = url;
+    const cleanTimeframe = (globalTimeframe || 'all').replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.setAttribute('download', `Himalaya_Production_Report_${cleanTimeframe}_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handlePrint = () => {
@@ -304,6 +362,9 @@ export const PlantHeadProductionAnalytics = () => {
 
   return (
     <div style={{ padding: 'clamp(12px, 2vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a', width: '100%', maxWidth: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+
+      {/* Screen Interactive Layout */}
+      <div className="screen-only-view">
 
       {/* ── Top Header Banner ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
@@ -1686,10 +1747,274 @@ export const PlantHeadProductionAnalytics = () => {
         </div>
       )}
 
-      {/* Global Inline Style for Spin Animation */}
+      </div> {/* End .screen-only-view */}
+
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          EXECUTIVE PRINT REPORT (SHOWS ALL DATA WITHOUT CLIPPING ACROSS PAGES)
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <div className="print-only-report" style={{ width: '100%', background: '#ffffff', color: '#0f172a', padding: '10px 0' }}>
+        
+        {/* Official Company Header */}
+        <div style={{ borderBottom: '2.5px solid #0f172a', paddingBottom: '12px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: '20px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.02em', textTransform: 'uppercase' }}>
+              Himalaya Composites Pvt. Ltd.
+            </div>
+            <div style={{ fontSize: '11.5px', fontWeight: '800', color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
+              Manufacturing Facility • Production Analytics &amp; MIS Audit Report
+            </div>
+            <div style={{ fontSize: '9.5px', color: '#64748b', marginTop: '2px' }}>
+              Factory Operations Telemetry • Reconciled Live Database • All Production Work Orders
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', fontSize: '10px', color: '#334155', lineHeight: '1.4' }}>
+            <div><strong>Reporting Period:</strong> {globalTimeframe}</div>
+            <div><strong>Generated:</strong> {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+            <div><strong>Total Work Orders:</strong> {rawWorkOrders.length} records</div>
+            <div><strong>Status:</strong> Reconciled Live ERP Telemetry</div>
+          </div>
+        </div>
+
+        {/* Executive KPI Performance Summary Matrix */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '20px' }}>
+          <div style={{ border: '1.5px solid #cbd5e1', borderRadius: '6px', padding: '8px 10px', background: '#f8fafc' }}>
+            <div style={{ fontSize: '9px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Total Weight</div>
+            <div style={{ fontSize: '15px', fontWeight: '900', color: '#0284c7', marginTop: '2px' }}>
+              {fmt(kpis.totalWeightTonnes, 2)} MT
+            </div>
+            <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '1px' }}>{fmt(kpis.totalWeight)} kg net</div>
+          </div>
+
+          <div style={{ border: '1.5px solid #cbd5e1', borderRadius: '6px', padding: '8px 10px', background: '#f8fafc' }}>
+            <div style={{ fontSize: '9px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Manufactured Units</div>
+            <div style={{ fontSize: '15px', fontWeight: '900', color: '#0f172a', marginTop: '2px' }}>
+              {fmt(kpis.totalPieces)} pcs
+            </div>
+            <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '1px' }}>{fmt(kpis.totalCovers)} Cvr / {fmt(kpis.totalFrames)} Frm</div>
+          </div>
+
+          <div style={{ border: '1.5px solid #cbd5e1', borderRadius: '6px', padding: '8px 10px', background: '#f8fafc' }}>
+            <div style={{ fontSize: '9px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Work Orders Status</div>
+            <div style={{ fontSize: '15px', fontWeight: '900', color: '#16a34a', marginTop: '2px' }}>
+              {kpis.completionRate}% Done
+            </div>
+            <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '1px' }}>{fmt(kpis.completedWorkOrders)} Comp / {fmt(kpis.activeWorkOrders)} Active</div>
+          </div>
+
+          <div style={{ border: '1.5px solid #cbd5e1', borderRadius: '6px', padding: '8px 10px', background: '#f8fafc' }}>
+            <div style={{ fontSize: '9px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Quality FPY Yield</div>
+            <div style={{ fontSize: '15px', fontWeight: '900', color: '#7c3aed', marginTop: '2px' }}>
+              {kpis.fpyRate}%
+            </div>
+            <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '1px' }}>{fmt(kpis.passedQcCount)} Pass / {fmt(kpis.rejectedQcCount)} Rej</div>
+          </div>
+
+          <div style={{ border: '1.5px solid #cbd5e1', borderRadius: '6px', padding: '8px 10px', background: '#f8fafc' }}>
+            <div style={{ fontSize: '9px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Avg Weight / Unit</div>
+            <div style={{ fontSize: '15px', fontWeight: '900', color: '#0369a1', marginTop: '2px' }}>
+              {fmt(kpis.averageWeightPerPiece, 1)} kg
+            </div>
+            <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '1px' }}>{kpis.activeMachines || 6} Active Presses</div>
+          </div>
+        </div>
+
+        {/* Section 1: Complete Work Orders Table (ALL DATA) */}
+        <div style={{ marginBottom: '22px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h3 style={{ fontSize: '12.5px', fontWeight: '900', color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+              1. Master Production Work Orders Schedule ({rawWorkOrders.length} Total Records)
+            </h3>
+            <span style={{ fontSize: '9.5px', color: '#64748b' }}>Complete production telemetry log</span>
+          </div>
+
+          <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9.5px' }}>
+            <thead>
+              <tr style={{ background: '#f1f5f9', color: '#0f172a', textAlign: 'left', fontWeight: '800' }}>
+                <th style={{ padding: '5px', width: '25px', textAlign: 'center' }}>#</th>
+                <th style={{ padding: '5px' }}>WO Number</th>
+                <th style={{ padding: '5px' }}>Plan No</th>
+                <th style={{ padding: '5px' }}>Sales Order</th>
+                <th style={{ padding: '5px' }}>Customer Account</th>
+                <th style={{ padding: '5px' }}>Product Specification</th>
+                <th style={{ padding: '5px', textAlign: 'center' }}>Rating</th>
+                <th style={{ padding: '5px', textAlign: 'center' }}>Size</th>
+                <th style={{ padding: '5px', textAlign: 'right' }}>Qty</th>
+                <th style={{ padding: '5px', textAlign: 'right' }}>Covers</th>
+                <th style={{ padding: '5px', textAlign: 'right' }}>Frames</th>
+                <th style={{ padding: '5px', textAlign: 'right' }}>Weight (kg)</th>
+                <th style={{ padding: '5px' }}>Press / Machine</th>
+                <th style={{ padding: '5px', textAlign: 'center' }}>QC Result</th>
+                <th style={{ padding: '5px', textAlign: 'center' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rawWorkOrders.map((wo, idx) => (
+                <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                  <td style={{ padding: '4px 5px', textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
+                  <td style={{ padding: '4px 5px', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>{wo.workOrderNumber}</td>
+                  <td style={{ padding: '4px 5px', fontFamily: 'monospace', color: '#475569' }}>{wo.planNumber}</td>
+                  <td style={{ padding: '4px 5px', fontFamily: 'monospace' }}>{wo.orderNumber}</td>
+                  <td style={{ padding: '4px 5px', fontWeight: '700', color: '#0f172a' }}>{wo.customer}</td>
+                  <td style={{ padding: '4px 5px', color: '#334155' }}>{wo.product}</td>
+                  <td style={{ padding: '4px 5px', textAlign: 'center', fontWeight: '700' }}>{wo.capacity}</td>
+                  <td style={{ padding: '4px 5px', textAlign: 'center', color: '#475569' }}>{wo.size}</td>
+                  <td style={{ padding: '4px 5px', textAlign: 'right', fontWeight: '800' }}>{wo.quantity}</td>
+                  <td style={{ padding: '4px 5px', textAlign: 'right' }}>{wo.covers}</td>
+                  <td style={{ padding: '4px 5px', textAlign: 'right' }}>{wo.frames}</td>
+                  <td style={{ padding: '4px 5px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{fmt(wo.weight)}</td>
+                  <td style={{ padding: '4px 5px', color: '#475569' }}>{wo.machine}</td>
+                  <td style={{ padding: '4px 5px', textAlign: 'center', fontWeight: '800', color: wo.qcResult === 'PASS' || wo.qcResult === 'PASSED' ? '#15803d' : '#b45309' }}>
+                    {wo.qcResult}
+                  </td>
+                  <td style={{ padding: '4px 5px', textAlign: 'center', fontWeight: '700' }}>
+                    {wo.status}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#f1f5f9', fontWeight: '900', borderTop: '2px solid #0f172a', borderBottom: '2px solid #0f172a' }}>
+                <td colSpan={8} style={{ padding: '6px 8px', textAlign: 'right', textTransform: 'uppercase' }}>
+                  Total Master Production Totals:
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '900' }}>
+                  {rawWorkOrders.reduce((sum, w) => sum + (Number(w.quantity) || 0), 0)}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '900' }}>
+                  {rawWorkOrders.reduce((sum, w) => sum + (Number(w.covers) || 0), 0)}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '900' }}>
+                  {rawWorkOrders.reduce((sum, w) => sum + (Number(w.frames) || 0), 0)}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '900', color: '#0284c7' }}>
+                  {fmt(rawWorkOrders.reduce((sum, w) => sum + (Number(w.weight) || 0), 0))} kg
+                </td>
+                <td colSpan={3} style={{ padding: '6px 8px', textAlign: 'center', color: '#16a34a' }}>
+                  {((rawWorkOrders.reduce((sum, w) => sum + (Number(w.weight) || 0), 0)) / 1000).toFixed(2)} MT Total Net Weight
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        {/* Section 2: Product & Category Breakdown */}
+        {productsData.length > 0 && (
+          <div className="print-card" style={{ marginBottom: '22px' }}>
+            <h3 style={{ fontSize: '12.5px', fontWeight: '900', color: '#0f172a', margin: '0 0 8px 0', textTransform: 'uppercase' }}>
+              2. Product &amp; Mould Component Breakdown
+            </h3>
+            <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9.5px' }}>
+              <thead>
+                <tr style={{ background: '#f1f5f9', color: '#0f172a', textAlign: 'left', fontWeight: '800' }}>
+                  <th style={{ padding: '5px' }}>Product Name</th>
+                  <th style={{ padding: '5px' }}>Category</th>
+                  <th style={{ padding: '5px', textAlign: 'center' }}>Rating</th>
+                  <th style={{ padding: '5px', textAlign: 'right' }}>Total Weight (kg)</th>
+                  <th style={{ padding: '5px', textAlign: 'right' }}>Share %</th>
+                  <th style={{ padding: '5px', textAlign: 'right' }}>Covers</th>
+                  <th style={{ padding: '5px', textAlign: 'right' }}>Frames</th>
+                  <th style={{ padding: '5px', textAlign: 'right' }}>Total Pieces</th>
+                  <th style={{ padding: '5px', textAlign: 'right' }}>Work Orders</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productsData.map((p, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                    <td style={{ padding: '4px 5px', fontWeight: '800', color: '#0f172a' }}>{p.name}</td>
+                    <td style={{ padding: '4px 5px', color: '#64748b' }}>{p.category}</td>
+                    <td style={{ padding: '4px 5px', textAlign: 'center', fontWeight: '700' }}>{p.capacity || '—'}</td>
+                    <td style={{ padding: '4px 5px', textAlign: 'right', fontWeight: '800', color: '#0284c7' }}>{fmt(p.weight)} kg</td>
+                    <td style={{ padding: '4px 5px', textAlign: 'right', fontWeight: '700' }}>{p.share}%</td>
+                    <td style={{ padding: '4px 5px', textAlign: 'right' }}>{fmt(p.covers)}</td>
+                    <td style={{ padding: '4px 5px', textAlign: 'right' }}>{fmt(p.frames)}</td>
+                    <td style={{ padding: '4px 5px', textAlign: 'right', fontWeight: '800' }}>{fmt(p.pieces)}</td>
+                    <td style={{ padding: '4px 5px', textAlign: 'right' }}>{p.workOrders}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Section 3: Official Sign-off & Authorizations */}
+        <div className="print-card" style={{ marginTop: '28px', borderTop: '1.5px dashed #94a3b8', paddingTop: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', textAlign: 'center' }}>
+            <div>
+              <div style={{ height: '40px' }}></div>
+              <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: '800', fontSize: '10.5px' }}>
+                Production Supervisor
+              </div>
+              <div style={{ fontSize: '9px', color: '#64748b' }}>Prepared &amp; Reconciled</div>
+            </div>
+            <div>
+              <div style={{ height: '40px' }}></div>
+              <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: '800', fontSize: '10.5px' }}>
+                Quality Assurance Head
+              </div>
+              <div style={{ fontSize: '9px', color: '#64748b' }}>Inspection &amp; FPY Verified</div>
+            </div>
+            <div>
+              <div style={{ height: '40px' }}></div>
+              <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: '800', fontSize: '10.5px' }}>
+                Plant Head / Director
+              </div>
+              <div style={{ fontSize: '9px', color: '#64748b' }}>Final Executive Authorization</div>
+            </div>
+          </div>
+          <div style={{ textAlign: 'center', fontSize: '8.5px', color: '#94a3b8', marginTop: '20px' }}>
+            Himalaya Composites Private Limited • Confidential Enterprise Manufacturing Report • Generated via Himalaya Cloud ERP Telemetry
+          </div>
+        </div>
+
+      </div> {/* End .print-only-report */}
+
+      {/* Global CSS for Screen & Print Modes */}
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         .spin { animation: spin 1s linear infinite; }
+
+        @media screen {
+          .print-only-report { display: none !important; }
+        }
+
+        @media print {
+          @page {
+            size: A4 landscape;
+            margin: 8mm 8mm 8mm 8mm;
+          }
+          html, body {
+            background: #ffffff !important;
+            color: #0f172a !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .screen-only-view, .no-print, nav, header {
+            display: none !important;
+          }
+          .print-only-report {
+            display: block !important;
+            width: 100% !important;
+            background: #ffffff !important;
+          }
+          .print-card {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .print-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          .print-table thead {
+            display: table-header-group !important;
+          }
+          .print-table tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .print-table th, .print-table td {
+            border: 1px solid #cbd5e1 !important;
+          }
+        }
       `}</style>
     </div>
   );
