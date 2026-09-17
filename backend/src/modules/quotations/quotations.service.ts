@@ -448,17 +448,6 @@ export class QuotationsService {
     }
 
     const paymentTermInfo = this.validateAndExtractPaymentTerms(dto, role);
-    if (dto.leadId) {
-      const samples = await this.prisma.sampleRequest.findMany({
-        where: { leadId: dto.leadId, deletedAt: null },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (samples.length && samples[0].status !== 'APPROVED') {
-        throw new BadRequestException(
-          'The latest required sample must be approved before quotation creation',
-        );
-      }
-    }
     const resolvedItems = await Promise.all(
       (dto.items || []).map(async (item: any) => {
         let product = await this.prisma.product.findFirst({
@@ -511,9 +500,19 @@ export class QuotationsService {
       await this.sequenceService.generateQuotationNumber();
 
     const isManager = canAssignSalesOwner(role);
-    const resolvedSalesExecutiveId = isManager
+    let resolvedSalesExecutiveId = isManager
       ? dto.salesExecutiveId || leadSalesExecutiveId || userId
       : leadSalesExecutiveId || userId;
+
+    if (resolvedSalesExecutiveId) {
+      const execExists = await this.prisma.user.findFirst({
+        where: { id: resolvedSalesExecutiveId },
+        select: { id: true },
+      });
+      if (!execExists) {
+        resolvedSalesExecutiveId = null;
+      }
+    }
 
     const rawTerms = Array.isArray(dto.selectedTerms)
       ? dto.selectedTerms
