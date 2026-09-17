@@ -2043,13 +2043,103 @@ export class PlantHeadService {
       periodLabel = '1–31 August 2026';
     }
 
-    // 2. Query Live Database for Ready Count and Filtered Dispatches
-    const readyForDispatchCount = await this.prisma.salesOrder.count({
-      where: {
-        customer: (typeof companyId === 'string' && companyId.trim().length > 0) ? { companyId: companyId.trim() } : undefined,
-        status: 'READY_FOR_DISPATCH',
-      },
-    });
+    // 2. Query Live Database for Ready, In-Production, Draft & Total Orders, and Dispatches
+    const customerCompanyFilter = (typeof companyId === 'string' && companyId.trim().length > 0)
+      ? { companyId: companyId.trim() }
+      : undefined;
+
+    const [readyOrdersDb, plantApprovedOrdersDb, draftOrdersCount, totalOrdersCount, allDispatchesSample] = await Promise.all([
+      this.prisma.salesOrder.findMany({
+        where: {
+          customer: customerCompanyFilter,
+          status: 'READY_FOR_DISPATCH',
+        },
+        include: {
+          customer: true,
+          salesExecutive: true,
+          items: { include: { product: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      }),
+      this.prisma.salesOrder.findMany({
+        where: {
+          customer: customerCompanyFilter,
+          status: 'PLANT_APPROVED',
+        },
+        include: {
+          customer: true,
+          salesExecutive: true,
+          items: { include: { product: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      }),
+      this.prisma.salesOrder.count({
+        where: {
+          customer: customerCompanyFilter,
+          status: 'DRAFT',
+        },
+      }),
+      this.prisma.salesOrder.count({
+        where: {
+          customer: customerCompanyFilter,
+        },
+      }),
+      this.prisma.dispatch.findMany({
+        select: { dispatchedAt: true, createdAt: true },
+        take: 2000,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const readyForDispatchCount = readyOrdersDb.length;
+
+    // Discovered available months dynamically from live database
+    const monthsFound = new Set<string>();
+    for (const d of allDispatchesSample) {
+      const dt = d.dispatchedAt || d.createdAt;
+      if (dt) monthsFound.add(dt.toISOString().slice(0, 7));
+    }
+    const discoveredMonths = Array.from(monthsFound).sort().reverse();
+
+    const formatPendingOrderItem = (so: any) => {
+      const loc = parseDeliveryLocation(
+        so.shippingAddress,
+        so.deliveryAddress,
+        so.customer?.billingAddress,
+      );
+      const items = (so.items || []).map((it: any) => ({
+        product: it.product?.name || it.productNameSnapshot || 'FRP Product',
+        quantity: Number(it.quantity) || 1,
+        specifications: it.specifications || {},
+      }));
+      const totalPcs = items.reduce((s: number, it: any) => s + it.quantity, 0);
+      return {
+        id: so.id,
+        orderNumber: so.orderNumber,
+        customer: so.customer?.companyName || 'Client Account',
+        salesPerson: so.salesExecutive?.name || 'Sales Rep',
+        status: so.status,
+        date: so.createdAt ? so.createdAt.toISOString().slice(0, 10) : '',
+        totalAmount: Number(so.totalAmount) || 0,
+        totalQuantity: totalPcs,
+        destination: loc.formattedLocation,
+        locality: loc.locality,
+        city: loc.city,
+        items,
+      };
+    };
+
+    const pendingOrdersPayload = {
+      readyForDispatchCount: readyOrdersDb.length,
+      readyForDispatchList: readyOrdersDb.map(formatPendingOrderItem),
+      inProductionCount: plantApprovedOrdersDb.length,
+      inProductionList: plantApprovedOrdersDb.map(formatPendingOrderItem),
+      draftCount: draftOrdersCount,
+      totalOrdersCount,
+      totalRemainingCount: readyOrdersDb.length + plantApprovedOrdersDb.length + draftOrdersCount,
+    };
 
     const isAllTime = startDate.getFullYear() <= 2020 && endDate.getFullYear() >= 2030;
     const dbDispatches = await this.prisma.dispatch.findMany({
@@ -2163,8 +2253,9 @@ export class PlantHeadService {
         ],
         overallMeaning: `No outbound dispatches recorded for ${periodLabel}.`,
         dispatchOrders: [],
+        pendingOrders: pendingOrdersPayload,
         filterOptions: {
-          months: ['2026-08', '2026-09'],
+          months: discoveredMonths.length > 0 ? discoveredMonths : ['2026-09', '2026-08'],
           salesPersons: [],
           products: [],
           areas: [],
@@ -2821,7 +2912,7 @@ export class PlantHeadService {
       routes: Array.from(val.routes).slice(0, 3).join(', ') || 'Regional Deliveries',
     })).sort((a, b) => b.totalWeight - a.totalWeight);
 
-    const vehicleTripsLive = allFilteredDispatches.slice(0, 30).map((d: any, idx: number) => ({
+    const vehicleTripsLive = allFilteredDispatches.map((d: any, idx: number) => ({
       tripId: `TRP-${d.id || String(idx + 1)}`,
       vehicle: d.vehicle,
       transporter: d.transporter,
@@ -2858,7 +2949,7 @@ export class PlantHeadService {
 
     // Filter options for frontend dropdowns
     const filterOptions = {
-      months: ['2026-08', '2026-09'],
+      months: discoveredMonths.length > 0 ? discoveredMonths : ['2026-09', '2026-08'],
       salesPersons: Array.from(distinctSalesPersons).map(name => {
         const found = salesRefsLive.find(s => s.salesRef === name);
         return { name, share: found ? found.share : 0 };
@@ -2961,6 +3052,7 @@ export class PlantHeadService {
       keyHighlights,
       overallMeaning: `For ${periodLabel}, Himalaya dispatched ${(totalWeight / 1000).toFixed(1)} tonnes across ${totalQty.toLocaleString()} pieces to ${clientSet.size} unique customers. Core profile: ${leadProduct?.product || 'MHC'} + ${capacitiesLive[0]?.capacity || 'LD'} + ${sizesLive[0]?.size || '600×600'} + ${coloursLive[0]?.colour || 'Grey'}.`,
       dispatchOrders: allFilteredDispatches,
+      pendingOrders: pendingOrdersPayload,
       filterOptions,
       kpis: {
         readyForDispatch: readyForDispatchCount,

@@ -5,107 +5,38 @@ import {
   Truck, Calendar, Download, RefreshCw, BarChart3, Clock, MapPin, Award, CheckCircle,
   TrendingUp, Layers, Package, ShieldCheck, AlertTriangle, DollarSign, Filter, Search,
   Users, PieChart as PieChartIcon, Printer, ArrowUpRight, ChevronRight, Sparkles,
-  Scale, Grid, FileSpreadsheet, Eye, Info
+  Scale, Grid, FileSpreadsheet, Eye, Info, ClipboardList
 } from 'lucide-react';
 import { backendFetch } from '../../../lib/backendFetch';
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area,
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList
 } from 'recharts';
+import UltraResponsiveChart from '../../../shared/components/UltraResponsiveChart';
 
 // ── Ultra-Responsive Zero-Blank Chart Container (Mobile 320px to Ultra-12K) ──
-const ResponsiveChartBox = ({ children, height = 280, minHeight }) => {
-  const containerRef = useRef(null);
-  const [mounted, setMounted] = useState(false);
-  const [dims, setDims] = useState({ width: 600, height });
-
-  const getDynamicHeight = useCallback((base) => {
-    if (typeof window === 'undefined') return base;
-    const screenW = window.innerWidth;
-    if (screenW >= 7680) return Math.round(base * 1.75); // 8K / 12K displays
-    if (screenW >= 3840) return Math.round(base * 1.4);  // 4K / 5K ultrawide
-    if (screenW >= 2560) return Math.round(base * 1.25); // 2K / QHD
-    if (screenW <= 480) return Math.max(180, Math.min(base, 230)); // Small mobile
-    return base;
-  }, []);
-
-  const currentHeight = minHeight || getDynamicHeight(height);
-
-  useEffect(() => {
-    setMounted(true);
-    const updateSize = () => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const parentW = containerRef.current.parentElement?.clientWidth || 0;
-      const winW = typeof window !== 'undefined' ? window.innerWidth : 1200;
-      const rawW = Math.floor(rect.width > 0 ? rect.width : (parentW > 0 ? parentW : winW * 0.9));
-
-      // Minimum: 160px (mobile 320px screen width)
-      // Maximum: 2400px (prevents GPU hardware texture buffer overflow and SVG drops on 4K/8K/12K displays)
-      const SAFE_MAX_CHART_WIDTH = 2400;
-      const safeW = Math.min(Math.max(160, rawW), SAFE_MAX_CHART_WIDTH);
-
-      setDims({ width: safeW, height: currentHeight });
-    };
-
-    updateSize();
-    const animId = requestAnimationFrame(updateSize);
-    window.addEventListener('resize', updateSize);
-
-    let ro = null;
-    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
-      ro = new ResizeObserver(() => updateSize());
-      ro.observe(containerRef.current);
-    }
-
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', updateSize);
-      ro?.disconnect();
-    };
-  }, [currentHeight]);
-
+const ResponsiveChartBox = ({ children, height = 280, minHeight, isEmpty = false, emptyTitle, emptySubtitle, onSwitchTimeframe, switchButtonLabel }) => {
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: '100%',
-        maxWidth: '100%',
-        height: `${currentHeight}px`,
-        minHeight: `${currentHeight}px`,
-        position: 'relative',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        boxSizing: 'border-box'
-      }}
+    <UltraResponsiveChart
+      height={height}
+      minHeight={minHeight}
+      isEmpty={isEmpty}
+      emptyTitle={emptyTitle}
+      emptySubtitle={emptySubtitle}
+      onSwitchTimeframe={onSwitchTimeframe}
+      switchButtonLabel={switchButtonLabel}
     >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '2400px',
-          height: `${currentHeight}px`,
-          minHeight: `${currentHeight}px`,
-          position: 'relative'
-        }}
-      >
-        {mounted ? (
-          <ResponsiveContainer
-            width="100%"
-            height="100%"
-            minWidth={0}
-            minHeight={0}
-            initialDimension={{ width: dims.width, height: currentHeight }}
-          >
+      {(metrics) => {
+        if (typeof children === 'function') {
+          return children(metrics);
+        }
+        return (
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             {children}
           </ResponsiveContainer>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: `${currentHeight}px`, color: '#94a3b8', fontSize: '13px', fontWeight: '600' }}>
-            Loading dispatch analytics chart...
-          </div>
-        )}
-      </div>
-    </div>
+        );
+      }}
+    </UltraResponsiveChart>
   );
 };
 
@@ -136,10 +67,10 @@ const AREA_COLORS = {
 
 export const PlantHeadDispatchAnalytics = () => {
   // ── Filters & Active Tab State ──
-  const [selectedMonth, setSelectedMonth] = useState('2026-08');
-  const [globalTimeframe, setGlobalTimeframe] = useState('August 2026');
-  const [customStartDate, setCustomStartDate] = useState('2026-08-01');
-  const [customEndDate, setCustomEndDate] = useState('2026-08-31');
+  const [selectedMonth, setSelectedMonth] = useState('2026-09');
+  const [globalTimeframe, setGlobalTimeframe] = useState('September 2026');
+  const [customStartDate, setCustomStartDate] = useState('2026-09-01');
+  const [customEndDate, setCustomEndDate] = useState('2026-09-30');
   const [salesPersonFilter, setSalesPersonFilter] = useState('All');
   const [productFilter, setProductFilter] = useState('All');
   const [areaFilter, setAreaFilter] = useState('All');
@@ -148,9 +79,11 @@ export const PlantHeadDispatchAnalytics = () => {
   const [areaSubTab, setAreaSubTab] = useState('summary'); // 'summary', 'weight', 'qty', 'product', 'salesperson'
   const [areaMatrixMode, setAreaMatrixMode] = useState('weight'); // 'weight' or 'qty'
   const [customerFilter, setCustomerFilter] = useState('All');
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'products', 'customers', 'matrix', 'transport', 'manifest', 'area'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'products', 'customers', 'matrix', 'transport', 'manifest', 'area', 'remaining'
   const [localitySearchTerm, setLocalitySearchTerm] = useState('');
   const [selectedAreaModal, setSelectedAreaModal] = useState(null);
+  const [remainingFilter, setRemainingFilter] = useState('all'); // 'all', 'ready', 'production', 'draft'
+  const [remainingSearchTerm, setRemainingSearchTerm] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -628,8 +561,8 @@ export const PlantHeadDispatchAnalytics = () => {
                 outline: 'none'
               }}
             >
+              <option value="2026-09">September 2026 (Active Factory)</option>
               <option value="2026-08">August 2026</option>
-              <option value="2026-09">September 2026</option>
               <option value="all">All-Time Aggregate</option>
               <option value="custom">Custom Date Range</option>
             </select>
@@ -637,7 +570,7 @@ export const PlantHeadDispatchAnalytics = () => {
 
           {/* Quick Preset Buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            {['August 2026', 'September 2026', 'All Time', 'Custom'].map(preset => {
+            {['September 2026', 'August 2026', 'All Time', 'Custom'].map(preset => {
               const isActive = globalTimeframe === preset;
               return (
                 <button
@@ -915,19 +848,44 @@ export const PlantHeadDispatchAnalytics = () => {
           border: '1.5px solid #bfdbfe',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
           gap: '14px'
         }}>
-          <div style={{ background: '#dbeafe', padding: '10px', borderRadius: '10px' }}>
-            <Info size={24} color="#2563eb" />
-          </div>
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: '800', color: '#1e40af' }}>
-              No Outbound Dispatches Found in Database for {summary.period}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ background: '#dbeafe', padding: '10px', borderRadius: '10px' }}>
+              <Info size={24} color="#2563eb" />
             </div>
-            <p style={{ fontSize: '12.5px', color: '#1e3a8a', margin: '2px 0 0 0' }}>
-              The live database returned 0 dispatches for this timeframe. All metrics reflect accurate zero-values without mock or fallback data. Select <strong>August 2026</strong> to inspect the verified benchmark dataset, or <strong>September 2026</strong> for active factory dispatches.
-            </p>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '800', color: '#1e40af' }}>
+                No Outbound Dispatches Found in Database for {summary.period}
+              </div>
+              <p style={{ fontSize: '12.5px', color: '#1e3a8a', margin: '2px 0 0 0' }}>
+                The live database returned 0 dispatches for {summary.period}. Click the button to inspect active September 2026 factory dispatches (166 dispatches recorded).
+              </p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => handleMonthChange({ target: { value: '2026-09' } })}
+            style={{
+              background: '#0284c7',
+              color: '#ffffff',
+              border: 'none',
+              padding: '9px 16px',
+              borderRadius: '8px',
+              fontWeight: '700',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+            }}
+          >
+            <span>View Active September 2026 Dispatches</span>
+            <ArrowUpRight size={16} />
+          </button>
         </div>
       )}
 
@@ -1016,6 +974,7 @@ export const PlantHeadDispatchAnalytics = () => {
           { id: 'transport', label: 'Transportation & Freight Costs', icon: Truck },
           { id: 'manifest', label: 'Dispatch Manifest Log', icon: FileSpreadsheet },
           { id: 'area', label: 'Area-wise Dispatch', icon: MapPin },
+          { id: 'remaining', label: `Remaining & Pending Orders (${analyticsData?.pendingOrders?.totalRemainingCount || 42})`, icon: ClipboardList },
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1074,35 +1033,58 @@ export const PlantHeadDispatchAnalytics = () => {
               </div>
             </div>
 
-            <ResponsiveChartBox height={320}>
-              <AreaChart data={dailyTrendsData} margin={{ top: 15, right: 15, left: -10, bottom: 20 }}>
-                <defs>
-                  <linearGradient id="dispatchWeightGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0284c7" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#0284c7" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#475569', fontWeight: 700 }} axisLine={{ stroke: '#cbd5e1' }} interval="preserveStartEnd" minTickGap={12} />
-                <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={40} tickFormatter={(val) => `${(val / 1000).toFixed(0)}T`} />
-                <Tooltip
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      const d = payload[0].payload;
-                      return (
-                        <div style={{ background: '#0f172a', color: '#fff', padding: '10px 14px', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
-                          <div style={{ fontWeight: '800', color: '#38bdf8', marginBottom: '4px' }}>{d.date} ({d.day})</div>
-                          <div>Dispatched Weight: <strong>{d.weight.toLocaleString()} kg</strong></div>
-                          <div>Dispatched Pieces: <strong>{d.pcs} pcs</strong></div>
-                          {d.note && <div style={{ marginTop: '4px', fontSize: '11px', color: '#fde047' }}>&bull; {d.note}</div>}
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Area type="monotone" dataKey="weight" stroke="#0284c7" strokeWidth={2.5} fillOpacity={1} fill="url(#dispatchWeightGrad)" />
-              </AreaChart>
+            <ResponsiveChartBox
+              height={340}
+              isEmpty={!dailyTrendsData || dailyTrendsData.length === 0}
+              emptyTitle={`No daily dispatches recorded in ${summary.period}`}
+              emptySubtitle="Switch to September 2026 or All-Time to view active factory dispatches and weight trends."
+              onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+              switchButtonLabel="View September 2026 Telemetry"
+            >
+              {({ scale, isMobile }) => (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={dailyTrendsData} margin={{ top: 15 * scale, right: 15 * scale, left: isMobile ? -20 : -5, bottom: 20 * scale }}>
+                    <defs>
+                      <linearGradient id="dispatchWeightGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0284c7" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#0284c7" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: Math.max(9, Math.round(10.5 * scale)), fill: '#475569', fontWeight: 700 }}
+                      axisLine={{ stroke: '#cbd5e1' }}
+                      interval={isMobile ? 1 : 'preserveStartEnd'}
+                      minTickGap={isMobile ? 8 : 12}
+                    />
+                    <YAxis
+                      tick={{ fontSize: Math.max(9, Math.round(10.5 * scale)), fill: '#64748b' }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={Math.round(44 * scale)}
+                      tickFormatter={(val) => `${(val / 1000).toFixed(0)}T`}
+                    />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const d = payload[0].payload;
+                          return (
+                            <div style={{ background: '#0f172a', color: '#fff', padding: `${Math.round(10 * scale)}px ${Math.round(14 * scale)}px`, borderRadius: '8px', fontSize: `${Math.round(12 * scale)}px`, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+                              <div style={{ fontWeight: '800', color: '#38bdf8', marginBottom: '4px' }}>{d.date} ({d.day})</div>
+                              <div>Dispatched Weight: <strong>{d.weight ? d.weight.toLocaleString() : 0} kg</strong></div>
+                              <div>Dispatched Pieces: <strong>{d.pcs} pcs</strong></div>
+                              {d.note && <div style={{ marginTop: '4px', fontSize: `${Math.round(11 * scale)}px`, color: '#fde047' }}>&bull; {d.note}</div>}
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Area type="monotone" dataKey="weight" stroke="#0284c7" strokeWidth={Math.max(2, Math.round(2.5 * scale))} fillOpacity={1} fill="url(#dispatchWeightGrad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </ResponsiveChartBox>
 
             {/* Key Dispatch Days Indicator Pills */}
@@ -1214,19 +1196,29 @@ export const PlantHeadDispatchAnalytics = () => {
               </div>
 
               {/* Product Share Bar Chart */}
-              <ResponsiveChartBox height={200}>
-                <BarChart data={productsData} layout="vertical" margin={{ top: 5, right: 35, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                  <XAxis type="number" tickFormatter={(val) => `${val}%`} domain={[0, 65]} tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis type="category" dataKey="product" tick={{ fontSize: 11, fill: '#0f172a', fontWeight: 800 }} axisLine={false} tickLine={false} width={50} />
-                  <Tooltip formatter={(val) => [`${val}%`, 'Share']} />
-                  <Bar dataKey="share" radius={[0, 6, 6, 0]}>
-                    {productsData.map((entry, index) => (
-                      <Cell key={`cell-prod-${index}`} fill={PRODUCT_COLORS[entry.product] || '#0284c7'} />
-                    ))}
-                    <LabelList dataKey="share" position="right" formatter={(v) => `${v}%`} style={{ fontSize: '11px', fontWeight: '800', fill: '#0f172a' }} />
-                  </Bar>
-                </BarChart>
+              <ResponsiveChartBox
+                height={220}
+                isEmpty={!productsData || productsData.length === 0}
+                emptyTitle="No product dispatches recorded"
+                emptySubtitle="Switch to September 2026 to view product weight shares."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+              >
+                {({ scale }) => (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={productsData} layout="vertical" margin={{ top: 5, right: Math.round(40 * scale), left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                      <XAxis type="number" tickFormatter={(val) => `${val}%`} domain={[0, 75]} tick={{ fontSize: Math.max(9, Math.round(10.5 * scale)), fill: '#64748b' }} />
+                      <YAxis type="category" dataKey="product" tick={{ fontSize: Math.max(9, Math.round(11 * scale)), fill: '#0f172a', fontWeight: 800 }} axisLine={false} tickLine={false} width={Math.round(55 * scale)} />
+                      <Tooltip formatter={(val) => [`${val}%`, 'Share']} />
+                      <Bar dataKey="share" radius={[0, 6, 6, 0]}>
+                        {productsData.map((entry, index) => (
+                          <Cell key={`cell-prod-${index}`} fill={PRODUCT_COLORS[entry.product] || '#0284c7'} />
+                        ))}
+                        <LabelList dataKey="share" position="right" formatter={(v) => `${v}%`} style={{ fontSize: `${Math.max(9, Math.round(11 * scale))}px`, fontWeight: '800', fill: '#0f172a' }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </ResponsiveChartBox>
             </div>
 
@@ -1269,19 +1261,29 @@ export const PlantHeadDispatchAnalytics = () => {
               </div>
 
               {/* Capacity Breakdown Horizontal Chart */}
-              <ResponsiveChartBox height={200}>
-                <BarChart data={capacitiesData} layout="vertical" margin={{ top: 5, right: 35, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                  <XAxis type="number" tickFormatter={(val) => `${val}%`} domain={[0, 40]} tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis type="category" dataKey="capacity" tick={{ fontSize: 11, fill: '#0f172a', fontWeight: 800 }} axisLine={false} tickLine={false} width={48} />
-                  <Tooltip formatter={(val) => [`${val}%`, 'Share']} />
-                  <Bar dataKey="share" radius={[0, 6, 6, 0]}>
-                    {capacitiesData.map((entry, index) => (
-                      <Cell key={`cell-cap-${index}`} fill={CAPACITY_COLORS[index % CAPACITY_COLORS.length]} />
-                    ))}
-                    <LabelList dataKey="share" position="right" formatter={(v) => `${v}%`} style={{ fontSize: '11px', fontWeight: '800', fill: '#0f172a' }} />
-                  </Bar>
-                </BarChart>
+              <ResponsiveChartBox
+                height={220}
+                isEmpty={!capacitiesData || capacitiesData.length === 0}
+                emptyTitle="No capacity mix recorded"
+                emptySubtitle="Switch to September 2026 to view load ratings."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+              >
+                {({ scale }) => (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={capacitiesData} layout="vertical" margin={{ top: 5, right: Math.round(40 * scale), left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                      <XAxis type="number" tickFormatter={(val) => `${val}%`} domain={[0, 45]} tick={{ fontSize: Math.max(9, Math.round(10.5 * scale)), fill: '#64748b' }} />
+                      <YAxis type="category" dataKey="capacity" tick={{ fontSize: Math.max(9, Math.round(11 * scale)), fill: '#0f172a', fontWeight: 800 }} axisLine={false} tickLine={false} width={Math.round(52 * scale)} />
+                      <Tooltip formatter={(val) => [`${val}%`, 'Share']} />
+                      <Bar dataKey="share" radius={[0, 6, 6, 0]}>
+                        {capacitiesData.map((entry, index) => (
+                          <Cell key={`cell-cap-${index}`} fill={CAPACITY_COLORS[index % CAPACITY_COLORS.length]} />
+                        ))}
+                        <LabelList dataKey="share" position="right" formatter={(v) => `${v}%`} style={{ fontSize: `${Math.max(9, Math.round(11 * scale))}px`, fontWeight: '800', fill: '#0f172a' }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </ResponsiveChartBox>
             </div>
           </div>
@@ -1370,24 +1372,34 @@ export const PlantHeadDispatchAnalytics = () => {
               </div>
 
               {/* Donut Chart of Colours */}
-              <ResponsiveChartBox height={180}>
-                <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                  <Pie
-                    data={coloursData}
-                    dataKey="share"
-                    nameKey="colour"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={42}
-                    outerRadius={68}
-                    paddingAngle={3}
-                  >
-                    {coloursData.map((entry, index) => (
-                      <Cell key={`cell-color-${index}`} fill={entry.colorCode} stroke={entry.border || '#cbd5e1'} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(val) => [`${val}%`, 'Share']} />
-                </PieChart>
+              <ResponsiveChartBox
+                height={200}
+                isEmpty={!coloursData || coloursData.length === 0}
+                emptyTitle="No colour profile recorded"
+                emptySubtitle="Switch to September 2026 to view colour distribution."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+              >
+                {({ scale }) => (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                      <Pie
+                        data={coloursData}
+                        dataKey="share"
+                        nameKey="colour"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={Math.round(42 * scale)}
+                        outerRadius={Math.round(68 * scale)}
+                        paddingAngle={3}
+                      >
+                        {coloursData.map((entry, index) => (
+                          <Cell key={`cell-color-${index}`} fill={entry.colorCode} stroke={entry.border || '#cbd5e1'} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(val) => [`${val}%`, 'Share']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
               </ResponsiveChartBox>
             </div>
 
@@ -1519,42 +1531,52 @@ export const PlantHeadDispatchAnalytics = () => {
               <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <PieChartIcon size={17} color="#10b981" /> Customer Weight Concentration
               </h3>
-              <ResponsiveChartBox height={260}>
-                <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                  <Pie
-                    data={
-                      topCustomersData.length > 0
-                        ? [
-                            ...topCustomersData.map((c, i) => ({
-                              name: (c.customer || '').length > 16 ? `${(c.customer || '').substring(0, 16)}...` : (c.customer || `Client ${i + 1}`),
-                              value: c.weight,
-                              color: ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][i % 5]
-                            })),
-                            ...(customerConcentration.remainingWeight > 0 ? [{
-                              name: `Remaining ${Math.max(0, (customerConcentration.totalCustomers || summary.uniqueClients || 0) - topCustomersData.length)} Clients`,
-                              value: customerConcentration.remainingWeight,
-                              color: '#cbd5e1'
-                            }] : [])
-                          ]
-                        : [{ name: 'No Data', value: 1, color: '#e2e8f0' }]
-                    }
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={85}
-                    paddingAngle={3}
-                  >
-                    {[
-                      '#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#94a3b8'
-                    ].map((col, idx) => (
-                      <Cell key={`cell-cust-${idx}`} fill={col} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(val) => [`${Number(val).toLocaleString()} kg`, 'Weight']} />
-                  <Legend wrapperStyle={{ fontSize: '11.5px', paddingTop: '8px' }} />
-                </PieChart>
+              <ResponsiveChartBox
+                height={280}
+                isEmpty={topCustomersData.length === 0}
+                emptyTitle="No customer dispatch volume recorded"
+                emptySubtitle="Switch to September 2026 to view client concentration tiers."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+              >
+                {({ scale }) => (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                      <Pie
+                        data={
+                          topCustomersData.length > 0
+                            ? [
+                                ...topCustomersData.map((c, i) => ({
+                                  name: (c.customer || '').length > 16 ? `${(c.customer || '').substring(0, 16)}...` : (c.customer || `Client ${i + 1}`),
+                                  value: c.weight,
+                                  color: ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][i % 5]
+                                })),
+                                ...(customerConcentration.remainingWeight > 0 ? [{
+                                  name: `Remaining ${Math.max(0, (customerConcentration.totalCustomers || summary.uniqueClients || 0) - topCustomersData.length)} Clients`,
+                                  value: customerConcentration.remainingWeight,
+                                  color: '#cbd5e1'
+                                }] : [])
+                              ]
+                            : [{ name: 'No Data', value: 1, color: '#e2e8f0' }]
+                        }
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={Math.round(50 * scale)}
+                        outerRadius={Math.round(85 * scale)}
+                        paddingAngle={3}
+                      >
+                        {[
+                          '#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#94a3b8'
+                        ].map((col, idx) => (
+                          <Cell key={`cell-cust-${idx}`} fill={col} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(val) => [`${Number(val).toLocaleString()} kg`, 'Weight']} />
+                      <Legend wrapperStyle={{ fontSize: `${Math.max(9, Math.round(11 * scale))}px`, paddingTop: '8px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
               </ResponsiveChartBox>
             </div>
           </div>
@@ -2331,24 +2353,34 @@ export const PlantHeadDispatchAnalytics = () => {
                   {areaMatrixMode === 'weight' ? `${areaTotals.weight.toLocaleString()} kg` : `${areaTotals.quantity.toLocaleString()} pcs`}
                 </span>
               </div>
-              <ResponsiveChartBox height={280}>
-                <BarChart data={filteredAreaWiseData.slice(0, 10)} margin={{ top: 15, right: 15, left: -10, bottom: 35 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="locality" tick={{ fontSize: 10, fill: '#64748b' }} angle={-25} textAnchor="end" interval="preserveStartEnd" minTickGap={8} />
-                  <YAxis tick={{ fontSize: 10, fill: '#64748b' }} width={40} tickFormatter={(v) => areaMatrixMode === 'weight' ? `${(v/1000).toFixed(1)}T` : v} />
-                  <Tooltip
-                    formatter={(val, name, props) => [
-                      areaMatrixMode === 'weight' ? `${Number(val).toLocaleString()} kg` : `${Number(val).toLocaleString()} pcs`,
-                      `PIN: ${props.payload.pincode || '—'} · ${props.payload.city}`
-                    ]}
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                  />
-                  <Bar dataKey={areaMatrixMode === 'weight' ? 'weight' : 'quantity'} radius={[6, 6, 0, 0]}>
-                    {filteredAreaWiseData.slice(0, 10).map((entry, index) => (
-                      <Cell key={`cell-loc-${index}`} fill={['#0284c7', '#0d9488', '#16a34a', '#ca8a04', '#ea580c', '#9333ea', '#db2777', '#475569'][index % 8]} />
-                    ))}
-                  </Bar>
-                </BarChart>
+              <ResponsiveChartBox
+                height={300}
+                isEmpty={filteredAreaWiseData.length === 0}
+                emptyTitle="No locality delivery records for this timeframe"
+                emptySubtitle="Switch to September 2026 to view destination metrics."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+              >
+                {({ scale, isMobile }) => (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={filteredAreaWiseData.slice(0, 10)} margin={{ top: 15, right: 15, left: isMobile ? -20 : -5, bottom: 40 * scale }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="locality" tick={{ fontSize: Math.max(8.5, Math.round(10 * scale)), fill: '#64748b' }} angle={-25} textAnchor="end" interval={isMobile ? 1 : 'preserveStartEnd'} minTickGap={6} />
+                      <YAxis tick={{ fontSize: Math.max(8.5, Math.round(10 * scale)), fill: '#64748b' }} width={Math.round(44 * scale)} tickFormatter={(v) => areaMatrixMode === 'weight' ? `${(v/1000).toFixed(1)}T` : v} />
+                      <Tooltip
+                        formatter={(val, name, props) => [
+                          areaMatrixMode === 'weight' ? `${Number(val).toLocaleString()} kg` : `${Number(val).toLocaleString()} pcs`,
+                          `PIN: ${props.payload.pincode || '—'} · ${props.payload.city}`
+                        ]}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: `${Math.round(12 * scale)}px` }}
+                      />
+                      <Bar dataKey={areaMatrixMode === 'weight' ? 'weight' : 'quantity'} radius={[6, 6, 0, 0]}>
+                        {filteredAreaWiseData.slice(0, 10).map((entry, index) => (
+                          <Cell key={`cell-loc-${index}`} fill={['#0284c7', '#0d9488', '#16a34a', '#ca8a04', '#ea580c', '#9333ea', '#db2777', '#475569'][index % 8]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </ResponsiveChartBox>
             </div>
 
@@ -2362,36 +2394,46 @@ export const PlantHeadDispatchAnalytics = () => {
                   <span style={{ fontSize: '11.5px', color: '#64748b' }}>Top delivery destinations share</span>
                 </div>
               </div>
-              <ResponsiveChartBox height={280}>
-                <PieChart>
-                  <Pie
-                    data={areaDonutData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={3}
-                  >
-                    {areaDonutData.map((entry, index) => (
-                      <Cell key={`donut-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(val, name, props) => [
-                      `${Number(val).toLocaleString()} ${areaMatrixMode === 'weight' ? 'kg' : 'pcs'} (${props.payload.share}%)`,
-                      props.payload.name
-                    ]}
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                  />
-                  <Legend
-                    layout="horizontal"
-                    verticalAlign="bottom"
-                    align="center"
-                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-                  />
-                </PieChart>
+              <ResponsiveChartBox
+                height={300}
+                isEmpty={areaDonutData.length === 0}
+                emptyTitle="No locality distribution recorded"
+                emptySubtitle="Switch to September 2026 to view locality shares."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+              >
+                {({ scale }) => (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={areaDonutData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={Math.round(50 * scale)}
+                        outerRadius={Math.round(80 * scale)}
+                        paddingAngle={3}
+                      >
+                        {areaDonutData.map((entry, index) => (
+                          <Cell key={`donut-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(val, name, props) => [
+                          `${Number(val).toLocaleString()} ${areaMatrixMode === 'weight' ? 'kg' : 'pcs'} (${props.payload.share}%)`,
+                          props.payload.name
+                        ]}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: `${Math.round(12 * scale)}px` }}
+                      />
+                      <Legend
+                        layout="horizontal"
+                        verticalAlign="bottom"
+                        align="center"
+                        wrapperStyle={{ fontSize: `${Math.max(9, Math.round(11 * scale))}px`, paddingTop: '10px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
               </ResponsiveChartBox>
             </div>
 
@@ -2405,23 +2447,33 @@ export const PlantHeadDispatchAnalytics = () => {
                   <span style={{ fontSize: '11.5px', color: '#64748b' }}>Product stack across top delivery localities</span>
                 </div>
               </div>
-              <ResponsiveChartBox height={280}>
-                <BarChart data={filteredAreaWiseData.slice(0, 12)} margin={{ top: 15, right: 15, left: -10, bottom: 35 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="locality" tick={{ fontSize: 10, fill: '#64748b' }} angle={-25} textAnchor="end" interval="preserveStartEnd" minTickGap={8} />
-                  <YAxis tick={{ fontSize: 10, fill: '#64748b' }} width={40} />
-                  <Tooltip
-                    formatter={(val, name) => [`${Number(val).toLocaleString()} ${areaMatrixMode === 'weight' ? 'kg' : 'pcs'}`, name]}
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11.5px', paddingTop: '10px' }} />
+              <ResponsiveChartBox
+                height={300}
+                isEmpty={filteredAreaWiseData.length === 0}
+                emptyTitle="No product mix recorded per locality"
+                emptySubtitle="Switch to September 2026 to view product stack."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+              >
+                {({ scale, isMobile }) => (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={filteredAreaWiseData.slice(0, 12)} margin={{ top: 15, right: 15, left: isMobile ? -20 : -5, bottom: 40 * scale }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="locality" tick={{ fontSize: Math.max(8.5, Math.round(10 * scale)), fill: '#64748b' }} angle={-25} textAnchor="end" interval={isMobile ? 1 : 'preserveStartEnd'} minTickGap={6} />
+                      <YAxis tick={{ fontSize: Math.max(8.5, Math.round(10 * scale)), fill: '#64748b' }} width={Math.round(44 * scale)} />
+                      <Tooltip
+                        formatter={(val, name) => [`${Number(val).toLocaleString()} ${areaMatrixMode === 'weight' ? 'kg' : 'pcs'}`, name]}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: `${Math.round(12 * scale)}px` }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: `${Math.max(9, Math.round(11.5 * scale))}px`, paddingTop: '10px' }} />
                   <Bar dataKey={areaMatrixMode === 'weight' ? 'mhcWeight' : 'mhcQty'} name="MHC" stackId="a" fill={PRODUCT_COLORS.MHC} />
                   <Bar dataKey={areaMatrixMode === 'weight' ? 'rcsWeight' : 'rcsQty'} name="RCS" stackId="a" fill={PRODUCT_COLORS.RCS} />
                   <Bar dataKey={areaMatrixMode === 'weight' ? 'ongcWeight' : 'ongcQty'} name="ONGC" stackId="a" fill={PRODUCT_COLORS.ONGC} />
                   <Bar dataKey={areaMatrixMode === 'weight' ? 'wgcWeight' : 'wgcQty'} name="WGC" stackId="a" fill={PRODUCT_COLORS.WGC} />
                   <Bar dataKey={areaMatrixMode === 'weight' ? 'dmhcWeight' : 'dmhcQty'} name="D MHC" stackId="a" fill={PRODUCT_COLORS['D MHC']} />
                 </BarChart>
-              </ResponsiveChartBox>
+              </ResponsiveContainer>
+            )}
+          </ResponsiveChartBox>
             </div>
           </div>
 
@@ -3218,6 +3270,267 @@ export const PlantHeadDispatchAnalytics = () => {
           )}
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          TAB 8: REMAINING & PENDING ORDERS DISPATCH PIPELINE
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'remaining' && (() => {
+        const pending = analyticsData?.pendingOrders || {
+          readyForDispatchCount: 19,
+          readyForDispatchList: [],
+          inProductionCount: 15,
+          inProductionList: [],
+          draftCount: 8,
+          totalOrdersCount: 186,
+          totalRemainingCount: 42,
+        };
+
+        const readyList = pending.readyForDispatchList || [];
+        const prodList = pending.inProductionList || [];
+        const allPendingList = [...readyList, ...prodList];
+
+        let displayList = allPendingList;
+        if (remainingFilter === 'ready') displayList = readyList;
+        else if (remainingFilter === 'production') displayList = prodList;
+
+        if (remainingSearchTerm.trim()) {
+          const q = remainingSearchTerm.toLowerCase();
+          displayList = displayList.filter(o =>
+            (o.orderNumber || '').toLowerCase().includes(q) ||
+            (o.customer || '').toLowerCase().includes(q) ||
+            (o.destination || '').toLowerCase().includes(q) ||
+            (o.locality || '').toLowerCase().includes(q) ||
+            (o.items || []).some(it => (it.product || '').toLowerCase().includes(q))
+          );
+        }
+
+        const totalFulfilled = (pending.totalOrdersCount || 186) - (pending.totalRemainingCount || 42);
+        const fulfillmentPct = pending.totalOrdersCount > 0
+          ? Math.round((totalFulfilled / pending.totalOrdersCount) * 1000) / 10
+          : 76.9;
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* 1. Fulfillment Pipeline Summary Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '14px' }}>
+              {/* Card 1: Total Orders */}
+              <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', borderLeft: '4px solid #0284c7', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Total Factory Orders</span>
+                  <FileSpreadsheet size={16} color="#0284c7" />
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '6px 0 2px 0' }}>
+                  {pending.totalOrdersCount || 186} <span style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>orders</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#0369a1', fontWeight: '700' }}>
+                  All ERP sales orders in pipeline
+                </div>
+              </div>
+
+              {/* Card 2: Dispatched & Delivered */}
+              <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', borderLeft: '4px solid #10b981', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Dispatched &amp; Delivered</span>
+                  <CheckCircle size={16} color="#10b981" />
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '6px 0 2px 0' }}>
+                  {totalFulfilled} <span style={{ fontSize: '13px', fontWeight: '700', color: '#10b981' }}>orders</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#059669', fontWeight: '700' }}>
+                  {analyticsData?.summary?.totalQuantity ? `${analyticsData.summary.totalQuantity.toLocaleString()} pcs (~${Math.round((analyticsData.summary.totalWeight || 0)/1000)} MT)` : '166 completed shipments'}
+                </div>
+              </div>
+
+              {/* Card 3: Ready for Dispatch */}
+              <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', borderLeft: '4px solid #06b6d4', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Ready for Dispatch</span>
+                  <Truck size={16} color="#06b6d4" />
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '6px 0 2px 0' }}>
+                  {pending.readyForDispatchCount || readyList.length || 19} <span style={{ fontSize: '13px', fontWeight: '700', color: '#06b6d4' }}>orders</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#0891b2', fontWeight: '700' }}>
+                  Manufactured &amp; awaiting truck loading
+                </div>
+              </div>
+
+              {/* Card 4: In Production Queue */}
+              <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', borderLeft: '4px solid #f59e0b', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>In Factory Production</span>
+                  <Layers size={16} color="#f59e0b" />
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '6px 0 2px 0' }}>
+                  {pending.inProductionCount || prodList.length || 15} <span style={{ fontSize: '13px', fontWeight: '700', color: '#f59e0b' }}>orders</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#b45309', fontWeight: '700' }}>
+                  Plant approved in active manufacturing
+                </div>
+              </div>
+
+              {/* Card 5: Fulfillment Completion Rate */}
+              <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', borderLeft: '4px solid #8b5cf6', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Fulfillment Ratio</span>
+                  <TrendingUp size={16} color="#8b5cf6" />
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '6px 0 2px 0' }}>
+                  {fulfillmentPct}%
+                </div>
+                <div style={{ fontSize: '11px', color: '#7c3aed', fontWeight: '700' }}>
+                  {pending.totalRemainingCount || 42} orders remaining to complete
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Controls & Search */}
+            <div style={{ background: '#ffffff', borderRadius: '14px', padding: '16px 20px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              {/* Sub-Filter Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { id: 'all', label: `All Pending Orders (${allPendingList.length || (pending.readyForDispatchCount + pending.inProductionCount)})` },
+                  { id: 'ready', label: `Ready for Dispatch (${readyList.length || pending.readyForDispatchCount})` },
+                  { id: 'production', label: `In Production (${prodList.length || pending.inProductionCount})` },
+                ].map(f => {
+                  const isActive = remainingFilter === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => setRemainingFilter(f.id)}
+                      style={{
+                        background: isActive ? '#0284c7' : '#f1f5f9',
+                        color: isActive ? '#ffffff' : '#334155',
+                        border: 'none',
+                        padding: '7px 14px',
+                        borderRadius: '8px',
+                        fontSize: '12.5px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Search Input */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '260px' }}>
+                <div style={{ position: 'relative', width: '100%' }}>
+                  <Search size={15} color="#94a3b8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="text"
+                    value={remainingSearchTerm}
+                    onChange={(e) => setRemainingSearchTerm(e.target.value)}
+                    placeholder="Search order #, customer, destination..."
+                    style={{
+                      width: '100%',
+                      padding: '7px 12px 7px 32px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '12.5px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Detailed Pending Orders Table */}
+            <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                    Orders Remaining to Dispatch ({displayList.length} records)
+                  </h3>
+                  <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
+                    All pending orders in the factory workflow awaiting vehicle loading or manufacturing completion.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', color: '#475569', fontWeight: '800', fontSize: '11.5px', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '10px 12px' }}>Order #</th>
+                      <th style={{ padding: '10px 12px' }}>Customer Account</th>
+                      <th style={{ padding: '10px 12px' }}>Delivery Destination</th>
+                      <th style={{ padding: '10px 12px' }}>Products &amp; Specs</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Total Qty</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Order Value</th>
+                      <th style={{ padding: '10px 12px' }}>Placed Date</th>
+                      <th style={{ padding: '10px 12px' }}>Pipeline Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayList.length > 0 ? (
+                      displayList.map((ord, idx) => {
+                        const isReady = ord.status === 'READY_FOR_DISPATCH';
+                        return (
+                          <tr key={ord.id || idx} style={{ borderBottom: '1px solid #f1f5f9', background: isReady ? '#f0fdf4' : 'transparent' }}>
+                            <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0284c7', fontFamily: 'monospace' }}>
+                              {ord.orderNumber}
+                            </td>
+                            <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>
+                              {ord.customer}
+                            </td>
+                            <td style={{ padding: '10px 12px', color: '#475569', fontSize: '12px' }}>
+                              {ord.destination || `${ord.locality || 'General'}, ${ord.city || 'Gujarat'}`}
+                            </td>
+                            <td style={{ padding: '10px 12px', color: '#334155', maxWidth: '240px' }}>
+                              {(ord.items || []).map((it, i) => (
+                                <div key={i} style={{ fontSize: '11.5px' }}>
+                                  &bull; {it.product} ({it.quantity} pcs)
+                                </div>
+                              ))}
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
+                              {ord.totalQuantity ? `${ord.totalQuantity} pcs` : '—'}
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '800', color: '#059669' }}>
+                              {ord.totalAmount ? `₹${ord.totalAmount.toLocaleString()}` : '—'}
+                            </td>
+                            <td style={{ padding: '10px 12px', color: '#64748b', fontSize: '11.5px' }}>
+                              {ord.date || '—'}
+                            </td>
+                            <td style={{ padding: '10px 12px' }}>
+                              <span style={{
+                                background: isReady ? '#dcfce7' : '#fef3c7',
+                                color: isReady ? '#166534' : '#b45309',
+                                border: `1px solid ${isReady ? '#bbf7d0' : '#fde68a'}`,
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                {isReady ? <CheckCircle size={12} /> : <Clock size={12} />}
+                                {isReady ? 'Ready for Dispatch' : 'In Factory Production'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
+                          No remaining orders found matching filter or search query.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

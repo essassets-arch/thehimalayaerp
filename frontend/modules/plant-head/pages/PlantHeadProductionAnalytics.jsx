@@ -49,6 +49,7 @@ import {
   LabelList
 } from 'recharts';
 import { backendFetch } from '../../../lib/backendFetch';
+import UltraResponsiveChart from '../../../shared/components/UltraResponsiveChart';
 
 // ── Color Palette & Constants ──
 const PALETTE = {
@@ -88,101 +89,39 @@ const fmt = (val, decimals = 0) => {
 };
 
 // ── Ultra-Responsive Zero-Blank Chart Container (Mobile 320px to Ultra-12K) ──
-function ResponsiveChartBox({ height = 280, minHeight, children }) {
-  const containerRef = useRef(null);
-  const [mounted, setMounted] = useState(false);
-  const [dims, setDims] = useState({ width: 600, height });
-
-  // Calculate dynamic responsive target height based on screen resolution
-  const getDynamicHeight = useCallback((base) => {
-    if (typeof window === 'undefined') return base;
-    const screenW = window.innerWidth;
-    if (screenW >= 7680) return Math.round(base * 1.75); // 8K / 12K displays
-    if (screenW >= 3840) return Math.round(base * 1.4);  // 4K / 5K ultrawide
-    if (screenW >= 2560) return Math.round(base * 1.25); // 2K / QHD
-    if (screenW <= 480) return Math.max(180, Math.min(base, 230)); // Small mobile
-    return base;
-  }, []);
-
-  const currentHeight = minHeight || getDynamicHeight(height);
-
-  useEffect(() => {
-    setMounted(true);
-    const updateSize = () => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const parentW = containerRef.current.parentElement?.clientWidth || 0;
-      const winW = typeof window !== 'undefined' ? window.innerWidth : 1200;
-      const rawW = Math.floor(rect.width > 0 ? rect.width : (parentW > 0 ? parentW : winW * 0.9));
-      
-      // Minimum: 160px for tiny mobile (320px screen width)
-      // Maximum: 2400px to strictly prevent GPU texture overflow on 4K/8K/12K displays (>8192px texture crash)
-      const SAFE_MAX_CHART_WIDTH = 2400;
-      const safeW = Math.min(Math.max(160, rawW), SAFE_MAX_CHART_WIDTH);
-      
-      setDims({ width: safeW, height: currentHeight });
-    };
-
-    updateSize();
-    const animId = requestAnimationFrame(updateSize);
-    window.addEventListener('resize', updateSize);
-
-    let ro = null;
-    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
-      ro = new ResizeObserver(() => updateSize());
-      ro.observe(containerRef.current);
-    }
-
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', updateSize);
-      ro?.disconnect();
-    };
-  }, [currentHeight]);
-
+const ResponsiveChartBox = ({
+  children,
+  height = 280,
+  minHeight,
+  isEmpty = false,
+  emptyTitle,
+  emptySubtitle,
+  onSwitchTimeframe,
+  switchButtonLabel
+}) => {
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: '100%',
-        maxWidth: '100%',
-        height: `${currentHeight}px`,
-        minHeight: `${currentHeight}px`,
-        position: 'relative',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        boxSizing: 'border-box'
-      }}
+    <UltraResponsiveChart
+      height={height}
+      minHeight={minHeight}
+      isEmpty={isEmpty}
+      emptyTitle={emptyTitle}
+      emptySubtitle={emptySubtitle}
+      onSwitchTimeframe={onSwitchTimeframe}
+      switchButtonLabel={switchButtonLabel}
     >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '2400px',
-          height: `${currentHeight}px`,
-          minHeight: `${currentHeight}px`,
-          position: 'relative'
-        }}
-      >
-        {mounted ? (
-          <ResponsiveContainer
-            width="100%"
-            height="100%"
-            minWidth={0}
-            minHeight={0}
-            initialDimension={{ width: dims.width, height: currentHeight }}
-          >
+      {(metrics) => {
+        if (typeof children === 'function') {
+          return children(metrics);
+        }
+        return (
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             {children}
           </ResponsiveContainer>
-        ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '12px' }}>
-            Initializing Visualization...
-          </div>
-        )}
-      </div>
-    </div>
+        );
+      }}
+    </UltraResponsiveChart>
   );
-}
+};
 
 export const PlantHeadProductionAnalytics = () => {
   // ── Filters & Timeframe State ──
@@ -364,7 +303,7 @@ export const PlantHeadProductionAnalytics = () => {
   };
 
   return (
-    <div style={{ padding: 'clamp(12px, 2vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a', width: '100%', maxWidth: '3840px', margin: '0 auto', boxSizing: 'border-box' }}>
+    <div style={{ padding: 'clamp(12px, 2vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a', width: '100%', maxWidth: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
 
       {/* ── Top Header Banner ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
@@ -837,26 +776,78 @@ export const PlantHeadProductionAnalytics = () => {
               </div>
             </div>
 
-            {dailyTrendData.length > 0 ? (
-              <ResponsiveChartBox height={320}>
-                <ComposedChart data={dailyTrendData} margin={{ top: 10, right: 15, bottom: 20, left: -5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} interval="preserveStartEnd" minTickGap={12} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#0284c7' }} axisLine={false} tickLine={false} width={42} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(0)}T` : val} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#0d9488' }} axisLine={false} tickLine={false} width={36} />
-                  <Tooltip
-                    contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '12px' }}
-                    formatter={(val, name) => [name === 'weight' ? `${fmt(val)} kg` : `${fmt(val)} pcs`, name === 'weight' ? 'Weight' : 'Pieces']}
-                  />
-                  <Area yAxisId="left" type="monotone" dataKey="weight" fill="#e0f2fe" stroke="#0284c7" strokeWidth={2.5} />
-                  <Bar yAxisId="right" dataKey="pieces" fill="#0d9488" radius={[4, 4, 0, 0]} maxBarSize={30} />
-                </ComposedChart>
-              </ResponsiveChartBox>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#64748b', fontSize: '13px' }}>
-                No daily run-rate data recorded for the selected timeframe.
-              </div>
-            )}
+            <ResponsiveChartBox
+              height={320}
+              isEmpty={!dailyTrendData || dailyTrendData.length === 0}
+              emptyTitle="No daily production run-rate data for this timeframe"
+              emptySubtitle="Switch to September 2026 or All Time to view live daily manufacturing telemetry."
+              onSwitchTimeframe={() => handlePresetClick('September 2026')}
+              switchButtonLabel="View Active September 2026 Production"
+            >
+              {(metrics) => (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <ComposedChart
+                    data={dailyTrendData}
+                    margin={{
+                      top: Math.round(10 * (metrics?.scale || 1)),
+                      right: Math.round(15 * (metrics?.scale || 1)),
+                      bottom: Math.round(20 * (metrics?.scale || 1)),
+                      left: Math.round(-5 * (metrics?.scale || 1))
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: Math.max(9, Math.round(10 * (metrics?.scale || 1))), fill: '#64748b' }}
+                      axisLine={{ stroke: '#cbd5e1' }}
+                      interval="preserveStartEnd"
+                      minTickGap={12}
+                    />
+                    <YAxis
+                      yAxisId="left"
+                      tick={{ fontSize: Math.max(9, Math.round(10 * (metrics?.scale || 1))), fill: '#0284c7' }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={Math.round(42 * (metrics?.scale || 1))}
+                      tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(0)}T` : val}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tick={{ fontSize: Math.max(9, Math.round(10 * (metrics?.scale || 1))), fill: '#0d9488' }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={Math.round(36 * (metrics?.scale || 1))}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: '#0f172a',
+                        color: '#fff',
+                        borderRadius: '8px',
+                        border: 'none',
+                        fontSize: `${Math.round(12 * (metrics?.scale || 1))}px`
+                      }}
+                      formatter={(val, name) => [name === 'weight' ? `${fmt(val)} kg` : `${fmt(val)} pcs`, name === 'weight' ? 'Weight' : 'Pieces']}
+                    />
+                    <Area
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="weight"
+                      fill="#e0f2fe"
+                      stroke="#0284c7"
+                      strokeWidth={Math.max(1.5, Math.round(2.5 * (metrics?.scale || 1)))}
+                    />
+                    <Bar
+                      yAxisId="right"
+                      dataKey="pieces"
+                      fill="#0d9488"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={Math.round(30 * (metrics?.scale || 1))}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+            </ResponsiveChartBox>
           </div>
 
           {/* Component Balance & Highlights Grid */}
@@ -999,21 +990,59 @@ export const PlantHeadProductionAnalytics = () => {
               <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 14px 0' }}>
                 Load Capacity Rating Distribution (EN 124 Standard)
               </h4>
-              <ResponsiveChartBox height={260}>
-                <BarChart data={capacitiesData} layout="vertical" margin={{ left: 0, right: 35, top: 10, bottom: 10 }}>
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#0f172a', fontWeight: '700' }} axisLine={false} tickLine={false} width={48} />
-                  <Tooltip
-                    contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '12px' }}
-                    formatter={(val) => [`${fmt(val)} kg (${capacitiesData.find(c => c.weight === val)?.share || 0}%)`, 'Volume']}
-                  />
-                  <Bar dataKey="weight" radius={[0, 6, 6, 0]}>
-                    {capacitiesData.map((entry, idx) => (
-                      <Cell key={entry.name} fill={CAPACITY_COLORS[entry.name] || CHART_COLORS[idx % CHART_COLORS.length]} />
-                    ))}
-                    <LabelList dataKey="share" position="right" formatter={(v) => `${v}%`} style={{ fontSize: '11px', fontWeight: '800', fill: '#0f172a' }} />
-                  </Bar>
-                </BarChart>
+              <ResponsiveChartBox
+                height={260}
+                isEmpty={!capacitiesData || capacitiesData.length === 0}
+                emptyTitle="No capacity distribution data for this timeframe"
+                emptySubtitle="Switch to September 2026 to see load rating distribution."
+                onSwitchTimeframe={() => handlePresetClick('September 2026')}
+                switchButtonLabel="View Active September 2026 Telemetry"
+              >
+                {(metrics) => (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <BarChart
+                      data={capacitiesData}
+                      layout="vertical"
+                      margin={{
+                        left: 0,
+                        right: Math.round(35 * (metrics?.scale || 1)),
+                        top: Math.round(10 * (metrics?.scale || 1)),
+                        bottom: Math.round(10 * (metrics?.scale || 1))
+                      }}
+                    >
+                      <XAxis type="number" hide />
+                      <YAxis
+                        dataKey="name"
+                        type="category"
+                        tick={{ fontSize: Math.max(9, Math.round(11 * (metrics?.scale || 1))), fill: '#0f172a', fontWeight: '700' }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={Math.round(48 * (metrics?.scale || 1))}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: '#0f172a',
+                          color: '#fff',
+                          borderRadius: '8px',
+                          border: 'none',
+                          fontSize: `${Math.round(12 * (metrics?.scale || 1))}px`
+                        }}
+                        formatter={(val) => [`${fmt(val)} kg (${capacitiesData.find(c => c.weight === val)?.share || 0}%)`, 'Volume']}
+                      />
+                      <Bar dataKey="weight" radius={[0, 6, 6, 0]}>
+                        {capacitiesData.map((entry, idx) => (
+                          <Cell key={entry.name} fill={CAPACITY_COLORS[entry.name] || CHART_COLORS[idx % CHART_COLORS.length]} />
+                        ))}
+                        <LabelList
+                          dataKey="share"
+                          position="right"
+                          formatter={(v) => `${v}%`}
+                          style={{ fontSize: `${Math.max(9, Math.round(11 * (metrics?.scale || 1)))}px`, fontWeight: '800', fill: '#0f172a' }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </ResponsiveChartBox>
             </div>
 
@@ -1022,28 +1051,45 @@ export const PlantHeadProductionAnalytics = () => {
               <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: '0 0 14px 0' }}>
                 Top Product Output Contribution
               </h4>
-              <ResponsiveChartBox height={260}>
-                <PieChart>
-                  <Pie
-                    data={productsData.slice(0, 6)}
-                    dataKey="weight"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={3}
-                  >
-                    {productsData.slice(0, 6).map((entry, idx) => (
-                      <Cell key={entry.name} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '12px' }}
-                    formatter={(val) => [`${fmt(val)} kg`, 'Weight']}
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                </PieChart>
+              <ResponsiveChartBox
+                height={260}
+                isEmpty={!productsData || productsData.length === 0}
+                emptyTitle="No product output data for this timeframe"
+                emptySubtitle="Switch to September 2026 to inspect product contribution."
+                onSwitchTimeframe={() => handlePresetClick('September 2026')}
+                switchButtonLabel="View Active September 2026 Telemetry"
+              >
+                {(metrics) => (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <PieChart>
+                      <Pie
+                        data={productsData.slice(0, 6)}
+                        dataKey="weight"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={Math.round(50 * (metrics?.scale || 1))}
+                        outerRadius={Math.round(80 * (metrics?.scale || 1))}
+                        paddingAngle={3}
+                      >
+                        {productsData.slice(0, 6).map((entry, idx) => (
+                          <Cell key={entry.name} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          background: '#0f172a',
+                          color: '#fff',
+                          borderRadius: '8px',
+                          border: 'none',
+                          fontSize: `${Math.round(12 * (metrics?.scale || 1))}px`
+                        }}
+                        formatter={(val) => [`${fmt(val)} kg`, 'Weight']}
+                      />
+                      <Legend wrapperStyle={{ fontSize: `${Math.max(9, Math.round(11 * (metrics?.scale || 1)))}px`, paddingTop: '8px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
               </ResponsiveChartBox>
             </div>
           </div>

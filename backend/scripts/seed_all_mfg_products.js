@@ -718,6 +718,40 @@ function buildAllProducts() {
     }
   }
 
+  const INCH_MHC_SIZES = ['10X10', '12X12', '15X15', '18X18', '18X24', '21X21', '24X24', '28X28', '30X30', '36X36'];
+  const INCH_MHC_CLASSES = ['ELD', 'LD'];
+  const INCH_MHC_COLORS = ['WHITE', 'RED', 'GRAY', 'BLACK', 'GREEN'];
+
+  for (const size of INCH_MHC_SIZES) {
+    for (const cls of INCH_MHC_CLASSES) {
+      for (const color of INCH_MHC_COLORS) {
+        const prodName = `HIMALAYA FRP MHC ${size} ${cls} ${color}`;
+        const sku = generateSku(prodName);
+        productMap.set(sku, {
+          name: prodName,
+          sku,
+          brand: 'HIMALAYA',
+          category: 'FRP COVERS',
+          subCategory: 'Manhole Cover',
+          productType: 'MANUFACTURING',
+          dispatchCategory: 'D1',
+          unit: 'SET',
+          unitPrice: 0,
+          gstRate: 18,
+          hsnCode: '39259090',
+          size,
+          capacity: cls,
+          type: 'MHC',
+          variantDetails: `MHC ${size} ${cls} ${color}`,
+          coversPerSet: 1,
+          framesPerSet: 1,
+          description: prodName,
+          isActive: true,
+        });
+      }
+    }
+  }
+
   return Array.from(productMap.values());
 }
 
