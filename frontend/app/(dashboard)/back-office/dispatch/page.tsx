@@ -2,7 +2,6 @@
 
 import BackOfficeDispatchView from '@/modules/back-office/components/BackOfficeDispatchView';
 
-export default function BackOfficeIndexPage() {
+export default function BackOfficeDispatchRoutePage() {
   return <BackOfficeDispatchView />;
 }
-

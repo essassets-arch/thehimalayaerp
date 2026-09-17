@@ -1320,6 +1320,300 @@ export class BackOfficeService implements OnApplicationBootstrap {
       },
     };
   }
+
+  /**
+   * CONFIRMED DISPATCHES REGISTER (Read-Only Consolidation for Dispatch 1 & Dispatch 2)
+   *
+   * Absolute safety rules:
+   * - Strictly read-only; zero mutation or record creation.
+   * - Reads existing Prisma dispatch records with status = 'DELIVERED'.
+   * - Authoritative separation:
+   *     Dispatch 1: ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1']
+   *     Dispatch 2: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2']
+   *     (Null/ambiguous records are NEVER guessed into Dispatch 1 or Dispatch 2: D1 ∩ D2 = ∅)
+   * - Joins Sales Person from Sales Order hierarchy; never hardcoded, fallback '—'.
+   * - Precise India Standard Time (IST, UTC+05:30) date boundaries.
+   */
+  async getConfirmedDispatches(query: any) {
+    const {
+      tab = 'D1',
+      dateFilter = 'today',
+      startDate,
+      endDate,
+      search,
+      page = 1,
+      limit = 25,
+      exportAll = false,
+    } = query;
+
+    const D1_CATEGORIES = ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'];
+    const D2_CATEGORIES = ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'];
+
+    // 1. Determine IST calendar range
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const now = new Date();
+    const nowIST = new Date(now.getTime() + IST_OFFSET_MS);
+    const istYear = nowIST.getUTCFullYear();
+    const istMonth = nowIST.getUTCMonth();
+    const istDate = nowIST.getUTCDate();
+
+    let dateRange: { start: Date; end: Date } | null = null;
+
+    if (dateFilter === 'today') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, istDate, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, istDate, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'yesterday') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, istDate - 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, istDate - 1, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'this_month') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth + 1, 0, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'custom' && startDate && endDate) {
+      const [sY, sM, sD] = String(startDate).split('-').map(Number);
+      const [eY, eM, eD] = String(endDate).split('-').map(Number);
+      if (!isNaN(sY) && !isNaN(eY)) {
+        const startIST = new Date(Date.UTC(sY, sM - 1, sD, 0, 0, 0, 0));
+        const endIST = new Date(Date.UTC(eY, eM - 1, eD, 23, 59, 59, 999));
+        dateRange = {
+          start: new Date(startIST.getTime() - IST_OFFSET_MS),
+          end: new Date(endIST.getTime() - IST_OFFSET_MS),
+        };
+      }
+    }
+
+    // 2. Build base filter: ONLY confirmed deliveries (DELIVERED)
+    const baseWhere: any = {
+      status: 'DELIVERED',
+    };
+
+    if (dateRange) {
+      baseWhere.OR = [
+        {
+          dispatchedAt: {
+            gte: dateRange.start,
+            lte: dateRange.end,
+          },
+        },
+        {
+          AND: [
+            { dispatchedAt: null },
+            {
+              createdAt: {
+                gte: dateRange.start,
+                lte: dateRange.end,
+              },
+            },
+          ],
+        },
+      ];
+    }
+
+    // 3. Search conditions
+    let searchCondition: any = null;
+    if (search && String(search).trim()) {
+      const term = String(search).trim();
+      searchCondition = {
+        OR: [
+          { dispatchNo: { contains: term, mode: 'insensitive' } },
+          { invoiceNumber: { contains: term, mode: 'insensitive' } },
+          { gatePassNumber: { contains: term, mode: 'insensitive' } },
+          { driverName: { contains: term, mode: 'insensitive' } },
+          { vehicleNumber: { contains: term, mode: 'insensitive' } },
+          { deliveryAddress: { contains: term, mode: 'insensitive' } },
+          { receivedBy: { contains: term, mode: 'insensitive' } },
+          {
+            salesOrder: {
+              OR: [
+                { orderNumber: { contains: term, mode: 'insensitive' } },
+                { customer: { companyName: { contains: term, mode: 'insensitive' } } },
+                { salesExecutive: { name: { contains: term, mode: 'insensitive' } } },
+              ],
+            },
+          },
+        ],
+      };
+    }
+
+    // 4. Calculate tab counts under the active dateFilter & search
+    const filterD1Where: any = {
+      ...baseWhere,
+      dispatchCategory: { in: D1_CATEGORIES },
+    };
+    const filterD2Where: any = {
+      ...baseWhere,
+      dispatchCategory: { in: D2_CATEGORIES },
+    };
+    if (searchCondition) {
+      filterD1Where.AND = [searchCondition];
+      filterD2Where.AND = [searchCondition];
+    }
+
+    const [d1Count, d2Count] = await Promise.all([
+      this.prisma.dispatch.count({ where: filterD1Where }),
+      this.prisma.dispatch.count({ where: filterD2Where }),
+    ]);
+
+    // 5. Query the requested tab ('D1' vs 'D2')
+    const selectedTab = String(tab).toUpperCase() === 'D2' ? 'D2' : 'D1';
+    const activeCategories = selectedTab === 'D2' ? D2_CATEGORIES : D1_CATEGORIES;
+
+    const queryWhere: any = {
+      ...baseWhere,
+      dispatchCategory: { in: activeCategories },
+    };
+    if (searchCondition) {
+      queryWhere.AND = [searchCondition];
+    }
+
+    const totalItems = selectedTab === 'D2' ? d2Count : d1Count;
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Number(limit) || 25);
+    const isExport = exportAll === true || exportAll === 'true' || limit === 'all' || Number(limit) === -1;
+
+    const dispatches = await this.prisma.dispatch.findMany({
+      where: queryWhere,
+      include: {
+        salesOrder: {
+          include: {
+            customer: true,
+            salesExecutive: { select: { id: true, name: true, email: true } },
+            sourceQuotation: {
+              include: {
+                salesExecutive: { select: { id: true, name: true, email: true } },
+                lead: {
+                  include: {
+                    salesExecutive: { select: { id: true, name: true, email: true } },
+                  },
+                },
+              },
+            },
+            quotation: {
+              include: {
+                salesExecutive: { select: { id: true, name: true, email: true } },
+                lead: {
+                  include: {
+                    salesExecutive: { select: { id: true, name: true, email: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+        items: {
+          include: {
+            salesOrderItem: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+        invoices: true,
+      },
+      orderBy: [
+        { dispatchedAt: 'desc' },
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
+      ...(isExport ? {} : { skip: (pageNum - 1) * limitNum, take: limitNum }),
+    });
+
+    // 6. Map and enrich records with resolved Sales Person
+    const mappedItems = dispatches.map((d: any) => {
+      const so = d.salesOrder;
+      const salesPerson =
+        so?.salesExecutive?.name ||
+        so?.sourceQuotation?.salesExecutive?.name ||
+        so?.quotation?.salesExecutive?.name ||
+        so?.sourceQuotation?.lead?.salesExecutive?.name ||
+        so?.quotation?.lead?.salesExecutive?.name ||
+        '—';
+
+      const customerName =
+        so?.customer?.companyName ||
+        (d as any).customerName ||
+        'Consignee Client';
+
+      const consigneeAddress =
+        d.deliveryAddress ||
+        d.documentChecklist?.deliveryAddress ||
+        (typeof so?.shippingAddress === 'string' ? so.shippingAddress : (so?.shippingAddress?.formattedAddress || so?.shippingAddress?.address)) ||
+        (typeof so?.customer?.shippingAddress === 'string' ? so.customer.shippingAddress : (so?.customer?.shippingAddress?.formattedAddress || so?.customer?.shippingAddress?.address)) ||
+        'Customer Designated Site';
+
+      return {
+        id: d.id,
+        dispatchNo: d.dispatchNo,
+        salesOrderId: d.salesOrderId,
+        salesOrderNumber: so?.orderNumber || '—',
+        dispatchCategory: selectedTab,
+        status: d.status,
+        customerName,
+        consigneeAddress,
+        salesPerson,
+        salesPersonEmail: so?.salesExecutive?.email || null,
+        driverName: d.driverName || '—',
+        driverPhone: d.driverPhone || '—',
+        vehicleNumber: d.vehicleNumber || '—',
+        transporterName: d.transporterName || '—',
+        lrNumber: d.lrNumber || d.ewayBillNumber || '—',
+        invoiceNumber: d.invoiceNumber || d.documentChecklist?.invoiceNumber || d.invoices?.[0]?.invoiceNumber || '—',
+        challanNumber: d.gatePassNumber || d.documentChecklist?.challanNumber || d.challanNumber || '—',
+        dispatchedAt: d.dispatchedAt || d.createdAt,
+        deliveredAt: d.deliveredAt,
+        receivedBy: d.receivedBy || '—',
+        receiverPhone: d.receiverPhone || '—',
+        deliveryRemarks: d.deliveryRemarks || '—',
+        podUrl: d.podUrl || null,
+        podStatus: d.podStatus || (d.status === 'DELIVERED' ? 'APPROVED' : 'PENDING'),
+        totalWeight: d.totalWeight ? Number(d.totalWeight) : null,
+        freightAmount: d.freightAmount ? Number(d.freightAmount) : null,
+        packageCount: d.packageCount || null,
+        documentChecklist: d.documentChecklist || null,
+        items: (d.items || []).map((item: any) => ({
+          id: item.id,
+          productName: item.salesOrderItem?.product?.name || item.salesOrderItem?.productNameSnapshot || 'Dispatched Item',
+          sku: item.salesOrderItem?.product?.sku || '—',
+          quantity: Number(item.quantity) || 0,
+          unit: item.salesOrderItem?.product?.unit || 'Nos',
+        })),
+      };
+    });
+
+    return {
+      items: mappedItems,
+      counts: {
+        D1: d1Count,
+        D2: d2Count,
+        total: d1Count + d2Count,
+      },
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems,
+        totalPages: Math.ceil(totalItems / limitNum) || 1,
+      },
+      filter: {
+        tab: selectedTab,
+        dateFilter,
+        startDate: startDate || null,
+        endDate: endDate || null,
+        search: search || '',
+      },
+    };
+  }
 }
 
 

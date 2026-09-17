@@ -360,18 +360,22 @@ export const navigationConfig = {
     { id: 'complain-center', label: 'Complaint Center', icon: ShieldAlert, path: '/hr/complain-center' }
   ],
   'Back Office': [
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
     { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
     { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
   ],
   'BACK_OFFICE': [
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
     { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
     { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
   ],
   'back-office': [
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
     { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
     { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
   ],
   'Back Office / Admin': [
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
     { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
     { id: 'hcppl-ar', label: 'HCPPL AR', icon: TableProperties, path: '/back-office/hcppl-ar' }
   ],

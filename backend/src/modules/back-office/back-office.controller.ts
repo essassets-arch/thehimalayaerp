@@ -219,6 +219,26 @@ export class BackOfficeController {
   async deleteHcpplArEntry(@Param('id') id: string) {
     return this.backOfficeService.deleteHcpplArInvoice(id);
   }
+
+  /**
+   * CONFIRMED DISPATCHES (Read-only consolidation for Dispatch 1 & Dispatch 2)
+   */
+  @Get('dispatches')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async getConfirmedDispatches(@Query() query: any) {
+    return this.backOfficeService.getConfirmedDispatches(query);
+  }
 }
 
 
