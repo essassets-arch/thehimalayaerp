@@ -13,7 +13,7 @@ export default defineConfig({
   maxFailures: 0,
   reporter: [["list"], ["html", { outputFolder: "playwright-report" }]],
   use: {
-    baseURL: process.env.BASE_URL || "http://localhost:3000",
+    baseURL: process.env.BASE_URL || "http://localhost:3002",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

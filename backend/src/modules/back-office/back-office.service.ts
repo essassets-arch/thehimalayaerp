@@ -14,12 +14,8 @@ import {
   AcknowledgeBackOfficeReportDto,
   QueryBackOfficeReportDto,
 } from './dto/back-office-report.dto';
-
-@Injectable()
-export class BackOfficeService implements OnApplicationBootstrap {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly sequenceService: SequenceService,
+  }]
+}]
   ) {}
 
   async onApplicationBootstrap() {
@@ -1614,6 +1610,1125 @@ export class BackOfficeService implements OnApplicationBootstrap {
       },
     };
   }
+
+  /**
+   * AR — HCPPL MANUAL DATA ENTRY REGISTER
+   *
+   * Fully independent, manual row-by-row data entry sheet.
+   * Zero automatic generation or mutation of core ERP invoice/payment tables.
+   */
+
+  async getHcpplArManualEntries(query: any) {
+    const {
+      dateFilter = 'all',
+      startDate,
+      endDate,
+      search,
+      managementStatus,
+      ageingBucket,
+      dueStatus,
+      paymentStatus,
+      salesPerson,
+      salesType,
+      page = 1,
+      limit = 25,
+      exportAll = false,
+    } = query;
+
+    const where: any = {
+      isArchived: false,
+    };
+
+    // 1. IST Date boundaries
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const now = new Date();
+    const nowIST = new Date(now.getTime() + IST_OFFSET_MS);
+    const istYear = nowIST.getUTCFullYear();
+    const istMonth = nowIST.getUTCMonth();
+    const istDate = nowIST.getUTCDate();
+
+    let dateRange: { start: Date; end: Date } | null = null;
+
+    if (dateFilter === 'today') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, istDate, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, istDate, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'yesterday') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, istDate - 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, istDate - 1, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'this_month') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth + 1, 0, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'last_month') {
+      const startIST = new Date(Date.UTC(istYear, istMonth - 1, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, 0, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'financial_year') {
+      const fyStartYear = istMonth >= 3 ? istYear : istYear - 1;
+      const startIST = new Date(Date.UTC(fyStartYear, 3, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(fyStartYear + 1, 2, 31, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'custom' && startDate && endDate) {
+      const [sY, sM, sD] = String(startDate).split('-').map(Number);
+      const [eY, eM, eD] = String(endDate).split('-').map(Number);
+      if (!isNaN(sY) && !isNaN(eY)) {
+        const startIST = new Date(Date.UTC(sY, sM - 1, sD, 0, 0, 0, 0));
+        const endIST = new Date(Date.UTC(eY, eM - 1, eD, 23, 59, 59, 999));
+        dateRange = {
+          start: new Date(startIST.getTime() - IST_OFFSET_MS),
+          end: new Date(endIST.getTime() - IST_OFFSET_MS),
+        };
+      }
+    }
+
+    if (dateRange) {
+      where.invoiceDate = {
+        gte: dateRange.start,
+        lte: dateRange.end,
+      };
+    }
+
+    // 2. Specific manual filters
+    if (managementStatus && managementStatus !== 'ALL') {
+      where.managementStatus = managementStatus;
+    }
+    if (ageingBucket && ageingBucket !== 'ALL') {
+      where.ageingBucket = ageingBucket;
+    }
+    if (dueStatus && dueStatus !== 'ALL') {
+      where.dueStatus = dueStatus;
+    }
+    if (paymentStatus && paymentStatus !== 'ALL') {
+      where.paymentStatus = paymentStatus;
+    }
+    if (salesPerson && salesPerson !== 'ALL') {
+      where.salesPerson = { contains: salesPerson, mode: 'insensitive' };
+    }
+    if (salesType && salesType !== 'ALL') {
+      where.salesType = { contains: salesType, mode: 'insensitive' };
+    }
+
+    // 3. Multi-field text search
+    if (search && String(search).trim()) {
+      const term = String(search).trim();
+      where.AND = [
+        {
+          OR: [
+            { invoiceNo: { contains: term, mode: 'insensitive' } },
+            { partyName: { contains: term, mode: 'insensitive' } },
+            { siteName: { contains: term, mode: 'insensitive' } },
+            { salesPerson: { contains: term, mode: 'insensitive' } },
+            { salesType: { contains: term, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+
+    // 4. Fetch all matching records to compute exact decimal summaries
+    const allMatches = await (this.prisma as any).hcpplArManualEntry.findMany({
+      where,
+      orderBy: [
+        { invoiceDate: 'desc' },
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
+    });
+
+    let totalBasic = 0;
+    let totalGst = 0;
+    let mgmtCount = 0;
+    let nmgmtCount = 0;
+    let paidCount = 0;
+    let unpaidCount = 0;
+    let partlyPaidCount = 0;
+    let cancelledCount = 0;
+
+    for (const item of allMatches) {
+      const basic = Number(item.basicAmount) || 0;
+      const gst = Number(item.invoiceGstAmount) || 0;
+      totalBasic = Number((totalBasic + basic).toFixed(2));
+      totalGst = Number((totalGst + gst).toFixed(2));
+
+      if (item.managementStatus === 'MGMT') mgmtCount++;
+      else nmgmtCount++;
+
+      const pStatus = String(item.paymentStatus).toUpperCase();
+      if (pStatus === 'PAID') paidCount++;
+      else if (pStatus === 'PARTLY PAID' || pStatus === 'PARTIAL') partlyPaidCount++;
+      else if (pStatus === 'CANCELLED') cancelledCount++;
+      else unpaidCount++;
+    }
+
+    const totalInvoiceAmount = Number((totalBasic + totalGst).toFixed(2));
+
+    // 5. Pagination
+    const totalItems = allMatches.length;
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Number(limit) || 25);
+    const isExport = exportAll === true || exportAll === 'true' || limit === 'all' || Number(limit) === -1;
+
+    const pagedRecords = isExport
+      ? allMatches
+      : allMatches.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
+    const mappedItems = pagedRecords.map((r: any) => {
+      const basic = Number(r.basicAmount) || 0;
+      const gst = Number(r.invoiceGstAmount) || 0;
+      return {
+        id: r.id,
+        srNo: r.srNo,
+        invoiceNo: r.invoiceNo,
+        invoiceDate: r.invoiceDate,
+        basicAmount: basic,
+        invoiceGstAmount: gst,
+        invoiceAmount: Number((basic + gst).toFixed(2)),
+        partyName: r.partyName,
+        siteName: r.siteName || '—',
+        salesType: r.salesType || '—',
+        salesPerson: r.salesPerson || '—',
+        paymentTerm: r.paymentTerm || '—',
+        ageingDays: r.ageingDays !== null && r.ageingDays !== undefined ? r.ageingDays : null,
+        managementStatus: r.managementStatus || 'NMGMT',
+        ageingBucket: r.ageingBucket || '30 DAYS',
+        dueStatus: r.dueStatus || 'DUE',
+        paymentStatus: r.paymentStatus || 'UNPAID',
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+      };
+    });
+
+    // 6. Distinct filter options from all active manual records
+    const allActive = await (this.prisma as any).hcpplArManualEntry.findMany({
+      where: { isArchived: false },
+      select: { salesPerson: true, salesType: true },
+    });
+
+    const salesPersons = Array.from(
+      new Set(allActive.map((r: any) => r.salesPerson).filter(Boolean)),
+    ).sort();
+    const salesTypes = Array.from(
+      new Set(allActive.map((r: any) => r.salesType).filter(Boolean)),
+    ).sort();
+
+    return {
+      items: mappedItems,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems,
+        totalPages: Math.ceil(totalItems / limitNum) || 1,
+      },
+      totals: {
+        totalEntries: totalItems,
+        totalBasicAmount: totalBasic,
+        totalGstAmount: totalGst,
+        totalInvoiceAmount,
+        mgmtCount,
+        nmgmtCount,
+        paidCount,
+        unpaidCount,
+        partlyPaidCount,
+        cancelledCount,
+      },
+      filterOptions: {
+        salesPersons,
+        salesTypes,
+      },
+    };
+  }
+
+  /**
+   * DATA ENTRY: Create new HCPPL AR manual record
+   */
+  async createHcpplArManualEntry(userId: string, dto: any) {
+    if (!dto.invoiceNo || !dto.partyName || !dto.invoiceDate) {
+      throw new BadRequestException('Invoice No., Date, and Party Name are required.');
+    }
+
+    const basicAmountNum = Number(dto.basicAmount) || 0;
+    const invoiceGstAmountNum = Number(dto.invoiceGstAmount) || 0;
+
+    const last = await (this.prisma as any).hcpplArManualEntry.findFirst({
+      orderBy: { srNo: 'desc' },
+      select: { srNo: true },
+    });
+    const srNo = (last?.srNo || 0) + 1;
+
+    return (this.prisma as any).hcpplArManualEntry.create({
+      data: {
+        srNo,
+        invoiceNo: String(dto.invoiceNo).trim(),
+        invoiceDate: new Date(dto.invoiceDate),
+        basicAmount: basicAmountNum.toFixed(2),
+        invoiceGstAmount: invoiceGstAmountNum.toFixed(2),
+        partyName: String(dto.partyName).trim(),
+        siteName: dto.siteName ? String(dto.siteName).trim() : null,
+        salesType: dto.salesType ? String(dto.salesType).trim() : null,
+        salesPerson: dto.salesPerson ? String(dto.salesPerson).trim() : null,
+        paymentTerm: dto.paymentTerm ? String(dto.paymentTerm).trim() : null,
+        ageingDays: dto.ageingDays !== undefined && dto.ageingDays !== '' && !isNaN(Number(dto.ageingDays))
+          ? Number(dto.ageingDays)
+          : null,
+        managementStatus: dto.managementStatus === 'MGMT' ? 'MGMT' : 'NMGMT',
+        ageingBucket: dto.ageingBucket || '30 DAYS',
+        dueStatus: dto.dueStatus || 'DUE',
+        paymentStatus: dto.paymentStatus || 'UNPAID',
+        isArchived: false,
+        createdById: userId,
+        updatedById: userId,
+      },
+    });
+  }
+
+  /**
+   * DATA ENTRY: Update existing HCPPL AR manual record
+   */
+  async updateHcpplArManualEntry(id: string, userId: string, dto: any) {
+    const existing = await (this.prisma as any).hcpplArManualEntry.findFirst({
+      where: { id, isArchived: false },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('HCPPL AR Manual Entry not found');
+    }
+
+    const basicAmountNum = dto.basicAmount !== undefined ? Number(dto.basicAmount) : Number(existing.basicAmount);
+    const invoiceGstAmountNum = dto.invoiceGstAmount !== undefined ? Number(dto.invoiceGstAmount) : Number(existing.invoiceGstAmount);
+
+    return (this.prisma as any).hcpplArManualEntry.update({
+      where: { id },
+      data: {
+        invoiceNo: dto.invoiceNo ? String(dto.invoiceNo).trim() : existing.invoiceNo,
+        invoiceDate: dto.invoiceDate ? new Date(dto.invoiceDate) : existing.invoiceDate,
+        basicAmount: basicAmountNum.toFixed(2),
+        invoiceGstAmount: invoiceGstAmountNum.toFixed(2),
+        partyName: dto.partyName ? String(dto.partyName).trim() : existing.partyName,
+        siteName: dto.siteName !== undefined ? (dto.siteName ? String(dto.siteName).trim() : null) : existing.siteName,
+        salesType: dto.salesType !== undefined ? (dto.salesType ? String(dto.salesType).trim() : null) : existing.salesType,
+        salesPerson: dto.salesPerson !== undefined ? (dto.salesPerson ? String(dto.salesPerson).trim() : null) : existing.salesPerson,
+        paymentTerm: dto.paymentTerm !== undefined ? (dto.paymentTerm ? String(dto.paymentTerm).trim() : null) : existing.paymentTerm,
+        ageingDays: dto.ageingDays !== undefined && dto.ageingDays !== '' && !isNaN(Number(dto.ageingDays))
+          ? Number(dto.ageingDays)
+          : existing.ageingDays,
+        managementStatus: dto.managementStatus || existing.managementStatus,
+        ageingBucket: dto.ageingBucket || existing.ageingBucket,
+        dueStatus: dto.dueStatus || existing.dueStatus,
+        paymentStatus: dto.paymentStatus || existing.paymentStatus,
+        updatedById: userId,
+      },
+    });
+  }
+
+  /**
+   * DATA ENTRY: Soft-Archive existing HCPPL AR manual record
+   */
+  async archiveHcpplArManualEntry(id: string, userId: string) {
+    const existing = await (this.prisma as any).hcpplArManualEntry.findFirst({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException('HCPPL AR Manual Entry not found');
+    }
+
+    return (this.prisma as any).hcpplArManualEntry.update({
+      where: { id },
+      data: {
+        isArchived: true,
+        updatedById: userId,
+      },
+    });
+  }
+
+  /**
+   * AR — SAMPLE TRACKER MANUAL REGISTER
+   *
+   * Completely standalone manual tracking sheet for customer samples.
+   * Zero connection to core Dispatch, Sales Orders, Leads, Products, or Inventory.
+   */
+
+  async getSampleTrackerEntries(query: any) {
+    const {
+      dateFilter = 'all',
+      startDate,
+      endDate,
+      search,
+      status,
+      transportMode,
+      sortBy = 'dispatchDate',
+      sortOrder = 'desc',
+      page = 1,
+      limit = 25,
+      exportAll = false,
+    } = query;
+
+    const where: any = {
+      isArchived: false,
+    };
+
+    // 1. IST Date boundaries
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const now = new Date();
+    const nowIST = new Date(now.getTime() + IST_OFFSET_MS);
+    const istYear = nowIST.getUTCFullYear();
+    const istMonth = nowIST.getUTCMonth();
+    const istDate = nowIST.getUTCDate();
+
+    let dateRange: { start: Date; end: Date } | null = null;
+
+    if (dateFilter === 'today') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, istDate, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, istDate, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'yesterday') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, istDate - 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, istDate - 1, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'this_month') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth + 1, 0, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'last_month') {
+      const startIST = new Date(Date.UTC(istYear, istMonth - 1, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, 0, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'financial_year') {
+      const fyStartYear = istMonth >= 3 ? istYear : istYear - 1;
+      const startIST = new Date(Date.UTC(fyStartYear, 3, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(fyStartYear + 1, 2, 31, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'custom' && startDate && endDate) {
+      const [sY, sM, sD] = String(startDate).split('-').map(Number);
+      const [eY, eM, eD] = String(endDate).split('-').map(Number);
+      if (!isNaN(sY) && !isNaN(eY)) {
+        const startIST = new Date(Date.UTC(sY, sM - 1, sD, 0, 0, 0, 0));
+        const endIST = new Date(Date.UTC(eY, eM - 1, eD, 23, 59, 59, 999));
+        dateRange = {
+          start: new Date(startIST.getTime() - IST_OFFSET_MS),
+          end: new Date(endIST.getTime() - IST_OFFSET_MS),
+        };
+      }
+    }
+
+    if (dateRange) {
+      where.dispatchDate = {
+        gte: dateRange.start,
+        lte: dateRange.end,
+      };
+    }
+
+    // 2. Specific filters
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+    if (transportMode && transportMode !== 'ALL') {
+      where.transportMode = transportMode;
+    }
+
+    // 3. Multi-field search
+    if (search && String(search).trim()) {
+      const term = String(search).trim();
+      where.AND = [
+        {
+          OR: [
+            { partyName: { contains: term, mode: 'insensitive' } },
+            { materialManually: { contains: term, mode: 'insensitive' } },
+            { partyContact: { contains: term, mode: 'insensitive' } },
+            { referencePerson: { contains: term, mode: 'insensitive' } },
+            { referenceNumber: { contains: term, mode: 'insensitive' } },
+            { remark: { contains: term, mode: 'insensitive' } },
+            { transportMode: { contains: term, mode: 'insensitive' } },
+            { status: { contains: term, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+
+    // 4. Determine ordering
+    const validSortFields = ['dispatchDate', 'partyName', 'transportAmount', 'status', 'createdAt'];
+    const orderField = validSortFields.includes(sortBy) ? sortBy : 'dispatchDate';
+    const orderDirection = sortOrder === 'asc' ? 'asc' : 'desc';
+
+    const allMatches = await (this.prisma as any).sampleTrackerEntry.findMany({
+      where,
+      orderBy: [
+        { [orderField]: orderDirection },
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
+    });
+
+    // 5. Compute decimal-safe totals
+    let totalTransportAmount = 0;
+    let pendingCount = 0;
+    let dispatchedCount = 0;
+    let inTransitCount = 0;
+    let deliveredCount = 0;
+    let cancelledCount = 0;
+
+    for (const item of allMatches) {
+      const amt = Number(item.transportAmount) || 0;
+      totalTransportAmount = Number((totalTransportAmount + amt).toFixed(2));
+
+      const s = String(item.status || '').toUpperCase();
+      if (s === 'PENDING') pendingCount++;
+      else if (s === 'DISPATCHED') dispatchedCount++;
+      else if (s === 'IN TRANSIT') inTransitCount++;
+      else if (s === 'DELIVERED') deliveredCount++;
+      else if (s === 'CANCELLED') cancelledCount++;
+    }
+
+    // 6. Pagination & dynamic SR NO (never stored in DB)
+    const totalItems = allMatches.length;
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Number(limit) || 25);
+    const isExport = exportAll === true || exportAll === 'true' || limit === 'all' || Number(limit) === -1;
+
+    const pagedRecords = isExport
+      ? allMatches
+      : allMatches.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
+    const startIndex = (pageNum - 1) * limitNum;
+    const mappedItems = pagedRecords.map((r: any, idx: number) => ({
+      srNo: isExport ? idx + 1 : startIndex + idx + 1,
+      id: r.id,
+      partyName: r.partyName,
+      station: r.sitePincode || '—',
+      sitePincode: r.sitePincode || '—',
+      materialManually: r.materialManually,
+      contactPerson: r.partyContact || '—',
+      contactNumber: '',
+      sampleDetails: '',
+      partyContact: r.partyContact || '—',
+      referancePerson: r.referencePerson || '—',
+      referencePerson: r.referencePerson || '—',
+      referaceNumber: r.referenceNumber || '—',
+      referenceNumber: r.referenceNumber || '—',
+      dispatchDate: r.dispatchDate,
+      transportMode: r.transportMode || 'BY HAND',
+      transportAmount: Number(r.transportAmount) || 0,
+      status: r.status || 'SAMPLE GIVEN',
+      remarks: r.remark || '',
+      remark: r.remark || '',
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
+
+    return {
+      items: mappedItems,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems,
+        totalPages: Math.ceil(totalItems / limitNum) || 1,
+      },
+      totals: {
+        totalSamples: totalItems,
+        pendingCount,
+        dispatchedCount,
+        inTransitCount,
+        deliveredCount,
+        cancelledCount,
+        totalTransportAmount,
+      },
+    };
+  }
+
+  async createSampleTrackerEntry(userId: string, dto: any) {
+    if (
+      !dto.partyName ||
+      !dto.materialManually ||
+      !dto.dispatchDate ||
+      !dto.transportMode ||
+      !dto.status
+    ) {
+      throw new BadRequestException(
+        'Party Name, Material Manually, Dispatch Date, Transport Mode, and Status are required for manual sample tracking.',
+      );
+    }
+
+    const transportAmountNum = Number(dto.transportAmount) || 0;
+    const refPerson = dto.referancePerson !== undefined ? dto.referancePerson : dto.referencePerson;
+    const refNum = dto.referaceNumber !== undefined ? dto.referaceNumber : dto.referenceNumber;
+    const rem = dto.remarks !== undefined ? dto.remarks : dto.remark;
+    const contact = dto.contactPerson !== undefined ? dto.contactPerson : dto.partyContact;
+    const station = dto.station !== undefined ? dto.station : dto.sitePincode;
+
+    return (this.prisma as any).sampleTrackerEntry.create({
+      data: {
+        partyName: String(dto.partyName).trim(),
+        sitePincode: station ? String(station).trim() : null,
+        materialManually: String(dto.materialManually).trim(),
+        partyContact: contact ? String(contact).trim() : null,
+        referencePerson: refPerson ? String(refPerson).trim() : null,
+        referenceNumber: refNum ? String(refNum).trim() : null,
+        dispatchDate: new Date(dto.dispatchDate),
+        transportMode: String(dto.transportMode).trim(),
+        transportAmount: transportAmountNum.toFixed(2),
+        status: String(dto.status).trim(),
+        remark: rem ? String(rem).trim() : null,
+        isArchived: false,
+        createdById: userId,
+        updatedById: userId,
+      },
+    });
+  }
+
+  async updateSampleTrackerEntry(id: string, userId: string, dto: any) {
+    const existing = await (this.prisma as any).sampleTrackerEntry.findFirst({
+      where: { id, isArchived: false },
+    });
+    if (!existing) {
+      throw new NotFoundException('Sample Tracker Entry not found');
+    }
+
+    const transportAmountNum = dto.transportAmount !== undefined ? Number(dto.transportAmount) : Number(existing.transportAmount);
+    const refPerson = dto.referancePerson !== undefined ? dto.referancePerson : dto.referencePerson;
+    const refNum = dto.referaceNumber !== undefined ? dto.referaceNumber : dto.referenceNumber;
+    const rem = dto.remarks !== undefined ? dto.remarks : dto.remark;
+    const contact = dto.contactPerson !== undefined ? dto.contactPerson : dto.partyContact;
+    const station = dto.station !== undefined ? dto.station : dto.sitePincode;
+
+    return (this.prisma as any).sampleTrackerEntry.update({
+      where: { id },
+      data: {
+        partyName: dto.partyName ? String(dto.partyName).trim() : existing.partyName,
+        sitePincode: station !== undefined ? (station ? String(station).trim() : null) : existing.sitePincode,
+        materialManually: dto.materialManually ? String(dto.materialManually).trim() : existing.materialManually,
+        partyContact: contact !== undefined ? (contact ? String(contact).trim() : null) : existing.partyContact,
+        referencePerson: refPerson !== undefined ? (refPerson ? String(refPerson).trim() : null) : existing.referencePerson,
+        referenceNumber: refNum !== undefined ? (refNum ? String(refNum).trim() : null) : existing.referenceNumber,
+        dispatchDate: dto.dispatchDate ? new Date(dto.dispatchDate) : existing.dispatchDate,
+        transportMode: dto.transportMode || existing.transportMode,
+        transportAmount: transportAmountNum.toFixed(2),
+        status: dto.status || existing.status,
+        remark: rem !== undefined ? (rem ? String(rem).trim() : null) : existing.remark,
+        updatedById: userId,
+      },
+    });
+  }
+
+  async archiveSampleTrackerEntry(id: string, userId: string) {
+    const existing = await (this.prisma as any).sampleTrackerEntry.findFirst({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException('Sample Tracker Entry not found');
+    }
+
+    return (this.prisma as any).sampleTrackerEntry.update({
+      where: { id },
+      data: {
+        isArchived: true,
+        updatedById: userId,
+      },
+    });
+  }
+
+  /**
+   * AR — OUTWARD REGISTER MANUAL ENTRY
+   *
+   * Completely standalone manual tracking sheet for outward material movements.
+   * Zero connection to Inventory, Stock deductions, Production, or Dispatch.
+   */
+
+  async getOutwardRegisterEntries(query: any) {
+    const {
+      dateFilter = 'all',
+      startDate,
+      endDate,
+      search,
+      transporterName,
+      salesPerson,
+      receivingStatus,
+      sortBy = 'outwardDate',
+      sortOrder = 'desc',
+      page = 1,
+      limit = 25,
+      exportAll = false,
+    } = query;
+
+    const where: any = {
+      isArchived: false,
+    };
+
+    // 1. IST Date boundaries
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const now = new Date();
+    const nowIST = new Date(now.getTime() + IST_OFFSET_MS);
+    const istYear = nowIST.getUTCFullYear();
+    const istMonth = nowIST.getUTCMonth();
+    const istDate = nowIST.getUTCDate();
+
+    let dateRange: { start: Date; end: Date } | null = null;
+
+    if (dateFilter === 'today') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, istDate, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, istDate, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'yesterday') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, istDate - 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, istDate - 1, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'this_month') {
+      const startIST = new Date(Date.UTC(istYear, istMonth, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth + 1, 0, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'last_month') {
+      const startIST = new Date(Date.UTC(istYear, istMonth - 1, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(istYear, istMonth, 0, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'financial_year') {
+      const fyStartYear = istMonth >= 3 ? istYear : istYear - 1;
+      const startIST = new Date(Date.UTC(fyStartYear, 3, 1, 0, 0, 0, 0));
+      const endIST = new Date(Date.UTC(fyStartYear + 1, 2, 31, 23, 59, 59, 999));
+      dateRange = {
+        start: new Date(startIST.getTime() - IST_OFFSET_MS),
+        end: new Date(endIST.getTime() - IST_OFFSET_MS),
+      };
+    } else if (dateFilter === 'custom' && startDate && endDate) {
+      const [sY, sM, sD] = String(startDate).split('-').map(Number);
+      const [eY, eM, eD] = String(endDate).split('-').map(Number);
+      if (!isNaN(sY) && !isNaN(eY)) {
+        const startIST = new Date(Date.UTC(sY, sM - 1, sD, 0, 0, 0, 0));
+        const endIST = new Date(Date.UTC(eY, eM - 1, eD, 23, 59, 59, 999));
+        dateRange = {
+          start: new Date(startIST.getTime() - IST_OFFSET_MS),
+          end: new Date(endIST.getTime() - IST_OFFSET_MS),
+        };
+      }
+    }
+
+    if (dateRange) {
+      where.outwardDate = {
+        gte: dateRange.start,
+        lte: dateRange.end,
+      };
+    }
+
+    // 2. Specific filters
+    if (transporterName && transporterName !== 'ALL') {
+      where.transporterName = { contains: transporterName, mode: 'insensitive' };
+    }
+    if (salesPerson && salesPerson !== 'ALL') {
+      where.salesPerson = { contains: salesPerson, mode: 'insensitive' };
+    }
+    if (receivingStatus && receivingStatus !== 'ALL') {
+      if (receivingStatus.toUpperCase() === 'RECEIVED') {
+        where.receivingManually = { contains: 'received', mode: 'insensitive' };
+      } else if (receivingStatus.toUpperCase() === 'PENDING') {
+        where.OR = [
+          { receivingManually: null },
+          { receivingManually: { contains: 'pending', mode: 'insensitive' } },
+        ];
+      }
+    }
+
+    // 3. Multi-field search
+    if (search && String(search).trim()) {
+      const term = String(search).trim();
+      where.AND = [
+        {
+          OR: [
+            { partyName: { contains: term, mode: 'insensitive' } },
+            { transporterName: { contains: term, mode: 'insensitive' } },
+            { vehicleNo: { contains: term, mode: 'insensitive' } },
+            { material: { contains: term, mode: 'insensitive' } },
+            { salesPerson: { contains: term, mode: 'insensitive' } },
+            { invoiceNo: { contains: term, mode: 'insensitive' } },
+            { receivingManually: { contains: term, mode: 'insensitive' } },
+            { remark: { contains: term, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+
+    // 4. Ordering
+    const validSortFields = ['outwardDate', 'partyName', 'transporterName', 'quantity', 'invoiceNo', 'createdAt'];
+    const orderField = validSortFields.includes(sortBy) ? sortBy : 'outwardDate';
+    const orderDirection = sortOrder === 'asc' ? 'asc' : 'desc';
+
+    const allMatches = await (this.prisma as any).outwardRegisterEntry.findMany({
+      where,
+      orderBy: [
+        { [orderField]: orderDirection },
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
+    });
+
+    // 5. Decimal-safe KPI summaries
+    let totalQuantity = 0;
+    let todayEntries = 0;
+    let thisMonthEntries = 0;
+    let receivedCount = 0;
+    let pendingCount = 0;
+
+    const todayStart = new Date(Date.UTC(istYear, istMonth, istDate, 0, 0, 0, 0)).getTime() - IST_OFFSET_MS;
+    const todayEnd = new Date(Date.UTC(istYear, istMonth, istDate, 23, 59, 59, 999)).getTime() - IST_OFFSET_MS;
+    const monthStart = new Date(Date.UTC(istYear, istMonth, 1, 0, 0, 0, 0)).getTime() - IST_OFFSET_MS;
+    const monthEnd = new Date(Date.UTC(istYear, istMonth + 1, 0, 23, 59, 59, 999)).getTime() - IST_OFFSET_MS;
+
+    for (const item of allMatches) {
+      const q = Number(item.quantity) || 0;
+      totalQuantity = Number((totalQuantity + q).toFixed(3));
+
+      const dt = new Date(item.outwardDate).getTime();
+      if (dt >= todayStart && dt <= todayEnd) todayEntries++;
+      if (dt >= monthStart && dt <= monthEnd) thisMonthEntries++;
+
+      const rec = String(item.receivingManually || '').toLowerCase();
+      if (rec.includes('received') || rec.includes('done') || rec.includes('ok')) {
+        receivedCount++;
+      } else {
+        pendingCount++;
+      }
+    }
+
+    // 6. Pagination & dynamic SR NO
+    const totalItems = allMatches.length;
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Number(limit) || 25);
+    const isExport = exportAll === true || exportAll === 'true' || limit === 'all' || Number(limit) === -1;
+
+    const pagedRecords = isExport
+      ? allMatches
+      : allMatches.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
+    const startIndex = (pageNum - 1) * limitNum;
+    const mappedItems = pagedRecords.map((r: any, idx: number) => ({
+      srNo: isExport ? idx + 1 : startIndex + idx + 1,
+      id: r.id,
+      outwardDate: r.outwardDate,
+      transporterName: r.transporterName,
+      vehicleNo: r.vehicleNo || '—',
+      material: r.material,
+      quantity: Number(r.quantity) || 0,
+      partyName: r.partyName,
+      salesPerson: r.salesPerson || '—',
+      invoiceNo: r.invoiceNo || '—',
+      receivingManually: r.receivingManually || '—',
+      remark: r.remark || '',
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
+
+    // 7. Distinct filter options
+    const allActive = await (this.prisma as any).outwardRegisterEntry.findMany({
+      where: { isArchived: false },
+      select: { transporterName: true, salesPerson: true },
+    });
+    const transporters = Array.from(new Set(allActive.map((r: any) => r.transporterName).filter(Boolean))).sort();
+    const salesPersons = Array.from(new Set(allActive.map((r: any) => r.salesPerson).filter(Boolean))).sort();
+
+    return {
+      items: mappedItems,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems,
+        totalPages: Math.ceil(totalItems / limitNum) || 1,
+      },
+      totals: {
+        totalEntries: totalItems,
+        totalQuantity,
+        todayEntries,
+        thisMonthEntries,
+        receivedCount,
+        pendingCount,
+      },
+      filterOptions: {
+        transporters,
+        salesPersons,
+      },
+    };
+  }
+
+  async createOutwardRegisterEntry(userId: string, dto: any) {
+    if (!dto.outwardDate || !dto.transporterName || !dto.material || !dto.partyName) {
+      throw new BadRequestException('Date, Transporter Name, Material, and Party Name are required.');
+    }
+
+    const quantityNum = Number(dto.quantity) || 0;
+
+    return (this.prisma as any).outwardRegisterEntry.create({
+      data: {
+        outwardDate: new Date(dto.outwardDate),
+        transporterName: String(dto.transporterName).trim(),
+        vehicleNo: dto.vehicleNo ? String(dto.vehicleNo).trim() : null,
+        material: String(dto.material).trim(),
+        quantity: quantityNum.toFixed(3),
+        partyName: String(dto.partyName).trim(),
+        salesPerson: dto.salesPerson ? String(dto.salesPerson).trim() : null,
+        invoiceNo: dto.invoiceNo ? String(dto.invoiceNo).trim() : null,
+        receivingManually: dto.receivingManually ? String(dto.receivingManually).trim() : null,
+        remark: dto.remark ? String(dto.remark).trim() : null,
+        isArchived: false,
+        createdById: userId,
+        updatedById: userId,
+      },
+    });
+  }
+
+  async updateOutwardRegisterEntry(id: string, userId: string, dto: any) {
+    const existing = await (this.prisma as any).outwardRegisterEntry.findFirst({
+      where: { id, isArchived: false },
+    });
+    if (!existing) {
+      throw new NotFoundException('Outward Register Entry not found');
+    }
+
+    const quantityNum = dto.quantity !== undefined ? Number(dto.quantity) : Number(existing.quantity);
+
+    return (this.prisma as any).outwardRegisterEntry.update({
+      where: { id },
+      data: {
+        outwardDate: dto.outwardDate ? new Date(dto.outwardDate) : existing.outwardDate,
+        transporterName: dto.transporterName ? String(dto.transporterName).trim() : existing.transporterName,
+        vehicleNo: dto.vehicleNo !== undefined ? (dto.vehicleNo ? String(dto.vehicleNo).trim() : null) : existing.vehicleNo,
+        material: dto.material ? String(dto.material).trim() : existing.material,
+        quantity: quantityNum.toFixed(3),
+        partyName: dto.partyName ? String(dto.partyName).trim() : existing.partyName,
+        salesPerson: dto.salesPerson !== undefined ? (dto.salesPerson ? String(dto.salesPerson).trim() : null) : existing.salesPerson,
+        invoiceNo: dto.invoiceNo !== undefined ? (dto.invoiceNo ? String(dto.invoiceNo).trim() : null) : existing.invoiceNo,
+        receivingManually: dto.receivingManually !== undefined ? (dto.receivingManually ? String(dto.receivingManually).trim() : null) : existing.receivingManually,
+        remark: dto.remark !== undefined ? (dto.remark ? String(dto.remark).trim() : null) : existing.remark,
+        updatedById: userId,
+      },
+    });
+  }
+
+  async archiveOutwardRegisterEntry(id: string, userId: string) {
+    const existing = await (this.prisma as any).outwardRegisterEntry.findFirst({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException('Outward Register Entry not found');
+    }
+
+    return (this.prisma as any).outwardRegisterEntry.update({
+      where: { id },
+      data: {
+        isArchived: true,
+        updatedById: userId,
+      },
+    });
+  }
+
+  /**
+   * AR — PAYMENT FOLLOW UPS MANUAL REGISTER
+   *
+   * Completely standalone manual tracking sheet for customer payment follow-ups.
+   * Zero connection to Invoices, Finance, Ledger, AR, or automatic calculations.
+   */
+
+  async getPaymentFollowUpEntries(query: any) {
+    const {
+      search,
+      salesPerson,
+      minAmount,
+      maxAmount,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      page = 1,
+      limit = 25,
+      exportAll = false,
+    } = query;
+
+    const where: any = {
+      isArchived: false,
+    };
+
+    if (salesPerson && salesPerson !== 'ALL') {
+      where.salesPerson = { contains: salesPerson, mode: 'insensitive' };
+    }
+
+    if (minAmount !== undefined && minAmount !== '') {
+      where.duePaymentAmount = { ...(where.duePaymentAmount || {}), gte: Number(minAmount) };
+    }
+    if (maxAmount !== undefined && maxAmount !== '') {
+      where.duePaymentAmount = { ...(where.duePaymentAmount || {}), lte: Number(maxAmount) };
+    }
+
+    if (search && String(search).trim()) {
+      const term = String(search).trim();
+      where.AND = [
+        {
+          OR: [
+            { partyName: { contains: term, mode: 'insensitive' } },
+            { salesPerson: { contains: term, mode: 'insensitive' } },
+            { remarks: { contains: term, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+
+    const validSortFields = ['partyName', 'duePaymentAmount', 'salesPerson', 'createdAt'];
+    const orderField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    const orderDirection = sortOrder === 'asc' ? 'asc' : 'desc';
+
+    const allMatches = await (this.prisma as any).paymentFollowUpEntry.findMany({
+      where,
+      orderBy: [
+        { [orderField]: orderDirection },
+        { id: 'desc' },
+      ],
+    });
+
+    let totalDuePaymentAmount = 0;
+    for (const item of allMatches) {
+      const amt = Number(item.duePaymentAmount) || 0;
+      totalDuePaymentAmount = Number((totalDuePaymentAmount + amt).toFixed(2));
+    }
+
+    const totalItems = allMatches.length;
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Number(limit) || 25);
+    const isExport = exportAll === true || exportAll === 'true' || limit === 'all' || Number(limit) === -1;
+
+    const pagedRecords = isExport
+      ? allMatches
+      : allMatches.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
+    const startIndex = (pageNum - 1) * limitNum;
+    const mappedItems = pagedRecords.map((r: any, idx: number) => ({
+      srNo: isExport ? idx + 1 : startIndex + idx + 1,
+      id: r.id,
+      partyName: r.partyName,
+      duePaymentAmount: Number(r.duePaymentAmount) || 0,
+      salesPerson: r.salesPerson || '—',
+      remarks: r.remarks || '',
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
+
+    const allActive = await (this.prisma as any).paymentFollowUpEntry.findMany({
+      where: { isArchived: false },
+      select: { salesPerson: true },
+    });
+    const salesPersons = Array.from(new Set(allActive.map((r: any) => r.salesPerson).filter(Boolean))).sort();
+
+    return {
+      items: mappedItems,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalItems,
+        totalPages: Math.ceil(totalItems / limitNum) || 1,
+      },
+      totals: {
+        totalFollowUps: totalItems,
+        totalDuePaymentAmount,
+      },
+      filterOptions: {
+        salesPersons,
+      },
+    };
+  }
+
+  async createPaymentFollowUpEntry(userId: string, dto: any) {
+    if (!dto.partyName || dto.duePaymentAmount === undefined || dto.duePaymentAmount === '') {
+      throw new BadRequestException('Party Name and Due Payment Amount are required.');
+    }
+
+    const amountNum = Number(dto.duePaymentAmount) || 0;
+
+    return (this.prisma as any).paymentFollowUpEntry.create({
+      data: {
+        partyName: String(dto.partyName).trim(),
+        duePaymentAmount: amountNum.toFixed(2),
+        salesPerson: dto.salesPerson ? String(dto.salesPerson).trim() : null,
+        remarks: dto.remarks ? String(dto.remarks).trim() : null,
+        isArchived: false,
+        createdById: userId,
+        updatedById: userId,
+      },
+    });
+  }
+
+  async updatePaymentFollowUpEntry(id: string, userId: string, dto: any) {
+    const existing = await (this.prisma as any).paymentFollowUpEntry.findFirst({
+      where: { id, isArchived: false },
+    });
+    if (!existing) {
+      throw new NotFoundException('Payment Follow Up Entry not found');
+    }
+
+    const amountNum = dto.duePaymentAmount !== undefined ? Number(dto.duePaymentAmount) : Number(existing.duePaymentAmount);
+
+    return (this.prisma as any).paymentFollowUpEntry.update({
+      where: { id },
+      data: {
+        partyName: dto.partyName ? String(dto.partyName).trim() : existing.partyName,
+        duePaymentAmount: amountNum.toFixed(2),
+        salesPerson: dto.salesPerson !== undefined ? (dto.salesPerson ? String(dto.salesPerson).trim() : null) : existing.salesPerson,
+        remarks: dto.remarks !== undefined ? (dto.remarks ? String(dto.remarks).trim() : null) : existing.remarks,
+        updatedById: userId,
+      },
+    });
+  }
+
+  async archivePaymentFollowUpEntry(id: string, userId: string) {
+    const existing = await (this.prisma as any).paymentFollowUpEntry.findFirst({
+      where: { id },
+    });
+    if (!existing) {
+      throw new NotFoundException('Payment Follow Up Entry not found');
+    }
+
+    return (this.prisma as any).paymentFollowUpEntry.update({
+      where: { id },
+      data: {
+        isArchived: true,
+        updatedById: userId,
+      },
+    });
+  }
 }
+
+
 
 

@@ -8,7 +8,7 @@ import {
   ArrowUpRight, BookOpen, Wallet, Building, Book, Notebook, Library, Scale, Landmark,
   Calculator, ShoppingBag, CalendarOff, Award, Files, MessageSquare, BellRing, Hash, Ruler, Grid,
   RotateCcw, Monitor, Server, ActivitySquare, Terminal, Eye, Navigation2,
-  BadgeCheck, FileCheck
+  BadgeCheck, FileCheck, FileSpreadsheet
 } from 'lucide-react';
 
 export const navigationConfig = {
@@ -360,17 +360,38 @@ export const navigationConfig = {
     { id: 'complain-center', label: 'Complaint Center', icon: ShieldAlert, path: '/hr/complain-center' }
   ],
   'Back Office': [
-    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' }
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
+    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'hcppl-ar', label: 'HCPPL AR', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
+    { id: 'sample-tracker', label: 'Sample Tracker', icon: Package, path: '/back-office/sample-tracker' },
+    { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
+    { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
   ],
   'BACK_OFFICE': [
-    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' }
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
+    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'hcppl-ar', label: 'HCPPL AR', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
+    { id: 'sample-tracker', label: 'Sample Tracker', icon: Package, path: '/back-office/sample-tracker' },
+    { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
+    { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
   ],
   'back-office': [
-    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' }
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
+    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'hcppl-ar', label: 'HCPPL AR', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
+    { id: 'sample-tracker', label: 'Sample Tracker', icon: Package, path: '/back-office/sample-tracker' },
+    { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
+    { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
   ],
   'Back Office / Admin': [
-    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' }
+    { id: 'dispatch', label: 'Dispatch', icon: Truck, path: '/back-office' },
+    { id: 'appl-ar', label: 'APPL AR', icon: FileSpreadsheet, path: '/back-office/appl-ar' },
+    { id: 'hcppl-ar', label: 'HCPPL AR', icon: FileSpreadsheet, path: '/back-office/hcppl-ar' },
+    { id: 'sample-tracker', label: 'Sample Tracker', icon: Package, path: '/back-office/sample-tracker' },
+    { id: 'outward-register', label: 'Outward Register', icon: Boxes, path: '/back-office/outward-register' },
+    { id: 'payment-follow-ups', label: 'Payment Follow Ups', icon: Receipt, path: '/back-office/payment-follow-ups' },
   ],
+
   'Admin': [
     { id: 'dashboard', label: 'Daily Reports Dashboard', icon: LayoutGrid, path: '/back-office/daily-report' },
     { id: 'create-report', label: 'Submit Daily Report', icon: FileText, path: '/back-office/daily-report/create' },

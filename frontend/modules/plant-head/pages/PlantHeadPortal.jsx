@@ -1131,13 +1131,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
             : o
         ) : []
       );
-      setIncomingOrders((prev) =>
-        Array.isArray(prev) ? prev.map((o) =>
-          o.id === order.id || o.orderNo === order.orderNo
-            ? { ...o, targetDate: dateStr, _selectedTargetDate: newDate }
-            : o
-        ) : []
-      );
+      // Incoming orders are derived from the ERP store and refreshed by syncData below.
       if (selectedOrderForPlanning && (selectedOrderForPlanning.id === order.id || selectedOrderForPlanning.orderNo === order.orderNo)) {
         setSelectedOrderForPlanning((prev) => ({
           ...prev,

@@ -5,6 +5,7 @@ const rawBackendUrl = process.env.BACKEND_INTERNAL_URL || process.env.BACKEND_AP
 const BACKEND_URL = rawBackendUrl.replace('/api/v1', '');
 
 const nextConfig: NextConfig = {
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   output: "standalone",
   outputFileTracingRoot: path.resolve(__dirname),
   turbopack: {

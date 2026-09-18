@@ -221,6 +221,383 @@ export class BackOfficeController {
   }
 
   /**
+   * AR — HCPPL MANUAL DATA ENTRY REGISTER
+   */
+  @Get('hcppl-ar/manual')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async getHcpplArManualEntries(@Query() query: any) {
+    return this.backOfficeService.getHcpplArManualEntries(query);
+  }
+
+  @Post('hcppl-ar/manual')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async createHcpplArManualEntry(@Req() req: any, @Body() dto: any) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.createHcpplArManualEntry(userId, dto);
+  }
+
+  @Put('hcppl-ar/manual/:id')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async updateHcpplArManualEntry(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: any,
+  ) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.updateHcpplArManualEntry(id, userId, dto);
+  }
+
+  @Delete('hcppl-ar/manual/:id')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async archiveHcpplArManualEntry(@Req() req: any, @Param('id') id: string) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.archiveHcpplArManualEntry(id, userId);
+  }
+
+  /**
+   * SAMPLE TRACKER — MANUAL DATA ENTRY REGISTER
+   */
+  @Get('sample-tracker')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async getSampleTrackerEntries(@Query() query: any) {
+    return this.backOfficeService.getSampleTrackerEntries(query);
+  }
+
+  @Post('sample-tracker')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async createSampleTrackerEntry(@Req() req: any, @Body() dto: any) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.createSampleTrackerEntry(userId, dto);
+  }
+
+  @Put('sample-tracker/:id')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async updateSampleTrackerEntry(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: any,
+  ) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.updateSampleTrackerEntry(id, userId, dto);
+  }
+
+  @Delete('sample-tracker/:id')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async archiveSampleTrackerEntry(@Req() req: any, @Param('id') id: string) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.archiveSampleTrackerEntry(id, userId);
+  }
+
+  /**
+   * OUTWARD REGISTER — MANUAL DATA ENTRY REGISTER
+   */
+  @Get('outward-register')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async getOutwardRegisterEntries(@Query() query: any) {
+    return this.backOfficeService.getOutwardRegisterEntries(query);
+  }
+
+  @Post('outward-register')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async createOutwardRegisterEntry(@Req() req: any, @Body() dto: any) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.createOutwardRegisterEntry(userId, dto);
+  }
+
+  @Put('outward-register/:id')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async updateOutwardRegisterEntry(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: any,
+  ) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.updateOutwardRegisterEntry(id, userId, dto);
+  }
+
+  @Delete('outward-register/:id')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async archiveOutwardRegisterEntry(@Req() req: any, @Param('id') id: string) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.archiveOutwardRegisterEntry(id, userId);
+  }
+
+  /**
+   * PAYMENT FOLLOW UPS — MANUAL DATA ENTRY REGISTER
+   */
+  @Get('payment-follow-ups')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async getPaymentFollowUpEntries(@Query() query: any) {
+    return this.backOfficeService.getPaymentFollowUpEntries(query);
+  }
+
+  @Post('payment-follow-ups')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async createPaymentFollowUpEntry(@Req() req: any, @Body() dto: any) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.createPaymentFollowUpEntry(userId, dto);
+  }
+
+  @Put('payment-follow-ups/:id')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async updatePaymentFollowUpEntry(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: any,
+  ) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.updatePaymentFollowUpEntry(id, userId, dto);
+  }
+
+  @Delete('payment-follow-ups/:id')
+  @Roles(
+    'Back Office',
+    'BACK_OFFICE',
+    'back-office',
+    'Back Office / Admin',
+    'Back Office Lead',
+    'Data Analyst & Back Office Lead',
+    'Finance Manager',
+    'FINANCE_MANAGER',
+    'Finance',
+    'FINANCE',
+    'Super Admin',
+    'SUPER_ADMIN',
+    'Admin',
+    'ADMIN',
+  )
+  async archivePaymentFollowUpEntry(@Req() req: any, @Param('id') id: string) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.backOfficeService.archivePaymentFollowUpEntry(id, userId);
+  }
+
+
+  /**
    * CONFIRMED DISPATCHES (Read-only consolidation for Dispatch 1 & Dispatch 2)
    */
   @Get('dispatches')

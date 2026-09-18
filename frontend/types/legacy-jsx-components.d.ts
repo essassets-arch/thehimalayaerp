@@ -19,7 +19,6 @@ interface HeroBannerStat {
   action?: string;
   msg?: string;
 }
-
 interface HeroBannerProps {
   stats?: HeroBannerStat[];
   searchQuery?: string;
@@ -74,3 +73,6 @@ declare module '@/components/shared/FinishedGoodsTable' {
   const FinishedGoodsTable: React.ComponentType<FinishedGoodsTableProps>;
   export default FinishedGoodsTable;
 }
+
+declare module 'lucide-react';
+

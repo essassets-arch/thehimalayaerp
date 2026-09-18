@@ -14,6 +14,7 @@
         "test:browser:sales": "playwright test tests/browser/certification/sales-order --project=desktop-chromium",
         "test:browser:certification": "playwright test tests/browser/certification --project=desktop-chromium",
         "test:browser:all": "playwright test --project=desktop-chromium",
+        "test:browser:manual-registers": "playwright test --config=playwright.manual-registers.config.ts",
         "test:browser:verify": "npx tsx scripts/verify-no-skipped-tests.ts",
         "verify:phase-f-triple-plus": "npx tsx scripts/verify-phase-f-triple-plus.ts",
         "test:workflow": "npx tsx scripts/test-workflow.ts",

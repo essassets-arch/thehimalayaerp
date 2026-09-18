@@ -4315,6 +4315,109 @@ model BackOfficeArInvoice {
   @@index([dueDate])
 }
 
+model HcpplArManualEntry {
+  id               String    @id @default(uuid())
+  srNo             Int?
+  invoiceNo        String
+  invoiceDate      DateTime
+  basicAmount      Decimal   @default(0) @db.Decimal(18, 2)
+  invoiceGstAmount Decimal   @default(0) @db.Decimal(18, 2)
+  partyName        String
+  siteName         String?
+  salesType        String?
+  salesPerson      String?
+  paymentTerm      String?
+  ageingDays       Int?
+  managementStatus String    @default("NMGMT") // "MGMT", "NMGMT"
+  ageingBucket     String    @default("30 DAYS") // "7 DAYS", "30 DAYS", "MANUALLY"
+  dueStatus        String    @default("DUE") // "DUE", "YET TO DUE", "DUE DAYS"
+  paymentStatus    String    @default("UNPAID") // "PAID", "UNPAID", "PARTLY PAID", "CANCELLED"
+  isArchived       Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  createdById      String?
+  updatedById      String?
+
+  @@index([isArchived])
+  @@index([invoiceDate])
+  @@index([partyName])
+  @@index([salesPerson])
+  @@index([managementStatus])
+  @@index([paymentStatus])
+  @@index([dueStatus])
+  @@index([ageingBucket])
+}
+
+model SampleTrackerEntry {
+  id               String    @id @default(uuid())
+  partyName        String
+  sitePincode      String?
+  materialManually String
+  partyContact     String?
+  referencePerson  String?
+  referenceNumber  String?
+  dispatchDate     DateTime
+  transportMode    String
+  transportAmount  Decimal   @default(0) @db.Decimal(18, 2)
+  status           String
+  remark           String?
+  isArchived       Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  createdById      String?
+  updatedById      String?
+
+  @@index([isArchived])
+  @@index([dispatchDate])
+  @@index([partyName])
+  @@index([status])
+  @@index([transportMode])
+}
+
+model OutwardRegisterEntry {
+  id                String    @id @default(uuid())
+  outwardDate       DateTime
+  transporterName   String
+  vehicleNo         String?
+  material          String
+  quantity          Decimal   @default(0) @db.Decimal(18, 3)
+  partyName         String
+  salesPerson       String?
+  invoiceNo         String?
+  receivingManually String?
+  remark            String?
+  isArchived        Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdById       String?
+  updatedById       String?
+
+  @@index([isArchived])
+  @@index([outwardDate])
+  @@index([partyName])
+  @@index([transporterName])
+  @@index([salesPerson])
+  @@index([invoiceNo])
+}
+
+model PaymentFollowUpEntry {
+  id               String    @id @default(uuid())
+  partyName        String
+  duePaymentAmount Decimal   @default(0) @db.Decimal(18, 2)
+  salesPerson      String?
+  remarks          String?
+  isArchived       Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  createdById      String?
+  updatedById      String?
+
+  @@index([isArchived])
+  @@index([partyName])
+  @@index([salesPerson])
+  @@index([createdAt])
+}
+
 
 
 

@@ -622,7 +622,24 @@ export const ERPProvider = ({ children }) => {
   const currentUser = useAuthStore(auth => auth.user);
   const userRoleStr = String(currentUser?.role || '').toLowerCase();
   const isSalesOrAdmin = userRoleStr.includes('sales') || userRoleStr.includes('admin') || userRoleStr.includes('super');
-  const shouldLoadSalesOrders = Boolean(currentUser);
+  // Preload only for permissions accepted by the sales-order list endpoint.
+  const shouldLoadSalesOrders = Boolean(currentUser) && [
+    'sales.orders.read',
+    'logistics.dispatches.read',
+    'dispatch.shipments.read',
+    'dispatch.delivery.verify',
+    'dispatch.update',
+    'production.workorder.read',
+    'production.work_orders.manage',
+    'store.read',
+    'store.view',
+    'store.materials.read',
+    'admin.read',
+    'super-admin.read',
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+  ].some(permission => hasPermission(currentUser, permission));
   const shouldLoadLeads = Boolean(currentUser) && isSalesOrAdmin;
   const shouldLoadCustomers = Boolean(currentUser) && isSalesOrAdmin;
 

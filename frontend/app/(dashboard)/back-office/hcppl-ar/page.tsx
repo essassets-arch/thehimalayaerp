@@ -1,7 +1,8 @@
 'use client';
 
-import BackOfficeHcpplAr from '@/modules/back-office/pages/BackOfficeHcpplAr';
+import HcpplArManualView from '@/modules/back-office/components/HcpplArManualView';
 
 export default function BackOfficeHcpplArPage() {
-  return <BackOfficeHcpplAr />;
+  return <HcpplArManualView />;
 }
+
