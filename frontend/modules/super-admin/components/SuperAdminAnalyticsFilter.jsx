@@ -156,10 +156,18 @@ export default function SuperAdminAnalyticsFilter({
             className="sa-analytics-filter__select"
           >
             <option value="All">Vendor: All Suppliers</option>
-            <option value="Supreme Resins Pvt Ltd">Supreme Resins Pvt Ltd</option>
-            <option value="Jindal Steel & Power">Jindal Steel & Power</option>
-            <option value="Ambuja Cement Supply">Ambuja Cement Supply</option>
-            <option value="National Chemicals India">National Chemicals India</option>
+            {filterOptions.vendors && filterOptions.vendors.length > 0 ? (
+              filterOptions.vendors.map(v => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))
+            ) : (
+              <>
+                <option value="Supreme Resins Pvt Ltd">Supreme Resins Pvt Ltd</option>
+                <option value="Jindal Steel & Power">Jindal Steel & Power</option>
+                <option value="Ambuja Cement Supply">Ambuja Cement Supply</option>
+                <option value="National Chemicals India">National Chemicals India</option>
+              </>
+            )}
           </select>
         )}
 

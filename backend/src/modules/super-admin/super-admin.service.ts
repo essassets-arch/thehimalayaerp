@@ -8378,38 +8378,36 @@ export class SuperAdminService {
     const percentage = (numerator: number, denominator: number) =>
       denominator ? Number(((numerator / denominator) * 100).toFixed(2)) : 0;
 
+    const cleanParam = (val: any) =>
+      val && val !== 'All' && val !== 'null' && val !== 'undefined'
+        ? String(val).trim()
+        : undefined;
+
     const now = new Date();
     const end = query?.to ? new Date(`${query.to}T23:59:59.999Z`) : now;
     const start = query?.from
       ? new Date(`${query.from}T00:00:00.000Z`)
       : new Date(end.getFullYear(), end.getMonth(), 1);
 
+    const branchId = cleanParam(query?.branchId) || cleanParam(query?.branch);
     const customerId =
-      query?.customerId ||
-      (query?.customer !== 'All' ? query?.customer : undefined);
+      cleanParam(query?.customerId) || cleanParam(query?.customer);
     const salespersonId =
-      query?.salespersonId ||
-      (query?.salesperson !== 'All' ? query?.salesperson : undefined);
-    const vendorId =
-      query?.vendorId || (query?.vendor !== 'All' ? query?.vendor : undefined);
-    const brandId =
-      query?.brandId || (query?.brand !== 'All' ? query?.brand : undefined);
+      cleanParam(query?.salespersonId) || cleanParam(query?.salesperson);
+    const vendorId = cleanParam(query?.vendorId) || cleanParam(query?.vendor);
+    const brandId = cleanParam(query?.brandId) || cleanParam(query?.brand);
     const departmentId =
-      query?.departmentId ||
-      (query?.department !== 'All' ? query?.department : undefined);
+      cleanParam(query?.departmentId) || cleanParam(query?.department);
     const paymentStatus =
-      query?.paymentStatus ||
-      (query?.paymentStatus !== 'All' ? query?.paymentStatus : undefined);
-    const poStatus =
-      query?.poStatus ||
-      (query?.poStatus !== 'All' ? query?.poStatus : undefined);
+      cleanParam(query?.paymentStatus) || cleanParam(query?.status);
+    const poStatus = cleanParam(query?.poStatus);
 
     // Queries
     const [
       allCustomers,
       allVendors,
       allProducts,
-      allSalespeople,
+      allSalespeopleRaw,
       allDepartments,
       invoices,
       payments,
@@ -8419,6 +8417,7 @@ export class SuperAdminService {
       payrollRecords,
       allBranches,
       salesOrders,
+      backOfficeArInvoices,
     ] = await Promise.all([
       this.prisma.customer.findMany({
         where: isCompanyScoped ? { companyId } : {},
@@ -8447,7 +8446,14 @@ export class SuperAdminService {
             },
           },
         },
-        include: { role: true },
+        include: {
+          role: true,
+          employee: {
+            include: {
+              department: true,
+            },
+          },
+        },
       }),
       this.prisma.department.findMany({
         where: isCompanyScoped ? { companyId } : {},
@@ -8458,8 +8464,16 @@ export class SuperAdminService {
             ? { salesOrder: { customer: { companyId } } }
             : {}),
           ...(customerId ? { salesOrder: { customerId } } : {}),
+          ...(branchId ? { salesOrder: { customer: { branchId } } } : {}),
           ...(salespersonId
-            ? { salesOrder: { salesExecutiveId: salespersonId } }
+            ? {
+                salesOrder: {
+                  OR: [
+                    { salesExecutiveId: salespersonId },
+                    { createdById: salespersonId },
+                  ],
+                },
+              }
             : {}),
         },
         include: {
@@ -8477,10 +8491,30 @@ export class SuperAdminService {
         where: {
           ...(isCompanyScoped ? { customer: { companyId } } : {}),
           ...(customerId ? { customerId } : {}),
+          ...(branchId ? { customer: { branchId } } : {}),
           ...(salespersonId
-            ? { salesOrder: { salesExecutiveId: salespersonId } }
+            ? {
+                OR: [
+                  { salesOrder: { salesExecutiveId: salespersonId } },
+                  { salesOrder: { createdById: salespersonId } },
+                  {
+                    allocations: {
+                      some: {
+                        invoice: {
+                          salesOrder: {
+                            OR: [
+                              { salesExecutiveId: salespersonId },
+                              { createdById: salespersonId },
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                ],
+              }
             : {}),
-          ...(paymentStatus ? { status: paymentStatus } : {}),
+          ...(paymentStatus ? { status: paymentStatus as any } : {}),
           OR: [
             { verifiedAt: { gte: start, lte: end } },
             { verifiedAt: null, createdAt: { gte: start, lte: end } },
@@ -8540,17 +8574,235 @@ export class SuperAdminService {
         where: {
           ...(isCompanyScoped ? { customer: { companyId } } : {}),
           ...(customerId ? { customerId } : {}),
-          ...(salespersonId ? { salesExecutiveId: salespersonId } : {}),
+          ...(branchId ? { customer: { branchId } } : {}),
+          ...(salespersonId
+            ? {
+                OR: [
+                  { salesExecutiveId: salespersonId },
+                  { createdById: salespersonId },
+                ],
+              }
+            : {}),
           OR: [
             { confirmedAt: { gte: start, lte: end } },
             { confirmedAt: null, orderDate: { gte: start, lte: end } },
           ],
         },
         include: {
+          customer: true,
+          salesExecutive: true,
           items: { include: { product: true } },
         },
       }),
+      (this.prisma as any).backOfficeArInvoice.findMany(),
     ]);
+
+    // Rigorously isolate genuine sales representatives only
+    const allSalespeople = allSalespeopleRaw.filter((u: any) => {
+      const email = (u.email || '').toLowerCase().trim();
+      const name = (u.name || '').toLowerCase().trim();
+
+      // 1. Exclude known non-sales users by email or name
+      if (
+        email.includes('abbasbaman') ||
+        name.includes('baman abbas') ||
+        name.includes('abbas baman')
+      )
+        return false;
+      if (email.includes('riya@gmail') || name.includes('moksha naik'))
+        return false;
+
+      // 2. Exclude users whose linked employee department is explicitly non-sales
+      if (u.employee?.department?.name) {
+        const dept = u.employee.department.name.toLowerCase();
+        const isNonSalesDept =
+          /(back\s*office|production|dispatch|store|warehouse|finance|account|hr|human\s*resource|qc|quality|maintenance|procurement)/i.test(
+            dept,
+          ) && !/sales/i.test(dept);
+        if (isNonSalesDept) return false;
+      }
+
+      // 3. Exclude users whose linked employee jobTitle is explicitly non-sales
+      if (u.employee?.jobTitle) {
+        const title = u.employee.jobTitle.toLowerCase();
+        const isNonSalesTitle =
+          /(back\s*office|planner|operator|store|warehouse|dispatch|finance|account|hr|qc|inspector|plant\s*head)/i.test(
+            title,
+          ) && !/sales/i.test(title);
+        if (isNonSalesTitle) return false;
+      }
+
+      // 4. Role validation
+      const roleCode = (u.role?.code || '').toUpperCase();
+      const roleName = (u.role?.name || '').toUpperCase();
+      const isSalesRole =
+        roleCode.includes('SALES') ||
+        roleName.includes('SALES') ||
+        [
+          'SALES_EXECUTIVE',
+          'SUPER_SALES',
+          'SALES_MANAGER',
+          'SALES_ADMIN',
+          'SALESPERSON',
+          'SALES_INTERN',
+        ].includes(roleCode);
+      if (!isSalesRole) return false;
+
+      // 5. Exclude orphan/dummy test accounts
+      if (
+        name.includes('browser sales') ||
+        name.includes('auth lockout') ||
+        email.includes('browser-auth') ||
+        email.includes('browser-sales')
+      ) {
+        return false;
+      }
+
+      // 6. Exclude orphan/dummy non-company accounts with zero sales records
+      if (!email.endsWith('@himalayaerp.com')) {
+        const hasActivity =
+          invoices.some(
+            (inv) =>
+              inv.salesOrder?.salesExecutiveId === u.id ||
+              inv.salesOrder?.createdById === u.id,
+          ) ||
+          salesOrders.some(
+            (o) => o.salesExecutiveId === u.id || o.createdById === u.id,
+          ) ||
+          payments.some(
+            (p) =>
+              p.salesOrder?.salesExecutiveId === u.id ||
+              p.salesOrder?.createdById === u.id,
+          );
+        if (!hasActivity) return false;
+      }
+
+      return true;
+    });
+
+    // Helper to normalize salesperson labels across legacy AR records
+    const normalizeSalespersonName = (sp: string): string => {
+      if (!sp) return 'Unassigned';
+      const s = sp.trim();
+      const upper = s.toUpperCase();
+      if (
+        upper === 'SS1' ||
+        upper === 'SUPERSALES 1' ||
+        upper === 'SUPERSALES1'
+      )
+        return 'SuperSales 1';
+      if (
+        upper === 'SS2' ||
+        upper === 'SUPERSALES 2' ||
+        upper === 'SUPERSALES2'
+      )
+        return 'SuperSales 2';
+      const lower = s.toLowerCase();
+      if (
+        lower === 'sales 14' ||
+        lower === 'sales14' ||
+        lower === 'sales fourteen'
+      )
+        return 'Sales Fourteen';
+      if (
+        lower === 'sales 13' ||
+        lower === 'sales13' ||
+        lower === 'sales thirteen'
+      )
+        return 'Sales Thirteen';
+      if (
+        lower === 'sales 12' ||
+        lower === 'sales12' ||
+        lower.includes('jyoti')
+      )
+        return 'Jyoti (Sales 12)';
+      if (
+        lower === 'sales 11' ||
+        lower === 'sales11' ||
+        lower === 'sales eleven'
+      )
+        return 'Sales Eleven';
+      if (lower === 'sales 1' || lower === 'sales1') return 'Sales 1';
+      if (lower === 'sales 2' || lower === 'sales2') return 'Sales 2';
+      if (lower === 'sales 3' || lower === 'sales3') return 'Sales 3';
+      if (lower === 'sales 4' || lower === 'sales4') return 'Sales 4';
+      if (lower === 'sales 5' || lower === 'sales5' || lower === 'sales five')
+        return 'Sales Five';
+      if (lower === 'sales 6' || lower === 'sales6' || lower === 'sales six')
+        return 'Sales Six';
+      if (lower === 'sales 7' || lower === 'sales7' || lower === 'sales seven')
+        return 'Sales Seven';
+      return s;
+    };
+
+    const targetCustomer = customerId
+      ? allCustomers.find((c) => c.id === customerId)
+      : null;
+    const targetCustomerName = targetCustomer?.companyName?.toLowerCase().trim();
+
+    const branchCustomerNames = branchId
+      ? new Set(
+          allCustomers
+            .filter((c) => c.branchId === branchId)
+            .map((c) => c.companyName.toLowerCase().trim()),
+        )
+      : null;
+
+    const targetSalesperson = salespersonId
+      ? allSalespeople.find((u) => u.id === salespersonId)
+      : null;
+    const targetSpNormalized = targetSalesperson
+      ? normalizeSalespersonName(targetSalesperson.name).toLowerCase().trim()
+      : null;
+
+    // Filter BackOfficeArInvoices by active parameters
+    const filteredBackOfficeArInvoices = (backOfficeArInvoices || []).filter(
+      (inv: any) => {
+        // Customer filter
+        if (targetCustomerName) {
+          const invCust = (inv.companyName || '').toLowerCase().trim();
+          if (invCust !== targetCustomerName) return false;
+        }
+
+        // Branch filter
+        if (branchCustomerNames) {
+          const invCust = (inv.companyName || '').toLowerCase().trim();
+          if (!branchCustomerNames.has(invCust)) return false;
+        }
+
+        // Salesperson filter
+        if (targetSpNormalized) {
+          const invSp = normalizeSalespersonName(inv.salesPerson || '')
+            .toLowerCase()
+            .trim();
+          if (invSp !== targetSpNormalized) return false;
+        }
+
+        // Status filter
+        if (paymentStatus) {
+          const invStatus = (inv.status || '').toUpperCase();
+          if (paymentStatus === 'VERIFIED' || paymentStatus === 'PAID') {
+            if (invStatus !== 'PAID') return false;
+          } else if (paymentStatus === 'PARTIALLY_PAID') {
+            if (invStatus !== 'PARTIAL') return false;
+          } else if (paymentStatus === 'UNPAID') {
+            if (invStatus !== 'UNPAID') return false;
+          }
+        }
+
+        return true;
+      },
+    );
+
+    // Prevent double counting if any BackOfficeArInvoice is explicitly linked to a SalesInvoice
+    const linkedSalesInvoiceIds = new Set(
+      filteredBackOfficeArInvoices
+        .map((a: any) => a.salesInvoiceId)
+        .filter(Boolean),
+    );
+    const unlinkedSalesInvoices = invoices.filter(
+      (inv) => !linkedSalesInvoiceIds.has(inv.id),
+    );
 
     // Apply secondary filters (e.g. brand) in memory
     const filteredSalesOrders = brandId
@@ -8559,24 +8811,55 @@ export class SuperAdminService {
         )
       : salesOrders;
 
-    const invoicesInPeriod = invoices.filter(
+    // Invoices and billings in period
+    const salesInvoicesInPeriod = unlinkedSalesInvoices.filter(
       (inv) => inv.createdAt >= start && inv.createdAt <= end,
     );
-    const invoiceValue = invoicesInPeriod.reduce(
-      (sum, inv) => sum + toNumber(inv.totalAmount),
-      0,
-    );
+    const arInvoicesInPeriod = filteredBackOfficeArInvoices.filter((inv: any) => {
+      const d = new Date(inv.invoiceDate);
+      return d >= start && d <= end;
+    });
 
+    const invoiceValue =
+      salesInvoicesInPeriod.reduce(
+        (sum, inv) => sum + toNumber(inv.totalAmount),
+        0,
+      ) +
+      arInvoicesInPeriod.reduce(
+        (sum, inv: any) => sum + toNumber(inv.invoiceAmount),
+        0,
+      );
+
+    // Verified collections in period
     const verifiedPayments = payments.filter((p) => p.status === 'VERIFIED');
-    const collectedAmount = verifiedPayments.reduce(
-      (sum, p) => sum + toNumber(p.amount),
-      0,
-    );
+    const arReceivedInPeriod = filteredBackOfficeArInvoices
+      .filter((inv: any) => {
+        if (toNumber(inv.amtRcvd) <= 0) return false;
+        const d = new Date(inv.amtRcvdDate || inv.invoiceDate);
+        return d >= start && d <= end;
+      })
+      .reduce((sum, inv: any) => sum + toNumber(inv.amtRcvd), 0);
+
+    const collectedAmount =
+      verifiedPayments.reduce((sum, p) => sum + toNumber(p.amount), 0) +
+      arReceivedInPeriod;
 
     let outstandingAmount = 0;
     let overdueAmount = 0;
 
-    invoices.forEach((inv) => {
+    // Receivables Aging bucketing
+    let receivables0to15 = 0;
+    let receivables16to30 = 0;
+    let receivables31to60 = 0;
+    let receivables61to90 = 0;
+    let receivablesMoreThan90 = 0;
+    let receivablesNotDue = 0;
+
+    // Customer Risk Map
+    const customerRiskMap = new Map<string, any>();
+
+    // 1. Process unlinked SalesInvoices
+    unlinkedSalesInvoices.forEach((inv) => {
       const invPaid = inv.paymentAllocations
         .filter((pa) => pa.payment?.status === 'VERIFIED')
         .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
@@ -8587,10 +8870,197 @@ export class SuperAdminService {
       const dueDate = new Date(
         inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000,
       );
-      if (dueDate < now && invOutstanding > 0) {
-        overdueAmount += invOutstanding;
+      const overdueTimeMs = now.getTime() - dueDate.getTime();
+      const overdueDays = Math.ceil(overdueTimeMs / (1000 * 60 * 60 * 24));
+
+      if (invOutstanding > 0) {
+        if (overdueDays <= 0) receivablesNotDue += invOutstanding;
+        else if (overdueDays <= 15) {
+          overdueAmount += invOutstanding;
+          receivables0to15 += invOutstanding;
+        } else if (overdueDays <= 30) {
+          overdueAmount += invOutstanding;
+          receivables16to30 += invOutstanding;
+        } else if (overdueDays <= 60) {
+          overdueAmount += invOutstanding;
+          receivables31to60 += invOutstanding;
+        } else if (overdueDays <= 90) {
+          overdueAmount += invOutstanding;
+          receivables61to90 += invOutstanding;
+        } else {
+          overdueAmount += invOutstanding;
+          receivablesMoreThan90 += invOutstanding;
+        }
+
+        const custId =
+          inv.salesOrder?.customerId ||
+          inv.salesOrder?.customer?.companyName ||
+          'Unknown Customer';
+        const custName =
+          inv.salesOrder?.customer?.companyName || 'Unknown Customer';
+        if (!customerRiskMap.has(custId)) {
+          customerRiskMap.set(custId, {
+            id: custId,
+            customerName: custName,
+            outstanding: 0,
+            overdue: 0,
+            oldestDueDays: 0,
+            pendingInvoices: 0,
+          });
+        }
+        const cItem = customerRiskMap.get(custId);
+        cItem.outstanding += invOutstanding;
+        cItem.pendingInvoices++;
+        if (overdueDays > 0) {
+          cItem.overdue += invOutstanding;
+          if (overdueDays > cItem.oldestDueDays) cItem.oldestDueDays = overdueDays;
+        }
       }
     });
+
+    // 2. Process filtered BackOfficeArInvoices
+    filteredBackOfficeArInvoices.forEach((inv: any) => {
+      const invOutstanding = toNumber(inv.outstanding);
+      outstandingAmount += invOutstanding;
+
+      const dueDate = new Date(inv.dueDate);
+      const overdueTimeMs = now.getTime() - dueDate.getTime();
+      const overdueDays = Math.ceil(overdueTimeMs / (1000 * 60 * 60 * 24));
+
+      if (invOutstanding > 0) {
+        if (overdueDays <= 0) receivablesNotDue += invOutstanding;
+        else if (overdueDays <= 15) {
+          overdueAmount += invOutstanding;
+          receivables0to15 += invOutstanding;
+        } else if (overdueDays <= 30) {
+          overdueAmount += invOutstanding;
+          receivables16to30 += invOutstanding;
+        } else if (overdueDays <= 60) {
+          overdueAmount += invOutstanding;
+          receivables31to60 += invOutstanding;
+        } else if (overdueDays <= 90) {
+          overdueAmount += invOutstanding;
+          receivables61to90 += invOutstanding;
+        } else {
+          overdueAmount += invOutstanding;
+          receivablesMoreThan90 += invOutstanding;
+        }
+
+        const custId = inv.companyName || 'Unknown Customer';
+        const custName = inv.companyName || 'Unknown Customer';
+        if (!customerRiskMap.has(custId)) {
+          customerRiskMap.set(custId, {
+            id: custId,
+            customerName: custName,
+            outstanding: 0,
+            overdue: 0,
+            oldestDueDays: 0,
+            pendingInvoices: 0,
+          });
+        }
+        const cItem = customerRiskMap.get(custId);
+        cItem.outstanding += invOutstanding;
+        cItem.pendingInvoices++;
+        if (overdueDays > 0) {
+          cItem.overdue += invOutstanding;
+          if (overdueDays > cItem.oldestDueDays) cItem.oldestDueDays = overdueDays;
+        }
+      }
+    });
+
+    const receivablesAging = {
+      notDue: receivablesNotDue,
+      aging1to15: receivables0to15,
+      aging16to30: receivables16to30,
+      aging31to60: receivables31to60,
+      aging61to90: receivables61to90,
+      agingMoreThan90: receivablesMoreThan90,
+    };
+
+    const customerRiskRanking = Array.from(customerRiskMap.values())
+      .sort((a, b) => b.overdue - a.overdue)
+      .slice(0, 10);
+
+    // Salesperson Collections
+    const salespersonCollectionMap = new Map<string, any>();
+    allSalespeople.forEach((sp) => {
+      salespersonCollectionMap.set(sp.id, {
+        salespersonId: sp.id,
+        salespersonName: sp.name,
+        receivable: 0,
+        collected: 0,
+        outstanding: 0,
+        overdue: 0,
+        collectionRate: 0,
+      });
+    });
+
+    // Attribute unlinked SalesInvoices to salespeople
+    unlinkedSalesInvoices.forEach((inv) => {
+      const spId =
+        inv.salesOrder?.salesExecutiveId || inv.salesOrder?.createdById;
+      if (!spId || !salespersonCollectionMap.has(spId)) return;
+      const spData = salespersonCollectionMap.get(spId);
+      spData.receivable += toNumber(inv.totalAmount);
+
+      const invPaid = inv.paymentAllocations
+        .filter((pa) => pa.payment?.status === 'VERIFIED')
+        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
+      spData.collected += invPaid;
+
+      const balance = Math.max(0, toNumber(inv.totalAmount) - invPaid);
+      spData.outstanding += balance;
+
+      const termDays = inv.salesOrder?.paymentTermsDays || 30;
+      const dueDate = new Date(
+        inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000,
+      );
+      if (dueDate < now && balance > 0) {
+        spData.overdue += balance;
+      }
+    });
+
+    // Attribute BackOfficeArInvoices to salespeople
+    filteredBackOfficeArInvoices.forEach((inv: any) => {
+      const rawSp = inv.salesPerson || '';
+      const normSp = normalizeSalespersonName(rawSp).toLowerCase().trim();
+      const matchedUser = allSalespeople.find(
+        (u) =>
+          normalizeSalespersonName(u.name).toLowerCase().trim() === normSp ||
+          (u.email || '').toLowerCase().startsWith(normSp.replace(/\s+/g, '')),
+      );
+      if (!matchedUser || !salespersonCollectionMap.has(matchedUser.id)) return;
+      const spData = salespersonCollectionMap.get(matchedUser.id);
+
+      const invAmt = toNumber(inv.invoiceAmount);
+      const paid = toNumber(inv.amtRcvd);
+      const balance = toNumber(inv.outstanding);
+
+      spData.receivable += invAmt;
+      spData.collected += paid;
+      spData.outstanding += balance;
+
+      const dueDate = new Date(inv.dueDate);
+      if (dueDate < now && balance > 0) {
+        spData.overdue += balance;
+      }
+    });
+
+    let salespersonCollections = Array.from(salespersonCollectionMap.values())
+      .map((item) => ({
+        ...item,
+        collectionRate:
+          item.receivable > 0
+            ? Math.min(100, percentage(item.collected, item.receivable))
+            : null,
+      }))
+      .sort((a, b) => b.collected - a.collected);
+
+    if (salespersonId) {
+      salespersonCollections = salespersonCollections.filter(
+        (s) => s.salespersonId === salespersonId,
+      );
+    }
 
     const pendingVerificationPayments = payments.filter(
       (p) => p.status === 'UNDER_VERIFICATION',
@@ -8672,161 +9142,91 @@ export class SuperAdminService {
       0,
     );
 
-    // Dynamic collections trend (Billings vs Receipts monthly)
+    // Dynamic collections trend (Billings vs Receipts)
+    const rangeDays = Math.ceil(
+      (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    const isDaily = rangeDays <= 62;
     const trendsMap = new Map<string, any>();
     const tempDate = new Date(start);
+
     while (tempDate <= end) {
-      const dateStr = tempDate.toISOString().slice(0, 7);
-      trendsMap.set(dateStr, { period: dateStr, billings: 0, receipts: 0 });
-      tempDate.setMonth(tempDate.getMonth() + 1);
-    }
-    invoicesInPeriod.forEach((inv) => {
-      const dateStr = inv.createdAt.toISOString().slice(0, 7);
-      if (trendsMap.has(dateStr)) {
-        trendsMap.get(dateStr).billings += toNumber(inv.totalAmount);
-      }
-    });
-    verifiedPayments.forEach((p) => {
-      const dateStr = new Date(p.verifiedAt || p.createdAt)
-        .toISOString()
-        .slice(0, 7);
-      if (trendsMap.has(dateStr)) {
-        trendsMap.get(dateStr).receipts += toNumber(p.amount);
-      }
-    });
-    const trendsList = Array.from(trendsMap.values());
+      const key = isDaily
+        ? tempDate.toISOString().slice(0, 10)
+        : tempDate.toISOString().slice(0, 7);
+      const label = isDaily
+        ? tempDate.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+          })
+        : tempDate.toLocaleDateString('en-GB', {
+            month: 'short',
+            year: 'numeric',
+          });
 
-    // Receivables Aging bucketing
-    let receivables0to15 = 0;
-    let receivables16to30 = 0;
-    let receivables31to60 = 0;
-    let receivables61to90 = 0;
-    let receivablesMoreThan90 = 0;
-    let receivablesNotDue = 0;
-
-    invoices.forEach((inv) => {
-      const invPaid = inv.paymentAllocations
-        .filter((pa) => pa.payment?.status === 'VERIFIED')
-        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
-      const balance = Math.max(0, toNumber(inv.totalAmount) - invPaid);
-      if (balance <= 0) return;
-
-      const termDays = inv.salesOrder?.paymentTermsDays || 30;
-      const dueDate = new Date(
-        inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000,
-      );
-      const overdueTimeMs = now.getTime() - dueDate.getTime();
-      const overdueDays = Math.ceil(overdueTimeMs / (1000 * 60 * 60 * 24));
-
-      if (overdueDays <= 0) receivablesNotDue += balance;
-      else if (overdueDays <= 15) receivables0to15 += balance;
-      else if (overdueDays <= 30) receivables16to30 += balance;
-      else if (overdueDays <= 60) receivables31to60 += balance;
-      else if (overdueDays <= 90) receivables61to90 += balance;
-      else receivablesMoreThan90 += balance;
-    });
-
-    const receivablesAging = {
-      notDue: receivablesNotDue,
-      aging1to15: receivables0to15,
-      aging16to30: receivables16to30,
-      aging31to60: receivables31to60,
-      aging61to90: receivables61to90,
-      agingMoreThan90: receivablesMoreThan90,
-    };
-
-    // Collection Risk Ranking (Top 10 Customers)
-    const customerRiskMap = new Map<string, any>();
-    invoices.forEach((inv) => {
-      const custId = inv.salesOrder?.customerId;
-      if (!custId) return;
-      const custName =
-        inv.salesOrder?.customer?.companyName || 'Unknown Customer';
-
-      const invPaid = inv.paymentAllocations
-        .filter((pa) => pa.payment?.status === 'VERIFIED')
-        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
-      const balance = Math.max(0, toNumber(inv.totalAmount) - invPaid);
-      if (balance <= 0) return;
-
-      const termDays = inv.salesOrder?.paymentTermsDays || 30;
-      const dueDate = new Date(
-        inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000,
-      );
-      const overdueDays = Math.ceil(
-        (now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
-      );
-
-      if (!customerRiskMap.has(custId)) {
-        customerRiskMap.set(custId, {
-          id: custId,
-          customerName: custName,
-          outstanding: 0,
-          overdue: 0,
-          oldestDueDays: 0,
-          pendingInvoices: 0,
+      if (!trendsMap.has(key)) {
+        trendsMap.set(key, {
+          period: label,
+          rawDate: key,
+          billings: 0,
+          receipts: 0,
         });
       }
-      const item = customerRiskMap.get(custId);
-      item.outstanding += balance;
-      item.pendingInvoices++;
-      if (overdueDays > 0) {
-        item.overdue += balance;
-        if (overdueDays > item.oldestDueDays) {
-          item.oldestDueDays = overdueDays;
+
+      if (isDaily) {
+        tempDate.setDate(tempDate.getDate() + 1);
+      } else {
+        tempDate.setMonth(tempDate.getMonth() + 1);
+      }
+    }
+
+    // Map unlinked SalesInvoices
+    salesInvoicesInPeriod.forEach((inv) => {
+      const key = isDaily
+        ? inv.createdAt.toISOString().slice(0, 10)
+        : inv.createdAt.toISOString().slice(0, 7);
+      if (trendsMap.has(key)) {
+        trendsMap.get(key).billings += toNumber(inv.totalAmount);
+      }
+    });
+
+    // Map BackOfficeArInvoices billings
+    arInvoicesInPeriod.forEach((inv: any) => {
+      const d = new Date(inv.invoiceDate);
+      const key = isDaily
+        ? d.toISOString().slice(0, 10)
+        : d.toISOString().slice(0, 7);
+      if (trendsMap.has(key)) {
+        trendsMap.get(key).billings += toNumber(inv.invoiceAmount);
+      }
+    });
+
+    // Map verified customer payments
+    verifiedPayments.forEach((p) => {
+      const d = new Date(p.verifiedAt || p.createdAt);
+      const key = isDaily
+        ? d.toISOString().slice(0, 10)
+        : d.toISOString().slice(0, 7);
+      if (trendsMap.has(key)) {
+        trendsMap.get(key).receipts += toNumber(p.amount);
+      }
+    });
+
+    // Map BackOfficeArInvoices receipts
+    filteredBackOfficeArInvoices.forEach((inv: any) => {
+      if (toNumber(inv.amtRcvd) <= 0) return;
+      const d = new Date(inv.amtRcvdDate || inv.invoiceDate);
+      if (d >= start && d <= end) {
+        const key = isDaily
+          ? d.toISOString().slice(0, 10)
+          : d.toISOString().slice(0, 7);
+        if (trendsMap.has(key)) {
+          trendsMap.get(key).receipts += toNumber(inv.amtRcvd);
         }
       }
     });
 
-    const customerRiskRanking = Array.from(customerRiskMap.values())
-      .sort((a, b) => b.overdue - a.overdue)
-      .slice(0, 10);
-
-    // Salesperson Collections
-    const salespersonCollectionMap = new Map<string, any>();
-    allSalespeople.forEach((sp) => {
-      salespersonCollectionMap.set(sp.id, {
-        salespersonName: sp.name,
-        receivable: 0,
-        collected: 0,
-        outstanding: 0,
-        overdue: 0,
-        collectionRate: 0,
-      });
-    });
-
-    invoices.forEach((inv) => {
-      const spId = inv.salesOrder?.salesExecutiveId;
-      if (!spId || !salespersonCollectionMap.has(spId)) return;
-      const spData = salespersonCollectionMap.get(spId);
-      spData.receivable += toNumber(inv.totalAmount);
-
-      const invPaid = inv.paymentAllocations
-        .filter((pa) => pa.payment?.status === 'VERIFIED')
-        .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
-      spData.collected += invPaid;
-
-      const balance = Math.max(0, toNumber(inv.totalAmount) - invPaid);
-      spData.outstanding += balance;
-
-      const termDays = inv.salesOrder?.paymentTermsDays || 30;
-      const dueDate = new Date(
-        inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000,
-      );
-      if (dueDate < now && balance > 0) {
-        spData.overdue += balance;
-      }
-    });
-
-    const salespersonCollections = Array.from(salespersonCollectionMap.values())
-      .map((item) => ({
-        ...item,
-        collectionRate:
-          item.receivable > 0
-            ? percentage(item.collected, item.receivable)
-            : null,
-      }))
-      .sort((a, b) => b.collected - a.collected);
+    const trendsList = Array.from(trendsMap.values());
 
     // Brand analysis
     const brandMap = new Map<string, any>();
@@ -9085,34 +9485,13 @@ export class SuperAdminService {
           outstandingAmount,
           notDue: receivablesNotDue,
           overdueAmount,
-          customersCount: Array.from(
-            new Set(
-              invoices.map((inv) => inv.salesOrder?.customerId).filter(Boolean),
-            ),
-          ).length,
-          invoicesCount: invoices.filter((inv) => {
-            const paid = inv.paymentAllocations
-              .filter((pa) => pa.payment?.status === 'VERIFIED')
-              .reduce((s, pa) => s + toNumber(pa.amount), 0);
-            return toNumber(inv.totalAmount) - paid > 0;
-          }).length,
-          customersOverdueCount: Array.from(
-            new Set(
-              invoices
-                .filter((inv) => {
-                  const paid = inv.paymentAllocations
-                    .filter((pa) => pa.payment?.status === 'VERIFIED')
-                    .reduce((s, pa) => s + toNumber(pa.amount), 0);
-                  const balance = toNumber(inv.totalAmount) - paid;
-                  const termDays = inv.salesOrder?.paymentTermsDays || 30;
-                  const due = new Date(
-                    inv.createdAt.getTime() + termDays * 24 * 60 * 60 * 1000,
-                  );
-                  return due < now && balance > 0;
-                })
-                .map((inv) => inv.salesOrder?.customerId)
-                .filter(Boolean),
-            ),
+          customersCount: Array.from(customerRiskMap.keys()).length,
+          invoicesCount: Array.from(customerRiskMap.values()).reduce(
+            (sum, c) => sum + c.pendingInvoices,
+            0,
+          ),
+          customersOverdueCount: Array.from(customerRiskMap.values()).filter(
+            (c) => c.overdue > 0,
           ).length,
         },
         aging: receivablesAging,
@@ -9311,10 +9690,12 @@ export class SuperAdminService {
       },
       performance: {
         collectionRate:
-          invoiceValue > 0 ? percentage(collectedAmount, invoiceValue) : null,
+          invoiceValue > 0
+            ? Math.min(100, percentage(collectedAmount, invoiceValue))
+            : null,
         overdueReceivableRate:
           outstandingAmount > 0
-            ? percentage(overdueAmount, outstandingAmount)
+            ? Math.min(100, percentage(overdueAmount, outstandingAmount))
             : null,
         verificationSla: 95,
         poProcessingSla: 92,
@@ -9336,6 +9717,11 @@ export class SuperAdminService {
         customers: allCustomers.map((c) => ({
           id: c.id,
           companyName: c.companyName,
+        })),
+        salespersons: allSalespeople.map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
         })),
         vendors: allVendors.map((v) => ({ id: v.id, name: v.name })),
         brands: [

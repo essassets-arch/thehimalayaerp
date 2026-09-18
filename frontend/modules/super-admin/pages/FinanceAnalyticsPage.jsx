@@ -9,7 +9,7 @@ import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
 import { formatCurrency, formatNumber } from '../utils/financialCalculations';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import './FinanceAnalyticsPage.css';
-import { exportSalesReportPDF, exportFinanceReportPDF, exportInventoryReportPDF } from '../../../services/export.service';
+import { exportSalesReportPDF, exportFinanceReportPDF, exportInventoryReportPDF, exportToExcel } from '../../../services/export.service';
 
 import ResponsiveChart from '../../../shared/components/ResponsiveChart';
 
@@ -30,18 +30,37 @@ export default function FinanceAnalyticsPage() {
     setLoading(true);
     setError(null);
     try {
-      const q = new URLSearchParams({
-        from: activeDates.dateFrom || '',
-        to: activeDates.dateTo || '',
-        branchId: filters.branchId || '',
-        customerId: filters.customerId || '',
-        salespersonId: filters.salespersonId || '',
-        vendorId: filters.vendorId || '',
-        brandId: filters.brandId || '',
-        categoryId: filters.categoryId || '',
-        orderStatus: filters.orderStatus || ''
-      });
-      const res = await backendFetch(`/super-admin/analytics/finance?${q.toString()}`);
+      const q = new URLSearchParams();
+      if (activeDates.dateFrom) q.append('from', activeDates.dateFrom);
+      if (activeDates.dateTo) q.append('to', activeDates.dateTo);
+      if (filters.branch && filters.branch !== 'All') {
+        q.append('branchId', filters.branch);
+        q.append('branch', filters.branch);
+      }
+      if (filters.customer && filters.customer !== 'All') {
+        q.append('customerId', filters.customer);
+        q.append('customer', filters.customer);
+      }
+      if (filters.salesperson && filters.salesperson !== 'All') {
+        q.append('salespersonId', filters.salesperson);
+        q.append('salesperson', filters.salesperson);
+      }
+      if (filters.vendor && filters.vendor !== 'All') {
+        q.append('vendorId', filters.vendor);
+        q.append('vendor', filters.vendor);
+      }
+      if (filters.department && filters.department !== 'All') {
+        q.append('departmentId', filters.department);
+      }
+      if (filters.status && filters.status !== 'All') {
+        q.append('paymentStatus', filters.status);
+      }
+      if (filters.brandId) q.append('brandId', filters.brandId);
+      if (filters.categoryId && filters.categoryId !== 'All') {
+        q.append('categoryId', filters.categoryId);
+      }
+
+      const res = await backendFetch(`/super-admin/analytics/finance?${q.toString()}`, { cacheTtlMs: 0 });
       setData(res);
     } catch (err) {
       console.error(err);
@@ -93,8 +112,38 @@ export default function FinanceAnalyticsPage() {
 
   const collectedAmount = summary.collections?.collectedAmount ?? 0;
 
-  const handleExport = (format) => {
-    alert(`Exporting Finance Analytics data as ${format.toUpperCase()}...`);
+  const handleExport = async (format) => {
+    try {
+      if (format === 'pdf') {
+        await exportFinanceReportPDF({
+          startDate: activeDates.dateFrom,
+          endDate: activeDates.dateTo,
+          branchId: filters.branch,
+          customerId: filters.customer,
+          salespersonId: filters.salesperson,
+          vendorId: filters.vendor,
+        });
+      } else if (format === 'excel') {
+        const rows = (salespersonCollections || []).map((sp, idx) => ({
+          'Rank': idx + 1,
+          'Salesperson': sp.salespersonName,
+          'Total Invoiced / Receivable (INR)': sp.receivable,
+          'Collected (INR)': sp.collected,
+          'Outstanding (INR)': sp.outstanding,
+          'Overdue (INR)': sp.overdue,
+          'Collection Rate (%)': sp.collectionRate ?? 0,
+          'Invoices Count': sp.invoicesCount ?? 0,
+        }));
+        if (rows.length === 0) {
+          alert('No salesperson collections data to export.');
+          return;
+        }
+        await exportToExcel(rows, `finance-salesperson-collections-${new Date().toISOString().split('T')[0]}.xls`);
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      alert(`Export failed: ${err.message || 'Unknown error'}`);
+    }
   };
 
   // Sort customer risks dynamically
@@ -155,8 +204,11 @@ export default function FinanceAnalyticsPage() {
           showProduct={false}
           showCategory={false}
           showSalesperson={true}
+          showVendor={true}
           showStatus={false}
           filterOptions={data.filters}
+          onExportPDF={() => handleExport('pdf')}
+          onExportExcel={() => handleExport('excel')}
         />
       </div>
 
