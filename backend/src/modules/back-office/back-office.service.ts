@@ -14,8 +14,12 @@ import {
   AcknowledgeBackOfficeReportDto,
   QueryBackOfficeReportDto,
 } from './dto/back-office-report.dto';
-  }]
-}]
+
+@Injectable()
+export class BackOfficeService implements OnApplicationBootstrap {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sequenceService: SequenceService,
   ) {}
 
   async onApplicationBootstrap() {
