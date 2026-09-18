@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, useCallb
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/authStore';
 import { backendFetch } from '@/lib/backendFetch';
+import { submitLocation } from '@/lib/submitLocation';
 
 // Haversine formula to measure distance between two GPS points
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -201,14 +202,17 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
         };
 
         if (sessionIdRef.current) {
-          if (socketRef.current?.connected) {
-            socketRef.current.emit('user:location:update', payload);
-          } else {
-            backendFetch('/location/location-update', {
+          void submitLocation(socketRef.current, payload, (location: typeof payload) => {
+            // Do not submit a delayed fallback under a different login/session.
+            if (sessionIdRef.current !== location.sessionId) return Promise.resolve();
+            return backendFetch('/location/location-update', {
               method: 'POST',
-              body: payload,
-            }).catch(() => { });
-          }
+              body: location,
+            });
+          }).catch((error: unknown) => {
+            if (lastLocationRef.current?.time === now) lastLocationRef.current = null;
+            console.warn('[LocationTracking] GPS update was not saved:', error);
+          });
         }
       },
       (err) => {
@@ -275,7 +279,7 @@ export const LocationTrackingProvider: React.FC<{ children: React.ReactNode }> =
       if (isLocalhost) {
         socketUrl = socketUrl || `${window.location.protocol}//${window.location.hostname}:4001`;
       } else {
-        socketUrl = window.location.origin;
+        socketUrl = socketUrl || window.location.origin;
       }
     } else {
       socketUrl = socketUrl || 'http://localhost:4001';
