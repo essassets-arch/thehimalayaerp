@@ -47,10 +47,13 @@ export class EmployeesService {
     departmentName: string,
   ): string {
     const title = (jobTitle || '').toUpperCase().replace(/_/g, ' ');
-    if (title.includes('SUPER SALES')) return 'SUPER_SALES';
-    if (title.includes('SALES EXECUTIVE') || title.includes('SALES EXEC'))
+    const dept = (departmentName || '').toUpperCase().replace(/_/g, ' ');
+
+    if (title.includes('SUPER SALES') || title.includes('SUPERSALES')) return 'SUPER_SALES';
+    if (title.includes('SALES EXECUTIVE') || title.includes('SALES EXEC') || title.includes('SALESPERSON'))
       return 'SALES_EXECUTIVE';
     if (title.includes('SALES MANAGER')) return 'SALES_MANAGER';
+    if (title.includes('BACK OFFICE') || dept.includes('BACK OFFICE')) return 'BACK_OFFICE';
     if (title.includes('PLANT HEAD') || title.includes('PLANTHEAD'))
       return 'PLANT_HEAD';
     if (title.includes('PRODUCTION PLANNER') || title.includes('PLANNER'))
@@ -63,22 +66,22 @@ export class EmployeesService {
       title.includes('QC')
     )
       return 'QC_INSPECTOR';
-    if (title.includes('DISPATCH EXECUTIVE')) return 'DISPATCH_EXECUTIVE';
     if (title.includes('DISPATCH 2')) return 'DISPATCH_2';
-    if (title.includes('FINANCE EXECUTIVE')) return 'FINANCE_EXECUTIVE';
-    if (title.includes('FINANCE MANAGER')) return 'FINANCE_MANAGER';
-    if (title.includes('STORE MANAGER') || title.includes('STORE'))
+    if (title.includes('DISPATCH EXECUTIVE') || title.includes('DISPATCH') || dept.includes('DISPATCH'))
+      return 'DISPATCH_EXECUTIVE';
+    if (title.includes('FINANCE MANAGER') || title.includes('ACCOUNTS MANAGER'))
+      return 'FINANCE_MANAGER';
+    if (title.includes('FINANCE EXECUTIVE') || dept.includes('FINANCE') || dept.includes('ACCOUNT'))
+      return 'FINANCE_EXECUTIVE';
+    if (title.includes('STORE MANAGER') || title.includes('STORE') || dept.includes('STORE') || dept.includes('WAREHOUSE'))
       return 'STORE_MANAGER';
-    if (title.includes('HR') || title.includes('HUMAN RESOURCES')) return 'HR';
+    if (title.includes('HR') || title.includes('HUMAN RESOURCES') || dept.includes('HR')) return 'HR';
     if (title.includes('ADMIN')) return 'ADMIN';
 
-    const dept = (departmentName || '').toUpperCase();
     if (dept.includes('SALES')) return 'SALES_EXECUTIVE';
-    if (dept.includes('PRODUCTION')) return 'PRODUCTION_OPERATOR';
-    if (dept.includes('FINANCE')) return 'FINANCE_EXECUTIVE';
-    if (dept.includes('HR')) return 'HR';
+    if (dept.includes('PRODUCTION') || dept.includes('OPERATIONS')) return 'PRODUCTION_OPERATOR';
 
-    return 'SALES_EXECUTIVE';
+    return 'EMPLOYEE';
   }
 
   private key() {

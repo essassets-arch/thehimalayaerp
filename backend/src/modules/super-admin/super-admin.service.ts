@@ -6970,27 +6970,45 @@ export class SuperAdminService {
       : new Date(end.getFullYear(), end.getMonth(), 1);
 
     const branchId =
-      query?.branchId || (query?.branch !== 'All' ? query?.branch : undefined);
+      query?.branchId && query?.branchId !== 'All'
+        ? query.branchId
+        : query?.branch && query?.branch !== 'All'
+          ? query.branch
+          : undefined;
     const customerId =
-      query?.customerId ||
-      (query?.customer !== 'All' ? query?.customer : undefined);
+      query?.customerId && query?.customerId !== 'All'
+        ? query.customerId
+        : query?.customer && query?.customer !== 'All'
+          ? query.customer
+          : undefined;
     const productId =
-      query?.productId ||
-      (query?.product !== 'All' ? query?.product : undefined);
+      query?.productId && query?.productId !== 'All'
+        ? query.productId
+        : query?.product && query?.product !== 'All'
+          ? query.product
+          : undefined;
     const salesExecutiveId =
-      query?.salespersonId ||
-      query?.salesperson ||
-      (query?.salesperson !== 'All' ? query?.salesperson : undefined);
+      query?.salespersonId && query?.salespersonId !== 'All'
+        ? query.salespersonId
+        : query?.salesperson && query?.salesperson !== 'All'
+          ? query.salesperson
+          : undefined;
     const orderStatus =
-      query?.orderStatus ||
-      (query?.status !== 'All' ? query?.status : undefined);
+      query?.orderStatus && query?.orderStatus !== 'All'
+        ? query.orderStatus
+        : query?.status && query?.status !== 'All'
+          ? query.status
+          : undefined;
     const paymentStatus =
-      query?.paymentStatus ||
-      (query?.payment !== 'All' ? query?.payment : undefined);
+      query?.paymentStatus && query?.paymentStatus !== 'All'
+        ? query.paymentStatus
+        : query?.payment && query?.payment !== 'All'
+          ? query.payment
+          : undefined;
 
     // Database Queries
     const [
-      allSalespeople,
+      allSalespeopleRaw,
       leads,
       followUps,
       samples,
@@ -7021,7 +7039,14 @@ export class SuperAdminService {
             },
           },
         },
-        include: { role: true },
+        include: {
+          role: true,
+          employee: {
+            include: {
+              department: true,
+            },
+          },
+        },
       }),
       this.prisma.lead.findMany({
         where: {
@@ -7152,8 +7177,87 @@ export class SuperAdminService {
       }),
     ]);
 
-    // Apply secondary filters (e.g. category, branch) in memory
-    const categoryId = query?.categoryId;
+    // Rigorously isolate genuine sales personnel only
+    const allSalespeople = allSalespeopleRaw.filter((u: any) => {
+      const email = (u.email || '').toLowerCase().trim();
+      const name = (u.name || '').toLowerCase().trim();
+
+      // 1. Exclude known non-sales users by email or name
+      if (
+        email.includes('abbasbaman') ||
+        name.includes('baman abbas') ||
+        name.includes('abbas baman')
+      )
+        return false;
+      if (email.includes('riya@gmail') || name.includes('moksha naik'))
+        return false;
+
+      // 2. Exclude users whose linked employee department is explicitly non-sales
+      if (u.employee?.department?.name) {
+        const dept = u.employee.department.name.toLowerCase();
+        const isNonSalesDept =
+          /(back\s*office|production|dispatch|store|warehouse|finance|account|hr|human\s*resource|qc|quality|maintenance|procurement)/i.test(
+            dept,
+          ) && !/sales/i.test(dept);
+        if (isNonSalesDept) return false;
+      }
+
+      // 3. Exclude users whose linked employee jobTitle is explicitly non-sales
+      if (u.employee?.jobTitle) {
+        const title = u.employee.jobTitle.toLowerCase();
+        const isNonSalesTitle =
+          /(back\s*office|planner|operator|store|warehouse|dispatch|finance|account|hr|qc|inspector|plant\s*head)/i.test(
+            title,
+          ) && !/sales/i.test(title);
+        if (isNonSalesTitle) return false;
+      }
+
+      // 4. Role validation
+      const roleCode = (u.role?.code || '').toUpperCase();
+      const roleName = (u.role?.name || '').toUpperCase();
+      const isSalesRole =
+        roleCode.includes('SALES') ||
+        roleName.includes('SALES') ||
+        [
+          'SALES_EXECUTIVE',
+          'SUPER_SALES',
+          'SALES_MANAGER',
+          'SALES_ADMIN',
+          'SALESPERSON',
+          'SALES_INTERN',
+        ].includes(roleCode);
+      if (!isSalesRole) return false;
+
+      // 5. Exclude orphan/dummy non-company accounts with zero sales records
+      if (!email.endsWith('@himalayaerp.com')) {
+        const hasActivity =
+          leads.some(
+            (l) => l.salesExecutiveId === u.id || l.createdById === u.id,
+          ) ||
+          quotations.some(
+            (q) => q.salesExecutiveId === u.id || q.createdById === u.id,
+          ) ||
+          orders.some(
+            (o) => o.salesExecutiveId === u.id || o.createdById === u.id,
+          ) ||
+          payments.some(
+            (p) =>
+              p.salesOrder?.salesExecutiveId === u.id ||
+              p.salesOrder?.createdById === u.id,
+          );
+        if (!hasActivity) return false;
+      }
+
+      return true;
+    });
+
+    // Apply secondary filters (e.g. category, branch, salesperson) in memory
+    const categoryId =
+      query?.categoryId && query?.categoryId !== 'All'
+        ? query.categoryId
+        : query?.category && query?.category !== 'All'
+          ? query.category
+          : undefined;
     const filteredLeads = leads;
     const filteredSamples = samples;
 
@@ -7177,7 +7281,33 @@ export class SuperAdminService {
       );
     }
 
-    const filteredPayments = payments;
+    let filteredInvoices = invoices;
+    let filteredPayments = payments;
+    if (salesExecutiveId) {
+      filteredInvoices = invoices.filter(
+        (inv) =>
+          inv.salesOrder?.salesExecutiveId === salesExecutiveId ||
+          inv.salesOrder?.createdById === salesExecutiveId,
+      );
+      filteredPayments = payments.filter((p) => {
+        if (
+          p.salesOrder?.salesExecutiveId === salesExecutiveId ||
+          p.salesOrder?.createdById === salesExecutiveId
+        )
+          return true;
+        if (
+          p.allocations?.some(
+            (a) =>
+              a.invoice?.salesOrder?.salesExecutiveId === salesExecutiveId ||
+              a.invoice?.salesOrder?.createdById === salesExecutiveId,
+          )
+        )
+          return true;
+        if (filteredOrders.some((o) => o.id === p.salesOrderId)) return true;
+        return false;
+      });
+    }
+
     const filteredComplaints = complaints;
 
     // Headline Summaries & Funnel Stages
@@ -7197,7 +7327,10 @@ export class SuperAdminService {
     );
 
     const verifiedPayments = filteredPayments.filter(
-      (p) => p.status === 'VERIFIED',
+      (p) =>
+        p.status === 'VERIFIED' ||
+        p.status === 'ALLOCATED' ||
+        p.status === 'PARTIALLY_ALLOCATED',
     );
     const collectedAmount = verifiedPayments.reduce(
       (sum, p) => sum + toNumber(p.amount),
@@ -7207,14 +7340,19 @@ export class SuperAdminService {
     // Compute outstanding and overdue from Invoice allocations
     let outstandingAmount = 0;
     let overdueAmount = 0;
-    const totalInvoiceAmount = invoices.reduce(
+    const totalInvoiceAmount = filteredInvoices.reduce(
       (sum, inv) => sum + toNumber(inv.totalAmount),
       0,
     );
 
-    for (const inv of invoices) {
+    for (const inv of filteredInvoices) {
       const invPaid = inv.paymentAllocations
-        .filter((pa) => pa.payment?.status === 'VERIFIED')
+        .filter(
+          (pa) =>
+            pa.payment?.status === 'VERIFIED' ||
+            pa.payment?.status === 'ALLOCATED' ||
+            pa.payment?.status === 'PARTIALLY_ALLOCATED',
+        )
         .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
       const invOutstanding = Math.max(0, toNumber(inv.totalAmount) - invPaid);
       outstandingAmount += invOutstanding;
@@ -7246,29 +7384,43 @@ export class SuperAdminService {
 
     // 1. Executive Performance Ledger - Salesperson Performance Ranking
     const leaderboardRaw = allSalespeople.map((sp) => {
-      const spLeads = filteredLeads.filter((l) => l.salesExecutiveId === sp.id);
+      const spLeads = filteredLeads.filter(
+        (l) => l.salesExecutiveId === sp.id || l.createdById === sp.id,
+      );
       const spQuotes = filteredQuotations.filter(
-        (q) => q.salesExecutiveId === sp.id,
+        (q) => q.salesExecutiveId === sp.id || q.createdById === sp.id,
       );
       const spOrders = filteredOrders.filter(
-        (o) => o.salesExecutiveId === sp.id,
+        (o) => o.salesExecutiveId === sp.id || o.createdById === sp.id,
       );
       const spInvoices = invoices.filter(
-        (inv) => inv.salesOrder?.salesExecutiveId === sp.id,
+        (inv) =>
+          inv.salesOrder?.salesExecutiveId === sp.id ||
+          inv.salesOrder?.createdById === sp.id,
       );
 
       const spPayments = filteredPayments.filter((p) => {
-        if (p.salesOrder?.salesExecutiveId === sp.id) return true;
+        if (
+          p.salesOrder?.salesExecutiveId === sp.id ||
+          p.salesOrder?.createdById === sp.id
+        )
+          return true;
         if (
           p.allocations?.some(
-            (a) => a.invoice?.salesOrder?.salesExecutiveId === sp.id,
+            (a) =>
+              a.invoice?.salesOrder?.salesExecutiveId === sp.id ||
+              a.invoice?.salesOrder?.createdById === sp.id,
           )
         )
           return true;
+        if (spOrders.some((o) => o.id === p.salesOrderId)) return true;
         return false;
       });
       const spVerifiedPayments = spPayments.filter(
-        (p) => p.status === 'VERIFIED',
+        (p) =>
+          p.status === 'VERIFIED' ||
+          p.status === 'ALLOCATED' ||
+          p.status === 'PARTIALLY_ALLOCATED',
       );
 
       // Orders Performance
@@ -7323,7 +7475,12 @@ export class SuperAdminService {
 
       for (const inv of spInvoices) {
         const invPaid = inv.paymentAllocations
-          .filter((pa) => pa.payment?.status === 'VERIFIED')
+          .filter(
+            (pa) =>
+              pa.payment?.status === 'VERIFIED' ||
+              pa.payment?.status === 'ALLOCATED' ||
+              pa.payment?.status === 'PARTIALLY_ALLOCATED',
+          )
           .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
         const invOutstanding = Math.max(0, toNumber(inv.totalAmount) - invPaid);
         spOutstanding += invOutstanding;
@@ -7416,8 +7573,10 @@ export class SuperAdminService {
           : 0;
       const leadToOrderConv =
         spLeads.length > 0
-          ? percentage(confirmedOrdersCount, spLeads.length)
-          : 0;
+          ? Math.min(100, percentage(confirmedOrdersCount, spLeads.length))
+          : confirmedOrdersCount > 0
+            ? 100
+            : 0;
 
       return {
         userId: sp.id,
@@ -7478,11 +7637,11 @@ export class SuperAdminService {
         conversion: {
           leadToQuote:
             spLeads.length > 0
-              ? percentage(spQuotes.length, spLeads.length)
+              ? Math.min(100, percentage(spQuotes.length, spLeads.length))
               : 0,
           quoteToOrder:
             spQuotes.length > 0
-              ? percentage(confirmedOrdersCount, spQuotes.length)
+              ? Math.min(100, percentage(confirmedOrdersCount, spQuotes.length))
               : 0,
           leadToOrder: leadToOrderConv,
         },
@@ -7492,14 +7651,14 @@ export class SuperAdminService {
           conversion: leadToOrderConv,
           fulfillment:
             confirmedOrdersCount > 0
-              ? percentage(deliveredCount, confirmedOrdersCount)
+              ? Math.min(100, percentage(deliveredCount, confirmedOrdersCount))
               : 0,
           overall: 0,
         },
       };
     });
 
-    // Score Normalization
+    // Score Normalization (Realistic Revenue-Weighted Model)
     const maxOrderValue = Math.max(
       ...leaderboardRaw.map((l) => l.orders.confirmedValue),
       1,
@@ -7518,32 +7677,35 @@ export class SuperAdminService {
     );
 
     leaderboardRaw.forEach((l) => {
+      // Order Score: Value is 60%, Closed Value is 25%, Count is 15%
       const orderValNorm = (l.orders.confirmedValue / maxOrderValue) * 100;
       const closedValNorm = (l.orders.closedValue / maxClosedValue) * 100;
       const countNorm = (l.orders.confirmed / maxOrderCount) * 100;
       l.scores.order = Math.min(
         100,
-        Math.round(0.5 * orderValNorm + 0.3 * closedValNorm + 0.2 * countNorm),
+        Math.round(0.6 * orderValNorm + 0.25 * closedValNorm + 0.15 * countNorm),
       );
 
+      // Payment Score: Verified collected is 60%, Collection Rate is 25%, Fully Paid Ratio is 15%
       const collectedNorm = (l.payments.verifiedCollected / maxCollected) * 100;
-      const collRateVal = l.payments.collectionRate || 0;
+      const collRateVal = Math.min(100, l.payments.collectionRate || 0);
       const fullyPaidRatio =
         l.orders.confirmed > 0
-          ? (l.payments.fullyPaidOrders / l.orders.confirmed) * 100
+          ? Math.min(100, (l.payments.fullyPaidOrders / l.orders.confirmed) * 100)
           : 0;
       l.scores.payment = Math.min(
         100,
         Math.round(
-          0.5 * collectedNorm + 0.3 * collRateVal + 0.2 * fullyPaidRatio,
+          0.6 * collectedNorm + 0.25 * collRateVal + 0.15 * fullyPaidRatio,
         ),
       );
 
+      // Composite Overall Score: Order (40%), Payment (45%), Conversion (10%), Fulfillment (5%)
       l.scores.overall = Math.round(
-        0.35 * l.scores.order +
-          0.4 * l.scores.payment +
-          0.15 * l.scores.conversion +
-          0.1 * l.scores.fulfillment,
+        0.4 * l.scores.order +
+          0.45 * l.scores.payment +
+          0.1 * l.scores.conversion +
+          0.05 * l.scores.fulfillment,
       );
     });
 
@@ -7632,6 +7794,10 @@ export class SuperAdminService {
       filteredLeaderboard.sort((a, b) => {
         if (b.scores.overall !== a.scores.overall)
           return b.scores.overall - a.scores.overall;
+        if (b.payments.verifiedCollected !== a.payments.verifiedCollected)
+          return b.payments.verifiedCollected - a.payments.verifiedCollected;
+        if (b.orders.confirmedValue !== a.orders.confirmedValue)
+          return b.orders.confirmedValue - a.orders.confirmedValue;
         return a.salespersonName.localeCompare(b.salespersonName);
       });
     }
@@ -7719,34 +7885,63 @@ export class SuperAdminService {
           : 0,
     };
 
-    // Sales Trends Chart
+    // Sales Trends Chart - Dynamic Resolution (Daily for <= 62 days, Monthly for > 62 days)
     const trendsMap = new Map<string, any>();
+    const diffDays = Math.ceil(
+      (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    const isDaily = diffDays <= 62;
+
     const tempDate = new Date(start);
     while (tempDate <= end) {
-      const dateStr = tempDate.toISOString().slice(0, 7); // Monthly
-      trendsMap.set(dateStr, {
-        period: dateStr,
-        orderValue: 0,
-        collections: 0,
-      });
-      tempDate.setMonth(tempDate.getMonth() + 1);
+      const key = isDaily
+        ? tempDate.toISOString().slice(0, 10)
+        : tempDate.toISOString().slice(0, 7);
+      const label = isDaily
+        ? tempDate.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+          })
+        : tempDate.toLocaleDateString('en-GB', {
+            month: 'short',
+            year: 'numeric',
+          });
+
+      if (!trendsMap.has(key)) {
+        trendsMap.set(key, {
+          period: label,
+          rawDate: key,
+          orderValue: 0,
+          collections: 0,
+        });
+      }
+
+      if (isDaily) {
+        tempDate.setDate(tempDate.getDate() + 1);
+      } else {
+        tempDate.setMonth(tempDate.getMonth() + 1);
+      }
     }
 
     filteredOrders.forEach((o) => {
-      const dateStr = new Date(o.confirmedAt || o.orderDate)
-        .toISOString()
-        .slice(0, 7);
-      if (trendsMap.has(dateStr)) {
-        trendsMap.get(dateStr).orderValue += toNumber(o.totalAmount);
+      const d = o.confirmedAt || o.orderDate || o.createdAt;
+      if (!d) return;
+      const key = isDaily
+        ? new Date(d).toISOString().slice(0, 10)
+        : new Date(d).toISOString().slice(0, 7);
+      if (trendsMap.has(key)) {
+        trendsMap.get(key).orderValue += toNumber(o.totalAmount);
       }
     });
 
     verifiedPayments.forEach((p) => {
-      const dateStr = new Date(p.verifiedAt || p.createdAt)
-        .toISOString()
-        .slice(0, 7);
-      if (trendsMap.has(dateStr)) {
-        trendsMap.get(dateStr).collections += toNumber(p.amount);
+      const d = p.verifiedAt || p.receivedAt || p.createdAt;
+      if (!d) return;
+      const key = isDaily
+        ? new Date(d).toISOString().slice(0, 10)
+        : new Date(d).toISOString().slice(0, 7);
+      if (trendsMap.has(key)) {
+        trendsMap.get(key).collections += toNumber(p.amount);
       }
     });
 
@@ -7760,7 +7955,7 @@ export class SuperAdminService {
     let receivablesMoreThan90 = 0;
     let receivablesNotDue = 0;
 
-    invoices.forEach((inv) => {
+    filteredInvoices.forEach((inv) => {
       const invPaid = inv.paymentAllocations
         .filter((pa) => pa.payment?.status === 'VERIFIED')
         .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
@@ -7947,7 +8142,7 @@ export class SuperAdminService {
 
     // Dynamic overdue payments list
     const overduePaymentsList: any[] = [];
-    invoices.forEach((inv) => {
+    filteredInvoices.forEach((inv) => {
       const invPaid = inv.paymentAllocations
         .filter((pa) => pa.payment?.status === 'VERIFIED')
         .reduce((sum, pa) => sum + toNumber(pa.amount), 0);
