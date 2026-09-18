@@ -1,8 +1,5 @@
-'use client';
-
-import HcpplArManualView from '@/modules/back-office/components/HcpplArManualView';
+import { redirect } from 'next/navigation';
 
 export default function BackOfficeHcpplArPage() {
-  return <HcpplArManualView />;
+  redirect('/back-office');
 }
-

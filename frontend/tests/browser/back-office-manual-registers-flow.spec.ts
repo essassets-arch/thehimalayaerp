@@ -121,7 +121,7 @@ test.describe('Back Office Manual Registers — Real Browser E2E Lifecycle', () 
     // Verify redirection to /back-office (Confirmed Dispatch Dashboard)
     await expect(page).toHaveURL(/\/back-office/, { timeout: 15_000 });
 
-    // Step 2: Verify Navigation Sidebar contains all 6 items
+    // Step 2: Verify Navigation Sidebar contains active Back Office items
     const navDispatch = page.locator('nav a[href="/back-office"], aside a[href="/back-office"]').first();
     const navAppl = page.locator('nav a[href="/back-office/appl-ar"], aside a[href="/back-office/appl-ar"]').first();
     const navHcppl = page.locator('nav a[href="/back-office/hcppl-ar"], aside a[href="/back-office/hcppl-ar"]').first();
@@ -130,8 +130,8 @@ test.describe('Back Office Manual Registers — Real Browser E2E Lifecycle', () 
     const navPayment = page.locator('nav a[href="/back-office/payment-follow-ups"], aside a[href="/back-office/payment-follow-ups"]').first();
 
     await expect(navDispatch).toBeVisible();
-    await expect(navAppl).toBeVisible();
-    await expect(navHcppl).toBeVisible();
+    await expect(navAppl).not.toBeVisible();
+    await expect(navHcppl).not.toBeVisible();
     await expect(navSample).toBeVisible();
     await expect(navOutward).toBeVisible();
     await expect(navPayment).toBeVisible();

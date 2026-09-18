@@ -1,7 +1,5 @@
-'use client';
-
-import BackOfficeApplAr from '@/modules/back-office/pages/BackOfficeApplAr';
+import { redirect } from 'next/navigation';
 
 export default function BackOfficeApplArPage() {
-  return <BackOfficeApplAr />;
+  redirect('/back-office');
 }
