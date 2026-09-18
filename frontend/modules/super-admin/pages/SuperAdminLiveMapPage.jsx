@@ -1,5 +1,6 @@
 'use client';
 
+import { loadGoogleMaps } from '../../../lib/loadGoogleMaps';
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { backendFetch } from '../../../lib/backendFetch';
@@ -458,32 +459,13 @@ export default function SuperAdminLiveMapPage() {
       return;
     }
 
-    const loadScript = () => {
-      if (window.google && window.google.maps) {
-        setMapsLoaded(true);
-        return;
-      }
-      const existing = document.getElementById('google-maps-api-script');
-      if (existing) {
-        existing.addEventListener('load', () => setMapsLoaded(true));
-        existing.addEventListener('error', () => {
-          setMapsError('Google Maps failed to load. Check API key and referrer restrictions.');
-        });
-        return;
-      }
-      const script = document.createElement('script');
-      script.id = 'google-maps-api-script';
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry,places&loading=async`;
-      script.async = true;
-      script.defer = true;
-      script.addEventListener('load', () => setMapsLoaded(true));
-      script.addEventListener('error', () => {
-        setMapsError('Google Maps failed to load. Check API key and referrer restrictions.');
-      });
-      document.body.appendChild(script);
-    };
-
-    loadScript();
+    let cancelled = false;
+    loadGoogleMaps(apiKey).then(() => {
+      if (!cancelled) { setMapsError(''); setMapsLoaded(true); }
+    }).catch((error) => {
+      if (!cancelled) { setMapsError(error.message); }
+    });
+    return () => { cancelled = true; };
   }, [apiKey]);
 
   // 3. Initialize Map once loaded
@@ -526,7 +508,7 @@ export default function SuperAdminLiveMapPage() {
     const cleanToken = (accessToken || '').replace(/^Bearer\s+/i, '').trim();
 
     // Connect to NestJS backend Socket.IO
-    // Development: http://localhost:4000
+    // Development: http://localhost:4001
     // Production: same-origin (https://thehimalaya.cloud) with /socket.io handled via Caddy reverse proxy
     let socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_BACKEND_SOCKET_URL || '';
     if (typeof window !== 'undefined') {
@@ -534,7 +516,7 @@ export default function SuperAdminLiveMapPage() {
       if (isLocalhost) {
         socketUrl = socketUrl || `${window.location.protocol}//${window.location.hostname}:4001`;
       } else {
-        socketUrl = window.location.origin;
+        socketUrl = socketUrl || window.location.origin;
       }
     } else {
       socketUrl = socketUrl || 'http://localhost:4001';
@@ -543,7 +525,8 @@ export default function SuperAdminLiveMapPage() {
     const socket = io(socketUrl, {
       path: '/socket.io',
       auth: { token: cleanToken },
-      transports: ['websocket', 'polling'],
+      // Establish polling first so a blocked WebSocket upgrade cannot prevent live updates.
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,

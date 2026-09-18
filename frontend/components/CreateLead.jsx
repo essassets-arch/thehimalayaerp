@@ -1,3 +1,4 @@
+import { loadGoogleMaps } from '../lib/loadGoogleMaps';
 import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, User, MapPin, FlaskConical, Package, Search, AlertCircle, Trash2, Plus, Truck, Loader2, Check } from 'lucide-react';
 import Swal from 'sweetalert2';
@@ -356,35 +357,13 @@ export default function CreateLead({ onAddLead, onGenerateQuotation, onCancel, e
       console.warn('Google Maps API key is not configured.');
       return;
     }
-    if (window.google && window.google.maps && window.google.maps.places) {
-      setMapsLoaded(true);
-      return;
-    }
-    const existing = document.getElementById('google-maps-api-script');
-    if (existing) {
-      const handleLoad = () => {
-        if (window.google && window.google.maps && window.google.maps.places) {
-          setMapsLoaded(true);
-        }
-      };
-      existing.addEventListener('load', handleLoad);
-      if (window.google && window.google.maps && window.google.maps.places) {
-        setMapsLoaded(true);
-      }
-      return () => existing.removeEventListener('load', handleLoad);
-    }
-
-    const script = document.createElement('script');
-    script.id = 'google-maps-api-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry,places&loading=async`;
-    script.async = true;
-    script.defer = true;
-    script.addEventListener('load', () => {
-      if (window.google && window.google.maps && window.google.maps.places) {
-        setMapsLoaded(true);
-      }
+    let cancelled = false;
+    loadGoogleMaps(apiKey).then(() => {
+      if (!cancelled) { setMapsLoaded(true); }
+    }).catch((error) => {
+      if (!cancelled) { console.error('Failed to load Google Maps:', error); }
     });
-    document.body.appendChild(script);
+    return () => { cancelled = true; };
   }, [apiKey]);
 
   // Set up Autocomplete and handle places select
