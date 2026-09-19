@@ -30,6 +30,7 @@ import {
 
 import { backendFetch } from "@/lib/backendFetch";
 import { useAuth } from "@/shared/context/AuthContext";
+import { normalizeDispatchCategory } from "@/shared/utils/dispatchCategory";
 import styles from "./dispatch-orders.module.css";
 
 interface Customer {
