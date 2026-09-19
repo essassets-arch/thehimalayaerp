@@ -738,6 +738,30 @@ export class ProductionWorkflowService {
             { completedAt: { gte: start, lte: end } },
             { startedAt: { gte: start, lte: end } },
             { updatedAt: { gte: start, lte: end } },
+            {
+              productionStatus: {
+                in: [
+                  'IN_PRODUCTION',
+                  'QC_PENDING',
+                  'QC_FAILED',
+                  'REWORK_IN_PROGRESS',
+                  'READY_FOR_DISPATCH',
+                ] as any,
+              },
+            },
+            {
+              status: {
+                in: [
+                  'CREATED',
+                  'MATERIAL_PENDING',
+                  'READY',
+                  'STARTED',
+                  'QC_PENDING',
+                  'QC_APPROVED',
+                  'READY_FOR_DISPATCH',
+                ] as any,
+              },
+            },
           ],
         };
 
@@ -1233,6 +1257,121 @@ export class ProductionWorkflowService {
       priority: 'CRITICAL',
     }));
 
+    // Pipeline Stage 1: Incoming Orders (waiting to start)
+    const incomingOrders = allWorkOrders
+      .filter((w) => {
+        const s = String(w.productionStatus || w.status || '').toUpperCase();
+        return (
+          ['CREATED', 'MATERIAL_PENDING', 'READY', 'DRAFT', 'PENDING', 'PLANNED'].includes(s) &&
+          !w.startedAt &&
+          !['IN_PRODUCTION', 'QC_PENDING', 'QC_FAILED', 'REWORK_IN_PROGRESS', 'READY_FOR_DISPATCH', 'DISPATCHED', 'COMPLETED', 'CLOSED'].includes(s)
+        );
+      })
+      .slice(0, 50)
+      .map((w) => ({
+        id: w.id,
+        workOrderNo: w.workOrderNumber,
+        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
+        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+        quantity: toNumber(w.quantity) || 1,
+        targetDate: w.productionPlan?.plannedEndDate ? new Date(w.productionPlan.plannedEndDate).toISOString().slice(0, 10) : '—',
+        status: w.status || 'READY',
+        priority: 'NORMAL',
+        createdAt: w.createdAt ? new Date(w.createdAt).toISOString().slice(0, 10) : '—',
+      }));
+
+    // Pipeline Stage 3: QC Queue (Awaiting inspection)
+    const qcQueue = allWorkOrders
+      .filter((w) => {
+        const s = String(w.productionStatus || w.status || '').toUpperCase();
+        return ['QC_PENDING', 'TESTING', 'UNDER_INSPECTION'].includes(s);
+      })
+      .slice(0, 50)
+      .map((w) => ({
+        id: w.id,
+        workOrderNo: w.workOrderNumber,
+        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
+        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+        quantity: toNumber(w.quantity) || 1,
+        completedAt: (w.completedAt || w.updatedAt) ? new Date(w.completedAt || w.updatedAt).toISOString() : new Date().toISOString(),
+        status: 'QC_PENDING',
+        stage: 'Quality Inspection',
+        operator: w.updatedBy || 'Floor Operator',
+        notes: w.qcRemarks || 'Pending dimensional and curing tests',
+      }));
+
+    // Pipeline Stage 4: QC Failed / Rework
+    const qcFailedList = allWorkOrders
+      .filter((w) => {
+        const s = String(w.productionStatus || w.status || '').toUpperCase();
+        return s === 'QC_FAILED' || w.qcResult === 'FAIL';
+      })
+      .slice(0, 50)
+      .map((w) => ({
+        id: w.id,
+        workOrderNo: w.workOrderNumber,
+        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
+        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+        quantity: toNumber(w.quantity) || 1,
+        failedQty: toNumber(w.quantity) || 1,
+        failureReason: w.failureReason || w.qcRemarks || 'Dimensional Tolerance Exceeded',
+        qcRemarks: w.qcRemarks || '',
+        qcTimestamp: (w.qcTimestamp || w.updatedAt) ? new Date(w.qcTimestamp || w.updatedAt).toISOString() : new Date().toISOString(),
+        status: w.productionStatus || 'QC_FAILED',
+        reworkCount: w.reworkCount || 1,
+        supervisor: w.updatedBy || 'Quality Inspector',
+        shift: 'Morning',
+      }));
+
+    // Pipeline Stage 5: Ready for Dispatch (QC passed, waiting dispatch)
+    const readyForDispatch = allWorkOrders
+      .filter((w) => {
+        const ps = String(w.productionStatus || '').toUpperCase();
+        const s = String(w.status || '').toUpperCase();
+        return (
+          ps === 'READY_FOR_DISPATCH' ||
+          s === 'READY_FOR_DISPATCH' ||
+          s === 'QC_APPROVED'
+        );
+      })
+      .slice(0, 50)
+      .map((w) => ({
+        id: w.id,
+        workOrderNo: w.workOrderNumber,
+        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
+        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+        quantity: toNumber(w.quantity) || 1,
+        qcResult: w.qcResult || 'PASS',
+        completedAt: (w.completedAt || w.qcTimestamp || w.updatedAt) ? new Date(w.completedAt || w.qcTimestamp || w.updatedAt).toISOString() : new Date().toISOString(),
+        status: 'READY_FOR_DISPATCH',
+      }));
+
+    // Pipeline Stage 6: Done / Dispatched
+    const doneJobs = allWorkOrders
+      .filter((w) => {
+        const ps = String(w.productionStatus || '').toUpperCase();
+        const s = String(w.status || '').toUpperCase();
+        return (
+          ps === 'DISPATCHED' ||
+          ['DISPATCHED', 'COMPLETED', 'CLOSED'].includes(s)
+        );
+      })
+      .slice(0, 50)
+      .map((w) => ({
+        id: w.id,
+        workOrderNo: w.workOrderNumber,
+        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
+        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+        quantity: toNumber(w.quantity) || 1,
+        dispatchedAt: (w.sentToDispatchAt || w.dispatchedAt || w.completedAt || w.updatedAt) ? new Date(w.sentToDispatchAt || w.dispatchedAt || w.completedAt || w.updatedAt).toISOString() : new Date().toISOString(),
+        status: w.productionStatus === 'DISPATCHED' || w.status === 'DISPATCHED' ? 'DISPATCHED' : 'COMPLETED',
+      }));
+
     const targetAchievementData = {
       hasTarget: true,
       target: targetUnits,
@@ -1255,7 +1394,10 @@ export class ProductionWorkflowService {
         qcFailed,
         reworkWorkOrders: qcFailed,
         qcPendingWorkOrders: qcPending,
-        dispatchReady,
+        dispatchReady: readyForDispatch.length,
+        readyForDispatchCount: readyForDispatch.length,
+        incomingOrdersCount: incomingOrders.length,
+        doneCount: doneJobs.length,
         completionRate: percentage(completed, totalOrders || 1),
         plannedUnits,
         totalPlannedUnits: plannedUnits,
@@ -1304,8 +1446,14 @@ export class ProductionWorkflowService {
       machineFleet: machineFleetStats,
       scrapCategories: defaultScrapCategories,
       topProducts,
+      incomingOrders,
       activeFloorRuns,
       activeRunningJobs,
+      qcQueue,
+      qcFailed: qcFailedList,
+      reworkJobs: qcFailedList,
+      readyForDispatch,
+      doneJobs,
       delayedJobs: formattedDelayedJobs,
       shiftEntries,
       scrapEntries,
@@ -1323,24 +1471,33 @@ export class ProductionWorkflowService {
     additionalUpdates: any = {},
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const job = await tx.workOrder.findUnique({ where: { id } });
+      const job = await tx.workOrder.findFirst({
+        where: { OR: [{ id }, { workOrderNumber: id }] },
+      });
       if (!job) throw new NotFoundException('WorkOrder not found');
 
-      if (!expectedStatuses.includes(job.productionStatus)) {
+      const currentProdStatus = job.productionStatus;
+      const currentWorkStatus = job.status as any;
+      const isAllowed =
+        expectedStatuses.length === 0 ||
+        expectedStatuses.includes(currentProdStatus) ||
+        expectedStatuses.includes(currentWorkStatus);
+
+      if (!isAllowed) {
         throw new BadRequestException(
-          `Invalid state transition. Cannot move from ${job.productionStatus} to ${newStatus}`,
+          `Invalid state transition. Cannot move from ${currentProdStatus} / ${currentWorkStatus} to ${newStatus}`,
         );
       }
 
       const updatedJob = await tx.workOrder.update({
-        where: { id },
+        where: { id: job.id },
         data: {
           productionStatus: newStatus,
           updatedBy: userId,
           ...additionalUpdates,
           statusHistory: {
             create: {
-              fromStatus: job.productionStatus,
+              fromStatus: currentProdStatus,
               toStatus: newStatus,
               remarks,
               changedBy: userId,
@@ -1354,16 +1511,25 @@ export class ProductionWorkflowService {
   }
 
   async startJob(id: string, userId: string | null) {
-    // Only used to move a newly CREATED work order into IN_PRODUCTION, if we want.
-    // Or just updating start time.
     return this.transitionState(
       id,
       userId,
-      ['IN_PRODUCTION'],
+      [
+        'IN_PRODUCTION',
+        'CREATED' as any,
+        'READY' as any,
+        'MATERIAL_PENDING' as any,
+        'STARTED' as any,
+        'DRAFT' as any,
+        'PLANNED' as any,
+      ],
       'IN_PRODUCTION',
-      'Started work',
+      'Started work on production floor',
       {
         productionStartTime: new Date(),
+        startedAt: new Date(),
+        startedById: userId,
+        status: 'STARTED',
       },
     );
   }

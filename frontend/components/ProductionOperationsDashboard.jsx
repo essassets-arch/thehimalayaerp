@@ -27,13 +27,18 @@ import {
   Clock,
   Cpu,
   Factory,
+  Inbox,
   Layers,
   ListOrdered,
+  PackageCheck,
+  Play,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   ShieldCheck,
   TrendingUp,
+  Truck,
   Wrench,
   X
 } from 'lucide-react';
@@ -116,11 +121,31 @@ export default function ProductionOperationsDashboard({
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Tab State
-  const [activeTab, setActiveTab] = useState('runs'); // 'runs' | 'delayed' | 'shiftLogs' | 'rework'
+  const [activeTab, setActiveTab] = useState('runs'); // 'incoming' | 'runs' | 'qcQueue' | 'qcFailed' | 'readyDispatch' | 'done' | 'delayed' | 'shiftLogs'
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Dispatch multi-select
+  const [selectedDispatchIds, setSelectedDispatchIds] = useState([]);
+  const [dispatching, setDispatching] = useState(false);
+
+  // Action loading indicators & Toast
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const showToast = useCallback((msg) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((curr) => (curr === msg ? null : curr));
+    }, 3500);
+  }, []);
 
   // Modals
   const [modal, setModal] = useState(null); // 'shift' | 'scrap' | null
+  const [failModalItem, setFailModalItem] = useState(null);
+  const [failForm, setFailForm] = useState({
+    failureReason: 'Dimensional Tolerance Exceeded',
+    remarks: ''
+  });
   const [submitting, setSubmitting] = useState(false);
   const [completedRework, setCompletedRework] = useState([]);
 
@@ -256,14 +281,40 @@ export default function ProductionOperationsDashboard({
     return dashboardData?.topProducts || dashboardData?.charts?.topProducts || [];
   }, [dashboardData]);
 
-  // Tabular Floor Data
+  // ─── PIPELINE DATA COLLECTIONS ───
+
+  // 1. Incoming Orders (Waiting to be scheduled / released)
+  const incomingOrders = useMemo(() => {
+    const list = dashboardData?.incomingOrders || [];
+    if (list.length > 0) return list;
+    return workOrders
+      .filter((w) =>
+        ['CREATED', 'READY', 'MATERIAL_PENDING', 'DRAFT', 'PENDING', 'PLANNED'].includes(statusText(w)) &&
+        !w.startedAt &&
+        !['IN_PROGRESS', 'IN_PRODUCTION', 'RUNNING', 'QC_PENDING', 'QC_FAILED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'COMPLETED'].includes(statusText(w))
+      )
+      .slice(0, 30)
+      .map((w) => ({
+        id: w.id || workOrderRef(w),
+        workOrderNo: workOrderRef(w),
+        orderNo: w.orderNo || w.order?.orderNo || '—',
+        customer: w.customer?.name || w.order?.customer?.name || 'Standard Client',
+        product: productName(w),
+        quantity: number(w.quantity || w.targetQty) || 10,
+        targetDate: w.targetDate || w.scheduledDate || '—',
+        status: w.status || 'READY',
+        createdAt: w.createdAt ? String(w.createdAt).slice(0, 10) : '—',
+        priority: 'NORMAL'
+      }));
+  }, [dashboardData, workOrders]);
+
+  // 2. Tabular Floor Data (Active Floor Runs)
   const activeFloorRuns = useMemo(() => {
     const list = dashboardData?.activeFloorRuns || [];
     if (list.length > 0) return list;
-    // Fallback from workOrders
     return workOrders
       .filter((w) => ['IN_PROGRESS', 'IN_PRODUCTION', 'RUNNING', 'MATERIAL_ISSUED'].includes(statusText(w)))
-      .slice(0, 10)
+      .slice(0, 20)
       .map((w) => ({
         id: w.id || workOrderRef(w),
         workOrderNo: workOrderRef(w),
@@ -276,17 +327,114 @@ export default function ProductionOperationsDashboard({
         quantity: number(w.quantity || w.targetQty) || 10,
         producedQty: number(w.producedQty) || 4,
         targetDate: w.targetDate || w.scheduledDate || '—',
-        startedAt: w.lastStartedAt || w.startedAt || w.createdAt || new Date().toISOString()
+        startedAt: w.lastStartedAt || w.startedAt || w.createdAt || new Date().toISOString(),
+        operator: w.operator || w.updatedBy || 'Shift Operator',
+        machine: w.machine || 'Hydraulic Press 1'
       }));
   }, [dashboardData, workOrders]);
 
+  // 3. QC Testing Queue
+  const qcQueue = useMemo(() => {
+    const list = dashboardData?.qcQueue || [];
+    if (list.length > 0) return list;
+    return workOrders
+      .filter((w) => ['QC_PENDING', 'TESTING', 'UNDER_INSPECTION'].includes(statusText(w)))
+      .slice(0, 30)
+      .map((w) => ({
+        id: w.id || workOrderRef(w),
+        workOrderNo: workOrderRef(w),
+        orderNo: w.orderNo || w.order?.orderNo || '—',
+        customer: w.customer?.name || w.order?.customer?.name || 'Standard Client',
+        product: productName(w),
+        quantity: number(w.quantity || w.targetQty) || 10,
+        completedAt: w.completedAt || w.updatedAt || new Date().toISOString(),
+        status: 'QC_PENDING',
+        stage: 'Quality Inspection',
+        operator: w.operator || w.updatedBy || 'Floor Operator',
+        notes: w.qcRemarks || 'Dimensional & thickness certification'
+      }));
+  }, [dashboardData, workOrders]);
+
+  // 4. QC Failed / Rework Queue
+  const qcFailedList = useMemo(() => {
+    const list = dashboardData?.qcFailed || dashboardData?.reworkJobs || [];
+    if (list.length > 0) {
+      return list.filter((j) => !completedRework.includes(String(j.id || j.workOrderNo)));
+    }
+    return workOrders
+      .filter(
+        (w) =>
+          ['REWORK', 'REWORK_REQUIRED', 'QC_FAILED'].includes(statusText(w)) ||
+          number(w.reworkCount) > 0 ||
+          w.qcResult === 'FAIL'
+      )
+      .filter((w) => !completedRework.includes(String(w.id || workOrderRef(w))))
+      .map((w) => ({
+        id: w.id || workOrderRef(w),
+        workOrderNo: workOrderRef(w),
+        orderNo: w.orderNo || '—',
+        customer: w.customer?.name || 'Standard Client',
+        product: productName(w),
+        failedQty: number(w.failedQty || w.rejectedQty || w.reworkQty || w.quantity || 5),
+        completedReworkQty: number(w.completedReworkQty || 0),
+        pendingReworkQty: Math.max(1, number(w.failedQty || 5) - number(w.completedReworkQty || 0)),
+        failureReason: w.failureReason || w.reworkReason || w.qcRemarks || 'Dimensional Tolerance Exceeded',
+        qcRemarks: w.qcRemarks || '',
+        supervisor: w.supervisor || 'Shift Incharge',
+        shift: w.assignedShift || 'Morning',
+        status: w.status || 'QC_FAILED',
+        qcTimestamp: w.qcTimestamp || w.updatedAt || new Date().toISOString(),
+        reworkCount: w.reworkCount || 1
+      }));
+  }, [dashboardData, workOrders, completedRework]);
+
+  // 5. Ready for Dispatch (Passed QC, waiting logistics dispatch)
+  const readyForDispatch = useMemo(() => {
+    const list = dashboardData?.readyForDispatch || [];
+    if (list.length > 0) return list;
+    return workOrders
+      .filter((w) => ['READY_FOR_DISPATCH', 'QC_APPROVED', 'QC_PASSED'].includes(statusText(w)))
+      .slice(0, 50)
+      .map((w) => ({
+        id: w.id || workOrderRef(w),
+        workOrderNo: workOrderRef(w),
+        orderNo: w.orderNo || w.order?.orderNo || '—',
+        customer: w.customer?.name || w.order?.customer?.name || 'Standard Client',
+        product: productName(w),
+        quantity: number(w.quantity || w.targetQty) || 10,
+        completedAt: w.completedAt || w.qcTimestamp || new Date().toISOString(),
+        status: 'READY_FOR_DISPATCH',
+        qcResult: w.qcResult || 'PASS'
+      }));
+  }, [dashboardData, workOrders]);
+
+  // 6. Done / Dispatched Jobs
+  const doneJobs = useMemo(() => {
+    const list = dashboardData?.doneJobs || [];
+    if (list.length > 0) return list;
+    return workOrders
+      .filter((w) => ['DISPATCHED', 'COMPLETED', 'CLOSED'].includes(statusText(w)))
+      .slice(0, 50)
+      .map((w) => ({
+        id: w.id || workOrderRef(w),
+        workOrderNo: workOrderRef(w),
+        orderNo: w.orderNo || w.order?.orderNo || '—',
+        customer: w.customer?.name || w.order?.customer?.name || 'Standard Client',
+        product: productName(w),
+        quantity: number(w.quantity || w.targetQty) || 10,
+        dispatchedAt: w.sentToDispatchAt || w.dispatchedAt || w.completedAt || new Date().toISOString(),
+        status: statusText(w) === 'DISPATCHED' ? 'DISPATCHED' : 'COMPLETED'
+      }));
+  }, [dashboardData, workOrders]);
+
+  // 7. Delayed / Overdue Jobs
   const delayedJobs = useMemo(() => {
     const list = dashboardData?.delayedJobs || [];
     if (list.length > 0) return list;
     const today = new Date().toISOString().slice(0, 10);
     return workOrders
-      .filter((w) => !['COMPLETED', 'QC_PASSED', 'CLOSED'].includes(statusText(w)) && w.targetDate && w.targetDate < today)
-      .slice(0, 8)
+      .filter((w) => !['COMPLETED', 'QC_PASSED', 'CLOSED', 'DISPATCHED'].includes(statusText(w)) && w.targetDate && w.targetDate < today)
+      .slice(0, 15)
       .map((w) => ({
         id: w.id || workOrderRef(w),
         workOrderNo: workOrderRef(w),
@@ -300,37 +448,179 @@ export default function ProductionOperationsDashboard({
       }));
   }, [dashboardData, workOrders]);
 
+  // 8. Shift Entries List
   const shiftEntriesList = useMemo(() => {
     return dashboardData?.shiftEntries || initialShiftEntries || [];
   }, [dashboardData, initialShiftEntries]);
 
-  const reworkJobsList = useMemo(() => {
-    const list = dashboardData?.reworkJobs || [];
-    if (list.length > 0) {
-      return list.filter((j) => !completedRework.includes(String(j.id || j.workOrderNo)));
-    }
-    return workOrders
-      .filter(
-        (w) =>
-          ['REWORK', 'REWORK_REQUIRED', 'QC_FAILED'].includes(statusText(w)) ||
-          number(w.reworkCount) > 0
-      )
-      .filter((w) => !completedRework.includes(String(w.id || workOrderRef(w))))
-      .map((w) => ({
-        id: w.id || workOrderRef(w),
-        workOrderNo: workOrderRef(w),
-        product: productName(w),
-        failedQty: number(w.failedQty || w.rejectedQty || w.reworkQty || 5),
-        completedReworkQty: number(w.completedReworkQty || 0),
-        pendingReworkQty: Math.max(1, number(w.failedQty || 5) - number(w.completedReworkQty || 0)),
-        failureReason: w.failureReason || w.reworkReason || w.qcRemarks || 'Dimensional Tolerance Exceeded',
-        supervisor: w.supervisor || 'Shift Incharge',
-        shift: w.assignedShift || 'Morning',
-        status: w.status || 'REWORK'
-      }));
-  }, [dashboardData, workOrders, completedRework]);
+  // ─── PIPELINE OPERATIONAL ACTIONS ───
 
-  // Modals Actions
+  // Start Job / Release to Floor (Incoming -> Floor)
+  const handleStartJob = async (order) => {
+    const id = order.id || order.workOrderNo;
+    setActionLoadingId(id);
+    try {
+      await backendFetch(`/api/backend/production/${id}/start`, { method: 'POST' });
+      showToast(`Work order ${order.workOrderNo} started on production floor!`);
+      await fetchDashboardData(false);
+    } catch (err) {
+      console.error('Failed to start floor job:', err);
+      alert('Failed to start production job');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Complete Floor Run (Floor -> QC Queue)
+  const handleCompleteRun = async (run) => {
+    const id = run.id || run.workOrderNo;
+    setActionLoadingId(id);
+    try {
+      await backendFetch(`/api/backend/production/${id}/complete`, { method: 'POST' });
+      showToast(`Work order ${run.workOrderNo} finished floor run. Sent to QC Queue!`);
+      await fetchDashboardData(false);
+    } catch (err) {
+      console.error('Failed to complete job:', err);
+      alert('Failed to complete floor job');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Pass QC (QC Queue -> Ready for Dispatch)
+  const handlePassQC = async (item) => {
+    const id = item.id || item.workOrderNo;
+    setActionLoadingId(id);
+    try {
+      await backendFetch(`/api/backend/production/${id}/qc-pass`, {
+        method: 'POST',
+        body: {
+          approvedQuantity: number(item.quantity) || 1,
+          remarks: 'Standard QC test verified and certified'
+        }
+      });
+      showToast(`QC Passed for ${item.workOrderNo}! Queued in Ready for Dispatch.`);
+      await fetchDashboardData(false);
+    } catch (err) {
+      console.error('Failed to pass QC:', err);
+      alert('Failed to pass QC inspection');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Submit QC Failure (QC Queue -> QC Failed)
+  const submitFailQC = async (e) => {
+    e.preventDefault();
+    if (!failModalItem) return;
+    setSubmitting(true);
+    const id = failModalItem.id || failModalItem.workOrderNo;
+    try {
+      await backendFetch(`/api/backend/production/${id}/qc-fail`, {
+        method: 'POST',
+        body: {
+          failureReason: failForm.failureReason,
+          remarks: failForm.remarks
+        }
+      });
+      setFailModalItem(null);
+      setFailForm({ failureReason: 'Dimensional Tolerance Exceeded', remarks: '' });
+      showToast(`QC Inspection failed for ${failModalItem.workOrderNo}. Queued for rework.`);
+      await fetchDashboardData(false);
+    } catch (err) {
+      console.error('Failed to fail QC:', err);
+      alert('Failed to submit QC failure');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Start Rework (QC Failed -> In Rework)
+  const handleStartRework = async (job) => {
+    const id = job.id || job.workOrderNo;
+    setActionLoadingId(id);
+    try {
+      await backendFetch(`/api/backend/production/${id}/start-rework`, { method: 'POST' });
+      showToast(`Rework initiated for ${job.workOrderNo}`);
+      await fetchDashboardData(false);
+    } catch (err) {
+      console.error('Failed to start rework:', err);
+      alert('Failed to start rework');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Complete Rework (QC Failed -> QC Queue for re-test)
+  const handleCompleteRework = async (job) => {
+    const id = job.id || job.workOrderNo;
+    setActionLoadingId(id);
+    try {
+      await backendFetch(`/api/backend/production/${id}/complete-rework`, { method: 'POST' });
+      setCompletedRework((prev) => [...prev, String(id)]);
+      if (onCompleteRework) onCompleteRework(job);
+      showToast(`Rework finished for ${job.workOrderNo}. Re-submitted to QC Queue!`);
+      await fetchDashboardData(false);
+    } catch (err) {
+      console.error('Failed to complete rework:', err);
+      alert('Failed to update rework status');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Single Send to Dispatch (Ready for Dispatch -> Dispatched)
+  const handleSendToDispatch = async (item) => {
+    const id = item.id || item.workOrderNo;
+    setActionLoadingId(id);
+    try {
+      await backendFetch(`/api/backend/production/${id}/send-to-dispatch`, { method: 'POST' });
+      showToast(`Order ${item.workOrderNo} sent to Dispatch queue!`);
+      setSelectedDispatchIds((prev) => prev.filter((x) => x !== id));
+      await fetchDashboardData(false);
+    } catch (err) {
+      console.error('Failed to send to dispatch:', err);
+      alert('Failed to dispatch order');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Batch Send to Dispatch
+  const handleBatchSendToDispatch = async () => {
+    if (selectedDispatchIds.length === 0) return;
+    setDispatching(true);
+    try {
+      await backendFetch('/api/backend/production/send-to-dispatch', {
+        method: 'POST',
+        body: { workOrderIds: selectedDispatchIds }
+      });
+      showToast(`${selectedDispatchIds.length} orders successfully dispatched!`);
+      setSelectedDispatchIds([]);
+      await fetchDashboardData(false);
+    } catch (err) {
+      console.error('Failed to batch send to dispatch:', err);
+      alert('Failed to send batch to dispatch');
+    } finally {
+      setDispatching(false);
+    }
+  };
+
+  const handleToggleSelectAllDispatch = () => {
+    if (selectedDispatchIds.length === readyForDispatch.length) {
+      setSelectedDispatchIds([]);
+    } else {
+      setSelectedDispatchIds(readyForDispatch.map((r) => r.id));
+    }
+  };
+
+  const handleToggleSelectDispatch = (id) => {
+    setSelectedDispatchIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  // Modals Forms
   const selectedShiftWO = workOrders.find((w) => String(w.id || w.workOrderId || w.workOrderNo) === shiftForm.workOrderId);
   const selectedScrapWO = workOrders.find((w) => String(w.id || w.workOrderId || w.workOrderNo) === scrapForm.workOrderId);
 
@@ -361,6 +651,7 @@ export default function ProductionOperationsDashboard({
           reworkQty: '',
           date: new Date().toISOString().slice(0, 10)
         });
+        showToast('Shift production entry saved successfully!');
         await fetchDashboardData(false);
       }
     } catch (err) {
@@ -396,6 +687,7 @@ export default function ProductionOperationsDashboard({
           date: new Date().toISOString().slice(0, 10),
           remarks: ''
         });
+        showToast('Scrap & defect entry saved successfully!');
         await fetchDashboardData(false);
       }
     } catch (err) {
@@ -406,20 +698,19 @@ export default function ProductionOperationsDashboard({
     }
   };
 
-  const handleCompleteRework = async (job) => {
-    try {
-      const id = job.id || job.workOrderNo;
-      await backendFetch(`/api/backend/production/${id}/complete-rework`, { method: 'POST' });
-      setCompletedRework((prev) => [...prev, String(id)]);
-      if (onCompleteRework) onCompleteRework(job);
-      await fetchDashboardData(false);
-    } catch (err) {
-      console.error('Failed to complete rework:', err);
-      alert('Failed to update rework status');
-    }
-  };
+  // ─── FILTERED TABULAR DATA VIEWS ───
+  const filteredIncoming = useMemo(() => {
+    if (!searchQuery) return incomingOrders;
+    const q = searchQuery.toLowerCase();
+    return incomingOrders.filter(
+      (r) =>
+        r.workOrderNo?.toLowerCase().includes(q) ||
+        r.orderNo?.toLowerCase().includes(q) ||
+        r.customer?.toLowerCase().includes(q) ||
+        r.product?.toLowerCase().includes(q)
+    );
+  }, [incomingOrders, searchQuery]);
 
-  // Filtered tabular views
   const filteredActiveRuns = useMemo(() => {
     if (!searchQuery) return activeFloorRuns;
     const q = searchQuery.toLowerCase();
@@ -431,6 +722,67 @@ export default function ProductionOperationsDashboard({
         r.product?.toLowerCase().includes(q)
     );
   }, [activeFloorRuns, searchQuery]);
+
+  const filteredQcQueue = useMemo(() => {
+    if (!searchQuery) return qcQueue;
+    const q = searchQuery.toLowerCase();
+    return qcQueue.filter(
+      (r) =>
+        r.workOrderNo?.toLowerCase().includes(q) ||
+        r.orderNo?.toLowerCase().includes(q) ||
+        r.customer?.toLowerCase().includes(q) ||
+        r.product?.toLowerCase().includes(q)
+    );
+  }, [qcQueue, searchQuery]);
+
+  const filteredQcFailed = useMemo(() => {
+    if (!searchQuery) return qcFailedList;
+    const q = searchQuery.toLowerCase();
+    return qcFailedList.filter(
+      (r) =>
+        r.workOrderNo?.toLowerCase().includes(q) ||
+        r.orderNo?.toLowerCase().includes(q) ||
+        r.customer?.toLowerCase().includes(q) ||
+        r.product?.toLowerCase().includes(q) ||
+        r.failureReason?.toLowerCase().includes(q)
+    );
+  }, [qcFailedList, searchQuery]);
+
+  const filteredReadyDispatch = useMemo(() => {
+    if (!searchQuery) return readyForDispatch;
+    const q = searchQuery.toLowerCase();
+    return readyForDispatch.filter(
+      (r) =>
+        r.workOrderNo?.toLowerCase().includes(q) ||
+        r.orderNo?.toLowerCase().includes(q) ||
+        r.customer?.toLowerCase().includes(q) ||
+        r.product?.toLowerCase().includes(q)
+    );
+  }, [readyForDispatch, searchQuery]);
+
+  const filteredDoneJobs = useMemo(() => {
+    if (!searchQuery) return doneJobs;
+    const q = searchQuery.toLowerCase();
+    return doneJobs.filter(
+      (r) =>
+        r.workOrderNo?.toLowerCase().includes(q) ||
+        r.orderNo?.toLowerCase().includes(q) ||
+        r.customer?.toLowerCase().includes(q) ||
+        r.product?.toLowerCase().includes(q)
+    );
+  }, [doneJobs, searchQuery]);
+
+  const filteredDelayedJobs = useMemo(() => {
+    if (!searchQuery) return delayedJobs;
+    const q = searchQuery.toLowerCase();
+    return delayedJobs.filter(
+      (r) =>
+        r.workOrderNo?.toLowerCase().includes(q) ||
+        r.orderNo?.toLowerCase().includes(q) ||
+        r.customer?.toLowerCase().includes(q) ||
+        r.product?.toLowerCase().includes(q)
+    );
+  }, [delayedJobs, searchQuery]);
 
   const filteredShiftEntries = useMemo(() => {
     if (!searchQuery) return shiftEntriesList;
@@ -992,16 +1344,149 @@ export default function ProductionOperationsDashboard({
 
       {/* ─── SECTION: SHOPFLOOR OPERATIONAL TRACKING CENTER (TABS) ─── */}
       <section className="pod-tables-section">
+        {/* ─── PIPELINE PROGRESSION RIBBON ─── */}
+        <div className="pod-pipeline-bar">
+          <div className="pod-pipeline-header">
+            <h4>
+              <Layers size={16} color="#2563eb" />
+              <span>Shopfloor Manufacturing Pipeline Progression</span>
+            </h4>
+            <p>Click any pipeline stage below to inspect active batches, transition orders, or dispatch</p>
+          </div>
+          <div className="pod-pipeline-stages">
+            <button
+              type="button"
+              className={`pod-pipeline-step ${activeTab === 'incoming' ? 'active' : ''}`}
+              onClick={() => setActiveTab('incoming')}
+            >
+              <span className="pod-step-num">1</span>
+              <span className="pod-step-title">Incoming Orders</span>
+              <span className="pod-step-badge blue">{incomingOrders.length}</span>
+            </button>
+
+            <span className="pod-pipeline-arrow">➔</span>
+
+            <button
+              type="button"
+              className={`pod-pipeline-step ${activeTab === 'runs' ? 'active' : ''}`}
+              onClick={() => setActiveTab('runs')}
+            >
+              <span className="pod-step-num">2</span>
+              <span className="pod-step-title">Production Floor</span>
+              <span className="pod-step-badge emerald">{activeFloorRuns.length}</span>
+            </button>
+
+            <span className="pod-pipeline-arrow">➔</span>
+
+            <button
+              type="button"
+              className={`pod-pipeline-step ${activeTab === 'qcQueue' ? 'active' : ''}`}
+              onClick={() => setActiveTab('qcQueue')}
+            >
+              <span className="pod-step-num">3</span>
+              <span className="pod-step-title">QC Inspection</span>
+              <span className="pod-step-badge purple">{qcQueue.length}</span>
+            </button>
+
+            <span className="pod-pipeline-arrow">➔</span>
+
+            <button
+              type="button"
+              className={`pod-pipeline-step ${activeTab === 'qcFailed' ? 'active' : ''}`}
+              onClick={() => setActiveTab('qcFailed')}
+            >
+              <span className="pod-step-num">4</span>
+              <span className="pod-step-title">QC Failed / Rework</span>
+              <span className="pod-step-badge red">{qcFailedList.length}</span>
+            </button>
+
+            <span className="pod-pipeline-arrow">➔</span>
+
+            <button
+              type="button"
+              className={`pod-pipeline-step ${activeTab === 'readyDispatch' ? 'active' : ''}`}
+              onClick={() => setActiveTab('readyDispatch')}
+            >
+              <span className="pod-step-num">5</span>
+              <span className="pod-step-title">Ready for Dispatch</span>
+              <span className="pod-step-badge cyan">{readyForDispatch.length}</span>
+            </button>
+
+            <span className="pod-pipeline-arrow">➔</span>
+
+            <button
+              type="button"
+              className={`pod-pipeline-step ${activeTab === 'done' ? 'active' : ''}`}
+              onClick={() => setActiveTab('done')}
+            >
+              <span className="pod-step-num">6</span>
+              <span className="pod-step-title">Done / Dispatched</span>
+              <span className="pod-step-badge emerald">{doneJobs.length}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ─── TABS HEADER & SEARCH ─── */}
         <div className="pod-tabs-header">
           <div className="pod-tabs-left">
+            <button
+              type="button"
+              className={`pod-tab-btn ${activeTab === 'incoming' ? 'active' : ''}`}
+              onClick={() => setActiveTab('incoming')}
+            >
+              <Inbox size={15} />
+              <span>Incoming Orders</span>
+              <span className="pod-tab-counter">{incomingOrders.length}</span>
+            </button>
+
             <button
               type="button"
               className={`pod-tab-btn ${activeTab === 'runs' ? 'active' : ''}`}
               onClick={() => setActiveTab('runs')}
             >
               <Activity size={15} />
-              <span>Active Floor Runs</span>
+              <span>Floor Runs</span>
               <span className="pod-tab-counter">{activeFloorRuns.length}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`pod-tab-btn ${activeTab === 'qcQueue' ? 'active' : ''}`}
+              onClick={() => setActiveTab('qcQueue')}
+            >
+              <ShieldCheck size={15} />
+              <span>QC Queue</span>
+              <span className="pod-tab-counter purple">{qcQueue.length}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`pod-tab-btn ${activeTab === 'qcFailed' ? 'active' : ''}`}
+              onClick={() => setActiveTab('qcFailed')}
+            >
+              <AlertOctagon size={15} />
+              <span>QC Failed</span>
+              <span className="pod-tab-counter alert">{qcFailedList.length}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`pod-tab-btn ${activeTab === 'readyDispatch' ? 'active' : ''}`}
+              onClick={() => setActiveTab('readyDispatch')}
+            >
+              <Truck size={15} />
+              <span>Ready to Dispatch</span>
+              <span className="pod-tab-counter cyan">{readyForDispatch.length}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`pod-tab-btn ${activeTab === 'done' ? 'active' : ''}`}
+              onClick={() => setActiveTab('done')}
+            >
+              <PackageCheck size={15} />
+              <span>Done / Dispatched</span>
+              <span className="pod-tab-counter">{doneJobs.length}</span>
             </button>
 
             <button
@@ -1010,7 +1495,7 @@ export default function ProductionOperationsDashboard({
               onClick={() => setActiveTab('delayed')}
             >
               <AlertCircle size={15} />
-              <span>Delayed / Overdue</span>
+              <span>Delayed</span>
               <span className="pod-tab-counter alert">{delayedJobs.length}</span>
             </button>
 
@@ -1020,18 +1505,8 @@ export default function ProductionOperationsDashboard({
               onClick={() => setActiveTab('shiftLogs')}
             >
               <ListOrdered size={15} />
-              <span>Shift Log Ledger</span>
+              <span>Shift Logs</span>
               <span className="pod-tab-counter">{shiftEntriesList.length}</span>
-            </button>
-
-            <button
-              type="button"
-              className={`pod-tab-btn ${activeTab === 'rework' ? 'active' : ''}`}
-              onClick={() => setActiveTab('rework')}
-            >
-              <Wrench size={15} />
-              <span>Rework Management</span>
-              <span className="pod-tab-counter warning">{reworkJobsList.length}</span>
             </button>
           </div>
 
@@ -1053,7 +1528,88 @@ export default function ProductionOperationsDashboard({
           </div>
         </div>
 
-        {/* TAB 1: ACTIVE FLOOR RUNS */}
+        {/* ─── TAB 1: INCOMING ORDERS ─── */}
+        {activeTab === 'incoming' && (
+          <div className="pod-table-card">
+            <div className="pod-table-responsive">
+              <table className="pod-data-table">
+                <thead>
+                  <tr>
+                    <th>Work Order Ref</th>
+                    <th>Customer & Order</th>
+                    <th>Product Item</th>
+                    <th>Quantity</th>
+                    <th>Target Date</th>
+                    <th>Created</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredIncoming.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="pod-empty-row">
+                        <Inbox size={32} color="#94a3b8" />
+                        <b>No incoming orders pending start</b>
+                        <p>All scheduled work orders have already been released to the production floor.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredIncoming.map((order) => (
+                      <tr key={order.id || order.workOrderNo}>
+                        <td>
+                          <span
+                            className="pod-cell-ref"
+                            onClick={() => {
+                              const found = orders.find((o) => o.orderNo === order.orderNo);
+                              if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                            }}
+                          >
+                            {order.workOrderNo}
+                          </span>
+                          {order.orderNo && order.orderNo !== '—' && (
+                            <small className="pod-cell-sub">SO: {order.orderNo}</small>
+                          )}
+                        </td>
+                        <td>
+                          <span className="pod-cell-bold">{order.customer || 'Standard Client'}</span>
+                        </td>
+                        <td>
+                          <span className="pod-cell-bold">{order.product}</span>
+                        </td>
+                        <td>
+                          <b>{order.quantity}</b> Units
+                        </td>
+                        <td>
+                          <span>{order.targetDate || '—'}</span>
+                        </td>
+                        <td>
+                          <small className="pod-cell-sub">{order.createdAt || '—'}</small>
+                        </td>
+                        <td>
+                          <span className="pod-stage-badge">{order.status || 'READY'}</span>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="pod-btn-start-job"
+                            disabled={actionLoadingId === order.id}
+                            onClick={() => handleStartJob(order)}
+                          >
+                            <Play size={12} />
+                            <span>{actionLoadingId === order.id ? 'Starting...' : 'Start Production'}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 2: ACTIVE FLOOR RUNS ─── */}
         {activeTab === 'runs' && (
           <div className="pod-table-card">
             <div className="pod-table-responsive">
@@ -1064,7 +1620,7 @@ export default function ProductionOperationsDashboard({
                     <th>Customer</th>
                     <th>Product Item</th>
                     <th>Target Date</th>
-                    <th>Stage</th>
+                    <th>Stage & Machine</th>
                     <th>Progress</th>
                     <th>Floor Duration</th>
                     <th>Actions</th>
@@ -1121,6 +1677,7 @@ export default function ProductionOperationsDashboard({
                           </td>
                           <td>
                             <span className="pod-stage-badge">{run.stage || 'In Production'}</span>
+                            <small className="pod-cell-sub">{run.machine || 'Press 1'}</small>
                           </td>
                           <td>
                             <div className="pod-progress-cell">
@@ -1140,16 +1697,327 @@ export default function ProductionOperationsDashboard({
                             </div>
                           </td>
                           <td>
+                            <div className="pod-action-pair">
+                              <button
+                                type="button"
+                                className="pod-btn-complete-run"
+                                disabled={actionLoadingId === run.id}
+                                onClick={() => handleCompleteRun(run)}
+                              >
+                                <CheckCircle2 size={12} />
+                                <span>{actionLoadingId === run.id ? 'Sending...' : 'Complete & Send QC'}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="pod-btn-action"
+                                onClick={() => {
+                                  const found = orders.find((o) => o.orderNo === run.orderNo);
+                                  if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                                }}
+                              >
+                                <ArrowUpRight size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 3: QC TESTING QUEUE ─── */}
+        {activeTab === 'qcQueue' && (
+          <div className="pod-table-card">
+            <div className="pod-table-responsive">
+              <table className="pod-data-table">
+                <thead>
+                  <tr>
+                    <th>Work Order Ref</th>
+                    <th>Customer & Order</th>
+                    <th>Product Item</th>
+                    <th>Batch Qty</th>
+                    <th>Finished Time</th>
+                    <th>Operator / Shift</th>
+                    <th>Inspection Stage</th>
+                    <th>QC Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredQcQueue.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="pod-empty-row">
+                        <ShieldCheck size={32} color="#10b981" />
+                        <b>Zero items in QC testing queue</b>
+                        <p>All finished manufactured batches have completed quality inspection.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredQcQueue.map((item) => (
+                      <tr key={item.id || item.workOrderNo}>
+                        <td>
+                          <span
+                            className="pod-cell-ref"
+                            onClick={() => {
+                              const found = orders.find((o) => o.orderNo === item.orderNo);
+                              if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                            }}
+                          >
+                            {item.workOrderNo}
+                          </span>
+                          {item.orderNo && item.orderNo !== '—' && (
+                            <small className="pod-cell-sub">SO: {item.orderNo}</small>
+                          )}
+                        </td>
+                        <td>
+                          <span className="pod-cell-bold">{item.customer || 'Standard Client'}</span>
+                        </td>
+                        <td>
+                          <span className="pod-cell-bold">{item.product}</span>
+                        </td>
+                        <td>
+                          <b>{item.quantity}</b> Units
+                        </td>
+                        <td>
+                          <small className="pod-cell-sub">{item.completedAt ? String(item.completedAt).slice(0, 16).replace('T', ' ') : '—'}</small>
+                        </td>
+                        <td>
+                          <span>{item.operator || 'Shift Operator'}</span>
+                        </td>
+                        <td>
+                          <span className="pod-stage-badge" style={{ background: '#f3e8ff', color: '#7e22ce' }}>
+                            {item.stage || 'Quality Inspection'}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="pod-action-pair">
                             <button
                               type="button"
-                              className="pod-btn-action"
+                              className="pod-btn-qc-pass"
+                              disabled={actionLoadingId === item.id}
+                              onClick={() => handlePassQC(item)}
+                            >
+                              <CheckCircle2 size={12} />
+                              <span>{actionLoadingId === item.id ? 'Passing...' : 'Pass QC'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="pod-btn-qc-fail"
+                              onClick={() => setFailModalItem(item)}
+                            >
+                              <AlertOctagon size={12} />
+                              <span>Fail QC</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 4: QC FAILED / REWORK QUEUE ─── */}
+        {activeTab === 'qcFailed' && (
+          <div className="pod-table-card">
+            <div className="pod-table-responsive">
+              <table className="pod-data-table">
+                <thead>
+                  <tr>
+                    <th>Work Order Ref</th>
+                    <th>Product</th>
+                    <th>Failed Qty</th>
+                    <th>Failure Reason</th>
+                    <th>QC Remarks</th>
+                    <th>Rework Iteration</th>
+                    <th>Status</th>
+                    <th>Rework Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredQcFailed.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="pod-empty-row">
+                        <CheckCircle2 size={32} color="#10b981" />
+                        <b>Zero Defect / QC Failed Work Orders</b>
+                        <p>All batches have cleared inspection or completed their rework cycle.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredQcFailed.map((job) => (
+                      <tr key={job.id || job.workOrderNo}>
+                        <td>
+                          <span className="pod-cell-ref">{job.workOrderNo}</span>
+                          {job.orderNo && job.orderNo !== '—' && (
+                            <small className="pod-cell-sub">SO: {job.orderNo}</small>
+                          )}
+                        </td>
+                        <td>
+                          <span className="pod-cell-bold">{job.product}</span>
+                        </td>
+                        <td>
+                          <b style={{ color: '#ef4444' }}>{job.failedQty}</b> Units
+                        </td>
+                        <td>
+                          <span className="pod-reason-text" style={{ color: '#dc2626', fontWeight: 700 }}>
+                            {job.failureReason}
+                          </span>
+                        </td>
+                        <td>
+                          <small className="pod-cell-sub">{job.qcRemarks || 'Tolerance deviation'}</small>
+                        </td>
+                        <td>
+                          <span className="pod-tab-counter warning">Attempt #{job.reworkCount || 1}</span>
+                        </td>
+                        <td>
+                          <span className="pod-stage-badge" style={{ background: '#fee2e2', color: '#b91c1c' }}>
+                            {job.status}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="pod-action-pair">
+                            <button
+                              type="button"
+                              className="pod-btn pod-btn-secondary pod-btn-compact"
+                              disabled={actionLoadingId === job.id}
+                              onClick={() => handleStartRework(job)}
+                            >
+                              <RotateCcw size={13} />
+                              <span>Start Rework</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="pod-btn pod-btn-primary pod-btn-compact"
+                              disabled={actionLoadingId === job.id}
+                              onClick={() => handleCompleteRework(job)}
+                            >
+                              <ShieldCheck size={13} />
+                              <span>Complete & QC</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 5: READY FOR DISPATCH ─── */}
+        {activeTab === 'readyDispatch' && (
+          <div className="pod-table-card">
+            {/* Batch Toolbar */}
+            {selectedDispatchIds.length > 0 && (
+              <div className="pod-batch-toolbar">
+                <div className="pod-batch-info">
+                  <CheckCircle2 size={16} color="#10b981" />
+                  <span>
+                    <b>{selectedDispatchIds.length}</b> work order(s) selected for dispatch
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="pod-btn-dispatch"
+                  disabled={dispatching}
+                  onClick={handleBatchSendToDispatch}
+                >
+                  <Truck size={14} />
+                  <span>{dispatching ? 'Dispatching...' : `Send ${selectedDispatchIds.length} Selected to Dispatch`}</span>
+                </button>
+              </div>
+            )}
+
+            <div className="pod-table-responsive">
+              <table className="pod-data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '38px', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        className="pod-checkbox"
+                        checked={readyForDispatch.length > 0 && selectedDispatchIds.length === readyForDispatch.length}
+                        onChange={handleToggleSelectAllDispatch}
+                        title="Select All for Dispatch"
+                      />
+                    </th>
+                    <th>Work Order Ref</th>
+                    <th>Customer & Order</th>
+                    <th>Product Item</th>
+                    <th>Ready Qty</th>
+                    <th>QC Certification</th>
+                    <th>Inspection Date</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredReadyDispatch.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="pod-empty-row">
+                        <Truck size={32} color="#94a3b8" />
+                        <b>No work orders waiting for dispatch</b>
+                        <p>All QC certified goods have already been sent to the logistics dispatch bay.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredReadyDispatch.map((item) => {
+                      const isSelected = selectedDispatchIds.includes(item.id);
+                      return (
+                        <tr key={item.id || item.workOrderNo} style={{ background: isSelected ? '#f0fdf4' : undefined }}>
+                          <td style={{ textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              className="pod-checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectDispatch(item.id)}
+                            />
+                          </td>
+                          <td>
+                            <span
+                              className="pod-cell-ref"
                               onClick={() => {
-                                const found = orders.find((o) => o.orderNo === run.orderNo);
+                                const found = orders.find((o) => o.orderNo === item.orderNo);
                                 if (found && onSelectOrderDetails) onSelectOrderDetails(found);
                               }}
                             >
-                              <span>Inspect</span>
-                              <ArrowUpRight size={13} />
+                              {item.workOrderNo}
+                            </span>
+                            {item.orderNo && item.orderNo !== '—' && (
+                              <small className="pod-cell-sub">SO: {item.orderNo}</small>
+                            )}
+                          </td>
+                          <td>
+                            <span className="pod-cell-bold">{item.customer || 'Standard Client'}</span>
+                          </td>
+                          <td>
+                            <span className="pod-cell-bold">{item.product}</span>
+                          </td>
+                          <td>
+                            <b style={{ color: '#059669' }}>{item.quantity}</b> Units
+                          </td>
+                          <td>
+                            <span className="pod-stage-badge" style={{ background: '#d1fae5', color: '#065f46', fontWeight: 800 }}>
+                              ✓ PASS - Certified
+                            </span>
+                          </td>
+                          <td>
+                            <small className="pod-cell-sub">{item.completedAt ? String(item.completedAt).slice(0, 10) : 'Today'}</small>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="pod-btn-dispatch"
+                              disabled={actionLoadingId === item.id}
+                              onClick={() => handleSendToDispatch(item)}
+                            >
+                              <Truck size={13} />
+                              <span>{actionLoadingId === item.id ? 'Sending...' : 'Send to Dispatch'}</span>
                             </button>
                           </td>
                         </tr>
@@ -1162,7 +2030,88 @@ export default function ProductionOperationsDashboard({
           </div>
         )}
 
-        {/* TAB 2: DELAYED / OVERDUE JOBS */}
+        {/* ─── TAB 6: DONE / DISPATCHED JOBS ─── */}
+        {activeTab === 'done' && (
+          <div className="pod-table-card">
+            <div className="pod-table-responsive">
+              <table className="pod-data-table">
+                <thead>
+                  <tr>
+                    <th>Work Order Ref</th>
+                    <th>Customer & Order</th>
+                    <th>Product Item</th>
+                    <th>Completed Qty</th>
+                    <th>Dispatched Date</th>
+                    <th>Fulfillment Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDoneJobs.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="pod-empty-row">
+                        <PackageCheck size={32} color="#94a3b8" />
+                        <b>No completed or dispatched orders in this window</b>
+                        <p>Finished goods dispatched to logistics will appear here.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredDoneJobs.map((item) => (
+                      <tr key={item.id || item.workOrderNo}>
+                        <td>
+                          <span
+                            className="pod-cell-ref"
+                            onClick={() => {
+                              const found = orders.find((o) => o.orderNo === item.orderNo);
+                              if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                            }}
+                          >
+                            {item.workOrderNo}
+                          </span>
+                          {item.orderNo && item.orderNo !== '—' && (
+                            <small className="pod-cell-sub">SO: {item.orderNo}</small>
+                          )}
+                        </td>
+                        <td>
+                          <span className="pod-cell-bold">{item.customer || 'Standard Client'}</span>
+                        </td>
+                        <td>
+                          <span className="pod-cell-bold">{item.product}</span>
+                        </td>
+                        <td>
+                          <b>{item.quantity}</b> Units
+                        </td>
+                        <td>
+                          <span>{item.dispatchedAt ? String(item.dispatchedAt).slice(0, 10) : '—'}</span>
+                        </td>
+                        <td>
+                          <span className="pod-stage-badge" style={{ background: '#dcfce7', color: '#15803d', fontWeight: 800 }}>
+                            {item.status === 'DISPATCHED' ? '✓ Dispatched to Logistics' : '✓ Completed'}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="pod-btn-action"
+                            onClick={() => {
+                              const found = orders.find((o) => o.orderNo === item.orderNo);
+                              if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                            }}
+                          >
+                            <span>Inspect</span>
+                            <ArrowUpRight size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 7: DELAYED / OVERDUE JOBS ─── */}
         {activeTab === 'delayed' && (
           <div className="pod-table-card">
             <div className="pod-table-responsive">
@@ -1180,7 +2129,7 @@ export default function ProductionOperationsDashboard({
                   </tr>
                 </thead>
                 <tbody>
-                  {delayedJobs.length === 0 ? (
+                  {filteredDelayedJobs.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="pod-empty-row">
                         <CheckCircle2 size={32} color="#10b981" />
@@ -1189,7 +2138,7 @@ export default function ProductionOperationsDashboard({
                       </td>
                     </tr>
                   ) : (
-                    delayedJobs.map((job) => (
+                    filteredDelayedJobs.map((job) => (
                       <tr key={job.id || job.workOrderNo} className="pod-row-alert">
                         <td>
                           <span className="pod-cell-ref">{job.workOrderNo}</span>
@@ -1234,7 +2183,7 @@ export default function ProductionOperationsDashboard({
           </div>
         )}
 
-        {/* TAB 3: SHIFT LOG LEDGER */}
+        {/* ─── TAB 8: SHIFT LOG LEDGER ─── */}
         {activeTab === 'shiftLogs' && (
           <div className="pod-table-card">
             <div className="pod-table-responsive">
@@ -1307,75 +2256,78 @@ export default function ProductionOperationsDashboard({
             </div>
           </div>
         )}
-
-        {/* TAB 4: REWORK MANAGEMENT */}
-        {activeTab === 'rework' && (
-          <div className="pod-table-card">
-            <div className="pod-table-responsive">
-              <table className="pod-data-table">
-                <thead>
-                  <tr>
-                    <th>Work Order</th>
-                    <th>Product</th>
-                    <th>Failed Qty</th>
-                    <th>Failure Reason</th>
-                    <th>Supervisor / Shift</th>
-                    <th>Rework Done</th>
-                    <th>Pending</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reworkJobsList.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="pod-empty-row">
-                        <CheckCircle2 size={32} color="#10b981" />
-                        <b>Zero Defect / Rework Jobs</b>
-                        <p>All manufactured batches have cleared inspection or completed rework.</p>
-                      </td>
-                    </tr>
-                  ) : (
-                    reworkJobsList.map((job) => (
-                      <tr key={job.id || job.workOrderNo}>
-                        <td>
-                          <span className="pod-cell-ref">{job.workOrderNo}</span>
-                        </td>
-                        <td>
-                          <span className="pod-cell-bold">{job.product}</span>
-                        </td>
-                        <td>
-                          <b style={{ color: '#ef4444' }}>{job.failedQty}</b>
-                        </td>
-                        <td>
-                          <span className="pod-reason-text">{job.failureReason}</span>
-                        </td>
-                        <td>
-                          <span>{job.supervisor}</span>
-                          <small className="pod-cell-sub">{job.shift} Shift</small>
-                        </td>
-                        <td>{job.completedReworkQty || 0}</td>
-                        <td>
-                          <b style={{ color: '#f59e0b' }}>{job.pendingReworkQty}</b>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="pod-btn pod-btn-secondary pod-btn-compact"
-                            onClick={() => handleCompleteRework(job)}
-                          >
-                            <ShieldCheck size={14} />
-                            <span>Send to QC</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
       </section>
+
+      {/* ─── MODAL: QC INSPECTION FAILURE / REWORK ─── */}
+      {failModalItem && (
+        <Modal
+          title={`Mark QC Failure — ${failModalItem.workOrderNo}`}
+          subtitle="Quality Defect & Rework Logging"
+          onClose={() => setFailModalItem(null)}
+        >
+          <form onSubmit={submitFailQC}>
+            <div className="pod-form-grid">
+              <Field label="Defect / Failure Reason" required>
+                <select
+                  value={failForm.failureReason}
+                  onChange={(e) => setFailForm({ ...failForm, failureReason: e.target.value })}
+                >
+                  <option value="Dimensional Tolerance Exceeded">Dimensional Tolerance Exceeded</option>
+                  <option value="Surface Defect / Blister">Surface Defect / Blister</option>
+                  <option value="Resin Starvation / Dry Fibers">Resin Starvation / Dry Fibers</option>
+                  <option value="Color / Appearance Mismatch">Color / Appearance Mismatch</option>
+                  <option value="Incomplete Curing / Soft Spot">Incomplete Curing / Soft Spot</option>
+                  <option value="Structural Crack / Porosity">Structural Crack / Porosity</option>
+                  <option value="Weight / Density Out of Spec">Weight / Density Out of Spec</option>
+                  <option value="Other Defect">Other Defect</option>
+                </select>
+              </Field>
+
+              <Field label="Failed Product Item">
+                <input value={failModalItem.product || '—'} disabled />
+              </Field>
+
+              <Field label="Rejected Quantity (Units)">
+                <input value={`${failModalItem.quantity || 1} Units`} disabled />
+              </Field>
+
+              <Field label="Inspector Notes & Remarks">
+                <textarea
+                  placeholder="Describe specific defect location, measurement delta, or rework instruction..."
+                  value={failForm.remarks}
+                  onChange={(e) => setFailForm({ ...failForm, remarks: e.target.value })}
+                />
+              </Field>
+            </div>
+
+            <footer>
+              <button
+                type="button"
+                className="pod-btn pod-btn-ghost"
+                onClick={() => setFailModalItem(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="pod-btn pod-btn-primary"
+                style={{ background: '#dc2626', borderColor: '#b91c1c' }}
+                disabled={submitting}
+              >
+                {submitting ? 'Submitting...' : 'Confirm QC Failure & Queue for Rework'}
+              </button>
+            </footer>
+          </form>
+        </Modal>
+      )}
+
+      {/* ─── TOAST NOTIFICATION ─── */}
+      {toastMessage && (
+        <div className="pod-toast">
+          <CheckCircle2 size={16} color="#10b981" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
       {/* ─── MODAL 1: ADD SHIFT ENTRY ─── */}
       {modal === 'shift' && (

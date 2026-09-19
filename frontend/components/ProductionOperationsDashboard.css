@@ -1109,3 +1109,328 @@
     flex-wrap: wrap;
   }
 }
+
+/* ─── MANUFACTURING PIPELINE STAGES RIBBON ─── */
+.pod-pipeline-bar {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1px solid #e2e8f0;
+  padding: 16px 20px;
+}
+
+.pod-pipeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pod-pipeline-header h4 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pod-pipeline-header p {
+  margin: 0;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.pod-pipeline-stages {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.pod-pipeline-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pod-pipeline-step:hover {
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.05);
+}
+
+.pod-pipeline-step.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.pod-step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pod-pipeline-step.active .pod-step-num {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.pod-step-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.pod-pipeline-step.active .pod-step-title {
+  color: #1e40af;
+}
+
+.pod-step-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.pod-step-badge.blue {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.pod-step-badge.purple {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.pod-step-badge.amber {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.pod-step-badge.emerald {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.pod-step-badge.cyan {
+  background: #cffafe;
+  color: #0e7490;
+}
+
+.pod-step-badge.red {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.pod-pipeline-arrow {
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: bold;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* ─── BATCH TOOLBAR ─── */
+.pod-batch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  background: #f0fdf4;
+  border-bottom: 1px solid #bbf7d0;
+  animation: pod-fade-in 0.2s ease-out;
+}
+
+.pod-batch-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #166534;
+}
+
+.pod-batch-info b {
+  color: #15803d;
+}
+
+/* ─── ACTION BUTTONS ─── */
+.pod-action-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pod-btn-dispatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3);
+}
+
+.pod-btn-dispatch:hover:not(:disabled) {
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(5, 150, 105, 0.4);
+}
+
+.pod-btn-dispatch:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pod-btn-start-job {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+}
+
+.pod-btn-start-job:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  transform: translateY(-1px);
+}
+
+.pod-btn-complete-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  padding: 6px 11px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pod-btn-complete-run:hover:not(:disabled) {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.pod-btn-qc-pass {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  border-radius: 7px;
+  padding: 6px 11px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pod-btn-qc-pass:hover:not(:disabled) {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+}
+
+.pod-btn-qc-fail {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  padding: 6px 11px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pod-btn-qc-fail:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+/* ─── TOAST NOTIFICATION ─── */
+.pod-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 12px 18px;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 9999;
+  animation: pod-slide-up 0.25s ease-out;
+}
+
+@keyframes pod-slide-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pod-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ─── CHECKBOX STYLING ─── */
+.pod-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #2563eb;
+}
+

@@ -304,13 +304,32 @@ export class ProductionWorkflowController {
   }
 
   @Post('production/:id/start')
-  @RequirePermissions('production.floor.start')
+  @RequirePermissions(
+    'production.floor.start',
+    'production.floor.create',
+    'production.workorder.start',
+    'production.workorder.create',
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'production.floor.read',
+    'admin.planthead.create',
+    'planthead.create',
+  )
   async startJob(@Param('id') id: string, @Req() req: any) {
     return this.workflowService.startJob(id, req.user?.sub || 'system');
   }
 
   @Post('production/:id/complete')
-  @RequirePermissions('production.floor.complete')
+  @RequirePermissions(
+    'production.floor.complete',
+    'production.floor.create',
+    'production.workorder.complete',
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'production.floor.read',
+    'admin.planthead.create',
+    'planthead.create',
+  )
   async completeJob(@Param('id') id: string, @Req() req: any) {
     return this.workflowService.completeWork(id, req.user?.sub || 'system');
   }
@@ -333,7 +352,16 @@ export class ProductionWorkflowController {
   }
 
   @Post('production/:id/qc-pass')
-  @RequirePermissions('production.qc.approve')
+  @RequirePermissions(
+    'production.qc.approve',
+    'production.qc.pass',
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'admin.planthead.create',
+    'planthead.create',
+  )
   async qcPass(
     @Param('id') id: string,
     @Body() dto: QcPassDto,
@@ -343,7 +371,16 @@ export class ProductionWorkflowController {
   }
 
   @Post('production/:id/qc-fail')
-  @RequirePermissions('production.qc.reject')
+  @RequirePermissions(
+    'production.qc.reject',
+    'production.qc.fail',
+    'production.floor.read',
+    'production.qc.read',
+    'production.productionworkflow.read',
+    'production.productionworkflow.create',
+    'admin.planthead.create',
+    'planthead.create',
+  )
   async qcFail(
     @Param('id') id: string,
     @Body() dto: { failureReason: string; remarks?: string },
@@ -393,13 +430,24 @@ export class ProductionWorkflowController {
     'production.floor.rework',
     'production.floor.start',
     'production.floor.create',
+    'production.floor.read',
+    'production.productionworkflow.read',
+    'admin.planthead.create',
+    'planthead.create',
   )
   async startRework(@Param('id') id: string, @Req() req: any) {
     return this.workflowService.startRework(id, req.user?.sub || 'system');
   }
 
   @Post('production/:id/complete-rework')
-  @RequirePermissions('production.floor.rework')
+  @RequirePermissions(
+    'production.floor.rework',
+    'production.floor.read',
+    'production.floor.create',
+    'production.productionworkflow.read',
+    'admin.planthead.create',
+    'planthead.create',
+  )
   async completeRework(@Param('id') id: string, @Req() req: any) {
     return this.workflowService.completeRework(id, req.user?.sub || 'system');
   }
