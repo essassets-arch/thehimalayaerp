@@ -32,7 +32,7 @@ export class DispatchController {
     const companyId =
       req.user?.companyId ||
       headers['x-company-id'] ||
-      'd039cfa4-e78b-4138-adfc-1b0f14cffa91';
+      '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
     return { userId, companyId };
   }
 

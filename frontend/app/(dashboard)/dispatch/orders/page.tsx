@@ -810,7 +810,7 @@ export default function DispatchOrdersPage() {
     error,
     refetch,
   } = useQuery<UnifiedPendingDispatchItem[]>({
-    queryKey: ["pending-dispatch-unified-items"],
+    queryKey: ["pending-dispatch-unified-items", currentCategory],
     queryFn: async () => {
       const extractArray = (res: any): any[] => {
         if (!res) return [];
@@ -836,8 +836,8 @@ export default function DispatchOrdersPage() {
         backendFetch<any>("/api/backend/production/ready-for-dispatch"),
         backendFetch<any>("/api/backend/sales/orders?limit=1000"),
         backendFetch<any>("/api/backend/production/finished-goods"),
-        backendFetch<any>("/api/backend/logistics/dispatches/queue"),
-        backendFetch<any>("/api/backend/logistics/dispatches"),
+        backendFetch<any>(`/api/backend/logistics/dispatches/queue?category=${currentCategory}`),
+        backendFetch<any>(`/api/backend/logistics/dispatches?category=${currentCategory}`),
       ]);
 
       const workOrders: any[] =

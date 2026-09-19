@@ -345,10 +345,11 @@ export default function DeliveryHistoryPage() {
     error,
     refetch,
   } = useQuery<Dispatch[]>({
-    queryKey: ["delivery-history-dispatches"],
+    queryKey: ["delivery-history-dispatches", isDispatch2 ? "D2" : "D1"],
     queryFn: async () => {
+      const cat = isDispatch2 ? "D2" : "D1";
       const payload = await backendFetch<any>(
-        "/api/backend/logistics/dispatches",
+        `/api/backend/logistics/dispatches?status=DELIVERED&category=${cat}`,
       );
       if (Array.isArray(payload)) return payload;
       if (Array.isArray(payload?.data)) return payload.data;

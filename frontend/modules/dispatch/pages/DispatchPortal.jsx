@@ -1480,31 +1480,56 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
 
         {/* 5 KPI Cards Row */}
         <div className="dispatch-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-          <div className="dispatch-kpi-card" style={{ padding: '18px 20px', borderLeft: '4px solid #3b82f6', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
+          <div
+            className="dispatch-kpi-card"
+            onClick={() => navigate.push(`${basePath}/orders`)}
+            title="View Orders waiting for vehicle"
+            style={{ padding: '18px 20px', borderLeft: '4px solid #3b82f6', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+          >
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ready</span>
             <div style={{ fontSize: '32px', fontWeight: '900', color: '#1e293b', marginTop: '6px' }}>{readyCount}</div>
             <span style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginTop: '4px' }}>Orders waiting for vehicle</span>
           </div>
 
-          <div className="dispatch-kpi-card" style={{ padding: '18px 20px', borderLeft: '4px solid #0284c7', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
+          <div
+            className="dispatch-kpi-card"
+            onClick={() => navigate.push(`${basePath}/in-transit`)}
+            title="View Consignments en route"
+            style={{ padding: '18px 20px', borderLeft: '4px solid #0284c7', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+          >
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>In Transit</span>
             <div style={{ fontSize: '32px', fontWeight: '900', color: '#1e293b', marginTop: '6px' }}>{inTransitCount}</div>
             <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: '600', marginTop: '4px' }}>Consignments en route</span>
           </div>
 
-          <div className="dispatch-kpi-card" style={{ padding: '18px 20px', borderLeft: '4px solid #f59e0b', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
+          <div
+            className="dispatch-kpi-card"
+            onClick={() => navigate.push(`${basePath}/delivery`)}
+            title="View Vehicles out for delivery"
+            style={{ padding: '18px 20px', borderLeft: '4px solid #f59e0b', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+          >
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Out Delivery</span>
             <div style={{ fontSize: '32px', fontWeight: '900', color: '#1e293b', marginTop: '6px' }}>{outDeliveryCount}</div>
             <span style={{ fontSize: '11px', color: '#d97706', fontWeight: '600', marginTop: '4px' }}>Vehicles out for delivery</span>
           </div>
 
-          <div className="dispatch-kpi-card" style={{ padding: '18px 20px', borderLeft: '4px solid #10b981', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
+          <div
+            className="dispatch-kpi-card"
+            onClick={() => navigate.push(`${basePath}/history`)}
+            title="View Successfully fulfilled dispatches"
+            style={{ padding: '18px 20px', borderLeft: '4px solid #10b981', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+          >
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Delivered</span>
             <div style={{ fontSize: '32px', fontWeight: '900', color: '#1e293b', marginTop: '6px' }}>{deliveredCount}</div>
             <span style={{ fontSize: '11px', color: '#059669', fontWeight: '600', marginTop: '4px' }}>Successfully fulfilled</span>
           </div>
 
-          <div className="dispatch-kpi-card" style={{ padding: '18px 20px', borderLeft: '4px solid #ef4444', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
+          <div
+            className="dispatch-kpi-card"
+            onClick={() => navigate.push(`${basePath}/returns`)}
+            title="View Returns and replacement tickets"
+            style={{ padding: '18px 20px', borderLeft: '4px solid #ef4444', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}
+          >
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Returns</span>
             <div style={{ fontSize: '32px', fontWeight: '900', color: '#1e293b', marginTop: '6px' }}>{returnsCount}</div>
             <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: '600', marginTop: '4px' }}>RMA & replacement tickets</span>

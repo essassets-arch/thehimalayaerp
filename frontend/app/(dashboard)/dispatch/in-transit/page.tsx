@@ -347,10 +347,11 @@ export default function InTransitPage() {
     error,
     refetch,
   } = useQuery<Dispatch[]>({
-    queryKey: ["in-transit-dispatches"],
+    queryKey: ["in-transit-dispatches", isDispatch2 ? "D2" : "D1"],
     queryFn: async () => {
+      const cat = isDispatch2 ? "D2" : "D1";
       const payload = await backendFetch<any>(
-        "/api/backend/logistics/dispatches?status=IN_TRANSIT,OUT_FOR_DELIVERY",
+        `/api/backend/logistics/dispatches?status=IN_TRANSIT&category=${cat}`,
       );
       if (Array.isArray(payload)) return payload;
       if (Array.isArray(payload?.data)) return payload.data;
@@ -366,10 +367,11 @@ export default function InTransitPage() {
     isLoading: isHistoryLoading,
     refetch: refetchHistory,
   } = useQuery<Dispatch[]>({
-    queryKey: ["in-transit-delivered-history"],
+    queryKey: ["in-transit-delivered-history", isDispatch2 ? "D2" : "D1"],
     queryFn: async () => {
+      const cat = isDispatch2 ? "D2" : "D1";
       const payload = await backendFetch<any>(
-        "/api/backend/logistics/dispatches?status=DELIVERED",
+        `/api/backend/logistics/dispatches?status=DELIVERED&category=${cat}`,
       );
       if (Array.isArray(payload)) return payload;
       if (Array.isArray(payload?.data)) return payload.data;
