@@ -748,41 +748,11 @@ export class InventoryService {
     const extraFrame = Number(extraFrameQuantity || 0);
     if (qty <= 0 && extraCover <= 0 && extraFrame <= 0) return;
 
-    // 1. Fetch available finished goods records for this product
-    console.log('[DEBUG stockOutFinishedGoods ENTER]', {
-      companyId,
-      productId,
-      qty,
-      extraCover,
-      extraFrame,
-    });
-
-    let fgRecords: any[] = await tx.finishedGoods.findMany({
-      where: { productId },
-    });
-
-    if (fgRecords.length === 0) {
-      try {
-        fgRecords = await tx.$queryRaw<any[]>`
-          SELECT id, quantity, "availableQuantity", "reservedQuantity"
-          FROM "FinishedGoods"
-          WHERE "productId" = ${productId}
-          FOR UPDATE
-        `;
-      } catch (rawErr) {
-        console.warn('[DEBUG stockOutFinishedGoods queryRaw fallback err]', rawErr);
-      }
-    }
-
-    console.log('[DEBUG stockOutFinishedGoods records found]', {
-      count: fgRecords.length,
-      records: fgRecords.map((r) => ({
-        id: r.id,
-        productId: r.productId,
-        qty: Number(r.quantity),
-        avail: Number(r.availableQuantity),
-      })),
-    });
+    // Serialize stock-out consumers before reading balances or materializing opening stock.
+    await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${productId} FOR UPDATE`;
+    const fgRecords: any[] = await tx.$queryRaw`
+      SELECT * FROM "FinishedGoods" WHERE "productId" = ${productId} ORDER BY id FOR UPDATE
+    `;
 
     let totalAvail = fgRecords.reduce(
       (sum, r) => sum + Number(r.availableQuantity || 0),
@@ -837,7 +807,13 @@ export class InventoryService {
           });
           const openingQty = Number(openingTxGroup[0]?._sum?.quantity || 0);
           const existingFgQty = fgRecords.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
-          const unmaterializedOpening = Math.max(0, openingQty - existingFgQty);
+          // Previously consumed opening stock must never be materialized again.
+          const consumed = await tx.stockHistory.aggregate({
+            where: { productId, event: { in: ['DISPATCH_OUT', 'TESTING', 'DISPATCH_REVERSAL'] } },
+            _sum: { quantity: true },
+          });
+          const consumedQty = Math.max(0, -Number(consumed._sum.quantity || 0));
+          const unmaterializedOpening = Math.max(0, openingQty - existingFgQty - consumedQty);
 
           if (unmaterializedOpening > 0) {
             const plan =

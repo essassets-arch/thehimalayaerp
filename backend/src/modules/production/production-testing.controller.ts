@@ -13,10 +13,8 @@ import {
   Param,
   Req,
 } from '@nestjs/common';
-import { ProductionTestingService } from './production-testing.service';
-import { Public } from '../../common/decorators/public.decorator';
+import { ProductionTestingService, CreateTestingRecord } from './production-testing.service';
 
-@Public()
 @Controller('production/testing')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ProductionTestingController {
@@ -34,8 +32,8 @@ export class ProductionTestingController {
     'planthead.testing.read',
   )
   @Get()
-  async listTestingRecords() {
-    const data = await this.testingService.listTestingRecords();
+  async listTestingRecords(@Req() req: any) {
+    const data = await this.testingService.listTestingRecords(req.user.companyId);
     return { success: true, data };
   }
 
@@ -51,8 +49,8 @@ export class ProductionTestingController {
     'planthead.testing.read',
   )
   @Get(':id')
-  async getTestingRecord(@Param('id') id: string) {
-    const data = await this.testingService.getTestingRecord(id);
+  async getTestingRecord(@Param('id') id: string, @Req() req: any) {
+    const data = await this.testingService.getTestingRecord(id, req.user.companyId);
     return { success: true, data };
   }
 
@@ -66,20 +64,15 @@ export class ProductionTestingController {
   @Post()
   async createTestingRecord(
     @Body()
-    dto: {
-      productName: string;
-      quantity: number;
-      status?: string;
-      remarks?: string;
-      testedBy?: string;
-    },
+    dto: CreateTestingRecord,
     @Req() req: any,
   ) {
     const data = await this.testingService.createTestingRecord(
       dto,
-      req.user?.sub || 'system',
+      req.user.sub,
+      req.user.companyId,
     );
-    return { success: true, data };
+    return { success: true, data: data.testingRecord, ...data };
   }
 
   @RequirePermissions(
@@ -96,13 +89,14 @@ export class ProductionTestingController {
     @Param('id') id: string,
     @Body()
     dto: {
+      productId?: string;
       productName?: string;
       quantity?: number;
       status?: string;
       remarks?: string;
     },
   ) {
-    const data = await this.testingService.updateTestingRecord(id, dto);
+    const data = await this.testingService.updateTestingRecord(id, dto, req.user.companyId);
     return { success: true, data };
   }
 
@@ -118,9 +112,10 @@ export class ProductionTestingController {
   @Patch(':id/status')
   async updateStatus(
     @Param('id') id: string,
-    @Body() dto: { status: string; remarks?: string; reviewedBy?: string },
+    @Body() dto: { status: string; remarks?: string },
+    @Req() req: any,
   ) {
-    const data = await this.testingService.updateStatus(id, dto);
+    const data = await this.testingService.updateStatus(id, dto, req.user.companyId, req.user.sub);
     return { success: true, data };
   }
 
@@ -130,8 +125,8 @@ export class ProductionTestingController {
     'production.floor.create',
   )
   @Delete(':id')
-  async deleteTestingRecord(@Param('id') id: string) {
-    const data = await this.testingService.deleteTestingRecord(id);
+  async deleteTestingRecord(@Param('id') id: string, @Req() req: any) {
+    const data = await this.testingService.deleteTestingRecord(id, req.user.companyId);
     return { success: true, data };
   }
 }

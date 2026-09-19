@@ -42,6 +42,10 @@ export class ProductsController {
   }
 
   @RequirePermissions(
+    'production.testing.read',
+    'production.testing.create',
+    'production.productiontesting.read',
+    'production.productiontesting.create',
     'admin.products.read',
     'products.read',
     'store.read',

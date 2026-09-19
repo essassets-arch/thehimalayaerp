@@ -192,6 +192,7 @@ model User {
   employeeComplaints            EmployeeComplaint[]
   resolvedComplaints            EmployeeComplaint[]    @relation("ComplaintResolver")
   expenseClaims                 ExpenseClaim[]
+  testingRecords                ProductionTestingRecord[]
 }
 
 model RefreshSession {
@@ -408,6 +409,7 @@ model Product {
   dailyReportItems            ProductionDailyReportItem[]
   dispatchReportItems         DispatchDailyReportItem[]
   stockHistories              StockHistory[]
+  testingRecords              ProductionTestingRecord[]
 
   @@index([companyId, minimumStock])
   @@index([preferredVendorId])
@@ -3445,7 +3447,14 @@ model ProductionTestingRecord {
   id          String    @id @default(uuid())
   companyId   String    @default("COMP-001") // Mock default as per other simple tables if company is needed, but we can just use referenceNo
   referenceNo String    @unique
-  productName String
+  productName String? // Legacy snapshot only; new records use the Product relation.
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdById String?
+  createdBy   User? @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  requestId   String?
+  previousQuantity Decimal? @db.Decimal(18, 3)
+  remainingQuantity Decimal? @db.Decimal(18, 3)
   quantity    Decimal   @db.Decimal(14, 2)
   status      String    @default("Pending")
   remarks     String?
@@ -3455,6 +3464,8 @@ model ProductionTestingRecord {
   updatedAt   DateTime  @updatedAt
 
   @@index([status])
+  @@unique([companyId, requestId])
+  @@index([companyId, createdAt])
 }
 
 model ProductionShiftEntry {
@@ -3975,6 +3986,7 @@ enum AttendanceStatus {
 }
 
 enum StockHistoryEvent {
+  TESTING
   STOCK_IN
   RESERVE
   UNRESERVE
