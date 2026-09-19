@@ -963,9 +963,169 @@ export default function ProductionOperationsDashboard({
         </div>
       </header>
 
-      {/* ─── EXECUTIVE KPI OVERVIEW STRIP (6 CARDS) ─── */}
+      {/* ─── EXECUTIVE KPI & SHOPFLOOR WORKFLOW CARDS GRID (12 CARDS) ─── */}
       <section className="pod-kpi-grid">
-        {/* Card 1: Target Achievement */}
+        {/* Card 1: Incoming Orders (Stage 1) */}
+        <div
+          className={`pod-kpi-card pod-pipeline-kpi-card ${activeTab === 'incoming' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('incoming');
+            document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          title="Click to view Incoming Orders"
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="pod-kpi-header">
+            <span className="pod-kpi-label">1. Incoming Orders</span>
+            <span className="pod-kpi-icon-pill blue">
+              <Inbox size={16} />
+            </span>
+          </div>
+          <div className="pod-kpi-content">
+            <div className="pod-kpi-split">
+              <span className="pod-kpi-main-val">{summary.incomingOrdersCount ?? incomingOrders.length ?? 0}</span>
+              <span className="pod-pill-tag blue">Stage 1</span>
+            </div>
+            <span className="pod-kpi-subtext">Waiting release</span>
+          </div>
+        </div>
+
+        {/* Card 2: Production Floor (Stage 2) */}
+        <div
+          className={`pod-kpi-card pod-pipeline-kpi-card ${activeTab === 'runs' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('runs');
+            document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          title="Click to view Production Floor Runs"
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="pod-kpi-header">
+            <span className="pod-kpi-label">2. Production Floor</span>
+            <span className="pod-kpi-icon-pill amber">
+              <Factory size={16} />
+            </span>
+          </div>
+          <div className="pod-kpi-content">
+            <div className="pod-kpi-split">
+              <span className="pod-kpi-main-val" style={{ color: '#d97706' }}>
+                {inProductionCount ?? summary.inProduction ?? 98}
+              </span>
+              <span className="pod-pill-tag amber">Stage 2</span>
+            </div>
+            <span className="pod-kpi-subtext">Running on presses</span>
+          </div>
+        </div>
+
+        {/* Card 3: QC Inspection (Stage 3) */}
+        <div
+          className={`pod-kpi-card pod-pipeline-kpi-card ${activeTab === 'qcQueue' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('qcQueue');
+            document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          title="Click to view QC Inspection Queue"
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="pod-kpi-header">
+            <span className="pod-kpi-label">3. QC Inspection</span>
+            <span className="pod-kpi-icon-pill purple">
+              <ShieldCheck size={16} />
+            </span>
+          </div>
+          <div className="pod-kpi-content">
+            <div className="pod-kpi-split">
+              <span className="pod-kpi-main-val" style={{ color: '#7c3aed' }}>
+                {qcPendingCount ?? summary.qcPendingWorkOrders ?? 0}
+              </span>
+              <span className="pod-pill-tag purple">Stage 3</span>
+            </div>
+            <span className="pod-kpi-subtext">Under inspection</span>
+          </div>
+        </div>
+
+        {/* Card 4: QC Failed / Rework (Stage 4) */}
+        <div
+          className={`pod-kpi-card pod-pipeline-kpi-card ${activeTab === 'qcFailed' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('qcFailed');
+            document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          title="Click to view QC Failed & Rework"
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="pod-kpi-header">
+            <span className="pod-kpi-label">4. QC Failed / Rework</span>
+            <span className="pod-kpi-icon-pill red">
+              <RotateCcw size={16} />
+            </span>
+          </div>
+          <div className="pod-kpi-content">
+            <div className="pod-kpi-split">
+              <span className="pod-kpi-main-val" style={{ color: (reworkCount || summary.reworkWorkOrders) ? '#ef4444' : '#1e293b' }}>
+                {reworkCount ?? summary.reworkWorkOrders ?? 0}
+              </span>
+              <span className="pod-pill-tag red">Stage 4</span>
+            </div>
+            <span className="pod-kpi-subtext">Correction required</span>
+          </div>
+        </div>
+
+        {/* Card 5: Ready for Dispatch (Stage 5) */}
+        <div
+          className={`pod-kpi-card pod-pipeline-kpi-card ${activeTab === 'readyDispatch' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('readyDispatch');
+            document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          title="Click to view Ready for Dispatch"
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="pod-kpi-header">
+            <span className="pod-kpi-label">5. Ready for Dispatch</span>
+            <span className="pod-kpi-icon-pill cyan">
+              <PackageCheck size={16} />
+            </span>
+          </div>
+          <div className="pod-kpi-content">
+            <div className="pod-kpi-split">
+              <span className="pod-kpi-main-val" style={{ color: '#0891b2' }}>
+                {summary.readyForDispatchCount ?? readyForDispatch.length ?? 50}
+              </span>
+              <span className="pod-pill-tag cyan">Stage 5</span>
+            </div>
+            <span className="pod-kpi-subtext">QC Passed & Staged</span>
+          </div>
+        </div>
+
+        {/* Card 6: Done / Dispatched (Stage 6) */}
+        <div
+          className={`pod-kpi-card pod-pipeline-kpi-card ${activeTab === 'done' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('done');
+            document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          title="Click to view Done / Dispatched Orders"
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="pod-kpi-header">
+            <span className="pod-kpi-label">6. Done / Dispatched</span>
+            <span className="pod-kpi-icon-pill green">
+              <Truck size={16} />
+            </span>
+          </div>
+          <div className="pod-kpi-content">
+            <div className="pod-kpi-split">
+              <span className="pod-kpi-main-val" style={{ color: '#059669' }}>
+                {completedCount ?? summary.doneCount ?? 50}
+              </span>
+              <span className="pod-pill-tag green">Stage 6</span>
+            </div>
+            <span className="pod-kpi-subtext">Completed orders</span>
+          </div>
+        </div>
+
+        {/* Card 7: Target Achievement */}
         <div className="pod-kpi-card pod-kpi-target">
           <div className="pod-kpi-header">
             <span className="pod-kpi-label">Target Achievement</span>
@@ -1007,7 +1167,7 @@ export default function ProductionOperationsDashboard({
           )}
         </div>
 
-        {/* Card 2: Work Orders Movement */}
+        {/* Card 8: Work Orders Movement */}
         <div className="pod-kpi-card">
           <div className="pod-kpi-header">
             <span className="pod-kpi-label">Total Work Orders</span>
@@ -1025,7 +1185,7 @@ export default function ProductionOperationsDashboard({
           </div>
         </div>
 
-        {/* Card 3: Units Produced vs Planned */}
+        {/* Card 9: Units Produced vs Planned */}
         <div className="pod-kpi-card">
           <div className="pod-kpi-header">
             <span className="pod-kpi-label">Units Produced</span>
@@ -1042,7 +1202,7 @@ export default function ProductionOperationsDashboard({
           </div>
         </div>
 
-        {/* Card 4: Quality & Testing Yield */}
+        {/* Card 10: Quality & Testing Yield */}
         <div className="pod-kpi-card">
           <div className="pod-kpi-header">
             <span className="pod-kpi-label">First-Pass Quality Yield</span>
@@ -1061,7 +1221,7 @@ export default function ProductionOperationsDashboard({
           </div>
         </div>
 
-        {/* Card 5: Hydraulic Presses Fleet Status */}
+        {/* Card 11: Hydraulic Presses Fleet Status */}
         <div className="pod-kpi-card">
           <div className="pod-kpi-header">
             <span className="pod-kpi-label">Hydraulic Presses</span>
@@ -1078,7 +1238,7 @@ export default function ProductionOperationsDashboard({
           </div>
         </div>
 
-        {/* Card 6: Scrap & Loss Rate */}
+        {/* Card 12: Scrap & Loss Rate */}
         <div className="pod-kpi-card">
           <div className="pod-kpi-header">
             <span className="pod-kpi-label">Process Scrap Rate</span>
@@ -1095,106 +1255,6 @@ export default function ProductionOperationsDashboard({
               <span>Wastage: <b>{summary.totalWastageQty ?? 0}</b></span>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* ─── 6-STAGE MANUFACTURING PIPELINE PROGRESSION RIBBON ─── */}
-      <section className="pod-pipeline-bar pod-pipeline-hero" style={{ background: '#ffffff', borderRadius: '18px', border: '1px solid #e2e8f0', padding: '18px 22px', boxShadow: '0 4px 14px rgba(15, 23, 42, 0.03)' }}>
-        <div className="pod-pipeline-header" style={{ marginBottom: '14px' }}>
-          <h4>
-            <Layers size={17} color="#2563eb" />
-            <span style={{ fontSize: '14.5px', fontWeight: 800, color: '#0f172a' }}>Shopfloor Manufacturing Pipeline Progression</span>
-          </h4>
-          <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>6-Stage Live Flow: Incoming Orders ➔ Production Floor ➔ QC Inspection ➔ QC Failed / Rework ➔ Ready for Dispatch ➔ Done / Dispatched</p>
-        </div>
-        <div className="pod-pipeline-stages">
-          <button
-            type="button"
-            className={`pod-pipeline-step ${activeTab === 'incoming' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('incoming');
-              document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          >
-            <span className="pod-step-num">1</span>
-            <span className="pod-step-title">Incoming Orders</span>
-            <span className="pod-step-badge blue">{summary.incomingOrdersCount ?? incomingOrders.length}</span>
-          </button>
-
-          <span className="pod-pipeline-arrow">➔</span>
-
-          <button
-            type="button"
-            className={`pod-pipeline-step ${activeTab === 'runs' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('runs');
-              document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          >
-            <span className="pod-step-num">2</span>
-            <span className="pod-step-title">Production Floor</span>
-            <span className="pod-step-badge emerald">{summary.inProduction ?? activeFloorRuns.length}</span>
-          </button>
-
-          <span className="pod-pipeline-arrow">➔</span>
-
-          <button
-            type="button"
-            className={`pod-pipeline-step ${activeTab === 'qcQueue' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('qcQueue');
-              document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          >
-            <span className="pod-step-num">3</span>
-            <span className="pod-step-title">QC Inspection</span>
-            <span className="pod-step-badge purple">{summary.qcPendingWorkOrders ?? qcQueue.length}</span>
-          </button>
-
-          <span className="pod-pipeline-arrow">➔</span>
-
-          <button
-            type="button"
-            className={`pod-pipeline-step ${activeTab === 'qcFailed' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('qcFailed');
-              document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          >
-            <span className="pod-step-num">4</span>
-            <span className="pod-step-title">QC Failed / Rework</span>
-            <span className="pod-step-badge red">{summary.reworkWorkOrders ?? qcFailedList.length}</span>
-          </button>
-
-          <span className="pod-pipeline-arrow">➔</span>
-
-          <button
-            type="button"
-            className={`pod-pipeline-step ${activeTab === 'readyDispatch' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('readyDispatch');
-              document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          >
-            <span className="pod-step-num">5</span>
-            <span className="pod-step-title">Ready for Dispatch</span>
-            <span className="pod-step-badge cyan">{summary.readyForDispatchCount ?? readyForDispatch.length}</span>
-          </button>
-
-          <span className="pod-pipeline-arrow">➔</span>
-
-          <button
-            type="button"
-            className={`pod-pipeline-step ${activeTab === 'done' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('done');
-              document.getElementById('pod-operational-tables')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          >
-            <span className="pod-step-num">6</span>
-            <span className="pod-step-title">Done / Dispatched</span>
-            <span className="pod-step-badge green">{summary.doneCount ?? doneJobs.length}</span>
-          </button>
         </div>
       </section>
 

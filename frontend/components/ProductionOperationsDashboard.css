@@ -248,6 +248,23 @@
   border-color: #bbf7d0;
 }
 
+.pod-pipeline-kpi-card {
+  border-top: 3px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pod-pipeline-kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.pod-pipeline-kpi-card.active {
+  border-top-color: #2563eb;
+  background: linear-gradient(145deg, #ffffff 0%, #eff6ff 100%);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15), 0 8px 20px rgba(37, 99, 235, 0.08);
+}
+
 .pod-kpi-header {
   display: flex;
   align-items: center;
