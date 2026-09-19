@@ -209,29 +209,11 @@ export default function ProductionOperationsDashboard({
 
   // Charts data
   const targetVsActualCurve = useMemo(() => {
-    if (dashboardData?.targetVsActualCurve?.length > 0) {
-      return dashboardData.targetVsActualCurve;
-    }
-    // Fallback if backend returned empty array
-    return [
-      { name: 'Day 1', Target: 120, Actual: 110, Rejected: 4 },
-      { name: 'Day 2', Target: 140, Actual: 135, Rejected: 5 },
-      { name: 'Day 3', Target: 130, Actual: 128, Rejected: 2 },
-      { name: 'Day 4', Target: 160, Actual: 154, Rejected: 6 },
-      { name: 'Day 5', Target: 150, Actual: 148, Rejected: 3 },
-      { name: 'Day 6', Target: 170, Actual: 165, Rejected: 4 },
-      { name: 'Today', Target: 180, Actual: 172, Rejected: 5 }
-    ];
+    return dashboardData?.targetVsActualCurve || dashboardData?.charts?.dailyTrend || [];
   }, [dashboardData]);
 
   const shiftPerformance = useMemo(() => {
-    if (dashboardData?.shiftPerformance?.length > 0) {
-      return dashboardData.shiftPerformance;
-    }
-    return [
-      { shift: 'Morning', Target: 450, Produced: 420, Good: 405, Rejected: 15, efficiency: 90.0 },
-      { shift: 'Night', Target: 400, Produced: 375, Good: 362, Rejected: 13, efficiency: 90.5 }
-    ];
+    return dashboardData?.shiftPerformance || dashboardData?.charts?.shiftComparison || [];
   }, [dashboardData]);
 
   const orderStatusDistribution = useMemo(() => {
@@ -259,44 +241,19 @@ export default function ProductionOperationsDashboard({
   }, [dashboardData, summary, derivedStats]);
 
   const machineFleet = useMemo(() => {
-    if (dashboardData?.machineFleet?.length > 0) {
-      return dashboardData.machineFleet.map((m) => ({
-        ...m,
-        name: m.name || m.machineName || `Press ${m.id || ''}`
-      }));
-    }
-    return [
-      { name: 'Hydraulic Machine 1', type: 'Hydraulic Press', status: 'RUNNING', oee: 92 },
-      { name: 'Hydraulic Machine 2', type: 'Hydraulic Press', status: 'RUNNING', oee: 88 },
-      { name: 'Hydraulic Machine 3', type: 'Hydraulic Press', status: 'RUNNING', oee: 94 },
-      { name: 'Hydraulic Machine 4', type: 'Hydraulic Press', status: 'IDLE', oee: 78 },
-      { name: 'Hydraulic Machine 5', type: 'Hydraulic Press', status: 'RUNNING', oee: 91 },
-      { name: 'Hydraulic Machine 6', type: 'Hydraulic Press', status: 'RUNNING', oee: 89 }
-    ];
+    const raw = dashboardData?.machineFleet || dashboardData?.charts?.machines || [];
+    return raw.map((m) => ({
+      ...m,
+      name: m.name || m.machineName || `Press ${m.id || ''}`
+    }));
   }, [dashboardData]);
 
   const scrapCategories = useMemo(() => {
-    if (dashboardData?.scrapCategories?.length > 0) {
-      return dashboardData.scrapCategories;
-    }
-    return [
-      { category: 'Process Scrap', quantity: 65, percentage: 55 },
-      { category: 'Material Defect', quantity: 24, percentage: 20 },
-      { category: 'Machine Loss', quantity: 18, percentage: 15 },
-      { category: 'Handling Damage', quantity: 12, percentage: 10 }
-    ];
+    return dashboardData?.scrapCategories || dashboardData?.charts?.scrapCategories || [];
   }, [dashboardData]);
 
   const topProducts = useMemo(() => {
-    if (dashboardData?.topProducts?.length > 0) {
-      return dashboardData.topProducts;
-    }
-    return [
-      { name: 'Brake Lining Heavy', produced: 320, target: 350, completionRate: 91 },
-      { name: 'Clutch Facing Auto', produced: 280, target: 300, completionRate: 93 },
-      { name: 'Industrial Friction Block', produced: 210, target: 250, completionRate: 84 },
-      { name: 'Molded Friction Roll', produced: 195, target: 200, completionRate: 98 }
-    ];
+    return dashboardData?.topProducts || dashboardData?.charts?.topProducts || [];
   }, [dashboardData]);
 
   // Tabular Floor Data

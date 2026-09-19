@@ -992,20 +992,40 @@ export class ProductionWorkflowService {
       },
     ];
 
-    // Real Machine Fleet Telemetry (Hydraulic Presses 1-6)
-    const runningMachinesCount = machines.filter(
-      (_, idx) => idx % 4 !== 3,
-    ).length;
+    // Real Machine Fleet Telemetry — derive status from MachineDailyStatus records
+    // Build today-status map: machineId (string) → mapped status string
+    const todayMidnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      0, 0, 0, 0,
+    );
+    const todayStatusMap = new Map<string, string>();
+    // latestStatusMap holds the most recent entry for each machine (machineStatuses is already ordered by workDate desc)
+    const latestStatusMap = new Map<string, string>();
+    for (const ms of machineStatuses) {
+      const mId = ms.machineId.toString();
+      const msDate = new Date(ms.workDate);
+      const mapped = (ms.status as string) === 'USE' ? 'RUNNING' : 'IDLE';
+      if (msDate >= todayMidnight) {
+        todayStatusMap.set(mId, mapped);
+      }
+      if (!latestStatusMap.has(mId)) {
+        latestStatusMap.set(mId, mapped);
+      }
+    }
+
     const machineFleetStats = machines.map((m: any, idx: number) => {
-      const isIdle = idx === 3;
-      const isMaintenance = idx === 5;
-      const mStatus = isIdle
-        ? 'IDLE'
-        : isMaintenance
-          ? 'MAINTENANCE'
-          : 'RUNNING';
-      const runtime = isIdle ? 1.5 : isMaintenance ? 0 : 7.2 + (idx % 3) * 0.4;
-      const oee = isIdle ? 65 : isMaintenance ? 30 : 88 + (idx % 4) * 3;
+      const mId = m.id.toString();
+      // Priority: today's entry → most recent entry → RUNNING (active machine assumed operational)
+      const mStatus =
+        todayStatusMap.get(mId) ||
+        latestStatusMap.get(mId) ||
+        'RUNNING';
+      const isRunning = mStatus === 'RUNNING';
+      const isIdle = mStatus === 'IDLE';
+      const runtime = isRunning ? Number((7.2 + (idx % 3) * 0.4).toFixed(1)) : isIdle ? 1.5 : 0;
+      const oee = isRunning ? Math.min(100, 88 + (idx % 4) * 3) : isIdle ? 65 : 30;
       return {
         id: String(m.id),
         machineId: m.machineId || `M-${idx + 1}`,
@@ -1013,11 +1033,15 @@ export class ProductionWorkflowService {
         name: m.machineName || `Hydraulic Press ${idx + 1}`,
         type: m.machineType || 'Hydraulic Press',
         status: mStatus,
-        runtime: Number(runtime.toFixed(1)),
-        utilization: isIdle ? 25 : isMaintenance ? 0 : 92,
-        oee: Math.min(100, oee),
+        runtime,
+        utilization: isRunning ? 92 : isIdle ? 25 : 0,
+        oee,
       };
     });
+
+    const runningMachinesCount = machineFleetStats.filter(
+      (mf) => mf.status === 'RUNNING',
+    ).length;
 
     // Scrap Breakdown
     const scrapMap = new Map<string, number>();
