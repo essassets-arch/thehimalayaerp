@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Plus, Edit2, Trash2, Printer, Search, Download, FileText,
   CheckCircle, XCircle, AlertCircle, ClipboardList, X, Loader2
@@ -11,15 +11,22 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { backendFetch } from '@/lib/backendFetch';
 import { safeSaveFile } from '@/services/export.service';
+import Swal from 'sweetalert2';
+import { useQueryClient } from '@tanstack/react-query';
 import styles from './testing.module.css';
 
 export default function ProductionTestingPage() {
+  const queryClient = useQueryClient();
+  const submitting = useRef(false);
+  const pendingRequest = useRef<{ fingerprint: string; id: string } | null>(null);
+  const [productSearch, setProductSearch] = useState('');
+  const [productError, setProductError] = useState('');
   const [records, setRecords]         = useState<any[]>([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
   const [products, setProducts]       = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData]       = useState({ productName: '', quantity: '', remarks: '' });
+  const [formData, setFormData]       = useState({ productId: '', productName: '', quantity: '', remarks: '' });
   const [editingId, setEditingId]     = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm]       = useState(false);
@@ -27,11 +34,12 @@ export default function ProductionTestingPage() {
   /* ── Load Products Master for Dropdown ── */
   const fetchProducts = async () => {
     try {
-      const res = await backendFetch<{ success?: boolean; data?: any[] }>('/api/backend/production/finished-goods');
+      const res = await backendFetch<{ success?: boolean; data?: any[] }>('/api/backend/products?scope=catalog&limit=5000');
       const list = Array.isArray(res) ? res : (res?.data || []);
       setProducts(list);
+      setProductError('');
     } catch (err) {
-      // Non-blocking fallback
+      setProductError('Unable to load products. Please retry.');
     }
   };
 
@@ -40,7 +48,7 @@ export default function ProductionTestingPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await backendFetch<{ success?: boolean; data?: any[] }>('/api/backend/production/testing');
+      const res = await backendFetch<{ success?: boolean; data?: any[] }>('/api/backend/production/testing', { cacheTtlMs: 0 });
       const dataList = Array.isArray(res) ? res : (res?.data || []);
       setRecords(dataList);
     } catch (err: any) {
@@ -58,40 +66,46 @@ export default function ProductionTestingPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.productName.trim() || !formData.quantity) {
-      toast.error('Please fill in all required fields');
+    if (submitting.current) return;
+    if (!editingId && !products.some(p => p.id === formData.productId)) {
+      toast.error('Select a product from the product master');
       return;
     }
     const qtyNum = Number(formData.quantity);
-    if (isNaN(qtyNum) || qtyNum <= 0) {
-      toast.error('Quantity must be greater than 0');
+    if (!Number.isSafeInteger(qtyNum) || qtyNum <= 0) {
+      toast.error('Quantity must be a positive whole number');
       return;
     }
-
+    const payload = editingId ? { remarks: formData.remarks.trim() } : {
+      productId: formData.productId, quantity: qtyNum, remarks: formData.remarks.trim(),
+    };
+    const fingerprint = JSON.stringify(payload);
+    if (!pendingRequest.current || pendingRequest.current.fingerprint !== fingerprint) {
+      pendingRequest.current = { fingerprint, id: crypto.randomUUID() };
+    }
+    submitting.current = true;
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
-      const method = editingId ? 'PUT' : 'POST';
-      const endpoint = editingId
-        ? `/api/backend/production/testing/${editingId}`
-        : '/api/backend/production/testing';
-
-      await backendFetch(endpoint, {
-        method,
-        body: {
-          productName: formData.productName.trim(),
-          quantity: qtyNum,
-          remarks: formData.remarks.trim() || undefined,
-        },
+      await backendFetch(editingId ? '/api/backend/production/testing/' + editingId : '/api/backend/production/testing', {
+        method: editingId ? 'PUT' : 'POST',
+        body: editingId ? payload : { ...payload, requestId: pendingRequest.current.id },
       });
-
-      toast.success(editingId ? 'Testing record updated' : 'Testing record added');
-      setFormData({ productName: '', quantity: '', remarks: '' });
+      pendingRequest.current = null;
+      setFormData({ productId: '', productName: '', quantity: '', remarks: '' });
       setEditingId(null);
+      setProductSearch('');
       setShowForm(false);
-      await fetchRecords();
+      await Promise.all([
+        fetchRecords(),
+        queryClient.invalidateQueries({ queryKey: ['finished-goods-all-stock'] }),
+        queryClient.invalidateQueries({ queryKey: ['finished-goods-all-stock-logs'] }),
+      ]);
+      await Swal.fire({ icon: 'success', title: editingId ? 'Testing notes updated' : 'Testing record added successfully',
+        text: editingId ? undefined : qtyNum + ' PCS deducted from stock.' });
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to save testing record');
+      toast.error(err?.message || 'Unable to confirm submission. Retry the same record to check its result safely.');
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
     }
   };
@@ -110,6 +124,7 @@ export default function ProductionTestingPage() {
   const handleEdit = (record: any) => {
     setEditingId(record.id);
     setFormData({
+      productId: record.productId || '',
       productName: record.productName,
       quantity: String(record.quantity),
       remarks: record.remarks || '',
@@ -120,7 +135,7 @@ export default function ProductionTestingPage() {
 
   const handleCancelForm = () => {
     setEditingId(null);
-    setFormData({ productName: '', quantity: '', remarks: '' });
+    setFormData({ productId: '', productName: '', quantity: '', remarks: '' });
     setShowForm(false);
   };
 
@@ -232,7 +247,8 @@ export default function ProductionTestingPage() {
           </button>
           <button
             className={`${styles.btn} ${styles.btnPrimary}`}
-            onClick={() => { setShowForm(true); setEditingId(null); setFormData({ productName: '', quantity: '', remarks: '' }); }}
+            disabled={isSubmitting}
+            onClick={() => { setShowForm(true); setEditingId(null); setFormData({ productId: '', productName: '', quantity: '', remarks: '' }); }}
           >
             <Plus size={14} />
             Add Record
@@ -245,7 +261,7 @@ export default function ProductionTestingPage() {
         <div className={styles.formCard}>
           <div className={styles.formHeader}>
             <h3 className={styles.formTitle}>{editingId ? 'Edit Record' : 'Add New Record'}</h3>
-            <button className={styles.formClose} onClick={handleCancelForm} aria-label="Close form">
+            <button className={styles.formClose} disabled={isSubmitting} onClick={handleCancelForm} aria-label="Close form">
               <X size={18} />
             </button>
           </div>
@@ -253,23 +269,20 @@ export default function ProductionTestingPage() {
           <form onSubmit={handleSubmit} className={styles.formGrid}>
             <div className={`${styles.formField} ${styles.wide}`}>
               <label className={styles.formLabel}>Product / Material Name *</label>
-              <input
-                type="text"
-                list="product-master-list"
-                required
-                placeholder="Select or type product name (e.g. FG-920911 — Hydraulic Cylinder 50mm DB Test)"
-                value={formData.productName}
-                onChange={e => setFormData({ ...formData, productName: e.target.value })}
-                className={styles.formInput}
-              />
-              <datalist id="product-master-list">
-                {products.map((p, idx) => (
-                  <option
-                    key={p.id || idx}
-                    value={`${p.productCode && p.productCode !== '-' ? p.productCode + ' — ' : ''}${p.productName}`}
-                  />
-                ))}
-              </datalist>
+              {editingId ? <input className={styles.formInput} value={formData.productName} disabled /> : <>
+                <input type="search" aria-label="Search product master" placeholder="Search products by name or code"
+                  value={productSearch} disabled={isSubmitting}
+                  onChange={e => setProductSearch(e.target.value)} className={styles.formInput} />
+                <select required aria-label="Product / Material Name" value={formData.productId}
+                  disabled={isSubmitting || !!productError} className={styles.formInput}
+                  onChange={e => setFormData({ ...formData, productId: e.target.value })}>
+                  <option value="">Select a product</option>
+                  {products.filter(p => p.id === formData.productId ||
+                    [p.name, p.sku, p.publicId].join(' ').toLowerCase().includes(productSearch.toLowerCase()))
+                    .map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku || p.publicId})</option>)}
+                </select>
+                {productError && <div role="alert">{productError} <button type="button" onClick={fetchProducts}>Retry</button></div>}
+              </>}
             </div>
 
             <div className={styles.formField}>
@@ -278,7 +291,8 @@ export default function ProductionTestingPage() {
                 type="number"
                 required
                 min="1"
-                step="any"
+                step="1"
+                disabled={isSubmitting || !!editingId}
                 placeholder="e.g. 50"
                 value={formData.quantity}
                 onChange={e => setFormData({ ...formData, quantity: e.target.value })}
@@ -291,6 +305,7 @@ export default function ProductionTestingPage() {
               <input
                 type="text"
                 placeholder="e.g. Dimensional and pressure test parameters verified"
+                disabled={isSubmitting}
                 value={formData.remarks}
                 onChange={e => setFormData({ ...formData, remarks: e.target.value })}
                 className={styles.formInput}
@@ -370,7 +385,9 @@ export default function ProductionTestingPage() {
                   <th>Qty</th>
                   <th>UOM</th>
                   <th>Status</th>
-                  <th>Tested By</th>
+                  <th>Created By</th>
+                  <th>Created Date/Time</th>
+                  <th>Stock Deducted</th>
                   <th>Remarks</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -392,7 +409,7 @@ export default function ProductionTestingPage() {
                       <StatusBadge status={record.status} />
                     </td>
                     <td style={{ fontSize: '13px', color: '#64748b' }}>
-                      {record.reviewedBy || 'Production Supervisor'}
+                      {record.createdBy?.name || record.reviewedBy || '-'}
                     </td>
                     <td style={{ fontSize: '13px', color: '#64748b' }}>
                       {record.remarks || '-'}
@@ -415,7 +432,8 @@ export default function ProductionTestingPage() {
                         </button>
                         <button
                           className={`${styles.actionBtn} ${styles.del}`}
-                          title="Delete Record"
+                          disabled={record.stockDeducted != null}
+                          title={record.stockDeducted != null ? "Stock-consuming records are retained for audit" : "Delete Record"}
                           onClick={() => handleDelete(record.id)}
                         >
                           <Trash2 size={14} />

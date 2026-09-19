@@ -58,7 +58,6 @@ export class ProductionTestingController {
     'production.productiontesting.create',
     'production.testing.create',
     'production.floor.create',
-    'production.floor.read',
     'production.qc.approve',
   )
   @Post()
@@ -95,6 +94,7 @@ export class ProductionTestingController {
       status?: string;
       remarks?: string;
     },
+    @Req() req: any,
   ) {
     const data = await this.testingService.updateTestingRecord(id, dto, req.user.companyId);
     return { success: true, data };
