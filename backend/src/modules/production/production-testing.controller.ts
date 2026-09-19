@@ -13,7 +13,10 @@ import {
   Param,
   Req,
 } from '@nestjs/common';
-import { ProductionTestingService, CreateTestingRecord } from './production-testing.service';
+import {
+  ProductionTestingService,
+  CreateTestingRecord,
+} from './production-testing.service';
 
 @Controller('production/testing')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -33,7 +36,9 @@ export class ProductionTestingController {
   )
   @Get()
   async listTestingRecords(@Req() req: any) {
-    const data = await this.testingService.listTestingRecords(req.user.companyId);
+    const data = await this.testingService.listTestingRecords(
+      req.user.companyId,
+    );
     return { success: true, data };
   }
 
@@ -50,7 +55,10 @@ export class ProductionTestingController {
   )
   @Get(':id')
   async getTestingRecord(@Param('id') id: string, @Req() req: any) {
-    const data = await this.testingService.getTestingRecord(id, req.user.companyId);
+    const data = await this.testingService.getTestingRecord(
+      id,
+      req.user.companyId,
+    );
     return { success: true, data };
   }
 
@@ -96,7 +104,11 @@ export class ProductionTestingController {
     },
     @Req() req: any,
   ) {
-    const data = await this.testingService.updateTestingRecord(id, dto, req.user.companyId);
+    const data = await this.testingService.updateTestingRecord(
+      id,
+      dto,
+      req.user.companyId,
+    );
     return { success: true, data };
   }
 
@@ -115,7 +127,12 @@ export class ProductionTestingController {
     @Body() dto: { status: string; remarks?: string },
     @Req() req: any,
   ) {
-    const data = await this.testingService.updateStatus(id, dto, req.user.companyId, req.user.sub);
+    const data = await this.testingService.updateStatus(
+      id,
+      dto,
+      req.user.companyId,
+      req.user.sub,
+    );
     return { success: true, data };
   }
 
@@ -126,7 +143,10 @@ export class ProductionTestingController {
   )
   @Delete(':id')
   async deleteTestingRecord(@Param('id') id: string, @Req() req: any) {
-    const data = await this.testingService.deleteTestingRecord(id, req.user.companyId);
+    const data = await this.testingService.deleteTestingRecord(
+      id,
+      req.user.companyId,
+    );
     return { success: true, data };
   }
 }

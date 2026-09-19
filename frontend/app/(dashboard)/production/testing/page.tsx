@@ -34,7 +34,7 @@ export default function ProductionTestingPage() {
   /* ── Load Products Master for Dropdown ── */
   const fetchProducts = async () => {
     try {
-      const res = await backendFetch<{ success?: boolean; data?: any[] }>('/api/backend/products?scope=catalog&limit=5000');
+      const res = await backendFetch<{ success?: boolean; data?: any[] }>('/api/backend/products?scope=catalog&limit=5000', { cacheTtlMs: 0 });
       const list = Array.isArray(res) ? res : (res?.data || []);
       setProducts(list);
       setProductError('');
@@ -248,7 +248,7 @@ export default function ProductionTestingPage() {
           <button
             className={`${styles.btn} ${styles.btnPrimary}`}
             disabled={isSubmitting}
-            onClick={() => { setShowForm(true); setEditingId(null); setFormData({ productId: '', productName: '', quantity: '', remarks: '' }); }}
+            onClick={() => { fetchProducts(); setProductSearch(''); setShowForm(true); setEditingId(null); setFormData({ productId: '', productName: '', quantity: '', remarks: '' }); }}
           >
             <Plus size={14} />
             Add Record

@@ -53,10 +53,15 @@ const statusText = (wo) => String(wo?.status || wo?.workflowStatus || wo?.produc
 function formatDuration(ms) {
   if (!ms || ms <= 0) return '00:00:00';
   const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
+  const totalHours = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  if (totalHours >= 24) {
+    const days = Math.floor(totalHours / 24);
+    const remHours = totalHours % 24;
+    return `${days}d ${remHours.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${totalHours.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
 function Modal({ title, subtitle, onClose, children }) {
@@ -370,8 +375,7 @@ export default function ProductionOperationsDashboard({
 
   // 1. Incoming Orders (Waiting to be scheduled / released)
   const incomingOrders = useMemo(() => {
-    const list = dashboardData?.incomingOrders || [];
-    if (list.length > 0) return list;
+    if (dashboardData) return dashboardData.incomingOrders || [];
     return workOrders
       .filter((w) =>
         ['CREATED', 'READY', 'MATERIAL_PENDING', 'DRAFT', 'PENDING', 'PLANNED'].includes(statusText(w)) &&
@@ -395,8 +399,7 @@ export default function ProductionOperationsDashboard({
 
   // 2. Tabular Floor Data (Active Floor Runs)
   const activeFloorRuns = useMemo(() => {
-    const list = dashboardData?.activeFloorRuns || [];
-    if (list.length > 0) return list;
+    if (dashboardData) return dashboardData.activeFloorRuns || dashboardData.activeRunningJobs || [];
     return workOrders
       .filter((w) => ['IN_PROGRESS', 'IN_PRODUCTION', 'RUNNING', 'MATERIAL_ISSUED'].includes(statusText(w)))
       .slice(0, 20)
@@ -420,8 +423,7 @@ export default function ProductionOperationsDashboard({
 
   // 3. QC Testing Queue
   const qcQueue = useMemo(() => {
-    const list = dashboardData?.qcQueue || [];
-    if (list.length > 0) return list;
+    if (dashboardData) return dashboardData.qcQueue || [];
     return workOrders
       .filter((w) => ['QC_PENDING', 'TESTING', 'UNDER_INSPECTION'].includes(statusText(w)))
       .slice(0, 30)
@@ -442,8 +444,8 @@ export default function ProductionOperationsDashboard({
 
   // 4. QC Failed / Rework Queue
   const qcFailedList = useMemo(() => {
-    const list = dashboardData?.qcFailed || dashboardData?.reworkJobs || [];
-    if (list.length > 0) {
+    if (dashboardData) {
+      const list = dashboardData.qcFailed || dashboardData.reworkJobs || [];
       return list.filter((j) => !completedRework.includes(String(j.id || j.workOrderNo)));
     }
     return workOrders
@@ -475,8 +477,7 @@ export default function ProductionOperationsDashboard({
 
   // 5. Ready for Dispatch (Passed QC, waiting logistics dispatch)
   const readyForDispatch = useMemo(() => {
-    const list = dashboardData?.readyForDispatch || [];
-    if (list.length > 0) return list;
+    if (dashboardData) return dashboardData.readyForDispatch || [];
     return workOrders
       .filter((w) => ['READY_FOR_DISPATCH', 'QC_APPROVED', 'QC_PASSED'].includes(statusText(w)))
       .slice(0, 50)
@@ -495,8 +496,7 @@ export default function ProductionOperationsDashboard({
 
   // 6. Done / Dispatched Jobs
   const doneJobs = useMemo(() => {
-    const list = dashboardData?.doneJobs || [];
-    if (list.length > 0) return list;
+    if (dashboardData) return dashboardData.doneJobs || [];
     return workOrders
       .filter((w) => ['DISPATCHED', 'COMPLETED', 'CLOSED'].includes(statusText(w)))
       .slice(0, 50)
@@ -514,8 +514,7 @@ export default function ProductionOperationsDashboard({
 
   // 7. Delayed / Overdue Jobs
   const delayedJobs = useMemo(() => {
-    const list = dashboardData?.delayedJobs || [];
-    if (list.length > 0) return list;
+    if (dashboardData) return dashboardData.delayedJobs || [];
     const today = new Date().toISOString().slice(0, 10);
     return workOrders
       .filter((w) => !['COMPLETED', 'QC_PASSED', 'CLOSED', 'DISPATCHED'].includes(statusText(w)) && w.targetDate && w.targetDate < today)
@@ -535,7 +534,8 @@ export default function ProductionOperationsDashboard({
 
   // 8. Shift Entries List
   const shiftEntriesList = useMemo(() => {
-    return dashboardData?.shiftEntries || initialShiftEntries || [];
+    if (dashboardData) return dashboardData.shiftLogs || dashboardData.shiftEntries || [];
+    return initialShiftEntries || [];
   }, [dashboardData, initialShiftEntries]);
 
   // ─── PIPELINE OPERATIONAL ACTIONS ───
@@ -1168,8 +1168,8 @@ export default function ProductionOperationsDashboard({
             <span className="pod-kpi-main-val">{totalWorkOrders.toLocaleString()}</span>
             <div className="pod-kpi-pills-row">
               <span className="pod-pill-tag amber">{inProductionCount} Running</span>
-              <span className="pod-pill-tag purple">{qcPendingCount} QC</span>
-              <span className="pod-pill-tag green">{completedCount} Done</span>
+              <span className="pod-pill-tag cyan">{summary.readyForDispatchCount ?? 0} Ready</span>
+              <span className="pod-pill-tag green">{summary.doneCount ?? completedCount} Done</span>
             </div>
           </div>
         </div>
@@ -1586,7 +1586,7 @@ export default function ProductionOperationsDashboard({
             >
               <Inbox size={15} />
               <span>Incoming Orders</span>
-              <span className="pod-tab-counter">{incomingOrders.length}</span>
+              <span className="pod-tab-counter">{summary.incomingOrdersCount ?? incomingOrders.length}</span>
             </button>
 
             <button
@@ -1596,7 +1596,7 @@ export default function ProductionOperationsDashboard({
             >
               <Activity size={15} />
               <span>Floor Runs</span>
-              <span className="pod-tab-counter">{activeFloorRuns.length}</span>
+              <span className="pod-tab-counter">{summary.inProduction ?? activeFloorRuns.length}</span>
             </button>
 
             <button
@@ -1606,7 +1606,7 @@ export default function ProductionOperationsDashboard({
             >
               <ShieldCheck size={15} />
               <span>QC Queue</span>
-              <span className="pod-tab-counter purple">{qcQueue.length}</span>
+              <span className="pod-tab-counter purple">{summary.qcPendingWorkOrders ?? qcQueue.length}</span>
             </button>
 
             <button
@@ -1616,7 +1616,7 @@ export default function ProductionOperationsDashboard({
             >
               <AlertOctagon size={15} />
               <span>QC Failed</span>
-              <span className="pod-tab-counter alert">{qcFailedList.length}</span>
+              <span className="pod-tab-counter alert">{summary.reworkWorkOrders ?? summary.qcFailed ?? qcFailedList.length}</span>
             </button>
 
             <button
@@ -1626,7 +1626,7 @@ export default function ProductionOperationsDashboard({
             >
               <Truck size={15} />
               <span>Ready to Dispatch</span>
-              <span className="pod-tab-counter cyan">{readyForDispatch.length}</span>
+              <span className="pod-tab-counter cyan">{summary.readyForDispatchCount ?? readyForDispatch.length}</span>
             </button>
 
             <button
@@ -1636,7 +1636,7 @@ export default function ProductionOperationsDashboard({
             >
               <PackageCheck size={15} />
               <span>Done / Dispatched</span>
-              <span className="pod-tab-counter">{doneJobs.length}</span>
+              <span className="pod-tab-counter">{summary.doneCount ?? doneJobs.length}</span>
             </button>
 
             <button
@@ -1646,7 +1646,7 @@ export default function ProductionOperationsDashboard({
             >
               <AlertCircle size={15} />
               <span>Delayed</span>
-              <span className="pod-tab-counter alert">{delayedJobs.length}</span>
+              <span className="pod-tab-counter alert">{summary.delayedJobsCount ?? delayedJobs.length}</span>
             </button>
 
             <button
@@ -1656,7 +1656,7 @@ export default function ProductionOperationsDashboard({
             >
               <ListOrdered size={15} />
               <span>Shift Logs</span>
-              <span className="pod-tab-counter">{shiftEntriesList.length}</span>
+              <span className="pod-tab-counter">{summary.shiftLogsCount ?? shiftEntriesList.length}</span>
             </button>
           </div>
 

@@ -871,6 +871,7 @@ export default function FinishedGoodsStockView({
                 <option value="ALL">All Events</option>
                 <option value="PRODUCTION_IN">Production Entry</option>
                 <option value="DISPATCH_OUT">Dispatch Out</option>
+                <option value="TESTING">Testing</option>
                 <option value="STOCK_IN">Stock In</option>
                 <option value="ADJUSTMENT">Adjustment</option>
               </select>

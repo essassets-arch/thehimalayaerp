@@ -757,6 +757,7 @@ export class ProductionWorkflowService {
           productionPlan: {
             include: { salesOrder: { include: { customer: true } } },
           },
+          shiftEntries: true,
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -917,10 +918,12 @@ export class ProductionWorkflowService {
     const totalOrders = allWorkOrders.length + incomingFromPlans.length;
     const pending = incomingOrdersCount;
 
-    const plannedUnits = allWorkOrders.reduce(
-      (s, w) => s + toNumber(w.quantity),
-      0,
-    ) + incomingFromPlans.reduce((s, p) => s + toNumber(p.quantity), 0);
+    const plannedUnits = Math.round(
+      allWorkOrders.reduce(
+        (s, w) => s + toNumber(w.quantity),
+        0,
+      ) + incomingFromPlans.reduce((s, p) => s + toNumber(p.quantity), 0),
+    );
 
     const producedFromWOs =
       rawReadyForDispatch.reduce((s, w) => s + toNumber(w.quantity), 0) +
@@ -930,24 +933,30 @@ export class ProductionWorkflowService {
       (s, e) => s + toNumber(e.producedQty),
       0,
     );
-    const producedUnits = producedFromShifts > 0 ? producedFromShifts : producedFromWOs;
+    const producedUnits = Math.round(producedFromShifts > 0 ? producedFromShifts : producedFromWOs);
 
-    const totalScrapQty = scrapEntries.reduce(
-      (s, e) => s + toNumber(e.scrapQty),
-      0,
+    const totalScrapQty = Math.round(
+      scrapEntries.reduce(
+        (s, e) => s + toNumber(e.scrapQty),
+        0,
+      ),
     );
-    const totalWastageQty = scrapEntries.reduce(
-      (s, e) => s + toNumber(e.wastageQty),
-      0,
+    const totalWastageQty = Math.round(
+      scrapEntries.reduce(
+        (s, e) => s + toNumber(e.wastageQty),
+        0,
+      ),
     );
-    const rejectedUnits =
-      shiftEntries.reduce((s, e) => s + toNumber(e.rejectedQty), 0) + totalScrapQty;
+    const rejectedUnits = Math.round(
+      shiftEntries.reduce((s, e) => s + toNumber(e.rejectedQty), 0) + totalScrapQty,
+    );
 
-    const reworkUnits =
+    const reworkUnits = Math.round(
       rawQcFailed.reduce((s, w) => s + toNumber(w.quantity), 0) +
-      shiftEntries.reduce((s, e) => s + toNumber(e.reworkQty), 0);
+      shiftEntries.reduce((s, e) => s + toNumber(e.reworkQty), 0),
+    );
 
-    const goodUnits = Math.max(0, producedUnits - rejectedUnits);
+    const goodUnits = Math.round(Math.max(0, producedUnits - rejectedUnits));
     const efficiency = plannedUnits > 0
       ? Math.min(100, percentage(goodUnits, plannedUnits))
       : (producedUnits > 0 ? 100 : 0);
@@ -960,7 +969,7 @@ export class ProductionWorkflowService {
       ? percentage(totalScrapQty, producedUnits)
       : 0;
 
-    const targetUnits = plannedUnits > 0 ? plannedUnits : (goodUnits > 0 ? goodUnits : 100);
+    const targetUnits = Math.round(plannedUnits > 0 ? plannedUnits : (goodUnits > 0 ? goodUnits : 100));
     const achievementPct = targetUnits > 0 ? percentage(goodUnits, targetUnits) : 100;
 
     // Build Authentic Multi-Day Trend
@@ -1165,9 +1174,11 @@ export class ProductionWorkflowService {
 
     // Active Running Jobs
     const activeFloorRuns = rawFloorRuns.slice(0, 100).map((w, idx) => {
-      const planned = toNumber(w.quantity) || 10;
-      const produced = toNumber((w as any).producedQuantity) || 0;
-      const progress = planned > 0 ? Math.min(100, Math.round((produced / planned) * 100)) : 40;
+      const planned = Math.round(toNumber(w.quantity) || 10);
+      const shiftProduced = (w.shiftEntries || []).reduce((s: number, e: any) => s + toNumber(e.producedQty), 0);
+      const rawProduced = toNumber((w as any).producedQuantity) || 0;
+      const produced = shiftProduced > 0 ? shiftProduced : rawProduced;
+      const progress = planned > 0 ? Math.min(100, Math.round((produced / planned) * 100)) : 0;
       return {
         id: w.id,
         workOrderNo: w.workOrderNumber,
@@ -1180,7 +1191,7 @@ export class ProductionWorkflowService {
         quantity: planned,
         producedQty: produced,
         targetDate: w.productionPlan?.plannedEndDate ? new Date(w.productionPlan.plannedEndDate).toISOString().slice(0, 10) : '—',
-        startedAt: w.startedAt || w.createdAt,
+        startedAt: w.productionStartTime || w.startedAt || w.createdAt,
         operator: w.updatedBy || `Operator ${(idx % 6) + 1}`,
         machine: machineFleetStats[idx % (machineFleetStats.length || 1)]?.machineName || `Hydraulic Press ${(idx % 6) + 1}`,
       };
@@ -1329,6 +1340,8 @@ export class ProductionWorkflowService {
         activeMachinesCount: runningMachinesCount,
         totalMachines: machines.length,
         totalMachinesCount: machines.length,
+        delayedJobsCount: formattedDelayedJobs.length,
+        shiftLogsCount: shiftEntries.length,
         targetAchievement: targetAchievementData,
       },
       charts: {
