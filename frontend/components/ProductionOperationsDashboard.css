@@ -435,6 +435,9 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .pod-chart-header {
@@ -500,6 +503,13 @@
 
 .pod-chart-body {
   width: 100%;
+  min-width: 0;
+  min-height: 220px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .pod-donut-center {
@@ -1065,14 +1075,15 @@
 }
 
 /* ─── RESPONSIVE QUERIES ─── */
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
   .pod-charts-row-3 {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 900px) {
-  .pod-charts-row-2 {
+  .pod-charts-row-2,
+  .pod-charts-row-3 {
     grid-template-columns: 1fr;
   }
   .pod-header {
@@ -1099,6 +1110,13 @@
   .pod-table-search input {
     width: 100%;
   }
+  .pod-pipeline-stages {
+    gap: 6px;
+  }
+  .pod-pipeline-step {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1107,6 +1125,88 @@
   }
   .pod-period-tabs {
     flex-wrap: wrap;
+  }
+  .pod-chart-card {
+    padding: 14px 12px;
+  }
+  .pod-pipeline-step {
+    padding: 5px 8px;
+  }
+  .pod-step-title {
+    font-size: 11px;
+  }
+}
+
+/* ─── ULTRA-WIDE & 4K / 8K / 12K ULTRA-RESOLUTION ADAPTATION ─── */
+@media (min-width: 2560px) {
+  .pod-container {
+    max-width: 3200px;
+    margin: 0 auto;
+  }
+  .pod-charts-row-2 {
+    gap: 28px;
+  }
+  .pod-charts-row-3 {
+    gap: 28px;
+  }
+  .pod-chart-card {
+    padding: 28px;
+    border-radius: 22px;
+  }
+  .pod-chart-header h3 {
+    font-size: 20px;
+  }
+  .pod-chart-header p {
+    font-size: 14px;
+  }
+  .pod-kpi-main-val {
+    font-size: 32px;
+  }
+}
+
+@media (min-width: 3840px) {
+  .pod-container {
+    max-width: 4400px;
+  }
+  .pod-chart-card {
+    padding: 34px;
+    border-radius: 24px;
+  }
+  .pod-chart-header h3 {
+    font-size: 24px;
+  }
+  .pod-chart-header p {
+    font-size: 16px;
+  }
+  .pod-kpi-main-val {
+    font-size: 38px;
+  }
+}
+
+@media (min-width: 7680px) {
+  /* 8K / 12K Displays */
+  .pod-container {
+    max-width: 6800px;
+    margin: 0 auto;
+  }
+  .pod-charts-row-2 {
+    gap: 36px;
+  }
+  .pod-charts-row-3 {
+    gap: 36px;
+  }
+  .pod-chart-card {
+    padding: 42px;
+    border-radius: 30px;
+  }
+  .pod-chart-header h3 {
+    font-size: 28px;
+  }
+  .pod-chart-header p {
+    font-size: 18px;
+  }
+  .pod-kpi-main-val {
+    font-size: 48px;
   }
 }
 
