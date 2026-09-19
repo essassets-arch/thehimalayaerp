@@ -1,7 +1,10 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { useNotificationStore } from '@/store/notificationStore';
+import { useAuth } from '@/shared/context/AuthContext';
+import { resolveNotificationRoute } from '@/utils/notificationRouteResolver';
 import { useShallow } from 'zustand/react/shallow';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +17,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 
 export function NotificationBell() {
+  const router = useRouter();
+  const { user } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationStore(
     useShallow((s) => ({
       notifications: s.notifications,
@@ -59,9 +64,11 @@ export function NotificationBell() {
                     !notification.isRead ? 'bg-blue-50/50' : 'bg-white'
                   }`}
                   onClick={() => {
-                    if (!notification.isRead) {
+                    if (!notification.isRead && notification.id) {
                       markAsRead(notification.id);
                     }
+                    const targetRoute = resolveNotificationRoute(notification, user);
+                    router.push(targetRoute);
                   }}
                 >
                   <div className="flex justify-between items-start gap-2">

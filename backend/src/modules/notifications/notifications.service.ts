@@ -390,6 +390,12 @@ export class NotificationsService {
     limit = 20,
     offset = 0,
   ) {
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      return {
+        items: [],
+        unreadCount: 0,
+      };
+    }
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     const [items, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
@@ -413,6 +419,9 @@ export class NotificationsService {
   }
 
   async getUnreadCount(userId: string, companyId?: string): Promise<number> {
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      return 0;
+    }
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     return this.prisma.notification.count({
       where: {
@@ -424,6 +433,9 @@ export class NotificationsService {
   }
 
   async markAsRead(id: string, userId: string, companyId?: string) {
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      throw new NotFoundException('User ID is required');
+    }
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     const result = await this.prisma.notification.updateMany({
       where: {
@@ -444,6 +456,9 @@ export class NotificationsService {
   }
 
   async markAllAsRead(userId: string, companyId?: string) {
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      return { count: 0 };
+    }
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
     return this.prisma.notification.updateMany({
       where: {

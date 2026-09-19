@@ -29,11 +29,15 @@ export const useNotifications = () => {
 
 export const NotificationProvider = ({ children }) => {
   const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
+  const clearNotifications = useNotificationStore((s) => s.clearNotifications);
   const accessToken = useAuthStore((s) => s.accessToken);
 
   useEffect(() => {
     if (accessToken && typeof window !== 'undefined') {
-      // 1. Initial fetch of unread notifications from DB
+      // 0. Reset to ensure strict isolation between user accounts/sessions
+      clearNotifications();
+
+      // 1. Initial fetch of notifications for current authenticated user from DB
       fetchNotifications();
 
       // 2. Initialize Firebase Push Notifications

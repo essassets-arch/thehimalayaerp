@@ -12,6 +12,7 @@ import Swal from 'sweetalert2';
 import { apiClient } from '../lib/apiClient';
 import { getBackendAssetUrl } from '../lib/assetUrl';
 import { getCurrentDeviceLocation, reverseGeocodeViaBackend } from '../lib/geolocation';
+import { resolveNotificationRoute } from '@/utils/notificationRouteResolver';
 
 // Notification category icon/color map
 const getPriorityMeta = (priority, read) => {
@@ -1247,22 +1248,8 @@ export default function HeroBanner({
                           onClick={() => {
                             if (n.id) markAsRead(n.id);
                             setShowNotifications(false);
-                            if (n.route && typeof n.route === 'string' && n.route.startsWith('/')) {
-                              navigate.push(n.route);
-                            } else {
-                              const m = (n.module || '').toUpperCase();
-                              const r = (user?.role || '').toUpperCase();
-                              if (m.includes('HR') || r.includes('HR')) navigate.push('/hr/employees');
-                              else if (m.includes('SUPER') || m.includes('ADMIN') || r.includes('SUPER') || r.includes('ADMIN')) navigate.push('/super-admin');
-                              else if (m.includes('SALES') || r.includes('SALES')) navigate.push('/sales');
-                              else if (m.includes('PLANT') || r.includes('PLANT')) navigate.push('/plant-head');
-                              else if (m.includes('PRODUCTION') || r.includes('PRODUCTION')) navigate.push('/production');
-                              else if (m.includes('STORE') || r.includes('STORE')) navigate.push('/store');
-                              else if (m.includes('QC') || r.includes('QC')) navigate.push('/qc');
-                              else if (m.includes('FINANCE') || r.includes('FINANCE')) navigate.push('/finance');
-                              else if (m.includes('DISPATCH') || r.includes('DISPATCH')) navigate.push('/dispatch');
-                              else navigate.push('/notifications');
-                            }
+                            const targetRoute = resolveNotificationRoute(n, user);
+                            navigate.push(targetRoute);
                           }}
                           onMouseEnter={e => { e.currentTarget.style.background = '#F5FAFE'; }}
                           onMouseLeave={e => { e.currentTarget.style.background = (n.isRead || n.is_read) ? 'transparent' : 'rgba(248,250,252,0.8)'; }}
@@ -1877,10 +1864,9 @@ export default function HeroBanner({
                           key={n.id}
                           onClick={() => {
                             if (isUnread) markAsRead(n.id);
-                            if (n.route) {
-                              setShowAllNotificationsModal(false);
-                              navigate.push(n.route);
-                            }
+                            setShowAllNotificationsModal(false);
+                            const targetRoute = resolveNotificationRoute(n, user);
+                            navigate.push(targetRoute);
                           }}
                           style={{
                             background: isUnread ? '#eff6ff' : '#ffffff',

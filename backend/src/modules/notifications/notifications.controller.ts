@@ -21,6 +21,14 @@ import { NotificationsService } from './notifications.service';
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
+  private getUserId(req: any): string {
+    const userId = req.user?.sub || req.user?.id || req.user?.userId;
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required: user context missing');
+    }
+    return String(userId);
+  }
+
   /**
    * Get paginated notifications for current authenticated user.
    */
@@ -30,7 +38,7 @@ export class NotificationsController {
     @Query('limit') limitStr?: string,
     @Query('offset') offsetStr?: string,
   ) {
-    const userId = req.user?.sub;
+    const userId = this.getUserId(req);
     const companyId = req.user?.companyId || req.headers['x-company-id'];
     const limit = limitStr ? parseInt(limitStr, 10) : 20;
     const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
@@ -47,7 +55,7 @@ export class NotificationsController {
    */
   @Get('unread-count')
   async getUnreadCount(@Req() req: any) {
-    const userId = req.user?.sub;
+    const userId = this.getUserId(req);
     const companyId = req.user?.companyId || req.headers['x-company-id'];
     const unreadCount = await this.notificationsService.getUnreadCount(
       userId,
@@ -61,7 +69,7 @@ export class NotificationsController {
    */
   @Get('unread')
   async getUnreadLegacy(@Req() req: any) {
-    const userId = req.user?.sub;
+    const userId = this.getUserId(req);
     const companyId = req.user?.companyId || req.headers['x-company-id'];
     const result = await this.notificationsService.getNotifications(
       userId,
@@ -77,7 +85,7 @@ export class NotificationsController {
    */
   @Patch(':id/read')
   async markAsRead(@Param('id') id: string, @Req() req: any) {
-    const userId = req.user?.sub;
+    const userId = this.getUserId(req);
     const companyId = req.user?.companyId || req.headers['x-company-id'];
     await this.notificationsService.markAsRead(id, userId, companyId);
     return { success: true };
@@ -88,7 +96,7 @@ export class NotificationsController {
    */
   @Patch('read-all')
   async markAllAsRead(@Req() req: any) {
-    const userId = req.user?.sub;
+    const userId = this.getUserId(req);
     const companyId = req.user?.companyId || req.headers['x-company-id'];
     await this.notificationsService.markAllAsRead(userId, companyId);
     return { success: true };
@@ -105,7 +113,7 @@ export class NotificationsController {
     if (!body?.token) {
       throw new BadRequestException('FCM token is required');
     }
-    const userId = req.user?.sub;
+    const userId = this.getUserId(req);
     const companyId = req.user?.companyId || req.headers['x-company-id'];
     const deviceToken = await this.notificationsService.registerDeviceToken(
       userId,
@@ -125,7 +133,7 @@ export class NotificationsController {
     if (!body?.token) {
       throw new BadRequestException('FCM token is required');
     }
-    const userId = req.user?.sub;
+    const userId = this.getUserId(req);
     const companyId = req.user?.companyId || req.headers['x-company-id'];
     await this.notificationsService.removeDeviceToken(
       userId,
@@ -160,7 +168,7 @@ export class NotificationsController {
    */
   @Get('push-status')
   async getPushStatus(@Req() req: any) {
-    const userId = req.user?.sub;
+    const userId = this.getUserId(req);
     const companyId = req.user?.companyId || req.headers['x-company-id'];
     return this.notificationsService.getPushStatus(userId, companyId);
   }
@@ -170,7 +178,7 @@ export class NotificationsController {
    */
   @Post('test-push')
   async testPush(@Req() req: any) {
-    const userId = req.user?.sub;
+    const userId = this.getUserId(req);
     const companyId = req.user?.companyId || req.headers['x-company-id'];
     return this.notificationsService.sendTestPushToUser(userId, companyId);
   }

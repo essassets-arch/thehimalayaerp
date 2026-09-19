@@ -77,6 +77,7 @@ export class ProcurementService {
     message: string,
     entityType: string,
     entityId: string,
+    route?: string,
   ) {
     try {
       const users = await tx.user.findMany({
@@ -96,6 +97,8 @@ export class ProcurementService {
             message,
             entityType,
             entityId,
+            route: route || (entityType === 'PurchaseOrder' ? '/super-admin' : '/store'),
+            module: 'PROCUREMENT',
           })),
         });
     } catch (e) {
@@ -1519,6 +1522,7 @@ export class ProcurementService {
           `${grn.grnNumber} was verified for ${po.publicId || po.poNumber}. Raw inventory stock updated.`,
           'GoodsReceiptNote',
           grn.id,
+          '/store',
         );
 
         return {
@@ -2082,6 +2086,7 @@ export class ProcurementService {
           `${row.publicId} is ready for review.`,
           'PurchaseIndent',
           id,
+          '/plant-head',
         );
       }
       if (action === 'approve') {
@@ -2093,6 +2098,7 @@ export class ProcurementService {
           `${row.publicId} is ready for PO creation.`,
           'PurchaseIndent',
           id,
+          '/finance',
         );
       }
       return updated;
@@ -2798,6 +2804,7 @@ export class ProcurementService {
           `${row.publicId} (₹${totalVal.toLocaleString('en-IN')}) requires Plant Head approval.`,
           'PurchaseOrder',
           id,
+          '/plant-head/purchase-approval',
         );
       } else if (status === 'PENDING_SUPER_ADMIN_APPROVAL') {
         await this.notifyRole(
@@ -2808,6 +2815,7 @@ export class ProcurementService {
           `${row.publicId} (₹${totalVal.toLocaleString('en-IN')}) requires Super Admin approval.`,
           'PurchaseOrder',
           id,
+          '/super-admin',
         );
       } else if (
         status === 'SUPER_ADMIN_APPROVED' ||
@@ -2822,6 +2830,7 @@ export class ProcurementService {
           `${row.publicId} is approved and ready to issue.`,
           'PurchaseOrder',
           id,
+          '/finance',
         );
       }
       if (action === 'issue') {
@@ -2830,9 +2839,10 @@ export class ProcurementService {
           row.companyId,
           ['STORE', 'STORE_MANAGER'],
           'PO issued',
-          `${updated.poNumber || row.publicId} is ready for delivery verification.`,
+          `${row.publicId} is ready for delivery verification.`,
           'PurchaseOrder',
           id,
+          '/store',
         );
       }
       return updated;

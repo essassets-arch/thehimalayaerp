@@ -102,6 +102,12 @@ export const useAuthStore = create<AuthState>()(
               const roleStr = typeof role === 'object' ? (role as any)?.code || (role as any)?.role || '' : String(role);
               document.cookie = `role=${encodeURIComponent(roleStr)}; path=/; max-age=${maxAge}; SameSite=Lax`;
             }
+
+            // Clear previous user's notifications to guarantee strict isolation
+            try {
+              const { useNotificationStore } = require('@/store/notificationStore');
+              useNotificationStore.getState().clearNotifications();
+            } catch (err) {}
           } catch (e) {
             console.warn('[authStore] Error saving session to storage/cookies', e);
           }
@@ -141,6 +147,12 @@ export const useAuthStore = create<AuthState>()(
             } catch (err) {
               console.warn('[authStore] Could not load FCM messaging module for deactivation:', err);
             }
+
+            // Clear in-memory notification store to prevent leakage across sessions
+            try {
+              const { useNotificationStore } = require('@/store/notificationStore');
+              useNotificationStore.getState().clearNotifications();
+            } catch (err) {}
 
             sessionStorage.clear();
             localStorage.removeItem('token');

@@ -31,6 +31,7 @@ interface NotificationState {
   addNotification: (notification: Partial<NotificationItem>) => void;
   showToast: (message: string) => void;
   dismissToast: (id: string) => void;
+  clearNotifications: () => void;
 }
 
 const getStoreToken = () => {
@@ -54,12 +55,22 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   isLoading: false,
   isMarkingAllRead: false,
 
+  clearNotifications: () => {
+    set({
+      notifications: [],
+      unreadCount: 0,
+      totalCount: 0,
+      isLoading: false,
+      isMarkingAllRead: false,
+    });
+  },
+
   fetchNotifications: async () => {
     set({ isLoading: true });
     try {
       const token = getStoreToken();
       if (!token) {
-        set({ isLoading: false });
+        set({ notifications: [], unreadCount: 0, totalCount: 0, isLoading: false });
         return;
       }
 

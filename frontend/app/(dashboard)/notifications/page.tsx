@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/shared/context/AuthContext';
 import { useNotificationStore } from '@/store/notificationStore';
+import { resolveNotificationRoute } from '@/utils/notificationRouteResolver';
 import {
   Bell,
   CheckCircle2,
@@ -136,24 +137,8 @@ export default function NotificationsPage() {
 
   const handleNotificationClick = (item: any) => {
     if (item.id) markAsRead(item.id);
-
-    if (item.route && typeof item.route === 'string' && item.route.startsWith('/')) {
-      router.push(item.route);
-      return;
-    }
-
-    // Role-based safe fallback
-    const roleCode = (user?.role || '').toUpperCase();
-    if (roleCode.includes('HR')) router.push('/hr/employees');
-    else if (roleCode.includes('SUPER') || roleCode.includes('ADMIN')) router.push('/super-admin');
-    else if (roleCode.includes('SALES')) router.push('/sales');
-    else if (roleCode.includes('PLANT')) router.push('/plant-head');
-    else if (roleCode.includes('PRODUCTION')) router.push('/production');
-    else if (roleCode.includes('STORE')) router.push('/store');
-    else if (roleCode.includes('QC')) router.push('/qc');
-    else if (roleCode.includes('FINANCE')) router.push('/finance');
-    else if (roleCode.includes('DISPATCH')) router.push('/dispatch');
-    else router.push('/dashboard');
+    const targetRoute = resolveNotificationRoute(item, user);
+    router.push(targetRoute);
   };
 
   return (
