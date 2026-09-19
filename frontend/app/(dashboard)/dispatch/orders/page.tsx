@@ -716,16 +716,18 @@ export default function DispatchOrdersPage() {
 
   const isDispatch2User = 
     String(user?.email || "").toLowerCase() === "sahad.dispatch@himalayaerp.com" ||
-    String(user?.role || "").toLowerCase().includes("dispatch 2") ||
-    String(user?.role || "").toLowerCase().includes("cat 2") ||
-    user?.role === "DISPATCH_2" ||
-    pathname?.includes("/dispatch-2");
+    String(user?.role || "").toUpperCase().includes("DISPATCH_2") ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH 2") ||
+    String(user?.role || "").toUpperCase().includes("CAT 2") ||
+    user?.dispatchCategory === "D2";
 
   const isDispatch1User =
     String(user?.email || "").toLowerCase() === "ravikant.t@himalayaerp.com" ||
-    String(user?.role || "").toLowerCase().includes("dispatch 1") ||
-    String(user?.role || "").toLowerCase().includes("cat 1") ||
-    user?.role === "DISPATCH_1";
+    String(user?.email || "").toLowerCase() === "ravikant.tiwari@himalayaerp.com" ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH_1") ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH 1") ||
+    String(user?.role || "").toUpperCase().includes("CAT 1") ||
+    user?.dispatchCategory === "D1";
 
   const isSuperAdmin =
     user?.role === "Super Admin" ||
@@ -734,7 +736,16 @@ export default function DispatchOrdersPage() {
     user?.role === "Plant Head" ||
     String(user?.role || "").toLowerCase().includes("admin");
 
-  const isDispatch2 = pathname?.includes("/dispatch-2") || isDispatch2User;
+  // Strict role priority:
+  // If user is strictly Dispatch 2, isDispatch2 is true.
+  // If user is strictly Dispatch 1, isDispatch2 is false.
+  // For Super Admin / Plant Head / neutral roles, determine from pathname.
+  const isDispatch2 = isDispatch2User
+    ? true
+    : isDispatch1User
+    ? false
+    : Boolean(pathname?.includes("/dispatch-2"));
+
   const basePath = isDispatch2 ? "/dispatch-2" : "/dispatch";
   const currentCategory = isDispatch2 ? "D2" : "D1";
 
@@ -1545,10 +1556,14 @@ export default function DispatchOrdersPage() {
     const targetCat = isDispatch2 ? "D2" : "D1";
     const categoryFiltered = historyDispatches.filter((d) => {
       if (String(d.status || "").toUpperCase() !== "DELIVERED") return false;
-      const cat = String((d as any).dispatchCategory || (d as any).dispatch_category || "D1").toUpperCase();
-      if (targetCat === "D1") return cat === "D1" || cat === "DISPATCH 1" || cat === "DISPATCH_1";
-      if (targetCat === "D2") return cat === "D2" || cat === "DISPATCH 2" || cat === "DISPATCH_2";
-      return true;
+      let cat = (d as any).dispatchCategory || (d as any).dispatch_category;
+      if (!cat) {
+        const items = (d as any).items || [];
+        const hasTrading = items.some((it: any) => isTradingProduct(it.salesOrderItem?.product || it.product || it, productsMap));
+        cat = hasTrading ? "D2" : "D1";
+      }
+      const normCat = normalizeDispatchCategory(cat) || (isTradingProduct(d, productsMap) ? "D2" : "D1");
+      return normCat === targetCat;
     });
 
     const sorted = [...categoryFiltered].sort((a, b) => {

@@ -40,20 +40,53 @@ export class DispatchService {
     let scope = getSalesScope(userId, role, 'Dispatch');
     const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
 
+    const d1CategoryValues = ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'];
+    const d2CategoryValues = ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'];
+
     if (normalizedRole === 'DISPATCH_1') {
       scope = {
         ...scope,
         OR: [
-          { dispatchCategory: { in: ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'] } },
-          { dispatchCategory: null },
+          { dispatchCategory: { in: d1CategoryValues } },
+          {
+            AND: [
+              { dispatchCategory: null },
+              {
+                items: {
+                  none: {
+                    salesOrderItem: {
+                      product: {
+                        dispatchCategory: { in: d2CategoryValues },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
         ],
       };
     } else if (normalizedRole === 'DISPATCH_2') {
       scope = {
         ...scope,
         OR: [
-          { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'] } },
-          { dispatchCategory: null },
+          { dispatchCategory: { in: d2CategoryValues } },
+          {
+            AND: [
+              { dispatchCategory: null },
+              {
+                items: {
+                  some: {
+                    salesOrderItem: {
+                      product: {
+                        dispatchCategory: { in: d2CategoryValues },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
         ],
       };
     } else if (
@@ -63,22 +96,59 @@ export class DispatchService {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
       });
-      if (user?.dispatchCategory && !['ALL', 'ALL CATEGORIES', 'SUPER'].includes(String(user.dispatchCategory).toUpperCase())) {
-        const norm = normalizeDispatchCategory(user.dispatchCategory);
+      const userEmail = String(user?.email || '').toLowerCase();
+      let resolvedCat = user?.dispatchCategory;
+      if (!resolvedCat) {
+        if (userEmail.includes('sahad')) resolvedCat = 'D2';
+        else if (userEmail.includes('ravikant')) resolvedCat = 'D1';
+      }
+
+      if (resolvedCat && !['ALL', 'ALL CATEGORIES', 'SUPER'].includes(String(resolvedCat).toUpperCase())) {
+        const norm = normalizeDispatchCategory(resolvedCat);
         if (norm === 'D1') {
           scope = {
             ...scope,
             OR: [
-              { dispatchCategory: { in: ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'] } },
-              { dispatchCategory: null },
+              { dispatchCategory: { in: d1CategoryValues } },
+              {
+                AND: [
+                  { dispatchCategory: null },
+                  {
+                    items: {
+                      none: {
+                        salesOrderItem: {
+                          product: {
+                            dispatchCategory: { in: d2CategoryValues },
+                          },
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
             ],
           };
         } else if (norm === 'D2') {
           scope = {
             ...scope,
             OR: [
-              { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'] } },
-              { dispatchCategory: null },
+              { dispatchCategory: { in: d2CategoryValues } },
+              {
+                AND: [
+                  { dispatchCategory: null },
+                  {
+                    items: {
+                      some: {
+                        salesOrderItem: {
+                          product: {
+                            dispatchCategory: { in: d2CategoryValues },
+                          },
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
             ],
           };
         }
@@ -125,20 +195,53 @@ export class DispatchService {
     let scope = getSalesScope(userId, role, 'Dispatch');
     const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
 
+    const d1CategoryValues = ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'];
+    const d2CategoryValues = ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'];
+
     if (normalizedRole === 'DISPATCH_1') {
       scope = {
         ...scope,
         OR: [
-          { dispatchCategory: { in: ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'] } },
-          { dispatchCategory: null },
+          { dispatchCategory: { in: d1CategoryValues } },
+          {
+            AND: [
+              { dispatchCategory: null },
+              {
+                items: {
+                  none: {
+                    salesOrderItem: {
+                      product: {
+                        dispatchCategory: { in: d2CategoryValues },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
         ],
       };
     } else if (normalizedRole === 'DISPATCH_2') {
       scope = {
         ...scope,
         OR: [
-          { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'] } },
-          { dispatchCategory: null },
+          { dispatchCategory: { in: d2CategoryValues } },
+          {
+            AND: [
+              { dispatchCategory: null },
+              {
+                items: {
+                  some: {
+                    salesOrderItem: {
+                      product: {
+                        dispatchCategory: { in: d2CategoryValues },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
         ],
       };
     } else if (
@@ -148,22 +251,59 @@ export class DispatchService {
       const user: any = await this.prisma.user.findUnique({
         where: { id: userId },
       });
-      if (user?.dispatchCategory && !['ALL', 'ALL CATEGORIES', 'SUPER'].includes(String(user.dispatchCategory).toUpperCase())) {
-        const norm = normalizeDispatchCategory(user.dispatchCategory);
+      const userEmail = String(user?.email || '').toLowerCase();
+      let resolvedCat = user?.dispatchCategory;
+      if (!resolvedCat) {
+        if (userEmail.includes('sahad')) resolvedCat = 'D2';
+        else if (userEmail.includes('ravikant')) resolvedCat = 'D1';
+      }
+
+      if (resolvedCat && !['ALL', 'ALL CATEGORIES', 'SUPER'].includes(String(resolvedCat).toUpperCase())) {
+        const norm = normalizeDispatchCategory(resolvedCat);
         if (norm === 'D1') {
           scope = {
             ...scope,
             OR: [
-              { dispatchCategory: { in: ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'] } },
-              { dispatchCategory: null },
+              { dispatchCategory: { in: d1CategoryValues } },
+              {
+                AND: [
+                  { dispatchCategory: null },
+                  {
+                    items: {
+                      none: {
+                        salesOrderItem: {
+                          product: {
+                            dispatchCategory: { in: d2CategoryValues },
+                          },
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
             ],
           };
         } else if (norm === 'D2') {
           scope = {
             ...scope,
             OR: [
-              { dispatchCategory: { in: ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'] } },
-              { dispatchCategory: null },
+              { dispatchCategory: { in: d2CategoryValues } },
+              {
+                AND: [
+                  { dispatchCategory: null },
+                  {
+                    items: {
+                      some: {
+                        salesOrderItem: {
+                          product: {
+                            dispatchCategory: { in: d2CategoryValues },
+                          },
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
             ],
           };
         }
@@ -1290,17 +1430,26 @@ export class DispatchService {
   }
 
   async getDispatchQueue(userId: string, role: string, companyId: string) {
-    // 1. Resolve category filter for the Dispatch Executive user
+    // 1. Resolve category filter for the Dispatch user
     let userCategory: string | null = null;
-    if (
+    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
+    if (normalizedRole === 'DISPATCH_1') {
+      userCategory = 'D1';
+    } else if (normalizedRole === 'DISPATCH_2') {
+      userCategory = 'D2';
+    } else if (
       userId &&
-      (role === 'DISPATCH_EXECUTIVE' || role === 'Dispatch Executive')
+      (normalizedRole === 'DISPATCH_EXECUTIVE' || normalizedRole.includes('DISPATCH'))
     ) {
       const u: any = await this.prisma.user.findUnique({
         where: { id: userId },
       });
       if (u?.dispatchCategory) {
         userCategory = u.dispatchCategory;
+      } else if (String(u?.email || '').toLowerCase().includes('sahad')) {
+        userCategory = 'D2';
+      } else if (String(u?.email || '').toLowerCase().includes('ravikant')) {
+        userCategory = 'D1';
       }
     }
 

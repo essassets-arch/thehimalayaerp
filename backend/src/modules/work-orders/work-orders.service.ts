@@ -416,7 +416,7 @@ export class WorkOrdersService {
         this.notificationsService
           .notifyRole({
             companyId,
-            roles: ['DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH_1', 'DISPATCH'],
+            roles: ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH'],
             type: 'DISPATCH_ORDER_READY',
             title: 'Order Ready for Dispatch',
             message: `${wo.workOrderNumber} — Production completed and sent to Dispatch.`,
@@ -442,7 +442,10 @@ export class WorkOrdersService {
           { orderNumber: cleanId },
         ],
       },
-      include: { customer: true },
+      include: {
+        customer: true,
+        items: { include: { product: true } },
+      },
     });
 
     if (so) {
@@ -474,14 +477,33 @@ export class WorkOrdersService {
       if (this.notificationsService) {
         const companyId =
           so.customer?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+        const isAllTrading =
+          so.items &&
+          so.items.length > 0 &&
+          so.items.every(
+            (i: any) =>
+              i.product?.dispatchCategory === 'D2' ||
+              i.product?.dispatchCategory === 'DISPATCH_2' ||
+              i.product?.productType === 'TRADING' ||
+              i.product?.category === 'COVERBLOCK' ||
+              i.product?.category === 'FRC COVER' ||
+              i.product?.category === 'RCC PIPE',
+          );
+        const targetRoles = isAllTrading
+          ? ['DISPATCH_2']
+          : ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH'];
+        const targetRoute = isAllTrading
+          ? '/dispatch-2/orders'
+          : '/dispatch/orders';
+
         this.notificationsService
           .notifyRole({
             companyId,
-            roles: ['DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH_1', 'DISPATCH'],
+            roles: targetRoles,
             type: 'DISPATCH_ORDER_READY',
             title: 'Order Ready for Dispatch',
-            message: `${so.orderNumber} — Sent to Dispatch.`,
-            route: '/dispatch/orders',
+            message: `${so.orderNumber} — Sent to ${isAllTrading ? 'Dispatch 2 (Sahad Trading)' : 'Dispatch 1 (Factory)'}.`,
+            route: targetRoute,
             entityType: 'SalesOrder',
             entityId: so.id,
             eventKeyPrefix: `SALES_ORDER:${so.id}:READY_FOR_DISPATCH`,
@@ -545,14 +567,25 @@ export class WorkOrdersService {
       if (this.notificationsService) {
         const companyId =
           fg.product?.companyId || '88c57ebc-b3b7-49e3-8d5d-6321a0e89015';
+        const isTradingFg =
+          fg.product?.dispatchCategory === 'D2' ||
+          fg.product?.dispatchCategory === 'DISPATCH_2' ||
+          fg.product?.productType === 'TRADING';
+        const fgRoles = isTradingFg
+          ? ['DISPATCH_2']
+          : ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH'];
+        const fgRoute = isTradingFg
+          ? '/dispatch-2/orders'
+          : '/dispatch/orders';
+
         this.notificationsService
           .notifyRole({
             companyId,
-            roles: ['DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH_1', 'DISPATCH'],
+            roles: fgRoles,
             type: 'DISPATCH_ORDER_READY',
             title: 'Finished Goods Ready for Dispatch',
-            message: `${fg.product?.name || 'Item'} — Sent to Dispatch Queue.`,
-            route: '/dispatch/orders',
+            message: `${fg.product?.name || 'Item'} — Sent to ${isTradingFg ? 'Dispatch 2' : 'Dispatch 1'} Queue.`,
+            route: fgRoute,
             entityType: 'FinishedGoods',
             entityId: fg.id,
             eventKeyPrefix: `FINISHED_GOODS:${fg.id}:READY_FOR_DISPATCH`,

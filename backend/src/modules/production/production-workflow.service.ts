@@ -611,7 +611,7 @@ export class ProductionWorkflowService {
         this.notificationsService
           .notifyRole({
             companyId: '88c57ebc-b3b7-49e3-8d5d-6321a0e89015',
-            roles: ['DISPATCH_EXECUTIVE', 'DISPATCH_2', 'DISPATCH_1', 'DISPATCH'],
+            roles: ['DISPATCH_EXECUTIVE', 'DISPATCH_1', 'DISPATCH'],
             type: 'DISPATCH_ORDER_READY',
             title: 'New Items Ready for Dispatch',
             message: `${updatedList.length} Work Order(s) finished production and are now queued for dispatch.`,

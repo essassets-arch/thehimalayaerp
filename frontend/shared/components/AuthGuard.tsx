@@ -29,8 +29,8 @@ const ROUTE_ROLE_MAP: Record<string, string[]> = {
   'production':     ['Production', 'Production Planner', 'Production Operator', 'Plant Head', 'Super Admin', 'PRODUCTION', 'PRODUCTION_PLANNER', 'PRODUCTION_OPERATOR', 'ADMIN', 'SUPER_ADMIN', 'PLANT_HEAD'],
   'store':          ['Store', 'Store Manager', 'Plant Head', 'Super Admin', 'STORE', 'STORE_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'PLANT_HEAD'],
   'qc':             ['QC', 'QC Inspector', 'Plant Head', 'Super Admin', 'QC_INSPECTOR', 'ADMIN', 'SUPER_ADMIN', 'QC', 'PLANT_HEAD'],
-  'dispatch':       ['Dispatch', 'Dispatch 1', 'Dispatch 2', 'Dispatch Executive', 'DISPATCH', 'DISPATCH_1', 'DISPATCH_2', 'DISPATCH_EXECUTIVE', 'Super Admin', 'Plant Head', 'PLANT_HEAD', 'Production Manager', 'Production Planner', 'Production Operator', 'Production', 'QC', 'ADMIN', 'SUPER_ADMIN'],
-  'dispatch-2':     ['Dispatch', 'Dispatch 1', 'Dispatch 2', 'Dispatch Executive', 'DISPATCH', 'DISPATCH_1', 'DISPATCH_2', 'DISPATCH_EXECUTIVE', 'Super Admin', 'Plant Head', 'PLANT_HEAD', 'Production Manager', 'Production Planner', 'Production Operator', 'Production', 'QC', 'ADMIN', 'SUPER_ADMIN'],
+  'dispatch':       ['Dispatch', 'Dispatch 1', 'Dispatch Executive', 'DISPATCH', 'DISPATCH_1', 'DISPATCH_EXECUTIVE', 'Super Admin', 'Plant Head', 'PLANT_HEAD', 'Production Manager', 'Production Planner', 'Production Operator', 'Production', 'QC', 'ADMIN', 'SUPER_ADMIN'],
+  'dispatch-2':     ['Dispatch 2', 'DISPATCH_2', 'Super Admin', 'Plant Head', 'PLANT_HEAD', 'Production Manager', 'Production Planner', 'Production Operator', 'Production', 'QC', 'ADMIN', 'SUPER_ADMIN'],
   'finance-executive': ['Finance Executive', 'FINANCE_EXECUTIVE', 'Finance Manager', 'Finance Lead', 'Finance', 'FINANCE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
   'finance':        ['Finance', 'Finance Executive', 'FINANCE_EXECUTIVE', 'Finance Manager', 'Finance Lead', 'FINANCE', 'FINANCE_MANAGER', 'FINANCE_LEAD', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN'],
   'hr':             ['HR', 'Super Admin', 'Admin', 'SUPER_ADMIN', 'ADMIN', 'HR_MANAGER', 'HR_EXECUTIVE'],
@@ -211,13 +211,16 @@ function getUserRoleName(rawRole: any): string {
 
       const isAllowed = allowedRoles.some((r) => {
         const rUpper = r.trim().toUpperCase();
-        return (
-          rUpper === activeNameUpper ||
-          rUpper === rawRoleString ||
-          (rawRoleString.startsWith('DISPATCH') && rUpper.startsWith('DISPATCH')) ||
-          (rawRoleString.startsWith('FINANCE') && rUpper.startsWith('FINANCE')) ||
-          (rawRoleString.startsWith('SUPER_SALES') && rUpper.startsWith('SUPER'))
-        );
+        if (rUpper === activeNameUpper || rUpper === rawRoleString) return true;
+        // Strict Dispatch Isolation: D1 roles can only match D1 dispatch, D2 roles can only match D2 dispatch
+        if (rawRoleString.startsWith('DISPATCH') && rUpper.startsWith('DISPATCH')) {
+          const isUserD2 = rawRoleString.includes('2') || rawRoleString === 'DISPATCH_2';
+          const isAllowedD2 = rUpper.includes('2') || rUpper === 'DISPATCH_2';
+          return isUserD2 === isAllowedD2;
+        }
+        if (rawRoleString.startsWith('FINANCE') && rUpper.startsWith('FINANCE')) return true;
+        if (rawRoleString.startsWith('SUPER_SALES') && rUpper.startsWith('SUPER')) return true;
+        return false;
       });
 
       if (!isAllowed) {

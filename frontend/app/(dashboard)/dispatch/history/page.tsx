@@ -36,6 +36,8 @@ import { toast } from "sonner";
 
 import { backendFetch } from "@/lib/backendFetch";
 import { getBackendAssetUrl, downloadAssetFile } from "@/lib/assetUrl";
+import { useAuthStore } from "@/store/authStore";
+import { isTradingProduct, normalizeDispatchCategory } from "@/shared/utils/dispatchCategory";
 import styles from "./history.module.css";
 
 interface Product {
@@ -315,7 +317,21 @@ function getLocalConsignmentSnapshot(dispatch: Dispatch): any {
 
 export default function DeliveryHistoryPage() {
   const pathname = usePathname();
-  const isDispatch2 = pathname?.startsWith("/dispatch-2");
+  const { user } = useAuthStore();
+  const isDispatch2User = 
+    String(user?.email || "").toLowerCase() === "sahad.dispatch@himalayaerp.com" ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH_2") ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH 2") ||
+    user?.dispatchCategory === "D2";
+
+  const isDispatch1User = 
+    String(user?.email || "").toLowerCase() === "ravikant.t@himalayaerp.com" ||
+    String(user?.email || "").toLowerCase() === "ravikant.tiwari@himalayaerp.com" ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH_1") ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH 1") ||
+    user?.dispatchCategory === "D1";
+
+  const isDispatch2 = isDispatch2User ? true : isDispatch1User ? false : Boolean(pathname?.startsWith("/dispatch-2"));
 
   const [search, setSearch] = useState("");
   const [selectedPodItem, setSelectedPodItem] = useState<Dispatch | null>(null);
@@ -357,10 +373,14 @@ export default function DeliveryHistoryPage() {
   const deliveredHistory = useMemo(() => {
     const targetCat = isDispatch2 ? "D2" : "D1";
     const categoryFiltered = dispatches.filter((d) => {
-      const cat = String((d as any).dispatchCategory || (d as any).dispatch_category || "D1").toUpperCase();
-      if (targetCat === "D1") return cat === "D1" || cat === "DISPATCH 1" || cat === "DISPATCH_1";
-      if (targetCat === "D2") return cat === "D2" || cat === "DISPATCH 2" || cat === "DISPATCH_2";
-      return true;
+      let cat = (d as any).dispatchCategory || (d as any).dispatch_category;
+      if (!cat) {
+        const items = (d as any).items || [];
+        const hasTrading = items.some((it: any) => isTradingProduct(it.salesOrderItem?.product || it.product || it));
+        cat = hasTrading ? "D2" : "D1";
+      }
+      const normCat = normalizeDispatchCategory(cat) || (isTradingProduct(d) ? "D2" : "D1");
+      return normCat === targetCat;
     });
 
     const sorted = [...categoryFiltered].sort((a, b) => {

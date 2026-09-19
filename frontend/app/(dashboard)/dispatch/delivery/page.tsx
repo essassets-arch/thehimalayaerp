@@ -36,6 +36,8 @@ import Swal from "sweetalert2";
 
 import { backendFetch } from "@/lib/backendFetch";
 import { getBackendAssetUrl } from "@/lib/assetUrl";
+import { useAuthStore } from "@/store/authStore";
+import { isTradingProduct } from "@/shared/utils/dispatchCategory";
 import styles from "./delivery.module.css";
 
 /* ── Types ───────────────────────────────────────────────────────────── */
@@ -352,7 +354,21 @@ function resolveSalesPersonName(entity?: any, ...fallbackEntities: any[]): strin
 export default function DeliveryRunPage() {
   const queryClient = useQueryClient();
   const pathname = usePathname();
-  const isDispatch2 = pathname?.startsWith("/dispatch-2");
+  const { user } = useAuthStore();
+  const isDispatch2User = 
+    String(user?.email || "").toLowerCase() === "sahad.dispatch@himalayaerp.com" ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH_2") ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH 2") ||
+    user?.dispatchCategory === "D2";
+
+  const isDispatch1User = 
+    String(user?.email || "").toLowerCase() === "ravikant.t@himalayaerp.com" ||
+    String(user?.email || "").toLowerCase() === "ravikant.tiwari@himalayaerp.com" ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH_1") ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH 1") ||
+    user?.dispatchCategory === "D1";
+
+  const isDispatch2 = isDispatch2User ? true : isDispatch1User ? false : Boolean(pathname?.startsWith("/dispatch-2"));
 
   const [activeTab, setActiveTab] = useState<"delivery" | "history">("delivery");
   const [selectedDispatch, setSelectedDispatch] = useState<Dispatch | null>(null);
@@ -526,10 +542,13 @@ export default function DeliveryRunPage() {
   const activeDeliveryQueue = useMemo(() => {
     const targetCat = isDispatch2 ? "D2" : "D1";
     const categoryFiltered = dispatches.filter((d) => {
-      const rawCat = (d as any).dispatchCategory || (d as any).dispatch_category;
-      if (!rawCat) return true;
-      const norm = normalizeDispatchCategory(rawCat);
-      if (!norm) return true;
+      let rawCat = (d as any).dispatchCategory || (d as any).dispatch_category;
+      if (!rawCat) {
+        const items = (d as any).items || [];
+        const hasTrading = items.some((it: any) => isTradingProduct(it.salesOrderItem?.product || it.product || it));
+        rawCat = hasTrading ? "D2" : "D1";
+      }
+      const norm = normalizeDispatchCategory(rawCat) || (isTradingProduct(d) ? "D2" : "D1");
       return norm === targetCat;
     });
 
@@ -568,10 +587,13 @@ export default function DeliveryRunPage() {
     const targetCat = isDispatch2 ? "D2" : "D1";
     const categoryFiltered = historyDispatches.filter((d) => {
       if (String(d.status || "").toUpperCase() !== "DELIVERED") return false;
-      const rawCat = (d as any).dispatchCategory || (d as any).dispatch_category;
-      if (!rawCat) return true;
-      const norm = normalizeDispatchCategory(rawCat);
-      if (!norm) return true;
+      let rawCat = (d as any).dispatchCategory || (d as any).dispatch_category;
+      if (!rawCat) {
+        const items = (d as any).items || [];
+        const hasTrading = items.some((it: any) => isTradingProduct(it.salesOrderItem?.product || it.product || it));
+        rawCat = hasTrading ? "D2" : "D1";
+      }
+      const norm = normalizeDispatchCategory(rawCat) || (isTradingProduct(d) ? "D2" : "D1");
       return norm === targetCat;
     });
 

@@ -10,6 +10,7 @@ import {
   Delete,
   Query,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';

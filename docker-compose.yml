@@ -37,7 +37,7 @@ services:
     image: himalaya-backend:latest
     container_name: himalaya-migrate
     restart: "no"
-    command: sh -c "npx prisma migrate deploy"
+    command: sh -c "npx prisma migrate resolve --applied 20260905221500_clear_sales14_sa_data 2>/dev/null || true; npx prisma migrate deploy"
     environment:
       DATABASE_URL: "${MIGRATION_DATABASE_URL:-${DATABASE_URL:-postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@postgres:5432/himalaya_erp?schema=public}}"
     networks:

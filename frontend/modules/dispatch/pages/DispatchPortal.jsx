@@ -20,7 +20,7 @@ import { PlusCircle, Box, Truck, ClipboardList, FlaskConical, ArrowRight, X, Fil
 import DispatchBillModal from '../../../shared/components/DispatchBillModal';
 import ReturnsPortal from './ReturnsPortal';
 import { backendFetch } from '../../../lib/backendFetch';
-import { isTradingProduct } from '../../../shared/utils/dispatchCategory';
+import { isTradingProduct, normalizeDispatchCategory } from '../../../shared/utils/dispatchCategory';
 import FinishedGoodsStockView from '@/components/FinishedGoodsStockView';
 import DailyReportEntryView from '../../production/components/DailyReportEntryView';
 import DailyReportHistoryView from '../../production/components/DailyReportHistoryView';
@@ -408,58 +408,62 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   const orders = useERPStore(selectDispatchOrders);
   const dispatches = state.dispatches || [];
 
-  // ΓöÇΓöÇ Dispatch Category RBAC Filtering ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // ── Dispatch Category RBAC Filtering ─────────────────────────────────────
   // Determine user's dispatch category: 'D1' vs 'D2'
-  const userDispatchCat = (
-    user?.dispatchCategory ||
-    (isDispatch2Portal ? 'D2' : (user?.role?.includes('2') || mode === 'DISPATCH_2' ? 'D2' : null))
-  )?.toUpperCase();
+  const isDispatch2User = 
+    String(user?.email || "").toLowerCase() === "sahad.dispatch@himalayaerp.com" ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH_2") ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH 2") ||
+    user?.dispatchCategory === "D2";
 
-  const isMatchingDispatchCategory = (cat1, cat2) => {
-    if (!cat1 || !cat2) return false;
-    const c1 = String(cat1).trim().toUpperCase();
-    const c2 = String(cat2).trim().toUpperCase();
-    if (c1 === c2) return true;
-    if ((c1 === 'D1' || c1 === 'DISPATCH 1') && (c2 === 'D1' || c2 === 'DISPATCH 1')) return true;
-    if ((c1 === 'D2' || c1 === 'DISPATCH 2') && (c2 === 'D2' || c2 === 'DISPATCH 2')) return true;
-    return false;
-  };
+  const isDispatch1User = 
+    String(user?.email || "").toLowerCase() === "ravikant.t@himalayaerp.com" ||
+    String(user?.email || "").toLowerCase() === "ravikant.tiwari@himalayaerp.com" ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH_1") ||
+    String(user?.role || "").toUpperCase().includes("DISPATCH 1") ||
+    user?.dispatchCategory === "D1";
 
-  const filterOrdersByDispatch = (orderList) => {
-    if (!userDispatchCat) return orderList || [];
+  const effectiveDispatchCat = isDispatch2User 
+    ? 'D2' 
+    : isDispatch1User 
+    ? 'D1' 
+    : (isDispatch2Portal ? 'D2' : 'D1');
+
+  const filterOrdersByDispatch = useCallback((orderList) => {
     if (!Array.isArray(orderList)) return [];
 
     return orderList.filter((o) => {
       if (!o) return false;
 
       // 1. Direct record dispatchCategory
-      if (o.dispatchCategory && isMatchingDispatchCategory(o.dispatchCategory, userDispatchCat)) return true;
-      if (o.dispatch_category && isMatchingDispatchCategory(o.dispatch_category, userDispatchCat)) return true;
-
-      // 2. Product on work order or sales order item
-      const prodCat =
-        o.product?.dispatchCategory ||
-        o.salesOrderItem?.product?.dispatchCategory ||
-        o.productionPlan?.salesOrder?.items?.[0]?.product?.dispatchCategory;
-      if (prodCat && isMatchingDispatchCategory(prodCat, userDispatchCat)) return true;
-
-      // 3. Items array
-      const items = o.items || o.order_items || [];
-      if (items.length > 0) {
-        return items.some((item) => {
-          const itemCat =
-            item.dispatchCategory ||
-            item.dispatch_category ||
-            item.product_dispatch_category ||
-            item.product?.dispatchCategory ||
-            item.salesOrderItem?.product?.dispatchCategory;
-          return isMatchingDispatchCategory(itemCat, userDispatchCat);
-        });
+      const rawCat = o.dispatchCategory || o.dispatch_category || o.product?.dispatchCategory || o.salesOrderItem?.product?.dispatchCategory;
+      const directNorm = normalizeDispatchCategory(rawCat);
+      if (directNorm) {
+        return directNorm === effectiveDispatchCat;
       }
 
-      return true;
+      // 2. Check items array if present
+      const items = o.items || o.order_items || o.salesOrder?.items || [];
+      if (Array.isArray(items) && items.length > 0) {
+        const hasTradingItem = items.some((item) => {
+          const itemCat = normalizeDispatchCategory(
+            item.dispatchCategory || item.dispatch_category || item.product?.dispatchCategory || item.salesOrderItem?.product?.dispatchCategory
+          );
+          if (itemCat === 'D2') return true;
+          if (itemCat === 'D1') return false;
+          return isTradingProduct(item.salesOrderItem?.product || item.product || item);
+        });
+
+        const orderCat = hasTradingItem ? 'D2' : 'D1';
+        return orderCat === effectiveDispatchCat;
+      }
+
+      // 3. Fallback classification using isTradingProduct
+      const isTrading = isTradingProduct(o);
+      const computedCat = isTrading ? 'D2' : 'D1';
+      return computedCat === effectiveDispatchCat;
     });
-  };
+  }, [effectiveDispatchCat]);
 
   const filteredOrders = filterOrdersByDispatch(orders);
 
@@ -490,7 +494,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
 
   React.useEffect(() => {
     if (currentView === 'remaining') {
-      const remainingOrdersCount = orders.filter(o =>
+      const remainingOrdersCount = filteredOrders.filter(o =>
         ['QC_APPROVED', 'QC Passed', 'DISPATCH_READY', 'Dispatch Created', 'DISPATCH_CREATED', 'IN_TRANSIT', 'In Transit', 'Partially Delivered', 'READY_FOR_DISPATCH', 'Ready for Dispatch'].includes(o.status || o.workflowStatus) &&
         getRemainingQty(o) > 0
       ).length;
@@ -500,7 +504,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
         navigate.push(`${basePath}/history`);
       }
     }
-  }, [currentView, orders, navigate]);
+  }, [currentView, filteredOrders, navigate, basePath]);
 
   // Filter active orders awaiting dispatch (QC Passed, partially delivered, or currently in transit/created with balance)
   // filteredOrders is already role-filtered by dispatch category (D1/D2 Operator restriction)
@@ -1383,10 +1387,12 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     const pendingPodList = pendingPodDispatches.slice(0, 5).map(d => d.dispatchNo || d.id);
 
     // Dynamic Returns Summary Cards
-    const returnPendingCount = backendReturns.filter(r => ['SUBMITTED', 'PENDING'].includes(r.status)).length;
-    const qcInspectionCount = backendReturns.filter(r => ['QC_PENDING', 'INSPECTION'].includes(r.status)).length;
-    const replacementReadyCount = replacementDispatches.filter(r => ['APPROVED', 'READY'].includes(r.dispatch_status || r.status)).length;
-    const creditNotePendingCount = backendReturns.filter(r => r.status === 'ACCEPTED_FOR_CREDIT').length;
+    const scopedReturns = filterOrdersByDispatch(backendReturns);
+    const scopedReplacements = filterOrdersByDispatch(replacementDispatches);
+    const returnPendingCount = scopedReturns.filter(r => ['SUBMITTED', 'PENDING'].includes(r.status)).length;
+    const qcInspectionCount = scopedReturns.filter(r => ['QC_PENDING', 'INSPECTION'].includes(r.status)).length;
+    const replacementReadyCount = scopedReplacements.filter(r => ['APPROVED', 'READY'].includes(r.dispatch_status || r.status)).length;
+    const creditNotePendingCount = scopedReturns.filter(r => r.status === 'ACCEPTED_FOR_CREDIT').length;
 
     const todayDateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -2041,7 +2047,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
               { header: 'Dispatchable Qty', accessor: 'items', render: (row) => <strong style={{ color: '#10b981' }}>{(row.items || []).reduce((s, i) => s + Number(i.dispatchableQuantity || 0), 0)}</strong> },
               { header: 'Status', accessor: 'status', render: (row) => <StatusBadge status={row.status === 'READY_FOR_DISPATCH' ? 'Ready for Dispatch' : row.status === 'DISPATCH_CREATED' ? 'Dispatch Created' : row.status} /> },
             ]}
-            data={dispatchQueueOrders}
+            data={filterOrdersByDispatch(dispatchQueueOrders)}
             searchQuery={globalSearch}
             searchField="orderId"
             actions={(row) => (
@@ -2381,7 +2387,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     });
 
     const existingOrderRefs = new Set([...backendDispatchesMapped, ...orderDispatchesMapped].map(row => String(row.orderNo)));
-    const deliveredOrdersMapped = orders.filter(order => {
+    const deliveredOrdersMapped = filteredOrders.filter(order => {
       const statuses = [order.status, order.workflowStatus, order.orderStatus, order.dispatch?.status].map(value => String(value || '').toUpperCase().replaceAll(' ', '_'));
       const ref = String(order.orderNo || order.order_no || order.public_id || order.id);
       return statuses.some(status => ['DELIVERED', 'DELIVERY_COMPLETED', 'COMPLETED', 'INVOICED', 'PAYMENT_PENDING', 'CLOSED'].includes(status)) && !existingOrderRefs.has(ref);
