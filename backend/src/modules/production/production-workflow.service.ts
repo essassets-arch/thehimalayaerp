@@ -872,23 +872,67 @@ export class ProductionWorkflowService {
     const rawDoneJobs = allWorkOrders.filter((w) => classifyWorkOrder(w) === 'DONE');
 
     // Build incoming list combining raw incoming WOs + pending plans without floor WOs
+    const rawIncomingPlanIds = new Set(
+      rawIncomingWOs.map((w: any) => w.productionPlanId).filter(Boolean),
+    );
     const incomingFromPlans = pendingPlans
-      .filter((p: any) => !p.workOrders || p.workOrders.length === 0 || p.workOrders.every((w: any) => classifyWorkOrder(w) === 'INCOMING'))
+      .filter(
+        (p: any) =>
+          !rawIncomingPlanIds.has(p.id) &&
+          (!p.workOrders || p.workOrders.length === 0),
+      )
       .map((p: any) => {
         const so = p.salesOrder;
-        const totalQty = (so?.items || []).reduce((sum: number, it: any) => sum + toNumber(it.orderedQuantity || it.quantity || 0), 0) || 10;
-        const prodName = so?.items?.[0]?.product?.name || so?.items?.[0]?.productNameSnapshot || 'Standard Industrial Product';
+        const totalQty =
+          (so?.items || []).reduce(
+            (sum: number, it: any) =>
+              sum + toNumber(it.orderedQuantity || it.quantity || 0),
+            0,
+          ) || 10;
+        const prodName =
+          so?.items?.[0]?.product?.name ||
+          so?.items?.[0]?.productNameSnapshot ||
+          'Standard Industrial Product';
+        const planRef =
+          p.planNumber || so?.orderNumber || `PLAN-${p.id.slice(0, 8)}`;
+        const items = (so?.items || []).map((it: any) => ({
+          id: it.id,
+          product:
+            it.product?.name ||
+            it.productNameSnapshot ||
+            'Standard Industrial Product',
+          quantity: toNumber(it.orderedQuantity || it.quantity || 0),
+          unit: it.unit || 'Units',
+          workOrderNo: planRef,
+        }));
         return {
           id: p.id,
-          workOrderNo: p.planNumber || so?.orderNumber || `PLAN-${p.id.slice(0, 8)}`,
+          workOrderNo: planRef,
           orderNo: so?.orderNumber || p.planNumber || '—',
-          customer: so?.customer?.companyName || so?.customer?.name || 'Standard Client',
+          customer:
+            so?.customer?.companyName || so?.customer?.name || 'Standard Client',
           product: prodName,
           quantity: totalQty,
-          targetDate: p.plannedEndDate ? new Date(p.plannedEndDate).toISOString().slice(0, 10) : '—',
+          targetDate: p.plannedEndDate
+            ? new Date(p.plannedEndDate).toISOString().slice(0, 10)
+            : '—',
           status: p.status || 'READY',
           priority: p.priority || 'NORMAL',
-          createdAt: p.createdAt ? new Date(p.createdAt).toISOString().slice(0, 10) : '—',
+          createdAt: p.createdAt
+            ? new Date(p.createdAt).toISOString().slice(0, 10)
+            : '—',
+          items:
+            items.length > 0
+              ? items
+              : [
+                  {
+                    id: p.id,
+                    product: prodName,
+                    quantity: totalQty,
+                    unit: 'Units',
+                    workOrderNo: planRef,
+                  },
+                ],
         };
       });
 
@@ -896,13 +940,33 @@ export class ProductionWorkflowService {
       id: w.id,
       workOrderNo: w.workOrderNumber,
       orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
-      customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
-      product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+      customer:
+        w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
+      product:
+        w.salesOrderItem?.product?.name ||
+        w.salesOrderItem?.productNameSnapshot ||
+        'FRP Cover',
       quantity: toNumber(w.quantity) || 1,
-      targetDate: w.productionPlan?.plannedEndDate ? new Date(w.productionPlan.plannedEndDate).toISOString().slice(0, 10) : '—',
+      targetDate: w.productionPlan?.plannedEndDate
+        ? new Date(w.productionPlan.plannedEndDate).toISOString().slice(0, 10)
+        : '—',
       status: w.status || 'READY',
       priority: 'NORMAL',
-      createdAt: w.createdAt ? new Date(w.createdAt).toISOString().slice(0, 10) : '—',
+      createdAt: w.createdAt
+        ? new Date(w.createdAt).toISOString().slice(0, 10)
+        : '—',
+      items: [
+        {
+          id: w.id,
+          product:
+            w.salesOrderItem?.product?.name ||
+            w.salesOrderItem?.productNameSnapshot ||
+            'FRP Cover',
+          quantity: toNumber(w.quantity) || 1,
+          unit: 'Units',
+          workOrderNo: w.workOrderNumber,
+        },
+      ],
     }));
 
     const allIncoming = [...incomingFromWOs, ...incomingFromPlans];
@@ -1385,9 +1449,67 @@ export class ProductionWorkflowService {
     additionalUpdates: any = {},
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const job = await tx.workOrder.findFirst({
+      let job = await tx.workOrder.findFirst({
         where: { OR: [{ id }, { workOrderNumber: id }] },
       });
+
+      if (!job) {
+        // Fallback: Check if id is a productionPlan ID or planNumber
+        const plan = await tx.productionPlan.findFirst({
+          where: { OR: [{ id }, { planNumber: id }] },
+          include: {
+            workOrders: true,
+            salesOrder: {
+              include: {
+                items: { include: { product: true } },
+              },
+            },
+          },
+        });
+
+        if (plan) {
+          const existingWo = plan.workOrders?.[0];
+          if (existingWo) {
+            job = existingWo;
+          } else {
+            const so = plan.salesOrder;
+            const item = so?.items?.[0];
+            const qty = item ? Number(item.orderedQuantity || 1) : 10;
+            const baseSeq = (
+              so?.orderNumber ||
+              plan.planNumber ||
+              Date.now().toString()
+            )
+              .split('/')
+              .pop();
+            const woNumber = `WO/2627/${baseSeq}-01`;
+            const woReadyState = await tx.workflowState.findFirst({
+              where: { workflow: { code: 'WORK_ORDER' }, code: 'READY' },
+            });
+            job = await tx.workOrder.create({
+              data: {
+                workOrderNumber: woNumber,
+                productionPlanId: plan.id,
+                salesOrderItemId: item?.id || null,
+                quantity: qty,
+                status: 'STARTED',
+                productionStatus: newStatus,
+                productionStartTime: new Date(),
+                startedAt: new Date(),
+                startedById: userId,
+                qcRemarks: remarks || 'Started from production plan',
+                workflowStateId: woReadyState?.id,
+              },
+            });
+            await tx.productionPlan.update({
+              where: { id: plan.id },
+              data: { status: 'IN_PROGRESS' as any },
+            });
+            return { success: true, data: job };
+          }
+        }
+      }
+
       if (!job) throw new NotFoundException('WorkOrder not found');
 
       const currentProdStatus = job.productionStatus;

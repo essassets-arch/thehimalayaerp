@@ -24,6 +24,8 @@ import {
   ArrowUpRight,
   Calendar,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Clock,
   Cpu,
   Factory,
@@ -128,6 +130,33 @@ export default function ProductionOperationsDashboard({
   // Tab State
   const [activeTab, setActiveTab] = useState('runs'); // 'incoming' | 'runs' | 'qcQueue' | 'qcFailed' | 'readyDispatch' | 'done' | 'delayed' | 'shiftLogs'
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Tab 1: Incoming Orders View Mode ('orderWise' | 'flat') & Accordion state
+  const [incomingViewMode, setIncomingViewMode] = useState('orderWise');
+  const [expandedOrderKeys, setExpandedOrderKeys] = useState({});
+
+  const toggleOrderExpand = (key) => {
+    setExpandedOrderKeys((prev) => ({
+      ...prev,
+      [key]: prev[key] === undefined ? false : !prev[key],
+    }));
+  };
+
+  const isOrderExpanded = (key) => {
+    return expandedOrderKeys[key] !== false; // Default to open/expanded
+  };
+
+  const expandAllOrders = () => {
+    setExpandedOrderKeys({});
+  };
+
+  const collapseAllOrders = (groups) => {
+    const next = {};
+    (groups || []).forEach((g) => {
+      next[g.key] = false;
+    });
+    setExpandedOrderKeys(next);
+  };
 
   // Dispatch multi-select
   const [selectedDispatchIds, setSelectedDispatchIds] = useState([]);
@@ -556,6 +585,27 @@ export default function ProductionOperationsDashboard({
     }
   };
 
+  // Start Entire Order (Batch Start All Items in an Incoming Sales Order)
+  const handleStartEntireOrder = async (group) => {
+    const rawOrders = group.rawOrders || [];
+    if (rawOrders.length === 0) return;
+    const loadingKey = `order-${group.key}`;
+    setActionLoadingId(loadingKey);
+    try {
+      for (const order of rawOrders) {
+        const id = order.id || order.workOrderNo;
+        await backendFetch(`/api/backend/production/${id}/start`, { method: 'POST' });
+      }
+      showToast(`All items for Sales Order ${group.orderNo} released to production floor!`);
+      await fetchDashboardData(false);
+    } catch (err) {
+      console.error('Failed to start entire order:', err);
+      alert('Failed to start all items for this order');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   // Complete Floor Run (Floor -> QC Queue)
   const handleCompleteRun = async (run) => {
     const id = run.id || run.workOrderNo;
@@ -795,6 +845,85 @@ export default function ProductionOperationsDashboard({
         r.product?.toLowerCase().includes(q)
     );
   }, [incomingOrders, searchQuery]);
+
+  // Tab 1: Grouped Order-Wise Incoming Orders
+  const groupedIncomingOrders = useMemo(() => {
+    const groups = [];
+    const groupMap = new Map();
+
+    for (const order of filteredIncoming) {
+      const rawOrderNo = order.orderNo && order.orderNo !== '—' ? order.orderNo : null;
+      const key = rawOrderNo || order.workOrderNo || order.id || 'UNASSIGNED';
+
+      if (!groupMap.has(key)) {
+        const group = {
+          key,
+          orderNo: rawOrderNo || order.workOrderNo || 'Direct Planning',
+          isSalesOrder: Boolean(rawOrderNo),
+          customer: order.customer || 'Standard Client',
+          targetDate: order.targetDate || '—',
+          createdAt: order.createdAt || '—',
+          status: order.status || 'READY',
+          priority: order.priority || 'NORMAL',
+          items: [],
+          rawOrders: [],
+          totalQuantity: 0,
+        };
+        groupMap.set(key, group);
+        groups.push(group);
+      }
+
+      const group = groupMap.get(key);
+      group.rawOrders.push(order);
+
+      // If backend passed structured sub-items array:
+      if (Array.isArray(order.items) && order.items.length > 0) {
+        for (const it of order.items) {
+          const itemQty = Number(it.quantity) || 0;
+          group.items.push({
+            id: it.id || order.id,
+            workOrderNo: it.workOrderNo || order.workOrderNo,
+            product: it.product || order.product,
+            quantity: itemQty,
+            unit: it.unit || 'Units',
+            targetDate: order.targetDate || '—',
+            createdAt: order.createdAt || '—',
+            status: order.status || 'READY',
+            priority: order.priority || 'NORMAL',
+            parentOrder: order,
+          });
+          group.totalQuantity += itemQty;
+        }
+      } else {
+        const itemQty = Number(order.quantity) || 0;
+        group.items.push({
+          id: order.id,
+          workOrderNo: order.workOrderNo,
+          product: order.product,
+          quantity: itemQty,
+          unit: 'Units',
+          targetDate: order.targetDate || '—',
+          createdAt: order.createdAt || '—',
+          status: order.status || 'READY',
+          priority: order.priority || 'NORMAL',
+          parentOrder: order,
+        });
+        group.totalQuantity += itemQty;
+      }
+
+      // Track earliest target delivery date
+      if (order.targetDate && order.targetDate !== '—') {
+        if (group.targetDate === '—' || order.targetDate < group.targetDate) {
+          group.targetDate = order.targetDate;
+        }
+      }
+      if (order.priority === 'URGENT' || order.priority === 'HIGH') {
+        group.priority = order.priority;
+      }
+    }
+
+    return groups;
+  }, [filteredIncoming]);
 
   const filteredActiveRuns = useMemo(() => {
     if (!searchQuery) return activeFloorRuns;
@@ -1681,34 +1810,419 @@ export default function ProductionOperationsDashboard({
         {/* ─── TAB 1: INCOMING ORDERS ─── */}
         {activeTab === 'incoming' && (
           <div className="pod-table-card">
-            {/* Desktop Table View */}
-            <div className="pod-table-responsive pod-desktop-table">
-              <table className="pod-data-table">
-                <thead>
-                  <tr>
-                    <th>Work Order Ref</th>
-                    <th>Customer & Order</th>
-                    <th>Product Item</th>
-                    <th>Quantity</th>
-                    <th>Target Date</th>
-                    <th>Created</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredIncoming.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="pod-empty-row">
-                        <Inbox size={32} color="#94a3b8" />
-                        <b>No incoming orders pending start</b>
-                        <p>All scheduled work orders have already been released to the production floor.</p>
-                      </td>
-                    </tr>
+            {/* Tab 1 Inner Toolbar: View Switcher & Expand/Collapse */}
+            <div className="pod-tab-inner-toolbar">
+              <div className="pod-toolbar-left">
+                <div className="pod-view-mode-pill">
+                  <button
+                    type="button"
+                    className={`pod-view-toggle-btn ${incomingViewMode === 'orderWise' ? 'active' : ''}`}
+                    onClick={() => setIncomingViewMode('orderWise')}
+                    title="Group items by Sales Order"
+                  >
+                    <Layers size={13} />
+                    <span>Order-Wise ({groupedIncomingOrders.length} Orders)</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`pod-view-toggle-btn ${incomingViewMode === 'flat' ? 'active' : ''}`}
+                    onClick={() => setIncomingViewMode('flat')}
+                    title="View flat list of all work orders"
+                  >
+                    <ListOrdered size={13} />
+                    <span>All Items ({filteredIncoming.length} WOs)</span>
+                  </button>
+                </div>
+                <span className="pod-toolbar-stats">
+                  <b>{filteredIncoming.length}</b> work orders waiting release
+                </span>
+              </div>
+              {incomingViewMode === 'orderWise' && groupedIncomingOrders.length > 0 && (
+                <div className="pod-toolbar-right">
+                  <button
+                    type="button"
+                    className="pod-btn-text-action"
+                    onClick={expandAllOrders}
+                  >
+                    Expand All
+                  </button>
+                  <span className="pod-divider">·</span>
+                  <button
+                    type="button"
+                    className="pod-btn-text-action"
+                    onClick={() => collapseAllOrders(groupedIncomingOrders)}
+                  >
+                    Collapse All
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Desktop View */}
+            <div className="pod-desktop-table">
+              {incomingViewMode === 'orderWise' ? (
+                <div className="pod-orderwise-container">
+                  {groupedIncomingOrders.length === 0 ? (
+                    <div className="pod-empty-row pod-empty-card-box">
+                      <Inbox size={32} color="#94a3b8" />
+                      <b>No incoming orders pending start</b>
+                      <p>All scheduled orders have already been released to the production floor.</p>
+                    </div>
                   ) : (
-                    filteredIncoming.map((order) => (
-                      <tr key={order.id || order.workOrderNo}>
-                        <td>
+                    groupedIncomingOrders.map((group) => {
+                      const expanded = isOrderExpanded(group.key);
+                      const hasMultiple = group.items.length > 1;
+                      const isStartingOrder = actionLoadingId === `order-${group.key}`;
+                      return (
+                        <div
+                          key={group.key}
+                          className={`pod-order-group-card ${expanded ? 'expanded' : ''}`}
+                        >
+                          {/* Order Group Header Banner */}
+                          <div
+                            className="pod-order-group-header"
+                            onClick={() => toggleOrderExpand(group.key)}
+                          >
+                            <div className="pod-order-group-left">
+                              <span className="pod-order-chevron-btn" aria-hidden="true">
+                                <ChevronDown
+                                  size={16}
+                                  style={{
+                                    transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                                    transition: 'transform 0.2s ease',
+                                    color: '#64748b',
+                                  }}
+                                />
+                              </span>
+                              <div className="pod-order-ref-cluster">
+                                <span
+                                  className="pod-order-badge"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const found = orders.find((o) => o.orderNo === group.orderNo);
+                                    if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                                    else if (onSelectOrderDetails) {
+                                      onSelectOrderDetails({
+                                        orderNo: group.orderNo,
+                                        customer: group.customer,
+                                        items: group.items,
+                                      });
+                                    }
+                                  }}
+                                  title="Click to view Sales Order details"
+                                >
+                                  SO: {group.orderNo}
+                                </span>
+                                <span className="pod-order-customer">{group.customer}</span>
+                              </div>
+                            </div>
+
+                            <div className="pod-order-group-right">
+                              <div className="pod-order-meta-chips">
+                                <span className="pod-chip pod-chip-items">
+                                  <b>{group.items.length}</b> {group.items.length === 1 ? 'Product' : 'Products'}
+                                </span>
+                                <span className="pod-chip pod-chip-qty">
+                                  <b>{group.totalQuantity.toLocaleString()}</b> Units
+                                </span>
+                                <span className="pod-chip pod-chip-date">
+                                  <Calendar size={12} /> Target: {group.targetDate || '—'}
+                                </span>
+                                <span className="pod-stage-badge blue">Waiting Release</span>
+                              </div>
+
+                              {hasMultiple && (
+                                <button
+                                  type="button"
+                                  className="pod-btn-start-order"
+                                  disabled={isStartingOrder}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStartEntireOrder(group);
+                                  }}
+                                >
+                                  <Play size={12} />
+                                  <span>{isStartingOrder ? 'Starting All...' : 'Release All Items'}</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Nested Items Table */}
+                          {expanded && (
+                            <div className="pod-order-items-table-wrapper">
+                              <table className="pod-order-items-table">
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: '22%' }}>Work Order Ref</th>
+                                    <th style={{ width: '38%' }}>Product Item & Specifications</th>
+                                    <th style={{ width: '13%' }}>Quantity</th>
+                                    <th style={{ width: '13%' }}>Target Date</th>
+                                    <th style={{ width: '14%' }}>Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {group.items.map((item, idx) => {
+                                    const itemId = item.parentOrder?.id || item.id;
+                                    const isStarting = actionLoadingId === itemId;
+                                    return (
+                                      <tr key={item.id || idx}>
+                                        <td>
+                                          <span
+                                            className="pod-cell-ref"
+                                            onClick={() => {
+                                              const found = orders.find((o) => o.orderNo === group.orderNo);
+                                              if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                                            }}
+                                          >
+                                            {item.workOrderNo}
+                                          </span>
+                                        </td>
+                                        <td>
+                                          <span className="pod-cell-bold">{item.product}</span>
+                                        </td>
+                                        <td>
+                                          <span className="pod-cell-qty">
+                                            <b>{item.quantity}</b> {item.unit || 'Units'}
+                                          </span>
+                                        </td>
+                                        <td>
+                                          <span className="pod-cell-sub">
+                                            {item.targetDate || group.targetDate || '—'}
+                                          </span>
+                                        </td>
+                                        <td>
+                                          <button
+                                            type="button"
+                                            className="pod-btn-start-job"
+                                            disabled={isStarting || isStartingOrder}
+                                            onClick={() => handleStartJob(item.parentOrder || item)}
+                                          >
+                                            <Play size={12} />
+                                            <span>{isStarting ? 'Starting...' : 'Start Production'}</span>
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                /* Flat Desktop Table */
+                <div className="pod-table-responsive">
+                  <table className="pod-data-table">
+                    <thead>
+                      <tr>
+                        <th>Work Order Ref</th>
+                        <th>Customer & Order</th>
+                        <th>Product Item</th>
+                        <th>Quantity</th>
+                        <th>Target Date</th>
+                        <th>Created</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredIncoming.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="pod-empty-row">
+                            <Inbox size={32} color="#94a3b8" />
+                            <b>No incoming orders pending start</b>
+                            <p>All scheduled work orders have already been released to the production floor.</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredIncoming.map((order) => (
+                          <tr key={order.id || order.workOrderNo}>
+                            <td>
+                              <span
+                                className="pod-cell-ref"
+                                onClick={() => {
+                                  const found = orders.find((o) => o.orderNo === order.orderNo);
+                                  if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                                }}
+                              >
+                                {order.workOrderNo}
+                              </span>
+                              {order.orderNo && order.orderNo !== '—' && (
+                                <small className="pod-cell-sub">SO: {order.orderNo}</small>
+                              )}
+                            </td>
+                            <td>
+                              <span className="pod-cell-bold">{order.customer || 'Standard Client'}</span>
+                            </td>
+                            <td>
+                              <span className="pod-cell-bold">{order.product}</span>
+                            </td>
+                            <td>
+                              <b>{order.quantity}</b> Units
+                            </td>
+                            <td>
+                              <span>{order.targetDate || '—'}</span>
+                            </td>
+                            <td>
+                              <small className="pod-cell-sub">{order.createdAt || '—'}</small>
+                            </td>
+                            <td>
+                              <span className="pod-stage-badge">{order.status || 'READY'}</span>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="pod-btn-start-job"
+                                disabled={actionLoadingId === order.id}
+                                onClick={() => handleStartJob(order)}
+                              >
+                                <Play size={12} />
+                                <span>{actionLoadingId === order.id ? 'Starting...' : 'Start Production'}</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile View */}
+            <div className="pod-mobile-list">
+              {incomingViewMode === 'orderWise' ? (
+                groupedIncomingOrders.length === 0 ? (
+                  <div className="pod-mobile-empty">
+                    <Inbox size={28} color="#94a3b8" />
+                    <b>No incoming orders pending start</b>
+                    <p>All scheduled work orders have already been released to the production floor.</p>
+                  </div>
+                ) : (
+                  groupedIncomingOrders.map((group) => {
+                    const expanded = isOrderExpanded(group.key);
+                    const hasMultiple = group.items.length > 1;
+                    const isStartingOrder = actionLoadingId === `order-${group.key}`;
+                    return (
+                      <div
+                        key={`m-grp-${group.key}`}
+                        className={`pod-mobile-card pod-mobile-order-card ${expanded ? 'expanded' : ''}`}
+                      >
+                        <div
+                          className="pod-mobile-card-header"
+                          onClick={() => toggleOrderExpand(group.key)}
+                        >
+                          <div className="pod-mobile-card-title-group">
+                            <span
+                              className="pod-cell-ref"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const found = orders.find((o) => o.orderNo === group.orderNo);
+                                if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                              }}
+                            >
+                              SO: {group.orderNo}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="pod-stage-badge blue">Waiting Release</span>
+                            <ChevronDown
+                              size={16}
+                              style={{
+                                transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                                transition: 'transform 0.2s ease',
+                                color: '#64748b',
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="pod-mobile-card-body">
+                          <div className="pod-mobile-card-customer">{group.customer}</div>
+                          <div className="pod-mobile-card-chips">
+                            <span className="pod-mobile-chip">
+                              <b>{group.items.length}</b> {group.items.length === 1 ? 'Product' : 'Products'}
+                            </span>
+                            <span className="pod-mobile-chip">
+                              <b>{group.totalQuantity}</b> Units Total
+                            </span>
+                            <span className="pod-mobile-chip">
+                              Target: {group.targetDate || '—'}
+                            </span>
+                          </div>
+
+                          {/* Nested Line Items on Mobile */}
+                          {expanded && (
+                            <div className="pod-mobile-order-items-list">
+                              {group.items.map((item, idx) => {
+                                const itemId = item.parentOrder?.id || item.id;
+                                const isStarting = actionLoadingId === itemId;
+                                return (
+                                  <div key={`m-it-${item.id || idx}`} className="pod-mobile-order-item-row">
+                                    <div className="pod-mobile-order-item-info">
+                                      <span className="pod-mobile-order-item-title">{item.product}</span>
+                                      <div className="pod-mobile-order-item-meta">
+                                        <span className="pod-mobile-order-item-wo">{item.workOrderNo}</span>
+                                        <span className="pod-mobile-order-item-qty">
+                                          <b>{item.quantity}</b> Units
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="pod-btn-start-job pod-btn-mobile-item"
+                                      disabled={isStarting || isStartingOrder}
+                                      onClick={() => handleStartJob(item.parentOrder || item)}
+                                    >
+                                      <Play size={11} />
+                                      <span>{isStarting ? '...' : 'Start'}</span>
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {hasMultiple && (
+                          <div className="pod-mobile-card-actions">
+                            <button
+                              type="button"
+                              className="pod-btn-start-order pod-btn-mobile-full"
+                              disabled={isStartingOrder}
+                              onClick={() => handleStartEntireOrder(group)}
+                            >
+                              <Play size={13} />
+                              <span>
+                                {isStartingOrder
+                                  ? 'Starting All Items...'
+                                  : `Release All ${group.items.length} Items`}
+                              </span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )
+              ) : (
+                /* Flat Mobile List */
+                filteredIncoming.length === 0 ? (
+                  <div className="pod-mobile-empty">
+                    <Inbox size={28} color="#94a3b8" />
+                    <b>No incoming orders pending start</b>
+                    <p>All scheduled work orders have already been released to the production floor.</p>
+                  </div>
+                ) : (
+                  filteredIncoming.map((order) => (
+                    <div key={`m-inc-${order.id || order.workOrderNo}`} className="pod-mobile-card">
+                      <div className="pod-mobile-card-header">
+                        <div className="pod-mobile-card-title-group">
                           <span
                             className="pod-cell-ref"
                             onClick={() => {
@@ -1719,106 +2233,45 @@ export default function ProductionOperationsDashboard({
                             {order.workOrderNo}
                           </span>
                           {order.orderNo && order.orderNo !== '—' && (
-                            <small className="pod-cell-sub">SO: {order.orderNo}</small>
+                            <span className="pod-mobile-card-sub">SO: {order.orderNo}</span>
                           )}
-                        </td>
-                        <td>
-                          <span className="pod-cell-bold">{order.customer || 'Standard Client'}</span>
-                        </td>
-                        <td>
-                          <span className="pod-cell-bold">{order.product}</span>
-                        </td>
-                        <td>
-                          <b>{order.quantity}</b> Units
-                        </td>
-                        <td>
-                          <span>{order.targetDate || '—'}</span>
-                        </td>
-                        <td>
-                          <small className="pod-cell-sub">{order.createdAt || '—'}</small>
-                        </td>
-                        <td>
-                          <span className="pod-stage-badge">{order.status || 'READY'}</span>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="pod-btn-start-job"
-                            disabled={actionLoadingId === order.id}
-                            onClick={() => handleStartJob(order)}
-                          >
-                            <Play size={12} />
-                            <span>{actionLoadingId === order.id ? 'Starting...' : 'Start Production'}</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile List-Wise View */}
-            <div className="pod-mobile-list">
-              {filteredIncoming.length === 0 ? (
-                <div className="pod-mobile-empty">
-                  <Inbox size={28} color="#94a3b8" />
-                  <b>No incoming orders pending start</b>
-                  <p>All scheduled work orders have already been released to the production floor.</p>
-                </div>
-              ) : (
-                filteredIncoming.map((order) => (
-                  <div key={`m-inc-${order.id || order.workOrderNo}`} className="pod-mobile-card">
-                    <div className="pod-mobile-card-header">
-                      <div className="pod-mobile-card-title-group">
-                        <span
-                          className="pod-cell-ref"
-                          onClick={() => {
-                            const found = orders.find((o) => o.orderNo === order.orderNo);
-                            if (found && onSelectOrderDetails) onSelectOrderDetails(found);
-                          }}
-                        >
-                          {order.workOrderNo}
-                        </span>
-                        {order.orderNo && order.orderNo !== '—' && (
-                          <span className="pod-mobile-card-sub">SO: {order.orderNo}</span>
-                        )}
+                        </div>
+                        <span className="pod-stage-badge blue">{order.status || 'READY'}</span>
                       </div>
-                      <span className="pod-stage-badge blue">{order.status || 'READY'}</span>
-                    </div>
 
-                    <div className="pod-mobile-card-body">
-                      <div className="pod-mobile-card-customer">{order.customer || 'Standard Client'}</div>
-                      <div className="pod-mobile-card-product">{order.product}</div>
+                      <div className="pod-mobile-card-body">
+                        <div className="pod-mobile-card-customer">{order.customer || 'Standard Client'}</div>
+                        <div className="pod-mobile-card-product">{order.product}</div>
 
-                      <div className="pod-mobile-card-chips">
-                        <span className="pod-mobile-chip">
-                          <b>{order.quantity}</b> Units
-                        </span>
-                        <span className="pod-mobile-chip">
-                          Target: {order.targetDate || '—'}
-                        </span>
-                        {order.createdAt && (
-                          <span className="pod-mobile-chip text-muted">
-                            {order.createdAt}
+                        <div className="pod-mobile-card-chips">
+                          <span className="pod-mobile-chip">
+                            <b>{order.quantity}</b> Units
                           </span>
-                        )}
+                          <span className="pod-mobile-chip">
+                            Target: {order.targetDate || '—'}
+                          </span>
+                          {order.createdAt && (
+                            <span className="pod-mobile-chip text-muted">
+                              {order.createdAt}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pod-mobile-card-actions">
+                        <button
+                          type="button"
+                          className="pod-btn-start-job pod-btn-mobile-full"
+                          disabled={actionLoadingId === order.id}
+                          onClick={() => handleStartJob(order)}
+                        >
+                          <Play size={13} />
+                          <span>{actionLoadingId === order.id ? 'Starting...' : 'Start Production'}</span>
+                        </button>
                       </div>
                     </div>
-
-                    <div className="pod-mobile-card-actions">
-                      <button
-                        type="button"
-                        className="pod-btn-start-job pod-btn-mobile-full"
-                        disabled={actionLoadingId === order.id}
-                        onClick={() => handleStartJob(order)}
-                      >
-                        <Play size={13} />
-                        <span>{actionLoadingId === order.id ? 'Starting...' : 'Start Production'}</span>
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  ))
+                )
               )}
             </div>
           </div>
