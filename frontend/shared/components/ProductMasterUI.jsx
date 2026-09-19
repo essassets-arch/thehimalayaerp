@@ -14,6 +14,14 @@ import { safeSaveFile } from '../../services/export.service';
 
 const UNITS = ['PCS', 'SET', 'KG', 'LTR', 'BAG', 'ROLL', 'CAN', 'BARREL', 'PKT', 'MTR'];
 
+export const normalizeProductType = (type) => {
+  const normalized = String(type || '').trim().toUpperCase();
+  return normalized === 'MANUFACTURED' ? 'MANUFACTURING' :
+    ['MANUFACTURING', 'TRADING', 'SERVICE'].includes(normalized)
+      ? normalized
+      : 'MANUFACTURING';
+};
+
 export default function ProductMasterUI({ role }) {
   const { showToast } = useToast();
   const { confirm, ConfirmDialogComponent } = useConfirm();
@@ -202,9 +210,9 @@ export default function ProductMasterUI({ role }) {
         (filterDispatch === 'D2' && p.dispatch_category === 'D2') ||
         (filterDispatch === 'Unassigned' && (p.dispatch_category === 'Unassigned' || !p.dispatch_category));
       
-      const pType = String(p.product_type || '').toUpperCase();
+      const pType = normalizeProductType(p.product_type || p.productType);
       const matchesSubMenu = activeSubMenu === 'ALL' || 
-        (activeSubMenu === 'MANUFACTURING' && (pType === 'MANUFACTURING' || pType === 'MANUFACTURED')) ||
+        (activeSubMenu === 'MANUFACTURING' && pType === 'MANUFACTURING') ||
         (activeSubMenu === 'TRADING' && pType === 'TRADING');
 
       return matchesSearch && matchesFamily && matchesDispatch && matchesSubMenu;
@@ -251,13 +259,7 @@ export default function ProductMasterUI({ role }) {
     { value: 'SERVICE', label: 'Service' },
   ];
 
-  const normalizeProductType = (type) => {
-    const normalized = String(type || '').trim().toUpperCase();
-    return normalized === 'MANUFACTURED' ? 'MANUFACTURING' :
-      ['MANUFACTURING', 'TRADING', 'SERVICE'].includes(normalized)
-        ? normalized
-        : 'MANUFACTURING';
-  };
+
 
   const openEdit = (p) => {
     const pType = normalizeProductType(p.product_type || p.productType);
@@ -599,7 +601,10 @@ export default function ProductMasterUI({ role }) {
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'stretch', width: '100%' }}>
         <button
           type="button"
-          onClick={() => setActiveSubMenu('MANUFACTURING')}
+          onClick={() => {
+            setActiveSubMenu('MANUFACTURING');
+            if (filterDispatch === 'D2') setFilterDispatch('All');
+          }}
           style={{
             flex: isMobile ? 1 : 'none',
             display: 'inline-flex',
@@ -636,7 +641,10 @@ export default function ProductMasterUI({ role }) {
 
         <button
           type="button"
-          onClick={() => setActiveSubMenu('TRADING')}
+          onClick={() => {
+            setActiveSubMenu('TRADING');
+            if (filterDispatch === 'D1') setFilterDispatch('All');
+          }}
           style={{
             flex: isMobile ? 1 : 'none',
             display: 'inline-flex',
@@ -762,6 +770,8 @@ export default function ProductMasterUI({ role }) {
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
+              <option value={200}>200</option>
+              <option value={500}>500 (All)</option>
             </select>
           </div>
 
