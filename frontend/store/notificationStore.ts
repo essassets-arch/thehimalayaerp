@@ -47,6 +47,18 @@ const getStoreToken = () => {
   return token;
 };
 
+const getStoredUser = () => {
+  if (typeof window === 'undefined') return null;
+  const hasAuthStorage = localStorage.getItem('auth-storage');
+  if (hasAuthStorage) {
+    try {
+      const auth = JSON.parse(hasAuthStorage);
+      return auth?.state?.user || null;
+    } catch (e) {}
+  }
+  return null;
+};
+
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   toasts: [],
   notifications: [],
@@ -85,10 +97,47 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         const data = json.data || json;
         const rawItems = data.items || data.notifications || data || [];
         const items = Array.isArray(rawItems) ? rawItems : [];
-        const unread = typeof data.unreadCount === 'number' ? data.unreadCount : items.filter((n: any) => !n.isRead && !n.is_read).length;
+
+        const user = getStoredUser();
+        const role = String(user?.role?.code || user?.role || '').toUpperCase();
+        const email = String(user?.email || '').toLowerCase();
+        const isD2 = role === 'DISPATCH_2' || email.includes('sahad');
+        const isD1 =
+          (['DISPATCH_1', 'DISPATCH_EXECUTIVE', 'DISPATCH'].includes(role) ||
+            email.includes('ravikant')) &&
+          !isD2;
+
+        let filteredItems = items;
+        if (isD2) {
+          filteredItems = items.filter((n: any) => {
+            const r = String(n.route || '');
+            const t = String(n.type || '').toUpperCase();
+            const tit = String(n.title || '').toLowerCase();
+            const msg = String(n.message || '').toLowerCase();
+            if (r.startsWith('/dispatch') && !r.startsWith('/dispatch-2')) return false;
+            if (t.includes('DISPATCH_1') || n.entityType === 'WorkOrder') return false;
+            if (tit.includes('dispatch 1') || tit.includes('factory')) return false;
+            if (msg.includes('dispatch 1') || msg.includes('factory')) return false;
+            return true;
+          });
+        } else if (isD1) {
+          filteredItems = items.filter((n: any) => {
+            const r = String(n.route || '');
+            const t = String(n.type || '').toUpperCase();
+            const tit = String(n.title || '').toLowerCase();
+            const msg = String(n.message || '').toLowerCase();
+            if (r.startsWith('/dispatch-2')) return false;
+            if (t.includes('DISPATCH_2')) return false;
+            if (tit.includes('dispatch 2') || tit.includes('sahad')) return false;
+            if (msg.includes('dispatch 2') || msg.includes('sahad')) return false;
+            return true;
+          });
+        }
+
+        const unread = filteredItems.filter((n: any) => !n.isRead && !n.is_read).length;
 
         set({
-          notifications: items.map((n: any) => ({
+          notifications: filteredItems.map((n: any) => ({
             ...n,
             module: n.module || 'SYSTEM',
             priority: n.priority || 'MEDIUM',
@@ -96,7 +145,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
             is_read: Boolean(n.isRead ?? n.is_read),
           })),
           unreadCount: unread,
-          totalCount: items.length,
+          totalCount: filteredItems.length,
           isLoading: false,
         });
       } else {

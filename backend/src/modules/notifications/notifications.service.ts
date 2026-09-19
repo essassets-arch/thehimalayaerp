@@ -142,6 +142,61 @@ export class NotificationsService {
       }
     }
 
+    // 0. Safeguard: Prevent Dispatch cross-contamination between Dispatch 1 and Dispatch 2
+    const recipient = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        dispatchCategory: true,
+        role: { select: { code: true } },
+      },
+    });
+
+    if (recipient) {
+      const roleCode = String(recipient.role?.code || '').toUpperCase();
+      const userEmail = String(recipient.email || '').toLowerCase();
+      const cat = String(recipient.dispatchCategory || '').toUpperCase();
+
+      const isD2User =
+        roleCode === 'DISPATCH_2' || cat === 'D2' || userEmail.includes('sahad');
+      const isD1User =
+        ['DISPATCH_1', 'DISPATCH_EXECUTIVE', 'DISPATCH'].includes(roleCode) ||
+        cat === 'D1' ||
+        userEmail.includes('ravikant');
+
+      const isD2Content =
+        (route && route.startsWith('/dispatch-2')) ||
+        type.includes('DISPATCH_2') ||
+        title.toLowerCase().includes('dispatch 2') ||
+        title.toLowerCase().includes('sahad') ||
+        message.toLowerCase().includes('dispatch 2') ||
+        message.toLowerCase().includes('sahad');
+
+      const isD1Content =
+        (route && route.startsWith('/dispatch') && !route.startsWith('/dispatch-2')) ||
+        type.includes('DISPATCH_1') ||
+        entityType === 'WorkOrder' ||
+        title.toLowerCase().includes('dispatch 1') ||
+        title.toLowerCase().includes('factory') ||
+        message.toLowerCase().includes('dispatch 1') ||
+        message.toLowerCase().includes('factory');
+
+      if (isD2User && !isD1User && isD1Content && !isD2Content) {
+        this.logger.warn(
+          `[Isolation] Suppressed Dispatch 1 notification "${title}" from sending to Dispatch 2 user ${recipient.email}`,
+        );
+        return null;
+      }
+
+      if (isD1User && !isD2User && isD2Content && !isD1Content) {
+        this.logger.warn(
+          `[Isolation] Suppressed Dispatch 2 notification "${title}" from sending to Dispatch 1 user ${recipient.email}`,
+        );
+        return null;
+      }
+    }
+
     // 1. Create PostgreSQL Notification first (Source of Truth)
     const notification = await this.prisma.notification.create({
       data: {
@@ -316,25 +371,49 @@ export class NotificationsService {
     }
     const targetRoles = Array.from(expandedRoles);
 
-    let users = await this.prisma.user.findMany({
-      where: {
-        ...(companyId ? { companyId } : {}),
-        isActive: true,
-        role: {
-          code: { in: targetRoles },
-        },
+    const isTargetingD1 = targetRoles.some((r) =>
+      ['DISPATCH_1', 'DISPATCH_EXECUTIVE', 'DISPATCH'].includes(r),
+    );
+    const isTargetingD2 = targetRoles.includes('DISPATCH_2');
+
+    let baseUserFilter: any = {
+      ...(companyId ? { companyId } : {}),
+      isActive: true,
+      role: {
+        code: { in: targetRoles },
       },
+    };
+
+    if (isTargetingD1 && !isTargetingD2) {
+      baseUserFilter = {
+        ...baseUserFilter,
+        AND: [
+          { NOT: { role: { code: 'DISPATCH_2' } } },
+          { NOT: { email: { contains: 'sahad', mode: 'insensitive' } } },
+          { NOT: { dispatchCategory: 'D2' } },
+        ],
+      };
+    } else if (isTargetingD2 && !isTargetingD1) {
+      baseUserFilter = {
+        ...baseUserFilter,
+        AND: [
+          { NOT: { role: { code: { in: ['DISPATCH_1', 'DISPATCH_EXECUTIVE', 'DISPATCH'] } } } },
+          { NOT: { email: { contains: 'ravikant', mode: 'insensitive' } } },
+          { NOT: { dispatchCategory: 'D1' } },
+        ],
+      };
+    }
+
+    let users = await this.prisma.user.findMany({
+      where: baseUserFilter,
       select: { id: true, companyId: true },
     });
 
     if (users.length === 0 && companyId) {
+      const fallbackFilter = { ...baseUserFilter };
+      delete fallbackFilter.companyId;
       users = await this.prisma.user.findMany({
-        where: {
-          isActive: true,
-          role: {
-            code: { in: targetRoles },
-          },
-        },
+        where: fallbackFilter,
         select: { id: true, companyId: true },
       });
     }
@@ -365,7 +444,9 @@ export class NotificationsService {
         actorName,
         eventKey: uEventKey,
       });
-      createdNotifications.push(notif);
+      if (notif) {
+        createdNotifications.push(notif);
+      }
     }
 
     return createdNotifications;
@@ -384,6 +465,67 @@ export class NotificationsService {
     return user?.companyId || '';
   }
 
+  /**
+   * Generates a strict isolation filter ensuring Dispatch 1 and Dispatch 2 users
+   * never see each other's notifications.
+   */
+  private async getDispatchIsolationFilter(userId: string): Promise<any> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        dispatchCategory: true,
+        role: { select: { code: true } },
+      },
+    });
+    if (!user) return {};
+
+    const roleCode = String(user.role?.code || '').toUpperCase();
+    const email = String(user.email || '').toLowerCase();
+    const cat = String(user.dispatchCategory || '').toUpperCase();
+
+    const isD2User =
+      roleCode === 'DISPATCH_2' || cat === 'D2' || email.includes('sahad');
+    const isD1User =
+      ['DISPATCH_1', 'DISPATCH_EXECUTIVE', 'DISPATCH'].includes(roleCode) ||
+      cat === 'D1' ||
+      email.includes('ravikant');
+
+    if (isD2User && !isD1User) {
+      // Dispatch 2 MUST NOT see Dispatch 1 (Factory / WorkOrder) notifications
+      return {
+        NOT: [
+          {
+            AND: [
+              { route: { startsWith: '/dispatch' } },
+              { NOT: { route: { startsWith: '/dispatch-2' } } },
+            ],
+          },
+          { type: { contains: 'DISPATCH_1' } },
+          { entityType: 'WorkOrder' },
+          { title: { contains: 'Dispatch 1', mode: 'insensitive' } },
+          { message: { contains: 'Dispatch 1', mode: 'insensitive' } },
+          { message: { contains: 'Factory', mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    if (isD1User && !isD2User) {
+      // Dispatch 1 MUST NOT see Dispatch 2 (Sahad Trading) notifications
+      return {
+        NOT: [
+          { route: { startsWith: '/dispatch-2' } },
+          { type: { contains: 'DISPATCH_2' } },
+          { title: { contains: 'Dispatch 2', mode: 'insensitive' } },
+          { message: { contains: 'Dispatch 2', mode: 'insensitive' } },
+          { message: { contains: 'Sahad', mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    return {};
+  }
+
   async getNotifications(
     userId: string,
     companyId?: string,
@@ -397,19 +539,28 @@ export class NotificationsService {
       };
     }
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
+    const isolationFilter = await this.getDispatchIsolationFilter(userId);
+    const whereCondition = {
+      userId,
+      companyId: resolvedCompanyId,
+      ...isolationFilter,
+    };
+
     const [items, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
-        where: {
-          userId,
-          companyId: resolvedCompanyId,
-        },
+        where: whereCondition,
         orderBy: {
           createdAt: 'desc',
         },
         take: limit,
         skip: offset,
       }),
-      this.getUnreadCount(userId, resolvedCompanyId),
+      this.prisma.notification.count({
+        where: {
+          ...whereCondition,
+          isRead: false,
+        },
+      }),
     ]);
 
     return {
@@ -423,11 +574,13 @@ export class NotificationsService {
       return 0;
     }
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
+    const isolationFilter = await this.getDispatchIsolationFilter(userId);
     return this.prisma.notification.count({
       where: {
         userId,
         companyId: resolvedCompanyId,
         isRead: false,
+        ...isolationFilter,
       },
     });
   }
@@ -460,11 +613,13 @@ export class NotificationsService {
       return { count: 0 };
     }
     const resolvedCompanyId = await this.resolveCompanyId(userId, companyId);
+    const isolationFilter = await this.getDispatchIsolationFilter(userId);
     return this.prisma.notification.updateMany({
       where: {
         userId,
         companyId: resolvedCompanyId,
         isRead: false,
+        ...isolationFilter,
       },
       data: {
         isRead: true,

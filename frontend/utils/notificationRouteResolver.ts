@@ -35,9 +35,19 @@ export function resolveNotificationRoute(
   const userRole = String(
     user?.role?.code || user?.role || user?.roleName || ''
   ).toUpperCase();
+  const userEmail = String(user?.email || '').toLowerCase();
   const isSuperSales =
     userRole === 'SUPER_SALES' || userRole.includes('SUPER_SALES');
   const salesBasePath = isSuperSales ? '/supersales' : '/sales';
+
+  const isDispatch2User =
+    userRole === 'DISPATCH_2' || userRole.includes('DISPATCH_2') || userEmail.includes('sahad');
+  const isDispatch1User =
+    (['DISPATCH_1', 'DISPATCH_EXECUTIVE', 'DISPATCH'].includes(userRole) ||
+      userRole.includes('DISPATCH_1') ||
+      userRole.includes('DISPATCH_EXECUTIVE') ||
+      userEmail.includes('ravikant')) &&
+    !isDispatch2User;
 
   // 1. If explicit route is provided and valid, adapt if needed and return
   if (
@@ -51,6 +61,12 @@ export function resolveNotificationRoute(
       r = r.replace('/sales/', '/supersales/');
     } else if (!isSuperSales && r.startsWith('/supersales/')) {
       r = r.replace('/supersales/', '/sales/');
+    }
+    // Adapt dispatch 1 vs dispatch 2 strictly
+    if (isDispatch2User && r.startsWith('/dispatch') && !r.startsWith('/dispatch-2')) {
+      r = r.replace('/dispatch', '/dispatch-2');
+    } else if (isDispatch1User && r.startsWith('/dispatch-2')) {
+      r = r.replace('/dispatch-2', '/dispatch');
     }
     return r;
   }
@@ -77,11 +93,11 @@ export function resolveNotificationRoute(
     if (userRole.includes('PRODUCTION')) {
       return '/production/incoming-orders';
     }
-    if (userRole.includes('DISPATCH_2')) {
+    if (isDispatch2User) {
       return '/dispatch-2/orders';
     }
-    if (userRole.includes('DISPATCH')) {
-      return '/dispatch';
+    if (isDispatch1User || userRole.includes('DISPATCH')) {
+      return '/dispatch/orders';
     }
     if (entityId) {
       return `${salesBasePath}/orders/${entityId}`;
@@ -271,10 +287,13 @@ export function resolveNotificationRoute(
     title.includes('SHIPMENT') ||
     message.includes('DISPATCH')
   ) {
-    if (userRole.includes('DISPATCH_2')) {
+    if (isDispatch2User) {
       return '/dispatch-2/orders';
     }
-    return '/dispatch';
+    if (isDispatch1User || userRole.includes('DISPATCH')) {
+      return '/dispatch/orders';
+    }
+    return '/dispatch/orders';
   }
 
   // 15. HR / Employees / Attendance / Payroll
@@ -315,8 +334,11 @@ export function resolveNotificationRoute(
   if (userRole.includes('FINANCE')) {
     return '/finance';
   }
-  if (userRole.includes('DISPATCH')) {
-    return '/dispatch';
+  if (isDispatch2User) {
+    return '/dispatch-2/orders';
+  }
+  if (isDispatch1User || userRole.includes('DISPATCH')) {
+    return '/dispatch/orders';
   }
   if (userRole.includes('HR')) {
     return '/hr/employees';
