@@ -36,14 +36,20 @@ export class DispatchService {
     private readonly notificationsService?: NotificationsService,
   ) {}
 
-  async listDispatches(userId?: string, role?: string, status?: string) {
+  async listDispatches(userId?: string, role?: string, status?: string, category?: string) {
     let scope = getSalesScope(userId, role, 'Dispatch');
     const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
 
     const d1CategoryValues = ['D1', 'DISPATCH 1', 'DISPATCH_1', 'CATEGORY 1', 'CATEGORY_1', 'Category 1'];
     const d2CategoryValues = ['D2', 'DISPATCH 2', 'DISPATCH_2', 'CATEGORY 2', 'CATEGORY_2', 'Category 2'];
 
-    if (normalizedRole === 'DISPATCH_1') {
+    let effectiveCat: 'D1' | 'D2' | null = normalizeDispatchCategory(category);
+    if (!effectiveCat) {
+      if (normalizedRole === 'DISPATCH_1') effectiveCat = 'D1';
+      else if (normalizedRole === 'DISPATCH_2') effectiveCat = 'D2';
+    }
+
+    if (effectiveCat === 'D1') {
       scope = {
         ...scope,
         OR: [
@@ -66,7 +72,7 @@ export class DispatchService {
           },
         ],
       };
-    } else if (normalizedRole === 'DISPATCH_2') {
+    } else if (effectiveCat === 'D2') {
       scope = {
         ...scope,
         OR: [
@@ -1429,27 +1435,29 @@ export class DispatchService {
     return history;
   }
 
-  async getDispatchQueue(userId: string, role: string, companyId: string) {
+  async getDispatchQueue(userId: string, role: string, companyId: string, category?: string) {
     // 1. Resolve category filter for the Dispatch user
-    let userCategory: string | null = null;
-    const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
-    if (normalizedRole === 'DISPATCH_1') {
-      userCategory = 'D1';
-    } else if (normalizedRole === 'DISPATCH_2') {
-      userCategory = 'D2';
-    } else if (
-      userId &&
-      (normalizedRole === 'DISPATCH_EXECUTIVE' || normalizedRole.includes('DISPATCH'))
-    ) {
-      const u: any = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
-      if (u?.dispatchCategory) {
-        userCategory = u.dispatchCategory;
-      } else if (String(u?.email || '').toLowerCase().includes('sahad')) {
-        userCategory = 'D2';
-      } else if (String(u?.email || '').toLowerCase().includes('ravikant')) {
+    let userCategory: string | null = normalizeDispatchCategory(category);
+    if (!userCategory) {
+      const normalizedRole = String(role || '').toUpperCase().replace(/[\s-]+/g, '_');
+      if (normalizedRole === 'DISPATCH_1') {
         userCategory = 'D1';
+      } else if (normalizedRole === 'DISPATCH_2') {
+        userCategory = 'D2';
+      } else if (
+        userId &&
+        (normalizedRole === 'DISPATCH_EXECUTIVE' || normalizedRole.includes('DISPATCH'))
+      ) {
+        const u: any = await this.prisma.user.findUnique({
+          where: { id: userId },
+        });
+        if (u?.dispatchCategory) {
+          userCategory = u.dispatchCategory;
+        } else if (String(u?.email || '').toLowerCase().includes('sahad')) {
+          userCategory = 'D2';
+        } else if (String(u?.email || '').toLowerCase().includes('ravikant')) {
+          userCategory = 'D1';
+        }
       }
     }
 

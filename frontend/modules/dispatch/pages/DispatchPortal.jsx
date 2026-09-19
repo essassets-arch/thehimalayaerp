@@ -158,13 +158,14 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
   const fetchDashboardData = async () => {
     setDashboardLoading(true);
     try {
+      const catParam = effectiveDispatchCat ? `?category=${effectiveDispatchCat}` : '';
       const [dispatchesRes, workOrdersRes, returnsRes, replacementsRes, finishedGoodsRes, queueRes] = await Promise.allSettled([
-        backendFetch('/api/backend/logistics/dispatches'),
+        backendFetch(`/api/backend/logistics/dispatches${catParam}`),
         backendFetch('/api/backend/production/work-orders?status=READY_FOR_DISPATCH'),
         backendFetch('/api/backend/sales-returns'),
         backendFetch('/api/backend/replacements'),
         backendFetch('/api/backend/production/finished-goods'),
-        backendFetch('/api/backend/logistics/dispatches/queue'),
+        backendFetch(`/api/backend/logistics/dispatches/queue${catParam}`),
       ]);
 
       if (dispatchesRes.status === 'fulfilled' && Array.isArray(dispatchesRes.value)) {
@@ -1319,9 +1320,13 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     const scopedReadyWorkOrders = filterOrdersByDispatch(backendReadyWorkOrders);
     const scopedDispatches = filterOrdersByDispatch(backendDispatches);
     const scopedQueueOrders = filterOrdersByDispatch(dispatchQueueOrders);
+    const scopedReturns = filterOrdersByDispatch(backendReturns);
+    const scopedReplacements = filterOrdersByDispatch(replacementDispatches);
 
-    // Pure Dynamic KPI Calculations from live backend & ERP state
-    const readyCount = scopedReadyWorkOrders.length || scopedQueueOrders.length || qcPassed.length || 0;
+    // Accurate Dynamic KPI Calculations from live backend & ERP state
+    const readyCount = scopedQueueOrders.length > 0
+      ? scopedQueueOrders.length
+      : (scopedReadyWorkOrders.length || qcPassed.length || 0);
     
     const inTransitDispatches = scopedDispatches.filter(d => ['IN_TRANSIT', 'In Transit'].includes(d.status || d.dispatchStatus));
     const inTransitCount = inTransitDispatches.length || filteredOrders.filter(o => ['IN_TRANSIT', 'In Transit'].includes(o.status || o.workflowStatus)).length || 0;
@@ -1332,7 +1337,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     const deliveredDispatches = scopedDispatches.filter(d => ['DELIVERED', 'Delivered'].includes(d.status || d.dispatchStatus));
     const deliveredCount = deliveredDispatches.length || filteredOrders.filter(o => ['DELIVERED', 'Delivered'].includes(o.status || o.workflowStatus)).length || 0;
     
-    const returnsCount = backendReturns.length || replacementDispatches.length || 0;
+    const returnsCount = scopedReturns.length + scopedReplacements.length;
 
     // Today's Performance calculation
     const plannedDispatches = readyCount + inTransitCount + outDeliveryCount + deliveredCount;
@@ -1353,22 +1358,24 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
     const pctReturns = totalStatusCount > 0 ? Math.round((returnsCount / totalStatusCount) * 100) : 0;
 
     // Dynamic Ready Queue Data
-    const readyQueueData = scopedReadyWorkOrders.length > 0
-      ? scopedReadyWorkOrders.slice(0, 5).map(wo => ({
+    const readyQueueData = scopedQueueOrders.length > 0
+      ? scopedQueueOrders.slice(0, 5).map(d => ({
+          dispatchNo: d.orderId || d.id || 'DISP-QUEUE',
+          customer: d.customerName || 'Customer',
+          salesOrder: d.orderNo || d.orderId || 'SO-10001',
+          qty: (d.items || []).reduce((s, i) => s + Number(i.dispatchableQuantity || i.approvedQuantity || 1), 0),
+          warehouse: isDispatch2Portal ? 'Sahad Depot (D2)' : 'Factory Staging (FG-01)',
+          id: d.salesOrderId || d.id,
+          isOrder: true,
+        }))
+      : scopedReadyWorkOrders.slice(0, 5).map(wo => ({
           dispatchNo: `DISP-${wo.id.slice(-4).toUpperCase()}`,
           customer: wo.productionPlan?.salesOrder?.customer?.companyName || wo.productionPlan?.salesOrder?.customer?.name || 'Customer',
           salesOrder: wo.productionPlan?.salesOrder?.orderNumber || `SO-${wo.salesOrderItemId?.slice(-5) || '10001'}`,
           qty: wo.quantity || 1,
-          warehouse: 'FG-01',
+          warehouse: 'Factory Staging (FG-01)',
           id: wo.id,
-        }))
-      : scopedQueueOrders.slice(0, 5).map(d => ({
-          dispatchNo: d.id,
-          customer: d.customerName || 'Customer',
-          salesOrder: d.orderId || 'SO-10001',
-          qty: (d.items || []).reduce((s, i) => s + Number(i.dispatchableQuantity || 1), 0),
-          warehouse: 'FG-01',
-          id: d.id,
+          isOrder: false,
         }));
 
     // Dynamic Active Shipments Data
@@ -1382,19 +1389,27 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
       status: d.status === 'OUT_FOR_DELIVERY' || d.status === 'Out for Delivery' ? 'Out' : 'Transit',
     }));
 
-    // Dynamic Pending POD list
-    const pendingPodDispatches = backendDispatches.filter(d => ['OUT_FOR_DELIVERY', 'DELIVERED'].includes(d.status) && !d.podUrl);
+    // Dynamic Pending POD list (strictly scoped to current dispatch category)
+    const pendingPodDispatches = scopedDispatches.filter(d => ['OUT_FOR_DELIVERY', 'DELIVERED'].includes(d.status) && !d.podUrl && !d.deliveryProofUrl && !d.pod_url);
     const pendingPodList = pendingPodDispatches.slice(0, 5).map(d => d.dispatchNo || d.id);
 
     // Dynamic Returns Summary Cards
-    const scopedReturns = filterOrdersByDispatch(backendReturns);
-    const scopedReplacements = filterOrdersByDispatch(replacementDispatches);
     const returnPendingCount = scopedReturns.filter(r => ['SUBMITTED', 'PENDING'].includes(r.status)).length;
     const qcInspectionCount = scopedReturns.filter(r => ['QC_PENDING', 'INSPECTION'].includes(r.status)).length;
     const replacementReadyCount = scopedReplacements.filter(r => ['APPROVED', 'READY'].includes(r.dispatch_status || r.status)).length;
     const creditNotePendingCount = scopedReturns.filter(r => r.status === 'ACCEPTED_FOR_CREDIT').length;
 
     const todayDateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    const dashboardTitle = isDispatch2Portal
+      ? '🚚 Dispatch 2 Dashboard (Sahad Trading)'
+      : '🚚 Dispatch 1 Dashboard (Factory & Manufacturing)';
+    const dashboardSubtitle = isDispatch2Portal
+      ? 'Trading Products Dispatch, Cover Blocks, FRC Covers & Direct Shipments'
+      : 'Factory Production Dispatch, Work Orders & Concrete Logistics';
+    const warehouseBadge = isDispatch2Portal
+      ? 'Depot: Sahad (D2)'
+      : 'Depot: Factory (D1)';
 
     return (
       <div className="dispatch-dashboard-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', fontFamily: 'var(--font-sans, system-ui, sans-serif)', width: '100%' }}>
@@ -1428,10 +1443,10 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             </div>
             <div>
               <h1 style={{ fontSize: '22px', fontWeight: '800', margin: 0, letterSpacing: '-0.02em', color: '#f8fafc' }}>
-                🚚 Dispatch Dashboard
+                {dashboardTitle}
               </h1>
               <p style={{ fontSize: '12.5px', color: '#94a3b8', margin: '3px 0 0 0' }}>
-                Enterprise Logistics Management & Real-time Delivery Operations
+                {dashboardSubtitle}
               </p>
             </div>
           </div>
@@ -1448,6 +1463,17 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
             fontWeight: '700',
             color: '#e2e8f0'
           }}>
+            <span style={{
+              background: isDispatch2Portal ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.2)',
+              color: isDispatch2Portal ? '#34d399' : '#38bdf8',
+              padding: '4px 10px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: '800',
+              marginRight: '4px',
+            }}>
+              {warehouseBadge}
+            </span>
             <span>Today: {todayDateStr}</span>
           </div>
         </div>
@@ -1630,7 +1656,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                       <td style={{ padding: '12px 14px' }}><span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>{row.warehouse}</span></td>
                       <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                         <button
-                          onClick={() => navigate.push(row.id ? `${basePath}/create-dispatch?workOrderId=${row.id}` : `${basePath}/create-dispatch`)}
+                          onClick={() => navigate.push(row.isOrder ? `${basePath}/create-dispatch?orderId=${row.id}` : `${basePath}/create-dispatch?workOrderId=${row.id}`)}
                           style={{ background: '#0284c7', color: '#ffffff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                         >
                           <PlusCircle size={13} /> Create Dispatch
@@ -1686,7 +1712,7 @@ export default function DispatchPortal({ view: propView, overrideBasePath, mode 
                   </div>
 
                   <button
-                    onClick={() => navigate.push(row.id ? `${basePath}/create-dispatch?workOrderId=${row.id}` : `${basePath}/create-dispatch`)}
+                    onClick={() => navigate.push(row.isOrder ? `${basePath}/create-dispatch?orderId=${row.id}` : `${basePath}/create-dispatch?workOrderId=${row.id}`)}
                     style={{
                       width: '100%',
                       background: '#0284C7',

@@ -42,12 +42,14 @@ export class DispatchController {
     @Req() req: any,
     @Headers() headers: Record<string, string>,
     @Query('status') status?: string,
+    @Query('category') category?: string,
   ) {
     const { userId } = this.extractAuthData(req, headers);
     const dispatches = await this.dispatchService.listDispatches(
       userId,
       req.user?.role,
       status,
+      category,
     );
     return dispatches;
   }
@@ -57,12 +59,14 @@ export class DispatchController {
   async getDispatchQueue(
     @Req() req: any,
     @Headers() headers: Record<string, string>,
+    @Query('category') category?: string,
   ) {
     const { userId, companyId } = this.extractAuthData(req, headers);
     const queue = await this.dispatchService.getDispatchQueue(
       userId,
       req.user?.role,
       companyId,
+      category,
     );
     return queue;
   }
