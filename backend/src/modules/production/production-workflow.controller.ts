@@ -92,15 +92,15 @@ export class ProductionWorkflowController {
   // ==========================================
   @Get('production/dashboard')
   @RequirePermissions('production.floor.read', 'production.qc.read')
-  async getDashboard() {
-    const data = await this.workflowService.getDashboardCounts();
+  async getDashboard(@Query() query: any) {
+    const data = await this.workflowService.getGlobalSummaryReport(query);
     return { success: true, data };
   }
 
   @RequirePermissions('production.productionworkflow.read')
   @Get('production/reports/summary')
-  async getReportsSummary() {
-    const data = await this.workflowService.getGlobalSummaryReport();
+  async getReportsSummary(@Query() query: any) {
+    const data = await this.workflowService.getGlobalSummaryReport(query);
     return { success: true, data };
   }
 
