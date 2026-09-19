@@ -6,11 +6,11 @@ import { InventoryService } from '../inventory/inventory.service';
 import { ProductionWorkflowService } from './production-workflow.service';
 import { isCatalogProduct } from '../products/catalog-product.filter';
 
-export interface CreateTestingRecord {
-  productId: string;
-  quantity: number;
+export class CreateTestingRecord {
+  productId!: string;
+  quantity!: number;
   remarks?: string;
-  requestId: string;
+  requestId!: string;
 }
 const relations = { product: true, createdBy: { select: { id: true, name: true } } } as const;
 

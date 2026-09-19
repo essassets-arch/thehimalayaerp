@@ -411,6 +411,8 @@ export default function ProductionTestingPage() {
                     <td style={{ fontSize: '13px', color: '#64748b' }}>
                       {record.createdBy?.name || record.reviewedBy || '-'}
                     </td>
+                    <td>{new Date(record.createdAt).toLocaleString()}</td>
+                    <td>{record.stockDeducted == null ? 'Legacy record' : `-${record.stockDeducted} PCS`}</td>
                     <td style={{ fontSize: '13px', color: '#64748b' }}>
                       {record.remarks || '-'}
                     </td>

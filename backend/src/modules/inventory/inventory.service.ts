@@ -812,7 +812,7 @@ export class InventoryService {
             where: { productId, event: { in: ['DISPATCH_OUT', 'TESTING', 'DISPATCH_REVERSAL'] } },
             _sum: { quantity: true },
           });
-          const consumedQty = Math.max(0, -Number(consumed._sum.quantity || 0));
+          const consumedQty = Math.max(0, -Number(consumed._sum?.quantity || 0));
           const unmaterializedOpening = Math.max(0, openingQty - existingFgQty - consumedQty);
 
           if (unmaterializedOpening > 0) {
