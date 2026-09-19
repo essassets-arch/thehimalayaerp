@@ -738,30 +738,6 @@ export class ProductionWorkflowService {
             { completedAt: { gte: start, lte: end } },
             { startedAt: { gte: start, lte: end } },
             { updatedAt: { gte: start, lte: end } },
-            {
-              productionStatus: {
-                in: [
-                  'IN_PRODUCTION',
-                  'QC_PENDING',
-                  'QC_FAILED',
-                  'REWORK_IN_PROGRESS',
-                  'READY_FOR_DISPATCH',
-                ] as any,
-              },
-            },
-            {
-              status: {
-                in: [
-                  'CREATED',
-                  'MATERIAL_PENDING',
-                  'READY',
-                  'STARTED',
-                  'QC_PENDING',
-                  'QC_APPROVED',
-                  'READY_FOR_DISPATCH',
-                ] as any,
-              },
-            },
           ],
         };
 
@@ -772,7 +748,7 @@ export class ProductionWorkflowService {
       machines,
       machineStatuses,
       qcInspections,
-      incomingPlans,
+      pendingPlans,
     ] = await Promise.all([
       this.prisma.workOrder.findMany({
         where: whereTime,
@@ -807,86 +783,185 @@ export class ProductionWorkflowService {
         include: { workOrder: true },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.productionPlan.count({
-        where: { status: { in: ['DRAFT', 'PENDING_PLANNING'] } },
+      this.prisma.productionPlan.findMany({
+        where: {
+          status: { in: ['DRAFT', 'PENDING_PLANNING', 'APPROVED', 'RELEASED'] as any },
+          ...(isAllTime ? {} : { createdAt: { gte: start, lte: end } }),
+        },
+        include: {
+          salesOrder: {
+            include: {
+              customer: true,
+              items: { include: { product: true } },
+            },
+          },
+          workOrders: true,
+        },
+        orderBy: { createdAt: 'desc' },
       }),
     ]);
 
-    const totalOrders = allWorkOrders.length;
-    const inProgress = allWorkOrders.filter((w) =>
-      [
-        'IN_PRODUCTION',
-        'REWORK_IN_PROGRESS',
-        'IN_PROGRESS',
-        'RUNNING',
-      ].includes(w.productionStatus || w.status),
-    ).length;
-    const completed = allWorkOrders.filter((w) =>
-      [
-        'COMPLETED',
-        'CLOSED',
-        'QC_APPROVED',
-        'READY_FOR_DISPATCH',
-      ].includes(w.status || w.productionStatus),
-    ).length;
-    const qcPending = allWorkOrders.filter(
-      (w) =>
-        w.productionStatus === 'QC_PENDING' || w.status === 'QC_PENDING',
-    ).length;
-    const qcFailed = allWorkOrders.filter(
-      (w) =>
-        w.productionStatus === 'QC_FAILED' ||
-        w.qcResult === 'FAIL',
-    ).length;
-    const dispatchReady = allWorkOrders.filter(
-      (w) =>
-        w.productionStatus === 'READY_FOR_DISPATCH' ||
-        w.status === 'READY_FOR_DISPATCH',
-    ).length;
-    const pending = Math.max(
-      0,
-      totalOrders - inProgress - completed - qcPending,
-    );
+    // Unambiguous, authoritative work order classification
+    const classifyWorkOrder = (w: any): 'INCOMING' | 'FLOOR' | 'QC_PENDING' | 'QC_FAILED' | 'READY_FOR_DISPATCH' | 'DONE' => {
+      const status = String(w.status || '').toUpperCase();
+      const prodStatus = String(w.productionStatus || '').toUpperCase();
+      const qcRes = String(w.qcResult || '').toUpperCase();
+
+      // 1. Stage 6: Done / Dispatched
+      if (
+        prodStatus === 'DISPATCHED' ||
+        status === 'DISPATCHED' ||
+        status === 'CLOSED' ||
+        Boolean(w.dispatchedAt || w.sentToDispatchAt)
+      ) {
+        return 'DONE';
+      }
+
+      // 2. Stage 5: Ready for Dispatch (passed QC and staged for dispatch)
+      if (
+        prodStatus === 'READY_FOR_DISPATCH' ||
+        status === 'READY_FOR_DISPATCH' ||
+        status === 'QC_APPROVED' ||
+        (status === 'COMPLETED' && qcRes === 'PASS')
+      ) {
+        return 'READY_FOR_DISPATCH';
+      }
+
+      // 3. Stage 4: QC Failed / Rework
+      if (
+        prodStatus === 'QC_FAILED' ||
+        prodStatus === 'REWORK_IN_PROGRESS' ||
+        status === 'REWORK' ||
+        qcRes === 'FAIL' ||
+        (toNumber(w.reworkCount) > 0 && status !== 'COMPLETED' && prodStatus !== 'READY_FOR_DISPATCH')
+      ) {
+        return 'QC_FAILED';
+      }
+
+      // 4. Stage 3: QC Inspection Queue
+      if (
+        prodStatus === 'QC_PENDING' ||
+        status === 'QC_PENDING' ||
+        status === 'UNDER_INSPECTION' ||
+        status === 'TESTING'
+      ) {
+        return 'QC_PENDING';
+      }
+
+      // 5. Stage 2: Floor Runs
+      if (
+        status === 'STARTED' ||
+        status === 'IN_PROGRESS' ||
+        status === 'PARTIALLY_COMPLETED' ||
+        status === 'MATERIAL_ISSUED' ||
+        Boolean(w.startedAt || w.productionStartTime)
+      ) {
+        return 'FLOOR';
+      }
+
+      // 6. Stage 1: Incoming Orders
+      return 'INCOMING';
+    };
+
+    const rawIncomingWOs = allWorkOrders.filter((w) => classifyWorkOrder(w) === 'INCOMING');
+    const rawFloorRuns = allWorkOrders.filter((w) => classifyWorkOrder(w) === 'FLOOR');
+    const rawQcQueue = allWorkOrders.filter((w) => classifyWorkOrder(w) === 'QC_PENDING');
+    const rawQcFailed = allWorkOrders.filter((w) => classifyWorkOrder(w) === 'QC_FAILED');
+    const rawReadyForDispatch = allWorkOrders.filter((w) => classifyWorkOrder(w) === 'READY_FOR_DISPATCH');
+    const rawDoneJobs = allWorkOrders.filter((w) => classifyWorkOrder(w) === 'DONE');
+
+    // Build incoming list combining raw incoming WOs + pending plans without floor WOs
+    const incomingFromPlans = pendingPlans
+      .filter((p: any) => !p.workOrders || p.workOrders.length === 0 || p.workOrders.every((w: any) => classifyWorkOrder(w) === 'INCOMING'))
+      .map((p: any) => {
+        const so = p.salesOrder;
+        const totalQty = (so?.items || []).reduce((sum: number, it: any) => sum + toNumber(it.orderedQuantity || it.quantity || 0), 0) || 10;
+        const prodName = so?.items?.[0]?.product?.name || so?.items?.[0]?.productNameSnapshot || 'Standard Industrial Product';
+        return {
+          id: p.id,
+          workOrderNo: p.planNumber || so?.orderNumber || `PLAN-${p.id.slice(0, 8)}`,
+          orderNo: so?.orderNumber || p.planNumber || '—',
+          customer: so?.customer?.companyName || so?.customer?.name || 'Standard Client',
+          product: prodName,
+          quantity: totalQty,
+          targetDate: p.plannedEndDate ? new Date(p.plannedEndDate).toISOString().slice(0, 10) : '—',
+          status: p.status || 'READY',
+          priority: p.priority || 'NORMAL',
+          createdAt: p.createdAt ? new Date(p.createdAt).toISOString().slice(0, 10) : '—',
+        };
+      });
+
+    const incomingFromWOs = rawIncomingWOs.map((w: any) => ({
+      id: w.id,
+      workOrderNo: w.workOrderNumber,
+      orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+      customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
+      product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+      quantity: toNumber(w.quantity) || 1,
+      targetDate: w.productionPlan?.plannedEndDate ? new Date(w.productionPlan.plannedEndDate).toISOString().slice(0, 10) : '—',
+      status: w.status || 'READY',
+      priority: 'NORMAL',
+      createdAt: w.createdAt ? new Date(w.createdAt).toISOString().slice(0, 10) : '—',
+    }));
+
+    const allIncoming = [...incomingFromWOs, ...incomingFromPlans];
+
+    // Authoritative counts computed on FULL datasets BEFORE pagination / slicing
+    const incomingOrdersCount = allIncoming.length;
+    const inProgress = rawFloorRuns.length;
+    const qcPending = rawQcQueue.length;
+    const qcFailed = rawQcFailed.length;
+    const readyForDispatchCount = rawReadyForDispatch.length;
+    const doneCount = rawDoneJobs.length;
+    const completed = readyForDispatchCount + doneCount;
+    const totalOrders = allWorkOrders.length + incomingFromPlans.length;
+    const pending = incomingOrdersCount;
 
     const plannedUnits = allWorkOrders.reduce(
       (s, w) => s + toNumber(w.quantity),
       0,
-    );
-    const producedFromWOs = allWorkOrders
-      .filter((w) =>
-        ['COMPLETED', 'READY_FOR_DISPATCH'].includes(
-          w.status || w.productionStatus,
-        ),
-      )
-      .reduce((s, w) => s + toNumber(w.quantity), 0);
+    ) + incomingFromPlans.reduce((s, p) => s + toNumber(p.quantity), 0);
+
+    const producedFromWOs =
+      rawReadyForDispatch.reduce((s, w) => s + toNumber(w.quantity), 0) +
+      rawDoneJobs.reduce((s, w) => s + toNumber(w.quantity), 0);
+
     const producedFromShifts = shiftEntries.reduce(
       (s, e) => s + toNumber(e.producedQty),
       0,
     );
     const producedUnits = producedFromShifts > 0 ? producedFromShifts : producedFromWOs;
 
+    const totalScrapQty = scrapEntries.reduce(
+      (s, e) => s + toNumber(e.scrapQty),
+      0,
+    );
+    const totalWastageQty = scrapEntries.reduce(
+      (s, e) => s + toNumber(e.wastageQty),
+      0,
+    );
     const rejectedUnits =
-      shiftEntries.reduce((s, e) => s + toNumber(e.rejectedQty), 0) +
-      scrapEntries.reduce((s, sc) => s + toNumber(sc.scrapQty), 0);
+      shiftEntries.reduce((s, e) => s + toNumber(e.rejectedQty), 0) + totalScrapQty;
+
     const reworkUnits =
-      allWorkOrders
-        .filter(
-          (w) =>
-            w.productionStatus === 'QC_FAILED' || w.qcResult === 'FAIL',
-        )
-        .reduce((s, w) => s + toNumber(w.quantity), 0) +
+      rawQcFailed.reduce((s, w) => s + toNumber(w.quantity), 0) +
       shiftEntries.reduce((s, e) => s + toNumber(e.reworkQty), 0);
 
     const goodUnits = Math.max(0, producedUnits - rejectedUnits);
-    const efficiency = plannedUnits
-      ? Math.min(100, Number(((goodUnits / plannedUnits) * 100).toFixed(1)))
-      : 96.2;
-    const firstPassYield = producedUnits
-      ? Number(((goodUnits / producedUnits) * 100).toFixed(1))
-      : 98.8;
+    const efficiency = plannedUnits > 0
+      ? Math.min(100, percentage(goodUnits, plannedUnits))
+      : (producedUnits > 0 ? 100 : 0);
 
-    const targetUnits = Math.max(plannedUnits, 600);
-    const achievementPct = percentage(goodUnits, targetUnits);
+    const qualityYield = (producedUnits > 0 || rejectedUnits > 0)
+      ? percentage(goodUnits, Math.max(producedUnits, goodUnits + rejectedUnits))
+      : 100;
+
+    const scrapRate = (producedUnits > 0 && totalScrapQty > 0)
+      ? percentage(totalScrapQty, producedUnits)
+      : 0;
+
+    const targetUnits = plannedUnits > 0 ? plannedUnits : (goodUnits > 0 ? goodUnits : 100);
+    const achievementPct = targetUnits > 0 ? percentage(goodUnits, targetUnits) : 100;
 
     // Build Authentic Multi-Day Trend
     const daysDiff = Math.max(
@@ -894,7 +969,7 @@ export class ProductionWorkflowService {
       Math.round((end.getTime() - start.getTime()) / 86400000),
     );
     const dailyTargetPace = Math.max(
-      5,
+      1,
       Math.round(targetUnits / Math.min(daysDiff, 30)),
     );
 
@@ -919,7 +994,6 @@ export class ProductionWorkflowService {
         cursor.setDate(cursor.getDate() + 1);
       }
     } else {
-      // Month-by-month for wider ranges
       const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
       while (cursor <= end) {
         const key = cursor.toLocaleDateString('en-GB', {
@@ -936,7 +1010,7 @@ export class ProductionWorkflowService {
       }
     }
 
-    // Populate trend with completed work orders
+    // Populate trend with completed / produced work orders
     allWorkOrders.forEach((w) => {
       const dateVal = w.completedAt || w.startedAt || w.createdAt;
       if (dateVal && dateVal >= start && dateVal <= end) {
@@ -962,6 +1036,9 @@ export class ProductionWorkflowService {
 
     const dailyTrend = Array.from(trendMap.values()).map((t) => ({
       ...t,
+      Target: t.target,
+      Actual: t.produced,
+      Good: t.good,
       achievement: t.target ? percentage(t.produced, t.target) : 100,
     }));
 
@@ -969,35 +1046,17 @@ export class ProductionWorkflowService {
     const morningShift = shiftEntries.filter((e) => e.shift === 'Morning');
     const nightShift = shiftEntries.filter((e) => e.shift === 'Night');
 
-    const morningTarget =
-      morningShift.reduce((s, e) => s + toNumber(e.targetQty), 0) ||
-      Math.round(targetUnits * 0.6);
-    const morningProduced =
-      morningShift.reduce((s, e) => s + toNumber(e.producedQty), 0) ||
-      Math.round(producedUnits * 0.58);
-    const morningRejected = morningShift.reduce(
-      (s, e) => s + toNumber(e.rejectedQty),
-      0,
-    );
+    const morningTarget = morningShift.reduce((s, e) => s + toNumber(e.targetQty), 0) || Math.round(targetUnits * 0.6);
+    const morningProduced = morningShift.reduce((s, e) => s + toNumber(e.producedQty), 0) || Math.round(producedUnits * 0.58);
+    const morningRejected = morningShift.reduce((s, e) => s + toNumber(e.rejectedQty), 0);
     const morningGood = Math.max(0, morningProduced - morningRejected);
-    const morningEfficiency = morningTarget
-      ? percentage(morningGood, morningTarget)
-      : 95.5;
+    const morningEfficiency = morningTarget ? percentage(morningGood, morningTarget) : 95;
 
-    const nightTarget =
-      nightShift.reduce((s, e) => s + toNumber(e.targetQty), 0) ||
-      Math.round(targetUnits * 0.4);
-    const nightProduced =
-      nightShift.reduce((s, e) => s + toNumber(e.producedQty), 0) ||
-      Math.round(producedUnits * 0.42);
-    const nightRejected = nightShift.reduce(
-      (s, e) => s + toNumber(e.rejectedQty),
-      0,
-    );
+    const nightTarget = nightShift.reduce((s, e) => s + toNumber(e.targetQty), 0) || Math.round(targetUnits * 0.4);
+    const nightProduced = nightShift.reduce((s, e) => s + toNumber(e.producedQty), 0) || Math.round(producedUnits * 0.42);
+    const nightRejected = nightShift.reduce((s, e) => s + toNumber(e.rejectedQty), 0);
     const nightGood = Math.max(0, nightProduced - nightRejected);
-    const nightEfficiency = nightTarget
-      ? percentage(nightGood, nightTarget)
-      : 92.8;
+    const nightEfficiency = nightTarget ? percentage(nightGood, nightTarget) : 92;
 
     const shiftComparison = [
       {
@@ -1016,16 +1075,9 @@ export class ProductionWorkflowService {
       },
     ];
 
-    // Real Machine Fleet Telemetry — derive status from MachineDailyStatus records
-    // Build today-status map: machineId (string) → mapped status string
-    const todayMidnight = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      0, 0, 0, 0,
-    );
+    // Real Machine Fleet Telemetry
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const todayStatusMap = new Map<string, string>();
-    // latestStatusMap holds the most recent entry for each machine (machineStatuses is already ordered by workDate desc)
     const latestStatusMap = new Map<string, string>();
     for (const ms of machineStatuses) {
       const mId = ms.machineId.toString();
@@ -1041,11 +1093,7 @@ export class ProductionWorkflowService {
 
     const machineFleetStats = machines.map((m: any, idx: number) => {
       const mId = m.id.toString();
-      // Priority: today's entry → most recent entry → RUNNING (active machine assumed operational)
-      const mStatus =
-        todayStatusMap.get(mId) ||
-        latestStatusMap.get(mId) ||
-        'RUNNING';
+      const mStatus = todayStatusMap.get(mId) || latestStatusMap.get(mId) || 'RUNNING';
       const isRunning = mStatus === 'RUNNING';
       const isIdle = mStatus === 'IDLE';
       const runtime = isRunning ? Number((7.2 + (idx % 3) * 0.4).toFixed(1)) : isIdle ? 1.5 : 0;
@@ -1063,9 +1111,7 @@ export class ProductionWorkflowService {
       };
     });
 
-    const runningMachinesCount = machineFleetStats.filter(
-      (mf) => mf.status === 'RUNNING',
-    ).length;
+    const runningMachinesCount = machineFleetStats.filter((mf) => mf.status === 'RUNNING').length;
 
     // Scrap Breakdown
     const scrapMap = new Map<string, number>();
@@ -1079,32 +1125,11 @@ export class ProductionWorkflowService {
       );
     });
 
-    const defaultScrapCategories = [
-      {
-        category: 'Process Scrap (Flashing / Trimming)',
-        quantity:
-          scrapMap.get('Process Scrap') || Math.round(rejectedUnits * 0.6) || 18,
-        percentage: 60,
-      },
-      {
-        category: 'Material Defect (Resin / Porosity)',
-        quantity:
-          scrapMap.get('Material Defect') || Math.round(rejectedUnits * 0.25) || 7,
-        percentage: 23,
-      },
-      {
-        category: 'Machine Loss (Mold Sticking)',
-        quantity:
-          scrapMap.get('Machine Loss') || Math.round(rejectedUnits * 0.1) || 3,
-        percentage: 10,
-      },
-      {
-        category: 'Handling Damage',
-        quantity:
-          scrapMap.get('Handling Damage') || Math.round(rejectedUnits * 0.05) || 2,
-        percentage: 7,
-      },
-    ];
+    const scrapCategoriesList = Array.from(scrapMap.entries()).map(([cat, qty]) => ({
+      category: cat,
+      quantity: qty,
+      percentage: totalScrapQty > 0 ? percentage(qty, totalScrapQty) : 0,
+    }));
 
     // Top Products Manufactured
     const productMap = new Map<
@@ -1127,11 +1152,7 @@ export class ProductionWorkflowService {
       const entry = productMap.get(name)!;
       const q = toNumber(w.quantity) || 1;
       entry.planned += q;
-      if (
-        ['COMPLETED', 'READY_FOR_DISPATCH'].includes(
-          w.status || w.productionStatus,
-        )
-      ) {
+      if (['COMPLETED', 'READY_FOR_DISPATCH'].includes(w.status || w.productionStatus)) {
         entry.produced += q;
       } else {
         entry.remaining += q;
@@ -1142,235 +1163,124 @@ export class ProductionWorkflowService {
       .sort((a, b) => b.planned - a.planned)
       .slice(0, 8);
 
-    // Active Running Jobs with elapsed timers
-    const activeRunningJobs = allWorkOrders
-      .filter((w) =>
-        [
-          'IN_PRODUCTION',
-          'REWORK_IN_PROGRESS',
-          'IN_PROGRESS',
-          'RUNNING',
-        ].includes(w.productionStatus || w.status),
-      )
-      .slice(0, 20)
-      .map((w, idx) => {
-        const planned = toNumber(w.quantity) || 10;
-        const progress =
-          w.status === 'COMPLETED' ? 100 : Math.min(95, 35 + (idx % 6) * 10);
-        const produced = Math.round(planned * (progress / 100));
-        return {
-          id: w.id,
-          workOrderNumber: w.workOrderNumber,
-          productName:
-            w.salesOrderItem?.product?.name ||
-            w.salesOrderItem?.productNameSnapshot ||
-            'FRP Cover',
-          customerName:
-            w.productionPlan?.salesOrder?.customer?.companyName ||
-            'Industrial Client',
-          targetDate:
-            w.productionPlan?.plannedEndDate?.toISOString().slice(0, 10) ||
-            '—',
-          plannedQuantity: planned,
-          producedQuantity: produced,
-          progress,
-          status: w.productionStatus || w.status,
-          operator: w.updatedBy || `Operator ${(idx % 6) + 1}`,
-          machine:
-            machineFleetStats[idx % machineFleetStats.length]?.machineName ||
-            `Hydraulic Press ${(idx % 6) + 1}`,
-          startedAt: w.startedAt || w.createdAt,
-        };
-      });
+    // Active Running Jobs
+    const activeFloorRuns = rawFloorRuns.slice(0, 100).map((w, idx) => {
+      const planned = toNumber(w.quantity) || 10;
+      const produced = toNumber((w as any).producedQuantity) || 0;
+      const progress = planned > 0 ? Math.min(100, Math.round((produced / planned) * 100)) : 40;
+      return {
+        id: w.id,
+        workOrderNo: w.workOrderNumber,
+        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Industrial Client',
+        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+        stage: 'In Production',
+        status: w.productionStatus || w.status || 'IN_PROGRESS',
+        progress,
+        quantity: planned,
+        producedQty: produced,
+        targetDate: w.productionPlan?.plannedEndDate ? new Date(w.productionPlan.plannedEndDate).toISOString().slice(0, 10) : '—',
+        startedAt: w.startedAt || w.createdAt,
+        operator: w.updatedBy || `Operator ${(idx % 6) + 1}`,
+        machine: machineFleetStats[idx % (machineFleetStats.length || 1)]?.machineName || `Hydraulic Press ${(idx % 6) + 1}`,
+      };
+    });
 
     // Overdue / Delayed Work Orders
-    const delayedJobs = allWorkOrders
+    const formattedDelayedJobs = allWorkOrders
       .filter(
         (w) =>
           w.productionPlan?.plannedEndDate &&
           new Date(w.productionPlan.plannedEndDate) < now &&
-          !['COMPLETED', 'CLOSED'].includes(w.status),
+          !['COMPLETED', 'CLOSED', 'DISPATCHED'].includes(w.status),
       )
-      .slice(0, 15)
+      .slice(0, 50)
       .map((w) => ({
         id: w.id,
-        workOrderNumber: w.workOrderNumber,
-        productName:
-          w.salesOrderItem?.product?.name || 'FRP Cover',
-        customerName:
-          w.productionPlan?.salesOrder?.customer?.companyName ||
-          'Client',
+        workOrderNo: w.workOrderNumber,
+        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Client',
+        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
         targetDate: w.productionPlan?.plannedEndDate
-          ? new Date(w.productionPlan.plannedEndDate)
-              .toISOString()
-              .slice(0, 10)
+          ? new Date(w.productionPlan.plannedEndDate).toISOString().slice(0, 10)
           : '—',
-        plannedQuantity: toNumber(w.quantity) || 1,
+        quantity: toNumber(w.quantity) || 1,
+        daysOverdue: Math.max(
+          1,
+          Math.round((Date.now() - new Date(w.productionPlan!.plannedEndDate!).getTime()) / 86400000),
+        ),
+        priority: 'CRITICAL',
         status: w.status,
       }));
 
     const workOrderStatusList = [
       { name: 'In Production', value: inProgress, color: '#f59e0b' },
       { name: 'QC / Testing', value: qcPending, color: '#8b5cf6' },
-      { name: 'Completed', value: completed, color: '#10b981' },
+      { name: 'Ready Dispatch', value: readyForDispatchCount, color: '#0891b2' },
+      { name: 'Completed', value: doneCount, color: '#10b981' },
       { name: 'Pending Run', value: pending, color: '#3b82f6' },
       { name: 'Rework', value: qcFailed, color: '#ef4444' },
-    ];
+    ].filter((s) => s.value > 0);
 
     const qcStatusList = [
-      { name: 'Passed Qty', value: completed, color: '#10b981' },
+      { name: 'Passed Qty', value: goodUnits, color: '#10b981' },
       { name: 'Under Inspection', value: qcPending, color: '#f59e0b' },
-      { name: 'Rejected / Defect', value: qcFailed, color: '#ef4444' },
-    ];
+      { name: 'Rejected / Defect', value: rejectedUnits, color: '#ef4444' },
+    ].filter((s) => s.value > 0);
 
-    const activeFloorRuns = activeRunningJobs.map((r) => ({
-      id: r.id,
-      workOrderNo: r.workOrderNumber,
-      orderNo: r.workOrderNumber,
-      customer: r.customerName,
-      product: r.productName,
-      stage: 'In Production',
-      status: r.status,
-      progress: r.progress,
-      quantity: r.plannedQuantity,
-      producedQty: r.producedQuantity,
-      targetDate: r.targetDate,
-      startedAt: r.startedAt,
-      operator: r.operator,
-      machine: r.machine,
+    const qcQueue = rawQcQueue.slice(0, 100).map((w) => ({
+      id: w.id,
+      workOrderNo: w.workOrderNumber,
+      orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+      customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
+      product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+      quantity: toNumber(w.quantity) || 1,
+      completedAt: (w.completedAt || w.updatedAt) ? new Date(w.completedAt || w.updatedAt).toISOString() : new Date().toISOString(),
+      status: 'QC_PENDING',
+      stage: 'Quality Inspection',
+      operator: w.updatedBy || 'Floor Operator',
+      notes: w.qcRemarks || 'Pending dimensional and curing tests',
     }));
 
-    const formattedDelayedJobs = delayedJobs.map((d) => ({
-      id: d.id,
-      workOrderNo: d.workOrderNumber,
-      orderNo: d.workOrderNumber,
-      customer: d.customerName,
-      product: d.productName,
-      quantity: d.plannedQuantity,
-      targetDate: d.targetDate,
-      daysOverdue: Math.max(
-        1,
-        Math.round(
-          (Date.now() - new Date(d.targetDate).getTime()) / 86400000,
-        ),
-      ),
-      priority: 'CRITICAL',
+    const qcFailedList = rawQcFailed.slice(0, 100).map((w) => ({
+      id: w.id,
+      workOrderNo: w.workOrderNumber,
+      orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+      customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
+      product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+      quantity: toNumber(w.quantity) || 1,
+      failedQty: toNumber(w.quantity) || 1,
+      failureReason: w.failureReason || w.qcRemarks || 'Dimensional Tolerance Exceeded',
+      qcRemarks: w.qcRemarks || '',
+      qcTimestamp: (w.qcTimestamp || w.updatedAt) ? new Date(w.qcTimestamp || w.updatedAt).toISOString() : new Date().toISOString(),
+      status: w.productionStatus || 'QC_FAILED',
+      reworkCount: w.reworkCount || 1,
+      supervisor: w.updatedBy || 'Quality Inspector',
+      shift: 'Morning',
     }));
 
-    // Pipeline Stage 1: Incoming Orders (waiting to start)
-    const incomingOrders = allWorkOrders
-      .filter((w) => {
-        const s = String(w.productionStatus || w.status || '').toUpperCase();
-        return (
-          ['CREATED', 'MATERIAL_PENDING', 'READY', 'DRAFT', 'PENDING', 'PLANNED'].includes(s) &&
-          !w.startedAt &&
-          !['IN_PRODUCTION', 'QC_PENDING', 'QC_FAILED', 'REWORK_IN_PROGRESS', 'READY_FOR_DISPATCH', 'DISPATCHED', 'COMPLETED', 'CLOSED'].includes(s)
-        );
-      })
-      .slice(0, 50)
-      .map((w) => ({
-        id: w.id,
-        workOrderNo: w.workOrderNumber,
-        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
-        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
-        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
-        quantity: toNumber(w.quantity) || 1,
-        targetDate: w.productionPlan?.plannedEndDate ? new Date(w.productionPlan.plannedEndDate).toISOString().slice(0, 10) : '—',
-        status: w.status || 'READY',
-        priority: 'NORMAL',
-        createdAt: w.createdAt ? new Date(w.createdAt).toISOString().slice(0, 10) : '—',
-      }));
+    const readyForDispatch = rawReadyForDispatch.slice(0, 100).map((w) => ({
+      id: w.id,
+      workOrderNo: w.workOrderNumber,
+      orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+      customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
+      product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+      quantity: toNumber(w.quantity) || 1,
+      qcResult: w.qcResult || 'PASS',
+      completedAt: (w.completedAt || w.qcTimestamp || w.updatedAt) ? new Date(w.completedAt || w.qcTimestamp || w.updatedAt).toISOString() : new Date().toISOString(),
+      status: 'READY_FOR_DISPATCH',
+    }));
 
-    // Pipeline Stage 3: QC Queue (Awaiting inspection)
-    const qcQueue = allWorkOrders
-      .filter((w) => {
-        const s = String(w.productionStatus || w.status || '').toUpperCase();
-        return ['QC_PENDING', 'TESTING', 'UNDER_INSPECTION'].includes(s);
-      })
-      .slice(0, 50)
-      .map((w) => ({
-        id: w.id,
-        workOrderNo: w.workOrderNumber,
-        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
-        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
-        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
-        quantity: toNumber(w.quantity) || 1,
-        completedAt: (w.completedAt || w.updatedAt) ? new Date(w.completedAt || w.updatedAt).toISOString() : new Date().toISOString(),
-        status: 'QC_PENDING',
-        stage: 'Quality Inspection',
-        operator: w.updatedBy || 'Floor Operator',
-        notes: w.qcRemarks || 'Pending dimensional and curing tests',
-      }));
-
-    // Pipeline Stage 4: QC Failed / Rework
-    const qcFailedList = allWorkOrders
-      .filter((w) => {
-        const s = String(w.productionStatus || w.status || '').toUpperCase();
-        return s === 'QC_FAILED' || w.qcResult === 'FAIL';
-      })
-      .slice(0, 50)
-      .map((w) => ({
-        id: w.id,
-        workOrderNo: w.workOrderNumber,
-        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
-        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
-        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
-        quantity: toNumber(w.quantity) || 1,
-        failedQty: toNumber(w.quantity) || 1,
-        failureReason: w.failureReason || w.qcRemarks || 'Dimensional Tolerance Exceeded',
-        qcRemarks: w.qcRemarks || '',
-        qcTimestamp: (w.qcTimestamp || w.updatedAt) ? new Date(w.qcTimestamp || w.updatedAt).toISOString() : new Date().toISOString(),
-        status: w.productionStatus || 'QC_FAILED',
-        reworkCount: w.reworkCount || 1,
-        supervisor: w.updatedBy || 'Quality Inspector',
-        shift: 'Morning',
-      }));
-
-    // Pipeline Stage 5: Ready for Dispatch (QC passed, waiting dispatch)
-    const readyForDispatch = allWorkOrders
-      .filter((w) => {
-        const ps = String(w.productionStatus || '').toUpperCase();
-        const s = String(w.status || '').toUpperCase();
-        return (
-          ps === 'READY_FOR_DISPATCH' ||
-          s === 'READY_FOR_DISPATCH' ||
-          s === 'QC_APPROVED'
-        );
-      })
-      .slice(0, 50)
-      .map((w) => ({
-        id: w.id,
-        workOrderNo: w.workOrderNumber,
-        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
-        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
-        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
-        quantity: toNumber(w.quantity) || 1,
-        qcResult: w.qcResult || 'PASS',
-        completedAt: (w.completedAt || w.qcTimestamp || w.updatedAt) ? new Date(w.completedAt || w.qcTimestamp || w.updatedAt).toISOString() : new Date().toISOString(),
-        status: 'READY_FOR_DISPATCH',
-      }));
-
-    // Pipeline Stage 6: Done / Dispatched
-    const doneJobs = allWorkOrders
-      .filter((w) => {
-        const ps = String(w.productionStatus || '').toUpperCase();
-        const s = String(w.status || '').toUpperCase();
-        return (
-          ps === 'DISPATCHED' ||
-          ['DISPATCHED', 'COMPLETED', 'CLOSED'].includes(s)
-        );
-      })
-      .slice(0, 50)
-      .map((w) => ({
-        id: w.id,
-        workOrderNo: w.workOrderNumber,
-        orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
-        customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
-        product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
-        quantity: toNumber(w.quantity) || 1,
-        dispatchedAt: (w.sentToDispatchAt || w.dispatchedAt || w.completedAt || w.updatedAt) ? new Date(w.sentToDispatchAt || w.dispatchedAt || w.completedAt || w.updatedAt).toISOString() : new Date().toISOString(),
-        status: w.productionStatus === 'DISPATCHED' || w.status === 'DISPATCHED' ? 'DISPATCHED' : 'COMPLETED',
-      }));
+    const doneJobs = rawDoneJobs.slice(0, 100).map((w) => ({
+      id: w.id,
+      workOrderNo: w.workOrderNumber,
+      orderNo: w.productionPlan?.salesOrder?.orderNumber || w.workOrderNumber,
+      customer: w.productionPlan?.salesOrder?.customer?.companyName || 'Standard Client',
+      product: w.salesOrderItem?.product?.name || w.salesOrderItem?.productNameSnapshot || 'FRP Cover',
+      quantity: toNumber(w.quantity) || 1,
+      dispatchedAt: (w.sentToDispatchAt || w.dispatchedAt || w.completedAt || w.updatedAt) ? new Date(w.sentToDispatchAt || w.dispatchedAt || w.completedAt || w.updatedAt).toISOString() : new Date().toISOString(),
+      status: w.productionStatus === 'DISPATCHED' || w.status === 'DISPATCHED' ? 'DISPATCHED' : 'COMPLETED',
+    }));
 
     const targetAchievementData = {
       hasTarget: true,
@@ -1394,10 +1304,10 @@ export class ProductionWorkflowService {
         qcFailed,
         reworkWorkOrders: qcFailed,
         qcPendingWorkOrders: qcPending,
-        dispatchReady: readyForDispatch.length,
-        readyForDispatchCount: readyForDispatch.length,
-        incomingOrdersCount: incomingOrders.length,
-        doneCount: doneJobs.length,
+        dispatchReady: readyForDispatchCount,
+        readyForDispatchCount,
+        incomingOrdersCount,
+        doneCount,
         completionRate: percentage(completed, totalOrders || 1),
         plannedUnits,
         totalPlannedUnits: plannedUnits,
@@ -1410,20 +1320,11 @@ export class ProductionWorkflowService {
         reworkUnits,
         efficiency,
         overallEfficiency: efficiency,
-        firstPassYield,
-        qualityYield: firstPassYield,
-        scrapRate: percentage(
-          scrapEntries.reduce((s, e) => s + toNumber(e.scrapQty), 0) || 5,
-          producedUnits || 100,
-        ),
-        totalScrapQty: scrapEntries.reduce(
-          (s, e) => s + toNumber(e.scrapQty),
-          0,
-        ),
-        totalWastageQty: scrapEntries.reduce(
-          (s, e) => s + toNumber(e.wastageQty),
-          0,
-        ),
+        firstPassYield: qualityYield,
+        qualityYield,
+        scrapRate,
+        totalScrapQty,
+        totalWastageQty,
         machinesRunning: runningMachinesCount,
         activeMachinesCount: runningMachinesCount,
         totalMachines: machines.length,
@@ -1436,7 +1337,7 @@ export class ProductionWorkflowService {
         workOrderStatus: workOrderStatusList,
         qcStatus: qcStatusList,
         machines: machineFleetStats,
-        scrapCategories: defaultScrapCategories,
+        scrapCategories: scrapCategoriesList,
         topProducts,
       },
       targetVsActualCurve: dailyTrend,
@@ -1444,11 +1345,11 @@ export class ProductionWorkflowService {
       orderStatusDistribution: workOrderStatusList,
       qualityBreakdown: qcStatusList,
       machineFleet: machineFleetStats,
-      scrapCategories: defaultScrapCategories,
+      scrapCategories: scrapCategoriesList,
       topProducts,
-      incomingOrders,
+      incomingOrders: allIncoming.slice(0, 100),
       activeFloorRuns,
-      activeRunningJobs,
+      activeRunningJobs: activeFloorRuns,
       qcQueue,
       qcFailed: qcFailedList,
       reworkJobs: qcFailedList,
@@ -2651,16 +2552,17 @@ export class ProductionWorkflowService {
     return enrichedList;
   }
 
-  async getAllStock(companyId?: string, userId?: string, role?: string) {
+  async getAllStock(companyId?: string, userId?: string, role?: string, db: import('@prisma/client').Prisma.TransactionClient = this.prisma, productId?: string) {
     const activeProductsWhere = getCatalogProductsPrismaWhere(companyId);
+    if (productId) activeProductsWhere.id = productId;
 
-    let rawProducts = await this.prisma.product.findMany({
+    let rawProducts = await db.product.findMany({
       where: activeProductsWhere,
       orderBy: { name: 'asc' },
     });
 
-    if (rawProducts.length === 0 && companyId) {
-      rawProducts = await this.prisma.product.findMany({
+    if (rawProducts.length === 0 && companyId && !productId) {
+      rawProducts = await db.product.findMany({
         where: getCatalogProductsPrismaWhere(),
         orderBy: { name: 'asc' },
       });
@@ -2676,7 +2578,7 @@ export class ProductionWorkflowService {
       prodReportGroups,
       dispatchReportGroups,
     ] = await Promise.all([
-      this.prisma.finishedGoods.groupBy({
+      db.finishedGoods.groupBy({
         by: ['productId'],
         where: { productId: { in: productIds } },
         _sum: {
@@ -2685,7 +2587,7 @@ export class ProductionWorkflowService {
           reservedQuantity: true,
         },
       }),
-      this.prisma.stockHistory.groupBy({
+      db.stockHistory.groupBy({
         by: ['productId', 'event'],
         where: {
           productId: { in: productIds },
@@ -2701,7 +2603,7 @@ export class ProductionWorkflowService {
           quantity: true,
         },
       }),
-      this.prisma.inventoryTransaction.groupBy({
+      db.inventoryTransaction.groupBy({
         by: ['productId'],
         where: {
           productId: { in: productIds },
@@ -2714,7 +2616,7 @@ export class ProductionWorkflowService {
           quantity: true,
         },
       }),
-      this.prisma.productionDailyReportItem.groupBy({
+      db.productionDailyReportItem.groupBy({
         by: ['productId'],
         where: {
           productId: { in: productIds },
@@ -2726,7 +2628,7 @@ export class ProductionWorkflowService {
           extraFrameQty: true,
         },
       }),
-      this.prisma.dispatchDailyReportItem.groupBy({
+      db.dispatchDailyReportItem.groupBy({
         by: ['productId'],
         where: {
           productId: { in: productIds },
@@ -2801,10 +2703,12 @@ export class ProductionWorkflowService {
       const netShDispatchOut = Math.max(0, Math.abs(shEvents.get('DISPATCH_OUT') || 0) - shDispatchReversals);
       const dispatchOut = reportDispatchOut > 0 ? reportDispatchOut : netShDispatchOut;
 
+      const testingOut = Math.abs(shEvents.get('TESTING') || 0);
+
       // Production In: production daily reports (audit source) or finished goods balance (if legacy)
       const productionIn = pdr.setQty > 0
         ? pdr.setQty
-        : (openingStock > 0 ? 0 : fg.quantity + dispatchOut);
+        : (openingStock > 0 ? 0 : fg.quantity + dispatchOut + testingOut);
 
       // Extra Cover and Extra Frame remain strictly separate component balances (never added to finished sets)
       const extraCover = Math.max(0, pdr.extraCoverQty - ddr.extraCoverQty);
@@ -2815,7 +2719,7 @@ export class ProductionWorkflowService {
 
       // Available Stock = Opening Stock + Production In - Dispatch Out - Reserved Qty
       // NEVER include Extra Cover or Extra Frame into Available Stock!
-      const rawAvailable = openingStock + productionIn - dispatchOut - reservedQty;
+      const rawAvailable = openingStock + productionIn - dispatchOut - testingOut - reservedQty;
       const availableStock = rawAvailable > 0 ? rawAvailable : 0;
       const status = availableStock > 0 ? 'IN_STOCK' : 'OUT_OF_STOCK';
 
@@ -2836,6 +2740,7 @@ export class ProductionWorkflowService {
         extraCover,
         extraFrame,
         dispatchOut,
+        testingOut,
         reservedQty,
         reservedQuantity: reservedQty,
         availableStock,

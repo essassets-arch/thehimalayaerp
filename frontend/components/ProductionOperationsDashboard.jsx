@@ -220,14 +220,14 @@ export default function ProductionOperationsDashboard({
   const totalWorkOrders = summary.totalWorkOrders ?? workOrders.length;
   const inProductionCount = summary.inProduction ?? workOrders.filter((w) => ['IN_PROGRESS', 'IN_PRODUCTION', 'RUNNING'].includes(statusText(w))).length;
   const qcPendingCount = summary.qcPendingWorkOrders ?? workOrders.filter((w) => ['QC_PENDING', 'TESTING'].includes(statusText(w))).length;
-  const completedCount = summary.completedWorkOrders ?? workOrders.filter((w) => ['COMPLETED', 'QC_PASSED', 'CLOSED'].includes(statusText(w))).length;
+  const completedCount = summary.completedWorkOrders ?? summary.doneCount ?? workOrders.filter((w) => ['COMPLETED', 'QC_PASSED', 'CLOSED'].includes(statusText(w))).length;
   const reworkCount = summary.reworkWorkOrders ?? workOrders.filter((w) => ['REWORK', 'QC_FAILED'].includes(statusText(w))).length;
 
   const totalProduced = summary.totalProducedUnits ?? (derivedStats.todayProduction || 0);
-  const totalPlanned = summary.totalPlannedUnits ?? (workOrders.reduce((sum, w) => sum + number(w.quantity || w.targetQty), 0) || 1);
-  const qualityYield = summary.qualityYield ?? (derivedStats.testingSuccess ? Number(derivedStats.testingSuccess) : 96.5);
-  const efficiency = summary.overallEfficiency ?? (derivedStats.productionEfficiency ? Number(derivedStats.productionEfficiency) : 92.0);
-  const scrapRate = summary.scrapRate ?? 1.8;
+  const totalPlanned = summary.totalPlannedUnits ?? (workOrders.reduce((sum, w) => sum + number(w.quantity || w.targetQty), 0) || 0);
+  const qualityYield = summary.qualityYield ?? (derivedStats.testingSuccess ? Number(derivedStats.testingSuccess) : 100);
+  const efficiency = summary.overallEfficiency ?? (derivedStats.productionEfficiency ? Number(derivedStats.productionEfficiency) : (totalPlanned > 0 ? Math.min(100, Math.round((totalProduced / totalPlanned) * 100)) : 0));
+  const scrapRate = summary.scrapRate ?? 0;
 
   const activeMachines = summary.activeMachinesCount ?? 6;
   const totalMachines = summary.totalMachinesCount ?? 6;
@@ -239,21 +239,20 @@ export default function ProductionOperationsDashboard({
       return raw.map((d, idx) => ({
         name: d.name || d.date || `Day ${idx + 1}`,
         date: d.date || d.name || `Day ${idx + 1}`,
-        Target: Number(d.Target ?? d.target ?? 100),
+        Target: Number(d.Target ?? d.target ?? 0),
         Actual: Number(d.Actual ?? d.produced ?? d.good ?? 0),
         Good: Number(d.Good ?? d.good ?? d.produced ?? 0),
       }));
     }
-    // High-fidelity fallback 7-day trend based on live totals
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Today'];
-    const avgPlanned = Math.round(Number(totalPlanned || 500) / 7);
-    const avgProduced = Math.round(Number(totalProduced || 292) / 7);
-    return days.map((day, idx) => ({
+    const avgPlanned = Math.round(Number(totalPlanned || 0) / 7);
+    const avgProduced = Math.round(Number(totalProduced || 0) / 7);
+    return days.map((day) => ({
       name: day,
       date: day,
-      Target: Math.max(10, avgPlanned + ((idx % 3) - 1) * 6),
-      Actual: idx === 6 ? avgProduced : Math.max(5, Math.round(avgProduced * (0.85 + idx * 0.03))),
-      Good: idx === 6 ? avgProduced : Math.max(5, Math.round(avgProduced * (0.82 + idx * 0.03))),
+      Target: avgPlanned,
+      Actual: avgProduced,
+      Good: avgProduced,
     }));
   }, [dashboardData, totalPlanned, totalProduced]);
 
@@ -262,17 +261,17 @@ export default function ProductionOperationsDashboard({
     if (Array.isArray(raw) && raw.length > 0) {
       return raw.map((s) => ({
         shift: s.shift || 'Shift',
-        Target: Number(s.Target ?? s.target ?? 150),
-        Produced: Number(s.Produced ?? s.produced ?? 140),
-        Good: Number(s.Good ?? s.good ?? 135),
-        efficiency: Number(s.efficiency ?? 95),
+        Target: Number(s.Target ?? s.target ?? 0),
+        Produced: Number(s.Produced ?? s.produced ?? 0),
+        Good: Number(s.Good ?? s.good ?? 0),
+        efficiency: Number(s.efficiency ?? 0),
       }));
     }
-    const plannedBase = Number(totalPlanned || 500);
-    const producedBase = Number(totalProduced || 292);
+    const plannedBase = Number(totalPlanned || 0);
+    const producedBase = Number(totalProduced || 0);
     return [
-      { shift: 'Morning Shift', Target: Math.round(plannedBase * 0.6), Produced: Math.round(producedBase * 0.58), Good: Math.round(producedBase * 0.56), efficiency: 94.5 },
-      { shift: 'Night Shift', Target: Math.round(plannedBase * 0.4), Produced: Math.round(producedBase * 0.42), Good: Math.round(producedBase * 0.40), efficiency: 91.2 },
+      { shift: 'Morning Shift', Target: Math.round(plannedBase * 0.6), Produced: Math.round(producedBase * 0.58), Good: Math.round(producedBase * 0.58), efficiency: plannedBase ? Math.round((producedBase * 0.58 / (plannedBase * 0.6 || 1)) * 100) : 100 },
+      { shift: 'Night Shift', Target: Math.round(plannedBase * 0.4), Produced: Math.round(producedBase * 0.42), Good: Math.round(producedBase * 0.42), efficiency: plannedBase ? Math.round((producedBase * 0.42 / (plannedBase * 0.4 || 1)) * 100) : 100 },
     ];
   }, [dashboardData, totalPlanned, totalProduced]);
 
@@ -289,13 +288,14 @@ export default function ProductionOperationsDashboard({
       if (filtered.length > 0) return filtered;
     }
     return [
-      { name: 'In Production', value: inProductionCount || 20, color: '#f59e0b' },
-      { name: 'QC / Testing', value: qcPendingCount || 2, color: '#8b5cf6' },
-      { name: 'Completed', value: completedCount || 50, color: '#10b981' },
-      { name: 'Rework', value: reworkCount || 1, color: '#ef4444' },
-      { name: 'Pending Run', value: Math.max(0, totalWorkOrders - inProductionCount - completedCount - qcPendingCount) || 25, color: '#3b82f6' }
+      { name: 'In Production', value: inProductionCount, color: '#f59e0b' },
+      { name: 'QC / Testing', value: qcPendingCount, color: '#8b5cf6' },
+      { name: 'Ready Dispatch', value: Number(summary.readyForDispatchCount || 0), color: '#0891b2' },
+      { name: 'Completed', value: completedCount, color: '#10b981' },
+      { name: 'Rework', value: reworkCount, color: '#ef4444' },
+      { name: 'Incoming / Planned', value: Number(summary.incomingOrdersCount || 0), color: '#3b82f6' }
     ].filter((d) => d.value > 0);
-  }, [dashboardData, inProductionCount, qcPendingCount, completedCount, reworkCount, totalWorkOrders]);
+  }, [dashboardData, inProductionCount, qcPendingCount, completedCount, reworkCount, summary]);
 
   const qualityBreakdown = useMemo(() => {
     const raw = dashboardData?.qualityBreakdown || dashboardData?.charts?.qcStatus;
@@ -309,15 +309,15 @@ export default function ProductionOperationsDashboard({
         .filter((d) => d.value > 0);
       if (filtered.length > 0) return filtered;
     }
-    const passed = Number(summary.passedUnits) || Number(derivedStats.passedQty) || (totalProduced > 0 ? totalProduced : 292);
-    const underTesting = Number(summary.underTestingUnits) || Number(derivedStats.underTesting) || (qcPendingCount > 0 ? qcPendingCount : 0);
-    const rejected = Number(summary.rejectedUnits) || Number(derivedStats.rejectedQty) || (reworkCount > 0 ? reworkCount : 1);
+    const passed = Number(summary.passedUnits ?? totalProduced ?? 0);
+    const underTesting = Number(summary.underTestingUnits ?? qcPendingCount ?? 0);
+    const rejected = Number(summary.rejectedUnits ?? reworkCount ?? 0);
     return [
       { name: 'Passed Qty', value: passed, color: '#10b981' },
       { name: 'Under Inspection', value: underTesting, color: '#f59e0b' },
       { name: 'Rejected / Defect', value: rejected, color: '#ef4444' }
     ].filter((d) => d.value > 0);
-  }, [dashboardData, summary, derivedStats, totalProduced, qcPendingCount, reworkCount]);
+  }, [dashboardData, summary, totalProduced, qcPendingCount, reworkCount]);
 
   const machineFleet = useMemo(() => {
     const raw = dashboardData?.machineFleet || dashboardData?.charts?.machines || [];
@@ -347,34 +347,23 @@ export default function ProductionOperationsDashboard({
         category: sc.category || 'Defect',
         quantity: Math.max(0, Number(sc.quantity || 0)),
         percentage: Number(sc.percentage || 0),
-      }));
+      })).filter((sc) => sc.quantity > 0);
     }
-    return [
-      { category: 'Flashing / Trimming', quantity: 18, percentage: 55 },
-      { category: 'Resin / Porosity', quantity: 8, percentage: 25 },
-      { category: 'Mold Sticking', quantity: 4, percentage: 12 },
-      { category: 'Handling Damage', quantity: 2, percentage: 8 },
-    ];
+    return [];
   }, [dashboardData]);
 
   const topProducts = useMemo(() => {
     const raw = dashboardData?.topProducts || dashboardData?.charts?.topProducts || [];
     if (Array.isArray(raw) && raw.length > 0) {
       return raw.map((p) => ({
-        name: p.name || p.product || 'FRP Cover',
-        product: p.product || p.name || 'FRP Cover',
+        name: p.name || p.product || 'Product',
+        product: p.product || p.name || 'Product',
         produced: Number(p.produced || 0),
         target: Number(p.target ?? p.planned ?? 0),
         remaining: Number(p.remaining || 0),
       }));
     }
-    return [
-      { name: 'FRCSQRC24x24 LD5', product: 'FRCSQRC24x24 LD5', produced: 96, target: 120 },
-      { name: 'FRCSQRC30x30 MD10', product: 'FRCSQRC30x30 MD10', produced: 72, target: 80 },
-      { name: 'FRCSQRC36x36 HD20', product: 'FRCSQRC36x36 HD20', produced: 54, target: 60 },
-      { name: 'FRCSQRC48x48 EHD35', product: 'FRCSQRC48x48 EHD35', produced: 40, target: 50 },
-      { name: 'FRP Grating 38MM', product: 'FRP Grating 38MM', produced: 30, target: 35 },
-    ];
+    return [];
   }, [dashboardData]);
 
   // ─── PIPELINE DATA COLLECTIONS ───
@@ -1009,7 +998,7 @@ export default function ProductionOperationsDashboard({
           <div className="pod-kpi-content">
             <div className="pod-kpi-split">
               <span className="pod-kpi-main-val" style={{ color: '#d97706' }}>
-                {inProductionCount ?? summary.inProduction ?? 98}
+                {inProductionCount ?? summary.inProduction ?? 0}
               </span>
               <span className="pod-pill-tag amber">Stage 2</span>
             </div>
@@ -1090,7 +1079,7 @@ export default function ProductionOperationsDashboard({
           <div className="pod-kpi-content">
             <div className="pod-kpi-split">
               <span className="pod-kpi-main-val" style={{ color: '#0891b2' }}>
-                {summary.readyForDispatchCount ?? readyForDispatch.length ?? 50}
+                {summary.readyForDispatchCount ?? readyForDispatch.length ?? 0}
               </span>
               <span className="pod-pill-tag cyan">Stage 5</span>
             </div>
@@ -1117,7 +1106,7 @@ export default function ProductionOperationsDashboard({
           <div className="pod-kpi-content">
             <div className="pod-kpi-split">
               <span className="pod-kpi-main-val" style={{ color: '#059669' }}>
-                {completedCount ?? summary.doneCount ?? 50}
+                {summary.doneCount ?? completedCount ?? 0}
               </span>
               <span className="pod-pill-tag green">Stage 6</span>
             </div>
@@ -1137,7 +1126,7 @@ export default function ProductionOperationsDashboard({
             <div className="pod-kpi-loading">Loading target...</div>
           ) : !targetAchievement || !targetAchievement.hasTarget ? (
             <div className="pod-kpi-content">
-              <span className="pod-kpi-main-val">94.2%</span>
+              <span className="pod-kpi-main-val">100%</span>
               <span className="pod-kpi-subtext">Operating on standard pace</span>
             </div>
           ) : (
@@ -1215,8 +1204,8 @@ export default function ProductionOperationsDashboard({
               {qualityYield}%
             </span>
             <div className="pod-kpi-trend-note">
-              <span>Passed: <b>{summary.passedUnits ?? derivedStats.passedQty ?? 140}</b></span>
-              <span>Defects: <b style={{ color: '#ef4444' }}>{summary.rejectedUnits ?? derivedStats.rejectedQty ?? 4}</b></span>
+              <span>Passed: <b>{summary.passedUnits ?? (totalProduced > 0 ? totalProduced : 0)}</b></span>
+              <span>Defects: <b style={{ color: '#ef4444' }}>{summary.rejectedUnits ?? reworkCount ?? 0}</b></span>
             </div>
           </div>
         </div>
@@ -1232,8 +1221,10 @@ export default function ProductionOperationsDashboard({
           <div className="pod-kpi-content">
             <span className="pod-kpi-main-val">{activeMachines} / {totalMachines} Active</span>
             <div className="pod-kpi-pills-row">
-              <span className="pod-pill-tag green">Hydraulic 1–6</span>
-              <span className="pod-pill-tag blue">92% Fleet OEE</span>
+              <span className="pod-pill-tag green">Hydraulic 1–{totalMachines}</span>
+              <span className="pod-pill-tag blue">
+                {Math.round(machineFleet.reduce((s, m) => s + (m.oee || 0), 0) / (machineFleet.length || 1))}% Fleet OEE
+              </span>
             </div>
           </div>
         </div>
@@ -1583,87 +1574,7 @@ export default function ProductionOperationsDashboard({
 
       {/* ─── SECTION: SHOPFLOOR OPERATIONAL TRACKING CENTER (TABS) ─── */}
       <section className="pod-tables-section" id="pod-operational-tables">
-        {/* ─── PIPELINE PROGRESSION RIBBON ─── */}
-        <div className="pod-pipeline-bar">
-          <div className="pod-pipeline-header">
-            <h4>
-              <Layers size={16} color="#2563eb" />
-              <span>Shopfloor Manufacturing Pipeline Progression</span>
-            </h4>
-            <p>Click any pipeline stage below to inspect active batches, transition orders, or dispatch</p>
-          </div>
-          <div className="pod-pipeline-stages">
-            <button
-              type="button"
-              className={`pod-pipeline-step ${activeTab === 'incoming' ? 'active' : ''}`}
-              onClick={() => setActiveTab('incoming')}
-            >
-              <span className="pod-step-num">1</span>
-              <span className="pod-step-title">Incoming Orders</span>
-              <span className="pod-step-badge blue">{incomingOrders.length}</span>
-            </button>
 
-            <span className="pod-pipeline-arrow">➔</span>
-
-            <button
-              type="button"
-              className={`pod-pipeline-step ${activeTab === 'runs' ? 'active' : ''}`}
-              onClick={() => setActiveTab('runs')}
-            >
-              <span className="pod-step-num">2</span>
-              <span className="pod-step-title">Production Floor</span>
-              <span className="pod-step-badge emerald">{activeFloorRuns.length}</span>
-            </button>
-
-            <span className="pod-pipeline-arrow">➔</span>
-
-            <button
-              type="button"
-              className={`pod-pipeline-step ${activeTab === 'qcQueue' ? 'active' : ''}`}
-              onClick={() => setActiveTab('qcQueue')}
-            >
-              <span className="pod-step-num">3</span>
-              <span className="pod-step-title">QC Inspection</span>
-              <span className="pod-step-badge purple">{qcQueue.length}</span>
-            </button>
-
-            <span className="pod-pipeline-arrow">➔</span>
-
-            <button
-              type="button"
-              className={`pod-pipeline-step ${activeTab === 'qcFailed' ? 'active' : ''}`}
-              onClick={() => setActiveTab('qcFailed')}
-            >
-              <span className="pod-step-num">4</span>
-              <span className="pod-step-title">QC Failed / Rework</span>
-              <span className="pod-step-badge red">{qcFailedList.length}</span>
-            </button>
-
-            <span className="pod-pipeline-arrow">➔</span>
-
-            <button
-              type="button"
-              className={`pod-pipeline-step ${activeTab === 'readyDispatch' ? 'active' : ''}`}
-              onClick={() => setActiveTab('readyDispatch')}
-            >
-              <span className="pod-step-num">5</span>
-              <span className="pod-step-title">Ready for Dispatch</span>
-              <span className="pod-step-badge cyan">{readyForDispatch.length}</span>
-            </button>
-
-            <span className="pod-pipeline-arrow">➔</span>
-
-            <button
-              type="button"
-              className={`pod-pipeline-step ${activeTab === 'done' ? 'active' : ''}`}
-              onClick={() => setActiveTab('done')}
-            >
-              <span className="pod-step-num">6</span>
-              <span className="pod-step-title">Done / Dispatched</span>
-              <span className="pod-step-badge emerald">{doneJobs.length}</span>
-            </button>
-          </div>
-        </div>
 
         {/* ─── TABS HEADER & SEARCH ─── */}
         <div className="pod-tabs-header">
@@ -1770,7 +1681,8 @@ export default function ProductionOperationsDashboard({
         {/* ─── TAB 1: INCOMING ORDERS ─── */}
         {activeTab === 'incoming' && (
           <div className="pod-table-card">
-            <div className="pod-table-responsive">
+            {/* Desktop Table View */}
+            <div className="pod-table-responsive pod-desktop-table">
               <table className="pod-data-table">
                 <thead>
                   <tr>
@@ -1845,13 +1757,78 @@ export default function ProductionOperationsDashboard({
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile List-Wise View */}
+            <div className="pod-mobile-list">
+              {filteredIncoming.length === 0 ? (
+                <div className="pod-mobile-empty">
+                  <Inbox size={28} color="#94a3b8" />
+                  <b>No incoming orders pending start</b>
+                  <p>All scheduled work orders have already been released to the production floor.</p>
+                </div>
+              ) : (
+                filteredIncoming.map((order) => (
+                  <div key={`m-inc-${order.id || order.workOrderNo}`} className="pod-mobile-card">
+                    <div className="pod-mobile-card-header">
+                      <div className="pod-mobile-card-title-group">
+                        <span
+                          className="pod-cell-ref"
+                          onClick={() => {
+                            const found = orders.find((o) => o.orderNo === order.orderNo);
+                            if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                          }}
+                        >
+                          {order.workOrderNo}
+                        </span>
+                        {order.orderNo && order.orderNo !== '—' && (
+                          <span className="pod-mobile-card-sub">SO: {order.orderNo}</span>
+                        )}
+                      </div>
+                      <span className="pod-stage-badge blue">{order.status || 'READY'}</span>
+                    </div>
+
+                    <div className="pod-mobile-card-body">
+                      <div className="pod-mobile-card-customer">{order.customer || 'Standard Client'}</div>
+                      <div className="pod-mobile-card-product">{order.product}</div>
+
+                      <div className="pod-mobile-card-chips">
+                        <span className="pod-mobile-chip">
+                          <b>{order.quantity}</b> Units
+                        </span>
+                        <span className="pod-mobile-chip">
+                          Target: {order.targetDate || '—'}
+                        </span>
+                        {order.createdAt && (
+                          <span className="pod-mobile-chip text-muted">
+                            {order.createdAt}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pod-mobile-card-actions">
+                      <button
+                        type="button"
+                        className="pod-btn-start-job pod-btn-mobile-full"
+                        disabled={actionLoadingId === order.id}
+                        onClick={() => handleStartJob(order)}
+                      >
+                        <Play size={13} />
+                        <span>{actionLoadingId === order.id ? 'Starting...' : 'Start Production'}</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
         {/* ─── TAB 2: ACTIVE FLOOR RUNS ─── */}
         {activeTab === 'runs' && (
           <div className="pod-table-card">
-            <div className="pod-table-responsive">
+            {/* Desktop Table View */}
+            <div className="pod-table-responsive pod-desktop-table">
               <table className="pod-data-table">
                 <thead>
                   <tr>
@@ -1965,13 +1942,106 @@ export default function ProductionOperationsDashboard({
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile List-Wise View */}
+            <div className="pod-mobile-list">
+              {filteredActiveRuns.length === 0 ? (
+                <div className="pod-mobile-empty">
+                  <CheckCircle2 size={28} color="#10b981" />
+                  <b>No active floor runs matching filter</b>
+                  <p>All planned work orders have been processed or are in queue.</p>
+                </div>
+              ) : (
+                filteredActiveRuns.map((run) => {
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  const isOverdue = run.targetDate && run.targetDate < todayStr;
+                  const startedAtTime = run.startedAt ? new Date(run.startedAt).getTime() : Date.now();
+                  const currentElapsed = Math.max(0, Date.now() - startedAtTime + (run.durationMs || 0));
+
+                  return (
+                    <div key={`m-run-${run.id || run.workOrderNo}`} className="pod-mobile-card">
+                      <div className="pod-mobile-card-header">
+                        <div className="pod-mobile-card-title-group">
+                          <span
+                            className="pod-cell-ref"
+                            onClick={() => {
+                              const found = orders.find((o) => o.orderNo === run.orderNo);
+                              if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                            }}
+                          >
+                            {run.workOrderNo}
+                          </span>
+                          {run.orderNo && run.orderNo !== '—' && (
+                            <span className="pod-mobile-card-sub">SO: {run.orderNo}</span>
+                          )}
+                        </div>
+                        <div className="pod-stopwatch-pill">
+                          <Clock size={11} />
+                          <code>{formatDuration(currentElapsed)}</code>
+                        </div>
+                      </div>
+
+                      <div className="pod-mobile-card-body">
+                        <div className="pod-mobile-card-customer">{run.customer || '—'}</div>
+                        <div className="pod-mobile-card-product">{run.product}</div>
+
+                        <div className="pod-mobile-card-chips">
+                          <span className="pod-mobile-chip">
+                            Qty: <b>{run.producedQty || 0}</b> / {run.quantity} units
+                          </span>
+                          <span className="pod-mobile-chip">
+                            {run.machine || 'Press 1'}
+                          </span>
+                          <span className={`pod-mobile-chip ${isOverdue ? 'alert' : ''}`}>
+                            Due: {run.targetDate || '—'} {isOverdue && '(Overdue)'}
+                          </span>
+                        </div>
+
+                        <div className="pod-progress-cell" style={{ marginTop: '8px' }}>
+                          <div className="pod-mini-bar" style={{ flex: 1 }}>
+                            <div
+                              className="pod-mini-bar-fill"
+                              style={{ width: `${Math.min(100, number(run.progress))}%` }}
+                            />
+                          </div>
+                          <span style={{ fontWeight: 600, fontSize: '12px' }}>{run.progress}%</span>
+                        </div>
+                      </div>
+
+                      <div className="pod-mobile-card-actions">
+                        <button
+                          type="button"
+                          className="pod-btn-complete-run pod-btn-mobile-grow"
+                          disabled={actionLoadingId === run.id}
+                          onClick={() => handleCompleteRun(run)}
+                        >
+                          <CheckCircle2 size={13} />
+                          <span>{actionLoadingId === run.id ? 'Sending...' : 'Complete & Send QC'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="pod-btn-action"
+                          onClick={() => {
+                            const found = orders.find((o) => o.orderNo === run.orderNo);
+                            if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                          }}
+                        >
+                          <ArrowUpRight size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
 
         {/* ─── TAB 3: QC TESTING QUEUE ─── */}
         {activeTab === 'qcQueue' && (
           <div className="pod-table-card">
-            <div className="pod-table-responsive">
+            {/* Desktop Table View */}
+            <div className="pod-table-responsive pod-desktop-table">
               <table className="pod-data-table">
                 <thead>
                   <tr>
@@ -2058,13 +2128,89 @@ export default function ProductionOperationsDashboard({
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile List-Wise View */}
+            <div className="pod-mobile-list">
+              {filteredQcQueue.length === 0 ? (
+                <div className="pod-mobile-empty">
+                  <ShieldCheck size={28} color="#10b981" />
+                  <b>Zero items in QC testing queue</b>
+                  <p>All finished batches have completed quality inspection.</p>
+                </div>
+              ) : (
+                filteredQcQueue.map((item) => (
+                  <div key={`m-qc-${item.id || item.workOrderNo}`} className="pod-mobile-card">
+                    <div className="pod-mobile-card-header">
+                      <div className="pod-mobile-card-title-group">
+                        <span
+                          className="pod-cell-ref"
+                          onClick={() => {
+                            const found = orders.find((o) => o.orderNo === item.orderNo);
+                            if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                          }}
+                        >
+                          {item.workOrderNo}
+                        </span>
+                        {item.orderNo && item.orderNo !== '—' && (
+                          <span className="pod-mobile-card-sub">SO: {item.orderNo}</span>
+                        )}
+                      </div>
+                      <span className="pod-stage-badge purple">Quality Inspection</span>
+                    </div>
+
+                    <div className="pod-mobile-card-body">
+                      <div className="pod-mobile-card-customer">{item.customer || 'Standard Client'}</div>
+                      <div className="pod-mobile-card-product">{item.product}</div>
+
+                      <div className="pod-mobile-card-chips">
+                        <span className="pod-mobile-chip">
+                          Batch: <b>{item.quantity}</b> Units
+                        </span>
+                        <span className="pod-mobile-chip">
+                          Inspector: {item.operator || 'Floor Operator'}
+                        </span>
+                        {item.completedAt && (
+                          <span className="pod-mobile-chip text-muted">
+                            {String(item.completedAt).slice(0, 10)}
+                          </span>
+                        )}
+                      </div>
+                      {item.notes && (
+                        <div className="pod-mobile-notes">Notes: {item.notes}</div>
+                      )}
+                    </div>
+
+                    <div className="pod-mobile-card-actions">
+                      <button
+                        type="button"
+                        className="pod-btn-qc-pass pod-btn-mobile-grow"
+                        disabled={actionLoadingId === item.id}
+                        onClick={() => handlePassQC(item)}
+                      >
+                        <CheckCircle2 size={13} />
+                        <span>{actionLoadingId === item.id ? 'Passing...' : 'Pass QC'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="pod-btn-qc-fail"
+                        onClick={() => setFailModalItem(item)}
+                      >
+                        <AlertOctagon size={13} />
+                        <span>Fail QC</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
         {/* ─── TAB 4: QC FAILED / REWORK QUEUE ─── */}
         {activeTab === 'qcFailed' && (
           <div className="pod-table-card">
-            <div className="pod-table-responsive">
+            {/* Desktop Table View */}
+            <div className="pod-table-responsive pod-desktop-table">
               <table className="pod-data-table">
                 <thead>
                   <tr>
@@ -2146,6 +2292,71 @@ export default function ProductionOperationsDashboard({
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile List-Wise View */}
+            <div className="pod-mobile-list">
+              {filteredQcFailed.length === 0 ? (
+                <div className="pod-mobile-empty">
+                  <CheckCircle2 size={28} color="#10b981" />
+                  <b>Zero Defect / QC Failed Work Orders</b>
+                  <p>All batches have cleared inspection or completed rework.</p>
+                </div>
+              ) : (
+                filteredQcFailed.map((job) => (
+                  <div key={`m-fail-${job.id || job.workOrderNo}`} className="pod-mobile-card">
+                    <div className="pod-mobile-card-header">
+                      <div className="pod-mobile-card-title-group">
+                        <span className="pod-cell-ref">{job.workOrderNo}</span>
+                        {job.orderNo && job.orderNo !== '—' && (
+                          <span className="pod-mobile-card-sub">SO: {job.orderNo}</span>
+                        )}
+                      </div>
+                      <span className="pod-tab-counter warning">Attempt #{job.reworkCount || 1}</span>
+                    </div>
+
+                    <div className="pod-mobile-card-body">
+                      <div className="pod-mobile-card-product">{job.product}</div>
+                      <div className="pod-reason-text" style={{ color: '#dc2626', fontWeight: 700, margin: '4px 0' }}>
+                        Defect: {job.failureReason}
+                      </div>
+                      {job.qcRemarks && (
+                        <div className="pod-mobile-notes">Remarks: {job.qcRemarks}</div>
+                      )}
+
+                      <div className="pod-mobile-card-chips">
+                        <span className="pod-mobile-chip alert">
+                          Failed: <b>{job.failedQty}</b> Units
+                        </span>
+                        <span className="pod-mobile-chip">
+                          Shift: {job.shift || 'Morning'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pod-mobile-card-actions">
+                      <button
+                        type="button"
+                        className="pod-btn pod-btn-secondary pod-btn-mobile-grow"
+                        disabled={actionLoadingId === job.id}
+                        onClick={() => handleStartRework(job)}
+                      >
+                        <RotateCcw size={13} />
+                        <span>Start Rework</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="pod-btn pod-btn-primary pod-btn-mobile-grow"
+                        disabled={actionLoadingId === job.id}
+                        onClick={() => handleCompleteRework(job)}
+                      >
+                        <ShieldCheck size={13} />
+                        <span>Complete & QC</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
@@ -2173,7 +2384,8 @@ export default function ProductionOperationsDashboard({
               </div>
             )}
 
-            <div className="pod-table-responsive">
+            {/* Desktop Table View */}
+            <div className="pod-table-responsive pod-desktop-table">
               <table className="pod-data-table">
                 <thead>
                   <tr>
@@ -2266,13 +2478,83 @@ export default function ProductionOperationsDashboard({
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile List-Wise View */}
+            <div className="pod-mobile-list">
+              {filteredReadyDispatch.length === 0 ? (
+                <div className="pod-mobile-empty">
+                  <Truck size={28} color="#94a3b8" />
+                  <b>No work orders waiting for dispatch</b>
+                  <p>All QC certified goods have been sent to logistics.</p>
+                </div>
+              ) : (
+                filteredReadyDispatch.map((item) => {
+                  const isSelected = selectedDispatchIds.includes(item.id);
+                  return (
+                    <div
+                      key={`m-disp-${item.id || item.workOrderNo}`}
+                      className="pod-mobile-card"
+                      style={{ borderColor: isSelected ? '#10b981' : undefined }}
+                    >
+                      <div className="pod-mobile-card-header">
+                        <div className="pod-mobile-card-title-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input
+                            type="checkbox"
+                            className="pod-checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelectDispatch(item.id)}
+                          />
+                          <span
+                            className="pod-cell-ref"
+                            onClick={() => {
+                              const found = orders.find((o) => o.orderNo === item.orderNo);
+                              if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                            }}
+                          >
+                            {item.workOrderNo}
+                          </span>
+                        </div>
+                        <span className="pod-stage-badge emerald">✓ Certified</span>
+                      </div>
+
+                      <div className="pod-mobile-card-body">
+                        <div className="pod-mobile-card-customer">{item.customer || 'Standard Client'}</div>
+                        <div className="pod-mobile-card-product">{item.product}</div>
+
+                        <div className="pod-mobile-card-chips">
+                          <span className="pod-mobile-chip green">
+                            Ready: <b>{item.quantity}</b> Units
+                          </span>
+                          <span className="pod-mobile-chip text-muted">
+                            Passed: {item.completedAt ? String(item.completedAt).slice(0, 10) : 'Today'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pod-mobile-card-actions">
+                        <button
+                          type="button"
+                          className="pod-btn-dispatch pod-btn-mobile-full"
+                          disabled={actionLoadingId === item.id}
+                          onClick={() => handleSendToDispatch(item)}
+                        >
+                          <Truck size={13} />
+                          <span>{actionLoadingId === item.id ? 'Sending...' : 'Send to Dispatch'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
 
         {/* ─── TAB 6: DONE / DISPATCHED JOBS ─── */}
         {activeTab === 'done' && (
           <div className="pod-table-card">
-            <div className="pod-table-responsive">
+            {/* Desktop Table View */}
+            <div className="pod-table-responsive pod-desktop-table">
               <table className="pod-data-table">
                 <thead>
                   <tr>
@@ -2347,13 +2629,77 @@ export default function ProductionOperationsDashboard({
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile List-Wise View */}
+            <div className="pod-mobile-list">
+              {filteredDoneJobs.length === 0 ? (
+                <div className="pod-mobile-empty">
+                  <PackageCheck size={28} color="#94a3b8" />
+                  <b>No completed or dispatched orders in this window</b>
+                  <p>Finished goods dispatched to logistics will appear here.</p>
+                </div>
+              ) : (
+                filteredDoneJobs.map((item) => (
+                  <div key={`m-done-${item.id || item.workOrderNo}`} className="pod-mobile-card">
+                    <div className="pod-mobile-card-header">
+                      <div className="pod-mobile-card-title-group">
+                        <span
+                          className="pod-cell-ref"
+                          onClick={() => {
+                            const found = orders.find((o) => o.orderNo === item.orderNo);
+                            if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                          }}
+                        >
+                          {item.workOrderNo}
+                        </span>
+                        {item.orderNo && item.orderNo !== '—' && (
+                          <span className="pod-mobile-card-sub">SO: {item.orderNo}</span>
+                        )}
+                      </div>
+                      <span className="pod-stage-badge green">
+                        {item.status === 'DISPATCHED' ? '✓ Dispatched' : '✓ Completed'}
+                      </span>
+                    </div>
+
+                    <div className="pod-mobile-card-body">
+                      <div className="pod-mobile-card-customer">{item.customer || 'Standard Client'}</div>
+                      <div className="pod-mobile-card-product">{item.product}</div>
+
+                      <div className="pod-mobile-card-chips">
+                        <span className="pod-mobile-chip green">
+                          <b>{item.quantity}</b> Units
+                        </span>
+                        <span className="pod-mobile-chip text-muted">
+                          Date: {item.dispatchedAt ? String(item.dispatchedAt).slice(0, 10) : '—'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pod-mobile-card-actions">
+                      <button
+                        type="button"
+                        className="pod-btn pod-btn-secondary pod-btn-mobile-full"
+                        onClick={() => {
+                          const found = orders.find((o) => o.orderNo === item.orderNo);
+                          if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                        }}
+                      >
+                        <ArrowUpRight size={13} />
+                        <span>View Order Details</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
         {/* ─── TAB 7: DELAYED / OVERDUE JOBS ─── */}
         {activeTab === 'delayed' && (
           <div className="pod-table-card">
-            <div className="pod-table-responsive">
+            {/* Desktop Table View */}
+            <div className="pod-table-responsive pod-desktop-table">
               <table className="pod-data-table">
                 <thead>
                   <tr>
@@ -2419,13 +2765,69 @@ export default function ProductionOperationsDashboard({
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile List-Wise View */}
+            <div className="pod-mobile-list">
+              {filteredDelayedJobs.length === 0 ? (
+                <div className="pod-mobile-empty">
+                  <CheckCircle2 size={28} color="#10b981" />
+                  <b>Zero Delayed Jobs</b>
+                  <p>All floor operations are running strictly on schedule.</p>
+                </div>
+              ) : (
+                filteredDelayedJobs.map((job) => (
+                  <div key={`m-dly-${job.id || job.workOrderNo}`} className="pod-mobile-card alert">
+                    <div className="pod-mobile-card-header">
+                      <div className="pod-mobile-card-title-group">
+                        <span className="pod-cell-ref">{job.workOrderNo}</span>
+                        {job.orderNo && job.orderNo !== '—' && (
+                          <span className="pod-mobile-card-sub">SO: {job.orderNo}</span>
+                        )}
+                      </div>
+                      <span className="pod-badge-overdue">
+                        {job.daysOverdue ? `${job.daysOverdue}d late` : 'Overdue'}
+                      </span>
+                    </div>
+
+                    <div className="pod-mobile-card-body">
+                      <div className="pod-mobile-card-customer">{job.customer}</div>
+                      <div className="pod-mobile-card-product">{job.product}</div>
+
+                      <div className="pod-mobile-card-chips">
+                        <span className="pod-mobile-chip">
+                          Qty: <b>{job.quantity}</b> Units
+                        </span>
+                        <span className="pod-mobile-chip alert">
+                          Target: {job.targetDate}
+                        </span>
+                        <span className="pod-priority-pill critical">CRITICAL</span>
+                      </div>
+                    </div>
+
+                    <div className="pod-mobile-card-actions">
+                      <button
+                        type="button"
+                        className="pod-btn-resolve pod-btn-mobile-full"
+                        onClick={() => {
+                          const found = orders.find((o) => o.orderNo === job.orderNo);
+                          if (found && onSelectOrderDetails) onSelectOrderDetails(found);
+                        }}
+                      >
+                        Expedite Job
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
         {/* ─── TAB 8: SHIFT LOG LEDGER ─── */}
         {activeTab === 'shiftLogs' && (
           <div className="pod-table-card">
-            <div className="pod-table-responsive">
+            {/* Desktop Table View */}
+            <div className="pod-table-responsive pod-desktop-table">
               <table className="pod-data-table">
                 <thead>
                   <tr>
@@ -2492,6 +2894,57 @@ export default function ProductionOperationsDashboard({
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile List-Wise View */}
+            <div className="pod-mobile-list">
+              {filteredShiftEntries.length === 0 ? (
+                <div className="pod-mobile-empty">
+                  <Factory size={28} color="#94a3b8" />
+                  <b>No Shift Entries Recorded</b>
+                  <p>No shift logs recorded for the selected timeframe.</p>
+                </div>
+              ) : (
+                filteredShiftEntries.map((entry, idx) => {
+                  const eff = entry.efficiency != null ? Number(entry.efficiency).toFixed(1) : '100.0';
+                  return (
+                    <div key={`m-shf-${entry.id || idx}`} className="pod-mobile-card">
+                      <div className="pod-mobile-card-header">
+                        <div className="pod-shift-cell" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+                          <span className={`pod-shift-badge ${entry.shift?.toLowerCase()}`}>
+                            {entry.shift || 'Morning'}
+                          </span>
+                          <span className="pod-mobile-card-sub">{entry.date ? entry.date.slice(0, 10) : '—'}</span>
+                        </div>
+                        <span
+                          className={`pod-eff-badge ${
+                            Number(eff) >= 90 ? 'good' : Number(eff) >= 80 ? 'ok' : 'low'
+                          }`}
+                        >
+                          {eff}% Eff
+                        </span>
+                      </div>
+
+                      <div className="pod-mobile-card-body">
+                        <div className="pod-cell-ref" style={{ marginBottom: '2px' }}>{entry.workOrder || '—'}</div>
+                        <div className="pod-mobile-card-product">{entry.product || '—'}</div>
+                        <div className="pod-mobile-card-sub" style={{ margin: '4px 0' }}>
+                          Supervisor: {entry.supervisor || 'Shift Incharge'}
+                        </div>
+
+                        <div className="pod-mobile-card-chips">
+                          <span className="pod-mobile-chip">Target: <b>{entry.targetQty}</b></span>
+                          <span className="pod-mobile-chip green">Produced: <b>{entry.producedQty}</b></span>
+                          <span className={`pod-mobile-chip ${number(entry.rejectedQty) > 0 ? 'alert' : ''}`}>
+                            Defects: <b>{entry.rejectedQty || 0}</b>
+                          </span>
+                          <span className="pod-mobile-chip">Rework: <b>{entry.reworkQty || 0}</b></span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
