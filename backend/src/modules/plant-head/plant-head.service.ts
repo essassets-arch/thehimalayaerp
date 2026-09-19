@@ -54,7 +54,7 @@ const KNOWN_LOCALITIES: Array<{ match: string; locality: string; pincode: string
   { match: 'INDORE', locality: 'Indore Site', pincode: '452001', city: 'Indore', zone: 'Central' },
 ];
 
-function parseDeliveryLocation(
+export function parseDeliveryLocation(
   deliveryAddress?: string | null,
   shippingAddress?: any,
   billingAddress?: any,

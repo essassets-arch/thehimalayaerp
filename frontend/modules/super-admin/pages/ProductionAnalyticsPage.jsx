@@ -9,6 +9,7 @@ import { useSuperAdminFilter } from '../context/SuperAdminFilterContext';
 import { formatCurrency, formatNumber } from '../utils/financialCalculations';
 import SuperAdminAnalyticsFilter from '../components/SuperAdminAnalyticsFilter';
 import './ProductionAnalyticsPage.css';
+import { exportProductionReportPDF, exportToExcel, safeSaveFile } from '../../../services/export.service';
 
 import ResponsiveChart from '../../../shared/components/ResponsiveChart';
 
@@ -31,14 +32,16 @@ export default function ProductionAnalyticsPage() {
     try {
       setLoading(true);
       setError(null);
-      const params = new URLSearchParams({ from: activeDates.dateFrom, to: activeDates.dateTo });
-      const map = { branch: 'branchId', product: 'productId', category: 'categoryId', status: 'status', shift: 'shiftId' };
-      Object.entries(map).forEach(([key, value]) => {
-        if (filters[key] && filters[key] !== 'All') {
-          params.set(value, filters[key]);
-        }
-      });
-      const res = await backendFetch(`/api/backend/super-admin/analytics/production?${params}`, { cacheTtlMs: 0 });
+      const params = new URLSearchParams();
+      if (activeDates.dateFrom) params.set('from', activeDates.dateFrom);
+      if (activeDates.dateTo) params.set('to', activeDates.dateTo);
+      if (filters.branch && filters.branch !== 'All') params.set('branchId', filters.branch);
+      if (filters.product && filters.product !== 'All') params.set('productId', filters.product);
+      if (filters.category && filters.category !== 'All') params.set('categoryId', filters.category);
+      if (filters.status && filters.status !== 'All') params.set('status', filters.status);
+      if (filters.shift && filters.shift !== 'All') params.set('shiftId', filters.shift);
+
+      const res = await backendFetch(`/api/backend/super-admin/analytics/production?${params.toString()}`, { cacheTtlMs: 0 });
       setData(res);
     } catch (e) {
       console.error(e);
@@ -52,8 +55,62 @@ export default function ProductionAnalyticsPage() {
     load();
   }, [load]);
 
-  const handleExport = (format) => {
-    alert(`Exporting Production Analytics data as ${format.toUpperCase()}...`);
+  const handleExport = async (format) => {
+    try {
+      if (format === 'pdf') {
+        await exportProductionReportPDF({
+          startDate: activeDates.dateFrom,
+          endDate: activeDates.dateTo,
+          branchId: filters.branch,
+          productId: filters.product,
+          categoryId: filters.category,
+          status: filters.status,
+          shiftId: filters.shift,
+        });
+      } else if (format === 'excel') {
+        const rows = (data?.workOrders?.list || []).map((wo, idx) => ({
+          '#': idx + 1,
+          'Work Order No': wo.woNo,
+          'Sales Order': wo.salesOrder,
+          'Product Name': wo.product,
+          'Planned Qty': wo.planned,
+          'Produced Qty': wo.produced,
+          'Remaining Qty': wo.remaining,
+          'Progress (%)': wo.completionPct,
+          'Target Date': wo.target,
+          'Status': wo.status,
+        }));
+        if (rows.length === 0) {
+          alert('No work orders data to export.');
+          return;
+        }
+        await exportToExcel(rows, `production-report-${new Date().toISOString().split('T')[0]}.xls`);
+      } else if (format === 'csv') {
+        const rows = (data?.workOrders?.list || []).map((wo, idx) => ({
+          '#': idx + 1,
+          'Work Order No': `"${wo.woNo}"`,
+          'Sales Order': `"${wo.salesOrder}"`,
+          'Product Name': `"${wo.product}"`,
+          'Planned Qty': wo.planned,
+          'Produced Qty': wo.produced,
+          'Remaining Qty': wo.remaining,
+          'Progress (%)': wo.completionPct,
+          'Target Date': `"${wo.target}"`,
+          'Status': `"${wo.status}"`,
+        }));
+        if (rows.length === 0) {
+          alert('No work orders data to export.');
+          return;
+        }
+        const headers = Object.keys(rows[0]).join(',');
+        const csvContent = [headers, ...rows.map(r => Object.values(r).join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        await safeSaveFile(blob, `production-report-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      alert(`Export failed: ${err.message || 'Unknown error'}`);
+    }
   };
 
   if (error) {
@@ -167,6 +224,8 @@ export default function ProductionAnalyticsPage() {
           showCategory={true} 
           showStatus={true} 
           filterOptions={data.filters} 
+          onExportPDF={() => handleExport('pdf')}
+          onExportExcel={() => handleExport('excel')}
         />
       </div>
 

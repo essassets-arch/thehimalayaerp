@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Calendar, ClipboardPlus, Factory, RefreshCw, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Calendar, ClipboardPlus, Factory, RefreshCw, X } from 'lucide-react';
 import { backendFetch } from '../lib/backendFetch';
 const number = (value) => Number(value) || 0;
 const workOrderRef = (wo) => wo.workOrderNo || wo.workOrderId || wo.id || wo.orderNo || '—';
@@ -203,14 +203,15 @@ export default function ProductionOperationsDashboard({ workOrders = [], initial
   ];
 
   return <section className="pod-shell">
-    <div className="pod-heading" style={{ flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
-      <div><span>Production control</span><h2>Production Performance & Quality Flow</h2><p>Shift output, rework, wastage and production efficiency in one live view.</p></div>
+    <div className="pod-heading">
+      <div className="pod-title"><span><Factory size={13} /> Production control</span><h2>Production Operations</h2><p>Track live output, quality and work-order movement across the shop floor.</p></div>
 
       {/* Date Range / Period Filter Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', padding: '6px 12px', borderRadius: '12px', border: '1px solid #D6E2F0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
-        <Calendar size={15} style={{ color: '#2563eb' }} />
-        <span style={{ fontSize: '12px', fontWeight: '700', color: '#5E6B82', marginRight: '4px' }}>Filter:</span>
-        <div style={{ display: 'flex', gap: '4px', background: '#F1F5F9', padding: '3px', borderRadius: '8px' }}>
+      <div className="pod-toolbar">
+        <div className="pod-filter">
+        <Calendar size={15} />
+        <span>Period</span>
+        <div className="pod-filter-tabs">
           {[
             { id: 'day', label: 'Day' },
             { id: 'week', label: 'Week' },
@@ -221,17 +222,7 @@ export default function ProductionOperationsDashboard({ workOrders = [], initial
               key={tab.id}
               type="button"
               onClick={() => setTimeFilter(tab.id)}
-              style={{
-                border: 'none',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontSize: '11.5px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                background: timeFilter === tab.id ? '#2563eb' : 'transparent',
-                color: timeFilter === tab.id ? '#ffffff' : '#64748b',
-                transition: 'all 0.15s ease'
-              }}
+              className={timeFilter === tab.id ? 'active' : ''}
             >
               {tab.label}
             </button>
@@ -239,26 +230,26 @@ export default function ProductionOperationsDashboard({ workOrders = [], initial
         </div>
 
         {timeFilter === 'custom' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '6px' }}>
+          <div className="pod-date-range">
             <input
               type="date"
               value={startDate}
               onChange={e => setStartDate(e.target.value)}
-              style={{ border: '1px solid #D6E2F0', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', color: '#24345C', background: '#fff' }}
             />
-            <span style={{ fontSize: '11px', color: '#8893A7' }}>to</span>
+            <span>to</span>
             <input
               type="date"
               value={endDate}
               onChange={e => setEndDate(e.target.value)}
-              style={{ border: '1px solid #D6E2F0', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', color: '#24345C', background: '#fff' }}
             />
           </div>
         )}
+        </div>
+        <div className="pod-actions"><button className="secondary" onClick={() => setModal('scrap')}><AlertTriangle size={15} /> Log scrap</button><button onClick={() => setModal('shift')}><ClipboardPlus size={15} /> Add shift entry</button></div>
       </div>
     </div>
     <div className="pod-kpis">
-      <article style={{ '--accent': '#10b981', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      <article className="pod-target-card" style={{ '--accent': '#10b981' }}>
         <span>🎯 Target Achievement</span>
         {loadingTarget ? (
           <strong>Loading...</strong>

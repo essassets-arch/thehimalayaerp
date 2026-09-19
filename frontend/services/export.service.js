@@ -894,6 +894,388 @@ export const exportFinanceReportPDF = async (filters = {}) => {
 };
 
 /**
+ * Export Production Report to PDF (100% Dynamic with Active Filters and Live Telemetry)
+ */
+export const exportProductionReportPDF = async (filters = {}) => {
+  let prodData = null;
+  const startDate = filters.startDate || filters.date_from || filters.from || '';
+  const endDate = filters.endDate || filters.date_to || filters.to || '';
+  const branchId = filters.branchId || filters.branch || '';
+  const productId = filters.productId || filters.product || '';
+  const categoryId = filters.categoryId || filters.category || '';
+  const status = filters.status || '';
+  const rangePreset = filters.rangePreset || '';
+
+  const params = new URLSearchParams();
+  if (startDate) {
+    params.append('startDate', startDate);
+    params.append('from', startDate);
+  }
+  if (endDate) {
+    params.append('endDate', endDate);
+    params.append('to', endDate);
+  }
+  if (branchId && branchId !== 'All') {
+    params.append('branchId', branchId);
+    params.append('branch', branchId);
+  }
+  if (productId && productId !== 'All') params.append('productId', productId);
+  if (categoryId && categoryId !== 'All') params.append('categoryId', categoryId);
+  if (status && status !== 'All') params.append('status', status);
+  if (rangePreset) params.append('rangePreset', rangePreset);
+
+  // 1. Fetch live production analytics data
+  try {
+    const res = await apiClient.get(`/backend/super-admin/analytics/production?${params.toString()}`);
+    if (res && res.success && res.data) {
+      prodData = res.data;
+    } else if (res && res.data) {
+      prodData = res.data;
+    } else if (res) {
+      prodData = res;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch /backend/super-admin/analytics/production:', err.message);
+  }
+
+  const summary = prodData?.summary || {};
+  const flow = prodData?.productionFlow || {};
+  const qc = prodData?.qc || {};
+  const productPerformance = prodData?.productPerformance || [];
+  const machines = prodData?.machines || {};
+
+  const dateLabel = (startDate && endDate) ? `${startDate} to ${endDate}` : (rangePreset || 'Current Active Period');
+  const branchLabel = branchId && branchId !== 'All' ? branchId : 'All Production Facilities';
+
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  let y = 14;
+
+  // Header Banner
+  doc.setFillColor(2, 132, 199); // #0284c7 Sky/Cyan
+  doc.rect(margin, y, pageWidth - (margin * 2), 22, 'F');
+
+  doc.setFontSize(14);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont(undefined, 'bold');
+  doc.text('THE HIMALAYA ENTERPRISE - EXECUTIVE PRODUCTION COMMAND REPORT', margin + 6, y + 9);
+
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Active Scope: ${branchLabel}  |  Period: ${dateLabel}  |  Generated: ${new Date().toLocaleString()}`, margin + 6, y + 16);
+
+  y += 28;
+
+  // 1. Executive Summary KPIs Table
+  doc.setFontSize(11);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont(undefined, 'bold');
+  doc.text('1. Executive Production & Operational KPIs', margin, y);
+  y += 4;
+
+  const target = summary.productionTarget ?? 0;
+  const actual = summary.productionCompleted ?? 0;
+  const achievement = summary.achievementPercent ?? 0;
+  const activeWOs = summary.activeWorkOrders ?? 0;
+  const machineUtil = summary.machineUtilization ?? 100;
+  const qcPassRate = qc.passRate ?? 100;
+  const incoming = summary.incomingOrders ?? 0;
+
+  const kpiCols = ['Production Metric', 'Scope Value', 'Production Metric', 'Scope Value'];
+  const kpiRows = [
+    ['Total Planned Production Target', `${target.toLocaleString()} Units`, 'Actual Output Completed', `${actual.toLocaleString()} Units`],
+    ['Production Achievement Rate', `${achievement.toFixed(1)}%`, 'Active Running Work Orders', `${activeWOs} Active WOs`],
+    ['Quality Control Pass Rate', `${qcPassRate}% Approved`, 'Fleet Machine Utilization', `${machineUtil}% Active Rate`],
+    ['Incoming Unplanned Orders', `${incoming} Orders Waiting`, 'Finished Goods Transferred', `${actual.toLocaleString()} Units`]
+  ];
+
+  autoTable(doc, {
+    head: [kpiCols],
+    body: kpiRows,
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 2.5 },
+    headStyles: { fillColor: [2, 132, 199], textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: {
+      0: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 65 },
+      1: { width: 65 },
+      2: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 65 },
+      3: { width: 74 }
+    },
+    margin: { left: margin, right: margin }
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // 2. Production Funnel Progression
+  doc.setFontSize(11);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont(undefined, 'bold');
+  doc.text('2. Production Stage Funnel Progression', margin, y);
+  y += 4;
+
+  const funnelCols = ['Funnel Stage', 'Job / Batch Count', 'Volume (Units)', 'Operational State'];
+  const funnelRows = [
+    ['1. Incoming Sales Orders', `${flow.incoming?.count ?? 0} Orders`, `${(flow.incoming?.qty ?? 0).toLocaleString()} Units`, 'Pending Production Planning'],
+    ['2. Work Orders Created', `${flow.created?.count ?? 0} WOs`, `${(flow.created?.qty ?? 0).toLocaleString()} Units`, 'BOM & Material Release'],
+    ['3. Production In-Progress', `${flow.running?.count ?? 0} Running WOs`, `${(flow.running?.qty ?? 0).toLocaleString()} Units`, 'Pressing & Curing Active'],
+    ['4. Production Completed', `${flow.completed?.count ?? 0} Completed WOs`, `${(flow.completed?.qty ?? 0).toLocaleString()} Units`, 'Manufacturing Complete'],
+    ['5. Quality Control Approved', `${flow.qcApproved?.count ?? 0} Batches`, `${(flow.qcApproved?.qty ?? 0).toLocaleString()} Units`, 'Passed QA Specifications'],
+    ['6. Finished Goods Warehouse', `${flow.finishedGoods?.count ?? 0} WOs`, `${(flow.finishedGoods?.qty ?? 0).toLocaleString()} Units`, 'Ready for Commercial Dispatch']
+  ];
+
+  autoTable(doc, {
+    head: [funnelCols],
+    body: funnelRows,
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 2.5 },
+    headStyles: { fillColor: [14, 165, 233], textColor: [255, 255, 255], fontStyle: 'bold' },
+    margin: { left: margin, right: margin }
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // 3. Product-Wise Production Performance Ledger
+  if (productPerformance.length > 0) {
+    if (y > pageHeight - 50) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont(undefined, 'bold');
+    doc.text('3. Product-Wise Manufacturing Output Ledger', margin, y);
+    y += 4;
+
+    const prodCols = ['Product Description', 'Planned Target', 'Produced Output', 'QC Approved', 'QC Rejected', 'Achievement %'];
+    const prodRows = productPerformance.slice(0, 15).map(p => [
+      p.product,
+      Number(p.planned || 0).toLocaleString(),
+      Number(p.produced || 0).toLocaleString(),
+      Number(p.qcPassed || 0).toLocaleString(),
+      Number(p.qcFailed || 0).toLocaleString(),
+      `${p.achievement || 0}%`
+    ]);
+
+    autoTable(doc, {
+      head: [prodCols],
+      body: prodRows,
+      startY: y,
+      theme: 'striped',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [3, 105, 161], textColor: [255, 255, 255], fontStyle: 'bold' },
+      margin: { left: margin, right: margin }
+    });
+    y = doc.lastAutoTable.finalY + 8;
+  }
+
+  // 4. Fleet Machine Telemetry
+  if (machines.list && machines.list.length > 0) {
+    if (y > pageHeight - 50) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont(undefined, 'bold');
+    doc.text('4. Machine Fleet Status & Utilization', margin, y);
+    y += 4;
+
+    const machCols = ['Machine Name', 'Operating Runtime', 'Idle Duration', 'Produced Units', 'Utilization %', 'OEE Rating'];
+    const machRows = machines.list.map(m => [
+      m.machine,
+      m.runtime,
+      m.idleTime,
+      Number(m.produced || 0).toLocaleString(),
+      `${m.utilization}%`,
+      `${m.oee}%`
+    ]);
+
+    autoTable(doc, {
+      head: [machCols],
+      body: machRows,
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [51, 65, 85], textColor: [255, 255, 255], fontStyle: 'bold' },
+      margin: { left: margin, right: margin }
+    });
+    y = doc.lastAutoTable.finalY + 8;
+  }
+
+  // Footer on all pages
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `The Himalaya ERP - Confidential Executive Report | Page ${i} of ${totalPages}`,
+      pageWidth / 2,
+      pageHeight - 8,
+      { align: 'center' }
+    );
+  }
+
+  await safeSaveFile(doc, `production-command-report-${new Date().toISOString().split('T')[0]}.pdf`, 'application/pdf');
+};
+
+/**
+ * Export Dispatch Report to PDF (100% Dynamic with Live Logistics Telemetry & Manifest)
+ */
+export const exportDispatchReportPDF = async (filters = {}) => {
+  let dispData = null;
+  const startDate = filters.startDate || filters.date_from || filters.from || '';
+  const endDate = filters.endDate || filters.date_to || filters.to || '';
+  const branchId = filters.branchId || filters.branch || '';
+
+  const params = new URLSearchParams();
+  if (startDate) params.append('from', startDate);
+  if (endDate) params.append('to', endDate);
+  if (branchId && branchId !== 'All') params.append('branchId', branchId);
+
+  try {
+    const res = await apiClient.get(`/backend/super-admin/analytics/dispatch?${params.toString()}`);
+    if (res && res.data) {
+      dispData = res.data;
+    } else if (res) {
+      dispData = res;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch /backend/super-admin/analytics/dispatch for PDF:', err.message);
+  }
+
+  const flow = dispData?.flow || {};
+  const transportCost = dispData?.transportCost || {};
+  const delivery = dispData?.delivery || {};
+  const dispatches = dispData?.dispatches || [];
+  const remainingDispatch = dispData?.remainingDispatch || {};
+
+  const dateLabel = (startDate && endDate) ? `${startDate} to ${endDate}` : 'Current Active Period';
+
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  let y = 14;
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42); // #0f172a
+  doc.rect(margin, y, pageWidth - (margin * 2), 22, 'F');
+
+  doc.setFontSize(14);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont(undefined, 'bold');
+  doc.text('THE HIMALAYA ENTERPRISE - DISPATCH & LOGISTICS COMMAND REPORT', margin + 6, y + 9);
+
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Period: ${dateLabel}  |  Generated: ${new Date().toLocaleString()}`, margin + 6, y + 16);
+
+  y += 28;
+
+  // 1. Executive Summary KPIs Table
+  doc.setFontSize(11);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont(undefined, 'bold');
+  doc.text('1. Executive Logistics & Dispatch KPIs', margin, y);
+  y += 4;
+
+  const kpiCols = ['Logistics Metric', 'Value', 'Logistics Metric', 'Value'];
+  const kpiRows = [
+    ['Orders Ready for Dispatch', `${flow.ready?.count ?? 0} Orders (${(flow.ready?.qty ?? 0).toLocaleString()} Units)`, 'Dispatches Created in Period', `${flow.created?.count ?? 0} Dispatches (${(flow.created?.qty ?? 0).toLocaleString()} Units)`],
+    ['Active Shipments In Transit', `${flow.inTransit?.count ?? 0} Shipments (${(flow.inTransit?.qty ?? 0).toLocaleString()} Units)`, 'Delivered Shipments', `${flow.delivered?.count ?? 0} Delivered (${(flow.delivered?.qty ?? 0).toLocaleString()} Units)`],
+    ['On-Time Delivery SLA', `${delivery.summary?.onTimeDeliveryRate ?? 100}% Compliance`, 'Pending Backlog Balance', `${remainingDispatch.summary?.ordersWithBalance ?? 0} Orders (${(remainingDispatch.summary?.remainingQuantity ?? 0).toLocaleString()} Units)`],
+    ['Total Transport Expense', `Rs. ${(transportCost.actualTransportCost ?? 0).toLocaleString()}`, 'Quotation Transport Baseline', `Rs. ${(transportCost.expectedTransportCost ?? 0).toLocaleString()}`]
+  ];
+
+  autoTable(doc, {
+    head: [kpiCols],
+    body: kpiRows,
+    startY: y,
+    theme: 'grid',
+    styles: { fontSize: 8.5, cellPadding: 2.5 },
+    headStyles: { fillColor: [2, 132, 199], textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: {
+      0: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 65 },
+      1: { width: 65 },
+      2: { fontStyle: 'bold', fillColor: [248, 250, 252], width: 65 },
+      3: { width: 74 }
+    },
+    margin: { left: margin, right: margin }
+  });
+
+  y = doc.lastAutoTable.finalY + 8;
+
+  // 2. Dispatches Manifest Table
+  if (dispatches.length > 0) {
+    if (y > pageHeight - 60) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont(undefined, 'bold');
+    doc.text('2. Live Dispatch Manifest Ledger', margin, y);
+    y += 4;
+
+    const manifestCols = ['Dispatch #', 'Order #', 'Customer', 'Date', 'Transporter', 'Vehicle', 'Qty', 'Freight', 'Status', 'SLA'];
+    const manifestRows = dispatches.slice(0, 30).map(d => [
+      d.dispatchNo,
+      d.orderNumber,
+      (d.customerName || '').slice(0, 22),
+      d.dispatchedAt || '—',
+      (d.transporterName || 'Self-Pickup').slice(0, 16),
+      d.vehicleNumber || '—',
+      String(d.packageCount || 1),
+      `Rs. ${Number(d.freightAmount || 0).toLocaleString()}`,
+      (d.status || '').replaceAll('_', ' '),
+      d.sla || 'On-Time'
+    ]);
+
+    autoTable(doc, {
+      head: [manifestCols],
+      body: manifestRows,
+      startY: y,
+      theme: 'striped',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
+      margin: { left: margin, right: margin }
+    });
+    y = doc.lastAutoTable.finalY + 8;
+  }
+
+  // Footer on all pages
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `The Himalaya ERP - Confidential Dispatch Logistics Telemetry | Page ${i} of ${totalPages}`,
+      pageWidth / 2,
+      pageHeight - 8,
+      { align: 'center' }
+    );
+  }
+
+  await safeSaveFile(doc, `dispatch-command-report-${new Date().toISOString().split('T')[0]}.pdf`, 'application/pdf');
+};
+
+/**
  * Export Inventory Report to PDF (100% Dynamic with Active Filters and Live Stock Valuation Metrics)
  */
 export const exportInventoryReportPDF = async (filters = {}) => {
