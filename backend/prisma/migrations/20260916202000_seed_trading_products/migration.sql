@@ -486,4 +486,3 @@ ON CONFLICT ("publicId") DO NOTHING;
 INSERT INTO "Product" ("id", "publicId", "companyId", "name", "sku", "description", "category", "productType", "brand", "dispatchCategory", "gstRate", "hsnCode", "variantDetails", "unit", "unitPrice", "minimumStock", "coversPerSet", "framesPerSet", "type", "isActive", "version", "createdAt", "updatedAt")
 VALUES (gen_random_uuid(), 'PRD-' || substr(md5(random()::text), 1, 10), '88c57ebc-b3b7-49e3-8d5d-6321a0e89015', 'FRCTPEC 30 x 24x2', 'FRCTPEC30X24X2', 'FRCTPEC 30 x 24x2', 'FRC COVER', 'TRADING', 'HIMALAYA', 'D2', 18, '68109990', 'FRCTPEC 30 x 24x2', 'SET', 0, 0, 1, 1, 'FRC COVER', true, 1, NOW(), NOW())
 ON CONFLICT ("publicId") DO NOTHING;
-
