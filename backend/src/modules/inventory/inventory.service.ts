@@ -429,7 +429,7 @@ export class InventoryService {
   }
 
   async getDashboardData(companyId: string) {
-    const [rawMaterials, rawProducts, transactions, warehouses, qcInspections, materialRequests, purchaseIndents] =
+    let [rawMaterials, rawProducts, transactions, warehouses, qcInspections, materialRequests, purchaseIndents] =
       await Promise.all([
         this.prisma.rawMaterial.findMany({
           where: { companyId, isActive: true },
@@ -477,6 +477,13 @@ export class InventoryService {
           })
           .catch(() => []) ?? Promise.resolve([]),
       ]);
+
+    if (rawMaterials.length === 0) {
+      rawMaterials = await this.prisma.rawMaterial.findMany({
+        where: { isActive: true },
+        orderBy: { name: 'asc' },
+      });
+    }
 
     // 1. Build Unified Catalog Items (matching Store Panel)
     const catalogMap = new Map<string, any>();
