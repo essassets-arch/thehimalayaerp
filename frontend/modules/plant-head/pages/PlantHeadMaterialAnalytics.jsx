@@ -20,7 +20,6 @@ import {
   RefreshCw,
   X,
   FileSpreadsheet,
-  ExternalLink,
   ChevronLeft,
   Info,
   CalendarDays,
@@ -385,16 +384,6 @@ export function PlantHeadMaterialAnalytics() {
               <Download size={14} />
               Export CSV
             </button>
-            <a
-              href="/store/raw-inventory"
-              target="_blank"
-              rel="noreferrer"
-              className={styles.btnSecondary}
-              title="Open raw inventory master ledger in new tab"
-            >
-              <ExternalLink size={14} />
-              Store Raw Inventory
-            </a>
           </div>
         </div>
       </header>

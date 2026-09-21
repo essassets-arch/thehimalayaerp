@@ -430,7 +430,8 @@ export default function DashboardView({
     const dept = String(o.currentDepartment || '').toUpperCase();
     const isSentToPlant = Boolean(o.sentToPlantHead || o.sentToPlantHeadAt || o.sentToPlantAt || o.isSentToPlant) ||
                           s.includes('PRODUCTION') || s.includes('PLANT') || s.includes('PLAN') || dept.includes('PRODUCTION');
-    return isSentToPlant && !s.includes('DISPATCH') && !s.includes('DELIVER') && !['CANCELLED', 'VOID', 'REJECTED', 'DRAFT'].includes(s);
+    const dStat = String(o.dispatchStatus || '').toUpperCase();
+    return isSentToPlant && !s.includes('DISPATCH') && !s.includes('DELIVER') && !s.includes('COMPLETED') && !dStat.includes('DELIVER') && !['CANCELLED', 'VOID', 'REJECTED', 'DRAFT', 'COMPLETED', 'CLOSED'].includes(s);
   }).length;
 
   const readyForDispatchCount = filteredOrders.filter(o => {
