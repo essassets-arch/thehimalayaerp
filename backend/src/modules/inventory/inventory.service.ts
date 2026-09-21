@@ -432,22 +432,23 @@ export class InventoryService {
     const [rawMaterials, rawProducts, transactions, warehouses, qcInspections, materialRequests, purchaseIndents] =
       await Promise.all([
         this.prisma.rawMaterial.findMany({
-          where: { isActive: true },
+          where: { companyId, isActive: true },
           orderBy: { name: 'asc' },
         }),
         this.prisma.product.findMany({
           where: {
+            companyId,
             isActive: true,
             OR: [
               { type: 'RAW_MATERIAL' },
               { productType: 'RAW_MATERIAL' },
-              { category: 'Raw Material' },
-              { category: 'Hardware' },
+              { category: { contains: 'Raw', mode: 'insensitive' } },
             ],
           },
           orderBy: { name: 'asc' },
         }),
         this.prisma.inventoryTransaction.findMany({
+          where: { companyId },
           orderBy: { createdAt: 'desc' },
           include: {
             warehouse: { select: { name: true } },
@@ -455,20 +456,23 @@ export class InventoryService {
             rawMaterial: { select: { name: true, sku: true, unit: true, category: true, storageLocation: true } },
           },
         }),
-        this.prisma.warehouse.findMany({}),
+        this.prisma.warehouse.findMany({ where: { companyId } }),
         (this.prisma as any).qCInspection
           ?.findMany({
+            where: { companyId },
             orderBy: { createdAt: 'desc' },
           })
           .catch(() => []) ?? Promise.resolve([]),
         (this.prisma as any).materialRequest
           ?.findMany({
+            where: { companyId },
             include: { items: true },
             orderBy: { createdAt: 'desc' },
           })
           .catch(() => []) ?? Promise.resolve([]),
         (this.prisma as any).purchaseIndent
           ?.findMany({
+            where: { companyId },
             orderBy: { createdAt: 'desc' },
           })
           .catch(() => []) ?? Promise.resolve([]),
@@ -777,7 +781,7 @@ export class InventoryService {
     const grandABC = classAVal + classBVal + classCVal;
     const abcDonutData = [
       {
-        name: `A — High-Value (${grandABC > 0 ? Math.round((classAVal / grandABC) * 100) : 100}%)`,
+        name: `A — High-Value (${grandABC > 0 ? Math.round((classAVal / grandABC) * 100) : 0}%)`,
         value: Number(classAVal.toFixed(2)),
         color: '#0284c7',
       },
@@ -818,12 +822,12 @@ export class InventoryService {
       else if (ageDays <= 180) a91_180++;
       else a180Plus++;
     });
-    const totalAgeCount = a0_30 + a31_90 + a91_180 + a180Plus || 1;
+    const totalAgeCount = a0_30 + a31_90 + a91_180 + a180Plus;
     const stockAgingData = [
-      { bucket: '0–30 Days', percent: Math.round((a0_30 / totalAgeCount) * 100), skus: a0_30, color: '#10b981' },
-      { bucket: '31–90 Days', percent: Math.round((a31_90 / totalAgeCount) * 100), skus: a31_90, color: '#0284c7' },
-      { bucket: '91–180 Days', percent: Math.round((a91_180 / totalAgeCount) * 100), skus: a91_180, color: '#f59e0b' },
-      { bucket: '>180 Days', percent: Math.round((a180Plus / totalAgeCount) * 100), skus: a180Plus, color: '#ef4444' },
+      { bucket: '0–30 Days', percent: totalAgeCount > 0 ? Math.round((a0_30 / totalAgeCount) * 100) : 0, skus: a0_30, color: '#10b981' },
+      { bucket: '31–90 Days', percent: totalAgeCount > 0 ? Math.round((a31_90 / totalAgeCount) * 100) : 0, skus: a31_90, color: '#0284c7' },
+      { bucket: '91–180 Days', percent: totalAgeCount > 0 ? Math.round((a91_180 / totalAgeCount) * 100) : 0, skus: a91_180, color: '#f59e0b' },
+      { bucket: '>180 Days', percent: totalAgeCount > 0 ? Math.round((a180Plus / totalAgeCount) * 100) : 0, skus: a180Plus, color: '#ef4444' },
     ];
 
     // 10. Top 10 Materials Consumed
@@ -904,9 +908,9 @@ export class InventoryService {
         fastMovingSkus: fastCount,
         nonMovingSkus: nonCount,
         rejectionRate,
-        auditAccuracy: 100,
+        auditAccuracy: catalogItems.length > 0 ? 100 : 0,
         turnoverRatio: totalAvailableStock > 0 ? Number((issuedTotalQty / totalAvailableStock).toFixed(2)) : 0,
-        warehouseUtilization: 78,
+        warehouseUtilization: catalogItems.length > 0 ? 78 : 0,
       },
       consumptionTrend,
       stockMovement: stockMovementData,
