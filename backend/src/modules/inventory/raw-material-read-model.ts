@@ -21,7 +21,7 @@ export function materialMovement(type: string, quantity: number) {
 export async function loadRawMaterialCatalog(db: Database, companyId: string) {
   if (!companyId?.trim()) throw new BadRequestException('Authenticated company is required');
   const [raw, products] = await Promise.all([
-    db.rawMaterial.findMany({ where: { companyId }, orderBy: { sku: 'asc' } }),
+    db.rawMaterial.findMany({ where: { companyId, isActive: true }, orderBy: { sku: 'asc' } }),
     db.product.findMany({ where: { companyId, isActive: true, OR: [
       { productType: 'RAW_MATERIAL' }, { type: 'RAW_MATERIAL' }, { category: { contains: 'Raw', mode: 'insensitive' } },
     ] }, orderBy: { sku: 'asc' } }),
