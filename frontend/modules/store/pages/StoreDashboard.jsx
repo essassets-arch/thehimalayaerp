@@ -145,6 +145,13 @@ export const StoreDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    const handleInventoryUpdated = () => {
+      fetchDashboardData();
+    };
+    window.addEventListener('inventory-updated', handleInventoryUpdated);
+    return () => {
+      window.removeEventListener('inventory-updated', handleInventoryUpdated);
+    };
   }, [fetchDashboardData]);
 
   // ── Helper to evaluate stock status ──
@@ -185,6 +192,77 @@ export const StoreDashboard = () => {
     const slowDisplay = summaryData?.slowMovingSkus ?? slowCount;
     const fastDisplay = summaryData?.fastMovingSkus ?? fastCount;
 
+    // ── Issued to Production Calculations (Dynamic & Cross-Source) ──
+    let reqIssuedQty = 0;
+    const reqIssuedMaterials = new Set();
+    materialRequestsList.forEach((req) => {
+      const items = Array.isArray(req.items)
+        ? req.items
+        : (Array.isArray(req.metadata?.items) ? req.metadata.items : []);
+      if (items.length > 0) {
+        items.forEach((it) => {
+          const q = Number(it.issuedQty ?? it.issuedQuantity ?? it.issueQty ?? 0);
+          if (q > 0) {
+            reqIssuedQty += q;
+            const key = it.materialId || it.productId || it.materialName || it.name || it.material || it.id;
+            if (key) reqIssuedMaterials.add(String(key).trim().toLowerCase());
+          }
+        });
+      } else {
+        const q = Number(req.issuedQty ?? req.issuedQuantity ?? (req.status === 'ISSUED' || req.status === 'ISSUED_TO_PRODUCTION' ? req.quantity : 0));
+        if (q > 0) {
+          reqIssuedQty += q;
+          const key = req.materialId || req.productId || req.materialName || req.productName || req.id;
+          if (key) reqIssuedMaterials.add(String(key).trim().toLowerCase());
+        }
+      }
+    });
+
+    let txIssuedQty = 0;
+    const txIssuedMaterials = new Set();
+    stockTransactions.forEach((tx) => {
+      const txType = (tx.type || '').toUpperCase();
+      const isOut = ['OUT', 'ISSUE', 'STOCK_OUT', 'PRODUCTION_ISSUE'].includes(txType) ||
+                    tx.referenceType === 'ISSUE_TO_PRODUCTION' ||
+                    (tx.notes || '').toLowerCase().includes('issue') ||
+                    (tx.notes || '').toLowerCase().includes('production');
+      if (isOut) {
+        const q = Math.abs(Number(tx.quantity || 0));
+        txIssuedQty += q;
+        const key = tx.productId || tx.rawMaterialId || tx.product?.sku || tx.product?.name || tx.materialName;
+        if (key) txIssuedMaterials.add(String(key).trim().toLowerCase());
+      }
+    });
+
+    let localIssuedQty = 0;
+    const localIssuedMaterials = new Set();
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('store_issued_quantities');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          Object.entries(parsed).forEach(([k, val]) => {
+            const num = Number(val || 0);
+            if (num > 0) {
+              localIssuedQty += num;
+              localIssuedMaterials.add(k);
+            }
+          });
+        }
+      }
+    } catch (_) {}
+
+    const calculatedIssuedQty = Math.max(txIssuedQty, reqIssuedQty, localIssuedQty);
+    const calculatedMaterialsCount = Math.max(txIssuedMaterials.size, reqIssuedMaterials.size, localIssuedMaterials.size);
+
+    const issuedTotalQty = summaryData?.issuedTotalQty !== undefined && summaryData.issuedTotalQty !== null
+      ? Math.max(Number(summaryData.issuedTotalQty), calculatedIssuedQty)
+      : calculatedIssuedQty;
+
+    const issuedMaterialsCount = summaryData?.issuedMaterialsCount !== undefined && summaryData.issuedMaterialsCount !== null
+      ? Math.max(Number(summaryData.issuedMaterialsCount), calculatedMaterialsCount)
+      : calculatedMaterialsCount;
+
     // Calculate dynamic QC rejection rate
     let rejectionRateDisplay = '0.0';
     if (qcInspectionsList.length > 0) {
@@ -201,6 +279,8 @@ export const StoreDashboard = () => {
       totalVal,
       rawMaterialCount: rawMatCount,
       totalAvailableQty: availableQtyDisplay,
+      issuedTotalQty,
+      issuedMaterialsCount,
       belowMinCount: summaryData?.belowMinStock ?? belowMinCount,
       aboveMaxCount: summaryData?.aboveMaxStock ?? aboveMaxCount,
       deadStockVal: summaryData?.deadStockValue ?? deadStockVal,
@@ -208,7 +288,7 @@ export const StoreDashboard = () => {
       fastCount: fastDisplay,
       rejectionRate: rejectionRateDisplay,
     };
-  }, [liveInventory, rawMaterialsList, summaryData, qcInspectionsList]);
+  }, [liveInventory, rawMaterialsList, summaryData, qcInspectionsList, materialRequestsList, stockTransactions]);
 
   // ── Dynamic Unique Options for Material Filter Dropdown ──
   const dynamicMaterialOptions = useMemo(() => {
@@ -242,7 +322,8 @@ export const StoreDashboard = () => {
 
     // Filter transactions or material requests by time and selection
     const outTransactions = stockTransactions.filter(tx => {
-      const isOut = tx.type === 'OUT' || tx.type === 'ISSUE' || tx.type === 'PRODUCTION_ISSUE';
+      const txType = (tx.type || '').toUpperCase();
+      const isOut = txType === 'OUT' || txType === 'ISSUE' || txType === 'PRODUCTION_ISSUE' || txType === 'STOCK_OUT' || tx.referenceType === 'ISSUE_TO_PRODUCTION';
       if (!isOut) return false;
       if (selectedMaterialFilter !== 'ALL') {
         const matMatch = (tx.productId || tx.rawMaterialId || tx.product?.sku || tx.product?.name || '').toString().toLowerCase();
@@ -315,7 +396,7 @@ export const StoreDashboard = () => {
           const qty = Number(tx.quantity) || 0;
           const txType = (tx.type || '').toUpperCase();
           if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'STOCK_IN'].includes(txType)) dayMap[d].received += qty;
-          else if (['OUT', 'ISSUE', 'STOCK_OUT', 'PRODUCTION_ISSUE'].includes(txType)) dayMap[d].issued += qty;
+          else if (['OUT', 'ISSUE', 'STOCK_OUT', 'PRODUCTION_ISSUE'].includes(txType) || tx.referenceType === 'ISSUE_TO_PRODUCTION') dayMap[d].issued += qty;
           else if (['RETURN', 'MATERIAL_RETURN'].includes(txType)) dayMap[d].returns += qty;
           else if (['ADJUSTMENT', 'REJECTION', 'VARIANCE'].includes(txType)) dayMap[d].adjustments += qty;
         }
@@ -448,7 +529,7 @@ export const StoreDashboard = () => {
         const qty = Number(tx.quantity || 0);
         const txType = (tx.type || '').toUpperCase();
         if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'STOCK_IN'].includes(txType)) entry.received += qty;
-        else if (['OUT', 'ISSUE', 'STOCK_OUT', 'PRODUCTION_ISSUE'].includes(txType)) entry.issued += qty;
+        else if (['OUT', 'ISSUE', 'STOCK_OUT', 'PRODUCTION_ISSUE'].includes(txType) || tx.referenceType === 'ISSUE_TO_PRODUCTION') entry.issued += qty;
         else if (['RETURN', 'MATERIAL_RETURN'].includes(txType)) entry.returnQty += qty;
       });
 
@@ -503,7 +584,7 @@ export const StoreDashboard = () => {
         const qty = Number(tx.quantity || 0);
         const txType = (tx.type || '').toUpperCase();
         if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'STOCK_IN'].includes(txType)) entry.received += qty;
-        else if (['OUT', 'ISSUE', 'STOCK_OUT', 'PRODUCTION_ISSUE'].includes(txType)) entry.issued += qty;
+        else if (['OUT', 'ISSUE', 'STOCK_OUT', 'PRODUCTION_ISSUE'].includes(txType) || tx.referenceType === 'ISSUE_TO_PRODUCTION') entry.issued += qty;
         else if (['RETURN', 'MATERIAL_RETURN'].includes(txType)) entry.returnQty += qty;
       });
 
@@ -805,6 +886,24 @@ export const StoreDashboard = () => {
             {(kpiData.totalAvailableQty ?? 0).toLocaleString()} Pcs
           </div>
           <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Ready for production issue</div>
+        </div>
+
+        {/* 3. Materials Issued to Production */}
+        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', borderLeft: '4px solid #6366f1' }}>
+          <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🏭 Materials Issued</div>
+          <div style={{ fontSize: '20px', fontWeight: '900', color: '#4f46e5', margin: '6px 0 2px 0' }}>
+            {kpiData.issuedMaterialsCount} Materials
+          </div>
+          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>SKUs released to production</div>
+        </div>
+
+        {/* 4. Total Quantity Issued to Production */}
+        <div style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', borderLeft: '4px solid #8b5cf6' }}>
+          <div style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📤 Issued Qty (Production)</div>
+          <div style={{ fontSize: '20px', fontWeight: '900', color: '#7c3aed', margin: '6px 0 2px 0' }}>
+            {(kpiData.issuedTotalQty ?? 0).toLocaleString()} Units
+          </div>
+          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Total volume issued to floor</div>
         </div>
 
         {/* 3. Below Min Stock */}
@@ -1214,6 +1313,14 @@ export const StoreDashboard = () => {
               <div style={{ fontSize: '11px', color: '#15803d', marginTop: '2px' }}>{attentionPanelMetrics.pendingRequests} open production indents</div>
             </div>
             <div style={{ fontSize: '18px', fontWeight: '900', color: '#16a34a' }}>{attentionPanelMetrics.pendingRequests}</div>
+          </div>
+
+          <div style={{ background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: '12px', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: '800', color: '#3730a3' }}>🏭 Dispatched to Production</div>
+              <div style={{ fontSize: '11px', color: '#4338ca', marginTop: '2px' }}>{kpiData.issuedMaterialsCount} materials ({(kpiData.issuedTotalQty ?? 0).toLocaleString()} units) released</div>
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: '900', color: '#4f46e5' }}>{kpiData.issuedMaterialsCount}</div>
           </div>
 
           <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: '12px', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

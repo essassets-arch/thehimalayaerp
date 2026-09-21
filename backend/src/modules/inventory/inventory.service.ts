@@ -424,7 +424,7 @@ export class InventoryService {
   }
 
   async getDashboardData(companyId: string) {
-    const [rawMaterials, products, transactions, warehouses, qcInspections] =
+    const [rawMaterials, products, transactions, warehouses, qcInspections, materialRequests] =
       await Promise.all([
         this.prisma.rawMaterial.findMany({
           where: { companyId },
@@ -445,6 +445,12 @@ export class InventoryService {
         (this.prisma as any).qCInspection
           ?.findMany({
             where: { companyId },
+          })
+          .catch(() => []) ?? Promise.resolve([]),
+        (this.prisma as any).materialRequest
+          ?.findMany({
+            where: { companyId },
+            include: { items: true },
           })
           .catch(() => []) ?? Promise.resolve([]),
       ]);
@@ -578,12 +584,64 @@ export class InventoryService {
       }
     }
 
+    let txIssuedQty = 0;
+    const issuedMaterialIds = new Set<string>();
+
+    for (const tx of transactions) {
+      const isIssue =
+        tx.type === 'OUT' ||
+        tx.type === 'PRODUCTION_ISSUE' ||
+        tx.type === 'ISSUE' ||
+        tx.type === 'STOCK_OUT' ||
+        tx.referenceType === 'ISSUE_TO_PRODUCTION' ||
+        ((tx as any).notes &&
+          (String((tx as any).notes).toLowerCase().includes('production') ||
+            String((tx as any).notes).toLowerCase().includes('issue')));
+      if (isIssue) {
+        const q = Math.abs(Number(tx.quantity || 0));
+        txIssuedQty += q;
+        const matId = tx.productId || tx.rawMaterialId || tx.referenceId;
+        if (matId) issuedMaterialIds.add(String(matId));
+      }
+    }
+
+    let reqIssuedQty = 0;
+    if (Array.isArray(materialRequests)) {
+      for (const mr of materialRequests) {
+        const items = Array.isArray(mr.items)
+          ? mr.items
+          : (Array.isArray((mr.metadata as any)?.items)
+              ? (mr.metadata as any).items
+              : []);
+        for (const it of items) {
+          const q = Number(
+            it.issuedQuantity ?? it.issuedQty ?? it.issueQty ?? 0,
+          );
+          if (q > 0) {
+            reqIssuedQty += q;
+            const matId =
+              it.productId ||
+              it.materialId ||
+              it.materialName ||
+              it.name ||
+              it.id;
+            if (matId) issuedMaterialIds.add(String(matId));
+          }
+        }
+      }
+    }
+
+    const issuedTotalQty = Math.max(txIssuedQty, reqIssuedQty);
+    const issuedMaterialsCount = issuedMaterialIds.size;
+
     return {
       summary: {
         inventoryValue: Number(inventoryValue.toFixed(2)),
         totalSkus: catalogItems.length,
         totalRawMaterials: rawMaterials.length,
         availableStock: totalAvailableStock,
+        issuedTotalQty: Number(issuedTotalQty.toFixed(2)),
+        issuedMaterialsCount,
         belowMinStock,
         aboveMaxStock,
         deadStockValue: Number(deadStockValue.toFixed(2)),
