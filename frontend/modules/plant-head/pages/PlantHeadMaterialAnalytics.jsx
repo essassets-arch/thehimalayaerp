@@ -30,7 +30,6 @@ import {
 } from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
 import {
-  ResponsiveContainer,
   BarChart,
   Bar,
   LineChart,
@@ -47,6 +46,7 @@ import {
   Legend,
   ReferenceLine,
 } from 'recharts';
+import UltraResponsiveChart from '../../../shared/components/UltraResponsiveChart';
 
 const PIE_COLORS = [
   '#8B5CF6',
@@ -1257,6 +1257,7 @@ export const PlantHeadMaterialAnalytics = () => {
 
       {/* ─────────────────────────────────────────────────────────────
           7. MATERIAL FLOW VISUALIZATION SUITE (ALL CHARTS & GRAPHS)
+          Powered by UltraResponsiveChart (Zero-Blank across 320px to 12K)
       ───────────────────────────────────────────────────────────── */}
       <div style={styles.chartsSuiteSection} className="no-print">
         <div style={styles.chartsSuiteHeader}>
@@ -1344,30 +1345,45 @@ export const PlantHeadMaterialAnalytics = () => {
                   Flow Timeline
                 </span>
               </div>
-              <div style={styles.chartResponsiveWrapper}>
-                {sortedDailyFlow.length === 0 ? (
-                  <div style={styles.chartEmptyOverlay}>
-                    <Info size={28} style={{ color: '#94A3B8' }} />
-                    <span>No material movement found for selected period.</span>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+
+              {loading ? (
+                <div style={styles.chartLoadingWrapper}>
+                  <div className="chart-spinner" />
+                  <span style={styles.chartLoadingText}>
+                    Loading timeline telemetry...
+                  </span>
+                </div>
+              ) : (
+                <UltraResponsiveChart
+                  height={310}
+                  isEmpty={sortedDailyFlow.length === 0}
+                  emptyTitle="No Daily Material Flow Recorded"
+                  emptySubtitle="No Store Issue, Receive, or Floor Consumption logs for this timeframe."
+                >
+                  {({ width, height, scale, isMobile }) => (
                     <BarChart
+                      width={width}
+                      height={height}
                       data={sortedDailyFlow}
-                      margin={{ top: 15, right: 15, left: -15, bottom: 5 }}
+                      margin={{
+                        top: 15 * scale,
+                        right: isMobile ? 10 : 20 * scale,
+                        left: isMobile ? -25 : -10,
+                        bottom: 5,
+                      }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                       <XAxis
                         dataKey="date"
                         stroke="#64748B"
-                        fontSize={11}
+                        fontSize={Math.round(11 * scale)}
                         tickLine={false}
                         tickFormatter={formatDateTick}
                         interval="preserveStartEnd"
                       />
                       <YAxis
                         stroke="#64748B"
-                        fontSize={11}
+                        fontSize={Math.round(11 * scale)}
                         tickLine={false}
                         tickFormatter={(val) =>
                           Number(val) >= 1000
@@ -1381,14 +1397,19 @@ export const PlantHeadMaterialAnalytics = () => {
                           color: '#fff',
                           borderRadius: '8px',
                           border: 'none',
-                          fontSize: '12px',
+                          fontSize: `${Math.round(12 * scale)}px`,
                         }}
                         formatter={(val, name) => [
                           `${Number(val).toLocaleString()} KG`,
                           name,
                         ]}
                       />
-                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                      <Legend
+                        wrapperStyle={{
+                          fontSize: `${Math.round(11 * scale)}px`,
+                          paddingTop: '6px',
+                        }}
+                      />
                       <Bar
                         dataKey="receiveKg"
                         fill="#10B981"
@@ -1408,9 +1429,9 @@ export const PlantHeadMaterialAnalytics = () => {
                         radius={[4, 4, 0, 0]}
                       />
                     </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+                  )}
+                </UltraResponsiveChart>
+              )}
             </div>
           )}
 
@@ -1439,52 +1460,73 @@ export const PlantHeadMaterialAnalytics = () => {
                   Distribution
                 </span>
               </div>
-              <div style={styles.chartResponsiveWrapper}>
-                {topMaterialsShareData.length === 0 ? (
-                  <div style={styles.chartEmptyOverlay}>
-                    <Info size={28} style={{ color: '#94A3B8' }} />
-                    <span>No material movement found for selected period.</span>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                      <Tooltip
-                        contentStyle={{
-                          background: '#0F172A',
-                          color: '#fff',
-                          borderRadius: '8px',
-                          border: 'none',
-                          fontSize: '12px',
-                        }}
-                        formatter={(val, name, entry) => [
-                          `${Number(val).toLocaleString()} KG (${entry?.payload?.percentage || 0}%)`,
-                          entry?.payload?.name,
-                        ]}
-                      />
-                      <Legend
-                        wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }}
-                      />
-                      <Pie
-                        data={topMaterialsShareData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="48%"
-                        innerRadius="46%"
-                        outerRadius="74%"
-                        paddingAngle={3}
+
+              {loading ? (
+                <div style={styles.chartLoadingWrapper}>
+                  <div className="chart-spinner" />
+                  <span style={styles.chartLoadingText}>
+                    Loading distribution telemetry...
+                  </span>
+                </div>
+              ) : (
+                <UltraResponsiveChart
+                  height={310}
+                  isEmpty={topMaterialsShareData.length === 0}
+                  emptyTitle="No Material Share Data"
+                  emptySubtitle="No item transactions recorded for the selected period."
+                >
+                  {({ width, height, scale }) => {
+                    const minDim = Math.min(width, height);
+                    const innerR = Math.max(38, Math.round(minDim * 0.22));
+                    const outerR = Math.max(68, Math.round(minDim * 0.38));
+
+                    return (
+                      <PieChart
+                        width={width}
+                        height={height}
+                        margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
                       >
-                        {topMaterialsShareData.map((_, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={PIE_COLORS[index % PIE_COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+                        <Tooltip
+                          contentStyle={{
+                            background: '#0F172A',
+                            color: '#fff',
+                            borderRadius: '8px',
+                            border: 'none',
+                            fontSize: `${Math.round(12 * scale)}px`,
+                          }}
+                          formatter={(val, name, entry) => [
+                            `${Number(val).toLocaleString()} KG (${entry?.payload?.percentage || 0}%)`,
+                            entry?.payload?.name,
+                          ]}
+                        />
+                        <Legend
+                          wrapperStyle={{
+                            fontSize: `${Math.round(11 * scale)}px`,
+                            paddingTop: '6px',
+                          }}
+                        />
+                        <Pie
+                          data={topMaterialsShareData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="48%"
+                          innerRadius={innerR}
+                          outerRadius={outerR}
+                          paddingAngle={3}
+                        >
+                          {topMaterialsShareData.map((_, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={PIE_COLORS[index % PIE_COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    );
+                  }}
+                </UltraResponsiveChart>
+              )}
             </div>
           )}
 
@@ -1513,17 +1555,32 @@ export const PlantHeadMaterialAnalytics = () => {
                   Accumulation
                 </span>
               </div>
-              <div style={styles.chartResponsiveWrapper}>
-                {cumulativeFlowData.length === 0 ? (
-                  <div style={styles.chartEmptyOverlay}>
-                    <Info size={28} style={{ color: '#94A3B8' }} />
-                    <span>No material movement found for selected period.</span>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+
+              {loading ? (
+                <div style={styles.chartLoadingWrapper}>
+                  <div className="chart-spinner" />
+                  <span style={styles.chartLoadingText}>
+                    Loading trajectory telemetry...
+                  </span>
+                </div>
+              ) : (
+                <UltraResponsiveChart
+                  height={310}
+                  isEmpty={cumulativeFlowData.length === 0}
+                  emptyTitle="No Cumulative Telemetry"
+                  emptySubtitle="No cumulative inventory flow recorded for this timeframe."
+                >
+                  {({ width, height, scale, isMobile }) => (
                     <AreaChart
+                      width={width}
+                      height={height}
                       data={cumulativeFlowData}
-                      margin={{ top: 15, right: 15, left: -15, bottom: 5 }}
+                      margin={{
+                        top: 15 * scale,
+                        right: isMobile ? 10 : 20 * scale,
+                        left: isMobile ? -25 : -10,
+                        bottom: 5,
+                      }}
                     >
                       <defs>
                         <linearGradient
@@ -1567,14 +1624,14 @@ export const PlantHeadMaterialAnalytics = () => {
                       <XAxis
                         dataKey="date"
                         stroke="#64748B"
-                        fontSize={11}
+                        fontSize={Math.round(11 * scale)}
                         tickLine={false}
                         tickFormatter={formatDateTick}
                         interval="preserveStartEnd"
                       />
                       <YAxis
                         stroke="#64748B"
-                        fontSize={11}
+                        fontSize={Math.round(11 * scale)}
                         tickLine={false}
                         tickFormatter={(val) =>
                           Number(val) >= 1000
@@ -1588,19 +1645,24 @@ export const PlantHeadMaterialAnalytics = () => {
                           color: '#fff',
                           borderRadius: '8px',
                           border: 'none',
-                          fontSize: '12px',
+                          fontSize: `${Math.round(12 * scale)}px`,
                         }}
                         formatter={(val, name) => [
                           `${Number(val).toLocaleString()} KG`,
                           name,
                         ]}
                       />
-                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                      <Legend
+                        wrapperStyle={{
+                          fontSize: `${Math.round(11 * scale)}px`,
+                          paddingTop: '6px',
+                        }}
+                      />
                       <Area
                         type="monotone"
                         dataKey="cumReceiveKg"
                         stroke="#10B981"
-                        strokeWidth={2}
+                        strokeWidth={Math.max(2, Math.round(2 * scale))}
                         fillOpacity={1}
                         fill="url(#gradReceive)"
                         name="Cum. Received (KG)"
@@ -1609,7 +1671,7 @@ export const PlantHeadMaterialAnalytics = () => {
                         type="monotone"
                         dataKey="cumIssueKg"
                         stroke="#8B5CF6"
-                        strokeWidth={2}
+                        strokeWidth={Math.max(2, Math.round(2 * scale))}
                         fillOpacity={1}
                         fill="url(#gradIssue)"
                         name="Cum. Issued (KG)"
@@ -1618,14 +1680,14 @@ export const PlantHeadMaterialAnalytics = () => {
                         type="monotone"
                         dataKey="cumConsumptionKg"
                         stroke="#F59E0B"
-                        strokeWidth={2.5}
+                        strokeWidth={Math.max(2.5, Math.round(2.5 * scale))}
                         dot={false}
                         name="Cum. Consumed (KG)"
                       />
                     </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+                  )}
+                </UltraResponsiveChart>
+              )}
             </div>
           )}
 
@@ -1654,24 +1716,39 @@ export const PlantHeadMaterialAnalytics = () => {
                   Commodity Matrix
                 </span>
               </div>
-              <div style={styles.chartResponsiveWrapper}>
-                {itemWiseComparisonData.length === 0 ? (
-                  <div style={styles.chartEmptyOverlay}>
-                    <Info size={28} style={{ color: '#94A3B8' }} />
-                    <span>No material movement found for selected period.</span>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+
+              {loading ? (
+                <div style={styles.chartLoadingWrapper}>
+                  <div className="chart-spinner" />
+                  <span style={styles.chartLoadingText}>
+                    Loading commodity matrix...
+                  </span>
+                </div>
+              ) : (
+                <UltraResponsiveChart
+                  height={310}
+                  isEmpty={itemWiseComparisonData.length === 0}
+                  emptyTitle="No Commodity Comparison Data"
+                  emptySubtitle="No item issue or receive records found for this period."
+                >
+                  {({ width, height, scale, isMobile }) => (
                     <BarChart
+                      width={width}
+                      height={height}
                       data={itemWiseComparisonData}
                       layout="vertical"
-                      margin={{ top: 10, right: 25, left: 35, bottom: 5 }}
+                      margin={{
+                        top: 10,
+                        right: isMobile ? 15 : 25 * scale,
+                        left: isMobile ? 25 : 35 * scale,
+                        bottom: 5,
+                      }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                       <XAxis
                         type="number"
                         stroke="#64748B"
-                        fontSize={11}
+                        fontSize={Math.round(11 * scale)}
                         tickFormatter={(val) =>
                           Number(val) >= 1000
                             ? `${(Number(val) / 1000).toFixed(0)}k`
@@ -1682,9 +1759,9 @@ export const PlantHeadMaterialAnalytics = () => {
                         dataKey="itemName"
                         type="category"
                         stroke="#64748B"
-                        fontSize={10}
+                        fontSize={Math.round(isMobile ? 9.5 : 10.5 * scale)}
                         tickLine={false}
-                        width={90}
+                        width={isMobile ? 75 : Math.round(95 * scale)}
                         tickFormatter={(str) =>
                           str.length > 12 ? `${str.slice(0, 12)}…` : str
                         }
@@ -1695,14 +1772,19 @@ export const PlantHeadMaterialAnalytics = () => {
                           color: '#fff',
                           borderRadius: '8px',
                           border: 'none',
-                          fontSize: '12px',
+                          fontSize: `${Math.round(12 * scale)}px`,
                         }}
                         formatter={(val, name) => [
                           `${Number(val).toLocaleString()} KG`,
                           name,
                         ]}
                       />
-                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                      <Legend
+                        wrapperStyle={{
+                          fontSize: `${Math.round(11 * scale)}px`,
+                          paddingTop: '6px',
+                        }}
+                      />
                       <Bar
                         dataKey="receiveKg"
                         fill="#10B981"
@@ -1716,9 +1798,9 @@ export const PlantHeadMaterialAnalytics = () => {
                         radius={[0, 4, 4, 0]}
                       />
                     </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+                  )}
+                </UltraResponsiveChart>
+              )}
             </div>
           )}
 
@@ -1747,30 +1829,45 @@ export const PlantHeadMaterialAnalytics = () => {
                   Net Volatility
                 </span>
               </div>
-              <div style={styles.chartResponsiveWrapper}>
-                {dailyNetVarianceData.length === 0 ? (
-                  <div style={styles.chartEmptyOverlay}>
-                    <Info size={28} style={{ color: '#94A3B8' }} />
-                    <span>No material movement found for selected period.</span>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+
+              {loading ? (
+                <div style={styles.chartLoadingWrapper}>
+                  <div className="chart-spinner" />
+                  <span style={styles.chartLoadingText}>
+                    Loading net flow telemetry...
+                  </span>
+                </div>
+              ) : (
+                <UltraResponsiveChart
+                  height={310}
+                  isEmpty={dailyNetVarianceData.length === 0}
+                  emptyTitle="No Balance Variance Records"
+                  emptySubtitle="No store intake or issue variance recorded for this period."
+                >
+                  {({ width, height, scale, isMobile }) => (
                     <BarChart
+                      width={width}
+                      height={height}
                       data={dailyNetVarianceData}
-                      margin={{ top: 15, right: 15, left: -15, bottom: 5 }}
+                      margin={{
+                        top: 15 * scale,
+                        right: isMobile ? 10 : 20 * scale,
+                        left: isMobile ? -25 : -10,
+                        bottom: 5,
+                      }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                       <XAxis
                         dataKey="date"
                         stroke="#64748B"
-                        fontSize={11}
+                        fontSize={Math.round(11 * scale)}
                         tickLine={false}
                         tickFormatter={formatDateTick}
                         interval="preserveStartEnd"
                       />
                       <YAxis
                         stroke="#64748B"
-                        fontSize={11}
+                        fontSize={Math.round(11 * scale)}
                         tickLine={false}
                         tickFormatter={(val) =>
                           Math.abs(Number(val)) >= 1000
@@ -1784,7 +1881,7 @@ export const PlantHeadMaterialAnalytics = () => {
                           color: '#fff',
                           borderRadius: '8px',
                           border: 'none',
-                          fontSize: '12px',
+                          fontSize: `${Math.round(12 * scale)}px`,
                         }}
                         formatter={(val) => [
                           `${Number(val) >= 0 ? '+' : ''}${Number(val).toLocaleString()} KG`,
@@ -1801,9 +1898,9 @@ export const PlantHeadMaterialAnalytics = () => {
                         ))}
                       </Bar>
                     </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+                  )}
+                </UltraResponsiveChart>
+              )}
             </div>
           )}
 
@@ -1832,26 +1929,43 @@ export const PlantHeadMaterialAnalytics = () => {
                   Aggregate
                 </span>
               </div>
-              <div style={styles.chartResponsiveWrapper}>
-                {kpis.totalReceiveKg === 0 &&
-                kpis.totalIssueKg === 0 &&
-                kpis.totalConsumptionKg === 0 ? (
-                  <div style={styles.chartEmptyOverlay}>
-                    <Info size={28} style={{ color: '#94A3B8' }} />
-                    <span>No material movement found for selected period.</span>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+
+              {loading ? (
+                <div style={styles.chartLoadingWrapper}>
+                  <div className="chart-spinner" />
+                  <span style={styles.chartLoadingText}>
+                    Loading aggregate velocity...
+                  </span>
+                </div>
+              ) : (
+                <UltraResponsiveChart
+                  height={310}
+                  isEmpty={
+                    kpis.totalReceiveKg === 0 &&
+                    kpis.totalIssueKg === 0 &&
+                    kpis.totalConsumptionKg === 0
+                  }
+                  emptyTitle="No Flow Velocity Data"
+                  emptySubtitle="All store movement metrics are currently at 0 KG for this timeframe."
+                >
+                  {({ width, height, scale, isMobile }) => (
                     <BarChart
+                      width={width}
+                      height={height}
                       data={summaryComparisonData}
                       layout="vertical"
-                      margin={{ top: 15, right: 30, left: 20, bottom: 5 }}
+                      margin={{
+                        top: 15,
+                        right: isMobile ? 20 : 30 * scale,
+                        left: isMobile ? 15 : 20 * scale,
+                        bottom: 5,
+                      }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                       <XAxis
                         type="number"
                         stroke="#64748B"
-                        fontSize={11}
+                        fontSize={Math.round(11 * scale)}
                         tickFormatter={(val) =>
                           Number(val) >= 1000
                             ? `${(Number(val) / 1000).toFixed(0)}k`
@@ -1862,9 +1976,9 @@ export const PlantHeadMaterialAnalytics = () => {
                         dataKey="name"
                         type="category"
                         stroke="#64748B"
-                        fontSize={11}
+                        fontSize={Math.round(11 * scale)}
                         tickLine={false}
-                        width={110}
+                        width={isMobile ? 95 : Math.round(115 * scale)}
                       />
                       <Tooltip
                         contentStyle={{
@@ -1872,7 +1986,7 @@ export const PlantHeadMaterialAnalytics = () => {
                           color: '#fff',
                           borderRadius: '8px',
                           border: 'none',
-                          fontSize: '12px',
+                          fontSize: `${Math.round(12 * scale)}px`,
                         }}
                         formatter={(val) => [
                           `${Number(val).toLocaleString()} KG`,
@@ -1888,9 +2002,9 @@ export const PlantHeadMaterialAnalytics = () => {
                         ))}
                       </Bar>
                     </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+                  )}
+                </UltraResponsiveChart>
+              )}
             </div>
           )}
         </div>
@@ -1930,6 +2044,24 @@ export const PlantHeadMaterialAnalytics = () => {
         /* Universal Box-Sizing & Zero Horizontal Scroll Rules */
         .store-ro-dashboard * {
           box-sizing: border-box;
+        }
+
+        @keyframes spin {
+          0% {
+            transform: rotate(0deg);
+          }
+          100% {
+            transform: rotate(360deg);
+          }
+        }
+
+        .chart-spinner {
+          width: 30px;
+          height: 30px;
+          border: 3px solid #e2e8f0;
+          border-top-color: #2563eb;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
         }
 
         /* ── Extra Small Devices (320px - 480px: iPhone SE, Galaxy Fold cover) ── */
@@ -2649,7 +2781,7 @@ const styles = {
     width: '100%',
   },
   chartCard: {
-    background: '#F8FAFC',
+    background: '#FFFFFF',
     border: '1px solid #E2E8F0',
     borderRadius: '14px',
     padding: 'clamp(12px, 1.2vw, 18px)',
@@ -2657,7 +2789,7 @@ const styles = {
     flexDirection: 'column',
     minWidth: 0,
     width: '100%',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
   },
   chartCardHeader: {
     display: 'flex',
@@ -2689,22 +2821,20 @@ const styles = {
     fontSize: '10px',
     fontWeight: '800',
   },
-  chartResponsiveWrapper: {
+  chartLoadingWrapper: {
     width: '100%',
-    height: 'clamp(260px, 24vw, 420px)',
-    position: 'relative',
-    minWidth: 0,
-  },
-  chartEmptyOverlay: {
-    width: '100%',
-    height: '100%',
+    height: '280px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '10px',
-    color: '#94A3B8',
+    gap: '12px',
+    background: '#F8FAFC',
+    borderRadius: '12px',
+  },
+  chartLoadingText: {
     fontSize: '12px',
+    color: '#64748B',
     fontWeight: '600',
   },
   printFooterBlock: {
