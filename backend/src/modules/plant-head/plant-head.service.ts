@@ -3536,9 +3536,13 @@ export class PlantHeadService {
       cur.consumptionKg = Math.round(q * 100) / 100;
       dailyMap.set(d, cur);
     }
-    const dailyFlow = Array.from(dailyMap.values()).sort((a, b) =>
-      a.date.localeCompare(b.date),
-    );
+    const dailyFlow = Array.from(dailyMap.values()).sort((a, b) => {
+      const [dA, mA, yA] = (a.date || '').split('-').map(Number);
+      const [dB, mB, yB] = (b.date || '').split('-').map(Number);
+      const timeA = yA && mA && dA ? new Date(yA, mA - 1, dA).getTime() : 0;
+      const timeB = yB && mB && dB ? new Date(yB, mB - 1, dB).getTime() : 0;
+      return timeA - timeB;
+    });
 
     return {
       period: {
