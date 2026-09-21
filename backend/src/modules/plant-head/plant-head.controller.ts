@@ -172,6 +172,9 @@ export class PlantHeadController {
     @Query('customEnd') customEnd?: string,
     @Query('month') month?: string,
     @Query('year') year?: string,
+    @Query('search') search?: string,
+    @Query('movementFilter') movementFilter?: string,
+    @Query('classification') classification?: string,
   ) {
     const companyId =
       (req as any).user?.['companyId'];
@@ -182,6 +185,9 @@ export class PlantHeadController {
       customEnd,
       month,
       year,
+      search,
+      movementFilter,
+      classification,
     );
   }
 
@@ -242,6 +248,35 @@ export class PlantHeadController {
       materialId,
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 20,
+      startDate,
+      endDate,
+    );
+  }
+
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
+  @Get('analytics/transaction-audit')
+  async getTransactionAudit(
+    @Req() req: Request,
+    @Query('materialId') materialId?: string,
+    @Query('movementType') movementType?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const companyId =
+      (req as any).user?.['companyId'];
+    return this.plantHeadService.getTransactionAudit(
+      companyId,
+      materialId,
+      movementType || 'ALL',
+      page ? parseInt(page, 10) : 1,
+      pageSize ? parseInt(pageSize, 10) : 25,
       startDate,
       endDate,
     );

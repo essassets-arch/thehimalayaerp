@@ -354,9 +354,9 @@ async function runVerification() {
     console.log(`  ✓ PASSED: All 3 materials included in master catalog (${liveMatWise.kpis.totalMaterials} total).`);
 
     // Check 3: Material classifications
-    const liveMatA = liveMatWise.materials.find((m: any) => m.materialId === matA.id);
-    const liveMatB = liveMatWise.materials.find((m: any) => m.materialId === matB.id);
-    const liveMatC = liveMatWise.materials.find((m: any) => m.materialId === matC.id);
+    const liveMatA: any = liveMatWise.materials.find((m: any) => m.materialId === matA.id);
+    const liveMatB: any = liveMatWise.materials.find((m: any) => m.materialId === matB.id);
+    const liveMatC: any = liveMatWise.materials.find((m: any) => m.materialId === matC.id);
 
     console.log(`  Mat A (Dolomite): ${liveMatA.totalIssueKg} KG, Class: ${liveMatA.movementClass}, Score: ${liveMatA.movementScore}`);
     console.log(`  Mat B (Sand):     ${liveMatB.totalIssueKg} KG, Class: ${liveMatB.movementClass}, Score: ${liveMatB.movementScore}`);

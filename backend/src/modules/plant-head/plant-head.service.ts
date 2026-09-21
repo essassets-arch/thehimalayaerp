@@ -1,4 +1,9 @@
-import { readMaterialAnalytics, readMaterialHistory } from './material-analytics';
+import {
+  readStoreRoAnalytics,
+  readMaterialWiseAnalytics,
+  readMaterialHistory,
+  readTransactionAudit,
+} from './material-analytics';
 import { dispatchAnalyticsPeriod, dispatchDay, recordedDispatchLocation } from './dispatch-analytics-period';
 import {
   Injectable,
@@ -3006,16 +3011,112 @@ export class PlantHeadService {
     };
   }
 
-  async getMaterialAnalytics(companyId: string, filter?: string, customStart?: string, customEnd?: string, month?: string, year?: string) {
-    return this.prisma.$transaction(db => readMaterialAnalytics(db, companyId, filter, customStart, customEnd, month, year), { isolationLevel: 'RepeatableRead', timeout: 30000 });
+  async getMaterialAnalytics(
+    companyId: string,
+    filter?: string,
+    customStart?: string,
+    customEnd?: string,
+    month?: string,
+    year?: string,
+    search?: string,
+    movementFilter?: string,
+    classificationFilter?: string,
+  ) {
+    return this.prisma.$transaction(
+      db =>
+        readStoreRoAnalytics(
+          db,
+          companyId,
+          filter,
+          customStart,
+          customEnd,
+          month,
+          year,
+          search,
+          movementFilter,
+          classificationFilter,
+        ),
+      { isolationLevel: 'RepeatableRead', timeout: 30000 },
+    );
   }
 
-  async getMaterialWiseAnalytics(companyId: string, filter?: string, customStart?: string, customEnd?: string, month?: string, year?: string, search?: string, movementFilter?: string, selectedMaterialId?: string, selectedDate?: string) {
-    return this.getMaterialAnalytics(companyId, filter, customStart, customEnd, month, year);
+  async getMaterialWiseAnalytics(
+    companyId: string,
+    filter?: string,
+    customStart?: string,
+    customEnd?: string,
+    month?: string,
+    year?: string,
+    search?: string,
+    movementFilter?: string,
+    selectedMaterialId?: string,
+    selectedDate?: string,
+  ) {
+    return this.prisma.$transaction(
+      db =>
+        readMaterialWiseAnalytics(
+          db,
+          companyId,
+          filter,
+          customStart,
+          customEnd,
+          month,
+          year,
+          search,
+          movementFilter,
+          selectedMaterialId,
+          selectedDate,
+        ),
+      { isolationLevel: 'RepeatableRead', timeout: 30000 },
+    );
   }
 
-  async getMaterialTransactionHistory(companyId: string, materialId: string, page = 1, pageSize = 20, startDateStr?: string, endDateStr?: string) {
-    return this.prisma.$transaction(db => readMaterialHistory(db, companyId, materialId, page, pageSize, startDateStr, endDateStr), { isolationLevel: 'RepeatableRead', timeout: 30000 });
+  async getMaterialTransactionHistory(
+    companyId: string,
+    materialId: string,
+    page = 1,
+    pageSize = 20,
+    startDateStr?: string,
+    endDateStr?: string,
+  ) {
+    return this.prisma.$transaction(
+      db =>
+        readMaterialHistory(
+          db,
+          companyId,
+          materialId,
+          page,
+          pageSize,
+          startDateStr,
+          endDateStr,
+        ),
+      { isolationLevel: 'RepeatableRead', timeout: 30000 },
+    );
+  }
+
+  async getTransactionAudit(
+    companyId: string,
+    materialId?: string,
+    movementType = 'ALL',
+    page = 1,
+    pageSize = 25,
+    startDateStr?: string,
+    endDateStr?: string,
+  ) {
+    return this.prisma.$transaction(
+      db =>
+        readTransactionAudit(
+          db,
+          companyId,
+          materialId,
+          movementType,
+          page,
+          pageSize,
+          startDateStr,
+          endDateStr,
+        ),
+      { isolationLevel: 'RepeatableRead', timeout: 30000 },
+    );
   }
 
   async getDailySummary(companyId: string, dateStr?: string, currentUser?: any) {
