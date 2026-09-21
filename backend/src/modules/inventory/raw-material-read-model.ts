@@ -1,7 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
-type Database = Pick<Prisma.TransactionClient, 'rawMaterial' | 'product' | 'inventoryTransaction'>;
+type Database = Pick<Prisma.TransactionClient, 'rawMaterial' | 'product' | 'inventoryTransaction'> &
+  Partial<Pick<Prisma.TransactionClient, 'goodsReceiptNoteItem' | 'materialRequestItem'>>;
 const key = (value?: string | null) => (value || '').trim().toLowerCase();
 export const materialUnit = (value?: string | null) => {
   const unit = key(value);
@@ -68,6 +69,8 @@ export function materialLookup(catalog: RawCatalog) {
 export async function rawBalances(db: Database, companyId: string, catalog: RawCatalog, before?: Date) {
   const aliases = materialLookup(catalog);
   const ids = [...aliases.keys()];
+  if (ids.length === 0) return new Map(catalog.map(m => [m.id, 0]));
+
   const groups = await db.inventoryTransaction.groupBy({
     by: ['productId', 'rawMaterialId', 'type'], _sum: { quantity: true },
     where: { companyId, OR: [{ rawMaterialId: { in: ids } }, { productId: { in: ids } }], ...(before ? { createdAt: { lt: before } } : {}) },
@@ -81,6 +84,78 @@ export async function rawBalances(db: Database, companyId: string, catalog: RawC
     if (movement.kind === 'UNKNOWN') unknown.add(id);
     balances.set(id, (balances.get(id) || 0) + Math.round(movement.delta * 100));
   }
+
+  // Reconcile any unrecorded GRNs and MRs if db client supports them
+  if (db.goodsReceiptNoteItem && db.materialRequestItem) {
+    try {
+      const existingTxs = await db.inventoryTransaction.findMany({
+        where: {
+          companyId,
+          ...(before ? { createdAt: { lt: before } } : {}),
+          referenceId: { not: null },
+          AND: [{ OR: [{ rawMaterialId: { in: ids } }, { productId: { in: ids } }] }],
+        },
+        select: { referenceId: true },
+      });
+      const recordedRefIds = new Set(existingTxs.map(t => t.referenceId).filter(Boolean));
+
+      const grnItems: any[] = await db.goodsReceiptNoteItem.findMany({
+        where: {
+          productId: { in: ids },
+          goodsReceiptNote: {
+            companyId,
+            status: { notIn: ['REJECTED', 'CANCELLED'] },
+            ...(before ? { receivedAt: { lt: before } } : {}),
+          },
+        },
+        select: {
+          productId: true,
+          receivedQuantity: true,
+          acceptedQuantity: true,
+          goodsReceiptNote: { select: { id: true, grnNumber: true } },
+        },
+      });
+
+      for (const g of grnItems) {
+        const grn = g.goodsReceiptNote;
+        if (grn && (recordedRefIds.has(grn.grnNumber) || recordedRefIds.has(grn.id))) continue;
+        const cid = aliases.get(g.productId);
+        if (!cid) continue;
+        const q = Number(g.receivedQuantity || 0) > 0 ? Number(g.receivedQuantity) : Number(g.acceptedQuantity || 0);
+        balances.set(cid, (balances.get(cid) || 0) + Math.round(q * 100));
+      }
+
+      const mrItems: any[] = await db.materialRequestItem.findMany({
+        where: {
+          productId: { in: ids },
+          materialRequest: {
+            companyId,
+            status: { notIn: ['REJECTED', 'CANCELLED'] },
+            ...(before ? { createdAt: { lt: before } } : {}),
+          },
+          OR: [{ issuedQuantity: { gt: 0 } }, { status: 'ISSUED_TO_PRODUCTION' }],
+        },
+        select: {
+          productId: true,
+          issuedQuantity: true,
+          quantity: true,
+          materialRequest: { select: { id: true, publicId: true } },
+        },
+      });
+
+      for (const mr of mrItems) {
+        const req = mr.materialRequest;
+        if (req && (recordedRefIds.has(req.publicId) || recordedRefIds.has(req.id))) continue;
+        const cid = aliases.get(mr.productId);
+        if (!cid) continue;
+        const q = Number(mr.issuedQuantity || 0) > 0 ? Number(mr.issuedQuantity) : Number(mr.quantity || 0);
+        balances.set(cid, (balances.get(cid) || 0) - Math.round(q * 100));
+      }
+    } catch (e) {
+      console.warn('[rawBalances GRN/MR reconciliation error]', e);
+    }
+  }
+
   return new Map(catalog.map(material => [material.id, unknown.has(material.id) ? null : (balances.get(material.id) || 0) / 100]));
 }
 

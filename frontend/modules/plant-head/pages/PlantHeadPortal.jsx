@@ -596,41 +596,24 @@ export default function PlantHeadPortal({ overrideView } = {}) {
   const fetchRawInventory = useCallback(async () => {
     try {
       setLoadingRawInventory(true);
-      const [prodRes, stockRes] = await Promise.all([
-        apiClient.get('/products?type=RAW_MATERIAL'),
-        apiClient.get('/inventory/stock-levels')
-      ]);
-      const products = Array.isArray(prodRes?.data) ? prodRes.data : (prodRes?.data?.data || []);
-      const stocks = Array.isArray(stockRes?.data) ? stockRes.data : (stockRes?.data?.data || []);
+      const response = await apiClient.get('/inventory/raw-material-snapshot');
+      const products = Array.isArray(response?.data) ? response.data : (response?.data?.data || []);
 
       const enriched = products.map(p => {
-        const stockItem = stocks.find(s => s.productId === p.id);
-        const qty = stockItem ? Number(stockItem.quantity) : 0;
+        const qty = p.quantity == null ? 0 : Number(p.quantity);
         const min = Number(p.minimumStock) || 0;
         let status;
-        if (qty <= 0) {
+        if (p.stockStatus === 'OUT_OF_STOCK' || qty <= 0) {
           status = 'Out of Stock';
-        } else if (min > 0 && qty < min) {
+        } else if (p.stockStatus === 'LOW_STOCK' || (min > 0 && qty < min)) {
           status = 'Low Stock';
         } else {
           status = 'In Stock';
         }
-        const hash = (p.id || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const mod = hash % 10;
-        let fsn = 'Fast Moving';
-        if (qty <= 0) {
-          fsn = 'Non-Moving';
-        } else if (mod < 6) {
-          fsn = 'Fast Moving';
-        } else if (mod < 9) {
-          fsn = 'Slow Moving';
-        } else {
-          fsn = 'Non-Moving';
-        }
 
         return {
           id: p.id,
-          code: p.sku || p.publicId,
+          code: p.sku || p.publicId || p.id,
           material: p.name,
           category: p.category || 'Raw Material',
           unit: p.unit || 'Kg',
@@ -640,9 +623,9 @@ export default function PlantHeadPortal({ overrideView } = {}) {
           stock: qty,
           description: p.description || '',
           storageLocation: p.storageLocation || '',
-          location: 'Raw Material Store',
+          location: p.storageLocation || 'Raw Material Store',
           status,
-          fsn,
+          fsn: p.movement || 'Non-Moving',
           history: []
         };
       });
@@ -4542,6 +4525,16 @@ export default function PlantHeadPortal({ overrideView } = {}) {
     const paginatedRawInvItems = sortedFilteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
 
     const totalMaterials = mappedInventory.length;
+    const stockByUnit = mappedInventory.reduce((totals, item) => {
+      const u = item.unit || 'Units';
+      const previous = totals[u];
+      totals[u] = item.stock == null || previous === null ? null : (previous || 0) + item.stock;
+      return totals;
+    }, {});
+    const nonZeroStockUnits = Object.entries(stockByUnit).filter(([, qty]) => qty !== null && Number(qty) > 0);
+    const stockSummary = nonZeroStockUnits.length > 0
+      ? nonZeroStockUnits.map(([unit, qty]) => `${Number(qty).toLocaleString()} ${unit}`).join(' / ')
+      : (Object.values(stockByUnit).some(v => v === null) ? 'Unknown' : '0 Units');
     const totalStockQty = mappedInventory.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
     const lowStockItems = mappedInventory.filter(i => i.status === 'Low Stock').length;
     const outOfStockItems = mappedInventory.filter(i => i.status === 'Out of Stock').length;
@@ -4829,7 +4822,7 @@ export default function PlantHeadPortal({ overrideView } = {}) {
           </div>
           <div className="m-theme-kpi-card" style={{ '--card-border-color': '#10b981' }}>
             <span className="m-theme-kpi-label">Total Stock Quantity</span>
-            <span className="m-theme-kpi-value">{(totalStockQty ?? 0).toLocaleString()} Units</span>
+            <span className="m-theme-kpi-value">{stockSummary}</span>
           </div>
           <div className="m-theme-kpi-card" style={{ '--card-border-color': '#f59e0b' }}>
             <span className="m-theme-kpi-label">Low Stock Items</span>

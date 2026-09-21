@@ -1654,11 +1654,15 @@ export default function StorePortal() {
     const paginatedRawInvItems = sortedFilteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
     const totalMaterials = mappedInventory.length;
     const stockByUnit = mappedInventory.reduce((totals, item) => {
-      const previous = totals[item.unit];
-      totals[item.unit] = item.stock == null || previous === null ? null : (previous || 0) + item.stock;
+      const u = item.unit || 'Units';
+      const previous = totals[u];
+      totals[u] = item.stock == null || previous === null ? null : (previous || 0) + item.stock;
       return totals;
     }, {});
-    const stockSummary = Object.entries(stockByUnit).map(([unit, qty]) => (qty == null ? 'Unknown' : Number(qty).toLocaleString()) + ' ' + unit).join(' / ');
+    const nonZeroStockUnits = Object.entries(stockByUnit).filter(([, qty]) => qty !== null && Number(qty) > 0);
+    const stockSummary = nonZeroStockUnits.length > 0
+      ? nonZeroStockUnits.map(([unit, qty]) => `${Number(qty).toLocaleString()} ${unit}`).join(' / ')
+      : (Object.values(stockByUnit).some(v => v === null) ? 'Unknown' : '0 Units');
     const totalStockQty = null;
     const lowStockItems = mappedInventory.filter(i => i.status === 'Low Stock').length;
     const outOfStockItems = mappedInventory.filter(i => i.status === 'Out of Stock').length;
@@ -1666,7 +1670,7 @@ export default function StorePortal() {
     const fastMovingCount = mappedInventory.filter(i => i.fsn === 'Fast Moving').length;
     const slowMovingCount = mappedInventory.filter(i => i.fsn === 'Slow Moving').length;
     const nonMovingCount = mappedInventory.filter(i => i.fsn === 'Non-Moving').length;
-    const totalInventoryValue = mappedInventory.some(i => i.stock == null || i.rate == null) ? null : mappedInventory.reduce((sum, i) => sum + i.stock * i.rate, 0);
+    const totalInventoryValue = mappedInventory.reduce((sum, i) => sum + ((Number(i.stock) || 0) * (Number(i.rate) || 0)), 0);
 
     const handleExport = () => {
       try {
@@ -1906,7 +1910,7 @@ export default function StorePortal() {
               </div>
             </div>
             <span className="m-theme-kpi-value" style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>
-              ₹{totalInventoryValue == null ? "Not available" : totalInventoryValue.toLocaleString()}
+              ₹{(totalInventoryValue ?? 0).toLocaleString()}
             </span>
             <span className="m-theme-kpi-subtitle" style={{ fontSize: '11px', color: '#7c3aed', fontWeight: '600', marginTop: '4px' }}>
               Book valuation

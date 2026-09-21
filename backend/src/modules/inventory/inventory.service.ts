@@ -265,25 +265,13 @@ export class InventoryService {
         delta = qty;
       }
 
-      if (row.productId) {
-        const key = warehouseId ? `${row.productId}-${row.warehouseId}` : row.productId;
+      const targetId = row.productId || row.rawMaterialId;
+      if (targetId) {
+        const key = warehouseId ? `${targetId}-${row.warehouseId}` : targetId;
         if (!stockMap.has(key)) {
           stockMap.set(key, {
-            productId: row.productId,
+            productId: targetId,
             rawMaterialId: row.rawMaterialId || null,
-            warehouseId: row.warehouseId,
-            quantity: 0,
-          });
-        }
-        stockMap.get(key)!.quantity += delta;
-      }
-
-      if (row.rawMaterialId) {
-        const key = warehouseId ? `${row.rawMaterialId}-${row.warehouseId}` : row.rawMaterialId;
-        if (!stockMap.has(key)) {
-          stockMap.set(key, {
-            productId: row.rawMaterialId,
-            rawMaterialId: row.rawMaterialId,
             warehouseId: row.warehouseId,
             quantity: 0,
           });
