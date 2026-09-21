@@ -678,6 +678,7 @@ export default function StorePortal() {
   const rawInventoryRequest = useRef(0);
 
   const fetchRawInventory = useCallback(async () => {
+    const request = ++rawInventoryRequest.current;
     try {
       setLoadingRawInventory(true);
       setRawInventoryError(null);
