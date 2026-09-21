@@ -3,5 +3,5 @@
 import PlantHeadPortal from '../../../../modules/plant-head/pages/PlantHeadPortal';
 
 export default function MaterialAnalyticsPage() {
-  return <PlantHeadPortal />;
+  return <PlantHeadPortal overrideView="material-analytics" />;
 }

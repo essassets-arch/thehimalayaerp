@@ -27,6 +27,7 @@ import {
   LineChart as LineChartIcon,
   Layers,
   SlidersHorizontal,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { backendFetch } from '@/lib/backendFetch';
 import {
@@ -97,40 +98,88 @@ export const PlantHeadMaterialAnalytics = () => {
   const years = ['2024', '2025', '2026', '2027'];
 
   // ── Fetch Authoritative Analytics from NestJS via /api/backend ──
-  const fetchAnalytics = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (filterMode === 'monthly') {
-        params.append('month', selectedMonth);
-        params.append('year', selectedYear);
-      } else {
-        params.append('filter', 'Custom');
-        params.append('customStart', customStart);
-        params.append('customEnd', customEnd);
-      }
+  const fetchAnalytics = useCallback(
+    async (overrideParams = {}) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const mode = overrideParams.filterMode || filterMode;
+        const month = overrideParams.selectedMonth !== undefined ? overrideParams.selectedMonth : selectedMonth;
+        const year = overrideParams.selectedYear !== undefined ? overrideParams.selectedYear : selectedYear;
+        const start = overrideParams.customStart || customStart;
+        const end = overrideParams.customEnd || customEnd;
 
-      const res = await backendFetch(
-        `/api/backend/plant-head/analytics/material?${params.toString()}`,
-      );
+        const params = new URLSearchParams();
+        if (mode === 'monthly') {
+          params.append('month', String(month));
+          params.append('year', String(year));
+        } else {
+          params.append('filter', 'Custom');
+          params.append('customStart', start);
+          params.append('customEnd', end);
+        }
 
-      if (res && typeof res === 'object') {
-        setAnalyticsData(res);
-      } else {
-        throw new Error('Invalid response structure received from server');
+        const res = await backendFetch(
+          `/api/backend/plant-head/analytics/material?${params.toString()}`,
+        );
+
+        if (res && typeof res === 'object') {
+          setAnalyticsData(res);
+        } else {
+          throw new Error('Invalid response structure received from server');
+        }
+      } catch (err) {
+        console.error('Failed to fetch material analytics:', err);
+        setError(err?.message || 'Failed to load Store R/O analytics.');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error('Failed to fetch material analytics:', err);
-      setError(err?.message || 'Failed to load Store R/O analytics.');
-    } finally {
-      setLoading(false);
-    }
-  }, [filterMode, selectedMonth, selectedYear, customStart, customEnd]);
+    },
+    [filterMode, selectedMonth, selectedYear, customStart, customEnd],
+  );
 
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
+
+  // ── Apply Filter Explicit Handler ──
+  const handleApplyFilter = () => {
+    if (filterMode === 'custom') {
+      if (!customStart || !customEnd) {
+        alert('Please select both Start Date and End Date for the custom range.');
+        return;
+      }
+      if (new Date(customStart) > new Date(customEnd)) {
+        alert('Start Date cannot be later than End Date.');
+        return;
+      }
+    }
+    fetchAnalytics({
+      filterMode,
+      selectedMonth,
+      selectedYear,
+      customStart,
+      customEnd,
+    });
+  };
+
+  // ── Reset to August 2026 Default & Immediate Reload ──
+  const handleReset = () => {
+    setFilterMode('monthly');
+    setSelectedMonth('8');
+    setSelectedYear('2026');
+    setCustomStart('2026-08-01');
+    setCustomEnd('2026-08-31');
+    setIssueSearch('');
+    setReceiveSearch('');
+    fetchAnalytics({
+      filterMode: 'monthly',
+      selectedMonth: '8',
+      selectedYear: '2026',
+      customStart: '2026-08-01',
+      customEnd: '2026-08-31',
+    });
+  };
 
   // ── Filtered Tables ──
   const filteredIssues = useMemo(() => {
@@ -322,1170 +371,1063 @@ export const PlantHeadMaterialAnalytics = () => {
     return dateStr;
   }, []);
 
-  // ── CSV Export Functionality ──
+  // ── Robust UTF-8 BOM CSV Export (Works across all browsers & Excel) ──
   const handleExportCSV = () => {
-    if (!analyticsData) return;
-    const { issueByItem, receiveByItem, period } = analyticsData;
+    if (!analyticsData) {
+      alert('Analytics data is still loading. Please wait.');
+      return;
+    }
+    const {
+      issueByItem = [],
+      receiveByItem = [],
+      top10DatesConsumption = [],
+      period = {},
+    } = analyticsData;
 
-    let csvContent = 'data:text/csv;charset=utf-8,';
-
-    // Header Metadata
-    csvContent += 'HIMALAYA ERP - STORE R/O MONTHLY REPORT\n';
-    csvContent += `Report Period,"${period?.periodLabel || kpis?.month}"\n`;
-    csvContent += `Generated At,"${new Date().toLocaleString('en-IN')}"\n\n`;
+    let csv = '';
+    // Header
+    csv += 'HIMALAYA MACHINERY ERP - STORE R/O MONTHLY REPORT\r\n';
+    csv += `Report Period,"${period.periodLabel || kpis.month || 'August 2026'}"\r\n`;
+    csv += `Generated At,"${new Date().toLocaleString('en-IN')}"\r\n`;
+    csv += `Data Source,"PostgreSQL Authoritative Stock Ledger"\r\n\r\n`;
 
     // KPI Summary Section
-    csvContent += 'KPI SUMMARY\n';
-    csvContent += `Metric,Value,Unit\n`;
-    csvContent += `Total Issue,${kpis?.totalIssueKg || 0},KG\n`;
-    csvContent += `Total Receive,${kpis?.totalReceiveKg || 0},KG\n`;
-    csvContent += `Total Consumption,${kpis?.totalConsumptionKg || 0},KG\n`;
-    csvContent += `Total Unique Items,${kpis?.totalItems || 0},Count\n`;
-    csvContent += `Top Item,"${kpis?.topItem || '-'}",${kpis?.topItemQty || 0} KG (${kpis?.topItemPercentage || 0}%)\n`;
-    csvContent += `Top Issue Date,"${kpis?.topIssueDate || '-'}",${kpis?.topIssueDateQty || 0} KG\n\n`;
+    csv += 'KPI SUMMARY\r\n';
+    csv += 'Metric,Value,Unit\r\n';
+    csv += `Total Store Issue,${kpis.totalIssueKg || 0},KG\r\n`;
+    csv += `Total Store Receive,${kpis.totalReceiveKg || 0},KG\r\n`;
+    csv += `Total Floor Consumption,${kpis.totalConsumptionKg || 0},KG\r\n`;
+    csv += `Net Inventory Delta,${highlights.netBalanceKg || 0},KG\r\n`;
+    csv += `Floor Consumption Efficiency,${highlights.consumptionIssueRatio || 0}%\r\n`;
+    csv += `Total Unique Items,${kpis.totalItems || 0},Count\r\n`;
+    csv += `Top Issued Item,"${(kpis.topItem || '-').replace(/"/g, '""')}",${kpis.topItemQty || 0} KG (${kpis.topItemPercentage || 0}%)\r\n`;
+    csv += `Top Issue Date,"${kpis.topIssueDate || '-'}",${kpis.topIssueDateQty || 0} KG\r\n\r\n`;
 
     // Section 1: Store Issues
-    csvContent += 'STORE ISSUE (KG) - ITEM WISE\n';
-    csvContent += 'Sr.,Item Name,Item SKU,Sum of KG,%\n';
-    (issueByItem || []).forEach((row, idx) => {
-      csvContent += `${idx + 1},"${row.itemName}","${row.itemSku || ''}",${row.sumOfKg},${row.percentage}%\n`;
-    });
-    csvContent += `Total,,,${kpis?.totalIssueKg || 0},100%\n\n`;
+    csv += 'STORE ISSUE (KG) - ITEM WISE\r\n';
+    csv += 'Sr,Item Name,Item SKU,Unit,Sum of KG,Percentage (%)\r\n';
+    if (issueByItem.length === 0) {
+      csv += '1,"No store issues recorded for this period",-,KG,0,0%\r\n';
+    } else {
+      issueByItem.forEach((row, idx) => {
+        csv += `${idx + 1},"${(row.itemName || '').replace(/"/g, '""')}","${(row.itemSku || '').replace(/"/g, '""')}",${row.unit || 'KG'},${row.sumOfKg || 0},${row.percentage || 0}%\r\n`;
+      });
+    }
+    csv += `Total,,,KG,${kpis.totalIssueKg || 0},100%\r\n\r\n`;
 
     // Section 2: Store Receives
-    csvContent += 'STORE RECEIVE (KG) - ITEM WISE\n';
-    csvContent += 'Sr.,Item Name,Item SKU,Sum of KG,%\n';
-    (receiveByItem || []).forEach((row, idx) => {
-      csvContent += `${idx + 1},"${row.itemName}","${row.itemSku || ''}",${row.sumOfKg},${row.percentage}%\n`;
-    });
-    csvContent += `Total,,,${kpis?.totalReceiveKg || 0},100%\n\n`;
+    csv += 'STORE RECEIVE (KG) - ITEM WISE\r\n';
+    csv += 'Sr,Item Name,Item SKU,Unit,Sum of KG,Percentage (%)\r\n';
+    if (receiveByItem.length === 0) {
+      csv += '1,"No store receipts recorded for this period",-,KG,0,0%\r\n';
+    } else {
+      receiveByItem.forEach((row, idx) => {
+        csv += `${idx + 1},"${(row.itemName || '').replace(/"/g, '""')}","${(row.itemSku || '').replace(/"/g, '""')}",${row.unit || 'KG'},${row.sumOfKg || 0},${row.percentage || 0}%\r\n`;
+      });
+    }
+    csv += `Total,,,KG,${kpis.totalReceiveKg || 0},100%\r\n\r\n`;
 
     // Section 3: Consumption
-    csvContent += 'TOP 10 DATE - CONSUMPTION (KG)\n';
-    csvContent += 'Sr.,Date,Sum of KG,%\n';
-    (top10DatesConsumption || []).forEach((row, idx) => {
-      csvContent += `${idx + 1},"${row.date}",${row.sumOfKg},${row.percentage}%\n`;
-    });
-    csvContent += `Total,,${kpis?.totalConsumptionKg || 0},100%\n`;
+    csv += 'TOP DATES - CONSUMPTION (KG)\r\n';
+    csv += 'Sr,Date,Sum of KG,Percentage (%)\r\n';
+    if (top10DatesConsumption.length === 0) {
+      csv += '1,"No floor consumption recorded for this period",0,0%\r\n';
+    } else {
+      top10DatesConsumption.forEach((row, idx) => {
+        csv += `${idx + 1},"${row.date}",${row.sumOfKg || 0},${row.percentage || 0}%\r\n`;
+      });
+    }
+    csv += `Total,,${kpis.totalConsumptionKg || 0},100%\r\n\r\n`;
 
-    const encodedUri = encodeURI(csvContent);
+    // Section 4: Key Insights
+    csv += 'EXECUTIVE AUDIT INSIGHTS\r\n';
+    insights.forEach((ins, idx) => {
+      csv += `${idx + 1},"${ins.replace(/\*\*/g, '').replace(/"/g, '""')}"\r\n`;
+    });
+
+    const blob = new Blob(['\uFEFF' + csv], {
+      type: 'text/csv;charset=utf-8;',
+    });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `Store_RO_Report_${(period?.periodLabel || 'Report').replace(/\s+/g, '_')}.csv`,
-    );
+    link.href = url;
+    const periodStr = (period.periodLabel || kpis.month || 'August_2026').replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.setAttribute('download', `Store_RO_Report_${periodStr}.csv`);
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 200);
   };
 
+  // ── Multi-Tab Excel Workbook Export (.xlsx) ──
+  const handleExportExcel = async () => {
+    if (!analyticsData) {
+      alert('Analytics data is still loading. Please wait.');
+      return;
+    }
+    try {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: KPIs
+      const kpiRows = [
+        ['HIMALAYA MACHINERY ERP - STORE R/O REPORT'],
+        ['Report Period', analyticsData.period?.periodLabel || kpis.month || 'August 2026'],
+        ['Generated At', new Date().toLocaleString('en-IN')],
+        ['Data Source', 'PostgreSQL Authoritative Stock Ledger'],
+        [''],
+        ['Metric', 'Value', 'Unit'],
+        ['Total Store Issue', kpis.totalIssueKg || 0, 'KG'],
+        ['Total Store Receive', kpis.totalReceiveKg || 0, 'KG'],
+        ['Total Floor Consumption', kpis.totalConsumptionKg || 0, 'KG'],
+        ['Net Inventory Delta', highlights.netBalanceKg || 0, 'KG'],
+        ['Consumption Efficiency', `${highlights.consumptionIssueRatio || 0}%`, 'Ratio'],
+        ['Total Items Count', kpis.totalItems || 0, 'Count'],
+        ['Top Issued Item', kpis.topItem || '-', `${kpis.topItemQty || 0} KG (${kpis.topItemPercentage || 0}%)`],
+        ['Peak Issue Date', kpis.topIssueDate || '-', `${kpis.topIssueDateQty || 0} KG`],
+      ];
+      const wsKpis = XLSX.utils.aoa_to_sheet(kpiRows);
+      XLSX.utils.book_append_sheet(wb, wsKpis, 'KPI Summary');
+
+      // Sheet 2: Store Issues
+      const issueRows = [
+        ['Sr', 'Item Name', 'Item SKU', 'Unit', 'Sum of KG', 'Percentage'],
+        ...(analyticsData.issueByItem || []).map((row, idx) => [
+          idx + 1,
+          row.itemName,
+          row.itemSku || '',
+          row.unit || 'KG',
+          row.sumOfKg,
+          `${row.percentage}%`,
+        ]),
+        ['Total', '', '', 'KG', kpis.totalIssueKg || 0, '100%'],
+      ];
+      const wsIssues = XLSX.utils.aoa_to_sheet(issueRows);
+      XLSX.utils.book_append_sheet(wb, wsIssues, 'Store Issues');
+
+      // Sheet 3: Store Receives
+      const receiveRows = [
+        ['Sr', 'Item Name', 'Item SKU', 'Unit', 'Sum of KG', 'Percentage'],
+        ...(analyticsData.receiveByItem || []).map((row, idx) => [
+          idx + 1,
+          row.itemName,
+          row.itemSku || '',
+          row.unit || 'KG',
+          row.sumOfKg,
+          `${row.percentage}%`,
+        ]),
+        ['Total', '', '', 'KG', kpis.totalReceiveKg || 0, '100%'],
+      ];
+      const wsReceives = XLSX.utils.aoa_to_sheet(receiveRows);
+      XLSX.utils.book_append_sheet(wb, wsReceives, 'Store Receives');
+
+      // Sheet 4: Consumption
+      const consumptionRows = [
+        ['Sr', 'Date', 'Sum of KG', 'Percentage'],
+        ...(analyticsData.top10DatesConsumption || []).map((row, idx) => [
+          idx + 1,
+          row.date,
+          row.sumOfKg,
+          `${row.percentage}%`,
+        ]),
+        ['Total', '', kpis.totalConsumptionKg || 0, '100%'],
+      ];
+      const wsConsumption = XLSX.utils.aoa_to_sheet(consumptionRows);
+      XLSX.utils.book_append_sheet(wb, wsConsumption, 'Floor Consumption');
+
+      const periodStr = (analyticsData.period?.periodLabel || kpis.month || 'August_2026').replace(/[^a-zA-Z0-9_-]/g, '_');
+      XLSX.writeFile(wb, `Store_RO_Report_${periodStr}.xlsx`);
+    } catch (err) {
+      console.error('Excel export error, falling back to CSV:', err);
+      handleExportCSV();
+    }
+  };
+
+  // ── Print Report Handler ──
   const handlePrint = () => {
-    window.print();
-  };
-
-  const handleReset = () => {
-    setFilterMode('monthly');
-    setSelectedMonth('8');
-    setSelectedYear('2026');
-    setCustomStart('2026-08-01');
-    setCustomEnd('2026-08-31');
-    setIssueSearch('');
-    setReceiveSearch('');
+    if (!analyticsData) {
+      alert('Analytics data is still loading. Please wait.');
+      return;
+    }
+    try {
+      window.focus();
+      setTimeout(() => {
+        window.print();
+      }, 80);
+    } catch (err) {
+      console.error('window.print failed:', err);
+    }
   };
 
   return (
     <div className="store-ro-dashboard" style={styles.container}>
       {/* ─────────────────────────────────────────────────────────────
-          1. HEADER BAR - Industrial ERP Navy Header
+          SCREEN-ONLY VIEW (Interactive Dashboard)
       ───────────────────────────────────────────────────────────── */}
-      <div style={styles.headerBanner} className="print-header">
-        <div style={styles.headerLeft}>
-          <div style={styles.logoWrapper}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/himalaya-logo.png"
-              alt="Himalaya ERP Logo"
-              style={styles.logoImg}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <div style={styles.headerBrandText}>
-              <span style={styles.companySubtext}>
-                HIMALAYA MACHINERY ERP · PLANT HEAD PORTAL
-              </span>
-              <h1 style={styles.headerTitle}>
-                STORE R/O –{' '}
-                <span style={styles.titleHighlight}>
-                  {analyticsData?.period?.periodLabel || 'AUGUST 2026'}
+      <div className="screen-only-view">
+        {/* ── 1. HEADER BAR ── */}
+        <div style={styles.headerBanner} className="no-print">
+          <div style={styles.headerLeft}>
+            <div style={styles.logoWrapper}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/himalaya-logo.png"
+                alt="Himalaya ERP Logo"
+                style={styles.logoImg}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+              <div style={styles.headerBrandText}>
+                <span style={styles.companySubtext}>
+                  HIMALAYA MACHINERY ERP · PLANT HEAD PORTAL
                 </span>
-              </h1>
-              <p style={styles.headerTagline}>
-                MATERIAL CONTROL | EFFICIENT PLANNING | STRONGER PRODUCTION
-              </p>
+                <h1 style={styles.headerTitle}>
+                  STORE R/O –{' '}
+                  <span style={styles.titleHighlight}>
+                    {analyticsData?.period?.periodLabel || 'AUGUST 2026'}
+                  </span>
+                </h1>
+                <p style={styles.headerTagline}>
+                  MATERIAL CONTROL | EFFICIENT PLANNING | STRONGER PRODUCTION
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.headerBadges} className="no-print">
+            <div style={styles.badgeChip}>
+              <CheckCircle size={14} style={{ color: '#10B981' }} />
+              <span>Accurate Stock Ledger</span>
+            </div>
+            <div style={styles.badgeChip}>
+              <Flame size={14} style={{ color: '#F59E0B' }} />
+              <span>Real-Time Consumption</span>
+            </div>
+            <div style={styles.badgeChip}>
+              <ShieldCheck size={14} style={{ color: '#38BDF8' }} />
+              <span>Zero Unaccounted Loss</span>
+            </div>
+            <div style={styles.badgeChip}>
+              <Sparkles size={14} style={{ color: '#A78BFA' }} />
+              <span>PostgreSQL Authoritative</span>
             </div>
           </div>
         </div>
 
-        <div style={styles.headerBadges} className="no-print">
-          <div style={styles.badgeChip}>
-            <CheckCircle size={14} style={{ color: '#10B981' }} />
-            <span>Accurate Stock Ledger</span>
-          </div>
-          <div style={styles.badgeChip}>
-            <Flame size={14} style={{ color: '#F59E0B' }} />
-            <span>Real-Time Consumption</span>
-          </div>
-          <div style={styles.badgeChip}>
-            <ShieldCheck size={14} style={{ color: '#38BDF8' }} />
-            <span>Zero Unaccounted Loss</span>
-          </div>
-          <div style={styles.badgeChip}>
-            <Sparkles size={14} style={{ color: '#A78BFA' }} />
-            <span>PostgreSQL Authoritative</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ─────────────────────────────────────────────────────────────
-          2. FILTER TOOLBAR
-      ───────────────────────────────────────────────────────────── */}
-      <div style={styles.filterToolbar} className="no-print">
-        <div style={styles.filterRow}>
-          <div style={styles.modeTabs}>
-            <button
-              onClick={() => setFilterMode('monthly')}
-              style={{
-                ...styles.modeTabBtn,
-                ...(filterMode === 'monthly' ? styles.modeTabActive : {}),
-              }}
-            >
-              <Calendar size={15} />
-              Monthly View
-            </button>
-            <button
-              onClick={() => setFilterMode('custom')}
-              style={{
-                ...styles.modeTabBtn,
-                ...(filterMode === 'custom' ? styles.modeTabActive : {}),
-              }}
-            >
-              <Filter size={15} />
-              Custom Date Range
-            </button>
-          </div>
-
-          {filterMode === 'monthly' ? (
-            <div style={styles.filterControlsGroup}>
-              <div style={styles.controlItem}>
-                <label style={styles.controlLabel}>Select Month</label>
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  style={styles.selectInput}
-                >
-                  {months.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={styles.controlItem}>
-                <label style={styles.controlLabel}>Select Year</label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  style={styles.selectInput}
-                >
-                  {years.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        {/* ── 2. FILTER TOOLBAR ── */}
+        <div style={styles.filterToolbar} className="no-print">
+          <div style={styles.filterRow}>
+            <div style={styles.modeTabs}>
+              <button
+                type="button"
+                onClick={() => setFilterMode('monthly')}
+                style={{
+                  ...styles.modeTabBtn,
+                  ...(filterMode === 'monthly' ? styles.modeTabActive : {}),
+                }}
+              >
+                <Calendar size={15} />
+                Monthly View
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterMode('custom')}
+                style={{
+                  ...styles.modeTabBtn,
+                  ...(filterMode === 'custom' ? styles.modeTabActive : {}),
+                }}
+              >
+                <Filter size={15} />
+                Custom Date Range
+              </button>
             </div>
-          ) : (
-            <div style={styles.filterControlsGroup}>
-              <div style={styles.controlItem}>
-                <label style={styles.controlLabel}>Start Date</label>
-                <input
-                  type="date"
-                  value={customStart}
-                  onChange={(e) => setCustomStart(e.target.value)}
-                  style={styles.dateInput}
-                />
+
+            {filterMode === 'monthly' ? (
+              <div style={styles.filterControlsGroup}>
+                <div style={styles.controlItem}>
+                  <label style={styles.controlLabel}>Select Month</label>
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      const m = e.target.value;
+                      setSelectedMonth(m);
+                      fetchAnalytics({
+                        selectedMonth: m,
+                        filterMode: 'monthly',
+                        selectedYear,
+                      });
+                    }}
+                    style={styles.selectInput}
+                  >
+                    {months.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={styles.controlItem}>
+                  <label style={styles.controlLabel}>Select Year</label>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => {
+                      const y = e.target.value;
+                      setSelectedYear(y);
+                      fetchAnalytics({
+                        selectedYear: y,
+                        filterMode: 'monthly',
+                        selectedMonth,
+                      });
+                    }}
+                    style={styles.selectInput}
+                  >
+                    {years.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div style={styles.controlItem}>
-                <label style={styles.controlLabel}>End Date</label>
-                <input
-                  type="date"
-                  value={customEnd}
-                  onChange={(e) => setCustomEnd(e.target.value)}
-                  style={styles.dateInput}
-                />
+            ) : (
+              <div style={styles.filterControlsGroup}>
+                <div style={styles.controlItem}>
+                  <label style={styles.controlLabel}>Start Date</label>
+                  <input
+                    type="date"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                    style={styles.dateInput}
+                  />
+                </div>
+                <div style={styles.controlItem}>
+                  <label style={styles.controlLabel}>End Date</label>
+                  <input
+                    type="date"
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                    style={styles.dateInput}
+                  />
+                </div>
               </div>
+            )}
+
+            <div style={styles.actionButtonsGroup}>
+              <button
+                type="button"
+                id="apply-filter-btn"
+                onClick={handleApplyFilter}
+                disabled={loading}
+                style={styles.applyBtn}
+                title="Apply selected date range and refresh analytics"
+              >
+                <TrendingUp size={15} />
+                {loading ? 'Refreshing...' : 'Apply Filter'}
+              </button>
+              <button
+                type="button"
+                id="reset-filter-btn"
+                onClick={handleReset}
+                disabled={loading}
+                style={styles.resetBtn}
+                title="Reset to default August 2026 period"
+              >
+                <RotateCcw size={15} />
+                Reset
+              </button>
+              <button
+                type="button"
+                id="export-csv-btn"
+                onClick={handleExportCSV}
+                style={styles.exportBtn}
+                title="Export report data to CSV"
+              >
+                <Download size={15} />
+                Export CSV
+              </button>
+              <button
+                type="button"
+                id="export-excel-btn"
+                onClick={handleExportExcel}
+                style={{ ...styles.exportBtn, background: '#0284C7' }}
+                title="Export complete report to formatted Excel (.xlsx)"
+              >
+                <FileSpreadsheet size={15} />
+                Export Excel
+              </button>
+              <button
+                type="button"
+                id="print-report-btn"
+                onClick={handlePrint}
+                style={styles.printBtn}
+                title="Print formal report"
+              >
+                <Printer size={15} />
+                Print Report
+              </button>
             </div>
-          )}
-
-          <div style={styles.actionButtonsGroup}>
-            <button
-              onClick={fetchAnalytics}
-              disabled={loading}
-              style={styles.applyBtn}
-              title="Apply selected date range"
-            >
-              <TrendingUp size={15} />
-              {loading ? 'Refreshing...' : 'Apply Filter'}
-            </button>
-            <button
-              onClick={handleReset}
-              style={styles.resetBtn}
-              title="Reset to default period"
-            >
-              <RotateCcw size={15} />
-              Reset
-            </button>
-            <button
-              onClick={handleExportCSV}
-              style={styles.exportBtn}
-              title="Export report data to Excel/CSV"
-            >
-              <Download size={15} />
-              Export CSV
-            </button>
-            <button
-              onClick={handlePrint}
-              style={styles.printBtn}
-              title="Print formal report"
-            >
-              <Printer size={15} />
-              Print Report
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ─────────────────────────────────────────────────────────────
-          ERROR NOTICE (IF ANY)
-      ───────────────────────────────────────────────────────────── */}
-      {error && (
-        <div style={styles.errorBanner}>
-          <AlertCircle size={20} style={{ color: '#EF4444', flexShrink: 0 }} />
-          <div>
-            <div style={{ fontWeight: '700', color: '#991B1B' }}>
-              Failed to load analytics
-            </div>
-            <div style={{ fontSize: '13px', color: '#B91C1C' }}>{error}</div>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────
-          3. 7 KPI METRIC CARDS ROW
-      ───────────────────────────────────────────────────────────── */}
-      <div style={styles.kpiGrid}>
-        {/* KPI 1: Month */}
-        <div style={{ ...styles.kpiCard, borderLeft: '4px solid #3B82F6' }}>
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>MONTH</span>
-            <Calendar size={18} style={{ color: '#3B82F6' }} />
-          </div>
-          <div style={styles.kpiValueMain}>{kpis.month || 'AUGUST 2026'}</div>
-          <div style={styles.kpiFooter}>Reporting Period</div>
-        </div>
-
-        {/* KPI 2: Total Issue */}
-        <div style={{ ...styles.kpiCard, borderLeft: '4px solid #8B5CF6' }}>
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>TOTAL ISSUE (KG)</span>
-            <ArrowUpRight size={18} style={{ color: '#8B5CF6' }} />
-          </div>
-          <div style={{ ...styles.kpiValueMain, color: '#6D28D9' }}>
-            {(kpis.totalIssueKg || 0).toLocaleString()}{' '}
-            <span style={styles.unitSpan}>KG</span>
-          </div>
-          <div style={styles.kpiFooter}>Store out to production</div>
-        </div>
-
-        {/* KPI 3: Total Receive */}
-        <div style={{ ...styles.kpiCard, borderLeft: '4px solid #10B981' }}>
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>TOTAL RECEIVE (KG)</span>
-            <ArrowDownRight size={18} style={{ color: '#10B981' }} />
-          </div>
-          <div style={{ ...styles.kpiValueMain, color: '#047857' }}>
-            {(kpis.totalReceiveKg || 0).toLocaleString()}{' '}
-            <span style={styles.unitSpan}>KG</span>
-          </div>
-          <div style={styles.kpiFooter}>Goods receipt intake</div>
-        </div>
-
-        {/* KPI 4: Total Consumption */}
-        <div style={{ ...styles.kpiCard, borderLeft: '4px solid #F59E0B' }}>
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>TOTAL CONSUMPTION (KG)</span>
-            <Flame size={18} style={{ color: '#F59E0B' }} />
-          </div>
-          <div style={{ ...styles.kpiValueMain, color: '#B45309' }}>
-            {(kpis.totalConsumptionKg || 0).toLocaleString()}{' '}
-            <span style={styles.unitSpan}>KG</span>
-          </div>
-          <div style={styles.kpiFooter}>Floor raw-material usage</div>
-        </div>
-
-        {/* KPI 5: Total Items */}
-        <div style={{ ...styles.kpiCard, borderLeft: '4px solid #0284C7' }}>
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>TOTAL ITEMS</span>
-            <Package size={18} style={{ color: '#0284C7' }} />
-          </div>
-          <div style={{ ...styles.kpiValueMain, color: '#0369A1' }}>
-            {(kpis.totalItems || 0).toLocaleString()}
-          </div>
-          <div style={styles.kpiFooter}>Distinct materials moved</div>
-        </div>
-
-        {/* KPI 6: Top Item */}
-        <div style={{ ...styles.kpiCard, borderLeft: '4px solid #EC4899' }}>
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>TOP ITEM</span>
-            <Award size={18} style={{ color: '#EC4899' }} />
-          </div>
-          <div
-            style={{
-              ...styles.kpiValueMain,
-              fontSize: '16px',
-              fontWeight: '800',
-              color: '#BE185D',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-            title={kpis.topItem || '-'}
-          >
-            {kpis.topItem || '-'}
-          </div>
-          <div style={styles.kpiFooter}>
-            {(kpis.topItemQty || 0).toLocaleString()} KG (
-            {kpis.topItemPercentage || 0}%)
           </div>
         </div>
 
-        {/* KPI 7: Top Issue Date */}
-        <div style={{ ...styles.kpiCard, borderLeft: '4px solid #475569' }}>
-          <div style={styles.kpiHeader}>
-            <span style={styles.kpiLabel}>TOP ISSUE DATE</span>
-            <Clock size={18} style={{ color: '#475569' }} />
-          </div>
-          <div
-            style={{
-              ...styles.kpiValueMain,
-              fontSize: '18px',
-              color: '#1E293B',
-            }}
-          >
-            {kpis.topIssueDate || '-'}
-          </div>
-          <div style={styles.kpiFooter}>
-            {(kpis.topIssueDateQty || 0).toLocaleString()} KG peak day
-          </div>
-        </div>
-      </div>
-
-      {/* ─────────────────────────────────────────────────────────────
-          4. 3-COLUMN ANALYTICAL SECTION
-      ───────────────────────────────────────────────────────────── */}
-      <div style={styles.analyticalGrid}>
-        {/* ── Column 1: STORE ISSUE (KG) – ITEM WISE ── */}
-        <div style={styles.tableCard}>
-          <div style={{ ...styles.tableCardHeader, background: '#1E1B4B' }}>
-            <div style={styles.cardHeaderTitleGroup}>
-              <ArrowUpRight size={18} style={{ color: '#A78BFA' }} />
-              <div>
-                <h3 style={styles.cardTitleText}>
-                  STORE ISSUE (KG) – ITEM WISE
-                </h3>
-                <span style={styles.cardSubtitleText}>
-                  Authoritative depot dispatches to shop floor
-                </span>
+        {/* ── ERROR NOTICE (IF ANY) ── */}
+        {error && (
+          <div style={styles.errorBanner}>
+            <AlertCircle size={20} style={{ color: '#EF4444', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: '700', color: '#991B1B' }}>
+                Failed to load analytics
               </div>
+              <div style={{ fontSize: '13px', color: '#B91C1C' }}>{error}</div>
             </div>
-            <span style={styles.countBadge}>{filteredIssues.length} Items</span>
           </div>
+        )}
 
-          <div style={styles.tableSearchBar} className="no-print">
-            <Search size={14} style={{ color: '#64748B' }} />
-            <input
-              type="text"
-              placeholder="Search issued material..."
-              value={issueSearch}
-              onChange={(e) => setIssueSearch(e.target.value)}
-              style={styles.tableSearchInput}
-            />
-          </div>
-
-          <div style={styles.tableScrollWrapper}>
-            <table style={styles.dataTable}>
-              <thead>
-                <tr>
-                  <th style={{ ...styles.th, width: '45px' }}>Sr.</th>
-                  <th style={styles.th}>Item Name</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Sum of KG</th>
-                  <th
-                    style={{ ...styles.th, width: '90px', textAlign: 'right' }}
-                  >
-                    %
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredIssues.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} style={styles.emptyCell}>
-                      {loading
-                        ? 'Loading store issue records...'
-                        : 'No material movement found for the selected period.'}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredIssues.map((row, idx) => (
-                    <tr
-                      key={idx}
-                      style={idx % 2 === 0 ? styles.trEven : styles.trOdd}
-                    >
-                      <td
-                        style={{
-                          ...styles.td,
-                          fontWeight: '700',
-                          color: '#64748B',
-                        }}
-                      >
-                        {row.sr || idx + 1}
-                      </td>
-                      <td style={styles.td}>
-                        <div style={{ fontWeight: '700', color: '#1E293B' }}>
-                          {row.itemName}
-                        </div>
-                        {row.itemSku && (
-                          <div style={{ fontSize: '11px', color: '#64748B' }}>
-                            SKU: {row.itemSku}
-                          </div>
-                        )}
-                      </td>
-                      <td
-                        style={{
-                          ...styles.td,
-                          textAlign: 'right',
-                          fontWeight: '800',
-                          color: '#6D28D9',
-                        }}
-                      >
-                        {(row.sumOfKg || 0).toLocaleString()}
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'right' }}>
-                        <div style={styles.pctCell}>
-                          <span style={styles.pctText}>
-                            {row.percentage || 0}%
-                          </span>
-                          <div style={styles.pctTrack}>
-                            <div
-                              style={{
-                                ...styles.pctBar,
-                                width: `${Math.min(100, row.percentage || 0)}%`,
-                                background: '#8B5CF6',
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              <tfoot>
-                <tr style={styles.tfootRow}>
-                  <td
-                    colSpan={2}
-                    style={{
-                      ...styles.tdFoot,
-                      fontWeight: '800',
-                      color: '#1E1B4B',
-                    }}
-                  >
-                    Grand Total
-                  </td>
-                  <td
-                    style={{
-                      ...styles.tdFoot,
-                      textAlign: 'right',
-                      fontWeight: '900',
-                      color: '#6D28D9',
-                      fontSize: '14px',
-                    }}
-                  >
-                    {(kpis.totalIssueKg || 0).toLocaleString()} KG
-                  </td>
-                  <td
-                    style={{
-                      ...styles.tdFoot,
-                      textAlign: 'right',
-                      fontWeight: '800',
-                    }}
-                  >
-                    100%
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-
-        {/* ── Column 2: STORE RECEIVE (KG) – ITEM WISE ── */}
-        <div style={styles.tableCard}>
-          <div style={{ ...styles.tableCardHeader, background: '#064E3B' }}>
-            <div style={styles.cardHeaderTitleGroup}>
-              <ArrowDownRight size={18} style={{ color: '#6EE7B7' }} />
-              <div>
-                <h3 style={styles.cardTitleText}>
-                  STORE RECEIVE (KG) – ITEM WISE
-                </h3>
-                <span style={styles.cardSubtitleText}>
-                  Goods receipt intake verified by Store
-                </span>
-              </div>
+        {/* ── 3. 7 KPI METRIC CARDS ROW ── */}
+        <div style={styles.kpiGrid}>
+          {/* KPI 1: Month */}
+          <div style={{ ...styles.kpiCard, borderLeft: '4px solid #3B82F6' }}>
+            <div style={styles.kpiHeader}>
+              <span style={styles.kpiLabel}>MONTH</span>
+              <Calendar size={18} style={{ color: '#3B82F6' }} />
             </div>
-            <span style={styles.countBadge}>
-              {filteredReceives.length} Items
-            </span>
+            <div style={styles.kpiValueMain}>{kpis.month || 'AUGUST 2026'}</div>
+            <div style={styles.kpiFooter}>Reporting Period</div>
           </div>
 
-          <div style={styles.tableSearchBar} className="no-print">
-            <Search size={14} style={{ color: '#64748B' }} />
-            <input
-              type="text"
-              placeholder="Search received material..."
-              value={receiveSearch}
-              onChange={(e) => setReceiveSearch(e.target.value)}
-              style={styles.tableSearchInput}
-            />
-          </div>
-
-          <div style={styles.tableScrollWrapper}>
-            <table style={styles.dataTable}>
-              <thead>
-                <tr>
-                  <th style={{ ...styles.th, width: '45px' }}>Sr.</th>
-                  <th style={styles.th}>Item Name</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Sum of KG</th>
-                  <th
-                    style={{ ...styles.th, width: '90px', textAlign: 'right' }}
-                  >
-                    %
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredReceives.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} style={styles.emptyCell}>
-                      {loading
-                        ? 'Loading store receive records...'
-                        : 'No material movement found for the selected period.'}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredReceives.map((row, idx) => (
-                    <tr
-                      key={idx}
-                      style={idx % 2 === 0 ? styles.trEven : styles.trOdd}
-                    >
-                      <td
-                        style={{
-                          ...styles.td,
-                          fontWeight: '700',
-                          color: '#64748B',
-                        }}
-                      >
-                        {row.sr || idx + 1}
-                      </td>
-                      <td style={styles.td}>
-                        <div style={{ fontWeight: '700', color: '#1E293B' }}>
-                          {row.itemName}
-                        </div>
-                        {row.itemSku && (
-                          <div style={{ fontSize: '11px', color: '#64748B' }}>
-                            SKU: {row.itemSku}
-                          </div>
-                        )}
-                      </td>
-                      <td
-                        style={{
-                          ...styles.td,
-                          textAlign: 'right',
-                          fontWeight: '800',
-                          color: '#047857',
-                        }}
-                      >
-                        {(row.sumOfKg || 0).toLocaleString()}
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'right' }}>
-                        <div style={styles.pctCell}>
-                          <span style={styles.pctText}>
-                            {row.percentage || 0}%
-                          </span>
-                          <div style={styles.pctTrack}>
-                            <div
-                              style={{
-                                ...styles.pctBar,
-                                width: `${Math.min(100, row.percentage || 0)}%`,
-                                background: '#10B981',
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              <tfoot>
-                <tr style={styles.tfootRow}>
-                  <td
-                    colSpan={2}
-                    style={{
-                      ...styles.tdFoot,
-                      fontWeight: '800',
-                      color: '#064E3B',
-                    }}
-                  >
-                    Grand Total
-                  </td>
-                  <td
-                    style={{
-                      ...styles.tdFoot,
-                      textAlign: 'right',
-                      fontWeight: '900',
-                      color: '#047857',
-                      fontSize: '14px',
-                    }}
-                  >
-                    {(kpis.totalReceiveKg || 0).toLocaleString()} KG
-                  </td>
-                  <td
-                    style={{
-                      ...styles.tdFoot,
-                      textAlign: 'right',
-                      fontWeight: '800',
-                    }}
-                  >
-                    100%
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-
-        {/* ── Column 3: TOP 10 DATE – CONSUMPTION (KG) ── */}
-        <div style={styles.tableCard}>
-          <div style={{ ...styles.tableCardHeader, background: '#78350F' }}>
-            <div style={styles.cardHeaderTitleGroup}>
-              <Flame size={18} style={{ color: '#FDE68A' }} />
-              <div>
-                <h3 style={styles.cardTitleText}>
-                  TOP 10 DATE – CONSUMPTION (KG)
-                </h3>
-                <span style={styles.cardSubtitleText}>
-                  Authoritative Shop Floor utilization ledger
-                </span>
-              </div>
+          {/* KPI 2: Total Issue */}
+          <div style={{ ...styles.kpiCard, borderLeft: '4px solid #8B5CF6' }}>
+            <div style={styles.kpiHeader}>
+              <span style={styles.kpiLabel}>TOTAL ISSUE (KG)</span>
+              <ArrowUpRight size={18} style={{ color: '#8B5CF6' }} />
             </div>
-            <span style={styles.countBadge}>
-              {top10DatesConsumption.length} Days
-            </span>
+            <div style={{ ...styles.kpiValueMain, color: '#6D28D9' }}>
+              {(kpis.totalIssueKg || 0).toLocaleString()}{' '}
+              <span style={styles.unitSpan}>KG</span>
+            </div>
+            <div style={styles.kpiFooter}>Store out to production</div>
           </div>
 
-          <div
-            style={{
-              padding: '10px 16px',
-              fontSize: '12px',
-              color: '#92400E',
-              background: '#FEF3C7',
-              borderBottom: '1px solid #FDE68A',
-            }}
-          >
-            <strong>Note:</strong> Sourced from Shop Floor logged consumption
-            (not finished product weights).
+          {/* KPI 3: Total Receive */}
+          <div style={{ ...styles.kpiCard, borderLeft: '4px solid #10B981' }}>
+            <div style={styles.kpiHeader}>
+              <span style={styles.kpiLabel}>TOTAL RECEIVE (KG)</span>
+              <ArrowDownRight size={18} style={{ color: '#10B981' }} />
+            </div>
+            <div style={{ ...styles.kpiValueMain, color: '#047857' }}>
+              {(kpis.totalReceiveKg || 0).toLocaleString()}{' '}
+              <span style={styles.unitSpan}>KG</span>
+            </div>
+            <div style={styles.kpiFooter}>Goods receipt intake</div>
           </div>
 
-          <div style={styles.tableScrollWrapper}>
-            <table style={styles.dataTable}>
-              <thead>
-                <tr>
-                  <th style={{ ...styles.th, width: '45px' }}>Sr.</th>
-                  <th style={styles.th}>Date</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Sum of KG</th>
-                  <th
-                    style={{ ...styles.th, width: '90px', textAlign: 'right' }}
-                  >
-                    %
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {top10DatesConsumption.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} style={styles.emptyCell}>
-                      {loading
-                        ? 'Loading consumption log...'
-                        : 'No material movement found for the selected period.'}
-                    </td>
-                  </tr>
-                ) : (
-                  top10DatesConsumption.map((row, idx) => (
-                    <tr
-                      key={idx}
-                      style={idx % 2 === 0 ? styles.trEven : styles.trOdd}
-                    >
-                      <td
-                        style={{
-                          ...styles.td,
-                          fontWeight: '700',
-                          color: '#64748B',
-                        }}
-                      >
-                        {row.sr || idx + 1}
-                      </td>
-                      <td
-                        style={{
-                          ...styles.td,
-                          fontWeight: '700',
-                          color: '#1E293B',
-                        }}
-                      >
-                        {row.date}
-                      </td>
-                      <td
-                        style={{
-                          ...styles.td,
-                          textAlign: 'right',
-                          fontWeight: '800',
-                          color: '#B45309',
-                        }}
-                      >
-                        {(row.sumOfKg || 0).toLocaleString()}
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'right' }}>
-                        <div style={styles.pctCell}>
-                          <span style={styles.pctText}>
-                            {row.percentage || 0}%
-                          </span>
-                          <div style={styles.pctTrack}>
-                            <div
-                              style={{
-                                ...styles.pctBar,
-                                width: `${Math.min(100, row.percentage || 0)}%`,
-                                background: '#F59E0B',
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              <tfoot>
-                <tr style={styles.tfootRow}>
-                  <td
-                    colSpan={2}
-                    style={{
-                      ...styles.tdFoot,
-                      fontWeight: '800',
-                      color: '#78350F',
-                    }}
-                  >
-                    Grand Total
-                  </td>
-                  <td
-                    style={{
-                      ...styles.tdFoot,
-                      textAlign: 'right',
-                      fontWeight: '900',
-                      color: '#B45309',
-                      fontSize: '14px',
-                    }}
-                  >
-                    {(kpis.totalConsumptionKg || 0).toLocaleString()} KG
-                  </td>
-                  <td
-                    style={{
-                      ...styles.tdFoot,
-                      textAlign: 'right',
-                      fontWeight: '800',
-                    }}
-                  >
-                    100%
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+          {/* KPI 4: Total Consumption */}
+          <div style={{ ...styles.kpiCard, borderLeft: '4px solid #F59E0B' }}>
+            <div style={styles.kpiHeader}>
+              <span style={styles.kpiLabel}>TOTAL CONSUMPTION (KG)</span>
+              <Flame size={18} style={{ color: '#F59E0B' }} />
+            </div>
+            <div style={{ ...styles.kpiValueMain, color: '#B45309' }}>
+              {(kpis.totalConsumptionKg || 0).toLocaleString()}{' '}
+              <span style={styles.unitSpan}>KG</span>
+            </div>
+            <div style={styles.kpiFooter}>Floor raw-material usage</div>
           </div>
-        </div>
-      </div>
 
-      {/* ─────────────────────────────────────────────────────────────
-          5. SUMMARY & HIGHLIGHTS CARDS
-      ───────────────────────────────────────────────────────────── */}
-      <div style={styles.highlightsContainer}>
-        <div style={styles.highlightsHeader}>
-          <BarChart3 size={18} style={{ color: '#0F172A' }} />
-          <h3 style={styles.highlightsTitle}>SUMMARY & HIGHLIGHTS</h3>
-          <span style={styles.highlightsSubtitle}>
-            Derived operational metrics for executive control
-          </span>
-        </div>
+          {/* KPI 5: Total Items */}
+          <div style={{ ...styles.kpiCard, borderLeft: '4px solid #0284C7' }}>
+            <div style={styles.kpiHeader}>
+              <span style={styles.kpiLabel}>TOTAL ITEMS</span>
+              <Package size={18} style={{ color: '#0284C7' }} />
+            </div>
+            <div style={{ ...styles.kpiValueMain, color: '#0369A1' }}>
+              {(kpis.totalItems || 0).toLocaleString()}
+            </div>
+            <div style={styles.kpiFooter}>Distinct materials moved</div>
+          </div>
 
-        <div style={styles.highlightsGrid}>
-          <div style={styles.highlightTile}>
-            <span style={styles.highlightTileLabel}>Net Inventory Movement</span>
+          {/* KPI 6: Top Item */}
+          <div style={{ ...styles.kpiCard, borderLeft: '4px solid #EC4899' }}>
+            <div style={styles.kpiHeader}>
+              <span style={styles.kpiLabel}>TOP ITEM</span>
+              <Award size={18} style={{ color: '#EC4899' }} />
+            </div>
             <div
               style={{
-                ...styles.highlightTileValue,
-                color:
-                  (highlights.netBalanceKg || 0) >= 0 ? '#047857' : '#DC2626',
+                ...styles.kpiValueMain,
+                fontSize: '16px',
+                fontWeight: '800',
+                color: '#BE185D',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
+              title={kpis.topItem || '-'}
             >
-              {(highlights.netBalanceKg || 0) >= 0 ? '+' : ''}
-              {(highlights.netBalanceKg || 0).toLocaleString()} KG
+              {kpis.topItem || '-'}
             </div>
-            <span style={styles.highlightTileDesc}>Receive vs Issue variance</span>
+            <div style={styles.kpiFooter}>
+              {(kpis.topItemQty || 0).toLocaleString()} KG (
+              {kpis.topItemPercentage || 0}%)
+            </div>
           </div>
 
-          <div style={styles.highlightTile}>
-            <span style={styles.highlightTileLabel}>Consumption Efficiency</span>
-            <div style={{ ...styles.highlightTileValue, color: '#2563EB' }}>
-              {highlights.consumptionIssueRatio || 0}%
+          {/* KPI 7: Top Issue Date */}
+          <div style={{ ...styles.kpiCard, borderLeft: '4px solid #475569' }}>
+            <div style={styles.kpiHeader}>
+              <span style={styles.kpiLabel}>TOP ISSUE DATE</span>
+              <Clock size={18} style={{ color: '#475569' }} />
             </div>
-            <span style={styles.highlightTileDesc}>
-              Floor utilization vs issued
-            </span>
-          </div>
-
-          <div style={styles.highlightTile}>
-            <span style={styles.highlightTileLabel}>Active SKU Count</span>
-            <div style={{ ...styles.highlightTileValue, color: '#7C3AED' }}>
-              {highlights.activeSkuCount || 0} Materials
-            </div>
-            <span style={styles.highlightTileDesc}>SKUs moved in period</span>
-          </div>
-
-          <div style={styles.highlightTile}>
-            <span style={styles.highlightTileLabel}>Peak Issue Volume</span>
-            <div style={{ ...styles.highlightTileValue, color: '#BE185D' }}>
-              {(highlights.peakIssueQty || 0).toLocaleString()} KG
-            </div>
-            <span style={styles.highlightTileDesc}>
-              Peak date: {highlights.peakIssueDate || '-'}
-            </span>
-          </div>
-
-          <div style={styles.highlightTile}>
-            <span style={styles.highlightTileLabel}>Average Daily Issue</span>
-            <div style={{ ...styles.highlightTileValue, color: '#0F766E' }}>
-              {(highlights.avgDailyIssueKg || 0).toLocaleString()} KG/Day
-            </div>
-            <span style={styles.highlightTileDesc}>Monthly throughput rate</span>
-          </div>
-
-          <div style={styles.highlightTile}>
-            <span style={styles.highlightTileLabel}>Store Velocity Status</span>
             <div
               style={{
-                ...styles.highlightTileValue,
+                ...styles.kpiValueMain,
                 fontSize: '18px',
                 color: '#1E293B',
               }}
             >
-              {highlights.turnoverStatus || 'STEADY'}
+              {kpis.topIssueDate || '-'}
             </div>
-            <span style={styles.highlightTileDesc}>Depot workload status</span>
+            <div style={styles.kpiFooter}>
+              {(kpis.topIssueDateQty || 0).toLocaleString()} KG peak day
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ─────────────────────────────────────────────────────────────
-          6. KEY INSIGHTS - Dark Navy Intelligent Executive Banner
-      ───────────────────────────────────────────────────────────── */}
-      <div style={styles.insightsBanner}>
-        <div style={styles.insightsHeader}>
-          <Sparkles size={20} style={{ color: '#FBBF24' }} />
-          <h3 style={styles.insightsTitle}>
-            EXECUTIVE STORE INTELLIGENCE & AUDIT INSIGHTS
-          </h3>
-        </div>
-
-        <div style={styles.insightsList}>
-          {insights.length === 0 ? (
-            <div style={styles.insightItem}>
-              • No material movement found for the selected period.
-            </div>
-          ) : (
-            insights.map((insight, idx) => (
-              <div key={idx} style={styles.insightItem}>
-                <ChevronRight
-                  size={16}
-                  style={{ color: '#38BDF8', flexShrink: 0, marginTop: '2px' }}
-                />
-                <span
-                  dangerouslySetInnerHTML={{
-                    __html: insight.replace(
-                      /\*\*(.*?)\*\*/g,
-                      '<strong style="color: #F8FAFC; font-weight: 800;">$1</strong>',
-                    ),
-                  }}
-                />
+        {/* ── 4. 3-COLUMN ANALYTICAL SECTION ── */}
+        <div style={styles.analyticalGrid}>
+          {/* Column 1: STORE ISSUE */}
+          <div style={styles.tableCard}>
+            <div style={{ ...styles.tableCardHeader, background: '#1E1B4B' }}>
+              <div style={styles.cardHeaderTitleGroup}>
+                <ArrowUpRight size={18} style={{ color: '#A78BFA' }} />
+                <div>
+                  <h3 style={styles.cardTitleText}>
+                    STORE ISSUE (KG) – ITEM WISE
+                  </h3>
+                  <span style={styles.cardSubtitleText}>
+                    Authoritative depot dispatches to shop floor
+                  </span>
+                </div>
               </div>
-            ))
-          )}
-        </div>
-      </div>
+              <span style={styles.countBadge}>{filteredIssues.length} Items</span>
+            </div>
 
-      {/* ─────────────────────────────────────────────────────────────
-          7. MATERIAL FLOW VISUALIZATION SUITE (ALL CHARTS & GRAPHS)
-          Powered by UltraResponsiveChart (Zero-Blank across 320px to 12K)
-      ───────────────────────────────────────────────────────────── */}
-      <div style={styles.chartsSuiteSection} className="no-print">
-        <div style={styles.chartsSuiteHeader}>
-          <div style={styles.chartsSuiteHeaderLeft}>
-            <Activity size={22} style={{ color: '#2563EB' }} />
-            <div>
-              <h3 style={styles.chartsSuiteTitle}>
-                STORE MATERIAL MOVEMENT VISUALIZATION & FLOW ANALYTICS
-              </h3>
-              <span style={styles.chartsSuiteSubtitle}>
-                Complete timeline, material share, cumulative trajectory, item
-                comparison, net variance, and operational balance
+            <div style={styles.tableSearchBar} className="no-print">
+              <Search size={14} style={{ color: '#64748B' }} />
+              <input
+                type="text"
+                placeholder="Search issued material..."
+                value={issueSearch}
+                onChange={(e) => setIssueSearch(e.target.value)}
+                style={styles.tableSearchInput}
+              />
+            </div>
+
+            <div style={styles.tableScrollWrapper}>
+              <table style={styles.dataTable}>
+                <thead>
+                  <tr>
+                    <th style={{ ...styles.th, width: '45px' }}>Sr.</th>
+                    <th style={styles.th}>Item Name</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Sum of KG</th>
+                    <th style={{ ...styles.th, width: '90px', textAlign: 'right' }}>%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredIssues.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} style={styles.emptyCell}>
+                        {loading
+                          ? 'Loading store issue records...'
+                          : 'No material movement found for the selected period.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredIssues.map((row, idx) => (
+                      <tr key={idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                        <td style={{ ...styles.td, fontWeight: '700', color: '#64748B' }}>
+                          {row.sr || idx + 1}
+                        </td>
+                        <td style={styles.td}>
+                          <div style={{ fontWeight: '700', color: '#1E293B' }}>
+                            {row.itemName}
+                          </div>
+                          {row.itemSku && (
+                            <div style={{ fontSize: '11px', color: '#64748B' }}>
+                              SKU: {row.itemSku}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ ...styles.td, textAlign: 'right', fontWeight: '800', color: '#6D28D9' }}>
+                          {(row.sumOfKg || 0).toLocaleString()}
+                        </td>
+                        <td style={{ ...styles.td, textAlign: 'right' }}>
+                          <div style={styles.pctCell}>
+                            <span style={styles.pctText}>{row.percentage || 0}%</span>
+                            <div style={styles.pctTrack}>
+                              <div
+                                style={{
+                                  ...styles.pctBar,
+                                  width: `${Math.min(100, row.percentage || 0)}%`,
+                                  background: '#8B5CF6',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={styles.tfootRow}>
+                    <td colSpan={2} style={{ ...styles.tdFoot, fontWeight: '800', color: '#1E1B4B' }}>
+                      Grand Total
+                    </td>
+                    <td style={{ ...styles.tdFoot, textAlign: 'right', fontWeight: '900', color: '#6D28D9', fontSize: '14px' }}>
+                      {(kpis.totalIssueKg || 0).toLocaleString()} KG
+                    </td>
+                    <td style={{ ...styles.tdFoot, textAlign: 'right', fontWeight: '800' }}>
+                      100%
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Column 2: STORE RECEIVE */}
+          <div style={styles.tableCard}>
+            <div style={{ ...styles.tableCardHeader, background: '#064E3B' }}>
+              <div style={styles.cardHeaderTitleGroup}>
+                <ArrowDownRight size={18} style={{ color: '#6EE7B7' }} />
+                <div>
+                  <h3 style={styles.cardTitleText}>
+                    STORE RECEIVE (KG) – ITEM WISE
+                  </h3>
+                  <span style={styles.cardSubtitleText}>
+                    Goods receipt intake verified by Store
+                  </span>
+                </div>
+              </div>
+              <span style={styles.countBadge}>{filteredReceives.length} Items</span>
+            </div>
+
+            <div style={styles.tableSearchBar} className="no-print">
+              <Search size={14} style={{ color: '#64748B' }} />
+              <input
+                type="text"
+                placeholder="Search received material..."
+                value={receiveSearch}
+                onChange={(e) => setReceiveSearch(e.target.value)}
+                style={styles.tableSearchInput}
+              />
+            </div>
+
+            <div style={styles.tableScrollWrapper}>
+              <table style={styles.dataTable}>
+                <thead>
+                  <tr>
+                    <th style={{ ...styles.th, width: '45px' }}>Sr.</th>
+                    <th style={styles.th}>Item Name</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Sum of KG</th>
+                    <th style={{ ...styles.th, width: '90px', textAlign: 'right' }}>%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredReceives.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} style={styles.emptyCell}>
+                        {loading
+                          ? 'Loading store receive records...'
+                          : 'No material movement found for the selected period.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredReceives.map((row, idx) => (
+                      <tr key={idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                        <td style={{ ...styles.td, fontWeight: '700', color: '#64748B' }}>
+                          {row.sr || idx + 1}
+                        </td>
+                        <td style={styles.td}>
+                          <div style={{ fontWeight: '700', color: '#1E293B' }}>
+                            {row.itemName}
+                          </div>
+                          {row.itemSku && (
+                            <div style={{ fontSize: '11px', color: '#64748B' }}>
+                              SKU: {row.itemSku}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ ...styles.td, textAlign: 'right', fontWeight: '800', color: '#047857' }}>
+                          {(row.sumOfKg || 0).toLocaleString()}
+                        </td>
+                        <td style={{ ...styles.td, textAlign: 'right' }}>
+                          <div style={styles.pctCell}>
+                            <span style={styles.pctText}>{row.percentage || 0}%</span>
+                            <div style={styles.pctTrack}>
+                              <div
+                                style={{
+                                  ...styles.pctBar,
+                                  width: `${Math.min(100, row.percentage || 0)}%`,
+                                  background: '#10B981',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={styles.tfootRow}>
+                    <td colSpan={2} style={{ ...styles.tdFoot, fontWeight: '800', color: '#064E3B' }}>
+                      Grand Total
+                    </td>
+                    <td style={{ ...styles.tdFoot, textAlign: 'right', fontWeight: '900', color: '#047857', fontSize: '14px' }}>
+                      {(kpis.totalReceiveKg || 0).toLocaleString()} KG
+                    </td>
+                    <td style={{ ...styles.tdFoot, textAlign: 'right', fontWeight: '800' }}>
+                      100%
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Column 3: TOP 10 CONSUMPTION */}
+          <div style={styles.tableCard}>
+            <div style={{ ...styles.tableCardHeader, background: '#78350F' }}>
+              <div style={styles.cardHeaderTitleGroup}>
+                <Flame size={18} style={{ color: '#FDE68A' }} />
+                <div>
+                  <h3 style={styles.cardTitleText}>
+                    TOP 10 DATE – CONSUMPTION (KG)
+                  </h3>
+                  <span style={styles.cardSubtitleText}>
+                    Authoritative Shop Floor utilization ledger
+                  </span>
+                </div>
+              </div>
+              <span style={styles.countBadge}>
+                {top10DatesConsumption.length} Days
               </span>
             </div>
-          </div>
 
-          <div style={styles.chartTabGroup}>
-            <button
-              onClick={() => setChartViewTab('all')}
+            <div
               style={{
-                ...styles.chartTabBtn,
-                ...(chartViewTab === 'all' ? styles.chartTabActive : {}),
+                padding: '10px 16px',
+                fontSize: '12px',
+                color: '#92400E',
+                background: '#FEF3C7',
+                borderBottom: '1px solid #FDE68A',
               }}
             >
-              <Layers size={13} />
-              All Visuals (6)
-            </button>
-            <button
-              onClick={() => setChartViewTab('timeline')}
-              style={{
-                ...styles.chartTabBtn,
-                ...(chartViewTab === 'timeline' ? styles.chartTabActive : {}),
-              }}
-            >
-              <LineChartIcon size={13} />
-              Daily Timelines
-            </button>
-            <button
-              onClick={() => setChartViewTab('materials')}
-              style={{
-                ...styles.chartTabBtn,
-                ...(chartViewTab === 'materials' ? styles.chartTabActive : {}),
-              }}
-            >
-              <PieChartIcon size={13} />
-              Material Shares
-            </button>
-            <button
-              onClick={() => setChartViewTab('balance')}
-              style={{
-                ...styles.chartTabBtn,
-                ...(chartViewTab === 'balance' ? styles.chartTabActive : {}),
-              }}
-            >
-              <SlidersHorizontal size={13} />
-              Inventory Velocity
-            </button>
+              <strong>Note:</strong> Sourced from Shop Floor logged consumption (not finished product weights).
+            </div>
+
+            <div style={styles.tableScrollWrapper}>
+              <table style={styles.dataTable}>
+                <thead>
+                  <tr>
+                    <th style={{ ...styles.th, width: '45px' }}>Sr.</th>
+                    <th style={styles.th}>Date</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Sum of KG</th>
+                    <th style={{ ...styles.th, width: '90px', textAlign: 'right' }}>%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {top10DatesConsumption.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} style={styles.emptyCell}>
+                        {loading
+                          ? 'Loading consumption log...'
+                          : 'No material movement found for the selected period.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    top10DatesConsumption.map((row, idx) => (
+                      <tr key={idx} style={idx % 2 === 0 ? styles.trEven : styles.trOdd}>
+                        <td style={{ ...styles.td, fontWeight: '700', color: '#64748B' }}>
+                          {row.sr || idx + 1}
+                        </td>
+                        <td style={{ ...styles.td, fontWeight: '700', color: '#1E293B' }}>
+                          {row.date}
+                        </td>
+                        <td style={{ ...styles.td, textAlign: 'right', fontWeight: '800', color: '#B45309' }}>
+                          {(row.sumOfKg || 0).toLocaleString()}
+                        </td>
+                        <td style={{ ...styles.td, textAlign: 'right' }}>
+                          <div style={styles.pctCell}>
+                            <span style={styles.pctText}>{row.percentage || 0}%</span>
+                            <div style={styles.pctTrack}>
+                              <div
+                                style={{
+                                  ...styles.pctBar,
+                                  width: `${Math.min(100, row.percentage || 0)}%`,
+                                  background: '#F59E0B',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={styles.tfootRow}>
+                    <td colSpan={2} style={{ ...styles.tdFoot, fontWeight: '800', color: '#78350F' }}>
+                      Grand Total
+                    </td>
+                    <td style={{ ...styles.tdFoot, textAlign: 'right', fontWeight: '900', color: '#B45309', fontSize: '14px' }}>
+                      {(kpis.totalConsumptionKg || 0).toLocaleString()} KG
+                    </td>
+                    <td style={{ ...styles.tdFoot, textAlign: 'right', fontWeight: '800' }}>
+                      100%
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
         </div>
 
-        <div style={styles.chartsGrid}>
-          {/* ── Chart 1: Daily Material Movement Timeline (Bar Chart) ── */}
-          {(chartViewTab === 'all' || chartViewTab === 'timeline') && (
-            <div style={styles.chartCard}>
-              <div style={styles.chartCardHeader}>
-                <div style={styles.chartCardHeaderLeft}>
-                  <BarChart3 size={18} style={{ color: '#2563EB' }} />
-                  <div>
-                    <h4 style={styles.chartCardTitle}>
-                      DAILY MATERIAL FLOW TIMELINE (KG)
-                    </h4>
-                    <span style={styles.chartCardSubtitle}>
-                      Receive (Emerald) vs Issue (Violet) vs Floor Consumed
-                      (Amber)
-                    </span>
-                  </div>
-                </div>
-                <span
-                  style={{
-                    ...styles.chartMiniBadge,
-                    background: '#EDE9FE',
-                    color: '#6D28D9',
-                  }}
-                >
-                  Flow Timeline
-                </span>
-              </div>
+        {/* ── 5. SUMMARY & HIGHLIGHTS CARDS ── */}
+        <div style={styles.highlightsContainer}>
+          <div style={styles.highlightsHeader}>
+            <BarChart3 size={18} style={{ color: '#0F172A' }} />
+            <h3 style={styles.highlightsTitle}>SUMMARY & HIGHLIGHTS</h3>
+            <span style={styles.highlightsSubtitle}>
+              Derived operational metrics for executive control
+            </span>
+          </div>
 
-              {loading ? (
-                <div style={styles.chartLoadingWrapper}>
-                  <div className="chart-spinner" />
-                  <span style={styles.chartLoadingText}>
-                    Loading timeline telemetry...
-                  </span>
-                </div>
-              ) : (
-                <UltraResponsiveChart
-                  height={310}
-                  isEmpty={sortedDailyFlow.length === 0}
-                  emptyTitle="No Daily Material Flow Recorded"
-                  emptySubtitle="No Store Issue, Receive, or Floor Consumption logs for this timeframe."
-                >
-                  {({ width, height, scale, isMobile }) => (
-                    <BarChart
-                      width={width}
-                      height={height}
-                      data={sortedDailyFlow}
-                      margin={{
-                        top: 15 * scale,
-                        right: isMobile ? 10 : 20 * scale,
-                        left: isMobile ? -25 : -10,
-                        bottom: 5,
-                      }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                      <XAxis
-                        dataKey="date"
-                        stroke="#64748B"
-                        fontSize={Math.round(11 * scale)}
-                        tickLine={false}
-                        tickFormatter={formatDateTick}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        stroke="#64748B"
-                        fontSize={Math.round(11 * scale)}
-                        tickLine={false}
-                        tickFormatter={(val) =>
-                          Number(val) >= 1000
-                            ? `${(Number(val) / 1000).toFixed(0)}k`
-                            : val
-                        }
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: '#0F172A',
-                          color: '#fff',
-                          borderRadius: '8px',
-                          border: 'none',
-                          fontSize: `${Math.round(12 * scale)}px`,
-                        }}
-                        formatter={(val, name) => [
-                          `${Number(val).toLocaleString()} KG`,
-                          name,
-                        ]}
-                      />
-                      <Legend
-                        wrapperStyle={{
-                          fontSize: `${Math.round(11 * scale)}px`,
-                          paddingTop: '6px',
-                        }}
-                      />
-                      <Bar
-                        dataKey="receiveKg"
-                        fill="#10B981"
-                        name="Received (KG)"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="issueKg"
-                        fill="#8B5CF6"
-                        name="Issued (KG)"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="consumptionKg"
-                        fill="#F59E0B"
-                        name="Consumed (KG)"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  )}
-                </UltraResponsiveChart>
-              )}
+          <div style={styles.highlightsGrid}>
+            <div style={styles.highlightTile}>
+              <span style={styles.highlightTileLabel}>Net Inventory Movement</span>
+              <div
+                style={{
+                  ...styles.highlightTileValue,
+                  color: (highlights.netBalanceKg || 0) >= 0 ? '#047857' : '#DC2626',
+                }}
+              >
+                {(highlights.netBalanceKg || 0) >= 0 ? '+' : ''}
+                {(highlights.netBalanceKg || 0).toLocaleString()} KG
+              </div>
+              <span style={styles.highlightTileDesc}>Receive vs Issue variance</span>
             </div>
-          )}
 
-          {/* ── Chart 2: Top Materials Volume Share (Donut / Pie Chart) ── */}
-          {(chartViewTab === 'all' || chartViewTab === 'materials') && (
-            <div style={styles.chartCard}>
-              <div style={styles.chartCardHeader}>
-                <div style={styles.chartCardHeaderLeft}>
-                  <PieChartIcon size={18} style={{ color: '#8B5CF6' }} />
-                  <div>
-                    <h4 style={styles.chartCardTitle}>
-                      TOP MATERIALS VOLUME SHARE (%)
-                    </h4>
-                    <span style={styles.chartCardSubtitle}>
-                      Proportional volume share across primary commodities in KG
-                    </span>
-                  </div>
+            <div style={styles.highlightTile}>
+              <span style={styles.highlightTileLabel}>Consumption Efficiency</span>
+              <div style={{ ...styles.highlightTileValue, color: '#2563EB' }}>
+                {highlights.consumptionIssueRatio || 0}%
+              </div>
+              <span style={styles.highlightTileDesc}>Floor utilization vs issued</span>
+            </div>
+
+            <div style={styles.highlightTile}>
+              <span style={styles.highlightTileLabel}>Active SKU Count</span>
+              <div style={{ ...styles.highlightTileValue, color: '#7C3AED' }}>
+                {highlights.activeSkuCount || 0} Materials
+              </div>
+              <span style={styles.highlightTileDesc}>SKUs moved in period</span>
+            </div>
+
+            <div style={styles.highlightTile}>
+              <span style={styles.highlightTileLabel}>Peak Issue Volume</span>
+              <div style={{ ...styles.highlightTileValue, color: '#BE185D' }}>
+                {(highlights.peakIssueQty || 0).toLocaleString()} KG
+              </div>
+              <span style={styles.highlightTileDesc}>
+                Peak date: {highlights.peakIssueDate || '-'}
+              </span>
+            </div>
+
+            <div style={styles.highlightTile}>
+              <span style={styles.highlightTileLabel}>Average Daily Issue</span>
+              <div style={{ ...styles.highlightTileValue, color: '#0F766E' }}>
+                {(highlights.avgDailyIssueKg || 0).toLocaleString()} KG/Day
+              </div>
+              <span style={styles.highlightTileDesc}>Monthly throughput rate</span>
+            </div>
+
+            <div style={styles.highlightTile}>
+              <span style={styles.highlightTileLabel}>Store Velocity Status</span>
+              <div style={{ ...styles.highlightTileValue, fontSize: '18px', color: '#1E293B' }}>
+                {highlights.turnoverStatus || 'STEADY'}
+              </div>
+              <span style={styles.highlightTileDesc}>Depot workload status</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 6. KEY INSIGHTS ── */}
+        <div style={styles.insightsBanner}>
+          <div style={styles.insightsHeader}>
+            <Sparkles size={20} style={{ color: '#FBBF24' }} />
+            <h3 style={styles.insightsTitle}>
+              EXECUTIVE STORE INTELLIGENCE & AUDIT INSIGHTS
+            </h3>
+          </div>
+
+          <div style={styles.insightsList}>
+            {insights.length === 0 ? (
+              <div style={styles.insightItem}>
+                • No material movement found for the selected period.
+              </div>
+            ) : (
+              insights.map((insight, idx) => (
+                <div key={idx} style={styles.insightItem}>
+                  <ChevronRight
+                    size={16}
+                    style={{ color: '#38BDF8', flexShrink: 0, marginTop: '2px' }}
+                  />
+                  <span
+                    dangerouslySetInnerHTML={{
+                      __html: insight.replace(
+                        /\*\*(.*?)\*\*/g,
+                        '<strong style="color: #F8FAFC; font-weight: 800;">$1</strong>',
+                      ),
+                    }}
+                  />
                 </div>
-                <span
-                  style={{
-                    ...styles.chartMiniBadge,
-                    background: '#FCE7F3',
-                    color: '#BE185D',
-                  }}
-                >
-                  Distribution
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* ── 7. MATERIAL FLOW VISUALIZATION SUITE (6 CHARTS) ── */}
+        <div style={styles.chartsSuiteSection} className="no-print">
+          <div style={styles.chartsSuiteHeader}>
+            <div style={styles.chartsSuiteHeaderLeft}>
+              <Activity size={22} style={{ color: '#2563EB' }} />
+              <div>
+                <h3 style={styles.chartsSuiteTitle}>
+                  STORE MATERIAL MOVEMENT VISUALIZATION & FLOW ANALYTICS
+                </h3>
+                <span style={styles.chartsSuiteSubtitle}>
+                  Complete timeline, material share, cumulative trajectory, item
+                  comparison, net variance, and operational balance
                 </span>
               </div>
+            </div>
 
-              {loading ? (
-                <div style={styles.chartLoadingWrapper}>
-                  <div className="chart-spinner" />
-                  <span style={styles.chartLoadingText}>
-                    Loading distribution telemetry...
+            <div style={styles.chartTabGroup}>
+              <button
+                type="button"
+                onClick={() => setChartViewTab('all')}
+                style={{
+                  ...styles.chartTabBtn,
+                  ...(chartViewTab === 'all' ? styles.chartTabActive : {}),
+                }}
+              >
+                <Layers size={13} />
+                All Visuals (6)
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartViewTab('timeline')}
+                style={{
+                  ...styles.chartTabBtn,
+                  ...(chartViewTab === 'timeline' ? styles.chartTabActive : {}),
+                }}
+              >
+                <LineChartIcon size={13} />
+                Daily Timelines
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartViewTab('materials')}
+                style={{
+                  ...styles.chartTabBtn,
+                  ...(chartViewTab === 'materials' ? styles.chartTabActive : {}),
+                }}
+              >
+                <PieChartIcon size={13} />
+                Material Shares
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartViewTab('balance')}
+                style={{
+                  ...styles.chartTabBtn,
+                  ...(chartViewTab === 'balance' ? styles.chartTabActive : {}),
+                }}
+              >
+                <SlidersHorizontal size={13} />
+                Inventory Velocity
+              </button>
+            </div>
+          </div>
+
+          <div style={styles.chartsGrid}>
+            {/* Chart 1: Daily Material Movement Timeline */}
+            {(chartViewTab === 'all' || chartViewTab === 'timeline') && (
+              <div style={styles.chartCard}>
+                <div style={styles.chartCardHeader}>
+                  <div style={styles.chartCardHeaderLeft}>
+                    <BarChart3 size={18} style={{ color: '#2563EB' }} />
+                    <div>
+                      <h4 style={styles.chartCardTitle}>
+                        DAILY MATERIAL FLOW TIMELINE (KG)
+                      </h4>
+                      <span style={styles.chartCardSubtitle}>
+                        Receive (Emerald) vs Issue (Violet) vs Floor Consumed (Amber)
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{ ...styles.chartMiniBadge, background: '#EDE9FE', color: '#6D28D9' }}>
+                    Flow Timeline
                   </span>
                 </div>
-              ) : (
-                <UltraResponsiveChart
-                  height={310}
-                  isEmpty={topMaterialsShareData.length === 0}
-                  emptyTitle="No Material Share Data"
-                  emptySubtitle="No item transactions recorded for the selected period."
-                >
-                  {({ width, height, scale }) => {
-                    const minDim = Math.min(width, height);
-                    const innerR = Math.max(38, Math.round(minDim * 0.22));
-                    const outerR = Math.max(68, Math.round(minDim * 0.38));
 
-                    return (
-                      <PieChart
+                {loading ? (
+                  <div style={styles.chartLoadingWrapper}>
+                    <div className="chart-spinner" />
+                    <span style={styles.chartLoadingText}>Loading timeline telemetry...</span>
+                  </div>
+                ) : (
+                  <UltraResponsiveChart
+                    height={310}
+                    isEmpty={sortedDailyFlow.length === 0}
+                    emptyTitle="No Daily Material Flow Recorded"
+                    emptySubtitle="No Store Issue, Receive, or Floor Consumption logs for this timeframe."
+                  >
+                    {({ width, height, scale, isMobile }) => (
+                      <BarChart
                         width={width}
                         height={height}
-                        margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                        data={sortedDailyFlow}
+                        margin={{
+                          top: 15 * scale,
+                          right: isMobile ? 10 : 20 * scale,
+                          left: isMobile ? -25 : -10,
+                          bottom: 5,
+                        }}
                       >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                        <XAxis
+                          dataKey="date"
+                          stroke="#64748B"
+                          fontSize={Math.round(11 * scale)}
+                          tickLine={false}
+                          tickFormatter={formatDateTick}
+                          interval="preserveStartEnd"
+                        />
+                        <YAxis
+                          stroke="#64748B"
+                          fontSize={Math.round(11 * scale)}
+                          tickLine={false}
+                          tickFormatter={(val) =>
+                            Number(val) >= 1000 ? `${(Number(val) / 1000).toFixed(0)}k` : val
+                          }
+                        />
                         <Tooltip
                           contentStyle={{
                             background: '#0F172A',
@@ -1494,554 +1436,703 @@ export const PlantHeadMaterialAnalytics = () => {
                             border: 'none',
                             fontSize: `${Math.round(12 * scale)}px`,
                           }}
-                          formatter={(val, name, entry) => [
-                            `${Number(val).toLocaleString()} KG (${entry?.payload?.percentage || 0}%)`,
-                            entry?.payload?.name,
+                          formatter={(val, name) => [`${Number(val).toLocaleString()} KG`, name]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: `${Math.round(11 * scale)}px`, paddingTop: '6px' }} />
+                        <Bar dataKey="receiveKg" fill="#10B981" name="Received (KG)" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="issueKg" fill="#8B5CF6" name="Issued (KG)" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="consumptionKg" fill="#F59E0B" name="Consumed (KG)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    )}
+                  </UltraResponsiveChart>
+                )}
+              </div>
+            )}
+
+            {/* Chart 2: Top Materials Volume Share (Donut) */}
+            {(chartViewTab === 'all' || chartViewTab === 'materials') && (
+              <div style={styles.chartCard}>
+                <div style={styles.chartCardHeader}>
+                  <div style={styles.chartCardHeaderLeft}>
+                    <PieChartIcon size={18} style={{ color: '#8B5CF6' }} />
+                    <div>
+                      <h4 style={styles.chartCardTitle}>TOP MATERIALS VOLUME SHARE (%)</h4>
+                      <span style={styles.chartCardSubtitle}>
+                        Proportional volume share across primary commodities in KG
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{ ...styles.chartMiniBadge, background: '#FCE7F3', color: '#BE185D' }}>
+                    Distribution
+                  </span>
+                </div>
+
+                {loading ? (
+                  <div style={styles.chartLoadingWrapper}>
+                    <div className="chart-spinner" />
+                    <span style={styles.chartLoadingText}>Loading distribution telemetry...</span>
+                  </div>
+                ) : (
+                  <UltraResponsiveChart
+                    height={310}
+                    isEmpty={topMaterialsShareData.length === 0}
+                    emptyTitle="No Material Share Data"
+                    emptySubtitle="No item transactions recorded for the selected period."
+                  >
+                    {({ width, height, scale }) => {
+                      const minDim = Math.min(width, height);
+                      const innerR = Math.max(38, Math.round(minDim * 0.22));
+                      const outerR = Math.max(68, Math.round(minDim * 0.38));
+
+                      return (
+                        <PieChart width={width} height={height} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                          <Tooltip
+                            contentStyle={{
+                              background: '#0F172A',
+                              color: '#fff',
+                              borderRadius: '8px',
+                              border: 'none',
+                              fontSize: `${Math.round(12 * scale)}px`,
+                            }}
+                            formatter={(val, name, entry) => [
+                              `${Number(val).toLocaleString()} KG (${entry?.payload?.percentage || 0}%)`,
+                              entry?.payload?.name,
+                            ]}
+                          />
+                          <Legend wrapperStyle={{ fontSize: `${Math.round(11 * scale)}px`, paddingTop: '6px' }} />
+                          <Pie
+                            data={topMaterialsShareData}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="48%"
+                            innerRadius={innerR}
+                            outerRadius={outerR}
+                            paddingAngle={3}
+                          >
+                            {topMaterialsShareData.map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      );
+                    }}
+                  </UltraResponsiveChart>
+                )}
+              </div>
+            )}
+
+            {/* Chart 3: Cumulative Material Trajectory */}
+            {(chartViewTab === 'all' || chartViewTab === 'timeline') && (
+              <div style={styles.chartCard}>
+                <div style={styles.chartCardHeader}>
+                  <div style={styles.chartCardHeaderLeft}>
+                    <LineChartIcon size={18} style={{ color: '#10B981' }} />
+                    <div>
+                      <h4 style={styles.chartCardTitle}>CUMULATIVE INVENTORY TRAJECTORY (KG)</h4>
+                      <span style={styles.chartCardSubtitle}>
+                        Progressive store intake vs depot issue vs shop floor draw
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{ ...styles.chartMiniBadge, background: '#D1FAE5', color: '#065F46' }}>
+                    Accumulation
+                  </span>
+                </div>
+
+                {loading ? (
+                  <div style={styles.chartLoadingWrapper}>
+                    <div className="chart-spinner" />
+                    <span style={styles.chartLoadingText}>Loading trajectory telemetry...</span>
+                  </div>
+                ) : (
+                  <UltraResponsiveChart
+                    height={310}
+                    isEmpty={cumulativeFlowData.length === 0}
+                    emptyTitle="No Cumulative Telemetry"
+                    emptySubtitle="No cumulative inventory flow recorded for this timeframe."
+                  >
+                    {({ width, height, scale, isMobile }) => (
+                      <AreaChart
+                        width={width}
+                        height={height}
+                        data={cumulativeFlowData}
+                        margin={{
+                          top: 15 * scale,
+                          right: isMobile ? 10 : 20 * scale,
+                          left: isMobile ? -25 : -10,
+                          bottom: 5,
+                        }}
+                      >
+                        <defs>
+                          <linearGradient id="gradReceive" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10B981" stopOpacity={0.45} />
+                            <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
+                          </linearGradient>
+                          <linearGradient id="gradIssue" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.45} />
+                            <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                        <XAxis
+                          dataKey="date"
+                          stroke="#64748B"
+                          fontSize={Math.round(11 * scale)}
+                          tickLine={false}
+                          tickFormatter={formatDateTick}
+                          interval="preserveStartEnd"
+                        />
+                        <YAxis
+                          stroke="#64748B"
+                          fontSize={Math.round(11 * scale)}
+                          tickLine={false}
+                          tickFormatter={(val) =>
+                            Number(val) >= 1000 ? `${(Number(val) / 1000).toFixed(0)}k` : val
+                          }
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: '#0F172A',
+                            color: '#fff',
+                            borderRadius: '8px',
+                            border: 'none',
+                            fontSize: `${Math.round(12 * scale)}px`,
+                          }}
+                          formatter={(val, name) => [`${Number(val).toLocaleString()} KG`, name]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: `${Math.round(11 * scale)}px`, paddingTop: '6px' }} />
+                        <Area
+                          type="monotone"
+                          dataKey="cumReceiveKg"
+                          stroke="#10B981"
+                          strokeWidth={Math.max(2, Math.round(2 * scale))}
+                          fillOpacity={1}
+                          fill="url(#gradReceive)"
+                          name="Cum. Received (KG)"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="cumIssueKg"
+                          stroke="#8B5CF6"
+                          strokeWidth={Math.max(2, Math.round(2 * scale))}
+                          fillOpacity={1}
+                          fill="url(#gradIssue)"
+                          name="Cum. Issued (KG)"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="cumConsumptionKg"
+                          stroke="#F59E0B"
+                          strokeWidth={Math.max(2.5, Math.round(2.5 * scale))}
+                          dot={false}
+                          name="Cum. Consumed (KG)"
+                        />
+                      </AreaChart>
+                    )}
+                  </UltraResponsiveChart>
+                )}
+              </div>
+            )}
+
+            {/* Chart 4: Top Materials Issue vs Receive Comparison */}
+            {(chartViewTab === 'all' || chartViewTab === 'materials') && (
+              <div style={styles.chartCard}>
+                <div style={styles.chartCardHeader}>
+                  <div style={styles.chartCardHeaderLeft}>
+                    <BarChart3 size={18} style={{ color: '#0284C7' }} />
+                    <div>
+                      <h4 style={styles.chartCardTitle}>TOP MATERIALS: ISSUE VS RECEIVE (KG)</h4>
+                      <span style={styles.chartCardSubtitle}>
+                        Direct side-by-side comparison for primary commodities
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{ ...styles.chartMiniBadge, background: '#E0F2FE', color: '#0369A1' }}>
+                    Commodity Matrix
+                  </span>
+                </div>
+
+                {loading ? (
+                  <div style={styles.chartLoadingWrapper}>
+                    <div className="chart-spinner" />
+                    <span style={styles.chartLoadingText}>Loading commodity matrix...</span>
+                  </div>
+                ) : (
+                  <UltraResponsiveChart
+                    height={310}
+                    isEmpty={itemWiseComparisonData.length === 0}
+                    emptyTitle="No Commodity Comparison Data"
+                    emptySubtitle="No item issue or receive records found for this period."
+                  >
+                    {({ width, height, scale, isMobile }) => (
+                      <BarChart
+                        width={width}
+                        height={height}
+                        data={itemWiseComparisonData}
+                        layout="vertical"
+                        margin={{
+                          top: 10,
+                          right: isMobile ? 15 : 25 * scale,
+                          left: isMobile ? 25 : 35 * scale,
+                          bottom: 5,
+                        }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                        <XAxis
+                          type="number"
+                          stroke="#64748B"
+                          fontSize={Math.round(11 * scale)}
+                          tickFormatter={(val) =>
+                            Number(val) >= 1000 ? `${(Number(val) / 1000).toFixed(0)}k` : val
+                          }
+                        />
+                        <YAxis
+                          dataKey="itemName"
+                          type="category"
+                          stroke="#64748B"
+                          fontSize={Math.round(isMobile ? 9.5 : 10.5 * scale)}
+                          tickLine={false}
+                          width={isMobile ? 75 : Math.round(95 * scale)}
+                          tickFormatter={(str) => (str.length > 12 ? `${str.slice(0, 12)}…` : str)}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: '#0F172A',
+                            color: '#fff',
+                            borderRadius: '8px',
+                            border: 'none',
+                            fontSize: `${Math.round(12 * scale)}px`,
+                          }}
+                          formatter={(val, name) => [`${Number(val).toLocaleString()} KG`, name]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: `${Math.round(11 * scale)}px`, paddingTop: '6px' }} />
+                        <Bar dataKey="receiveKg" fill="#10B981" name="Received (KG)" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="issueKg" fill="#8B5CF6" name="Issued (KG)" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    )}
+                  </UltraResponsiveChart>
+                )}
+              </div>
+            )}
+
+            {/* Chart 5: Daily Net Inventory Variance / Volatility */}
+            {(chartViewTab === 'all' || chartViewTab === 'balance') && (
+              <div style={styles.chartCard}>
+                <div style={styles.chartCardHeader}>
+                  <div style={styles.chartCardHeaderLeft}>
+                    <Activity size={18} style={{ color: '#F59E0B' }} />
+                    <div>
+                      <h4 style={styles.chartCardTitle}>DAILY NET STORE BALANCE FLOW (KG)</h4>
+                      <span style={styles.chartCardSubtitle}>
+                        Net Intake (+) Inflow vs Net Drawdown (-) Depletion
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{ ...styles.chartMiniBadge, background: '#FEF3C7', color: '#B45309' }}>
+                    Net Volatility
+                  </span>
+                </div>
+
+                {loading ? (
+                  <div style={styles.chartLoadingWrapper}>
+                    <div className="chart-spinner" />
+                    <span style={styles.chartLoadingText}>Loading net flow telemetry...</span>
+                  </div>
+                ) : (
+                  <UltraResponsiveChart
+                    height={310}
+                    isEmpty={dailyNetVarianceData.length === 0}
+                    emptyTitle="No Balance Variance Records"
+                    emptySubtitle="No store intake or issue variance recorded for this period."
+                  >
+                    {({ width, height, scale, isMobile }) => (
+                      <BarChart
+                        width={width}
+                        height={height}
+                        data={dailyNetVarianceData}
+                        margin={{
+                          top: 15 * scale,
+                          right: isMobile ? 10 : 20 * scale,
+                          left: isMobile ? -25 : -10,
+                          bottom: 5,
+                        }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                        <XAxis
+                          dataKey="date"
+                          stroke="#64748B"
+                          fontSize={Math.round(11 * scale)}
+                          tickLine={false}
+                          tickFormatter={formatDateTick}
+                          interval="preserveStartEnd"
+                        />
+                        <YAxis
+                          stroke="#64748B"
+                          fontSize={Math.round(11 * scale)}
+                          tickLine={false}
+                          tickFormatter={(val) =>
+                            Math.abs(Number(val)) >= 1000 ? `${(Number(val) / 1000).toFixed(0)}k` : val
+                          }
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: '#0F172A',
+                            color: '#fff',
+                            borderRadius: '8px',
+                            border: 'none',
+                            fontSize: `${Math.round(12 * scale)}px`,
+                          }}
+                          formatter={(val) => [
+                            `${Number(val) >= 0 ? '+' : ''}${Number(val).toLocaleString()} KG`,
+                            'Net Flow',
                           ]}
                         />
-                        <Legend
-                          wrapperStyle={{
-                            fontSize: `${Math.round(11 * scale)}px`,
-                            paddingTop: '6px',
-                          }}
-                        />
-                        <Pie
-                          data={topMaterialsShareData}
-                          dataKey="value"
-                          nameKey="name"
-                          cx="50%"
-                          cy="48%"
-                          innerRadius={innerR}
-                          outerRadius={outerR}
-                          paddingAngle={3}
-                        >
-                          {topMaterialsShareData.map((_, index) => (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={PIE_COLORS[index % PIE_COLORS.length]}
-                            />
+                        <ReferenceLine y={0} stroke="#94A3B8" strokeWidth={1.5} />
+                        <Bar dataKey="netKg" name="Net Balance (KG)">
+                          {dailyNetVarianceData.map((entry, index) => (
+                            <Cell key={`net-cell-${index}`} fill={entry.netKg >= 0 ? '#10B981' : '#F43F5E'} />
                           ))}
-                        </Pie>
-                      </PieChart>
-                    );
-                  }}
-                </UltraResponsiveChart>
-              )}
-            </div>
-          )}
-
-          {/* ── Chart 3: Cumulative Material Trajectory (Area Chart) ── */}
-          {(chartViewTab === 'all' || chartViewTab === 'timeline') && (
-            <div style={styles.chartCard}>
-              <div style={styles.chartCardHeader}>
-                <div style={styles.chartCardHeaderLeft}>
-                  <LineChartIcon size={18} style={{ color: '#10B981' }} />
-                  <div>
-                    <h4 style={styles.chartCardTitle}>
-                      CUMULATIVE INVENTORY TRAJECTORY (KG)
-                    </h4>
-                    <span style={styles.chartCardSubtitle}>
-                      Progressive store intake vs depot issue vs shop floor draw
-                    </span>
-                  </div>
-                </div>
-                <span
-                  style={{
-                    ...styles.chartMiniBadge,
-                    background: '#D1FAE5',
-                    color: '#065F46',
-                  }}
-                >
-                  Accumulation
-                </span>
+                        </Bar>
+                      </BarChart>
+                    )}
+                  </UltraResponsiveChart>
+                )}
               </div>
+            )}
 
-              {loading ? (
-                <div style={styles.chartLoadingWrapper}>
-                  <div className="chart-spinner" />
-                  <span style={styles.chartLoadingText}>
-                    Loading trajectory telemetry...
+            {/* Chart 6: Operational Flow Balance & Velocity */}
+            {(chartViewTab === 'all' || chartViewTab === 'balance') && (
+              <div style={styles.chartCard}>
+                <div style={styles.chartCardHeader}>
+                  <div style={styles.chartCardHeaderLeft}>
+                    <SlidersHorizontal size={18} style={{ color: '#0F172A' }} />
+                    <div>
+                      <h4 style={styles.chartCardTitle}>
+                        OPERATIONAL FLOW BALANCE & VELOCITY (KG)
+                      </h4>
+                      <span style={styles.chartCardSubtitle}>
+                        Comparative aggregate volume breakdown across metrics
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{ ...styles.chartMiniBadge, background: '#F1F5F9', color: '#334155' }}>
+                    Aggregate
                   </span>
                 </div>
-              ) : (
-                <UltraResponsiveChart
-                  height={310}
-                  isEmpty={cumulativeFlowData.length === 0}
-                  emptyTitle="No Cumulative Telemetry"
-                  emptySubtitle="No cumulative inventory flow recorded for this timeframe."
-                >
-                  {({ width, height, scale, isMobile }) => (
-                    <AreaChart
-                      width={width}
-                      height={height}
-                      data={cumulativeFlowData}
-                      margin={{
-                        top: 15 * scale,
-                        right: isMobile ? 10 : 20 * scale,
-                        left: isMobile ? -25 : -10,
-                        bottom: 5,
-                      }}
-                    >
-                      <defs>
-                        <linearGradient
-                          id="gradReceive"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="5%"
-                            stopColor="#10B981"
-                            stopOpacity={0.45}
-                          />
-                          <stop
-                            offset="95%"
-                            stopColor="#10B981"
-                            stopOpacity={0.0}
-                          />
-                        </linearGradient>
-                        <linearGradient
-                          id="gradIssue"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="5%"
-                            stopColor="#8B5CF6"
-                            stopOpacity={0.45}
-                          />
-                          <stop
-                            offset="95%"
-                            stopColor="#8B5CF6"
-                            stopOpacity={0.0}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                      <XAxis
-                        dataKey="date"
-                        stroke="#64748B"
-                        fontSize={Math.round(11 * scale)}
-                        tickLine={false}
-                        tickFormatter={formatDateTick}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        stroke="#64748B"
-                        fontSize={Math.round(11 * scale)}
-                        tickLine={false}
-                        tickFormatter={(val) =>
-                          Number(val) >= 1000
-                            ? `${(Number(val) / 1000).toFixed(0)}k`
-                            : val
-                        }
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: '#0F172A',
-                          color: '#fff',
-                          borderRadius: '8px',
-                          border: 'none',
-                          fontSize: `${Math.round(12 * scale)}px`,
-                        }}
-                        formatter={(val, name) => [
-                          `${Number(val).toLocaleString()} KG`,
-                          name,
-                        ]}
-                      />
-                      <Legend
-                        wrapperStyle={{
-                          fontSize: `${Math.round(11 * scale)}px`,
-                          paddingTop: '6px',
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="cumReceiveKg"
-                        stroke="#10B981"
-                        strokeWidth={Math.max(2, Math.round(2 * scale))}
-                        fillOpacity={1}
-                        fill="url(#gradReceive)"
-                        name="Cum. Received (KG)"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="cumIssueKg"
-                        stroke="#8B5CF6"
-                        strokeWidth={Math.max(2, Math.round(2 * scale))}
-                        fillOpacity={1}
-                        fill="url(#gradIssue)"
-                        name="Cum. Issued (KG)"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="cumConsumptionKg"
-                        stroke="#F59E0B"
-                        strokeWidth={Math.max(2.5, Math.round(2.5 * scale))}
-                        dot={false}
-                        name="Cum. Consumed (KG)"
-                      />
-                    </AreaChart>
-                  )}
-                </UltraResponsiveChart>
-              )}
-            </div>
-          )}
 
-          {/* ── Chart 4: Top Materials Issue vs Receive Comparison ── */}
-          {(chartViewTab === 'all' || chartViewTab === 'materials') && (
-            <div style={styles.chartCard}>
-              <div style={styles.chartCardHeader}>
-                <div style={styles.chartCardHeaderLeft}>
-                  <BarChart3 size={18} style={{ color: '#0284C7' }} />
-                  <div>
-                    <h4 style={styles.chartCardTitle}>
-                      TOP MATERIALS: ISSUE VS RECEIVE (KG)
-                    </h4>
-                    <span style={styles.chartCardSubtitle}>
-                      Direct side-by-side comparison for primary commodities
-                    </span>
+                {loading ? (
+                  <div style={styles.chartLoadingWrapper}>
+                    <div className="chart-spinner" />
+                    <span style={styles.chartLoadingText}>Loading aggregate velocity...</span>
                   </div>
-                </div>
-                <span
-                  style={{
-                    ...styles.chartMiniBadge,
-                    background: '#E0F2FE',
-                    color: '#0369A1',
-                  }}
-                >
-                  Commodity Matrix
-                </span>
-              </div>
-
-              {loading ? (
-                <div style={styles.chartLoadingWrapper}>
-                  <div className="chart-spinner" />
-                  <span style={styles.chartLoadingText}>
-                    Loading commodity matrix...
-                  </span>
-                </div>
-              ) : (
-                <UltraResponsiveChart
-                  height={310}
-                  isEmpty={itemWiseComparisonData.length === 0}
-                  emptyTitle="No Commodity Comparison Data"
-                  emptySubtitle="No item issue or receive records found for this period."
-                >
-                  {({ width, height, scale, isMobile }) => (
-                    <BarChart
-                      width={width}
-                      height={height}
-                      data={itemWiseComparisonData}
-                      layout="vertical"
-                      margin={{
-                        top: 10,
-                        right: isMobile ? 15 : 25 * scale,
-                        left: isMobile ? 25 : 35 * scale,
-                        bottom: 5,
-                      }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                      <XAxis
-                        type="number"
-                        stroke="#64748B"
-                        fontSize={Math.round(11 * scale)}
-                        tickFormatter={(val) =>
-                          Number(val) >= 1000
-                            ? `${(Number(val) / 1000).toFixed(0)}k`
-                            : val
-                        }
-                      />
-                      <YAxis
-                        dataKey="itemName"
-                        type="category"
-                        stroke="#64748B"
-                        fontSize={Math.round(isMobile ? 9.5 : 10.5 * scale)}
-                        tickLine={false}
-                        width={isMobile ? 75 : Math.round(95 * scale)}
-                        tickFormatter={(str) =>
-                          str.length > 12 ? `${str.slice(0, 12)}…` : str
-                        }
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: '#0F172A',
-                          color: '#fff',
-                          borderRadius: '8px',
-                          border: 'none',
-                          fontSize: `${Math.round(12 * scale)}px`,
+                ) : (
+                  <UltraResponsiveChart
+                    height={310}
+                    isEmpty={
+                      kpis.totalReceiveKg === 0 &&
+                      kpis.totalIssueKg === 0 &&
+                      kpis.totalConsumptionKg === 0
+                    }
+                    emptyTitle="No Flow Velocity Data"
+                    emptySubtitle="All store movement metrics are currently at 0 KG for this timeframe."
+                  >
+                    {({ width, height, scale, isMobile }) => (
+                      <BarChart
+                        width={width}
+                        height={height}
+                        data={summaryComparisonData}
+                        layout="vertical"
+                        margin={{
+                          top: 15,
+                          right: isMobile ? 20 : 30 * scale,
+                          left: isMobile ? 15 : 20 * scale,
+                          bottom: 5,
                         }}
-                        formatter={(val, name) => [
-                          `${Number(val).toLocaleString()} KG`,
-                          name,
-                        ]}
-                      />
-                      <Legend
-                        wrapperStyle={{
-                          fontSize: `${Math.round(11 * scale)}px`,
-                          paddingTop: '6px',
-                        }}
-                      />
-                      <Bar
-                        dataKey="receiveKg"
-                        fill="#10B981"
-                        name="Received (KG)"
-                        radius={[0, 4, 4, 0]}
-                      />
-                      <Bar
-                        dataKey="issueKg"
-                        fill="#8B5CF6"
-                        name="Issued (KG)"
-                        radius={[0, 4, 4, 0]}
-                      />
-                    </BarChart>
-                  )}
-                </UltraResponsiveChart>
-              )}
-            </div>
-          )}
-
-          {/* ── Chart 5: Daily Net Inventory Variance / Volatility ── */}
-          {(chartViewTab === 'all' || chartViewTab === 'balance') && (
-            <div style={styles.chartCard}>
-              <div style={styles.chartCardHeader}>
-                <div style={styles.chartCardHeaderLeft}>
-                  <Activity size={18} style={{ color: '#F59E0B' }} />
-                  <div>
-                    <h4 style={styles.chartCardTitle}>
-                      DAILY NET STORE BALANCE FLOW (KG)
-                    </h4>
-                    <span style={styles.chartCardSubtitle}>
-                      Net Intake (+) Inflow vs Net Drawdown (-) Depletion
-                    </span>
-                  </div>
-                </div>
-                <span
-                  style={{
-                    ...styles.chartMiniBadge,
-                    background: '#FEF3C7',
-                    color: '#B45309',
-                  }}
-                >
-                  Net Volatility
-                </span>
-              </div>
-
-              {loading ? (
-                <div style={styles.chartLoadingWrapper}>
-                  <div className="chart-spinner" />
-                  <span style={styles.chartLoadingText}>
-                    Loading net flow telemetry...
-                  </span>
-                </div>
-              ) : (
-                <UltraResponsiveChart
-                  height={310}
-                  isEmpty={dailyNetVarianceData.length === 0}
-                  emptyTitle="No Balance Variance Records"
-                  emptySubtitle="No store intake or issue variance recorded for this period."
-                >
-                  {({ width, height, scale, isMobile }) => (
-                    <BarChart
-                      width={width}
-                      height={height}
-                      data={dailyNetVarianceData}
-                      margin={{
-                        top: 15 * scale,
-                        right: isMobile ? 10 : 20 * scale,
-                        left: isMobile ? -25 : -10,
-                        bottom: 5,
-                      }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                      <XAxis
-                        dataKey="date"
-                        stroke="#64748B"
-                        fontSize={Math.round(11 * scale)}
-                        tickLine={false}
-                        tickFormatter={formatDateTick}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        stroke="#64748B"
-                        fontSize={Math.round(11 * scale)}
-                        tickLine={false}
-                        tickFormatter={(val) =>
-                          Math.abs(Number(val)) >= 1000
-                            ? `${(Number(val) / 1000).toFixed(0)}k`
-                            : val
-                        }
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: '#0F172A',
-                          color: '#fff',
-                          borderRadius: '8px',
-                          border: 'none',
-                          fontSize: `${Math.round(12 * scale)}px`,
-                        }}
-                        formatter={(val) => [
-                          `${Number(val) >= 0 ? '+' : ''}${Number(val).toLocaleString()} KG`,
-                          'Net Flow',
-                        ]}
-                      />
-                      <ReferenceLine y={0} stroke="#94A3B8" strokeWidth={1.5} />
-                      <Bar dataKey="netKg" name="Net Balance (KG)">
-                        {dailyNetVarianceData.map((entry, index) => (
-                          <Cell
-                            key={`net-cell-${index}`}
-                            fill={entry.netKg >= 0 ? '#10B981' : '#F43F5E'}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  )}
-                </UltraResponsiveChart>
-              )}
-            </div>
-          )}
-
-          {/* ── Chart 6: Operational Velocity & Flow Balance ── */}
-          {(chartViewTab === 'all' || chartViewTab === 'balance') && (
-            <div style={styles.chartCard}>
-              <div style={styles.chartCardHeader}>
-                <div style={styles.chartCardHeaderLeft}>
-                  <SlidersHorizontal size={18} style={{ color: '#0F172A' }} />
-                  <div>
-                    <h4 style={styles.chartCardTitle}>
-                      OPERATIONAL FLOW BALANCE & VELOCITY (KG)
-                    </h4>
-                    <span style={styles.chartCardSubtitle}>
-                      Comparative aggregate volume breakdown across metrics
-                    </span>
-                  </div>
-                </div>
-                <span
-                  style={{
-                    ...styles.chartMiniBadge,
-                    background: '#F1F5F9',
-                    color: '#334155',
-                  }}
-                >
-                  Aggregate
-                </span>
-              </div>
-
-              {loading ? (
-                <div style={styles.chartLoadingWrapper}>
-                  <div className="chart-spinner" />
-                  <span style={styles.chartLoadingText}>
-                    Loading aggregate velocity...
-                  </span>
-                </div>
-              ) : (
-                <UltraResponsiveChart
-                  height={310}
-                  isEmpty={
-                    kpis.totalReceiveKg === 0 &&
-                    kpis.totalIssueKg === 0 &&
-                    kpis.totalConsumptionKg === 0
-                  }
-                  emptyTitle="No Flow Velocity Data"
-                  emptySubtitle="All store movement metrics are currently at 0 KG for this timeframe."
-                >
-                  {({ width, height, scale, isMobile }) => (
-                    <BarChart
-                      width={width}
-                      height={height}
-                      data={summaryComparisonData}
-                      layout="vertical"
-                      margin={{
-                        top: 15,
-                        right: isMobile ? 20 : 30 * scale,
-                        left: isMobile ? 15 : 20 * scale,
-                        bottom: 5,
-                      }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                      <XAxis
-                        type="number"
-                        stroke="#64748B"
-                        fontSize={Math.round(11 * scale)}
-                        tickFormatter={(val) =>
-                          Number(val) >= 1000
-                            ? `${(Number(val) / 1000).toFixed(0)}k`
-                            : val
-                        }
-                      />
-                      <YAxis
-                        dataKey="name"
-                        type="category"
-                        stroke="#64748B"
-                        fontSize={Math.round(11 * scale)}
-                        tickLine={false}
-                        width={isMobile ? 95 : Math.round(115 * scale)}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: '#0F172A',
-                          color: '#fff',
-                          borderRadius: '8px',
-                          border: 'none',
-                          fontSize: `${Math.round(12 * scale)}px`,
-                        }}
-                        formatter={(val) => [
-                          `${Number(val).toLocaleString()} KG`,
-                        ]}
-                      />
-                      <Bar
-                        dataKey="volumeKg"
-                        name="Volume (KG)"
-                        radius={[0, 6, 6, 0]}
                       >
-                        {summaryComparisonData.map((entry, index) => (
-                          <Cell key={`cell-comp-${index}`} fill={entry.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  )}
-                </UltraResponsiveChart>
-              )}
-            </div>
-          )}
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                        <XAxis
+                          type="number"
+                          stroke="#64748B"
+                          fontSize={Math.round(11 * scale)}
+                          tickFormatter={(val) =>
+                            Number(val) >= 1000 ? `${(Number(val) / 1000).toFixed(0)}k` : val
+                          }
+                        />
+                        <YAxis
+                          dataKey="name"
+                          type="category"
+                          stroke="#64748B"
+                          fontSize={Math.round(11 * scale)}
+                          tickLine={false}
+                          width={isMobile ? 95 : Math.round(115 * scale)}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: '#0F172A',
+                            color: '#fff',
+                            borderRadius: '8px',
+                            border: 'none',
+                            fontSize: `${Math.round(12 * scale)}px`,
+                          }}
+                          formatter={(val) => [`${Number(val).toLocaleString()} KG`]}
+                        />
+                        <Bar dataKey="volumeKg" name="Volume (KG)" radius={[0, 6, 6, 0]}>
+                          {summaryComparisonData.map((entry, index) => (
+                            <Cell key={`cell-comp-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    )}
+                  </UltraResponsiveChart>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          8. FORMAL PRINT-ONLY FOOTER & SIGN-OFF BLOCK
+          DEDICATED PRINT-ONLY OFFICIAL A4 AUDIT REPORT
       ───────────────────────────────────────────────────────────── */}
-      <div style={styles.printFooterBlock} className="print-only">
-        <div style={styles.printSignGrid}>
-          <div style={styles.printSignBox}>
-            <div style={styles.printSignLine} />
-            <div style={styles.printSignTitle}>STORE IN-CHARGE</div>
-            <div style={styles.printSignSub}>Himalaya Store Dept.</div>
+      <div className="print-only-report">
+        {/* Official Letterhead */}
+        <div style={styles.printHeaderBox}>
+          <div>
+            <div style={styles.printCompanyTitle}>
+              HIMALAYA MACHINERY PVT. LTD.
+            </div>
+            <div style={styles.printReportSubtitle}>
+              STORE R/O MONTHLY MATERIAL AUDIT & STOCK CONTROL STATEMENT
+            </div>
+            <div style={styles.printReportSubtext}>
+              PostgreSQL Verified Ledger • Plant Head Executive Operations Manifest
+            </div>
           </div>
-          <div style={styles.printSignBox}>
-            <div style={styles.printSignLine} />
-            <div style={styles.printSignTitle}>PLANT HEAD</div>
-            <div style={styles.printSignSub}>Operations & Production</div>
-          </div>
-          <div style={styles.printSignBox}>
-            <div style={styles.printSignLine} />
-            <div style={styles.printSignTitle}>INTERNAL AUDITOR</div>
-            <div style={styles.printSignSub}>Finance & Ledger Audit</div>
+          <div style={styles.printMetaBlock}>
+            <div><strong>Period:</strong> {analyticsData?.period?.periodLabel || kpis.month || 'AUGUST 2026'}</div>
+            <div><strong>Generated:</strong> {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+            <div><strong>Document ID:</strong> STR-RO-{(analyticsData?.period?.periodLabel || 'AUDIT').replace(/\s+/g, '-').toUpperCase()}</div>
+            <div><strong>Ledger Integrity:</strong> Reconciled &amp; Active</div>
           </div>
         </div>
-        <div style={styles.printDisclaimer}>
-          This Store R/O statement is electronically generated from the
-          authoritative PostgreSQL ledger of Himalaya Machinery ERP.
+
+        {/* KPI Performance Summary Matrix */}
+        <div style={styles.printKpiGrid}>
+          <div style={styles.printKpiCard}>
+            <div style={styles.printKpiLabel}>Total Store Issue</div>
+            <div style={{ ...styles.printKpiVal, color: '#6D28D9' }}>
+              {(kpis.totalIssueKg || 0).toLocaleString()} KG
+            </div>
+            <div style={styles.printKpiFoot}>Dispatched to floor</div>
+          </div>
+          <div style={styles.printKpiCard}>
+            <div style={styles.printKpiLabel}>Total Store Receive</div>
+            <div style={{ ...styles.printKpiVal, color: '#047857' }}>
+              {(kpis.totalReceiveKg || 0).toLocaleString()} KG
+            </div>
+            <div style={styles.printKpiFoot}>Verified intake</div>
+          </div>
+          <div style={styles.printKpiCard}>
+            <div style={styles.printKpiLabel}>Floor Consumption</div>
+            <div style={{ ...styles.printKpiVal, color: '#B45309' }}>
+              {(kpis.totalConsumptionKg || 0).toLocaleString()} KG
+            </div>
+            <div style={styles.printKpiFoot}>Shop floor usage</div>
+          </div>
+          <div style={styles.printKpiCard}>
+            <div style={styles.printKpiLabel}>Net Movement Delta</div>
+            <div style={{ ...styles.printKpiVal, color: (highlights.netBalanceKg || 0) >= 0 ? '#047857' : '#DC2626' }}>
+              {(highlights.netBalanceKg || 0) >= 0 ? '+' : ''}{(highlights.netBalanceKg || 0).toLocaleString()} KG
+            </div>
+            <div style={styles.printKpiFoot}>Receive vs Issue</div>
+          </div>
+          <div style={styles.printKpiCard}>
+            <div style={styles.printKpiLabel}>Utilization Efficiency</div>
+            <div style={{ ...styles.printKpiVal, color: '#2563EB' }}>
+              {highlights.consumptionIssueRatio || 0}%
+            </div>
+            <div style={styles.printKpiFoot}>Consumption/Issue</div>
+          </div>
+        </div>
+
+        {/* Section 1: Store Issues */}
+        <div style={styles.printSection}>
+          <div style={styles.printSectionTitle}>
+            1. STORE ISSUE (KG) – ITEM WISE ({filteredIssues.length} Materials Dispatched)
+          </div>
+          <table className="print-table">
+            <thead>
+              <tr style={{ background: '#F1F5F9', color: '#0F172A', textAlign: 'left', fontWeight: '800' }}>
+                <th style={{ width: '40px', textAlign: 'center' }}>Sr</th>
+                <th>Material Description / Item Name</th>
+                <th style={{ width: '130px' }}>Item SKU</th>
+                <th style={{ width: '60px', textAlign: 'center' }}>Unit</th>
+                <th style={{ width: '110px', textAlign: 'right' }}>Sum of KG</th>
+                <th style={{ width: '70px', textAlign: 'right' }}>Share %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredIssues.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '12px', color: '#64748B' }}>
+                    No store issues recorded for this period.
+                  </td>
+                </tr>
+              ) : (
+                filteredIssues.map((row, idx) => (
+                  <tr key={idx}>
+                    <td style={{ textAlign: 'center', fontWeight: '700' }}>{row.sr || idx + 1}</td>
+                    <td style={{ fontWeight: '700' }}>{row.itemName}</td>
+                    <td>{row.itemSku || '-'}</td>
+                    <td style={{ textAlign: 'center' }}>{row.unit || 'KG'}</td>
+                    <td style={{ textAlign: 'right', fontWeight: '800' }}>{(row.sumOfKg || 0).toLocaleString()}</td>
+                    <td style={{ textAlign: 'right' }}>{row.percentage || 0}%</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#F8FAFC', fontWeight: '900' }}>
+                <td colSpan={4} style={{ textAlign: 'right', paddingRight: '12px' }}>Total Store Issues:</td>
+                <td style={{ textAlign: 'right', color: '#6D28D9' }}>{(kpis.totalIssueKg || 0).toLocaleString()} KG</td>
+                <td style={{ textAlign: 'right' }}>100%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        {/* Section 2: Store Receives */}
+        <div style={styles.printSection}>
+          <div style={styles.printSectionTitle}>
+            2. STORE RECEIVE (KG) – ITEM WISE ({filteredReceives.length} Materials Intake Verified)
+          </div>
+          <table className="print-table">
+            <thead>
+              <tr style={{ background: '#F1F5F9', color: '#0F172A', textAlign: 'left', fontWeight: '800' }}>
+                <th style={{ width: '40px', textAlign: 'center' }}>Sr</th>
+                <th>Material Description / Item Name</th>
+                <th style={{ width: '130px' }}>Item SKU</th>
+                <th style={{ width: '60px', textAlign: 'center' }}>Unit</th>
+                <th style={{ width: '110px', textAlign: 'right' }}>Sum of KG</th>
+                <th style={{ width: '70px', textAlign: 'right' }}>Share %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredReceives.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '12px', color: '#64748B' }}>
+                    No store receipts recorded for this period.
+                  </td>
+                </tr>
+              ) : (
+                filteredReceives.map((row, idx) => (
+                  <tr key={idx}>
+                    <td style={{ textAlign: 'center', fontWeight: '700' }}>{row.sr || idx + 1}</td>
+                    <td style={{ fontWeight: '700' }}>{row.itemName}</td>
+                    <td>{row.itemSku || '-'}</td>
+                    <td style={{ textAlign: 'center' }}>{row.unit || 'KG'}</td>
+                    <td style={{ textAlign: 'right', fontWeight: '800' }}>{(row.sumOfKg || 0).toLocaleString()}</td>
+                    <td style={{ textAlign: 'right' }}>{row.percentage || 0}%</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#F8FAFC', fontWeight: '900' }}>
+                <td colSpan={4} style={{ textAlign: 'right', paddingRight: '12px' }}>Total Store Receipts:</td>
+                <td style={{ textAlign: 'right', color: '#047857' }}>{(kpis.totalReceiveKg || 0).toLocaleString()} KG</td>
+                <td style={{ textAlign: 'right' }}>100%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        {/* Section 3: Consumption */}
+        <div style={styles.printSection}>
+          <div style={styles.printSectionTitle}>
+            3. TOP 10 DATES – CONSUMPTION (KG) ({top10DatesConsumption.length} Active Days)
+          </div>
+          <table className="print-table">
+            <thead>
+              <tr style={{ background: '#F1F5F9', color: '#0F172A', textAlign: 'left', fontWeight: '800' }}>
+                <th style={{ width: '40px', textAlign: 'center' }}>Sr</th>
+                <th>Consumption Log Date</th>
+                <th style={{ width: '150px', textAlign: 'right' }}>Quantity Consumed (KG)</th>
+                <th style={{ width: '80px', textAlign: 'right' }}>Share %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {top10DatesConsumption.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: 'center', padding: '12px', color: '#64748B' }}>
+                    No floor consumption recorded for this period.
+                  </td>
+                </tr>
+              ) : (
+                top10DatesConsumption.map((row, idx) => (
+                  <tr key={idx}>
+                    <td style={{ textAlign: 'center', fontWeight: '700' }}>{row.sr || idx + 1}</td>
+                    <td style={{ fontWeight: '700' }}>{row.date}</td>
+                    <td style={{ textAlign: 'right', fontWeight: '800' }}>{(row.sumOfKg || 0).toLocaleString()} KG</td>
+                    <td style={{ textAlign: 'right' }}>{row.percentage || 0}%</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#F8FAFC', fontWeight: '900' }}>
+                <td colSpan={2} style={{ textAlign: 'right', paddingRight: '12px' }}>Total Floor Consumption:</td>
+                <td style={{ textAlign: 'right', color: '#B45309' }}>{(kpis.totalConsumptionKg || 0).toLocaleString()} KG</td>
+                <td style={{ textAlign: 'right' }}>100%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        {/* Section 4: Key Insights */}
+        {insights.length > 0 && (
+          <div style={styles.printSection}>
+            <div style={styles.printSectionTitle}>4. EXECUTIVE TELEMETRY & AUDIT HIGHLIGHTS</div>
+            <div style={{ border: '1px solid #CBD5E1', borderRadius: '6px', padding: '10px 14px', background: '#F8FAFC' }}>
+              {insights.map((ins, idx) => (
+                <div key={idx} style={{ fontSize: '10px', color: '#334155', marginBottom: '4px' }}>
+                  • {ins.replace(/\*\*(.*?)\*\*/g, '$1')}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Tri-Signature Stamp & Authorization Box */}
+        <div style={styles.printFooterBox}>
+          <div style={styles.printSignRow}>
+            <div style={styles.printSignCol}>
+              <div style={styles.printSignBorder} />
+              <div style={styles.printSignRole}>STORE IN-CHARGE</div>
+              <div style={styles.printSignDept}>Himalaya Store Dept.</div>
+            </div>
+            <div style={styles.printSignCol}>
+              <div style={styles.printSignBorder} />
+              <div style={styles.printSignRole}>PLANT HEAD</div>
+              <div style={styles.printSignDept}>Operations & Production</div>
+            </div>
+            <div style={styles.printSignCol}>
+              <div style={styles.printSignBorder} />
+              <div style={styles.printSignRole}>INTERNAL AUDITOR</div>
+              <div style={styles.printSignDept}>Finance & Material Audit</div>
+            </div>
+          </div>
+          <div style={styles.printLegalNote}>
+            This Store R/O statement is electronically generated from the authoritative PostgreSQL database of Himalaya Machinery ERP.
+          </div>
         </div>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          UNIVERSAL RESPONSIVE CSS STYLES (320px to 12K Ultra HD)
+          UNIVERSAL RESPONSIVE CSS & PRINT MEDIA RULES
       ───────────────────────────────────────────────────────────── */}
       <style jsx global>{`
-        /* Universal Box-Sizing & Zero Horizontal Scroll Rules */
         .store-ro-dashboard * {
           box-sizing: border-box;
         }
@@ -2064,7 +2155,95 @@ export const PlantHeadMaterialAnalytics = () => {
           animation: spin 0.8s linear infinite;
         }
 
-        /* ── Extra Small Devices (320px - 480px: iPhone SE, Galaxy Fold cover) ── */
+        /* ── Screen Mode: Hide Print Document ── */
+        @media screen {
+          .print-only-report {
+            display: none !important;
+          }
+        }
+
+        /* ── Print Media: Dedicated Official A4 Report ── */
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 8mm 8mm 8mm 8mm;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          html,
+          body,
+          #__next,
+          .app-container,
+          .main-viewport,
+          .plant-head-portal-root,
+          div[class*='layout'],
+          main {
+            background: #ffffff !important;
+            color: #0f172a !important;
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            position: static !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          .print-only-report,
+          .print-only-report * {
+            visibility: visible !important;
+          }
+          .print-only-report {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
+            padding: 4mm 6mm !important;
+            margin: 0 !important;
+          }
+          .screen-only-view,
+          .no-print,
+          .hero-banner,
+          .o2p-workflow-banner,
+          .sidebar,
+          .app-sidebar,
+          nav,
+          header,
+          aside,
+          button,
+          input,
+          select {
+            display: none !important;
+          }
+          .print-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 10px !important;
+          }
+          .print-table thead {
+            display: table-header-group !important;
+          }
+          .print-table tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .print-table th,
+          .print-table td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 5px 8px !important;
+          }
+        }
+
+        /* ── Extra Small Devices (320px - 480px) ── */
         @media (max-width: 480px) {
           .store-ro-dashboard {
             padding: 8px !important;
@@ -2076,7 +2255,7 @@ export const PlantHeadMaterialAnalytics = () => {
           }
         }
 
-        /* ── Small to Medium Devices (481px - 768px: Mobile Landscape, Mini Tablets) ── */
+        /* ── Small to Medium Devices (481px - 768px) ── */
         @media (min-width: 481px) and (max-width: 768px) {
           .store-ro-dashboard {
             padding: 14px !important;
@@ -2146,43 +2325,6 @@ export const PlantHeadMaterialAnalytics = () => {
           }
           .store-ro-dashboard h4 {
             font-size: 24px !important;
-          }
-        }
-
-        /* Print Media Styles */
-        @media print {
-          body {
-            background: #ffffff !important;
-            color: #000000 !important;
-            font-size: 10pt !important;
-          }
-          .no-print {
-            display: none !important;
-          }
-          .print-only {
-            display: block !important;
-          }
-          .store-ro-dashboard {
-            padding: 0 !important;
-            max-width: 100% !important;
-          }
-          .print-header {
-            background: #0f172a !important;
-            color: #ffffff !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          table {
-            page-break-inside: auto;
-          }
-          tr {
-            page-break-inside: avoid;
-            page-break-after: auto;
-          }
-        }
-        @media screen {
-          .print-only {
-            display: none;
           }
         }
       `}</style>
@@ -2837,38 +2979,115 @@ const styles = {
     color: '#64748B',
     fontWeight: '600',
   },
-  printFooterBlock: {
-    marginTop: '40px',
-    paddingTop: '20px',
-    borderTop: '2px solid #000',
-    width: '100%',
-  },
-  printSignGrid: {
+
+  // ── Print-Only Report Styles ──
+  printHeaderBox: {
+    borderBottom: '2.5px solid #0F172A',
+    paddingBottom: '12px',
+    marginBottom: '16px',
     display: 'flex',
     justifyContent: 'space-between',
-    marginTop: '60px',
+    alignItems: 'flex-start',
   },
-  printSignBox: {
-    textAlign: 'center',
-    width: '200px',
+  printCompanyTitle: {
+    fontSize: '20px',
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: '-0.02em',
+    textTransform: 'uppercase',
   },
-  printSignLine: {
-    borderTop: '1px solid #000',
-    marginBottom: '6px',
-  },
-  printSignTitle: {
+  printReportSubtitle: {
     fontSize: '11px',
     fontWeight: '800',
+    color: '#0284C7',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginTop: '2px',
   },
-  printSignSub: {
+  printReportSubtext: {
+    fontSize: '9.5px',
+    color: '#64748B',
+    marginTop: '2px',
+  },
+  printMetaBlock: {
+    textAlign: 'right',
     fontSize: '10px',
-    color: '#666',
+    color: '#334155',
+    lineHeight: '1.4',
   },
-  printDisclaimer: {
-    marginTop: '40px',
+  printKpiGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(5, 1fr)',
+    gap: '10px',
+    marginBottom: '20px',
+  },
+  printKpiCard: {
+    border: '1.5px solid #CBD5E1',
+    borderRadius: '6px',
+    padding: '8px 10px',
+    background: '#F8FAFC',
+  },
+  printKpiLabel: {
     fontSize: '9px',
-    color: '#666',
+    fontWeight: '800',
+    color: '#475569',
+    textTransform: 'uppercase',
+  },
+  printKpiVal: {
+    fontSize: '15px',
+    fontWeight: '900',
+    marginTop: '2px',
+  },
+  printKpiFoot: {
+    fontSize: '8.5px',
+    color: '#64748B',
+    marginTop: '1px',
+  },
+  printSection: {
+    marginBottom: '20px',
+    breakInside: 'avoid',
+  },
+  printSectionTitle: {
+    fontSize: '12px',
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: '8px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.02em',
+  },
+  printFooterBox: {
+    marginTop: '28px',
+    borderTop: '1.5px dashed #94A3B8',
+    paddingTop: '20px',
+    breakInside: 'avoid',
+  },
+  printSignRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '0 20px',
+    marginBottom: '20px',
+  },
+  printSignCol: {
     textAlign: 'center',
+    width: '180px',
+  },
+  printSignBorder: {
+    borderTop: '1.5px solid #0F172A',
+    marginBottom: '6px',
+  },
+  printSignRole: {
+    fontSize: '10.5px',
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  printSignDept: {
+    fontSize: '9px',
+    color: '#64748B',
+  },
+  printLegalNote: {
+    textAlign: 'center',
+    fontSize: '8.5px',
+    color: '#94A3B8',
   },
 };
 
