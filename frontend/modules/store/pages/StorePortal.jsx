@@ -674,75 +674,33 @@ export default function StorePortal() {
   // Unified Raw Inventory UI states
   const [dbRawInventory, setDbRawInventory] = useState([]);
   const [loadingRawInventory, setLoadingRawInventory] = useState(false);
+  const [rawInventoryError, setRawInventoryError] = useState(null);
+  const rawInventoryRequest = useRef(0);
 
   const fetchRawInventory = useCallback(async () => {
     try {
       setLoadingRawInventory(true);
-      const [prodRes, stockRes] = await Promise.all([
-        apiClient.get('/products?type=RAW_MATERIAL'),
-        apiClient.get('/inventory/stock-levels')
-      ]);
-      const products = Array.isArray(prodRes?.data) ? prodRes.data : (prodRes?.data?.data || []);
-      const stocks = Array.isArray(stockRes?.data) ? stockRes.data : (stockRes?.data?.data || []);
-      
-      const enriched = products.map(p => {
-        const pSku = (p.sku || p.code || '').trim().toLowerCase();
-        const pName = (p.name || p.material || '').trim().toLowerCase();
-        const stockItem = stocks.find(s => {
-          if (s.productId && (s.productId === p.id || s.productId === p.productId)) return true;
-          if (s.rawMaterialId && (s.rawMaterialId === p.id || s.rawMaterialId === p.rawMaterialId)) return true;
-          const sSku = (s.sku || '').trim().toLowerCase();
-          if (pSku && sSku && pSku === sSku) return true;
-          const sName = (s.name || '').trim().toLowerCase();
-          if (pName && sName && pName === sName) return true;
-          return false;
-        });
-        const qty = stockItem ? Number(stockItem.quantity) : 0;
-        const min = Number(p.minimumStock) || 0;
-        let status;
-        if (qty <= 0) {
-          status = 'Out of Stock';
-        } else if (min > 0 && qty < min) {
-          status = 'Low Stock';
-        } else {
-          status = 'In Stock';
-        }
-        const hash = (p.id || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const mod = hash % 10;
-        let fsn = 'Fast Moving';
-        if (qty <= 0) {
-          fsn = 'Non-Moving';
-        } else if (mod < 6) {
-          fsn = 'Fast Moving';
-        } else if (mod < 9) {
-          fsn = 'Slow Moving';
-        } else {
-          fsn = 'Non-Moving';
-        }
-
-        return {
-          id: p.id,
-          code: safeText(p.sku || p.publicId, `RM-${p.id}`),
-          material: safeText(p.name, 'Raw Material'),
-          category: safeText(p.category, 'Raw Material'),
-          unit: safeText(p.unit, 'Kg'),
-          minStock: min,
-          reorderLevel: min,
-          rate: Number(p.unitPrice) || 0,
-          stock: qty,
-          description: p.description || '',
-          storageLocation: p.storageLocation || '',
-          location: 'Raw Material Store',
-          status,
-          fsn,
-          history: [] 
-        };
-      });
-      setDbRawInventory(enriched);
+      setRawInventoryError(null);
+      const response = await apiClient.get('/inventory/raw-material-snapshot');
+      const products = Array.isArray(response?.data) ? response.data : response?.data?.data;
+      if (!Array.isArray(products)) throw new Error('Invalid inventory response');
+      const enriched = products.map(p => ({
+        id: p.id, code: p.sku || p.publicId || p.id, material: p.name,
+        category: p.category, unit: p.unit, minStock: p.minimumStock,
+        reorderLevel: p.minimumStock, rate: p.unitPrice, stock: p.quantity,
+        description: p.description, storageLocation: p.storageLocation,
+        location: p.storageLocation || 'Not recorded',
+        status: ({ IN_STOCK: 'In Stock', LOW_STOCK: 'Low Stock', OUT_OF_STOCK: 'Out of Stock', UNKNOWN: 'Unknown' })[p.stockStatus],
+        fsn: p.movement, history: [],
+      }));
+      if (request === rawInventoryRequest.current) setDbRawInventory(enriched);
     } catch (error) {
-      console.error('Failed to fetch raw inventory:', error);
+      if (request === rawInventoryRequest.current) {
+        setDbRawInventory([]);
+        setRawInventoryError('Unable to load Store inventory. Please retry.');
+      }
     } finally {
-      setLoadingRawInventory(false);
+      if (request === rawInventoryRequest.current) setLoadingRawInventory(false);
     }
   }, []);
 
@@ -1694,14 +1652,20 @@ export default function StorePortal() {
     const rawInvTotalPages = Math.ceil(sortedFilteredItems.length / rawInvPageSize) || 1;
     const paginatedRawInvItems = sortedFilteredItems.slice((rawInvPage - 1) * rawInvPageSize, rawInvPage * rawInvPageSize);
     const totalMaterials = mappedInventory.length;
-    const totalStockQty = mappedInventory.reduce((sum, i) => sum + (Number(i.stock) || 0), 0);
+    const stockByUnit = mappedInventory.reduce((totals, item) => {
+      const previous = totals[item.unit];
+      totals[item.unit] = item.stock == null || previous === null ? null : (previous || 0) + item.stock;
+      return totals;
+    }, {});
+    const stockSummary = Object.entries(stockByUnit).map(([unit, qty]) => (qty == null ? 'Unknown' : Number(qty).toLocaleString()) + ' ' + unit).join(' / ');
+    const totalStockQty = null;
     const lowStockItems = mappedInventory.filter(i => i.status === 'Low Stock').length;
     const outOfStockItems = mappedInventory.filter(i => i.status === 'Out of Stock').length;
     const inStockItems = mappedInventory.filter(i => i.status === 'In Stock').length;
     const fastMovingCount = mappedInventory.filter(i => i.fsn === 'Fast Moving').length;
     const slowMovingCount = mappedInventory.filter(i => i.fsn === 'Slow Moving').length;
     const nonMovingCount = mappedInventory.filter(i => i.fsn === 'Non-Moving').length;
-    const totalInventoryValue = mappedInventory.reduce((sum, i) => sum + ((Number(i.stock) || 0) * (Number(i.rate) || 0)), 0);
+    const totalInventoryValue = mappedInventory.some(i => i.stock == null || i.rate == null) ? null : mappedInventory.reduce((sum, i) => sum + i.stock * i.rate, 0);
 
     const handleExport = () => {
       try {
@@ -1732,13 +1696,14 @@ export default function StorePortal() {
         ];
 
         const rows = exportDataset.map(item => {
-          const stock = Number(item.stock ?? 0);
+          const stock = item.stock == null ? null : Number(item.stock);
           const minStock = Number(item.reorderLevel ?? item.minStock ?? 0);
-          const rate = Number(item.rate ?? 0);
-          const value = stock * rate;
+          const rate = item.rate == null ? null : Number(item.rate);
+          const value = stock == null || rate == null ? null : stock * rate;
           
           let statusText = 'IN STOCK';
-          if (stock <= 0) statusText = 'OUT OF STOCK';
+          if (stock == null) statusText = 'UNKNOWN';
+          else if (stock <= 0) statusText = 'OUT OF STOCK';
           else if (stock < minStock) statusText = 'LOW STOCK';
 
           return [
@@ -1746,14 +1711,14 @@ export default function StorePortal() {
             `"${(item.material || '').replace(/"/g, '""')}"`,
             `"${(item.category || 'Raw Material').replace(/"/g, '""')}"`,
             `"${(item.unit || 'Units').replace(/"/g, '""')}"`,
-            String(stock),
+            stock == null ? "Not available" : String(stock),
             String(minStock),
             String(minStock),
-            rate.toFixed(2),
-            value.toFixed(2),
+            rate == null ? "Not available" : rate.toFixed(2),
+            value == null ? "Not available" : value.toFixed(2),
             `"${statusText}"`,
-            `"${item.fsn || 'Fast Moving'}"`,
-            `"${(item.location || item.storageLocation || 'Main Depot').replace(/"/g, '""')}"`
+            `"${item.fsn || 'Not classified'}"`,
+            `"${(item.location || item.storageLocation || 'Not recorded').replace(/"/g, '""')}"`
           ];
         });
 
@@ -1871,7 +1836,7 @@ export default function StorePortal() {
               {totalMaterials}
             </span>
             <span className="m-theme-kpi-subtitle" style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>
-              Active SKU catalog
+              Store material catalog
             </span>
           </div>
 
@@ -1886,10 +1851,10 @@ export default function StorePortal() {
               </div>
             </div>
             <span className="m-theme-kpi-value" style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>
-              {(totalStockQty ?? 0).toLocaleString()} Units
+              {stockSummary || "No materials"}
             </span>
             <span className="m-theme-kpi-subtitle" style={{ fontSize: '11px', color: '#059669', fontWeight: '600', marginTop: '4px' }}>
-              Aggregated balance
+              Balances by recorded unit
             </span>
           </div>
 
@@ -1940,7 +1905,7 @@ export default function StorePortal() {
               </div>
             </div>
             <span className="m-theme-kpi-value" style={{ fontSize: '22px', fontWeight: '900', color: '#0f172a' }}>
-              ₹{(totalInventoryValue ?? 0).toLocaleString()}
+              ₹{totalInventoryValue == null ? "Not available" : totalInventoryValue.toLocaleString()}
             </span>
             <span className="m-theme-kpi-subtitle" style={{ fontSize: '11px', color: '#7c3aed', fontWeight: '600', marginTop: '4px' }}>
               Book valuation
@@ -2083,7 +2048,8 @@ export default function StorePortal() {
                   const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) < (item.reorderLevel ?? item.minStock ?? 0);
                   let statusText = 'IN STOCK';
                   let badgeColor = 'green';
-                  if (isOutOfStock) { statusText = 'OUT OF STOCK'; badgeColor = 'red'; }
+                  if (item.stock == null) { statusText = 'UNKNOWN'; badgeColor = 'yellow'; }
+                  else if (isOutOfStock) { statusText = 'OUT OF STOCK'; badgeColor = 'red'; }
                   else if (isLowStock) { statusText = 'LOW STOCK'; badgeColor = 'yellow'; }
 
                   return (
@@ -2110,7 +2076,7 @@ export default function StorePortal() {
                         </span>
                       </td>
                       <td style={{ fontWeight: '800', textAlign: 'right', whiteSpace: 'nowrap', color: isOutOfStock ? '#dc2626' : isLowStock ? '#d97706' : '#16a34a', fontSize: '13.5px' }}>
-                        {(item.stock ?? 0).toLocaleString()}
+                        {item.stock == null ? 'Unknown' : item.stock.toLocaleString()}
                       </td>
                       <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: '#64748b', fontWeight: '600' }}>
                         {(item.reorderLevel ?? item.minStock ?? 0).toLocaleString()}
@@ -2147,7 +2113,8 @@ export default function StorePortal() {
               const isLowStock = (item.stock ?? 0) > 0 && (item.stock ?? 0) < (item.reorderLevel ?? item.minStock ?? 0);
               let statusText = 'IN STOCK';
               let badgeColor = 'green';
-              if (isOutOfStock) { statusText = 'OUT OF STOCK'; badgeColor = 'red'; }
+              if (item.stock == null) { statusText = 'UNKNOWN'; badgeColor = 'yellow'; }
+                  else if (isOutOfStock) { statusText = 'OUT OF STOCK'; badgeColor = 'red'; }
               else if (isLowStock) { statusText = 'LOW STOCK'; badgeColor = 'yellow'; }
 
               return (
@@ -2184,7 +2151,7 @@ export default function StorePortal() {
                     <div className="raw-inv-stock-col" style={{ flexShrink: 0 }}>
                       <span className="raw-inv-stock-tag">CURRENT STOCK</span>
                       <span className={`raw-inv-stock-number raw-inv-stock-${badgeColor}`}>
-                        {(item.stock ?? 0).toLocaleString()} <span className="raw-inv-stock-unit">{safeText(item.unit, 'Kg')}</span>
+                        {item.stock == null ? 'Unknown' : item.stock.toLocaleString()} <span className="raw-inv-stock-unit">{safeText(item.unit, 'Kg')}</span>
                       </span>
                     </div>
                   </div>
@@ -2701,7 +2668,7 @@ export default function StorePortal() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                   <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', padding: '14px', borderRadius: '12px', textAlign: 'center' }}>
                     <span style={{ fontSize: '10px', color: '#166534', fontWeight: 'bold', textTransform: 'uppercase' }}>Current Balance</span>
-                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#14532d', marginTop: '4px' }}>{(item.stock ?? 0).toLocaleString()} {safeText(item.unit, 'Kg')}</div>
+                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#14532d', marginTop: '4px' }}>{item.stock == null ? 'Unknown' : item.stock.toLocaleString()} {safeText(item.unit, 'Kg')}</div>
                   </div>
                   <div style={{ background: '#fffbeb', border: '1.5px solid #fef3c7', padding: '14px', borderRadius: '12px', textAlign: 'center' }}>
                     <span style={{ fontSize: '10px', color: '#78350f', fontWeight: 'bold', textTransform: 'uppercase' }}>Min Stock Alert</span>

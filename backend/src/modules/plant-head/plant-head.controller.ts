@@ -174,8 +174,7 @@ export class PlantHeadController {
     @Query('year') year?: string,
   ) {
     const companyId =
-      (req as any).user?.['companyId'] ||
-      (req.headers['x-company-id'] as string);
+      (req as any).user?.['companyId'];
     return this.plantHeadService.getMaterialAnalytics(
       companyId,
       filter,
@@ -206,8 +205,7 @@ export class PlantHeadController {
     @Query('date') date?: string,
   ) {
     const companyId =
-      (req as any).user?.['companyId'] ||
-      (req.headers['x-company-id'] as string);
+      (req as any).user?.['companyId'];
     return this.plantHeadService.getMaterialWiseAnalytics(
       companyId,
       filter,
@@ -238,8 +236,7 @@ export class PlantHeadController {
     @Query('endDate') endDate?: string,
   ) {
     const companyId =
-      (req as any).user?.['companyId'] ||
-      (req.headers['x-company-id'] as string);
+      (req as any).user?.['companyId'];
     return this.plantHeadService.getMaterialTransactionHistory(
       companyId,
       materialId,

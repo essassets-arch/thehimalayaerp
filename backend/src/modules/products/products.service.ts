@@ -1,3 +1,4 @@
+import { loadRawMaterialCatalog } from '../inventory/raw-material-read-model';
 import {
   Injectable,
   NotFoundException,
@@ -214,108 +215,9 @@ export class ProductsService {
     }
 
     if (type === 'RAW_MATERIAL') {
-      const searchFilter = search
-        ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' as const } },
-              { sku: { contains: search, mode: 'insensitive' as const } },
-              { category: { contains: search, mode: 'insensitive' as const } },
-            ],
-          }
-        : {};
-
-      const [rawMaterials, rawProducts] = await Promise.all([
-        this.prisma.rawMaterial.findMany({
-          where: {
-            ...searchFilter,
-          },
-          orderBy: { sku: 'asc' },
-        }),
-        this.prisma.product.findMany({
-          where: {
-            OR: [
-              { productType: 'RAW_MATERIAL' },
-              { type: 'RAW_MATERIAL' },
-              { category: { contains: 'Raw', mode: 'insensitive' as const } },
-            ],
-            isActive: true,
-            ...(search
-              ? {
-                  OR: [
-                    { name: { contains: search, mode: 'insensitive' as const } },
-                    { sku: { contains: search, mode: 'insensitive' as const } },
-                    { category: { contains: search, mode: 'insensitive' as const } },
-                  ],
-                }
-              : {}),
-          },
-          orderBy: { sku: 'asc' },
-        }),
-      ]);
-
-      const seenSkus = new Set<string>();
-      const seenNames = new Set<string>();
-      const combined: any[] = [];
-
-      for (const rm of rawMaterials) {
-        const skuKey = (rm.sku || '').toLowerCase().trim();
-        const nameKey = (rm.name || '').toLowerCase().trim();
-        if (skuKey) seenSkus.add(skuKey);
-        if (nameKey) seenNames.add(nameKey);
-
-        const matchingProd = rawProducts.find((p) => {
-          const pSku = (p.sku || '').toLowerCase().trim();
-          const pName = (p.name || '').toLowerCase().trim();
-          return (skuKey && pSku === skuKey) || (nameKey && pName === nameKey);
-        });
-
-        combined.push({
-          id: rm.id,
-          rawMaterialId: rm.id,
-          productId: matchingProd?.id || rm.id,
-          publicId: rm.publicId || matchingProd?.publicId,
-          companyId: rm.companyId || matchingProd?.companyId,
-          name: rm.name,
-          sku: rm.sku || matchingProd?.sku,
-          category: rm.category || matchingProd?.category || 'Raw Material',
-          productType: 'RAW_MATERIAL',
-          unit: rm.unit || matchingProd?.unit || 'Kg',
-          minimumStock: Number(rm.minimumStock || matchingProd?.minimumStock || 0),
-          unitPrice: Number(matchingProd?.unitPrice || 0),
-          description: matchingProd?.description || '',
-          storageLocation: rm.storageLocation || (matchingProd as any)?.storageLocation || '',
-        });
-      }
-
-      for (const p of rawProducts) {
-        const pSku = (p.sku || '').toLowerCase().trim();
-        const pName = (p.name || '').toLowerCase().trim();
-        if ((pSku && seenSkus.has(pSku)) || (pName && seenNames.has(pName))) {
-          continue;
-        }
-        if (pSku) seenSkus.add(pSku);
-        if (pName) seenNames.add(pName);
-
-        combined.push({
-          id: p.id,
-          rawMaterialId: null,
-          productId: p.id,
-          publicId: p.publicId,
-          companyId: p.companyId,
-          name: p.name,
-          sku: p.sku,
-          category: p.category || 'Raw Material',
-          productType: 'RAW_MATERIAL',
-          unit: p.unit || 'Kg',
-          minimumStock: Number(p.minimumStock || 0),
-          unitPrice: Number(p.unitPrice || 0),
-          description: p.description || '',
-          storageLocation: (p as any).storageLocation || '',
-        });
-      }
-
-      combined.sort((a, b) => (a.sku || a.name || '').localeCompare(b.sku || b.name || ''));
-      return combined;
+      const catalog = await loadRawMaterialCatalog(this.prisma, companyId);
+      const term = search?.trim().toLowerCase();
+      return term ? catalog.filter(m => [m.name, m.sku, m.category].some(value => value.toLowerCase().includes(term))) : catalog;
     }
 
     const where: any = { companyId, isActive: true };
