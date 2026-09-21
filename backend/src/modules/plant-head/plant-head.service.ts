@@ -3663,51 +3663,9 @@ export class PlantHeadService {
     }
 
     // 2. Query Authoritative Deduplicated Material Master & Live Stock Balances
-    let [rawMaterials, rawProducts, allStockBalances] = await Promise.all([
+    // Aligned with products.service.ts type=RAW_MATERIAL so every company sees the complete Store catalog
+    const [rawMaterials, rawProducts] = await Promise.all([
       this.prisma.rawMaterial.findMany({
-        where: { ...companyWhere, isActive: true },
-        select: {
-          id: true,
-          name: true,
-          sku: true,
-          category: true,
-          unit: true,
-          minimumStock: true,
-        },
-        orderBy: { name: 'asc' },
-      }),
-      this.prisma.product.findMany({
-        where: {
-          ...companyWhere,
-          isActive: true,
-          OR: [
-            { productType: { in: ['RAW_MATERIAL', 'HARDWARE'] } },
-            { type: 'RAW_MATERIAL' },
-            { category: { contains: 'Raw', mode: 'insensitive' } },
-            { category: { contains: 'Hardware', mode: 'insensitive' } },
-          ],
-        },
-        select: {
-          id: true,
-          name: true,
-          sku: true,
-          category: true,
-          unit: true,
-          minimumStock: true,
-          productType: true,
-        },
-        orderBy: { name: 'asc' },
-      }),
-      this.prisma.inventoryTransaction.groupBy({
-        by: ['productId', 'rawMaterialId', 'type'],
-        _sum: { quantity: true },
-        where: { ...companyWhere },
-      }),
-    ]);
-
-    // Fallback: If company-specific catalog returned 0 raw materials, load system raw materials (aligned with Store Panel)
-    if (rawMaterials.length === 0) {
-      rawMaterials = await this.prisma.rawMaterial.findMany({
         where: { isActive: true },
         select: {
           id: true,
@@ -3716,13 +3674,13 @@ export class PlantHeadService {
           category: true,
           unit: true,
           minimumStock: true,
+          storageLocation: true,
+          publicId: true,
+          companyId: true,
         },
-        orderBy: { name: 'asc' },
-      });
-    }
-
-    if (rawProducts.length === 0 && companyId) {
-      rawProducts = await this.prisma.product.findMany({
+        orderBy: { sku: 'asc' },
+      }),
+      this.prisma.product.findMany({
         where: {
           isActive: true,
           OR: [
@@ -3739,11 +3697,21 @@ export class PlantHeadService {
           category: true,
           unit: true,
           minimumStock: true,
+          unitPrice: true,
+          publicId: true,
+          companyId: true,
           productType: true,
         },
-        orderBy: { name: 'asc' },
-      });
-    }
+        orderBy: { sku: 'asc' },
+      }),
+    ]);
+
+    // Query inventory transactions for live stock levels (matching Store Panel logic)
+    let allStockBalances = await this.prisma.inventoryTransaction.groupBy({
+      by: ['productId', 'rawMaterialId', 'type'],
+      _sum: { quantity: true },
+      where: { ...companyWhere },
+    });
 
     if (allStockBalances.length === 0 && companyId) {
       allStockBalances = (await this.prisma.inventoryTransaction.groupBy({
@@ -3752,18 +3720,44 @@ export class PlantHeadService {
       } as any)) as any;
     }
 
-    // Live Stock Map
+    // Live Stock Map calculation
     const currentStockMap = new Map<string, number>();
     for (const row of allStockBalances) {
-      const targetId = row.productId || row.rawMaterialId;
-      if (!targetId) continue;
       const qty = Number(row._sum.quantity || 0);
       const typeUpper = (row.type || '').toUpperCase().trim();
-      const current = currentStockMap.get(targetId) || 0;
-      if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN'].includes(typeUpper)) {
-        currentStockMap.set(targetId, current + qty);
-      } else if (['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT', 'ISSUE_TO_PRODUCTION'].includes(typeUpper)) {
-        currentStockMap.set(targetId, current - qty);
+      let delta = 0;
+      if (
+        [
+          'IN',
+          'PURCHASE_RECEIPT',
+          'OPENING_STOCK',
+          'QUICK_STOCK_IN',
+          'STOCK IN',
+          'STOCK_IN',
+          'PURCHASE_DELIVERY',
+        ].includes(typeUpper)
+      ) {
+        delta = qty;
+      } else if (
+        [
+          'OUT',
+          'QUICK_STOCK_OUT',
+          'STOCK OUT',
+          'STOCK_OUT',
+          'ISSUE_TO_PRODUCTION',
+          'PRODUCTION_ISSUE',
+        ].includes(typeUpper)
+      ) {
+        delta = -qty;
+      } else if (typeUpper === 'ADJUSTMENT') {
+        delta = qty;
+      }
+
+      if (row.productId) {
+        currentStockMap.set(row.productId, (currentStockMap.get(row.productId) || 0) + delta);
+      }
+      if (row.rawMaterialId) {
+        currentStockMap.set(row.rawMaterialId, (currentStockMap.get(row.rawMaterialId) || 0) + delta);
       }
     }
 
@@ -3774,49 +3768,119 @@ export class PlantHeadService {
       category: string;
       unit: string;
       minimumStock: number;
+      storageLocation: string;
+      unitRate: number;
       currentStock: number;
+      stockValue: number;
+      stockStatus: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
       source: 'RAW_MATERIAL' | 'PRODUCT';
+      rawMaterialId?: string | null;
+      productId?: string | null;
     }
 
     const materialCatalogMap = new Map<string, NormalizedMaterial>();
     const materialIdLookup = new Map<string, string>();
+    const seenSkus = new Set<string>();
+    const seenNames = new Set<string>();
 
     for (const rm of rawMaterials) {
-      const normKey = (rm.sku || rm.name || rm.id).trim().toLowerCase();
+      const skuKey = (rm.sku || rm.publicId || '').toLowerCase().trim();
+      const nameKey = (rm.name || '').toLowerCase().trim();
+      if (skuKey) seenSkus.add(skuKey);
+      if (nameKey) seenNames.add(nameKey);
+
+      const matchingProd = rawProducts.find((p) => {
+        const pSku = (p.sku || p.publicId || '').toLowerCase().trim();
+        const pName = (p.name || '').toLowerCase().trim();
+        return (skuKey && pSku === skuKey) || (nameKey && pName === nameKey);
+      });
+
+      let curStock = 0;
+      if (currentStockMap.has(rm.id)) {
+        curStock = currentStockMap.get(rm.id)!;
+      } else if (matchingProd && currentStockMap.has(matchingProd.id)) {
+        curStock = currentStockMap.get(matchingProd.id)!;
+      }
+      curStock = Math.max(0, Math.round(curStock * 100) / 100);
+
+      const minStock = Number(rm.minimumStock || matchingProd?.minimumStock || 0);
+      const unitRate = Number(matchingProd?.unitPrice || 0);
+      let stockStatus: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' = 'IN_STOCK';
+      if (curStock <= 0) {
+        stockStatus = 'OUT_OF_STOCK';
+      } else if (minStock > 0 && curStock < minStock) {
+        stockStatus = 'LOW_STOCK';
+      }
+
       const m: NormalizedMaterial = {
         id: rm.id,
         name: rm.name,
-        sku: rm.sku || '',
-        category: rm.category || 'Raw Material',
-        unit: rm.unit || 'KG',
-        minimumStock: Number(rm.minimumStock || 0),
-        currentStock: Math.max(0, Math.round((currentStockMap.get(rm.id) || 0) * 100) / 100),
+        sku: rm.sku || matchingProd?.sku || rm.publicId || '',
+        category: rm.category || matchingProd?.category || 'Raw Material',
+        unit: rm.unit || matchingProd?.unit || 'KG',
+        minimumStock: minStock,
+        storageLocation: rm.storageLocation || (matchingProd as any)?.storageLocation || 'Raw Material Store',
+        unitRate,
+        currentStock: curStock,
+        stockValue: Math.round(curStock * unitRate * 100) / 100,
+        stockStatus,
         source: 'RAW_MATERIAL',
+        rawMaterialId: rm.id,
+        productId: matchingProd?.id || null,
       };
+
+      const normKey = (m.sku || m.name || m.id).trim().toLowerCase();
       materialCatalogMap.set(normKey, m);
       materialIdLookup.set(rm.id, rm.id);
-      if (rm.sku) materialIdLookup.set(rm.sku.toLowerCase(), rm.id);
+      if (m.sku) materialIdLookup.set(m.sku.toLowerCase(), rm.id);
+      if (matchingProd) {
+        materialIdLookup.set(matchingProd.id, rm.id);
+        if (matchingProd.sku) materialIdLookup.set(matchingProd.sku.toLowerCase(), rm.id);
+      }
     }
 
     for (const p of rawProducts) {
-      const normKey = (p.sku || p.name || p.id).trim().toLowerCase();
-      if (!materialCatalogMap.has(normKey)) {
-        const m: NormalizedMaterial = {
-          id: p.id,
-          name: p.name,
-          sku: p.sku || '',
-          category: p.category || 'Hardware & Material',
-          unit: p.unit || 'KG',
-          minimumStock: Number(p.minimumStock || 0),
-          currentStock: Math.max(0, Math.round((currentStockMap.get(p.id) || 0) * 100) / 100),
-          source: 'PRODUCT',
-        };
-        materialCatalogMap.set(normKey, m);
-        materialIdLookup.set(p.id, p.id);
-      } else {
-        const existing = materialCatalogMap.get(normKey)!;
-        materialIdLookup.set(p.id, existing.id);
+      const pSku = (p.sku || p.publicId || '').toLowerCase().trim();
+      const pName = (p.name || '').toLowerCase().trim();
+      if ((pSku && seenSkus.has(pSku)) || (pName && seenNames.has(pName))) {
+        continue;
       }
+      if (pSku) seenSkus.add(pSku);
+      if (pName) seenNames.add(pName);
+
+      let curStock = currentStockMap.get(p.id) || 0;
+      curStock = Math.max(0, Math.round(curStock * 100) / 100);
+
+      const minStock = Number(p.minimumStock || 0);
+      const unitRate = Number(p.unitPrice || 0);
+      let stockStatus: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' = 'IN_STOCK';
+      if (curStock <= 0) {
+        stockStatus = 'OUT_OF_STOCK';
+      } else if (minStock > 0 && curStock < minStock) {
+        stockStatus = 'LOW_STOCK';
+      }
+
+      const m: NormalizedMaterial = {
+        id: p.id,
+        name: p.name,
+        sku: p.sku || p.publicId || '',
+        category: p.category || (p.productType === 'HARDWARE' ? 'Hardware' : 'Raw Material'),
+        unit: p.unit || 'KG',
+        minimumStock: minStock,
+        storageLocation: (p as any)?.storageLocation || 'Raw Material Store',
+        unitRate,
+        currentStock: curStock,
+        stockValue: Math.round(curStock * unitRate * 100) / 100,
+        stockStatus,
+        source: 'PRODUCT',
+        rawMaterialId: null,
+        productId: p.id,
+      };
+
+      const normKey = (m.sku || m.name || m.id).trim().toLowerCase();
+      materialCatalogMap.set(normKey, m);
+      materialIdLookup.set(p.id, p.id);
+      if (m.sku) materialIdLookup.set(m.sku.toLowerCase(), p.id);
     }
 
     // 3. Authoritative Store Issue Query (strictly type=OUT and referenceType=ISSUE_TO_PRODUCTION)
@@ -3862,6 +3926,7 @@ export class PlantHeadService {
       const normKey = (targetSku || targetName || targetId || '').trim().toLowerCase();
       if (normKey && !materialCatalogMap.has(normKey)) {
         const mId = targetId || tx.id;
+        const curStock = Math.max(0, Math.round((currentStockMap.get(mId) || 0) * 100) / 100);
         const m: NormalizedMaterial = {
           id: mId,
           name: targetName || 'Store Material Item',
@@ -3869,7 +3934,11 @@ export class PlantHeadService {
           category: tx.rawMaterial?.category || tx.product?.category || 'Raw Material',
           unit: tx.rawMaterial?.unit || tx.product?.unit || 'KG',
           minimumStock: 0,
-          currentStock: Math.max(0, Math.round((currentStockMap.get(mId) || 0) * 100) / 100),
+          storageLocation: 'Raw Material Store',
+          unitRate: 0,
+          currentStock: curStock,
+          stockValue: 0,
+          stockStatus: curStock <= 0 ? 'OUT_OF_STOCK' : 'IN_STOCK',
           source: tx.rawMaterialId ? 'RAW_MATERIAL' : 'PRODUCT',
         };
         materialCatalogMap.set(normKey, m);
@@ -3886,7 +3955,12 @@ export class PlantHeadService {
       materialSku: string;
       category: string;
       unit: string;
+      minimumStock: number;
+      storageLocation: string;
+      unitRate: number;
       currentStock: number;
+      stockValue: number;
+      stockStatus: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
       totalIssueKg: number;
       issueTransactions: number;
       issueDates: Set<string>;
@@ -3907,7 +3981,12 @@ export class PlantHeadService {
         materialSku: mat.sku,
         category: mat.category,
         unit: mat.unit,
+        minimumStock: mat.minimumStock,
+        storageLocation: mat.storageLocation,
+        unitRate: mat.unitRate,
         currentStock: mat.currentStock,
+        stockValue: mat.stockValue,
+        stockStatus: mat.stockStatus,
         totalIssueKg: 0,
         issueTransactions: 0,
         issueDates: new Set<string>(),
@@ -3950,7 +4029,12 @@ export class PlantHeadService {
             materialSku: tx.rawMaterial?.sku || tx.product?.sku || '',
             category: 'Raw Material',
             unit: tx.rawMaterial?.unit || tx.product?.unit || 'KG',
+            minimumStock: 0,
+            storageLocation: 'Raw Material Store',
+            unitRate: 0,
             currentStock: 0,
+            stockValue: 0,
+            stockStatus: 'OUT_OF_STOCK',
             totalIssueKg: 0,
             issueTransactions: 0,
             issueDates: new Set<string>(),
@@ -4039,7 +4123,12 @@ export class PlantHeadService {
         materialSku: m.materialSku,
         category: m.category,
         unit: m.unit,
+        minimumStock: m.minimumStock,
+        storageLocation: m.storageLocation,
+        unitRate: m.unitRate,
         currentStock: m.currentStock,
+        stockValue: m.stockValue,
+        stockStatus: m.stockStatus,
         totalIssueKg: Math.round(m.totalIssueKg * 100) / 100,
         issueTransactions: m.issueTransactions,
         issueDays: issueDaysCount,
@@ -4066,9 +4155,10 @@ export class PlantHeadService {
       }
     });
 
-    // Default sort: Total Issue KG descending
+    // Default sort: Total Issue KG descending, then Stock descending, then Name ascending
     scoredList.sort((a, b) => {
       if (b.totalIssueKg !== a.totalIssueKg) return b.totalIssueKg - a.totalIssueKg;
+      if (b.currentStock !== a.currentStock) return b.currentStock - a.currentStock;
       if (b.issueTransactions !== a.issueTransactions) return b.issueTransactions - a.issueTransactions;
       return a.materialName.localeCompare(b.materialName);
     });
@@ -4080,7 +4170,12 @@ export class PlantHeadService {
       materialSku: m.materialSku,
       category: m.category,
       unit: m.unit,
+      minimumStock: m.minimumStock,
+      storageLocation: m.storageLocation,
+      unitRate: m.unitRate,
       currentStock: m.currentStock,
+      stockValue: m.stockValue,
+      stockStatus: m.stockStatus,
       totalIssueKg: m.totalIssueKg,
       issueTransactions: m.issueTransactions,
       issueDays: m.issueDays,
@@ -4422,6 +4517,11 @@ export class PlantHeadService {
       },
       kpis: {
         totalMaterials: finalMaterialTable.length,
+        totalStockUnits: Math.round(finalMaterialTable.reduce((sum, m) => sum + (m.currentStock || 0), 0) * 100) / 100,
+        totalInventoryValue: Math.round(finalMaterialTable.reduce((sum, m) => sum + (m.stockValue || 0), 0) * 100) / 100,
+        inStockCount: finalMaterialTable.filter(m => m.stockStatus === 'IN_STOCK').length,
+        lowStockCount: finalMaterialTable.filter(m => m.stockStatus === 'LOW_STOCK').length,
+        outOfStockCount: finalMaterialTable.filter(m => m.stockStatus === 'OUT_OF_STOCK').length,
         materialsIssued: issuedMaterials.length,
         fastMovingCount: fastMovingMaterials.length,
         slowMovingCount: slowMovingMaterials.length,
@@ -4470,10 +4570,17 @@ export class PlantHeadService {
           return new Date(yA, mA - 1, dA).getTime() - new Date(yB, mB - 1, dB).getTime();
         }),
       },
-      materialMonthlyMatrix: {
+      movementMatrix: {
         months: matrixMonths.map(m => m.label),
-        rows: matrixRows,
-        columnTotals: matrixColumnTotals,
+        rows: matrixRows.map(r => ({
+          materialId: r.materialId,
+          materialName: r.materialName,
+          materialSku: r.materialSku,
+          unit: r.unit,
+          months: r.months,
+          totalIssueKg: r.totalIssueKg,
+        })),
+        totals: matrixColumnTotals,
       },
       fastMovingMaterials: fastMovingMaterials.slice(0, 10),
       slowMovingMaterials: slowMovingMaterials.slice(0, 10),
@@ -4504,6 +4611,35 @@ export class PlantHeadService {
         lte: new Date(endDateStr),
       };
     }
+
+    // Resolve all linked IDs across RawMaterial and Product models for comprehensive audit trail
+    const relatedIds = new Set<string>([materialId]);
+    const [targetRm, targetProd] = await Promise.all([
+      this.prisma.rawMaterial.findUnique({ where: { id: materialId }, select: { sku: true, name: true } }),
+      this.prisma.product.findUnique({ where: { id: materialId }, select: { sku: true, name: true } }),
+    ]);
+
+    const targetSku = targetRm?.sku || targetProd?.sku;
+    const targetName = targetRm?.name || targetProd?.name;
+
+    if (targetSku) {
+      const [rms, prods] = await Promise.all([
+        this.prisma.rawMaterial.findMany({ where: { sku: targetSku }, select: { id: true } }),
+        this.prisma.product.findMany({ where: { sku: targetSku }, select: { id: true } }),
+      ]);
+      rms.forEach((r) => relatedIds.add(r.id));
+      prods.forEach((p) => relatedIds.add(p.id));
+    }
+    if (targetName) {
+      const [rms, prods] = await Promise.all([
+        this.prisma.rawMaterial.findMany({ where: { name: targetName }, select: { id: true } }),
+        this.prisma.product.findMany({ where: { name: targetName }, select: { id: true } }),
+      ]);
+      rms.forEach((r) => relatedIds.add(r.id));
+      prods.forEach((p) => relatedIds.add(p.id));
+    }
+
+    const allLinkedIds = Array.from(relatedIds);
 
     const where = {
       ...companyWhere,

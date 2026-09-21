@@ -48,7 +48,8 @@ export default function MaterialWiseAnalysisView() {
 
   // Search & Filter state
   const [materialSearch, setMaterialSearch] = useState('');
-  const [movementFilter, setMovementFilter] = useState('ALL'); // 'ALL' | 'ISSUED' | 'FAST_MOVING' | 'SLOW_MOVING' | 'NON_MOVING' | 'HIGH_ISSUE' | 'LOW_ISSUE'
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [movementFilter, setMovementFilter] = useState('ALL'); // 'ALL' | 'ISSUED' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'FAST_MOVING' | 'SLOW_MOVING' | 'NON_MOVING'
   const [sortBy, setSortBy] = useState('highest_issue');
 
   // Selected Drilldown items
@@ -179,6 +180,7 @@ export default function MaterialWiseAnalysisView() {
     setCustomStart('2026-08-01');
     setCustomEnd('2026-08-31');
     setMaterialSearch('');
+    setCategoryFilter('ALL');
     setMovementFilter('ALL');
     setSortBy('highest_issue');
     setTablePage(1);
@@ -234,6 +236,16 @@ export default function MaterialWiseAnalysisView() {
     setModalHistoryData(null);
   };
 
+  // ── Available Categories for dropdown filter ──
+  const availableCategories = useMemo(() => {
+    if (!analyticsData?.materials) return ['ALL'];
+    const set = new Set();
+    analyticsData.materials.forEach((m) => {
+      if (m.category) set.add(m.category);
+    });
+    return ['ALL', ...Array.from(set).sort()];
+  }, [analyticsData?.materials]);
+
   // ── Filtered and Sorted Main Material Table ──
   const filteredAndSortedMaterials = useMemo(() => {
     if (!analyticsData?.materials) return [];
@@ -250,7 +262,12 @@ export default function MaterialWiseAnalysisView() {
       );
     }
 
-    // 2. Movement & Stock Status Filter
+    // 2. Category Filter
+    if (categoryFilter && categoryFilter !== 'ALL') {
+      list = list.filter((m) => m.category === categoryFilter);
+    }
+
+    // 3. Movement & Stock Status Filter
     if (movementFilter === 'ISSUED') {
       list = list.filter((m) => m.totalIssueKg > 0);
     } else if (movementFilter === 'FAST_MOVING') {
@@ -271,10 +288,14 @@ export default function MaterialWiseAnalysisView() {
       list = list.filter((m) => m.totalIssueKg > 0 && m.percentageOfTotal < 5);
     }
 
-    // 3. Sorting
+    // 4. Sorting
     list.sort((a, b) => {
       if (sortBy === 'highest_issue') return b.totalIssueKg - a.totalIssueKg;
       if (sortBy === 'lowest_issue') return a.totalIssueKg - b.totalIssueKg;
+      if (sortBy === 'highest_stock') return (b.currentStock || 0) - (a.currentStock || 0);
+      if (sortBy === 'lowest_stock') return (a.currentStock || 0) - (b.currentStock || 0);
+      if (sortBy === 'highest_value') return (b.stockValue || 0) - (a.stockValue || 0);
+      if (sortBy === 'code_asc') return (a.materialSku || '').localeCompare(b.materialSku || '');
       if (sortBy === 'most_transactions') return b.issueTransactions - a.issueTransactions;
       if (sortBy === 'most_days') return b.issueDays - a.issueDays;
       if (sortBy === 'least_days') return a.issueDays - b.issueDays;
@@ -287,7 +308,7 @@ export default function MaterialWiseAnalysisView() {
     });
 
     return list;
-  }, [analyticsData?.materials, materialSearch, movementFilter, sortBy]);
+  }, [analyticsData?.materials, materialSearch, categoryFilter, movementFilter, sortBy]);
 
   // Paginated slice
   const paginatedMaterials = useMemo(() => {
@@ -310,10 +331,10 @@ export default function MaterialWiseAnalysisView() {
     csv += `Generated At,"${new Date().toLocaleString('en-IN')}"\r\n`;
     csv += `Authoritative Source,"PostgreSQL InventoryTransaction (type=OUT, refType=ISSUE_TO_PRODUCTION)"\r\n\r\n`;
 
-    csv += 'Sr,Material Name,Material SKU,Category,Movement Status,Movement Score,Total Issue (KG),Issue Transactions,Issue Days,Avg KG / Issue,Avg KG / Issue Day,First Issue Date,Last Issue Date,% of Total Issue\r\n';
+    csv += 'Sr,Material Name,Material SKU,Storage Location,Category,Unit,Current Store Stock,Minimum Stock,Unit Rate (INR),Stock Valuation (INR),Stock Status,Movement Status,Movement Score,Total Issue (KG),Issue Transactions,Issue Days,Avg KG / Issue,Avg KG / Issue Day,First Issue Date,Last Issue Date,% of Total Issue\r\n';
 
     filteredAndSortedMaterials.forEach((row, idx) => {
-      csv += `${idx + 1},"${(row.materialName || '').replace(/"/g, '""')}","${(row.materialSku || '').replace(/"/g, '""')}","${row.category || 'Raw Material'}",${row.movementClass},${row.movementScore},${row.totalIssueKg},${row.issueTransactions},${row.issueDays},${row.avgKgPerIssue},${row.avgKgPerIssueDay},"${row.firstIssueDate}","${row.lastIssueDate}",${row.percentageOfTotal}%\r\n`;
+      csv += `${idx + 1},"${(row.materialName || '').replace(/"/g, '""')}","${(row.materialSku || '').replace(/"/g, '""')}","${(row.storageLocation || 'Raw Material Store').replace(/"/g, '""')}","${row.category || 'Raw Material'}","${row.unit || 'KG'}",${row.currentStock || 0},${row.minimumStock || 0},${row.unitRate || 0},${row.stockValue || 0},"${row.stockStatus || 'OUT OF STOCK'}",${row.movementClass},${row.movementScore},${row.totalIssueKg},${row.issueTransactions},${row.issueDays},${row.avgKgPerIssue},${row.avgKgPerIssueDay},"${row.firstIssueDate}","${row.lastIssueDate}",${row.percentageOfTotal}%\r\n`;
     });
 
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -529,6 +550,25 @@ export default function MaterialWiseAnalysisView() {
             </div>
           </div>
 
+          {/* Category Filter */}
+          <div style={styles.controlItem}>
+            <label style={styles.controlLabel}>Category</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value);
+                setTablePage(1);
+              }}
+              style={styles.selectInput}
+            >
+              {availableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat === 'ALL' ? 'All Categories' : cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Movement Status Filter */}
           <div style={styles.controlItem}>
             <label style={styles.controlLabel}>Movement Filter</label>
@@ -566,6 +606,10 @@ export default function MaterialWiseAnalysisView() {
             >
               <option value="highest_issue">Highest Issue KG</option>
               <option value="lowest_issue">Lowest Issue KG</option>
+              <option value="highest_stock">Highest Store Stock</option>
+              <option value="lowest_stock">Lowest Store Stock</option>
+              <option value="highest_value">Highest Stock Valuation (₹)</option>
+              <option value="code_asc">Material Code (A-Z)</option>
               <option value="most_transactions">Most Transactions</option>
               <option value="most_days">Most Issue Days</option>
               <option value="least_days">Least Issue Days</option>
@@ -620,7 +664,7 @@ export default function MaterialWiseAnalysisView() {
         </div>
       )}
 
-      {/* ── 3. TOP 8 KPI CARDS ── */}
+      {/* ── 3. TOP KPI CARDS ── */}
       <div style={styles.kpiGrid}>
         <div style={styles.kpiCard}>
           <div style={styles.kpiTopRow}>
@@ -628,7 +672,40 @@ export default function MaterialWiseAnalysisView() {
             <Package size={18} color="#6366F1" />
           </div>
           <div style={styles.kpiValue}>{(kpis.totalMaterials || 0).toLocaleString()}</div>
-          <div style={styles.kpiSub}>Registered in Master</div>
+          <div style={styles.kpiSub}>Registered Store Catalog</div>
+        </div>
+
+        <div style={styles.kpiCard}>
+          <div style={styles.kpiTopRow}>
+            <span style={styles.kpiLabel}>STORE ON-HAND STOCK</span>
+            <Layers size={18} color="#059669" />
+          </div>
+          <div style={{ ...styles.kpiValue, color: '#059669' }}>
+            {(kpis.totalStockUnits || 0).toLocaleString()} Units
+          </div>
+          <div style={styles.kpiSub}>Live physical store stock</div>
+        </div>
+
+        <div style={styles.kpiCard}>
+          <div style={styles.kpiTopRow}>
+            <span style={styles.kpiLabel}>INVENTORY VALUATION</span>
+            <Sparkles size={18} color="#D97706" />
+          </div>
+          <div style={{ ...styles.kpiValue, color: '#D97706' }}>
+            ₹{(kpis.totalInventoryValue || 0).toLocaleString()}
+          </div>
+          <div style={styles.kpiSub}>Current store valuation</div>
+        </div>
+
+        <div style={styles.kpiCard}>
+          <div style={styles.kpiTopRow}>
+            <span style={styles.kpiLabel}>STOCK STATUS</span>
+            <ShieldCheck size={18} color="#0284C7" />
+          </div>
+          <div style={{ ...styles.kpiValue, fontSize: '15px', color: '#0284C7', marginTop: '3px' }}>
+            <span style={{ color: '#16A34A' }}>{kpis.inStockCount || 0} In</span> · <span style={{ color: '#D97706' }}>{kpis.lowStockCount || 0} Low</span> · <span style={{ color: '#DC2626' }}>{kpis.outOfStockCount || 0} Out</span>
+          </div>
+          <div style={styles.kpiSub}>Store inventory health</div>
         </div>
 
         <div style={styles.kpiCard}>
@@ -639,7 +716,7 @@ export default function MaterialWiseAnalysisView() {
           <div style={{ ...styles.kpiValue, color: '#0284C7' }}>
             {(kpis.materialsIssued || 0).toLocaleString()}
           </div>
-          <div style={styles.kpiSub}>Active in period</div>
+          <div style={styles.kpiSub}>Active dispatches in period</div>
         </div>
 
         <div style={styles.kpiCard}>
@@ -693,15 +770,6 @@ export default function MaterialWiseAnalysisView() {
           </div>
           <div style={styles.kpiValue}>{(kpis.totalIssueTransactions || 0).toLocaleString()}</div>
           <div style={styles.kpiSub}>Store issue vouchers</div>
-        </div>
-
-        <div style={styles.kpiCard}>
-          <div style={styles.kpiTopRow}>
-            <span style={styles.kpiLabel}>ISSUE DAYS</span>
-            <Calendar size={18} color="#14B8A6" />
-          </div>
-          <div style={styles.kpiValue}>{(kpis.totalIssueDays || 0).toLocaleString()}</div>
-          <div style={styles.kpiSub}>Distinct active dates</div>
         </div>
       </div>
 
@@ -814,10 +882,10 @@ export default function MaterialWiseAnalysisView() {
           <div style={styles.tableQuickFilterRow}>
             {[
               { key: 'ALL', label: `ALL STORE MATERIALS (${analyticsData?.materials?.length || 0})` },
+              { key: 'IN_STOCK', label: `IN STOCK (${kpis.inStockCount ?? 0})` },
+              { key: 'LOW_STOCK', label: `LOW STOCK (${kpis.lowStockCount ?? 0})` },
+              { key: 'OUT_OF_STOCK', label: `OUT OF STOCK (${kpis.outOfStockCount ?? 0})` },
               { key: 'ISSUED', label: `ISSUED (${kpis.materialsIssued || 0})` },
-              { key: 'IN_STOCK', label: `IN STOCK` },
-              { key: 'LOW_STOCK', label: `LOW STOCK` },
-              { key: 'OUT_OF_STOCK', label: `OUT OF STOCK` },
               { key: 'FAST_MOVING', label: `FAST (${kpis.fastMovingCount || 0})` },
               { key: 'SLOW_MOVING', label: `SLOW (${kpis.slowMovingCount || 0})` },
               { key: 'NON_MOVING', label: `NON-MOVING (${kpis.nonMovingCount || 0})` },
@@ -885,7 +953,19 @@ export default function MaterialWiseAnalysisView() {
                       <td style={styles.td}>
                         <div style={styles.materialNameCell}>
                           <strong>{row.materialName}</strong>
-                          <span style={styles.categoryPill}>{row.category || 'Raw Material'}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '3px' }}>
+                            <span style={styles.categoryPill}>{row.category || 'Raw Material'}</span>
+                            {row.storageLocation && (
+                              <span style={{ fontSize: '10px', background: '#F1F5F9', color: '#475569', padding: '1px 6px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                📍 {row.storageLocation}
+                              </span>
+                            )}
+                            {row.minimumStock > 0 && (
+                              <span style={{ fontSize: '10px', color: '#64748B' }}>
+                                Min: {row.minimumStock} {row.unit}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td style={styles.td}>
@@ -904,6 +984,11 @@ export default function MaterialWiseAnalysisView() {
                             <span style={{ color: '#15803D', background: '#DCFCE7', padding: '1px 5px', borderRadius: '4px' }}>IN STOCK</span>
                           )}
                         </div>
+                        {row.stockValue > 0 && (
+                          <div style={{ fontSize: '10px', color: '#64748B', marginTop: '2px' }}>
+                            ₹{row.stockValue.toLocaleString()}
+                          </div>
+                        )}
                       </td>
                       <td style={{ ...styles.td, textAlign: 'center' }}>
                         <div style={styles.movementBadgeContainer}>
@@ -1366,7 +1451,7 @@ export default function MaterialWiseAnalysisView() {
                   <h3 style={styles.modalTitle}>{selectedDetailMaterial.materialName}</h3>
                 </div>
                 <div style={styles.modalSubtitle}>
-                  Material SKU: <strong>{selectedDetailMaterial.materialSku || '-'}</strong> | Category: <strong>{selectedDetailMaterial.category || 'Raw Material'}</strong> | Unit: <strong>{selectedDetailMaterial.unit}</strong>
+                  Material SKU: <strong>{selectedDetailMaterial.materialSku || '-'}</strong> | Location: <strong>📍 {selectedDetailMaterial.storageLocation || 'Raw Material Store'}</strong> | Category: <strong>{selectedDetailMaterial.category || 'Raw Material'}</strong> | Unit: <strong>{selectedDetailMaterial.unit}</strong>
                 </div>
               </div>
               <button type="button" onClick={handleCloseDetailModal} style={styles.closeBtn}>
@@ -1378,39 +1463,57 @@ export default function MaterialWiseAnalysisView() {
             <div style={styles.modalKpiGrid}>
               <div style={styles.modalKpiBox}>
                 <span style={styles.modalKpiLabel}>Live Current Stock</span>
-                <strong style={{ ...styles.modalKpiVal, color: '#10B981' }}>
+                <strong style={{ ...styles.modalKpiVal, color: (selectedDetailMaterial.currentStock || 0) <= 0 ? '#DC2626' : '#10B981' }}>
                   {(selectedDetailMaterial.currentStock || 0).toLocaleString()} {selectedDetailMaterial.unit}
                 </strong>
+                <span style={{ fontSize: '10px', fontWeight: '800', color: (selectedDetailMaterial.currentStock || 0) <= 0 ? '#DC2626' : '#15803D' }}>
+                  {selectedDetailMaterial.stockStatus || ((selectedDetailMaterial.currentStock || 0) <= 0 ? 'OUT OF STOCK' : 'IN STOCK')}
+                </span>
+              </div>
+              <div style={styles.modalKpiBox}>
+                <span style={styles.modalKpiLabel}>Min Stock & Rate</span>
+                <strong style={styles.modalKpiVal}>
+                  Min: {selectedDetailMaterial.minimumStock || 0} {selectedDetailMaterial.unit}
+                </strong>
+                <span style={{ fontSize: '11px', color: '#64748B' }}>
+                  Rate: ₹{(selectedDetailMaterial.unitRate || 0).toLocaleString()} / {selectedDetailMaterial.unit}
+                </span>
+              </div>
+              <div style={styles.modalKpiBox}>
+                <span style={styles.modalKpiLabel}>Stock Valuation</span>
+                <strong style={{ ...styles.modalKpiVal, color: '#D97706' }}>
+                  ₹{(selectedDetailMaterial.stockValue || 0).toLocaleString()}
+                </strong>
+                <span style={{ fontSize: '10px', color: '#64748B' }}>
+                  Location: {selectedDetailMaterial.storageLocation || 'Store'}
+                </span>
               </div>
               <div style={styles.modalKpiBox}>
                 <span style={styles.modalKpiLabel}>Movement Class</span>
                 <strong style={{ ...styles.modalKpiVal, color: '#6366F1' }}>
                   {selectedDetailMaterial.movementClass}
                 </strong>
-              </div>
-              <div style={styles.modalKpiBox}>
-                <span style={styles.modalKpiLabel}>Movement Score</span>
-                <strong style={styles.modalKpiVal}>
-                  {selectedDetailMaterial.movementScore || 0} / 100
-                </strong>
+                <span style={{ fontSize: '11px', color: '#64748B' }}>
+                  Score: {selectedDetailMaterial.movementScore || 0} / 100
+                </span>
               </div>
               <div style={styles.modalKpiBox}>
                 <span style={styles.modalKpiLabel}>Period Total Issue</span>
                 <strong style={{ ...styles.modalKpiVal, color: '#8B5CF6' }}>
                   {(selectedDetailMaterial.totalIssueKg || 0).toLocaleString()} KG
                 </strong>
+                <span style={{ fontSize: '11px', color: '#64748B' }}>
+                  {selectedDetailMaterial.percentageOfTotal}% of Store Total
+                </span>
               </div>
               <div style={styles.modalKpiBox}>
-                <span style={styles.modalKpiLabel}>Total Vouchers</span>
+                <span style={styles.modalKpiLabel}>Vouchers & Active Days</span>
                 <strong style={styles.modalKpiVal}>
-                  {selectedDetailMaterial.issueTransactions || 0}
+                  {selectedDetailMaterial.issueTransactions || 0} Txns
                 </strong>
-              </div>
-              <div style={styles.modalKpiBox}>
-                <span style={styles.modalKpiLabel}>Active Issue Days</span>
-                <strong style={styles.modalKpiVal}>
-                  {selectedDetailMaterial.issueDays || 0}
-                </strong>
+                <span style={{ fontSize: '11px', color: '#64748B' }}>
+                  {selectedDetailMaterial.issueDays || 0} Active Days
+                </span>
               </div>
             </div>
 

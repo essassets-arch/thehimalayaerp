@@ -63,7 +63,16 @@ const PIE_COLORS = [
 
 export const PlantHeadMaterialAnalytics = () => {
   // ── Top Tab Navigation State: 'store-ro' | 'material-wise' ──
-  const [activeTab, setActiveTab] = useState('store-ro');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tab = urlParams.get('tab');
+      if (tab === 'material-wise' || tab === 'material') {
+        return 'material-wise';
+      }
+    }
+    return 'store-ro';
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -71,6 +80,8 @@ export const PlantHeadMaterialAnalytics = () => {
       const tab = urlParams.get('tab');
       if (tab === 'material-wise' || tab === 'material') {
         setActiveTab('material-wise');
+      } else if (tab === 'store-ro') {
+        setActiveTab('store-ro');
       }
     }
   }, []);
