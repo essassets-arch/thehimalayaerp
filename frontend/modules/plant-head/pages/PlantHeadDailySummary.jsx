@@ -563,8 +563,26 @@ export const PlantHeadDailySummary = () => {
       {/* ── ROW 1 — MAIN KPI CARDS (8 High-Precision KPI Cards) ── */}
       <div className="erp-kpi-grid" style={{ marginBottom: '16px' }}>
         {[
-          { label: 'Incoming Orders', count: data?.mainKpis?.incomingOrders || 0, sub: `${data?.mainKpis?.awaitingPlantHead || 0} Pending Action`, color: '#0284c7', anchor: 'incoming-orders' },
-          { label: 'Pending Planning', count: data?.mainKpis?.pendingPlanning || 0, sub: `${data?.planning?.fgDirectFulfillment || 0} Direct FG Fulfilled`, color: '#f59e0b', anchor: 'planning' },
+          {
+            label: 'Incoming Orders',
+            count: data?.mainKpis?.awaitingPlantHead ?? 0,
+            sub: (data?.orders?.receivedToday || 0) > 0
+              ? `${data.orders.receivedToday} Received Today`
+              : '0 Awaiting Action',
+            color: '#0284c7',
+            anchor: 'incoming-orders',
+          },
+          {
+            label: 'Pending Planning',
+            count: data?.planning?.pendingPlanning ?? 0,
+            sub: (data?.planning?.fgDirectFulfillment || 0) > 0
+              ? `${data.planning.fgDirectFulfillment} Direct FG Ready`
+              : (data?.planning?.productionRequired || 0) > 0
+                ? `${data.planning.productionRequired} Production Required`
+                : '0 Pending Planning',
+            color: '#f59e0b',
+            anchor: 'planning',
+          },
           { label: 'Active Production', count: data?.mainKpis?.activeProduction || 0, sub: `${data?.production?.completedToday || 0} Completed Today`, color: '#8b5cf6', anchor: 'production' },
           { label: 'Material Requests', count: data?.mainKpis?.materialRequests || 0, sub: `${data?.mainKpis?.materialShortages || 0} Shortage Alerts`, color: '#ec4899', anchor: 'material-requests' },
           { label: 'Pending Indents', count: data?.mainKpis?.pendingIndents || 0, sub: `${data?.indents?.indentApprovedToday || 0} Signed Today`, color: '#6366f1', anchor: 'purchase-indents' },
@@ -746,7 +764,7 @@ export const PlantHeadDailySummary = () => {
           </div>
           <div style={{ background: '#f3e8ff', border: '1px solid #e9d5ff', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
             <div style={{ fontSize: '11px', fontWeight: '700', color: '#6b21a8' }}>Pending Planning</div>
-            <div style={{ fontSize: '18px', fontWeight: '900', color: '#9333ea' }}>{data?.orders?.pendingPlanning || 0}</div>
+            <div style={{ fontSize: '18px', fontWeight: '900', color: '#9333ea' }}>{data?.planning?.pendingPlanning || 0}</div>
           </div>
           <div style={{ background: '#ffe4e6', border: '1px solid #fecdd3', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
             <div style={{ fontSize: '11px', fontWeight: '700', color: '#9f1239' }}>Overdue Orders</div>

@@ -3301,30 +3301,46 @@ export class PlantHeadService {
         customer: true,
         items: { include: { product: true } },
         workflowState: true,
+        productionPlans: {
+          include: { workOrders: true },
+        },
+        dispatches: {
+          include: { items: true },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    const receivedToday = allSalesOrders.filter(
+    const targetDateOrders = allSalesOrders.filter(
       (o) => o.createdAt >= todayStart && o.createdAt <= todayEnd,
-    ).length;
+    );
+    const receivedToday = targetDateOrders.length;
     const receivedYesterday = allSalesOrders.filter(
       (o) => o.createdAt >= yesterdayStart && o.createdAt <= yesterdayEnd,
     ).length;
 
-    const awaitingPlantHead = allSalesOrders.filter((o) => {
+    // Awaiting Acceptance: Exact logic matching Incoming Confirmed Orders Board (Pending Acceptance tab)
+    const awaitingPlantHeadOrders = allSalesOrders.filter((o) => {
+      if (!this.isManufacturingOrder(o)) return false;
       const st = (o.status || '').toUpperCase();
       const wf = (o.workflowState?.code || '').toUpperCase();
-      return (
+      const isAccepted =
+        ['PLANT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION', 'COMPLETED', 'READY_FOR_DISPATCH', 'DELIVERED'].includes(st) ||
+        ['PLANT_APPROVED', 'READY_FOR_PRODUCTION', 'IN_PRODUCTION', 'COMPLETED', 'READY_FOR_DISPATCH', 'DELIVERED'].includes(wf);
+      const isTerminated =
+        ['CANCELLED', 'REJECTED', 'CLOSED'].includes(st) ||
+        ['CANCELLED', 'REJECTED', 'CLOSED'].includes(wf);
+      const isSentToPlant =
         st === 'SENT_TO_PLANT_HEAD' ||
-        st === 'SENT_TO_PLANT' ||
+        wf === 'SENT_TO_PLANT_HEAD' ||
         st === 'PENDING_APPROVAL' ||
         st === 'SUBMITTED' ||
-        st === 'PENDING' ||
-        wf === 'SENT_TO_PLANT' ||
-        wf === 'SENT_TO_PLANT_HEAD'
-      );
-    }).length;
+        (st === 'SENT_TO_PLANT' && !isAccepted) ||
+        (wf === 'SENT_TO_PLANT' && !isAccepted);
+
+      return !isAccepted && !isTerminated && isSentToPlant;
+    });
+    const awaitingPlantHead = awaitingPlantHeadOrders.length;
 
     const approvedToday = allSalesOrders.filter(
       (o) =>
@@ -3340,14 +3356,6 @@ export class PlantHeadService {
         o.updatedAt >= todayStart &&
         o.updatedAt <= todayEnd,
     ).length;
-    const pendingPlanning = allSalesOrders.filter((o) =>
-      [
-        'PLANT_APPROVED',
-        'SENT_TO_PLANT_HEAD',
-        'SENT_TO_PLANT',
-        'READY_FOR_PRODUCTION',
-      ].includes(o.status),
-    ).length;
 
     const overdueOrders = allSalesOrders.filter((o) => {
       if (!o.requestedDeliveryDate) return false;
@@ -3357,30 +3365,17 @@ export class PlantHeadService {
       );
     }).length;
 
-    // Relevant incoming orders: prioritize target date orders, then orders pending approval
-    const targetDateOrders = allSalesOrders.filter(
-      (o) => o.createdAt >= todayStart && o.createdAt <= todayEnd,
-    );
-    const pendingApprovalOrders = allSalesOrders.filter((o) =>
-      [
-        'SENT_TO_PLANT_HEAD',
-        'SENT_TO_PLANT',
-        'PENDING_APPROVAL',
-        'SUBMITTED',
-        'PLANT_APPROVED',
-        'READY_FOR_PRODUCTION',
-      ].includes(o.status),
-    );
-    const combinedOrdersMap = new Map<string, any>();
-    for (const o of targetDateOrders) combinedOrdersMap.set(o.id, o);
-    for (const o of pendingApprovalOrders) {
-      if (!combinedOrdersMap.has(o.id)) combinedOrdersMap.set(o.id, o);
+    // Incoming Orders Table: Show orders currently awaiting Plant Head review first, plus target date received orders
+    const incomingDisplayOrdersMap = new Map<string, any>();
+    for (const o of awaitingPlantHeadOrders) incomingDisplayOrdersMap.set(o.id, o);
+    for (const o of targetDateOrders) {
+      if (!incomingDisplayOrdersMap.has(o.id)) incomingDisplayOrdersMap.set(o.id, o);
     }
-    const displayOrders = combinedOrdersMap.size > 0 
-      ? Array.from(combinedOrdersMap.values()) 
-      : allSalesOrders;
+    const incomingDisplayOrders = incomingDisplayOrdersMap.size > 0 
+      ? Array.from(incomingDisplayOrdersMap.values()) 
+      : allSalesOrders.slice(0, 10);
 
-    const incomingOrdersTable = displayOrders.slice(0, 50).map((o) => {
+    const incomingOrdersTable = incomingDisplayOrders.slice(0, 50).map((o) => {
       const firstItem = o.items?.[0];
       const itemsCount = o.items?.length || 0;
       const prodName = firstItem
@@ -3398,6 +3393,13 @@ export class PlantHeadService {
       const ageHours = Math.round(
         (now.getTime() - new Date(o.createdAt).getTime()) / (1000 * 60 * 60),
       );
+      const isStillPending = awaitingPlantHeadOrders.some((ao) => ao.id === o.id);
+      const displayStatus = isStillPending
+        ? 'Pending Review'
+        : o.status === 'PLANT_APPROVED'
+          ? 'Plant Approved'
+          : o.status;
+
       return {
         id: o.id,
         orderNo: o.orderNumber,
@@ -3407,7 +3409,7 @@ export class PlantHeadService {
           'Authorized Client',
         productName: prodName,
         quantity: totalQty,
-        status: o.status,
+        status: displayStatus,
         targetDate: o.requestedDeliveryDate
           ? o.requestedDeliveryDate.toISOString().slice(0, 10)
           : 'N/A',
@@ -3461,19 +3463,12 @@ export class PlantHeadService {
       fgStockMap.set(fg.productId, current);
     }
 
-    const planningEligibleOrders = allSalesOrders.filter((o) =>
-      [
-        'SENT_TO_PLANT_HEAD',
-        'PLANT_APPROVED',
-        'READY_FOR_PRODUCTION',
-        'SUBMITTED',
-      ].includes(o.status),
-    );
+    const allOrderItems = allSalesOrders.flatMap((o) => o.items || []);
+    const allOrderItemIds = allOrderItems.map((i) => i.id);
 
-    const planningItemIds = planningEligibleOrders.flatMap((o) => o.items?.map((i) => i.id) || []);
-    const salesAllocations = planningItemIds.length > 0
+    const salesAllocations = allOrderItemIds.length > 0
       ? await this.prisma.salesOrderAllocation.findMany({
-          where: { salesOrderItemId: { in: planningItemIds } },
+          where: { salesOrderItemId: { in: allOrderItemIds } },
         })
       : [];
 
@@ -3488,10 +3483,62 @@ export class PlantHeadService {
       itemAllocationMap.set(a.salesOrderItemId, current);
     }
 
+    const itemDispatchMap = new Map<string, number>();
+    for (const o of allSalesOrders) {
+      for (const d of o.dispatches || []) {
+        for (const it of d.items || []) {
+          if (it.salesOrderItemId) {
+            const prev = itemDispatchMap.get(it.salesOrderItemId) || 0;
+            itemDispatchMap.set(it.salesOrderItemId, prev + Number(it.quantity || 0));
+          }
+        }
+      }
+    }
+
+    // Pending Planning: Exact logic matching Production Planning Board (Pending Planning tab)
+    const pendingPlanningOrders = allSalesOrders.filter((o) => {
+      if (!this.isManufacturingOrder(o)) return false;
+      const st = (o.status || '').toUpperCase();
+      const wf = (o.workflowState?.code || '').toUpperCase();
+      const isAccepted =
+        st === 'PLANT_APPROVED' ||
+        wf === 'PLANT_APPROVED' ||
+        st === 'READY_FOR_PRODUCTION';
+      const isTerminated =
+        ['COMPLETED', 'DELIVERED', 'READY_FOR_DISPATCH', 'CANCELLED', 'CLOSED', 'REJECTED'].includes(st);
+
+      if (!isAccepted || isTerminated) return false;
+
+      // Check if order has active production plans / released work orders
+      const hasActivePlans = (o.productionPlans || []).some(
+        (p) =>
+          ['APPROVED', 'RELEASED', 'IN_PROGRESS', 'COMPLETED'].includes(p.status) ||
+          (p.workOrders && p.workOrders.length > 0)
+      );
+      if (hasActivePlans) return false;
+
+      // Check item-level remaining unallocated quantities
+      let hasUnplannedItems = false;
+      for (const item of o.items || []) {
+        const orderedQty = Number(item.orderedQuantity || 0);
+        const alloc = itemAllocationMap.get(item.id) || { reserved: 0, production: 0 };
+        const dispatchedQty = itemDispatchMap.get(item.id) || 0;
+        const unallocated = Math.max(0, orderedQty - dispatchedQty - alloc.reserved - alloc.production);
+        if (unallocated > 0) {
+          hasUnplannedItems = true;
+          break;
+        }
+      }
+
+      return hasUnplannedItems || (o.productionPlans || []).length === 0;
+    });
+
+    const pendingPlanning = pendingPlanningOrders.length;
+
     let fgDirectFulfillmentCount = 0;
     let productionRequiredCount = 0;
 
-    const planningTable = planningEligibleOrders.slice(0, 50).map((o) => {
+    const planningTable = pendingPlanningOrders.slice(0, 50).map((o) => {
       const firstItem = o.items?.[0];
       const itemsCount = o.items?.length || 0;
       const prodName = firstItem
@@ -3530,13 +3577,13 @@ export class PlantHeadService {
       return {
         id: o.id,
         orderNo: o.orderNumber,
-        customerName: o.customer?.companyName || 'Authorized Client',
+        customerName: o.customer?.companyName || (o.customer as any)?.name || 'Authorized Client',
         productName: prodName,
         ordered,
         fgAvailable: totalFgAvailable,
         reservedFg: totalReservedFg,
         produce,
-        status: produce === 0 ? 'FG Ready (Direct Fulfillment)' : o.status,
+        status: produce === 0 ? 'FG Ready (Direct Fulfillment)' : 'Production Required',
         canDirectFulfill: produce === 0,
       };
     });
