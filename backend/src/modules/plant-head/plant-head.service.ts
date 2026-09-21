@@ -3221,20 +3221,33 @@ export class PlantHeadService {
     };
   }
 
-  async getDailySummary(companyId: string, dateStr?: string) {
+  async getDailySummary(companyId: string, dateStr?: string, currentUser?: any) {
     // ── Timezone Aware Date Boundaries (Asia/Kolkata UTC+5:30) ──
     const now = new Date();
     let targetDate = new Date();
-    if (dateStr && dateStr !== 'today') {
-      const parsed = new Date(dateStr);
-      if (!isNaN(parsed.getTime())) targetDate = parsed;
+
+    if (dateStr === 'yesterday') {
+      targetDate.setDate(targetDate.getDate() - 1);
+    } else if (dateStr && dateStr !== 'today') {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          targetDate = new Date(year, month, day);
+        }
+      } else {
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) targetDate = parsed;
+      }
     }
 
     const yyyy = targetDate.getFullYear();
     const mm = targetDate.getMonth();
     const dd = targetDate.getDate();
 
-    // Start & End of Today in UTC for Asia/Kolkata (00:00:00 IST to 23:59:59.999 IST)
+    // Start & End of Target Date in UTC for Asia/Kolkata (00:00:00 IST to 23:59:59.999 IST)
     const todayStart = new Date(
       Date.UTC(yyyy, mm, dd, 0, 0, 0) - 5.5 * 60 * 60 * 1000,
     );
@@ -3242,22 +3255,44 @@ export class PlantHeadService {
       Date.UTC(yyyy, mm, dd, 23, 59, 59, 999) - 5.5 * 60 * 60 * 1000,
     );
 
-    // Yesterday boundaries
-    const yestDate = new Date(targetDate);
-    yestDate.setDate(yestDate.getDate() - 1);
-    const yYyyy = yestDate.getFullYear();
-    const yMm = yestDate.getMonth();
-    const yDd = yestDate.getDate();
+    // Previous Day boundaries (for comparison)
+    const prevDate = new Date(targetDate);
+    prevDate.setDate(prevDate.getDate() - 1);
+    const pYyyy = prevDate.getFullYear();
+    const pMm = prevDate.getMonth();
+    const pDd = prevDate.getDate();
 
     const yesterdayStart = new Date(
-      Date.UTC(yYyyy, yMm, yDd, 0, 0, 0) - 5.5 * 60 * 60 * 1000,
+      Date.UTC(pYyyy, pMm, pDd, 0, 0, 0) - 5.5 * 60 * 60 * 1000,
     );
     const yesterdayEnd = new Date(
-      Date.UTC(yYyyy, yMm, yDd, 23, 59, 59, 999) - 5.5 * 60 * 60 * 1000,
+      Date.UTC(pYyyy, pMm, pDd, 23, 59, 59, 999) - 5.5 * 60 * 60 * 1000,
     );
 
     const companyFilter = companyId ? { companyId } : {};
     const salesCompanyFilter = companyId ? { customer: { companyId } } : {};
+
+    // ── 0. Dynamic Plant Head Identity ──
+    let plantHeadName = currentUser?.name || '';
+    if (currentUser?.id && !plantHeadName) {
+      const u = await this.prisma.user.findUnique({
+        where: { id: currentUser.id },
+        select: { name: true },
+      });
+      if (u?.name) plantHeadName = u.name;
+    }
+    if (!plantHeadName) {
+      const phUser = await this.prisma.user.findFirst({
+        where: {
+          ...(companyId ? { companyId } : {}),
+          role: {
+            name: { in: ['PLANT_HEAD', 'ADMIN', 'SUPER_ADMIN'] },
+          },
+        },
+        select: { name: true },
+      });
+      plantHeadName = phUser?.name || 'Authorized Plant Head';
+    }
 
     // ── 1. Fetch Sales Orders (Incoming & Production Planning) ──
     const allSalesOrders = await this.prisma.salesOrder.findMany({
@@ -3317,13 +3352,35 @@ export class PlantHeadService {
     const overdueOrders = allSalesOrders.filter((o) => {
       if (!o.requestedDeliveryDate) return false;
       return (
-        o.requestedDeliveryDate < now &&
-        !['COMPLETED', 'READY_FOR_DISPATCH', 'CANCELLED'].includes(o.status)
+        o.requestedDeliveryDate < todayEnd &&
+        !['COMPLETED', 'READY_FOR_DISPATCH', 'CANCELLED', 'DELIVERED'].includes(o.status)
       );
     }).length;
 
-    // Incoming orders latest 8 records table
-    const incomingOrdersTable = allSalesOrders.slice(0, 8).map((o) => {
+    // Relevant incoming orders: prioritize target date orders, then orders pending approval
+    const targetDateOrders = allSalesOrders.filter(
+      (o) => o.createdAt >= todayStart && o.createdAt <= todayEnd,
+    );
+    const pendingApprovalOrders = allSalesOrders.filter((o) =>
+      [
+        'SENT_TO_PLANT_HEAD',
+        'SENT_TO_PLANT',
+        'PENDING_APPROVAL',
+        'SUBMITTED',
+        'PLANT_APPROVED',
+        'READY_FOR_PRODUCTION',
+      ].includes(o.status),
+    );
+    const combinedOrdersMap = new Map<string, any>();
+    for (const o of targetDateOrders) combinedOrdersMap.set(o.id, o);
+    for (const o of pendingApprovalOrders) {
+      if (!combinedOrdersMap.has(o.id)) combinedOrdersMap.set(o.id, o);
+    }
+    const displayOrders = combinedOrdersMap.size > 0 
+      ? Array.from(combinedOrdersMap.values()) 
+      : allSalesOrders;
+
+    const incomingOrdersTable = displayOrders.slice(0, 50).map((o) => {
       const firstItem = o.items?.[0];
       const itemsCount = o.items?.length || 0;
       const prodName = firstItem
@@ -3361,7 +3418,7 @@ export class PlantHeadService {
       };
     });
 
-    // ── 2. Production Planning ──
+    // ── 2. Production Planning & Live FG Allocation ──
     const allProductionPlans = await this.prisma.productionPlan.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
@@ -3390,46 +3447,99 @@ export class PlantHeadService {
         p.plannedEndDate && p.plannedEndDate < now && p.status !== 'COMPLETED',
     ).length;
 
-    const planningTable = allSalesOrders
-      .filter((o) =>
-        [
-          'SENT_TO_PLANT_HEAD',
-          'PLANT_APPROVED',
-          'READY_FOR_PRODUCTION',
-        ].includes(o.status),
-      )
-      .slice(0, 8)
-      .map((o) => {
-        const firstItem = o.items?.[0];
-        const itemsCount = o.items?.length || 0;
-        const prodName = firstItem
-          ? itemsCount > 1
-            ? `${firstItem.productNameSnapshot || firstItem.product?.name || 'Standard Product'} (+${itemsCount - 1} items)`
-            : firstItem.productNameSnapshot ||
-              firstItem.product?.name ||
-              'Standard Product'
-          : o.totalAmount
-            ? 'Custom Assembly'
-            : 'Standard Industrial Product';
-        const ordered =
-          o.items?.reduce(
-            (sum, item) => sum + Number(item.orderedQuantity || 0),
-            0,
-          ) || (firstItem ? Number(firstItem.orderedQuantity || 1) : 1);
-        const fgAvailable = 0;
-        const reservedFg = 0;
-        const produce = Math.max(0, ordered - fgAvailable);
-        return {
-          id: o.id,
-          orderNo: o.orderNumber,
-          productName: prodName,
-          ordered,
-          fgAvailable,
-          reservedFg,
-          produce,
-          status: o.status,
-        };
-      });
+    // Live FG stock calculation
+    const fgRecords = await this.prisma.finishedGoods.findMany({
+      include: { product: true, salesOrder: true, workOrder: true },
+    });
+
+    const fgStockMap = new Map<string, { available: number; reserved: number }>();
+    for (const fg of fgRecords) {
+      if (!fg.productId) continue;
+      const current = fgStockMap.get(fg.productId) || { available: 0, reserved: 0 };
+      current.available += Number(fg.availableQuantity || 0);
+      current.reserved += Number(fg.reservedQuantity || 0);
+      fgStockMap.set(fg.productId, current);
+    }
+
+    const planningEligibleOrders = allSalesOrders.filter((o) =>
+      [
+        'SENT_TO_PLANT_HEAD',
+        'PLANT_APPROVED',
+        'READY_FOR_PRODUCTION',
+        'SUBMITTED',
+      ].includes(o.status),
+    );
+
+    const planningItemIds = planningEligibleOrders.flatMap((o) => o.items?.map((i) => i.id) || []);
+    const salesAllocations = planningItemIds.length > 0
+      ? await this.prisma.salesOrderAllocation.findMany({
+          where: { salesOrderItemId: { in: planningItemIds } },
+        })
+      : [];
+
+    const itemAllocationMap = new Map<string, { reserved: number; production: number }>();
+    for (const a of salesAllocations) {
+      const current = itemAllocationMap.get(a.salesOrderItemId) || { reserved: 0, production: 0 };
+      if (a.allocationType === 'FINISHED_GOODS_RESERVATION') {
+        current.reserved += Number(a.reservedQuantity || 0);
+      } else if (a.allocationType === 'PRODUCTION_REQUIRED') {
+        current.production += Number(a.productionQuantity || 0);
+      }
+      itemAllocationMap.set(a.salesOrderItemId, current);
+    }
+
+    let fgDirectFulfillmentCount = 0;
+    let productionRequiredCount = 0;
+
+    const planningTable = planningEligibleOrders.slice(0, 50).map((o) => {
+      const firstItem = o.items?.[0];
+      const itemsCount = o.items?.length || 0;
+      const prodName = firstItem
+        ? itemsCount > 1
+          ? `${firstItem.productNameSnapshot || firstItem.product?.name || 'Standard Product'} (+${itemsCount - 1} items)`
+          : firstItem.productNameSnapshot ||
+            firstItem.product?.name ||
+            'Standard Product'
+        : o.totalAmount
+          ? 'Custom Assembly'
+          : 'Standard Industrial Product';
+      const ordered =
+        o.items?.reduce(
+          (sum, item) => sum + Number(item.orderedQuantity || 0),
+          0,
+        ) || (firstItem ? Number(firstItem.orderedQuantity || 1) : 1);
+
+      let totalFgAvailable = 0;
+      let totalReservedFg = 0;
+      for (const item of o.items || []) {
+        if (item.productId) {
+          const fgInfo = fgStockMap.get(item.productId);
+          if (fgInfo) totalFgAvailable += fgInfo.available;
+        }
+        const alloc = itemAllocationMap.get(item.id);
+        if (alloc) totalReservedFg += alloc.reserved;
+      }
+
+      const produce = Math.max(0, ordered - totalReservedFg - totalFgAvailable);
+      if (produce === 0) {
+        fgDirectFulfillmentCount++;
+      } else {
+        productionRequiredCount++;
+      }
+
+      return {
+        id: o.id,
+        orderNo: o.orderNumber,
+        customerName: o.customer?.companyName || 'Authorized Client',
+        productName: prodName,
+        ordered,
+        fgAvailable: totalFgAvailable,
+        reservedFg: totalReservedFg,
+        produce,
+        status: produce === 0 ? 'FG Ready (Direct Fulfillment)' : o.status,
+        canDirectFulfill: produce === 0,
+      };
+    });
 
     // ── 3. Production Status & Work Orders ──
     const allWorkOrders = await this.prisma.workOrder.findMany({
@@ -3506,120 +3616,7 @@ export class PlantHeadService {
     ).length;
     const pipelineFg = await this.prisma.finishedGoods.count();
 
-    // ── 4. Material Requests ──
-    const allMaterialRequests = await this.prisma.materialRequest.findMany({
-      where: companyFilter,
-      include: { requestedBy: true, items: { include: { product: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const mrCreatedToday = allMaterialRequests.filter(
-      (m) => m.createdAt >= todayStart && m.createdAt <= todayEnd,
-    ).length;
-    const mrCreatedYesterday = allMaterialRequests.filter(
-      (m) => m.createdAt >= yesterdayStart && m.createdAt <= yesterdayEnd,
-    ).length;
-
-    const mrPendingApproval = allMaterialRequests.filter(
-      (m) =>
-        m.status === 'PENDING_PLANT_HEAD_APPROVAL' || m.status === 'PENDING',
-    ).length;
-    const mrApprovedToday = allMaterialRequests.filter(
-      (m) =>
-        m.status === 'APPROVED' &&
-        m.updatedAt >= todayStart &&
-        m.updatedAt <= todayEnd,
-    ).length;
-    const mrRejectedToday = allMaterialRequests.filter(
-      (m) =>
-        m.status === 'REJECTED' &&
-        m.updatedAt >= todayStart &&
-        m.updatedAt <= todayEnd,
-    ).length;
-    const mrPendingIssue = allMaterialRequests.filter(
-      (m) => m.status === 'APPROVED' || m.status === 'PARTIALLY_ISSUED',
-    ).length;
-    const mrMaterialShortage = allMaterialRequests.filter(
-      (m) =>
-        m.status === 'SHORTAGE' ||
-        m.items.some(
-          (it) =>
-            Number(it.quantity || 0) > Number(it.product?.minimumStock || 0),
-        ),
-    ).length;
-
-    const materialRequestsTable = allMaterialRequests.slice(0, 8).map((m) => {
-      const firstItem = m.items?.[0];
-      const matName = firstItem?.product?.name || 'Raw Material Item';
-      const requested = firstItem ? Number(firstItem.quantity || 0) : 0;
-      const available = firstItem?.product
-        ? Number(firstItem.product.minimumStock || 50)
-        : 0;
-      const isShortage = requested > available;
-      return {
-        id: m.id,
-        mrNo: m.publicId || m.id.substring(0, 8),
-        workOrderNo: m.workOrderNo || 'N/A',
-        materialName: matName,
-        requested,
-        available,
-        status: isShortage ? 'SHORTAGE' : m.status,
-        isShortage,
-      };
-    });
-
-    // ── 5. Indent Approvals ──
-    const allIndents = await this.prisma.purchaseIndent.findMany({
-      where: companyFilter,
-      include: { requestedBy: true, items: { include: { product: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const indentNewToday = allIndents.filter(
-      (i) => i.createdAt >= todayStart && i.createdAt <= todayEnd,
-    ).length;
-    const indentPendingPlantHead = allIndents.filter(
-      (i) =>
-        i.status === 'PENDING_PLANT_HEAD_APPROVAL' || i.status === 'PENDING',
-    ).length;
-    const indentApprovedToday = allIndents.filter(
-      (i) =>
-        (i.status === 'INDENT_APPROVED' || i.status === 'APPROVED') &&
-        i.updatedAt >= todayStart &&
-        i.updatedAt <= todayEnd,
-    ).length;
-    const indentRejected = allIndents.filter(
-      (i) => i.status === 'PLANT_HEAD_REJECTED' || i.status === 'REJECTED',
-    ).length;
-    const indentProcurementPending = allIndents.filter(
-      (i) => i.status === 'INDENT_APPROVED' || i.status === 'APPROVED',
-    ).length;
-    const indentPoCreated = allIndents.filter(
-      (i) => i.status === 'PO_CREATED',
-    ).length;
-
-    const indentsTable = allIndents.slice(0, 8).map((i) => {
-      const firstItem = i.items?.[0];
-      const matName = firstItem?.product?.name || 'Material Item';
-      const qty = firstItem ? Number(firstItem.quantity || 0) : 0;
-      const ageHours = Math.round(
-        (now.getTime() - new Date(i.createdAt).getTime()) / (1000 * 60 * 60),
-      );
-      return {
-        id: i.id,
-        indentNo: i.publicId || i.id.substring(0, 8),
-        materialName: matName,
-        quantity: qty,
-        requestedBy: i.requestedBy?.name || 'Store User',
-        currentStage: i.status,
-        age:
-          ageHours > 24
-            ? `${Math.floor(ageHours / 24)}d ${ageHours % 24}h`
-            : `${ageHours}h`,
-      };
-    });
-
-    // ── 6. Raw Material Inventory ──
+    // ── 4. Raw Material Inventory & Live Stock Tracking ──
     const dbRawMaterials = await this.prisma.rawMaterial.findMany({
       where: companyId ? { companyId, isActive: true } : { isActive: true },
       orderBy: { sku: 'asc' },
@@ -3646,6 +3643,7 @@ export class PlantHeadService {
           'QUICK_STOCK_IN',
           'STOCK IN',
           'STOCK_IN',
+          'PURCHASE_DELIVERY',
         ].includes(typeUpper)
       ) {
         stockMap.set(targetId, current + qty);
@@ -3690,17 +3688,129 @@ export class PlantHeadService {
         createdAt: { gte: todayStart, lte: todayEnd },
       },
     });
-    const matConsumedToday = mrApprovedToday;
 
     const criticalStockTable = rawProducts.filter(
       (p) => p.status === 'Out of Stock' || p.status === 'Low Stock',
     );
 
-    // ── 7. Finished Goods (Identical math source to /plant-head/finished-goods) ──
-    const fgRecords = await this.prisma.finishedGoods.findMany({
-      include: { product: true, salesOrder: true, workOrder: true },
+    // ── 5. Material Requests with Real Inventory Stock ──
+    const allMaterialRequests = await this.prisma.materialRequest.findMany({
+      where: companyFilter,
+      include: { requestedBy: true, items: { include: { product: true } } },
+      orderBy: { createdAt: 'desc' },
     });
 
+    const mrCreatedToday = allMaterialRequests.filter(
+      (m) => m.createdAt >= todayStart && m.createdAt <= todayEnd,
+    ).length;
+    const mrCreatedYesterday = allMaterialRequests.filter(
+      (m) => m.createdAt >= yesterdayStart && m.createdAt <= yesterdayEnd,
+    ).length;
+
+    const mrPendingApproval = allMaterialRequests.filter(
+      (m) =>
+        m.status === 'PENDING_PLANT_HEAD_APPROVAL' || m.status === 'PENDING',
+    ).length;
+    const mrApprovedToday = allMaterialRequests.filter(
+      (m) =>
+        m.status === 'APPROVED' &&
+        m.updatedAt >= todayStart &&
+        m.updatedAt <= todayEnd,
+    ).length;
+    const mrRejectedToday = allMaterialRequests.filter(
+      (m) =>
+        m.status === 'REJECTED' &&
+        m.updatedAt >= todayStart &&
+        m.updatedAt <= todayEnd,
+    ).length;
+    const mrPendingIssue = allMaterialRequests.filter(
+      (m) => m.status === 'APPROVED' || m.status === 'PARTIALLY_ISSUED',
+    ).length;
+
+    const materialRequestsTable = allMaterialRequests.slice(0, 50).map((m) => {
+      const firstItem = m.items?.[0];
+      const matName = firstItem?.product?.name || 'Raw Material Item';
+      const requested = firstItem ? Number(firstItem.quantity || 0) : 0;
+      const realAvailable = firstItem?.productId
+        ? (stockMap.get(firstItem.productId) ?? 0)
+        : 0;
+      const isShortage = requested > realAvailable;
+      const shortageQty = isShortage ? requested - realAvailable : 0;
+      const ageHours = Math.round(
+        (now.getTime() - new Date(m.createdAt).getTime()) / (1000 * 60 * 60),
+      );
+      return {
+        id: m.id,
+        mrNo: m.publicId || m.id.substring(0, 8),
+        workOrderNo: m.workOrderNo || 'N/A',
+        materialName: matName,
+        requested,
+        available: Math.max(0, realAvailable),
+        shortageQty,
+        status: isShortage ? 'SHORTAGE' : m.status,
+        isShortage,
+        age:
+          ageHours > 24
+            ? `${Math.floor(ageHours / 24)}d ${ageHours % 24}h`
+            : `${ageHours}h`,
+      };
+    });
+
+    const mrMaterialShortage = materialRequestsTable.filter((m) => m.isShortage).length;
+    const matConsumedToday = mrApprovedToday;
+
+    // ── 6. Indent Approvals ──
+    const allIndents = await this.prisma.purchaseIndent.findMany({
+      where: companyFilter,
+      include: { requestedBy: true, items: { include: { product: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const indentNewToday = allIndents.filter(
+      (i) => i.createdAt >= todayStart && i.createdAt <= todayEnd,
+    ).length;
+    const indentPendingPlantHead = allIndents.filter(
+      (i) =>
+        i.status === 'PENDING_PLANT_HEAD_APPROVAL' || i.status === 'PENDING',
+    ).length;
+    const indentApprovedToday = allIndents.filter(
+      (i) =>
+        (i.status === 'INDENT_APPROVED' || i.status === 'APPROVED') &&
+        i.updatedAt >= todayStart &&
+        i.updatedAt <= todayEnd,
+    ).length;
+    const indentRejected = allIndents.filter(
+      (i) => i.status === 'PLANT_HEAD_REJECTED' || i.status === 'REJECTED',
+    ).length;
+    const indentProcurementPending = allIndents.filter(
+      (i) => i.status === 'INDENT_APPROVED' || i.status === 'APPROVED',
+    ).length;
+    const indentPoCreated = allIndents.filter(
+      (i) => i.status === 'PO_CREATED',
+    ).length;
+
+    const indentsTable = allIndents.slice(0, 50).map((i) => {
+      const firstItem = i.items?.[0];
+      const matName = firstItem?.product?.name || 'Material Item';
+      const qty = firstItem ? Number(firstItem.quantity || 0) : 0;
+      const ageHours = Math.round(
+        (now.getTime() - new Date(i.createdAt).getTime()) / (1000 * 60 * 60),
+      );
+      return {
+        id: i.id,
+        indentNo: i.publicId || i.id.substring(0, 8),
+        materialName: matName,
+        quantity: qty,
+        requestedBy: i.requestedBy?.name || 'Store User',
+        currentStage: i.status,
+        age:
+          ageHours > 24
+            ? `${Math.floor(ageHours / 24)}d ${ageHours % 24}h`
+            : `${ageHours}h`,
+      };
+    });
+
+    // ── 7. Finished Goods (Identical math source to /plant-head/finished-goods) ──
     const totalFgProducts =
       fgRecords.length > 0
         ? fgRecords.length
@@ -3724,7 +3834,7 @@ export class PlantHeadService {
       },
     });
 
-    const fgTable = fgRecords.slice(0, 8).map((f) => ({
+    const fgTable = fgRecords.slice(0, 50).map((f) => ({
       id: f.id,
       productName: f.product?.name || 'Finished Product',
       available: Number(f.availableQuantity || 0),
@@ -3769,7 +3879,7 @@ export class PlantHeadService {
     ).length;
 
     const qcRework = qcInspections.filter((q) => q.status === 'REWORK').length;
-    const qcReTest = 0;
+    const qcReTest = qcInspections.filter((q) => (q.status as string) === 'RE_TEST').length;
     const qcScrapPending = qcInspections.filter(
       (q) => q.status === 'FAILED',
     ).length;
@@ -3777,7 +3887,7 @@ export class PlantHeadService {
 
     const qcFailureTable = qcInspections
       .filter((q) => q.status === 'FAILED' || q.status === 'REWORK')
-      .slice(0, 8)
+      .slice(0, 50)
       .map((q) => ({
         id: q.id,
         workOrderNo: q.workOrder?.workOrderNumber || 'WO-N/A',
@@ -3791,10 +3901,23 @@ export class PlantHeadService {
         decision: q.status,
       }));
 
-    // ── 9. Dispatch Summary ──
+    // ── 9. Dispatch Summary with Real Item Details & Accurate Delays ──
     const dispatches = await this.prisma.dispatch.findMany({
+      where: companyId ? { salesOrder: { customer: { companyId } } } : {},
       orderBy: { createdAt: 'desc' },
-      include: { salesOrder: { include: { customer: true } } },
+      include: {
+        salesOrder: {
+          include: {
+            customer: true,
+            items: { include: { product: true } },
+          },
+        },
+        items: {
+          include: {
+            salesOrderItem: { include: { product: true } },
+          },
+        },
+      },
     });
 
     const dispatchReady = dispatches.filter(
@@ -3823,23 +3946,49 @@ export class PlantHeadService {
         d.updatedAt <= yesterdayEnd,
     ).length;
 
-    const dispatchPartial = 0;
     const dispatchRemaining = dispatches.filter(
       (d) => d.status !== 'DELIVERED' && d.status !== 'DISPATCH_CLOSED',
     ).length;
-    const dispatchDelayed = dispatches.filter(
-      (d) => d.eta && d.eta < now && d.status !== 'DELIVERED',
-    ).length;
 
-    const dispatchTable = dispatches.slice(0, 8).map((d) => ({
-      id: d.id,
-      orderNo: d.salesOrder?.orderNumber || 'SO-N/A',
-      customerName: d.salesOrder?.customer?.companyName || 'Customer',
-      productName: 'Dispatched Consignment',
-      quantity: Number(d.loadedQuantity || d.totalWeight || 1),
-      dispatchStatus: d.status,
-      targetDate: d.eta ? d.eta.toISOString().slice(0, 10) : 'Today',
-    }));
+    const dispatchTable = dispatches.slice(0, 50).map((d) => {
+      let prodName = 'Finished Consignment';
+      if (d.items && d.items.length > 0) {
+        const names = d.items
+          .map((it) => it.salesOrderItem?.productNameSnapshot || it.salesOrderItem?.product?.name)
+          .filter(Boolean);
+        if (names.length > 0) {
+          prodName = names.length > 1 ? `${names[0]} (+${names.length - 1} items)` : names[0];
+        }
+      } else if (d.salesOrder?.items && d.salesOrder.items.length > 0) {
+        const names = d.salesOrder.items
+          .map((it) => it.productNameSnapshot || it.product?.name)
+          .filter(Boolean);
+        if (names.length > 0) {
+          prodName = names.length > 1 ? `${names[0]} (+${names.length - 1} items)` : names[0];
+        }
+      }
+
+      const isDelayed =
+        d.transitCondition === 'DELAYED' ||
+        (d.eta && new Date(d.eta) < now && d.status !== 'DELIVERED' && d.status !== 'DISPATCH_CLOSED') ||
+        (d.dispatchedAt && (now.getTime() - new Date(d.dispatchedAt).getTime()) > 3 * 24 * 3600 * 1000 && d.status !== 'DELIVERED');
+
+      return {
+        id: d.id,
+        dispatchNo: d.dispatchNo || `DSP-${d.id.substring(0, 6)}`,
+        orderNo: d.salesOrder?.orderNumber || 'SO-N/A',
+        customerName: d.salesOrder?.customer?.companyName || 'Authorized Client',
+        productName: prodName,
+        quantity: Number(d.loadedQuantity || d.totalWeight || 1),
+        dispatchStatus: isDelayed ? 'DELAYED' : d.status,
+        isDelayed,
+        vehicleNumber: d.vehicleNumber || '—',
+        transporterName: d.transporterName || 'Self / Transport',
+        targetDate: d.eta ? d.eta.toISOString().slice(0, 10) : 'Today',
+      };
+    });
+
+    const dispatchDelayed = dispatchTable.filter((d) => d.isDelayed).length;
 
     // ── 9.1 Production Daily Floor Reports (Submitted via /production/daily-report) ──
     const prodDailyReports = await this.prisma.productionDailyReport.findMany({
@@ -4062,118 +4211,100 @@ export class PlantHeadService {
     const overdueList = allSalesOrders.filter(
       (o) =>
         o.requestedDeliveryDate &&
-        o.requestedDeliveryDate < now &&
-        !['COMPLETED', 'READY_FOR_DISPATCH', 'CANCELLED'].includes(o.status),
+        o.requestedDeliveryDate < todayEnd &&
+        !['COMPLETED', 'READY_FOR_DISPATCH', 'CANCELLED', 'DELIVERED'].includes(o.status),
     );
-    if (overdueList.length > 0) {
-      for (const o of overdueList.slice(0, 5)) {
-        attentionRequired.push({
-          priority: 'CRITICAL',
-          type: 'Sales Order',
-          materialCode: o.orderNumber,
-          reference: o.orderNumber,
-          problem: `Sales Order ${o.orderNumber} delivery target date overdue`,
-          age: '> 24 Hours',
-          actionLink: '/plant-head/incoming-orders',
-        });
-      }
+    for (const o of overdueList.slice(0, 5)) {
+      const ageHours = Math.round(
+        (now.getTime() - new Date(o.requestedDeliveryDate!).getTime()) / (1000 * 3600),
+      );
+      attentionRequired.push({
+        priority: 'CRITICAL',
+        type: 'Sales Order Overdue',
+        materialCode: o.orderNumber,
+        reference: o.orderNumber,
+        problem: `Sales Order ${o.orderNumber} target delivery date expired (${o.requestedDeliveryDate?.toISOString().slice(0, 10)})`,
+        age: ageHours > 24 ? `${Math.floor(ageHours / 24)}d overdue` : `${ageHours}h overdue`,
+        actionLink: '/plant-head/incoming-orders',
+      });
     }
 
     // 2. Material Shortages on Production Floor
     const shortageRequests = materialRequestsTable.filter((m) => m.isShortage);
-    if (shortageRequests.length > 0) {
-      for (const m of shortageRequests.slice(0, 5)) {
-        attentionRequired.push({
-          priority: 'CRITICAL',
-          type: 'Material Shortage',
-          materialCode: m.mrNo,
-          reference: m.mrNo,
-          problem: `Material ${m.materialName} stock shortage for ${m.workOrderNo}`,
-          age: 'Active',
-          actionLink: '/plant-head/material-approvals',
-        });
-      }
+    for (const m of shortageRequests.slice(0, 5)) {
+      attentionRequired.push({
+        priority: 'CRITICAL',
+        type: 'Material Shortage',
+        materialCode: m.mrNo,
+        reference: m.mrNo,
+        problem: `Shortage of ${m.shortageQty} units of ${m.materialName} for ${m.workOrderNo}`,
+        age: m.age || 'Active',
+        actionLink: '/plant-head/material-approvals',
+      });
     }
 
-    // 3. QC Failures Awaiting Decision
-    if (qcFailureTable.length > 0) {
-      for (const q of qcFailureTable.slice(0, 5)) {
-        attentionRequired.push({
-          priority: 'HIGH',
-          type: 'QC Failure',
-          materialCode: q.workOrderNo,
-          reference: q.workOrderNo,
-          problem: `Batch ${q.batchNo} for ${q.productName} failed quality inspection (${q.reason})`,
-          age: 'Recent',
-          actionLink: '/plant-head/qc-failures',
-        });
-      }
+    // 3. Delayed Dispatches (Real delays only!)
+    const delayedDispatches = dispatchTable.filter((d) => d.isDelayed);
+    for (const d of delayedDispatches.slice(0, 5)) {
+      attentionRequired.push({
+        priority: 'CRITICAL',
+        type: 'Delayed Dispatch',
+        materialCode: d.dispatchNo,
+        reference: d.orderNo,
+        problem: `Consignment ${d.dispatchNo} for Order ${d.orderNo} delayed in transit`,
+        age: 'Action Required',
+        actionLink: '/plant-head/dispatch-analytics',
+      });
     }
 
-    // 4. Raw Materials Out of Stock (All Out of Stock Material Codes comma-separated)
-    const outOfStockItems = rawProducts.filter(
-      (c) => c.status === 'Out of Stock',
-    );
-    if (outOfStockItems.length > 0) {
-      const allMaterialCodes = outOfStockItems
-        .map((c) => c.code)
-        .filter(Boolean)
-        .join(', ');
+    // 4. QC Failures Awaiting Decision
+    for (const q of qcFailureTable.slice(0, 5)) {
       attentionRequired.push({
         priority: 'HIGH',
-        type: 'Raw Material',
-        materialCode: allMaterialCodes,
-        reference: allMaterialCodes,
-        problem: `${outOfStockItems.length} Materials completely out of stock in warehouse`,
-        age: 'Immediate',
+        type: 'QC Failure',
+        materialCode: q.workOrderNo,
+        reference: q.batchNo,
+        problem: `Batch ${q.batchNo} for ${q.productName} rejected: ${q.reason}`,
+        age: 'Awaiting Decision',
+        actionLink: '/plant-head/qc-failures',
+      });
+    }
+
+    // 5. Critical Raw Materials Out of Stock (individual items instead of 50 in 1 row)
+    const outOfStockItems = rawProducts.filter((c) => c.status === 'Out of Stock');
+    for (const item of outOfStockItems.slice(0, 5)) {
+      attentionRequired.push({
+        priority: 'HIGH',
+        type: 'Raw Material Stockout',
+        materialCode: item.code,
+        reference: item.code,
+        problem: `Material ${item.materialName} (${item.code}) completely out of stock in warehouse`,
+        age: 'Zero Stock',
         actionLink: '/plant-head/raw-inventory',
       });
     }
 
-    // 5. Purchase Indents Pending Sign-off
+    // 6. Purchase Indents Pending Sign-off
     const pendingIndents = indentsTable.filter(
       (i) =>
         i.currentStage === 'PENDING_PLANT_HEAD_APPROVAL' ||
         i.currentStage === 'PENDING',
     );
-    if (pendingIndents.length > 0) {
-      for (const i of pendingIndents.slice(0, 5)) {
-        attentionRequired.push({
-          priority: 'WARNING',
-          type: 'Purchase Indent',
-          materialCode: i.indentNo,
-          reference: i.indentNo,
-          problem: `Purchase Indent ${i.indentNo} for ${i.materialName} awaiting sign-off`,
-          age: '> 12 Hours',
-          actionLink: '/plant-head/indent-approvals',
-        });
-      }
+    for (const i of pendingIndents.slice(0, 5)) {
+      attentionRequired.push({
+        priority: 'WARNING',
+        type: 'Purchase Indent',
+        materialCode: i.indentNo,
+        reference: i.indentNo,
+        problem: `Purchase Indent ${i.indentNo} for ${i.materialName} (${i.quantity} units) awaiting sign-off`,
+        age: i.age || '> 12 Hours',
+        actionLink: '/plant-head/indent-approvals',
+      });
     }
 
-    // 6. Delayed Dispatches (Escalated to CRITICAL after 3 days without operation)
-    const delayedDisp = dispatchTable.filter(
-      (d) =>
-        (d.dispatchStatus as string) === 'IN_TRANSIT' ||
-        (d.dispatchStatus as string) === 'DISPATCHED' ||
-        (d.dispatchStatus as string) === 'DELAYED',
-    );
-    if (delayedDisp.length > 0) {
-      for (const d of delayedDisp.slice(0, 5)) {
-        attentionRequired.push({
-          priority: 'CRITICAL',
-          type: 'Dispatch',
-          materialCode: d.orderNo,
-          reference: d.orderNo,
-          problem: `Consignment for Order ${d.orderNo} delayed in transit > 3 days without operation`,
-          age: '> 3 Days',
-          actionLink: '/plant-head/dispatch-analytics',
-        });
-      }
-    }
+    const criticalAlertsCount = attentionRequired.filter((a) => a.priority === 'CRITICAL').length;
 
-    const criticalAlertsCount = attentionRequired.length;
-
-    // ── 13. Today's Activity Timeline (Audit/Workflow History First) ──
+    // ── 13. Target Date Activity Timeline ──
     const workflowLogs = await this.prisma.workflowHistory.findMany({
       where: { createdAt: { gte: todayStart, lte: todayEnd } },
       orderBy: { createdAt: 'desc' },
@@ -4188,60 +4319,55 @@ export class PlantHeadService {
 
     let activityTimeline: any[] = [];
     if (workflowLogs.length > 0) {
-      activityTimeline = workflowLogs.map((l) => {
-        const timeStr = new Date(l.createdAt).toLocaleTimeString('en-IN', {
+      activityTimeline = workflowLogs.map((l) => ({
+        id: l.id,
+        time: new Date(l.createdAt).toLocaleTimeString('en-IN', {
           hour: '2-digit',
           minute: '2-digit',
-        });
-        return {
-          id: l.id,
-          time: timeStr,
-          description: `${l.entityType} ${l.entityId.substring(0, 8)} transition from ${l.fromStatus} to ${l.toStatus} (${l.action})`,
-        };
-      });
+        }),
+        description: `${l.entityType} ${l.entityId.substring(0, 8)} transition from ${l.fromStatus} to ${l.toStatus} (${l.action})`,
+      }));
     } else if (auditLogs.length > 0) {
-      activityTimeline = auditLogs.map((a) => {
-        const timeStr = new Date(a.createdAt).toLocaleTimeString('en-IN', {
+      activityTimeline = auditLogs.map((a) => ({
+        id: a.id,
+        time: new Date(a.createdAt).toLocaleTimeString('en-IN', {
           hour: '2-digit',
           minute: '2-digit',
-        });
-        return {
-          id: a.id,
-          time: timeStr,
-          description: `${a.action} performed on ${a.entityType} ${a.entityId.substring(0, 8)}`,
-        };
-      });
+        }),
+        description: `${a.action} performed on ${a.entityType} ${a.entityId.substring(0, 8)}`,
+      }));
     } else {
-      // Fallback timeline from entity timestamps
-      activityTimeline = [
-        ...allSalesOrders.slice(0, 3).map((o) => ({
-          id: o.id,
+      // Direct activity from target date records
+      const targetDateActivities = [
+        ...targetDateOrders.map((o) => ({
+          id: `order-${o.id}`,
           time: new Date(o.createdAt).toLocaleTimeString('en-IN', {
             hour: '2-digit',
             minute: '2-digit',
           }),
-          description: `Sales Order ${o.orderNumber} received from Sales`,
+          description: `Sales Order ${o.orderNumber} received from Sales (${o.customer?.companyName || 'Client'})`,
         })),
-        ...allMaterialRequests.slice(0, 3).map((m) => ({
-          id: m.id,
+        ...allMaterialRequests.filter((m) => m.createdAt >= todayStart && m.createdAt <= todayEnd).map((m) => ({
+          id: `mr-${m.id}`,
           time: new Date(m.createdAt).toLocaleTimeString('en-IN', {
             hour: '2-digit',
             minute: '2-digit',
           }),
-          description: `Material Request ${m.publicId || m.id.substring(0, 8)} created for ${m.workOrderNo || 'Production'}`,
+          description: `Material Request ${m.publicId || m.id.substring(0, 8)} created for ${m.workOrderNo || 'Floor'}`,
         })),
-        ...allWorkOrders.slice(0, 3).map((w) => ({
-          id: w.id,
+        ...allWorkOrders.filter((w) => w.createdAt >= todayStart && w.createdAt <= todayEnd).map((w) => ({
+          id: `wo-${w.id}`,
           time: new Date(w.createdAt).toLocaleTimeString('en-IN', {
             hour: '2-digit',
             minute: '2-digit',
           }),
           description: `Work Order ${w.workOrderNumber} status: ${w.status}`,
         })),
-      ].slice(0, 10);
+      ];
+      activityTimeline = targetDateActivities.slice(0, 10);
     }
 
-    // ── 14. Today vs Yesterday Comparison ──
+    // ── 14. Target Date vs Previous Day Comparison ──
     const comparison = [
       {
         kpi: 'Incoming Orders',
@@ -4274,32 +4400,44 @@ export class PlantHeadService {
         diff: qcFailedToday - qcFailedYesterday,
       },
       {
-        kpi: 'Dispatch Completed',
+        kpi: 'Dispatch Delivered',
         today: dispatchDeliveredToday,
         yesterday: dispatchCompletedYesterday,
         diff: dispatchDeliveredToday - dispatchCompletedYesterday,
       },
     ];
 
-    // ── 15. Automatic Daily Summary Text ──
-    const summaryText = `Today the plant received ${receivedToday} new orders. ${pendingPlanning} orders are awaiting production planning. ${prodRunning} work orders are currently active in production and ${completedToday} were completed today. ${mrPendingApproval} material requests require approval and ${indentPendingPlantHead} purchase indents remain pending. ${qcDecisionPending} QC failures require Plant Head attention and ${dispatchReady} orders are ready for dispatch.`;
+    // ── 15. Automatic Daily Summary Narrative Text ──
+    const formattedDateStr = targetDate.toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    const summaryText = `For ${formattedDateStr}, the plant logged ${receivedToday} incoming orders, with ${awaitingPlantHead} orders awaiting Plant Head review. ${pendingPlanning} orders require production planning (${fgDirectFulfillmentCount} fulfillable directly from Finished Goods inventory). Active floor operations include ${prodRunning} running work orders and ${completedToday} completed today. Stores recorded ${mrPendingApproval} material requests pending approval with ${shortageRequests.length} stock shortages identified, and ${indentPendingPlantHead} purchase indents pending sign-off. QC reported ${qcDecisionPending} inspections requiring review, and ${dispatchReady} consignments are staged ready for dispatch.`;
 
     return {
-      date: targetDate.toISOString().slice(0, 10),
+      date: `${yyyy}-${String(mm + 1).padStart(2, '0')}-${String(dd).padStart(2, '0')}`,
+      formattedDate: formattedDateStr,
       lastUpdated: new Date().toLocaleTimeString('en-IN', {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
       }),
+      plantHeadName,
+      plantHeadDesignation: 'Plant Head',
       mainKpis: {
-        incomingOrders: awaitingPlantHead + receivedToday,
+        incomingOrders: receivedToday,
+        awaitingPlantHead,
         pendingPlanning,
         activeProduction: prodRunning,
         materialRequests: mrPendingApproval,
+        materialShortages: shortageRequests.length,
         pendingIndents: indentPendingPlantHead,
         qcPending,
         readyDispatch: dispatchReady,
         criticalAlerts: criticalAlertsCount,
+        totalAlerts: attentionRequired.length,
       },
       summaryText,
       attentionRequired,
@@ -4321,8 +4459,8 @@ export class PlantHeadService {
         plansCreatedToday,
         scheduledPlans,
         delayedPlans,
-        fgDirectFulfillment: 0,
-        productionRequired: pendingPlanning,
+        fgDirectFulfillment: fgDirectFulfillmentCount,
+        productionRequired: productionRequiredCount,
         table: planningTable,
       },
       production: {
@@ -4395,7 +4533,6 @@ export class PlantHeadService {
         dispatchCreatedToday,
         dispatchInTransit,
         dispatchDeliveredToday,
-        dispatchPartial,
         dispatchRemaining,
         dispatchDelayed,
         table: dispatchTable,

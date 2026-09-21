@@ -46,7 +46,7 @@ export class PlantHeadController {
     const companyId =
       (req.headers['x-company-id'] as string) ||
       (req as any).user?.['companyId'];
-    return this.plantHeadService.getIncomingOrders(companyId); // alias for incoming-orders based on mock logic
+    return this.plantHeadService.getIncomingOrders(companyId);
   }
 
   @RequirePermissions(
@@ -74,7 +74,8 @@ export class PlantHeadController {
     const companyId =
       (req as any).user?.['companyId'] ||
       (req.headers['x-company-id'] as string);
-    return this.plantHeadService.getDailySummary(companyId, date);
+    const currentUser = (req as any).user;
+    return this.plantHeadService.getDailySummary(companyId, date, currentUser);
   }
 
   @RequirePermissions(
