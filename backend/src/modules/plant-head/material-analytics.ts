@@ -352,7 +352,7 @@ export async function readStoreRoAnalytics(
 
     const materialName = mat?.name || tx.rawMaterial?.name || tx.product?.name || 'Raw Material';
     const materialSku = mat?.sku || tx.rawMaterial?.sku || tx.product?.sku || 'SKU-NONE';
-    const unit = mat?.unit || tx.rawMaterial?.unit || tx.product?.unit || 'KG';
+    const unit = mat?.unit || tx.rawMaterial?.unit || tx.product?.unit || 'PCS';
     const category = mat?.category || tx.rawMaterial?.category || tx.product?.category || 'General';
 
     const existing = issueMap.get(canonicalId) || {
@@ -402,7 +402,7 @@ export async function readStoreRoAnalytics(
 
     const materialName = mat?.name || item.product?.name || 'Material Item';
     const materialSku = mat?.sku || item.product?.sku || 'SKU-NONE';
-    const unit = mat?.unit || item.product?.unit || 'KG';
+    const unit = mat?.unit || item.product?.unit || 'PCS';
     const category = mat?.category || item.product?.category || 'General';
 
     const existing = receiveMap.get(canonicalId) || {
@@ -451,7 +451,7 @@ export async function readStoreRoAnalytics(
 
     const materialName = mat?.name || item.product?.name || 'Consumed Material';
     const materialSku = mat?.sku || item.product?.sku || 'SKU-NONE';
-    const unit = mat?.unit || item.unit || item.product?.unit || 'KG';
+    const unit = mat?.unit || item.unit || item.product?.unit || 'PCS';
     const category = mat?.category || item.product?.category || 'General';
 
     const existing = consumptionMap.get(canonicalId) || {
@@ -571,7 +571,7 @@ export async function readStoreRoAnalytics(
         percentage: receiveByItem[0].percentage,
         unit: receiveByItem[0].unit,
       }
-    : { name: '-', sku: '', quantity: 0, percentage: 0, unit: 'KG' };
+    : { name: '-', sku: '', quantity: 0, percentage: 0, unit: 'PCS' };
 
   const topIssueDate = topIssueDates.length > 0
     ? {
@@ -764,13 +764,13 @@ export async function readStoreRoAnalytics(
   if (topIssueDates.length > 0) {
     const topD = topIssueDates[0];
     insights.push(
-      `The peak material issue date was ${topD.date} with ${topD.sumOfKg.toLocaleString('en-IN')} KG across ${topD.transactions} transactions (${topD.percentage.toFixed(2)}% of period movement).`,
+      `The peak material issue date was ${topD.date} with ${topD.sumOfKg.toLocaleString('en-IN')} PCS across ${topD.transactions} transactions (${topD.percentage.toFixed(2)}% of period movement).`,
     );
   }
 
   if (totalReceiveKg > 0) {
     insights.push(
-      `Store receipts totaled ${totalReceiveKg.toLocaleString('en-IN')} KG across ${receiveByItem.length} received items, reflecting active procurement intake.`,
+      `Store receipts totaled ${totalReceiveKg.toLocaleString('en-IN')} PCS across ${receiveByItem.length} received items, reflecting active procurement intake.`,
     );
   } else {
     insights.push('No store receipts recorded for the selected period.');
@@ -779,7 +779,7 @@ export async function readStoreRoAnalytics(
   if (totalConsumptionKg > 0) {
     const ratio = totalIssueKg > 0 ? round2((totalConsumptionKg / totalIssueKg) * 100) : 0;
     insights.push(
-      `Production floor consumption logged at ${totalConsumptionKg.toLocaleString('en-IN')} KG, representing ${ratio}% of released store material.`,
+      `Production floor consumption logged at ${totalConsumptionKg.toLocaleString('en-IN')} PCS, representing ${ratio}% of released store material.`,
     );
   } else {
     insights.push('No shop floor material consumption recorded for the selected period.');
@@ -1147,7 +1147,7 @@ export async function readMaterialWiseAnalytics(
       const mat = materialById.get(cid);
       const mName = mat?.name || tx.rawMaterial?.name || tx.product?.name || 'Raw Material';
       const mSku = mat?.sku || tx.rawMaterial?.sku || tx.product?.sku || 'SKU';
-      const unit = mat?.unit || tx.rawMaterial?.unit || tx.product?.unit || 'KG';
+      const unit = mat?.unit || tx.rawMaterial?.unit || tx.product?.unit || 'PCS';
 
       const entry = dayMatMap.get(cid) || { materialName: mName, sku: mSku, unit, issueKg: 0, transactions: 0 };
       entry.issueKg += qty;
@@ -1175,7 +1175,7 @@ export async function readMaterialWiseAnalytics(
         quantityKg: storeRoData.issueByItem[0].sumOfKg,
         unit: storeRoData.issueByItem[0].unit,
       }
-    : { name: '-', quantityKg: 0, unit: 'KG' };
+    : { name: '-', quantityKg: 0, unit: 'PCS' };
 
   // Most frequently issued (highest transaction count)
   const sortedByTxns = [...storeRoData.issueByItem].sort((a, b) => b.transactions - a.transactions);
@@ -1300,7 +1300,7 @@ export async function readTransactionAudit(
         materialName: tx.rawMaterial?.name || tx.product?.name || 'Raw Material',
         sku: tx.rawMaterial?.sku || tx.product?.sku || '-',
         quantity: Math.abs(Number(tx.quantity)),
-        unit: tx.rawMaterial?.unit || tx.product?.unit || 'KG',
+        unit: tx.rawMaterial?.unit || tx.product?.unit || 'PCS',
         referenceType: tx.referenceType,
         referenceId: tx.referenceId || '-',
         warehouse: tx.warehouse?.name || 'Central Store',
@@ -1357,7 +1357,7 @@ export async function readTransactionAudit(
         materialName: g.product?.name || 'Material Item',
         sku: g.product?.sku || '-',
         quantity: q,
-        unit: g.product?.unit || 'KG',
+        unit: g.product?.unit || 'PCS',
         referenceType: 'GRN',
         referenceId: g.goodsReceiptNote?.grnNumber || g.goodsReceiptNote?.id,
         warehouse: g.goodsReceiptNote?.warehouse?.name || 'Store Receiving',
@@ -1413,7 +1413,7 @@ export async function readTransactionAudit(
         materialName: mr.product?.name || 'Material Item',
         sku: mr.product?.sku || '-',
         quantity: Number(mr.consumedQuantity),
-        unit: mr.unit || mr.product?.unit || 'KG',
+        unit: mr.unit || mr.product?.unit || 'PCS',
         referenceType: 'MATERIAL_REQUEST',
         referenceId: mr.materialRequest?.publicId || mr.materialRequest?.id,
         warehouse: 'Production Shop Floor',

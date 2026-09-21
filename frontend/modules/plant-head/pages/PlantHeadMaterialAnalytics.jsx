@@ -280,7 +280,7 @@ export function PlantHeadMaterialAnalytics() {
   // CSV Export for current filtered view
   const handleExportCsv = () => {
     if (activeTab === 'store-ro' && storeRoData) {
-      const headers = ['Sr. No.', 'Material Name', 'SKU', 'Unit', 'Category', 'Issue KG', 'Receive KG', 'Issue %', 'Transactions', 'Avg Issue/Txn'];
+      const headers = ['Sr. No.', 'Material Name', 'SKU', 'Unit', 'Category', 'Issue (PCS)', 'Receive (PCS)', 'Issue %', 'Transactions', 'Avg Issue/Txn'];
       const rows = (storeRoData.issueByItem || []).map((row, idx) => {
         const rec = (storeRoData.receiveByItem || []).find((r) => r.materialId === row.materialId);
         return [
@@ -305,7 +305,7 @@ export function PlantHeadMaterialAnalytics() {
       a.click();
       URL.revokeObjectURL(url);
     } else if (activeTab === 'material-wise' && matWiseData) {
-      const headers = ['Material', 'SKU', 'Unit', 'Category', 'Issue KG', 'Issue Txns', 'Receive KG', 'Consumption KG', 'Classification'];
+      const headers = ['Material', 'SKU', 'Unit', 'Category', 'Issue (PCS)', 'Issue Txns', 'Receive (PCS)', 'Consumption (PCS)', 'Classification'];
       const rows = (matWiseData.materials || []).map((m) => [
         csvCell(m.materialName),
         csvCell(m.materialSku),
@@ -576,7 +576,7 @@ export function PlantHeadMaterialAnalytics() {
             <div className={styles.kpiIconWrapper}><ArrowUpRight size={18} /></div>
           </div>
           <div className={styles.kpiValue}>
-            {storeRoLoading ? '...' : `${formatKg(storeRoData?.kpis?.totalIssueKg)} KG`}
+            {storeRoLoading ? '...' : `${formatKg(storeRoData?.kpis?.totalIssueKg)} PCS`}
           </div>
           <div className={styles.kpiSubtext}>
             <span>{storeRoData?.kpis?.issuedMaterialsCount ?? 0} issued materials</span>
@@ -590,7 +590,7 @@ export function PlantHeadMaterialAnalytics() {
             <div className={styles.kpiIconWrapper}><ArrowDownLeft size={18} /></div>
           </div>
           <div className={styles.kpiValue}>
-            {storeRoLoading ? '...' : `${formatKg(storeRoData?.kpis?.totalReceiveKg)} KG`}
+            {storeRoLoading ? '...' : `${formatKg(storeRoData?.kpis?.totalReceiveKg)} PCS`}
           </div>
           <div className={styles.kpiSubtext}>
             <span>{storeRoData?.kpis?.receivedMaterialsCount ?? 0} received materials</span>
@@ -604,7 +604,7 @@ export function PlantHeadMaterialAnalytics() {
             <div className={styles.kpiIconWrapper}><Activity size={18} /></div>
           </div>
           <div className={styles.kpiValue}>
-            {storeRoLoading ? '...' : `${formatKg(storeRoData?.kpis?.totalConsumptionKg)} KG`}
+            {storeRoLoading ? '...' : `${formatKg(storeRoData?.kpis?.totalConsumptionKg)} PCS`}
           </div>
           <div className={styles.kpiSubtext}>
             <span>Shop floor consumed</span>
@@ -623,7 +623,7 @@ export function PlantHeadMaterialAnalytics() {
           <div className={styles.kpiSubtext}>
             {storeRoData?.kpis?.topIssueMaterial?.quantity > 0 ? (
               <span>
-                {formatKg(storeRoData.kpis.topIssueMaterial.quantity)} KG (
+                {formatKg(storeRoData.kpis.topIssueMaterial.quantity)} {storeRoData.kpis.topIssueMaterial.unit || 'PCS'} (
                 {formatPercent(storeRoData.kpis.topIssueMaterial.percentage)})
               </span>
             ) : (
@@ -644,7 +644,7 @@ export function PlantHeadMaterialAnalytics() {
           <div className={styles.kpiSubtext}>
             {storeRoData?.kpis?.topIssueDate?.quantity > 0 ? (
               <span>
-                {formatKg(storeRoData.kpis.topIssueDate.quantity)} KG (
+                {formatKg(storeRoData.kpis.topIssueDate.quantity)} PCS (
                 {formatPercent(storeRoData.kpis.topIssueDate.percentage)})
               </span>
             ) : (
@@ -698,7 +698,7 @@ export function PlantHeadMaterialAnalytics() {
                     <tr>
                       <th style={{ width: '40px' }}>Sr.</th>
                       <th>Material Name</th>
-                      <th className={styles.textRight}>Issue KG</th>
+                      <th className={styles.textRight}>Issue (PCS)</th>
                       <th className={styles.textRight}>%</th>
                       <th className={styles.textRight}>Txns</th>
                       <th className={styles.textRight}>Avg/Txn</th>
@@ -753,7 +753,7 @@ export function PlantHeadMaterialAnalytics() {
                     <tr>
                       <th style={{ width: '40px' }}>Sr.</th>
                       <th>Material Name</th>
-                      <th className={styles.textRight}>Receive KG</th>
+                      <th className={styles.textRight}>Receive (PCS)</th>
                       <th className={styles.textRight}>%</th>
                       <th className={styles.textRight}>Txns</th>
                       <th className={styles.textRight}>Avg/Txn</th>
@@ -813,7 +813,7 @@ export function PlantHeadMaterialAnalytics() {
                     <tr>
                       <th style={{ width: '40px' }}>Sr.</th>
                       <th>Date (IST)</th>
-                      <th className={styles.textRight}>Issue KG</th>
+                      <th className={styles.textRight}>Issue (PCS)</th>
                       <th className={styles.textRight}>%</th>
                       <th className={styles.textRight}>Txns</th>
                     </tr>
@@ -896,9 +896,9 @@ export function PlantHeadMaterialAnalytics() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => `${v} KG`} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => `${v} PCS`} />
                   <Tooltip
-                    formatter={(val, name) => [`${formatKg(val)} KG`, name]}
+                    formatter={(val, name) => [`${formatKg(val)} PCS`, name]}
                     contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '6px', fontSize: '12px' }}
                   />
                   <Area type="monotone" dataKey="issueKg" name="Store Issue" stroke="#2563eb" fillOpacity={1} fill="url(#colorIssue)" strokeWidth={2} />
@@ -936,10 +936,10 @@ export function PlantHeadMaterialAnalytics() {
                   margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                  <XAxis type="number" tickFormatter={(v) => `${v} KG`} tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <XAxis type="number" tickFormatter={(v) => `${v} PCS`} tick={{ fontSize: 11, fill: '#64748b' }} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#1e293b', fontWeight: 600 }} />
                   <Tooltip
-                    formatter={(val) => [`${formatKg(val)} KG`, 'Issue Quantity']}
+                    formatter={(val) => [`${formatKg(val)} PCS`, 'Issue Quantity']}
                     contentStyle={{ background: '#0f172a', color: '#fff', borderRadius: '6px', fontSize: '12px' }}
                   />
                   <Bar
@@ -968,7 +968,7 @@ export function PlantHeadMaterialAnalytics() {
                 <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Net Store Balance</span>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: (storeRoData?.highlights?.netBalanceKg ?? 0) >= 0 ? '#166534' : '#991b1b', marginTop: '4px' }}>
-                    {formatKg(storeRoData?.highlights?.netBalanceKg)} KG
+                    {formatKg(storeRoData?.highlights?.netBalanceKg)} PCS
                   </div>
                   <small style={{ fontSize: '11px', color: '#64748b' }}>Receive minus Issue</small>
                 </div>
@@ -1029,7 +1029,7 @@ export function PlantHeadMaterialAnalytics() {
                     }}
                     onClick={() => setMatrixView('issue')}
                   >
-                    Issue KG
+                    Issue (PCS)
                   </button>
                   <button
                     type="button"
@@ -1045,7 +1045,7 @@ export function PlantHeadMaterialAnalytics() {
                     }}
                     onClick={() => setMatrixView('receive')}
                   >
-                    Receive KG
+                    Receive (PCS)
                   </button>
                   <button
                     type="button"
@@ -1061,7 +1061,7 @@ export function PlantHeadMaterialAnalytics() {
                     }}
                     onClick={() => setMatrixView('consumption')}
                   >
-                    Consumption KG
+                    Consumption (PCS)
                   </button>
                 </div>
               </div>
@@ -1076,7 +1076,7 @@ export function PlantHeadMaterialAnalytics() {
                     {(storeRoData?.monthlyMatrix?.months || []).map((m) => (
                       <th key={m} style={{ minWidth: '70px' }}>{m}</th>
                     ))}
-                    <th style={{ minWidth: '90px' }}>Total KG</th>
+                    <th style={{ minWidth: '90px' }}>Total PCS</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1158,7 +1158,7 @@ export function PlantHeadMaterialAnalytics() {
                 </p>
               </div>
               <span className={styles.reconciliationVariance}>
-                RECONCILED (0.00 KG VARIANCE)
+                RECONCILED (0.00 PCS VARIANCE)
               </span>
             </div>
 
@@ -1166,33 +1166,33 @@ export function PlantHeadMaterialAnalytics() {
               <div className={styles.reconciliationBox}>
                 <span className={styles.reconciliationLabel}>Store Issue (OUT / ISSUE_TO_PRODUCTION)</span>
                 <div className={styles.reconciliationNumbers}>
-                  <span>Store: {formatKg(storeRoData?.reconciliation?.storeIssueKg)} KG</span>
-                  <span>Analytics: {formatKg(storeRoData?.reconciliation?.analyticsIssueKg)} KG</span>
+                  <span>Store: {formatKg(storeRoData?.reconciliation?.storeIssueKg)} PCS</span>
+                  <span>Analytics: {formatKg(storeRoData?.reconciliation?.analyticsIssueKg)} PCS</span>
                 </div>
                 <span className={styles.reconciliationVariance}>
-                  Variance: {formatKg(storeRoData?.reconciliation?.issueVarianceKg)} KG
+                  Variance: {formatKg(storeRoData?.reconciliation?.issueVarianceKg)} PCS
                 </span>
               </div>
 
               <div className={styles.reconciliationBox}>
                 <span className={styles.reconciliationLabel}>Store Receive (Goods Receipt Notes)</span>
                 <div className={styles.reconciliationNumbers}>
-                  <span>Store: {formatKg(storeRoData?.reconciliation?.storeReceiveKg)} KG</span>
-                  <span>Analytics: {formatKg(storeRoData?.reconciliation?.analyticsReceiveKg)} KG</span>
+                  <span>Store: {formatKg(storeRoData?.reconciliation?.storeReceiveKg)} PCS</span>
+                  <span>Analytics: {formatKg(storeRoData?.reconciliation?.analyticsReceiveKg)} PCS</span>
                 </div>
                 <span className={styles.reconciliationVariance}>
-                  Variance: {formatKg(storeRoData?.reconciliation?.receiveVarianceKg)} KG
+                  Variance: {formatKg(storeRoData?.reconciliation?.receiveVarianceKg)} PCS
                 </span>
               </div>
 
               <div className={styles.reconciliationBox}>
                 <span className={styles.reconciliationLabel}>Material Consumption (Material Requests)</span>
                 <div className={styles.reconciliationNumbers}>
-                  <span>Store: {formatKg(storeRoData?.reconciliation?.storeConsumptionKg)} KG</span>
-                  <span>Analytics: {formatKg(storeRoData?.reconciliation?.analyticsConsumptionKg)} KG</span>
+                  <span>Store: {formatKg(storeRoData?.reconciliation?.storeConsumptionKg)} PCS</span>
+                  <span>Analytics: {formatKg(storeRoData?.reconciliation?.analyticsConsumptionKg)} PCS</span>
                 </div>
                 <span className={styles.reconciliationVariance}>
-                  Variance: {formatKg(storeRoData?.reconciliation?.consumptionVarianceKg)} KG
+                  Variance: {formatKg(storeRoData?.reconciliation?.consumptionVarianceKg)} PCS
                 </span>
               </div>
             </div>
@@ -1318,10 +1318,10 @@ export function PlantHeadMaterialAnalytics() {
                   <th>Material / SKU</th>
                   <th>Unit</th>
                   <th className={styles.textRight}>Current Stock</th>
-                  <th className={styles.textRight}>Issue KG</th>
+                  <th className={styles.textRight}>Issue (PCS)</th>
                   <th className={styles.textRight}>Txns</th>
-                  <th className={styles.textRight}>Receive KG</th>
-                  <th className={styles.textRight}>Consumption KG</th>
+                  <th className={styles.textRight}>Receive (PCS)</th>
+                  <th className={styles.textRight}>Consumption (PCS)</th>
                   <th className={styles.textCenter}>Stock Status</th>
                   <th className={styles.textCenter}>Velocity</th>
                   <th className={styles.textCenter}>Actions</th>
@@ -1459,16 +1459,16 @@ export function PlantHeadMaterialAnalytics() {
                 <div>
                   <div style={{ fontSize: '12px', marginBottom: '8px' }}>
                     Active Material: <strong>{matWiseData.materialDailyAnalysis.selectedMaterial.materialName}</strong> (
-                    {formatKg(matWiseData.materialDailyAnalysis.selectedMaterial.totalIssueKg)} KG total)
+                    {formatKg(matWiseData.materialDailyAnalysis.selectedMaterial.totalIssueKg)} {matWiseData.materialDailyAnalysis.selectedMaterial.unit || 'PCS'} total)
                   </div>
                   <div className={styles.tableWrap} style={{ maxHeight: '200px' }}>
                     <table className={styles.enterpriseTable}>
                       <thead>
                         <tr>
                           <th>Date</th>
-                          <th className={styles.textRight}>Issue KG</th>
-                          <th className={styles.textRight}>Receive KG</th>
-                          <th className={styles.textRight}>Consumption KG</th>
+                          <th className={styles.textRight}>Issue (PCS)</th>
+                          <th className={styles.textRight}>Receive (PCS)</th>
+                          <th className={styles.textRight}>Consumption (PCS)</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1498,14 +1498,14 @@ export function PlantHeadMaterialAnalytics() {
                 <div>
                   <div style={{ fontSize: '12px', marginBottom: '8px' }}>
                     Active Date: <strong>{matWiseData.dateWiseMaterialIssue.selectedDate}</strong> (
-                    {formatKg(matWiseData.dateWiseMaterialIssue.totalDayIssueKg)} KG total)
+                    {formatKg(matWiseData.dateWiseMaterialIssue.totalDayIssueKg)} PCS total)
                   </div>
                   <div className={styles.tableWrap} style={{ maxHeight: '200px' }}>
                     <table className={styles.enterpriseTable}>
                       <thead>
                         <tr>
                           <th>Material</th>
-                          <th className={styles.textRight}>Issue KG</th>
+                          <th className={styles.textRight}>Issue (PCS)</th>
                           <th className={styles.textRight}>Transactions</th>
                         </tr>
                       </thead>
@@ -1669,7 +1669,7 @@ export function PlantHeadMaterialAnalytics() {
               <div>
                 <h3 className={styles.drawerTitle}>{drawerMaterial.itemName || drawerMaterial.materialName}</h3>
                 <div style={{ fontSize: '12px', color: '#64748b' }}>
-                  SKU: {drawerMaterial.itemSku || drawerMaterial.materialSku || 'N/A'} · Unit: {drawerMaterial.unit || 'KG'}
+                  SKU: {drawerMaterial.itemSku || drawerMaterial.materialSku || 'N/A'} · Unit: {drawerMaterial.unit || 'PCS'}
                 </div>
               </div>
               <button
@@ -1686,7 +1686,7 @@ export function PlantHeadMaterialAnalytics() {
                 <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '8px' }}>
                   <div style={{ fontSize: '11px', color: '#1e40af', fontWeight: 700 }}>TOTAL ISSUE</div>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: '#1e3a8a', marginTop: '4px' }}>
-                    {formatKg(drawerMaterial.sumOfKg || drawerMaterial.totalIssueKg)} KG
+                    {formatKg(drawerMaterial.sumOfKg || drawerMaterial.totalIssueKg)} {drawerMaterial.unit || 'PCS'}
                   </div>
                 </div>
                 <div style={{ background: '#ecfdf5', padding: '12px', borderRadius: '8px' }}>
@@ -1698,7 +1698,7 @@ export function PlantHeadMaterialAnalytics() {
                 <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>AVG / TXN</div>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: '#1e293b', marginTop: '4px' }}>
-                    {formatKg(drawerMaterial.avgPerTransaction || 0)} KG
+                    {formatKg(drawerMaterial.avgPerTransaction || 0)} {drawerMaterial.unit || 'PCS'}
                   </div>
                 </div>
               </div>
@@ -1749,7 +1749,7 @@ export function PlantHeadMaterialAnalytics() {
                     <tr>
                       <th>Sr.</th>
                       <th>Date (IST)</th>
-                      <th className={styles.textRight}>Issue Quantity (KG)</th>
+                      <th className={styles.textRight}>Issue Quantity (PCS)</th>
                       <th className={styles.textRight}>Percentage Share</th>
                       <th className={styles.textRight}>Transactions</th>
                     </tr>
