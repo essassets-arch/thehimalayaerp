@@ -1,10 +1,65 @@
+const fs = require('fs');
+const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 
-const prisma = new PrismaClient();
+let prisma;
+
+async function getConnectedPrisma() {
+  const candidateUrls = [];
+  if (process.env.DATABASE_URL) candidateUrls.push(process.env.DATABASE_URL);
+
+  const envPaths = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(process.cwd(), '../.env'),
+    path.resolve(__dirname, '../.env'),
+    path.resolve(__dirname, '../../.env'),
+  ];
+
+  for (const ep of envPaths) {
+    if (fs.existsSync(ep)) {
+      const content = fs.readFileSync(ep, 'utf8');
+      const match = content.match(/DATABASE_URL=["']?([^"'\r\n]+)["']?/);
+      if (match && !candidateUrls.includes(match[1])) {
+        candidateUrls.push(match[1]);
+      }
+    }
+  }
+
+  const expanded = [];
+  for (const url of candidateUrls) {
+    expanded.push(url);
+    if (url.includes('@postgres:5432')) {
+      expanded.push(url.replace('@postgres:5432', '@127.0.0.1:5435'));
+      expanded.push(url.replace('@postgres:5432', '@127.0.0.1:5432'));
+      expanded.push(url.replace('@postgres:5432', '@localhost:5435'));
+      expanded.push(url.replace('@postgres:5432', '@localhost:5432'));
+    }
+  }
+
+  expanded.push('postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@127.0.0.1:5435/himalaya_erp?schema=public');
+  expanded.push('postgresql://himalaya_erp_user:CHANGE_ME_TO_A_STRONG_PASSWORD@127.0.0.1:5432/himalaya_erp?schema=public');
+
+  const uniqueUrls = [...new Set(expanded)];
+
+  for (const url of uniqueUrls) {
+    try {
+      const client = new PrismaClient({ datasources: { db: { url } } });
+      await client.$connect();
+      await client.company.findFirst();
+      console.log(`Database connected via: ${url.replace(/:[^:@]+@/, ':****@')}`);
+      return client;
+    } catch (e) {
+      // try next candidate
+    }
+  }
+
+  return new PrismaClient();
+}
 
 async function main() {
   console.log('Ensuring Back Office Role & User exists in DB...');
+  prisma = await getConnectedPrisma();
 
   // 1. Get or create Company
   let company = await prisma.company.findFirst();
