@@ -3086,138 +3086,496 @@ export class PlantHeadService {
     filter?: string,
     customStart?: string,
     customEnd?: string,
+    month?: string,
+    year?: string,
   ) {
-    const { startDate, endDate } = this.getDateRange(
-      filter,
-      customStart,
-      customEnd,
-    );
+    // ── Timezone Aware Date Boundaries (Asia/Kolkata UTC+5:30) ──
+    const now = new Date();
+    const istOffsetMs = 5.5 * 3600 * 1000;
+    const istNow = new Date(now.getTime() + istOffsetMs);
+    const currentYear = istNow.getUTCFullYear();
+    const currentMonthNum = istNow.getUTCMonth() + 1; // 1-12
 
-    let inventoryItems: any[] = [];
-    try {
-      inventoryItems = await this.prisma.inventoryItem.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 25,
-      });
-    } catch (e) {
-      inventoryItems = [];
+    let targetYear = currentYear;
+    if (year) {
+      const parsedYear = parseInt(year, 10);
+      if (!isNaN(parsedYear) && parsedYear >= 2020 && parsedYear <= 2035) {
+        targetYear = parsedYear;
+      }
     }
 
-    const totalValuation = inventoryItems.reduce(
-      (sum: number, item: any) =>
-        sum +
-        Number(item.balance || item.availableQuantity || 0) *
-          Number(item.price || 250),
-      0,
-    );
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
 
-    const lowStockCount = inventoryItems.filter(
-      (item: any) =>
-        Number(item.balance || item.availableQuantity || 0) <
-        Number(item.minStock || 30),
-    ).length;
-
-    let products: any[] = [];
-    try {
-      products = await this.prisma.product.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      });
-    } catch (e) {
-      products = [];
-    }
-
-    const itemsSource = products.length > 0 ? products : inventoryItems;
-    const totalRawMaterialsCount =
-      itemsSource.length > 0 ? itemsSource.length : 216;
-    const totalAvailableQty = itemsSource.reduce(
-      (sum: number, item: any) =>
-        sum + Number(item.balance || item.availableQuantity || item.stock || 0),
-      0,
-    );
-    const belowMinStockCount = itemsSource.filter(
-      (item: any) =>
-        Number(item.balance || item.availableQuantity || item.stock || 0) <
-        Number(item.minStock || 30),
-    ).length;
-    const aboveMaxStockCount = itemsSource.filter(
-      (item: any) =>
-        Number(item.maxStock || 10000) > 0 &&
-        Number(item.balance || item.stock || 0) > Number(item.maxStock),
-    ).length;
-
-    const materials = itemsSource.slice(0, 5).map((item: any) => ({
-      material: item.name || item.itemName || 'Raw Material',
-      consumed: Math.floor(Math.random() * 5000) + 1500,
-      unit: item.unit || 'Kg',
-    }));
-
-    const inventoryCatalog = itemsSource.map((item: any, idx: number) => {
-      const stock = Number(
-        item.balance || item.availableQuantity || item.stock || 120,
+    let targetMonthNum = currentMonthNum;
+    if (month) {
+      const cleanMonth = String(month).trim().toLowerCase();
+      const monthIdx = monthNames.findIndex((m) =>
+        m.toLowerCase().startsWith(cleanMonth.slice(0, 3)),
       );
-      const minStock = Number(item.minStock || 30);
-      const price = Number(item.price || item.unitPrice || 250);
-      return {
-        id:
-          item.sku ||
-          item.publicId ||
-          (item.id ? String(item.id).substring(0, 8) : '') ||
-          `RM-${idx + 101}`,
-        name: item.name || item.itemName || `Store Item ${idx + 1}`,
-        category: item.category || 'Raw Material',
-        unit: item.unit || 'Kg',
-        stock,
-        minStock,
-        valuation: stock * price,
-        status: stock < minStock ? 'Low Stock' : 'Optimal',
-      };
+      if (monthIdx !== -1) {
+        targetMonthNum = monthIdx + 1;
+      } else {
+        const parsedM = parseInt(month, 10);
+        if (!isNaN(parsedM) && parsedM >= 1 && parsedM <= 12) {
+          targetMonthNum = parsedM;
+        }
+      }
+    } else if (filter === 'Last Month') {
+      if (currentMonthNum === 1) {
+        targetMonthNum = 12;
+        targetYear -= 1;
+      } else {
+        targetMonthNum = currentMonthNum - 1;
+      }
+    }
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    let startDate: Date;
+    let endDate: Date;
+    let periodLabel = `${monthNames[targetMonthNum - 1].toUpperCase()} ${targetYear}`;
+
+    if (customStart && customEnd && (filter === 'Custom' || (!month && !year))) {
+      const startStr = customStart.split('T')[0];
+      const endStr = customEnd.split('T')[0];
+      startDate = new Date(`${startStr}T00:00:00.000+05:30`);
+      endDate = new Date(`${endStr}T23:59:59.999+05:30`);
+      periodLabel = `${startStr} to ${endStr}`;
+    } else {
+      const daysInMonth = new Date(
+        Date.UTC(targetYear, targetMonthNum, 0),
+      ).getUTCDate();
+      startDate = new Date(
+        `${targetYear}-${pad(targetMonthNum)}-01T00:00:00.000+05:30`,
+      );
+      endDate = new Date(
+        `${targetYear}-${pad(targetMonthNum)}-${pad(daysInMonth)}T23:59:59.999+05:30`,
+      );
+    }
+
+    const companyWhere = companyId ? { companyId } : {};
+
+    const formatIstDate = (date: Date): string => {
+      const d = new Date(date.getTime() + istOffsetMs);
+      return `${pad(d.getUTCDate())}-${pad(d.getUTCMonth() + 1)}-${d.getUTCFullYear()}`;
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // 1. Authoritative STORE ISSUE (KG)
+    // Source: InventoryTransaction where type = 'OUT'
+    // ─────────────────────────────────────────────────────────────
+    const issueTransactions = await this.prisma.inventoryTransaction.findMany({
+      where: {
+        ...companyWhere,
+        type: { in: ['OUT', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE_TO_PRODUCTION'] },
+        createdAt: { gte: startDate, lte: endDate },
+      },
+      include: {
+        product: true,
+        rawMaterial: true,
+      },
+      orderBy: { createdAt: 'asc' },
     });
 
-    return {
-      kpis: {
-        totalRawMaterials: `${totalRawMaterialsCount} Materials`,
-        availableStock: `${(totalAvailableQty || 9101).toLocaleString('en-IN')} Pcs`,
-        belowMinStock: `${belowMinStockCount} Items`,
-        aboveMaxStock: `${aboveMaxStockCount} Items`,
-        deadStockValue: '₹0.00 L',
-        slowMovingSKUs: '37 SKUs',
-        fastMovingSKUs: '667 SKUs',
-        rejectionRate: '0.0%',
+    const issueItemMap = new Map<
+      string,
+      { itemName: string; itemSku: string; unit: string; totalKg: number }
+    >();
+    const issueDateMap = new Map<string, number>();
+    let totalIssueKg = 0;
+
+    for (const tx of issueTransactions) {
+      const qty = Math.abs(Number(tx.quantity || 0));
+      totalIssueKg += qty;
+
+      const itemName =
+        tx.product?.name || tx.rawMaterial?.name || 'Store Material Item';
+      const itemSku =
+        tx.product?.sku ||
+        tx.rawMaterial?.sku ||
+        tx.productId ||
+        tx.rawMaterialId ||
+        '';
+      const unit = tx.product?.unit || tx.rawMaterial?.unit || 'KG';
+      const key = `${itemName}__${itemSku}`;
+
+      const existing = issueItemMap.get(key) || {
+        itemName,
+        itemSku,
+        unit,
+        totalKg: 0,
+      };
+      existing.totalKg += qty;
+      issueItemMap.set(key, existing);
+
+      const dStr = formatIstDate(tx.createdAt);
+      issueDateMap.set(dStr, (issueDateMap.get(dStr) || 0) + qty);
+    }
+
+    const issueByItem = Array.from(issueItemMap.values())
+      .map((item) => ({
+        itemName: item.itemName,
+        itemSku: item.itemSku,
+        unit: item.unit,
+        sumOfKg: Math.round(item.totalKg * 100) / 100,
+        percentage:
+          totalIssueKg > 0
+            ? Math.round((item.totalKg / totalIssueKg) * 10000) / 100
+            : 0,
+      }))
+      .sort((a, b) => b.sumOfKg - a.sumOfKg)
+      .map((item, idx) => ({ sr: idx + 1, ...item }));
+
+    // Top Issue Date
+    let topIssueDate = { date: '-', quantity: 0, percentage: 0 };
+    if (issueDateMap.size > 0) {
+      let maxDate = '';
+      let maxQty = -1;
+      for (const [d, q] of issueDateMap.entries()) {
+        if (q > maxQty) {
+          maxQty = q;
+          maxDate = d;
+        }
+      }
+      topIssueDate = {
+        date: maxDate,
+        quantity: Math.round(maxQty * 100) / 100,
+        percentage:
+          totalIssueKg > 0
+            ? Math.round((maxQty / totalIssueKg) * 10000) / 100
+            : 0,
+      };
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 2. Authoritative STORE RECEIVE (KG)
+    // Source: GoodsReceiptNoteItem linked to GoodsReceiptNote
+    // ─────────────────────────────────────────────────────────────
+    const grns: any[] = await this.prisma.goodsReceiptNote.findMany({
+      where: {
+        ...companyWhere,
+        status: { notIn: ['REJECTED', 'CANCELLED'] },
+        receivedAt: { gte: startDate, lte: endDate },
       },
-      materials:
-        materials.length > 0
-          ? materials
-          : [
-              {
-                material: 'Abrasive Grain 60 Mesh',
-                consumed: 4500,
-                unit: 'Kg',
-              },
-              {
-                material: 'Solvent Pigment Liquid',
-                consumed: 2800,
-                unit: 'Ltr',
-              },
-              { material: 'Steel Sheet 3mm HR', consumed: 8500, unit: 'Kg' },
-              {
-                material: 'Fiber Backing Plate 100mm',
-                consumed: 6200,
-                unit: 'Pcs',
-              },
-              {
-                material: 'Industrial Lubricant ISO 68',
-                consumed: 950,
-                unit: 'Ltr',
-              },
-            ],
-      wastage: [
-        { material: 'Abrasive Grain', wastagePercent: 2.1 },
-        { material: 'Solvent Pigment', wastagePercent: 3.4 },
-        { material: 'Steel Sheet', wastagePercent: 1.8 },
-        { material: 'Fiber Plate', wastagePercent: 2.5 },
-      ],
-      inventoryCatalog,
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    const receiveItemMap = new Map<
+      string,
+      { itemName: string; itemSku: string; unit: string; totalKg: number }
+    >();
+    const receiveDateMap = new Map<string, number>();
+    let totalReceiveKg = 0;
+
+    for (const grn of grns) {
+      const rDate = grn.receivedAt || grn.createdAt || new Date();
+      const dStr = formatIstDate(rDate);
+      for (const item of (grn.items || [])) {
+        const accepted = Number(item.acceptedQuantity || 0);
+        const received = Number(item.receivedQuantity || 0);
+        const qty = accepted > 0 ? accepted : received;
+        totalReceiveKg += qty;
+
+        const itemName = item.product?.name || 'Received Material Item';
+        const itemSku = item.product?.sku || item.productId || '';
+        const unit = item.product?.unit || 'KG';
+        const key = `${itemName}__${itemSku}`;
+
+        const existing = receiveItemMap.get(key) || {
+          itemName,
+          itemSku,
+          unit,
+          totalKg: 0,
+        };
+        existing.totalKg += qty;
+        receiveItemMap.set(key, existing);
+
+        receiveDateMap.set(dStr, (receiveDateMap.get(dStr) || 0) + qty);
+      }
+    }
+
+    const receiveByItem = Array.from(receiveItemMap.values())
+      .map((item) => ({
+        itemName: item.itemName,
+        itemSku: item.itemSku,
+        unit: item.unit,
+        sumOfKg: Math.round(item.totalKg * 100) / 100,
+        percentage:
+          totalReceiveKg > 0
+            ? Math.round((item.totalKg / totalReceiveKg) * 10000) / 100
+            : 0,
+      }))
+      .sort((a, b) => b.sumOfKg - a.sumOfKg)
+      .map((item, idx) => ({ sr: idx + 1, ...item }));
+
+    // ─────────────────────────────────────────────────────────────
+    // 3. Authoritative MATERIAL CONSUMPTION (KG)
+    // Source: MaterialRequestItem where consumedQuantity > 0
+    // ─────────────────────────────────────────────────────────────
+    const consumptionItems = await this.prisma.materialRequestItem.findMany({
+      where: {
+        materialRequest: {
+          ...companyWhere,
+          OR: [
+            { updatedAt: { gte: startDate, lte: endDate } },
+            { requestDate: { gte: startDate, lte: endDate } },
+            { createdAt: { gte: startDate, lte: endDate } },
+          ],
+        },
+        consumedQuantity: { gt: 0 },
+      },
+      include: {
+        product: true,
+        materialRequest: true,
+      },
+    });
+
+    const consumptionDateMap = new Map<string, number>();
+    const consumptionItemMap = new Map<
+      string,
+      { itemName: string; itemSku: string; unit: string; totalKg: number }
+    >();
+    let totalConsumptionKg = 0;
+
+    for (const item of consumptionItems) {
+      const qty = Number(item.consumedQuantity || 0);
+      totalConsumptionKg += qty;
+
+      const itemName = item.product?.name || 'Consumed Material';
+      const itemSku = item.product?.sku || item.productId || '';
+      const unit = item.unit || item.product?.unit || 'KG';
+      const key = `${itemName}__${itemSku}`;
+
+      const existing = consumptionItemMap.get(key) || {
+        itemName,
+        itemSku,
+        unit,
+        totalKg: 0,
+      };
+      existing.totalKg += qty;
+      consumptionItemMap.set(key, existing);
+
+      const cDate =
+        item.materialRequest?.updatedAt ||
+        item.materialRequest?.requestDate ||
+        item.materialRequest?.createdAt ||
+        new Date();
+      const dStr = formatIstDate(cDate);
+      consumptionDateMap.set(dStr, (consumptionDateMap.get(dStr) || 0) + qty);
+    }
+
+    const consumptionByItem = Array.from(consumptionItemMap.values())
+      .map((item) => ({
+        itemName: item.itemName,
+        itemSku: item.itemSku,
+        unit: item.unit,
+        sumOfKg: Math.round(item.totalKg * 100) / 100,
+        percentage:
+          totalConsumptionKg > 0
+            ? Math.round((item.totalKg / totalConsumptionKg) * 10000) / 100
+            : 0,
+      }))
+      .sort((a, b) => b.sumOfKg - a.sumOfKg)
+      .map((item, idx) => ({ sr: idx + 1, ...item }));
+
+    // TOP 10 DATE – CONSUMPTION (KG)
+    const top10DatesConsumption = Array.from(consumptionDateMap.entries())
+      .map(([date, sumOfKg]) => ({
+        date,
+        sumOfKg: Math.round(sumOfKg * 100) / 100,
+        percentage:
+          totalConsumptionKg > 0
+            ? Math.round((sumOfKg / totalConsumptionKg) * 10000) / 100
+            : 0,
+      }))
+      .sort((a, b) => b.sumOfKg - a.sumOfKg)
+      .slice(0, 10)
+      .map((row, idx) => ({ sr: idx + 1, ...row }));
+
+    // ─────────────────────────────────────────────────────────────
+    // 4. Distinct Items & Top Item
+    // ─────────────────────────────────────────────────────────────
+    const allDistinctItems = new Set<string>();
+    issueByItem.forEach((i) => allDistinctItems.add(i.itemName));
+    receiveByItem.forEach((i) => allDistinctItems.add(i.itemName));
+    consumptionByItem.forEach((i) => allDistinctItems.add(i.itemName));
+    const totalItems = allDistinctItems.size;
+
+    let topItem = { name: '-', quantity: 0, percentage: 0 };
+    if (issueByItem.length > 0) {
+      topItem = {
+        name: issueByItem[0].itemName,
+        quantity: issueByItem[0].sumOfKg,
+        percentage: issueByItem[0].percentage,
+      };
+    } else if (receiveByItem.length > 0) {
+      topItem = {
+        name: receiveByItem[0].itemName,
+        quantity: receiveByItem[0].sumOfKg,
+        percentage: receiveByItem[0].percentage,
+      };
+    } else if (consumptionByItem.length > 0) {
+      topItem = {
+        name: consumptionByItem[0].itemName,
+        quantity: consumptionByItem[0].sumOfKg,
+        percentage: consumptionByItem[0].percentage,
+      };
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 5. Highlights & Computed Ratios
+    // ─────────────────────────────────────────────────────────────
+    const netBalanceKg = Math.round((totalReceiveKg - totalIssueKg) * 100) / 100;
+    const consumptionIssueRatio =
+      totalIssueKg > 0
+        ? Math.round((totalConsumptionKg / totalIssueKg) * 1000) / 10
+        : 0;
+
+    const daysCount = Math.max(
+      1,
+      Math.round(
+        (endDate.getTime() - startDate.getTime()) / (24 * 3600 * 1000),
+      ),
+    );
+    const avgDailyIssueKg = Math.round((totalIssueKg / daysCount) * 100) / 100;
+
+    let turnoverStatus = 'STEADY';
+    if (totalIssueKg > 15000) turnoverStatus = 'HIGH ACTIVITY';
+    else if (totalIssueKg > 0) turnoverStatus = 'NORMAL / ACTIVE';
+
+    // ─────────────────────────────────────────────────────────────
+    // 6. Dynamic Key Insights
+    // ─────────────────────────────────────────────────────────────
+    const insights: string[] = [];
+    if (topItem.name !== '-' && topItem.quantity > 0) {
+      insights.push(
+        `Primary material released is **${topItem.name}** at **${topItem.quantity.toLocaleString()} KG** (${topItem.percentage}% share).`,
+      );
+    } else {
+      insights.push(`No material issues recorded for ${periodLabel}.`);
+    }
+
+    if (topIssueDate.date !== '-' && topIssueDate.quantity > 0) {
+      insights.push(
+        `Peak store issue occurred on **${topIssueDate.date}** with **${topIssueDate.quantity.toLocaleString()} KG** dispatched to production.`,
+      );
+    } else {
+      insights.push(
+        `Store dispatches were evenly distributed with no single peak date.`,
+      );
+    }
+
+    if (totalReceiveKg > 0 || totalIssueKg > 0) {
+      const sign = netBalanceKg >= 0 ? '+' : '';
+      insights.push(
+        `Store inventory shifted by **${sign}${netBalanceKg.toLocaleString()} KG** (${totalReceiveKg.toLocaleString()} KG received vs ${totalIssueKg.toLocaleString()} KG issued).`,
+      );
+    } else {
+      insights.push(
+        `Inventory intake and issue were neutral during this interval.`,
+      );
+    }
+
+    if (totalConsumptionKg > 0) {
+      insights.push(
+        `Shop floor logged **${totalConsumptionKg.toLocaleString()} KG** in raw material consumption (utilization efficiency: **${consumptionIssueRatio}%**).`,
+      );
+    } else {
+      insights.push(
+        `Shop floor consumption records pending or batch logging in progress.`,
+      );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 7. Daily Flow Array for Trends / Charts
+    // ─────────────────────────────────────────────────────────────
+    const dailyMap = new Map<
+      string,
+      {
+        date: string;
+        issueKg: number;
+        receiveKg: number;
+        consumptionKg: number;
+      }
+    >();
+    for (const [d, q] of issueDateMap.entries()) {
+      const cur = dailyMap.get(d) || {
+        date: d,
+        issueKg: 0,
+        receiveKg: 0,
+        consumptionKg: 0,
+      };
+      cur.issueKg = Math.round(q * 100) / 100;
+      dailyMap.set(d, cur);
+    }
+    for (const [d, q] of receiveDateMap.entries()) {
+      const cur = dailyMap.get(d) || {
+        date: d,
+        issueKg: 0,
+        receiveKg: 0,
+        consumptionKg: 0,
+      };
+      cur.receiveKg = Math.round(q * 100) / 100;
+      dailyMap.set(d, cur);
+    }
+    for (const [d, q] of consumptionDateMap.entries()) {
+      const cur = dailyMap.get(d) || {
+        date: d,
+        issueKg: 0,
+        receiveKg: 0,
+        consumptionKg: 0,
+      };
+      cur.consumptionKg = Math.round(q * 100) / 100;
+      dailyMap.set(d, cur);
+    }
+    const dailyFlow = Array.from(dailyMap.values()).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+
+    return {
+      period: {
+        month: targetMonthNum,
+        year: targetYear,
+        periodLabel,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      },
+      kpis: {
+        month: periodLabel,
+        totalIssueKg: Math.round(totalIssueKg * 100) / 100,
+        totalReceiveKg: Math.round(totalReceiveKg * 100) / 100,
+        totalConsumptionKg: Math.round(totalConsumptionKg * 100) / 100,
+        totalItems,
+        topItem: topItem.name,
+        topItemQty: topItem.quantity,
+        topItemPercentage: topItem.percentage,
+        topIssueDate: topIssueDate.date,
+        topIssueDateQty: topIssueDate.quantity,
+        topIssueDatePercentage: topIssueDate.percentage,
+      },
+      highlights: {
+        netBalanceKg,
+        consumptionIssueRatio,
+        avgDailyIssueKg,
+        turnoverStatus,
+        activeSkuCount: totalItems,
+        peakIssueDate: topIssueDate.date,
+        peakIssueQty: topIssueDate.quantity,
+      },
+      issueByItem,
+      receiveByItem,
+      top10DatesConsumption,
+      consumptionByItem,
+      insights,
+      dailyFlow,
     };
   }
 

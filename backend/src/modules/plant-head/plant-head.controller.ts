@@ -170,15 +170,19 @@ export class PlantHeadController {
     @Query('filter') filter?: string,
     @Query('customStart') customStart?: string,
     @Query('customEnd') customEnd?: string,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
   ) {
     const companyId =
-      (req.headers['x-company-id'] as string) ||
-      (req as any).user?.['companyId'];
+      (req as any).user?.['companyId'] ||
+      (req.headers['x-company-id'] as string);
     return this.plantHeadService.getMaterialAnalytics(
       companyId,
       filter,
       customStart,
       customEnd,
+      month,
+      year,
     );
   }
 
