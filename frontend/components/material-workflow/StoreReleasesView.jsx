@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import { useQueryClient } from '@tanstack/react-query';
-import apiClient from '../../api/apiClient';
+import { apiClient } from '@/lib/apiClient';
 import { useAuth } from '../../shared/context/AuthContext';
 import { useMaterialRequests, useUpdateMaterialRequestStatus } from '../../hooks/useMaterialRequests';
 import { ChevronLeft, ChevronRight, PackageCheck, CheckCircle2, Clock, Search, Filter, Layers, FileText, ArrowRight, ShieldCheck, Box, RefreshCw } from 'lucide-react';
@@ -489,6 +489,7 @@ export default function StoreReleasesView() {
               ...(request.metadata?.itemDepartments || {}),
               [item.id]: targetDept
             }
+          }
         });
 
         if (typeof window !== 'undefined') {
