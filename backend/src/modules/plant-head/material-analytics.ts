@@ -253,12 +253,15 @@ export async function readStoreRoAnalytics(
     ? {}
     : { createdAt: { gte: period.startDate, lte: period.endDate } };
 
-  // 1. Authoritative STORE ISSUE: InventoryTransaction (type = 'OUT', referenceType = 'ISSUE_TO_PRODUCTION')
+  // 1. Authoritative STORE ISSUE: InventoryTransaction (type = 'OUT' or production issue types)
   const issueTransactions: any[] = await db.inventoryTransaction.findMany({
     where: {
       companyId,
-      type: 'OUT',
-      referenceType: 'ISSUE_TO_PRODUCTION',
+      OR: [
+        { type: 'OUT', referenceType: 'ISSUE_TO_PRODUCTION' },
+        { type: 'OUT', referenceType: { in: ['PRODUCTION', 'MATERIAL_REQUEST', 'MR', 'STORE_ISSUE', 'RECORDED', 'MANUAL'] } },
+        { type: { in: ['PRODUCTION_ISSUE', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE'] } },
+      ],
       ...dateClause,
     },
     include: {
@@ -266,6 +269,38 @@ export async function readStoreRoAnalytics(
       rawMaterial: { select: { id: true, name: true, sku: true, unit: true, category: true } },
     },
     orderBy: { createdAt: 'asc' },
+  });
+
+  // 1b. Authoritative STORE ISSUE: MaterialRequestItem (released / issued to production by Store)
+  const mrIssueItems: any[] = await db.materialRequestItem.findMany({
+    where: {
+      materialRequest: {
+        companyId,
+        status: { notIn: ['REJECTED', 'CANCELLED'] },
+        ...(period.isAllTime
+          ? {}
+          : {
+              OR: [
+                { requestDate: { gte: period.startDate, lte: period.endDate } },
+                { updatedAt: { gte: period.startDate, lte: period.endDate } },
+                { createdAt: { gte: period.startDate, lte: period.endDate } },
+              ],
+            }),
+      },
+      OR: [
+        { issuedQuantity: { gt: 0 } },
+        { status: 'ISSUED_TO_PRODUCTION' },
+      ],
+    },
+    include: {
+      materialRequest: {
+        select: { id: true, publicId: true, requestDate: true, updatedAt: true, createdAt: true, workOrderNo: true },
+      },
+      product: {
+        select: { id: true, name: true, sku: true, unit: true, category: true },
+      },
+    },
+    orderBy: { materialRequest: { createdAt: 'asc' } },
   });
 
   // 2. Authoritative STORE RECEIVE: GoodsReceiptNoteItem linked to active GRN
@@ -293,6 +328,20 @@ export async function readStoreRoAnalytics(
       },
     },
     orderBy: { goodsReceiptNote: { receivedAt: 'asc' } },
+  });
+
+  // 2b. Authoritative STORE RECEIVE: Direct Stock In / Purchase Receipts in InventoryTransaction
+  const directReceiveTransactions: any[] = await db.inventoryTransaction.findMany({
+    where: {
+      companyId,
+      type: { in: ['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK_IN', 'STOCK IN', 'PURCHASE_DELIVERY'] },
+      ...dateClause,
+    },
+    include: {
+      product: { select: { id: true, name: true, sku: true, unit: true, category: true } },
+      rawMaterial: { select: { id: true, name: true, sku: true, unit: true, category: true } },
+    },
+    orderBy: { createdAt: 'asc' },
   });
 
   // 3. Authoritative RAW MATERIAL CONSUMPTION: MaterialRequestItem.consumedQuantity
@@ -375,6 +424,49 @@ export async function readStoreRoAnalytics(
     issueDateMap.set(dStr, dEntry);
   }
 
+  // Deduplicate and process Material Request issued items
+  const recordedMrRefIds = new Set(issueTransactions.map(tx => tx.referenceId).filter(Boolean));
+  for (const mrItem of mrIssueItems) {
+    const mr = mrItem.materialRequest;
+    if (mr && (recordedMrRefIds.has(mr.publicId) || recordedMrRefIds.has(mr.id))) {
+      continue; // Skip if already captured by InventoryTransaction
+    }
+    const issuedQty = Number(mrItem.issuedQuantity || 0);
+    const qty = issuedQty > 0 ? issuedQty : Number(mrItem.quantity || 0);
+    if (qty <= 0) continue;
+
+    totalIssueKg += qty;
+
+    const rawId = mrItem.productId || '';
+    const canonicalId = lookup.get(rawId) || rawId;
+    const mat = materialById.get(canonicalId);
+
+    const materialName = mat?.name || mrItem.product?.name || (mrItem as any).materialName || (mrItem as any).material || 'Raw Material';
+    const materialSku = mat?.sku || mrItem.product?.sku || 'SKU-NONE';
+    const unit = mat?.unit || mrItem.product?.unit || mrItem.unit || 'PCS';
+    const category = mat?.category || mrItem.product?.category || 'General';
+
+    const existing = issueMap.get(canonicalId) || {
+      materialId: canonicalId,
+      materialName,
+      materialSku,
+      unit,
+      category,
+      totalKg: 0,
+      transactions: 0,
+    };
+    existing.totalKg += qty;
+    existing.transactions += 1;
+    issueMap.set(canonicalId, existing);
+
+    const mrDate = mr?.requestDate ? new Date(mr.requestDate) : mr?.updatedAt ? new Date(mr.updatedAt) : mr?.createdAt ? new Date(mr.createdAt) : new Date();
+    const dStr = formatIstDate(mrDate);
+    const dEntry = issueDateMap.get(dStr) || { totalKg: 0, transactions: 0 };
+    dEntry.totalKg += qty;
+    dEntry.transactions += 1;
+    issueDateMap.set(dStr, dEntry);
+  }
+
   // STORE RECEIVE Item Map
   const receiveMap = new Map<
     string,
@@ -420,6 +512,44 @@ export async function readStoreRoAnalytics(
 
     const grnDate = item.goodsReceiptNote?.receivedAt || item.goodsReceiptNote?.createdAt || new Date();
     const dStr = formatIstDate(grnDate);
+    const dEntry = receiveDateMap.get(dStr) || { totalKg: 0, transactions: 0 };
+    dEntry.totalKg += qty;
+    dEntry.transactions += 1;
+    receiveDateMap.set(dStr, dEntry);
+  }
+
+  // Deduplicate and process direct positive inventory transactions
+  const recordedGrnNumbers = new Set(grnItems.map(g => g.goodsReceiptNote?.grnNumber).filter(Boolean));
+  for (const tx of directReceiveTransactions) {
+    if (tx.referenceId && recordedGrnNumbers.has(tx.referenceId)) {
+      continue; // Skip if already captured by GRN Item
+    }
+    const qty = Math.abs(Number(tx.quantity || 0));
+    totalReceiveKg += qty;
+
+    const rawId = tx.rawMaterialId || tx.productId || '';
+    const canonicalId = lookup.get(rawId) || rawId;
+    const mat = materialById.get(canonicalId);
+
+    const materialName = mat?.name || tx.rawMaterial?.name || tx.product?.name || 'Material Item';
+    const materialSku = mat?.sku || tx.rawMaterial?.sku || tx.product?.sku || 'SKU-NONE';
+    const unit = mat?.unit || tx.rawMaterial?.unit || tx.product?.unit || 'PCS';
+    const category = mat?.category || tx.rawMaterial?.category || tx.product?.category || 'General';
+
+    const existing = receiveMap.get(canonicalId) || {
+      materialId: canonicalId,
+      materialName,
+      materialSku,
+      unit,
+      category,
+      totalKg: 0,
+      transactions: 0,
+    };
+    existing.totalKg += qty;
+    existing.transactions += 1;
+    receiveMap.set(canonicalId, existing);
+
+    const dStr = formatIstDate(tx.createdAt);
     const dEntry = receiveDateMap.get(dStr) || { totalKg: 0, transactions: 0 };
     dEntry.totalKg += qty;
     dEntry.transactions += 1;
@@ -563,14 +693,6 @@ export async function readStoreRoAnalytics(
         percentage: issueByItem[0].percentage,
         unit: issueByItem[0].unit,
       }
-    : receiveByItem.length > 0
-    ? {
-        name: receiveByItem[0].itemName,
-        sku: receiveByItem[0].itemSku,
-        quantity: receiveByItem[0].sumOfKg,
-        percentage: receiveByItem[0].percentage,
-        unit: receiveByItem[0].unit,
-      }
     : { name: '-', sku: '', quantity: 0, percentage: 0, unit: 'PCS' };
 
   const topIssueDate = topIssueDates.length > 0
@@ -601,9 +723,9 @@ export async function readStoreRoAnalytics(
     .sort((a, b) => parseIstDateToSort(a) - parseIstDateToSort(b))
     .map(date => ({
       date,
-      issueKg: round2(issueDateMap.get(date)?.totalKg || 0),
-      receiveKg: round2(receiveDateMap.get(date)?.totalKg || 0),
-      consumptionKg: round2(consumptionDateMap.get(date)?.totalKg || 0),
+      issueKg: issueDateMap.get(date)?.totalKg || 0,
+      receiveKg: receiveDateMap.get(date)?.totalKg || 0,
+      consumptionKg: consumptionDateMap.get(date)?.totalKg || 0,
     }));
 
   // Top 10 Materials by Issue (For Horizontal Bar Chart)
@@ -623,15 +745,40 @@ export async function readStoreRoAnalytics(
   const matrixEndDate = new Date(`${matrixYear}-12-31T23:59:59.999+05:30`);
 
   // Query all year's issue, receive, consumption for this matrix
-  const [yearIssues, yearReceives, yearConsumptions]: [any[], any[], any[]] = await Promise.all([
+  const [yearIssues, yearMrIssues, yearReceives, yearDirectReceives, yearConsumptions]: [any[], any[], any[], any[], any[]] = await Promise.all([
     db.inventoryTransaction.findMany({
       where: {
         companyId,
-        type: 'OUT',
-        referenceType: 'ISSUE_TO_PRODUCTION',
+        OR: [
+          { type: 'OUT', referenceType: 'ISSUE_TO_PRODUCTION' },
+          { type: 'OUT', referenceType: { in: ['PRODUCTION', 'MATERIAL_REQUEST', 'MR', 'STORE_ISSUE', 'RECORDED', 'MANUAL'] } },
+          { type: { in: ['PRODUCTION_ISSUE', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE'] } },
+        ],
         createdAt: { gte: matrixStartDate, lte: matrixEndDate },
       },
-      select: { productId: true, rawMaterialId: true, quantity: true, createdAt: true },
+      select: { productId: true, rawMaterialId: true, quantity: true, createdAt: true, referenceId: true },
+    }),
+    db.materialRequestItem.findMany({
+      where: {
+        materialRequest: {
+          companyId,
+          status: { notIn: ['REJECTED', 'CANCELLED'] },
+          OR: [
+            { requestDate: { gte: matrixStartDate, lte: matrixEndDate } },
+            { createdAt: { gte: matrixStartDate, lte: matrixEndDate } },
+          ],
+        },
+        OR: [
+          { issuedQuantity: { gt: 0 } },
+          { status: 'ISSUED_TO_PRODUCTION' },
+        ],
+      },
+      select: {
+        productId: true,
+        issuedQuantity: true,
+        quantity: true,
+        materialRequest: { select: { publicId: true, id: true, requestDate: true, createdAt: true } },
+      },
     }),
     db.goodsReceiptNoteItem.findMany({
       where: {
@@ -645,8 +792,16 @@ export async function readStoreRoAnalytics(
         productId: true,
         receivedQuantity: true,
         acceptedQuantity: true,
-        goodsReceiptNote: { select: { receivedAt: true, createdAt: true } },
+        goodsReceiptNote: { select: { grnNumber: true, receivedAt: true, createdAt: true } },
       },
+    }),
+    db.inventoryTransaction.findMany({
+      where: {
+        companyId,
+        type: { in: ['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK_IN', 'STOCK IN', 'PURCHASE_DELIVERY'] },
+        createdAt: { gte: matrixStartDate, lte: matrixEndDate },
+      },
+      select: { productId: true, rawMaterialId: true, quantity: true, createdAt: true, referenceId: true },
     }),
     db.materialRequestItem.findMany({
       where: {
@@ -670,6 +825,22 @@ export async function readStoreRoAnalytics(
     matrixIssueMap.set(cid, arr);
   }
 
+  const matrixTxMrRefIds = new Set(yearIssues.map(tx => tx.referenceId).filter(Boolean));
+  for (const item of yearMrIssues) {
+    const mr = item.materialRequest;
+    if (mr && (matrixTxMrRefIds.has(mr.publicId) || matrixTxMrRefIds.has(mr.id))) {
+      continue;
+    }
+    const q = Number(item.issuedQuantity || item.quantity || 0);
+    if (q <= 0) continue;
+    const cid = lookup.get(item.productId) || item.productId;
+    const mrDate = mr?.requestDate ? new Date(mr.requestDate) : mr?.createdAt ? new Date(mr.createdAt) : new Date();
+    const mIdx = new Date(mrDate.getTime() + IST_OFFSET_MS).getUTCMonth();
+    const arr = matrixIssueMap.get(cid) || new Array(12).fill(0);
+    arr[mIdx] += q;
+    matrixIssueMap.set(cid, arr);
+  }
+
   const matrixReceiveMap = new Map<string, number[]>();
   for (const item of yearReceives) {
     const cid = lookup.get(item.productId) || item.productId;
@@ -678,6 +849,18 @@ export async function readStoreRoAnalytics(
     const qty = Number(item.receivedQuantity || 0) > 0 ? Number(item.receivedQuantity) : Number(item.acceptedQuantity || 0);
     const arr = matrixReceiveMap.get(cid) || new Array(12).fill(0);
     arr[mIdx] += qty;
+    matrixReceiveMap.set(cid, arr);
+  }
+
+  const matrixRecordedGrns = new Set(yearReceives.map(g => g.goodsReceiptNote?.grnNumber).filter(Boolean));
+  for (const tx of yearDirectReceives) {
+    if (tx.referenceId && matrixRecordedGrns.has(tx.referenceId)) {
+      continue;
+    }
+    const cid = lookup.get(tx.rawMaterialId || tx.productId || '') || tx.rawMaterialId || tx.productId || '';
+    const mIdx = new Date(tx.createdAt.getTime() + IST_OFFSET_MS).getUTCMonth();
+    const arr = matrixReceiveMap.get(cid) || new Array(12).fill(0);
+    arr[mIdx] += Math.abs(Number(tx.quantity || 0));
     matrixReceiveMap.set(cid, arr);
   }
 
@@ -859,6 +1042,90 @@ export async function readStoreRoAnalytics(
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. MATERIAL WISE ANALYSIS WORKSPACE
 // ─────────────────────────────────────────────────────────────────────────────
+async function authoritativeMaterialBalances(
+  db: Prisma.TransactionClient,
+  companyId: string,
+  catalog: RawCatalog,
+  before?: Date,
+) {
+  const aliases = materialLookup(catalog);
+  const baseBalances = await rawBalances(db, companyId, catalog, before);
+
+  // Check existing reference IDs in InventoryTransaction to avoid double counting
+  const existingTxs = await db.inventoryTransaction.findMany({
+    where: {
+      companyId,
+      ...(before ? { createdAt: { lt: before } } : {}),
+      referenceId: { not: null },
+    },
+    select: { referenceId: true },
+  });
+  const recordedRefIds = new Set(existingTxs.map(t => t.referenceId).filter(Boolean));
+
+  // Receipts from GoodsReceiptNoteItem before date
+  const grnItems: any[] = await db.goodsReceiptNoteItem.findMany({
+    where: {
+      goodsReceiptNote: {
+        companyId,
+        status: { notIn: ['REJECTED', 'CANCELLED'] },
+        ...(before ? { receivedAt: { lt: before } } : {}),
+      },
+    },
+    select: {
+      productId: true,
+      receivedQuantity: true,
+      acceptedQuantity: true,
+      goodsReceiptNote: { select: { id: true, grnNumber: true } },
+    },
+  });
+
+  // Issues from MaterialRequestItem before date
+  const mrItems: any[] = await db.materialRequestItem.findMany({
+    where: {
+      materialRequest: {
+        companyId,
+        status: { notIn: ['REJECTED', 'CANCELLED'] },
+        ...(before ? { createdAt: { lt: before } } : {}),
+      },
+      OR: [
+        { issuedQuantity: { gt: 0 } },
+        { status: 'ISSUED_TO_PRODUCTION' },
+      ],
+    },
+    select: {
+      productId: true,
+      issuedQuantity: true,
+      quantity: true,
+      materialRequest: { select: { id: true, publicId: true } },
+    },
+  });
+
+  const finalBalances = new Map<string, number>();
+  for (const m of catalog) {
+    finalBalances.set(m.id, baseBalances.get(m.id) || 0);
+  }
+
+  for (const g of grnItems) {
+    const grn = g.goodsReceiptNote;
+    if (grn && (recordedRefIds.has(grn.grnNumber) || recordedRefIds.has(grn.id))) continue;
+    const cid = aliases.get(g.productId);
+    if (!cid) continue;
+    const q = Number(g.receivedQuantity || 0) > 0 ? Number(g.receivedQuantity) : Number(g.acceptedQuantity || 0);
+    finalBalances.set(cid, round2((finalBalances.get(cid) || 0) + q));
+  }
+
+  for (const mr of mrItems) {
+    const req = mr.materialRequest;
+    if (req && (recordedRefIds.has(req.publicId) || recordedRefIds.has(req.id))) continue;
+    const cid = aliases.get(mr.productId);
+    if (!cid) continue;
+    const q = Number(mr.issuedQuantity || 0) > 0 ? Number(mr.issuedQuantity) : Number(mr.quantity || 0);
+    finalBalances.set(cid, round2((finalBalances.get(cid) || 0) - q));
+  }
+
+  return finalBalances;
+}
+
 export async function readMaterialWiseAnalytics(
   db: Prisma.TransactionClient,
   companyId: string,
@@ -898,10 +1165,9 @@ export async function readMaterialWiseAnalytics(
   const consumptionByMaterialId = new Map(storeRoData.consumptionByItem.map(c => [c.materialId, c]));
 
   // Authoritative balance calculations for Store Raw Inventory parity
-  const [currentBalances, openingBalances, closingBalances] = await Promise.all([
-    rawBalances(db, companyId, catalog),
-    storeRoData.period.startDate ? rawBalances(db, companyId, catalog, new Date(storeRoData.period.startDate)) : new Map(catalog.map(m => [m.id, 0])),
-    storeRoData.period.endDate ? rawBalances(db, companyId, catalog, new Date(storeRoData.period.endDate)) : rawBalances(db, companyId, catalog),
+  const [currentBalances, openingBalances] = await Promise.all([
+    authoritativeMaterialBalances(db, companyId, catalog),
+    storeRoData.period.startDate ? authoritativeMaterialBalances(db, companyId, catalog, new Date(storeRoData.period.startDate)) : new Map(catalog.map(m => [m.id, 0])),
   ]);
 
   // Classify all materials & map balances
@@ -918,13 +1184,11 @@ export async function readMaterialWiseAnalytics(
     const isTopQuartile = idx < Math.max(1, Math.ceil(catalog.length * 0.25)) && issueKg > 0;
     const classification = classifyMovement(issueTxns, isTopQuartile);
 
-    const curStock = currentBalances.get(m.id) ?? null;
-    const opStock = openingBalances.get(m.id) ?? null;
-    const clStock = closingBalances.get(m.id) ?? null;
+    const opStock = openingBalances.get(m.id) ?? 0;
+    const clStock = round2(opStock + receiveKg - issueKg);
+    const curStock = currentBalances.get(m.id) ?? clStock;
     const stockStatus =
-      curStock === null
-        ? 'UNKNOWN'
-        : curStock <= 0
+      curStock <= 0
         ? 'OUT_OF_STOCK'
         : curStock < m.minimumStock
         ? 'LOW_STOCK'
@@ -1006,16 +1270,35 @@ export async function readMaterialWiseAnalytics(
       const period = resolveAnalyticsPeriod(filter, customStart, customEnd, month, year);
       const aliases = selectedMat.aliases || [selectedMat.materialId || selectedMat.id];
 
-      const [txs, grns, mrs]: [any[], any[], any[]] = await Promise.all([
+      const [txs, inTxs, grns, mrIssues, mrConsumptions]: [any[], any[], any[], any[], any[]] = await Promise.all([
         db.inventoryTransaction.findMany({
           where: {
             companyId,
-            type: 'OUT',
-            referenceType: 'ISSUE_TO_PRODUCTION',
-            OR: [{ rawMaterialId: { in: aliases } }, { productId: { in: aliases } }],
+            OR: [
+              { type: 'OUT', referenceType: 'ISSUE_TO_PRODUCTION' },
+              { type: 'OUT', referenceType: { in: ['PRODUCTION', 'MATERIAL_REQUEST', 'MR', 'STORE_ISSUE', 'RECORDED', 'MANUAL'] } },
+              { type: { in: ['PRODUCTION_ISSUE', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE'] } },
+            ],
+            AND: [
+              { OR: [{ rawMaterialId: { in: aliases } }, { productId: { in: aliases } }] },
+            ],
             ...(period.isAllTime ? {} : { createdAt: { gte: period.startDate, lte: period.endDate } }),
           },
-          select: { quantity: true, createdAt: true },
+          select: { quantity: true, createdAt: true, referenceId: true },
+        }),
+        db.inventoryTransaction.findMany({
+          where: {
+            companyId,
+            OR: [
+              { type: 'IN' },
+              { type: { in: ['STOCK_IN', 'PURCHASE_RECEIPT', 'RECEIPT'] } },
+            ],
+            AND: [
+              { OR: [{ rawMaterialId: { in: aliases } }, { productId: { in: aliases } }] },
+            ],
+            ...(period.isAllTime ? {} : { createdAt: { gte: period.startDate, lte: period.endDate } }),
+          },
+          select: { quantity: true, createdAt: true, referenceId: true },
         }),
         db.goodsReceiptNoteItem.findMany({
           where: {
@@ -1026,21 +1309,58 @@ export async function readMaterialWiseAnalytics(
               ...(period.isAllTime ? {} : { receivedAt: { gte: period.startDate, lte: period.endDate } }),
             },
           },
-          select: { receivedQuantity: true, acceptedQuantity: true, goodsReceiptNote: { select: { receivedAt: true, createdAt: true } } },
+          select: { receivedQuantity: true, acceptedQuantity: true, goodsReceiptNote: { select: { id: true, grnNumber: true, receivedAt: true, createdAt: true } } },
         }),
         db.materialRequestItem.findMany({
           where: {
             productId: { in: aliases },
             materialRequest: {
               companyId,
-              ...(period.isAllTime ? {} : { createdAt: { gte: period.startDate, lte: period.endDate } }),
+              ...(period.isAllTime
+                ? {}
+                : {
+                    OR: [
+                      { requestDate: { gte: period.startDate, lte: period.endDate } },
+                      { updatedAt: { gte: period.startDate, lte: period.endDate } },
+                      { createdAt: { gte: period.startDate, lte: period.endDate } },
+                    ],
+                  }),
+            },
+            OR: [
+              { issuedQuantity: { gt: 0 } },
+              { materialRequest: { status: 'ISSUED_TO_PRODUCTION' } },
+            ],
+          },
+          select: {
+            quantity: true,
+            issuedQuantity: true,
+            materialRequest: {
+              select: { id: true, publicId: true, requestDate: true, updatedAt: true, createdAt: true },
+            },
+          },
+        }),
+        db.materialRequestItem.findMany({
+          where: {
+            productId: { in: aliases },
+            materialRequest: {
+              companyId,
+              ...(period.isAllTime
+                ? {}
+                : {
+                    OR: [
+                      { requestDate: { gte: period.startDate, lte: period.endDate } },
+                      { updatedAt: { gte: period.startDate, lte: period.endDate } },
+                      { createdAt: { gte: period.startDate, lte: period.endDate } },
+                    ],
+                  }),
             },
             consumedQuantity: { gt: 0 },
           },
-          select: { consumedQuantity: true, materialRequest: { select: { createdAt: true } } },
+          select: { consumedQuantity: true, materialRequest: { select: { id: true, publicId: true, requestDate: true, updatedAt: true, createdAt: true } } },
         }),
       ]);
 
+      const recordedTxRefs = new Set(txs.map(t => t.referenceId).filter(Boolean));
       for (const t of txs) {
         const d = formatIstDate(t.createdAt);
         const entry = dateMap.get(d) || { issueKg: 0, receiveKg: 0, consumptionKg: 0, issueTxns: 0, receiveTxns: 0 };
@@ -1049,8 +1369,33 @@ export async function readMaterialWiseAnalytics(
         dateMap.set(d, entry);
       }
 
+      for (const mr of mrIssues) {
+        const req = mr.materialRequest;
+        if (req && (recordedTxRefs.has(req.publicId) || recordedTxRefs.has(req.id))) continue;
+        const q = Number(mr.issuedQuantity || 0) > 0 ? Number(mr.issuedQuantity) : Number(mr.quantity || 0);
+        if (q <= 0) continue;
+        const dDate = req?.updatedAt || req?.requestDate || req?.createdAt || new Date();
+        const d = formatIstDate(dDate);
+        const entry = dateMap.get(d) || { issueKg: 0, receiveKg: 0, consumptionKg: 0, issueTxns: 0, receiveTxns: 0 };
+        entry.issueKg += q;
+        entry.issueTxns += 1;
+        dateMap.set(d, entry);
+      }
+
+      const recordedInRefs = new Set(inTxs.map(t => t.referenceId).filter(Boolean));
+      for (const t of inTxs) {
+        const d = formatIstDate(t.createdAt);
+        const entry = dateMap.get(d) || { issueKg: 0, receiveKg: 0, consumptionKg: 0, issueTxns: 0, receiveTxns: 0 };
+        entry.receiveKg += Math.abs(Number(t.quantity || 0));
+        entry.receiveTxns += 1;
+        dateMap.set(d, entry);
+      }
+
       for (const g of grns) {
-        const d = formatIstDate(g.goodsReceiptNote?.receivedAt || g.goodsReceiptNote?.createdAt || new Date());
+        const grn = g.goodsReceiptNote;
+        if (grn && (recordedInRefs.has(grn.grnNumber) || recordedInRefs.has(grn.id))) continue;
+        const dDate = grn?.receivedAt || grn?.createdAt || new Date();
+        const d = formatIstDate(dDate);
         const entry = dateMap.get(d) || { issueKg: 0, receiveKg: 0, consumptionKg: 0, issueTxns: 0, receiveTxns: 0 };
         const q = Number(g.receivedQuantity || 0) > 0 ? Number(g.receivedQuantity) : Number(g.acceptedQuantity || 0);
         entry.receiveKg += q;
@@ -1058,8 +1403,10 @@ export async function readMaterialWiseAnalytics(
         dateMap.set(d, entry);
       }
 
-      for (const m of mrs) {
-        const d = formatIstDate(m.materialRequest?.createdAt || new Date());
+      for (const m of mrConsumptions) {
+        const req = m.materialRequest;
+        const dDate = req?.updatedAt || req?.requestDate || req?.createdAt || new Date();
+        const d = formatIstDate(dDate);
         const entry = dateMap.get(d) || { issueKg: 0, receiveKg: 0, consumptionKg: 0, issueTxns: 0, receiveTxns: 0 };
         entry.consumptionKg += Number(m.consumedQuantity || 0);
         dateMap.set(d, entry);
@@ -1123,18 +1470,43 @@ export async function readMaterialWiseAnalytics(
     const dayStart = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - IST_OFFSET_MS);
     const dayEnd = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999) - IST_OFFSET_MS);
 
-    const dayTxs: any[] = await db.inventoryTransaction.findMany({
-      where: {
-        companyId,
-        type: 'OUT',
-        referenceType: 'ISSUE_TO_PRODUCTION',
-        createdAt: { gte: dayStart, lte: dayEnd },
-      },
-      include: {
-        product: true,
-        rawMaterial: true,
-      },
-    });
+    const [dayTxs, dayMrs]: [any[], any[]] = await Promise.all([
+      db.inventoryTransaction.findMany({
+        where: {
+          companyId,
+          OR: [
+            { type: 'OUT', referenceType: 'ISSUE_TO_PRODUCTION' },
+            { type: 'OUT', referenceType: { in: ['PRODUCTION', 'MATERIAL_REQUEST', 'MR', 'STORE_ISSUE', 'RECORDED', 'MANUAL'] } },
+            { type: { in: ['PRODUCTION_ISSUE', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE'] } },
+          ],
+          createdAt: { gte: dayStart, lte: dayEnd },
+        },
+        include: {
+          product: true,
+          rawMaterial: true,
+        },
+      }),
+      db.materialRequestItem.findMany({
+        where: {
+          materialRequest: {
+            companyId,
+            OR: [
+              { requestDate: { gte: dayStart, lte: dayEnd } },
+              { updatedAt: { gte: dayStart, lte: dayEnd } },
+              { createdAt: { gte: dayStart, lte: dayEnd } },
+            ],
+          },
+          OR: [
+            { issuedQuantity: { gt: 0 } },
+            { materialRequest: { status: 'ISSUED_TO_PRODUCTION' } },
+          ],
+        },
+        include: {
+          product: true,
+          materialRequest: true,
+        },
+      }),
+    ]);
 
     const dayMatMap = new Map<string, { materialName: string; sku: string; unit: string; issueKg: number; transactions: number }>();
     let totalDayKg = 0;
@@ -1148,6 +1520,26 @@ export async function readMaterialWiseAnalytics(
       const mName = mat?.name || tx.rawMaterial?.name || tx.product?.name || 'Raw Material';
       const mSku = mat?.sku || tx.rawMaterial?.sku || tx.product?.sku || 'SKU';
       const unit = mat?.unit || tx.rawMaterial?.unit || tx.product?.unit || 'PCS';
+
+      const entry = dayMatMap.get(cid) || { materialName: mName, sku: mSku, unit, issueKg: 0, transactions: 0 };
+      entry.issueKg += qty;
+      entry.transactions += 1;
+      dayMatMap.set(cid, entry);
+    }
+
+    const recordedDayTxRefs = new Set(dayTxs.map(t => t.referenceId).filter(Boolean));
+    for (const mr of dayMrs) {
+      const req = mr.materialRequest;
+      if (req && (recordedDayTxRefs.has(req.publicId) || recordedDayTxRefs.has(req.id))) continue;
+      const qty = Number(mr.issuedQuantity || 0) > 0 ? Number(mr.issuedQuantity) : Number(mr.quantity || 0);
+      if (qty <= 0) continue;
+
+      totalDayKg += qty;
+      const cid = lookup.get(mr.productId || '') || mr.productId || '';
+      const mat = materialById.get(cid);
+      const mName = mat?.name || mr.product?.name || (mr as any).materialName || 'Raw Material';
+      const mSku = mat?.sku || mr.product?.sku || 'SKU';
+      const unit = mat?.unit || mr.product?.unit || mr.unit || 'PCS';
 
       const entry = dayMatMap.get(cid) || { materialName: mName, sku: mSku, unit, issueKg: 0, transactions: 0 };
       entry.issueKg += qty;
@@ -1266,15 +1658,40 @@ export async function readTransactionAudit(
   if (movementType === 'ALL' || movementType === 'ISSUE') {
     const where: any = {
       companyId,
-      type: 'OUT',
-      referenceType: 'ISSUE_TO_PRODUCTION',
+      OR: [
+        { type: 'OUT', referenceType: 'ISSUE_TO_PRODUCTION' },
+        { type: 'OUT', referenceType: { in: ['PRODUCTION', 'MATERIAL_REQUEST', 'MR', 'STORE_ISSUE', 'RECORDED', 'MANUAL'] } },
+        { type: { in: ['PRODUCTION_ISSUE', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE'] } },
+      ],
       ...dateFilter,
     };
     if (aliases.length > 0) {
       where.OR = [{ rawMaterialId: { in: aliases } }, { productId: { in: aliases } }];
     }
 
-    const [issues, count]: [any[], number] = await Promise.all([
+    const mrWhere: any = {
+      materialRequest: {
+        companyId,
+        ...(startDateStr && endDateStr
+          ? {
+              OR: [
+                { requestDate: { gte: new Date(`${startDateStr.split('T')[0]}T00:00:00.000+05:30`), lte: new Date(`${endDateStr.split('T')[0]}T23:59:59.999+05:30`) } },
+                { updatedAt: { gte: new Date(`${startDateStr.split('T')[0]}T00:00:00.000+05:30`), lte: new Date(`${endDateStr.split('T')[0]}T23:59:59.999+05:30`) } },
+                { createdAt: { gte: new Date(`${startDateStr.split('T')[0]}T00:00:00.000+05:30`), lte: new Date(`${endDateStr.split('T')[0]}T23:59:59.999+05:30`) } },
+              ],
+            }
+          : {}),
+      },
+      OR: [
+        { issuedQuantity: { gt: 0 } },
+        { materialRequest: { status: 'ISSUED_TO_PRODUCTION' } },
+      ],
+    };
+    if (aliases.length > 0) {
+      mrWhere.productId = { in: aliases };
+    }
+
+    const [issues, txCount, mrIssues, mrCount]: [any[], number, any[], number] = await Promise.all([
       db.inventoryTransaction.findMany({
         where,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -1287,9 +1704,24 @@ export async function readTransactionAudit(
         },
       }),
       db.inventoryTransaction.count({ where }),
+      db.materialRequestItem.findMany({
+        where: mrWhere,
+        orderBy: [{ id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          product: { select: { name: true, sku: true, unit: true } },
+          materialRequest: {
+            select: { id: true, publicId: true, requestDate: true, updatedAt: true, createdAt: true, status: true, requestedBy: { select: { name: true } } },
+          },
+        },
+      }),
+      db.materialRequestItem.count({ where: mrWhere }),
     ]);
 
-    totalCount += count;
+    totalCount += txCount;
+    const recordedMrRefIds = new Set(issues.map(tx => tx.referenceId).filter(Boolean));
+
     issues.forEach(tx => {
       items.push({
         id: tx.id,
@@ -1307,11 +1739,37 @@ export async function readTransactionAudit(
         details: `Issue to Production (${tx.referenceType || 'MR'})`,
       });
     });
+
+    let effectiveMrCount = 0;
+    mrIssues.forEach(mrItem => {
+      const mr = mrItem.materialRequest;
+      if (mr && (recordedMrRefIds.has(mr.publicId) || recordedMrRefIds.has(mr.id))) return;
+      const qty = Number(mrItem.issuedQuantity || 0) > 0 ? Number(mrItem.issuedQuantity) : Number(mrItem.quantity || 0);
+      if (qty <= 0) return;
+      effectiveMrCount++;
+      const dDate = mr?.updatedAt || mr?.requestDate || mr?.createdAt || new Date();
+      items.push({
+        id: mrItem.id,
+        date: formatIstDate(dDate),
+        timestamp: dDate.toISOString(),
+        category: 'ISSUE',
+        movementType: 'Store Issue',
+        materialName: mrItem.product?.name || (mrItem as any).materialName || 'Raw Material',
+        sku: mrItem.product?.sku || '-',
+        quantity: qty,
+        unit: mrItem.unit || mrItem.product?.unit || 'PCS',
+        referenceType: 'MATERIAL_REQUEST',
+        referenceId: mr?.publicId || mr?.id || '-',
+        warehouse: 'Central Store',
+        details: `Material Request to Production (Status: ${mr?.status || 'ISSUED'})`,
+      });
+    });
+    totalCount += effectiveMrCount;
   }
 
   // 2. Fetch Receipts
   if (movementType === 'ALL' || movementType === 'RECEIVE') {
-    const where: any = {
+    const grnWhere: any = {
       goodsReceiptNote: {
         companyId,
         status: { notIn: ['REJECTED', 'CANCELLED'] },
@@ -1326,12 +1784,24 @@ export async function readTransactionAudit(
       },
     };
     if (aliases.length > 0) {
-      where.productId = { in: aliases };
+      grnWhere.productId = { in: aliases };
     }
 
-    const [grns, count]: [any[], number] = await Promise.all([
+    const inWhere: any = {
+      companyId,
+      OR: [
+        { type: 'IN' },
+        { type: { in: ['STOCK_IN', 'PURCHASE_RECEIPT', 'RECEIPT'] } },
+      ],
+      ...dateFilter,
+    };
+    if (aliases.length > 0) {
+      inWhere.OR = [{ rawMaterialId: { in: aliases } }, { productId: { in: aliases } }];
+    }
+
+    const [grns, grnCount, inTxs, inCount]: [any[], number, any[], number] = await Promise.all([
       db.goodsReceiptNoteItem.findMany({
-        where,
+        where: grnWhere,
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
@@ -1341,13 +1811,29 @@ export async function readTransactionAudit(
           product: { select: { name: true, sku: true, unit: true } },
         },
       }),
-      db.goodsReceiptNoteItem.count({ where }),
+      db.goodsReceiptNoteItem.count({ where: grnWhere }),
+      db.inventoryTransaction.findMany({
+        where: inWhere,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          product: { select: { name: true, sku: true, unit: true } },
+          rawMaterial: { select: { name: true, sku: true, unit: true } },
+          warehouse: { select: { name: true } },
+        },
+      }),
+      db.inventoryTransaction.count({ where: inWhere }),
     ]);
 
-    totalCount += count;
+    totalCount += grnCount;
+    const recordedInRefs = new Set(inTxs.map(t => t.referenceId).filter(Boolean));
+
     grns.forEach(g => {
+      const grn = g.goodsReceiptNote;
+      if (grn && (recordedInRefs.has(grn.grnNumber) || recordedInRefs.has(grn.id))) return;
       const q = Number(g.receivedQuantity) > 0 ? Number(g.receivedQuantity) : Number(g.acceptedQuantity);
-      const rDate = g.goodsReceiptNote?.receivedAt || g.goodsReceiptNote?.createdAt || new Date();
+      const rDate = grn?.receivedAt || grn?.createdAt || new Date();
       items.push({
         id: g.id,
         date: formatIstDate(rDate),
@@ -1359,11 +1845,30 @@ export async function readTransactionAudit(
         quantity: q,
         unit: g.product?.unit || 'PCS',
         referenceType: 'GRN',
-        referenceId: g.goodsReceiptNote?.grnNumber || g.goodsReceiptNote?.id,
-        warehouse: g.goodsReceiptNote?.warehouse?.name || 'Store Receiving',
+        referenceId: grn?.grnNumber || grn?.id,
+        warehouse: grn?.warehouse?.name || 'Store Receiving',
         details: `GRN Accepted: ${g.acceptedQuantity} / Received: ${g.receivedQuantity}`,
       });
     });
+
+    inTxs.forEach(tx => {
+      items.push({
+        id: tx.id,
+        date: formatIstDate(tx.createdAt),
+        timestamp: tx.createdAt.toISOString(),
+        category: 'RECEIVE',
+        movementType: 'Store Receive',
+        materialName: tx.rawMaterial?.name || tx.product?.name || 'Raw Material',
+        sku: tx.rawMaterial?.sku || tx.product?.sku || '-',
+        quantity: Math.abs(Number(tx.quantity)),
+        unit: tx.rawMaterial?.unit || tx.product?.unit || 'PCS',
+        referenceType: tx.referenceType || 'STOCK_IN',
+        referenceId: tx.referenceId || '-',
+        warehouse: tx.warehouse?.name || 'Central Store',
+        details: `Direct Stock Receive (${tx.referenceType || 'IN'})`,
+      });
+    });
+    totalCount += inCount;
   }
 
   // 3. Fetch Consumption

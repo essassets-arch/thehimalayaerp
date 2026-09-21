@@ -44,7 +44,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          npm ci --workspace=backend
+          cd backend && npm ci
 
       - name: Validate Prisma Schema
         run: |
