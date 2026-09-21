@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { Toaster } from 'sonner';
 import { AxiosAuthBridge } from '@/components/AxiosAuthBridge';
 
+import { LocationTrackingProvider } from '@/providers/LocationTrackingProvider';
+
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
@@ -19,10 +21,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AxiosAuthBridge />
-      <TooltipProvider>
-        {children}
-        <Toaster richColors position="top-right" />
-      </TooltipProvider>
+      <LocationTrackingProvider>
+        <TooltipProvider>
+          {children}
+          <Toaster richColors position="top-right" />
+        </TooltipProvider>
+      </LocationTrackingProvider>
     </QueryClientProvider>
   );
 }
