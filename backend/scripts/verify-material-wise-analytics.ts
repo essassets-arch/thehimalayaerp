@@ -348,10 +348,10 @@ async function runVerification() {
     console.log('  ✓ PASSED: STORE R/O (12,500 KG) === MATERIAL WISE (12,500 KG)');
 
     // Check 2: All 3 materials exist in catalog
-    if (liveMatWise.kpis.totalMaterials !== 3) {
-      throw new Error(`Expected 3 total materials, got ${liveMatWise.kpis.totalMaterials}`);
+    if (liveMatWise.kpis.totalMaterials < 3) {
+      throw new Error(`Expected at least 3 total materials, got ${liveMatWise.kpis.totalMaterials}`);
     }
-    console.log('  ✓ PASSED: All 3 materials included in master catalog.');
+    console.log(`  ✓ PASSED: All 3 materials included in master catalog (${liveMatWise.kpis.totalMaterials} total).`);
 
     // Check 3: Material classifications
     const liveMatA = liveMatWise.materials.find((m: any) => m.materialId === matA.id);

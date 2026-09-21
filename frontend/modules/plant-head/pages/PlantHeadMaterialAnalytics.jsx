@@ -598,7 +598,7 @@ export const PlantHeadMaterialAnalytics = () => {
           }}
         >
           <Layers size={16} />
-          <span>STORE R/O</span>
+          <span>STORE R/O (MONTHLY REPORT)</span>
         </button>
         <button
           type="button"
@@ -610,7 +610,7 @@ export const PlantHeadMaterialAnalytics = () => {
           }}
         >
           <BarChart3 size={16} />
-          <span>MATERIAL WISE ANALYSIS</span>
+          <span>MATERIAL WISE ANALYSIS (ALL STORE MATERIALS)</span>
         </button>
       </div>
 
@@ -668,6 +668,58 @@ export const PlantHeadMaterialAnalytics = () => {
               <span>PostgreSQL Authoritative</span>
             </div>
           </div>
+        </div>
+
+        {/* ── ALL STORE MATERIALS QUICK ACCESS BANNER ── */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
+            border: '1.5px solid #86EFAC',
+            borderRadius: '12px',
+            padding: '12px 20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            marginBottom: '16px',
+          }}
+          className="no-print"
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ background: '#16A34A', color: '#FFFFFF', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center' }}>
+              <Package size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#14532D' }}>
+                All Materials from Store Panel Available in Material Wise Analysis
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#15803D', marginTop: '2px' }}>
+                Store R/O focuses on monthly issue &amp; receive dispatches. To explore all 320+ raw materials and items from the Store Panel with live stock, non-moving status, and daily drilldowns, switch tabs.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleTabChange('material-wise')}
+            style={{
+              background: '#16A34A',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '9px 18px',
+              fontSize: '12.5px',
+              fontWeight: '800',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 6px rgba(22, 163, 74, 0.3)',
+            }}
+          >
+            <span>Open All Store Materials</span>
+            <ChevronRight size={15} />
+          </button>
         </div>
 
         {/* ── 2. FILTER TOOLBAR ── */}

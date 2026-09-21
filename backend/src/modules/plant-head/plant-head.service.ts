@@ -3166,7 +3166,7 @@ export class PlantHeadService {
     // 1. Authoritative STORE ISSUE (KG)
     // Source: InventoryTransaction where type = 'OUT'
     // ─────────────────────────────────────────────────────────────
-    const issueTransactions = await this.prisma.inventoryTransaction.findMany({
+    let issueTransactions = await this.prisma.inventoryTransaction.findMany({
       where: {
         ...companyWhere,
         type: 'OUT',
@@ -3179,6 +3179,24 @@ export class PlantHeadService {
       },
       orderBy: { createdAt: 'asc' },
     });
+
+    if (issueTransactions.length === 0 && companyId) {
+      const fallbackTxs = await this.prisma.inventoryTransaction.findMany({
+        where: {
+          type: 'OUT',
+          referenceType: 'ISSUE_TO_PRODUCTION',
+          createdAt: { gte: startDate, lte: endDate },
+        },
+        include: {
+          product: true,
+          rawMaterial: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (fallbackTxs.length > 0) {
+        issueTransactions = fallbackTxs;
+      }
+    }
 
     const issueItemMap = new Map<
       string,
@@ -3645,7 +3663,7 @@ export class PlantHeadService {
     }
 
     // 2. Query Authoritative Deduplicated Material Master & Live Stock Balances
-    const [rawMaterials, rawProducts, allStockBalances] = await Promise.all([
+    let [rawMaterials, rawProducts, allStockBalances] = await Promise.all([
       this.prisma.rawMaterial.findMany({
         where: { ...companyWhere, isActive: true },
         select: {
@@ -3664,7 +3682,9 @@ export class PlantHeadService {
           isActive: true,
           OR: [
             { productType: { in: ['RAW_MATERIAL', 'HARDWARE'] } },
+            { type: 'RAW_MATERIAL' },
             { category: { contains: 'Raw', mode: 'insensitive' } },
+            { category: { contains: 'Hardware', mode: 'insensitive' } },
           ],
         },
         select: {
@@ -3684,6 +3704,53 @@ export class PlantHeadService {
         where: { ...companyWhere },
       }),
     ]);
+
+    // Fallback: If company-specific catalog returned 0 raw materials, load system raw materials (aligned with Store Panel)
+    if (rawMaterials.length === 0) {
+      rawMaterials = await this.prisma.rawMaterial.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          category: true,
+          unit: true,
+          minimumStock: true,
+        },
+        orderBy: { name: 'asc' },
+      });
+    }
+
+    if (rawProducts.length === 0 && companyId) {
+      rawProducts = await this.prisma.product.findMany({
+        where: {
+          isActive: true,
+          OR: [
+            { productType: { in: ['RAW_MATERIAL', 'HARDWARE'] } },
+            { type: 'RAW_MATERIAL' },
+            { category: { contains: 'Raw', mode: 'insensitive' } },
+            { category: { contains: 'Hardware', mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          category: true,
+          unit: true,
+          minimumStock: true,
+          productType: true,
+        },
+        orderBy: { name: 'asc' },
+      });
+    }
+
+    if (allStockBalances.length === 0 && companyId) {
+      allStockBalances = (await this.prisma.inventoryTransaction.groupBy({
+        by: ['productId', 'rawMaterialId', 'type'],
+        _sum: { quantity: true },
+      } as any)) as any;
+    }
 
     // Live Stock Map
     const currentStockMap = new Map<string, number>();
@@ -3753,7 +3820,7 @@ export class PlantHeadService {
     }
 
     // 3. Authoritative Store Issue Query (strictly type=OUT and referenceType=ISSUE_TO_PRODUCTION)
-    const issueTransactions = await this.prisma.inventoryTransaction.findMany({
+    let issueTransactions = await this.prisma.inventoryTransaction.findMany({
       where: {
         ...companyWhere,
         type: 'OUT',
@@ -3767,6 +3834,25 @@ export class PlantHeadService {
       },
       orderBy: { createdAt: 'asc' },
     });
+
+    if (issueTransactions.length === 0 && companyId) {
+      const fallbackTxs = await this.prisma.inventoryTransaction.findMany({
+        where: {
+          type: 'OUT',
+          referenceType: 'ISSUE_TO_PRODUCTION',
+          createdAt: { gte: startDate, lte: endDate },
+        },
+        include: {
+          product: true,
+          rawMaterial: true,
+          warehouse: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (fallbackTxs.length > 0) {
+        issueTransactions = fallbackTxs;
+      }
+    }
 
     // Ensure any material referenced in transactions is also included in the catalog
     for (const tx of issueTransactions) {
@@ -4241,7 +4327,7 @@ export class PlantHeadService {
     const sixMonthStart = matrixMonths[0].start;
     const sixMonthEnd = matrixMonths[matrixMonths.length - 1].end;
 
-    const sixMonthTxs = await this.prisma.inventoryTransaction.findMany({
+    let sixMonthTxs = await this.prisma.inventoryTransaction.findMany({
       where: {
         ...companyWhere,
         type: 'OUT',
@@ -4255,6 +4341,22 @@ export class PlantHeadService {
         createdAt: true,
       },
     });
+
+    if (sixMonthTxs.length === 0 && companyId) {
+      sixMonthTxs = await this.prisma.inventoryTransaction.findMany({
+        where: {
+          type: 'OUT',
+          referenceType: 'ISSUE_TO_PRODUCTION',
+          createdAt: { gte: sixMonthStart, lte: sixMonthEnd },
+        },
+        select: {
+          productId: true,
+          rawMaterialId: true,
+          quantity: true,
+          createdAt: true,
+        },
+      });
+    }
 
     const matrixMaterialMap = new Map<string, {
       materialId: string;
@@ -4414,7 +4516,7 @@ export class PlantHeadService {
       ],
     };
 
-    const [total, txs] = await Promise.all([
+    let [total, txs] = await Promise.all([
       this.prisma.inventoryTransaction.count({ where }),
       this.prisma.inventoryTransaction.findMany({
         where,
@@ -4428,6 +4530,32 @@ export class PlantHeadService {
         },
       }),
     ]);
+
+    if (total === 0 && companyId) {
+      const fallbackWhere = {
+        type: 'OUT',
+        referenceType: 'ISSUE_TO_PRODUCTION',
+        ...dateFilter,
+        OR: [
+          { productId: materialId },
+          { rawMaterialId: materialId },
+        ],
+      };
+      [total, txs] = await Promise.all([
+        this.prisma.inventoryTransaction.count({ where: fallbackWhere }),
+        this.prisma.inventoryTransaction.findMany({
+          where: fallbackWhere,
+          skip,
+          take: pageSize,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            product: true,
+            rawMaterial: true,
+            warehouse: true,
+          },
+        }),
+      ]);
+    }
 
     const istOffsetMs = 5.5 * 60 * 60 * 1000;
     const pad = (n: number) => String(n).padStart(2, '0');

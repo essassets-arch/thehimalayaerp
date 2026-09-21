@@ -250,7 +250,7 @@ export default function MaterialWiseAnalysisView() {
       );
     }
 
-    // 2. Movement Status Filter
+    // 2. Movement & Stock Status Filter
     if (movementFilter === 'ISSUED') {
       list = list.filter((m) => m.totalIssueKg > 0);
     } else if (movementFilter === 'FAST_MOVING') {
@@ -259,6 +259,12 @@ export default function MaterialWiseAnalysisView() {
       list = list.filter((m) => m.movementClass === 'SLOW_MOVING');
     } else if (movementFilter === 'NON_MOVING') {
       list = list.filter((m) => m.movementClass === 'NON_MOVING');
+    } else if (movementFilter === 'IN_STOCK') {
+      list = list.filter((m) => Number(m.currentStock || 0) > 0);
+    } else if (movementFilter === 'LOW_STOCK') {
+      list = list.filter((m) => Number(m.currentStock || 0) > 0 && Number(m.currentStock || 0) <= (Number(m.minimumStock) || 10));
+    } else if (movementFilter === 'OUT_OF_STOCK') {
+      list = list.filter((m) => Number(m.currentStock || 0) <= 0);
     } else if (movementFilter === 'HIGH_ISSUE') {
       list = list.filter((m) => m.percentageOfTotal >= 5);
     } else if (movementFilter === 'LOW_ISSUE') {
@@ -534,8 +540,11 @@ export default function MaterialWiseAnalysisView() {
               }}
               style={styles.selectInput}
             >
-              <option value="ALL">All Materials</option>
+              <option value="ALL">All Store Materials</option>
               <option value="ISSUED">Issued Only (&gt; 0 KG)</option>
+              <option value="IN_STOCK">In Stock (Store)</option>
+              <option value="LOW_STOCK">Low Stock (Store)</option>
+              <option value="OUT_OF_STOCK">Out of Stock (Store)</option>
               <option value="FAST_MOVING">Fast Moving (Top 25%)</option>
               <option value="SLOW_MOVING">Slow Moving</option>
               <option value="NON_MOVING">Non-Moving (0 KG)</option>
@@ -804,8 +813,11 @@ export default function MaterialWiseAnalysisView() {
 
           <div style={styles.tableQuickFilterRow}>
             {[
-              { key: 'ALL', label: `ALL (${analyticsData?.materials?.length || 0})` },
+              { key: 'ALL', label: `ALL STORE MATERIALS (${analyticsData?.materials?.length || 0})` },
               { key: 'ISSUED', label: `ISSUED (${kpis.materialsIssued || 0})` },
+              { key: 'IN_STOCK', label: `IN STOCK` },
+              { key: 'LOW_STOCK', label: `LOW STOCK` },
+              { key: 'OUT_OF_STOCK', label: `OUT OF STOCK` },
               { key: 'FAST_MOVING', label: `FAST (${kpis.fastMovingCount || 0})` },
               { key: 'SLOW_MOVING', label: `SLOW (${kpis.slowMovingCount || 0})` },
               { key: 'NON_MOVING', label: `NON-MOVING (${kpis.nonMovingCount || 0})` },
@@ -836,6 +848,7 @@ export default function MaterialWiseAnalysisView() {
                 <th style={{ ...styles.th, width: '40px', textAlign: 'center' }}>Sr</th>
                 <th style={{ ...styles.th, minWidth: '220px' }}>Material Name</th>
                 <th style={{ ...styles.th, width: '110px' }}>Material Code</th>
+                <th style={{ ...styles.th, width: '130px', textAlign: 'right' }}>Store Stock</th>
                 <th style={{ ...styles.th, width: '140px', textAlign: 'center' }}>Movement</th>
                 <th style={{ ...styles.th, width: '110px', textAlign: 'right' }}>Total Issue (KG)</th>
                 <th style={{ ...styles.th, width: '80px', textAlign: 'center' }}>Txns</th>
@@ -851,7 +864,7 @@ export default function MaterialWiseAnalysisView() {
             <tbody>
               {paginatedMaterials.length === 0 ? (
                 <tr>
-                  <td colSpan={13} style={styles.emptyTableTd}>
+                  <td colSpan={14} style={styles.emptyTableTd}>
                     No material records found matching your filter criteria.
                   </td>
                 </tr>
@@ -877,6 +890,20 @@ export default function MaterialWiseAnalysisView() {
                       </td>
                       <td style={styles.td}>
                         <code style={styles.skuBadge}>{row.materialSku || '-'}</code>
+                      </td>
+                      <td style={{ ...styles.td, textAlign: 'right' }}>
+                        <span style={{ fontWeight: '800', color: (row.currentStock || 0) <= 0 ? '#DC2626' : (row.currentStock <= (row.minimumStock || 0) && row.minimumStock > 0 ? '#D97706' : '#16A34A') }}>
+                          {(row.currentStock || 0).toLocaleString()} {row.unit}
+                        </span>
+                        <div style={{ fontSize: '9px', fontWeight: '800', marginTop: '2px' }}>
+                          {(row.currentStock || 0) <= 0 ? (
+                            <span style={{ color: '#DC2626', background: '#FEE2E2', padding: '1px 5px', borderRadius: '4px' }}>OUT OF STOCK</span>
+                          ) : (row.currentStock <= (row.minimumStock || 0) && row.minimumStock > 0) ? (
+                            <span style={{ color: '#B45309', background: '#FEF3C7', padding: '1px 5px', borderRadius: '4px' }}>LOW STOCK</span>
+                          ) : (
+                            <span style={{ color: '#15803D', background: '#DCFCE7', padding: '1px 5px', borderRadius: '4px' }}>IN STOCK</span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ ...styles.td, textAlign: 'center' }}>
                         <div style={styles.movementBadgeContainer}>
