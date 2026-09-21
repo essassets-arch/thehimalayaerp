@@ -269,7 +269,6 @@ export class PlantHeadController {
     @Query('product') product?: string,
   ) {
     const companyId =
-      (req.headers['x-company-id'] as string) ||
       (req as any).user?.['companyId'];
     return this.plantHeadService.getDispatchAnalytics(
       companyId,

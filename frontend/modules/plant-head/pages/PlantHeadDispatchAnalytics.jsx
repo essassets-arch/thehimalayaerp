@@ -74,12 +74,25 @@ const fmt = (val, decimals = 0) => {
     : Math.round(n).toLocaleString('en-IN');
 };
 
+
+const DispatchMatrix = ({ rows }) => {
+  const columns = [...new Set(rows.flatMap(row => Object.keys(row.breakdown || {})))];
+  const cell = (value) => value ? value.qty.toLocaleString('en-IN') + ' pcs / ' + value.weight.toLocaleString('en-IN') + ' kg' : '0 pcs / 0 kg';
+  return <div style={{ overflowX: 'auto', background: '#fff', padding: 16 }}>
+    <p>Recorded quantities and weights by product or salesperson. Mixed shipment weights remain unallocated.</p>
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr><th scope="col">Name</th>{columns.map(column => <th scope="col" key={column} style={{ padding: 12 }}>{column}</th>)}</tr></thead>
+      <tbody>{rows.map((row, index) => <tr key={index}><th scope="row">{row.name}</th>{columns.map(column => <td key={column} style={{ padding: 12 }}>{cell(row.breakdown?.[column])}</td>)}</tr>)}</tbody>
+      <tfoot><tr><th scope="row">Total</th>{columns.map(column => <td key={column} style={{ padding: 12 }}>{cell(rows.reduce((sum, row) => ({ qty: sum.qty + (row.breakdown?.[column]?.qty || 0), weight: sum.weight + (row.breakdown?.[column]?.weight || 0) }), { qty: 0, weight: 0 }))}</td>)}</tr></tfoot>
+    </table>{rows.length === 0 && <p>No records for these filters.</p>}
+  </div>;
+};
+
 export const PlantHeadDispatchAnalytics = () => {
   // ── Filters & Active Tab State ──
-  const [selectedMonth, setSelectedMonth] = useState('2026-09');
-  const [globalTimeframe, setGlobalTimeframe] = useState('September 2026');
-  const [customStartDate, setCustomStartDate] = useState('2026-09-01');
-  const [customEndDate, setCustomEndDate] = useState('2026-09-30');
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 7));
+  const [globalTimeframe, setGlobalTimeframe] = useState('This Month');
+  const [customStartDate, setCustomStartDate] = useState(() => `${selectedMonth}-01`);
+  const [customEndDate, setCustomEndDate] = useState(() => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10));
   const reportRef = useRef(null);
   const [downloadingImage, setDownloadingImage] = useState(false);
   const [salesPersonFilter, setSalesPersonFilter] = useState('All');
@@ -96,6 +109,8 @@ export const PlantHeadDispatchAnalytics = () => {
   const [remainingFilter, setRemainingFilter] = useState('all'); // 'all', 'ready', 'production', 'draft'
   const [remainingSearchTerm, setRemainingSearchTerm] = useState('');
 
+  const [error, setError] = useState(null);
+  const requestSequence = useRef(0);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [analyticsData, setAnalyticsData] = useState(null);
@@ -106,7 +121,10 @@ export const PlantHeadDispatchAnalytics = () => {
 
   // ── Fetch Dispatch Analytics from Backend API ──
   const fetchDispatchData = useCallback(async () => {
+    const request = ++requestSequence.current;
     setLoading(true);
+    setError(null);
+    setAnalyticsData(null);
     try {
       const params = new URLSearchParams();
       params.set('filter', globalTimeframe);
@@ -128,13 +146,12 @@ export const PlantHeadDispatchAnalytics = () => {
       }
 
       const res = await backendFetch(`/api/backend/plant-head/analytics/dispatch?${params.toString()}`);
-      if (res) {
-        setAnalyticsData(res);
-      }
+      if (!res?.summary || !Array.isArray(res.dispatchOrders)) throw new Error('Invalid analytics response');
+      if (request === requestSequence.current) setAnalyticsData(res);
     } catch (err) {
-      console.warn('[PlantHeadDispatchAnalytics] Fetch error:', err);
+      if (request === requestSequence.current) setError('Unable to load dispatch analytics. Please retry.');
     } finally {
-      setLoading(false);
+      if (request === requestSequence.current) setLoading(false);
     }
   }, [globalTimeframe, selectedMonth, customStartDate, customEndDate, salesPersonFilter, productFilter, areaFilter]);
 
@@ -146,38 +163,15 @@ export const PlantHeadDispatchAnalytics = () => {
   const handleMonthChange = (e) => {
     const val = e.target.value;
     setSelectedMonth(val);
-    if (val === '2026-08') {
-      setGlobalTimeframe('August 2026');
-      setCustomStartDate('2026-08-01');
-      setCustomEndDate('2026-08-31');
-    } else if (val === '2026-09') {
-      setGlobalTimeframe('September 2026');
-      setCustomStartDate('2026-09-01');
-      setCustomEndDate('2026-09-30');
-    } else if (val === 'all') {
-      setGlobalTimeframe('All Time');
-    } else if (val === 'custom') {
-      setGlobalTimeframe('Custom');
-    } else {
-      setGlobalTimeframe(val);
-    }
+    setGlobalTimeframe(val === 'all' ? 'All Time' : val === 'custom' ? 'Custom' : val);
   };
-
-  // ── Quick Preset Buttons ──
   const handlePresetClick = (preset) => {
-    setGlobalTimeframe(preset);
-    if (preset === 'August 2026') {
-      setSelectedMonth('2026-08');
-      setCustomStartDate('2026-08-01');
-      setCustomEndDate('2026-08-31');
-    } else if (preset === 'September 2026' || preset === 'This Month') {
-      setSelectedMonth('2026-09');
-      setCustomStartDate('2026-09-01');
-      setCustomEndDate('2026-09-30');
-    } else if (preset === 'All Time') {
-      setSelectedMonth('all');
-    } else if (preset === 'Custom') {
-      setSelectedMonth('custom');
+    if (preset === 'All Time' || preset === 'Custom') {
+      handleMonthChange({ target: { value: preset === 'All Time' ? 'all' : 'custom' } });
+    } else {
+      const now = new Date(Date.now() + 330 * 60000);
+      if (preset === 'Last Month') now.setUTCMonth(now.getUTCMonth() - 1, 1);
+      handleMonthChange({ target: { value: now.toISOString().slice(0, 7) } });
     }
   };
 
@@ -204,9 +198,7 @@ export const PlantHeadDispatchAnalytics = () => {
 
   const productsData = useMemo(() => {
     let list = analyticsData?.products || [];
-    if (productFilter !== 'All') {
-      list = list.filter(p => (p.product || '').toLowerCase() === productFilter.toLowerCase());
-    }
+
     return list;
   }, [analyticsData, productFilter]);
 
@@ -560,7 +552,7 @@ export const PlantHeadDispatchAnalytics = () => {
     if (!reportRef.current || downloadingImage) return;
     setDownloadingImage(true);
 
-    const fileName = `Himalaya_Dispatch_Analytics_${(globalTimeframe || 'September_2026').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.png`;
+    const fileName = `Himalaya_Dispatch_Analytics_${(globalTimeframe || 'Dispatch').replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.png`;
 
     try {
       const { toPng } = await import('html-to-image');
@@ -620,9 +612,14 @@ export const PlantHeadDispatchAnalytics = () => {
     }
   };
 
+  if (loading) return <div role="status" style={{ padding: 24 }}>Loading dispatch analytics...</div>;
+  if (error || !analyticsData) return <div role="alert" style={{ padding: 24 }}>{error || 'Dispatch analytics unavailable.'} <button onClick={fetchDispatchData}>Retry</button> <button onClick={() => handlePresetClick("This Month")}>Current month</button></div>;
+
   return (
     <div ref={reportRef} style={{ padding: 'clamp(12px, 2vw, 24px)', background: '#f8fafc', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: '#0f172a', width: '100%', maxWidth: '3840px', margin: '0 auto', boxSizing: 'border-box' }}>
 
+      <p>Dispatch 1 and Dispatch 2 ? Dispatch date in Asia/Kolkata. Product filters include whole shipments containing that product. Mixed weights are unallocated. Missing measurements are excluded from recorded totals. Pending orders show the current backlog.</p>
+      <p>{(analyticsData.dispatchSources || []).map(source => (source.category === 'D1' ? 'Dispatch 1' : source.category === 'D2' ? 'Dispatch 2' : source.category) + ': ' + source.trips + ' shipments').join(' ? ')} Missing weight: {analyticsData.dataQuality?.missingWeightCount ?? 0}; missing freight: {analyticsData.dataQuality?.missingFreightCount ?? 0}.</p>
       {/* Screen Interactive Layout */}
       <div className="screen-only-view">
 
@@ -741,16 +738,16 @@ export const PlantHeadDispatchAnalytics = () => {
                 outline: 'none'
               }}
             >
-              <option value="2026-09">September 2026 (Active Factory)</option>
-              <option value="2026-08">August 2026</option>
+              {[...new Set([selectedMonth, ...(analyticsData?.filterOptions?.months || [])])].filter(m => /^\d{4}-\d{2}$/.test(m)).sort().reverse().map(m => <option key={m} value={m}>{new Date(m + '-15').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</option>)}
               <option value="all">All-Time Aggregate</option>
               <option value="custom">Custom Date Range</option>
             </select>
+            <input aria-label="Choose any month" type="month" value={/^\d{4}-\d{2}$/.test(selectedMonth) ? selectedMonth : ""} onChange={handleMonthChange} />
           </div>
 
           {/* Quick Preset Buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            {['September 2026', 'August 2026', 'All Time', 'Custom'].map(preset => {
+            {['This Month', 'Last Month', 'All Time', 'Custom'].map(preset => {
               const isActive = globalTimeframe === preset;
               return (
                 <button
@@ -842,7 +839,7 @@ export const PlantHeadDispatchAnalytics = () => {
               }}
             >
               <option value="All">All Products</option>
-              {(analyticsData?.filterOptions?.products || ['MHC', 'RCS', 'ONGC', 'WGC', 'D MHC']).map((item, idx) => {
+              {(analyticsData?.filterOptions?.products || []).map((item, idx) => {
                 const pName = typeof item === 'object' && item !== null ? (item.product || item.name || '') : String(item || '');
                 const pObj = productsData.find(prod => prod.product === pName);
                 const shareVal = typeof item === 'object' && item !== null && item.share != null ? item.share : pObj?.share;
@@ -1041,13 +1038,13 @@ export const PlantHeadDispatchAnalytics = () => {
                 No Outbound Dispatches Found in Database for {summary.period}
               </div>
               <p style={{ fontSize: '12.5px', color: '#1e3a8a', margin: '2px 0 0 0' }}>
-                The live database returned 0 dispatches for {summary.period}. Click the button to inspect active September 2026 factory dispatches (166 dispatches recorded).
+                No dispatches match this period and the selected filters.
               </p>
             </div>
           </div>
           <button
             type="button"
-            onClick={() => handleMonthChange({ target: { value: '2026-09' } })}
+            onClick={() => handleMonthChange({ target: { value: 'all' } })}
             style={{
               background: '#0284c7',
               color: '#ffffff',
@@ -1063,7 +1060,7 @@ export const PlantHeadDispatchAnalytics = () => {
               boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
             }}
           >
-            <span>View Active September 2026 Dispatches</span>
+            <span>View All Time</span>
             <ArrowUpRight size={16} />
           </button>
         </div>
@@ -1154,7 +1151,7 @@ export const PlantHeadDispatchAnalytics = () => {
           { id: 'transport', label: 'Transportation & Freight Costs', icon: Truck },
           { id: 'manifest', label: 'Dispatch Manifest Log', icon: FileSpreadsheet },
           { id: 'area', label: 'Area-wise Dispatch', icon: MapPin },
-          { id: 'remaining', label: `Remaining & Pending Orders (${analyticsData?.pendingOrders?.totalRemainingCount || 42})`, icon: ClipboardList },
+          { id: 'remaining', label: `Remaining & Pending Orders (${analyticsData?.pendingOrders?.totalRemainingCount ?? 0})`, icon: ClipboardList },
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1188,7 +1185,7 @@ export const PlantHeadDispatchAnalytics = () => {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════════
-          TAB 1: OVERVIEW & 21-DAY DISPATCH TRENDS
+          TAB 1: OVERVIEW & DISPATCH TRENDS
       ═══════════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1217,9 +1214,9 @@ export const PlantHeadDispatchAnalytics = () => {
               height={340}
               isEmpty={!dailyTrendsData || dailyTrendsData.length === 0}
               emptyTitle={`No daily dispatches recorded in ${summary.period}`}
-              emptySubtitle="Switch to September 2026 or All-Time to view active factory dispatches and weight trends."
-              onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
-              switchButtonLabel="View September 2026 Telemetry"
+              emptySubtitle="Select another period or All-Time to view active factory dispatches and weight trends."
+              onSwitchTimeframe={() => handleMonthChange({ target: { value: 'all' } })}
+              switchButtonLabel="View All Time"
             >
               {({ scale, isMobile, height, width }) => (
                 <ResponsiveContainer
@@ -1386,8 +1383,8 @@ export const PlantHeadDispatchAnalytics = () => {
                 height={220}
                 isEmpty={!productsData || productsData.length === 0}
                 emptyTitle="No product dispatches recorded"
-                emptySubtitle="Switch to September 2026 to view product weight shares."
-                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+                emptySubtitle="Select another period to view product weight shares."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: 'all' } })}
               >
                 {({ scale, height, width }) => (
                   <ResponsiveContainer
@@ -1457,8 +1454,8 @@ export const PlantHeadDispatchAnalytics = () => {
                 height={220}
                 isEmpty={!capacitiesData || capacitiesData.length === 0}
                 emptyTitle="No capacity mix recorded"
-                emptySubtitle="Switch to September 2026 to view load ratings."
-                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+                emptySubtitle="Select another period to view load ratings."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: 'all' } })}
               >
                 {({ scale, height, width }) => (
                   <ResponsiveContainer
@@ -1574,8 +1571,8 @@ export const PlantHeadDispatchAnalytics = () => {
                 height={200}
                 isEmpty={!coloursData || coloursData.length === 0}
                 emptyTitle="No colour profile recorded"
-                emptySubtitle="Switch to September 2026 to view colour distribution."
-                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+                emptySubtitle="Select another period to view colour distribution."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: 'all' } })}
               >
                 {({ scale, height, width }) => (
                   <ResponsiveContainer
@@ -1739,8 +1736,8 @@ export const PlantHeadDispatchAnalytics = () => {
                 height={280}
                 isEmpty={topCustomersData.length === 0}
                 emptyTitle="No customer dispatch volume recorded"
-                emptySubtitle="Switch to September 2026 to view client concentration tiers."
-                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+                emptySubtitle="Select another period to view client concentration tiers."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: 'all' } })}
               >
                 {({ scale, height, width }) => (
                   <ResponsiveContainer
@@ -1802,265 +1799,7 @@ export const PlantHeadDispatchAnalytics = () => {
       {/* ═══════════════════════════════════════════════════════════════════════════
           TAB 4: SALES REFERENCE & SALESPERSON × PRODUCT MATRIX
       ═══════════════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'matrix' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          {/* Sales References Summary Cards */}
-          <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-              <div>
-                <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Award size={17} color="#0284c7" /> Sales Reference vs Total Weight &amp; Quantity
-                </h3>
-                <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
-                  {analyticsData?.salesRefInsight || (salesReferencesData[0] ? (
-                    <><strong>{salesReferencesData[0].salesRef}</strong> leads with <strong>{salesReferencesData[0].share}%</strong> ({Math.round(salesReferencesData[0].totalWeight).toLocaleString()} kg) of total dispatch weight.</>
-                  ) : 'Sales reference breakdown across dispatched orders.')}
-                </p>
-              </div>
-              <span style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', padding: '4px 10px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800' }}>
-                {salesReferencesData[0] ? `${salesReferencesData[0].salesRef} Lead: ${salesReferencesData[0].share}%` : 'Sales Reference'}
-              </span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
-              {salesReferencesData.map((s, idx) => (
-                <div key={idx} style={{
-                  background: s.salesRef === 'MTH' ? '#eff6ff' : '#f8fafc',
-                  border: s.salesRef === 'MTH' ? '1.5px solid #93c5fd' : '1px solid #e2e8f0',
-                  borderRadius: '10px',
-                  padding: '12px',
-                  textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: '13px', fontWeight: '900', color: s.salesRef === 'MTH' ? '#1d4ed8' : '#0f172a' }}>
-                    {s.salesRef}
-                  </div>
-                  <div style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', margin: '4px 0 2px 0' }}>
-                    {s.share}%
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>
-                    {Math.round(s.totalWeight).toLocaleString()} kg
-                  </div>
-                  <div style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: '600' }}>
-                    {s.quantity} pcs
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* User Requested: All Salespersons Sales Product-Wise Matrix */}
-          <div style={{ background: '#ffffff', borderRadius: '14px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-              <div>
-                <h3 style={{ fontSize: '16px', fontWeight: '900', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Grid size={18} color="#7c3aed" /> All Sales Persons Sales &bull; Product-Wise Cross-Matrix
-                </h3>
-                <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
-                  Detailed breakdown showing each salesperson&apos;s distribution across core products (MHC, RCS, ONGC, WGC, D MHC)
-                </p>
-              </div>
-
-              {/* View Mode Toggle (Weight in kg vs Quantity in pcs) */}
-              <div style={{ display: 'flex', alignItems: 'center', background: '#f1f5f9', borderRadius: '8px', padding: '3px' }}>
-                <button
-                  onClick={() => setMatrixViewMode('weight')}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontSize: '12px',
-                    fontWeight: '800',
-                    cursor: 'pointer',
-                    background: matrixViewMode === 'weight' ? '#0284c7' : 'transparent',
-                    color: matrixViewMode === 'weight' ? '#ffffff' : '#64748b',
-                    boxShadow: matrixViewMode === 'weight' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  ⚖ By Weight (kg)
-                </button>
-                <button
-                  onClick={() => setMatrixViewMode('qty')}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    fontSize: '12px',
-                    fontWeight: '800',
-                    cursor: 'pointer',
-                    background: matrixViewMode === 'qty' ? '#0284c7' : 'transparent',
-                    color: matrixViewMode === 'qty' ? '#ffffff' : '#64748b',
-                    boxShadow: matrixViewMode === 'qty' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  📦 By Quantity (pcs)
-                </button>
-              </div>
-            </div>
-
-            {/* Matrix Table */}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1', color: '#334155', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>
-                    <th style={{ padding: '10px 12px' }}>Sales Executive / Ref</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#2563eb' }}>MHC {matrixViewMode === 'weight' ? '(kg)' : '(pcs)'}</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#7c3aed' }}>RCS {matrixViewMode === 'weight' ? '(kg)' : '(pcs)'}</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>ONGC {matrixViewMode === 'weight' ? '(kg)' : '(pcs)'}</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#d97706' }}>WGC {matrixViewMode === 'weight' ? '(kg)' : '(pcs)'}</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#db2777' }}>D MHC {matrixViewMode === 'weight' ? '(kg)' : '(pcs)'}</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: '#0f172a' }}>Total {matrixViewMode === 'weight' ? '(kg)' : '(pcs)'}</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900' }}>
-                      {matrixViewMode === 'weight' ? 'Weight Share %' : 'Quantity Share %'}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {salesPersonProductWise.map((row, idx) => {
-                    const shareText = matrixViewMode === 'weight'
-                      ? `${row.weightShare}%`
-                      : `${(row.qtyShare !== undefined
-                            ? row.qtyShare
-                            : (matrixTotals.totalQty > 0 ? (row.totalQty / matrixTotals.totalQty) * 100 : 0)
-                          ).toFixed(row.totalQty === 1 ? 2 : 1)}%`;
-
-                    return (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: row.salesPerson === 'MTH' ? '#f0f9ff' : 'transparent' }}>
-                        <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>
-                          {row.name}
-                          {row.salesPerson === 'MTH' && <span style={{ fontSize: '10px', background: '#0284c7', color: '#fff', padding: '2px 5px', borderRadius: '4px', marginLeft: '6px' }}>KEY</span>}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                          {matrixViewMode === 'weight' ? row.mhcWeight.toLocaleString() : row.mhcQty.toLocaleString()}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                          {matrixViewMode === 'weight' ? row.rcsWeight.toLocaleString() : row.rcsQty.toLocaleString()}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                          {matrixViewMode === 'weight' ? row.ongcWeight.toLocaleString() : row.ongcQty.toLocaleString()}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                          {matrixViewMode === 'weight' ? row.wgcWeight.toLocaleString() : row.wgcQty.toLocaleString()}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                          {matrixViewMode === 'weight' ? row.dmhcWeight.toLocaleString() : row.dmhcQty.toLocaleString()}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: '#0f172a' }}>
-                          {matrixViewMode === 'weight' ? row.totalWeight.toLocaleString() : row.totalQty.toLocaleString()}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: '#0284c7' }}>
-                          {shareText}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {/* Column Total Footer */}
-                  <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1' }}>
-                    <td style={{ padding: '10px 12px', color: '#0f172a' }}>TOTAL</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#2563eb' }}>
-                      {matrixViewMode === 'weight' ? `${matrixTotals.mhcWeight.toLocaleString()} kg` : `${matrixTotals.mhcQty.toLocaleString()} pcs`}
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#7c3aed' }}>
-                      {matrixViewMode === 'weight' ? `${matrixTotals.rcsWeight.toLocaleString()} kg` : `${matrixTotals.rcsQty.toLocaleString()} pcs`}
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>
-                      {matrixViewMode === 'weight' ? `${matrixTotals.ongcWeight.toLocaleString()} kg` : `${matrixTotals.ongcQty.toLocaleString()} pcs`}
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#d97706' }}>
-                      {matrixViewMode === 'weight' ? `${matrixTotals.wgcWeight.toLocaleString()} kg` : `${matrixTotals.wgcQty.toLocaleString()} pcs`}
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#db2777' }}>
-                      {matrixViewMode === 'weight' ? `${matrixTotals.dmhcWeight.toLocaleString()} kg` : `${matrixTotals.dmhcQty.toLocaleString()} pcs`}
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>
-                      {matrixViewMode === 'weight' ? `${matrixTotals.totalWeight.toLocaleString()} kg` : `${matrixTotals.totalQty.toLocaleString()} pcs`}
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>
-                      {(matrixViewMode === 'weight' ? matrixTotals.totalWeight > 0 : matrixTotals.totalQty > 0) ? '100%' : '0%'}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Useful Footer: Direct KPI Reconciliation Box */}
-            <div style={{
-              marginTop: '16px',
-              padding: '16px 20px',
-              borderRadius: '10px',
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '14px'
-            }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <CheckCircle size={16} color="#10b981" />
-                  {matrixViewMode === 'qty' ? 'Quantity Reconciled with Dispatch KPI' : 'Weight Reconciled with Dispatch KPI'}
-                </div>
-                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
-                  {matrixViewMode === 'qty'
-                    ? `Column totals sum directly to ${(summary.totalQuantity ?? matrixTotals.totalQty).toLocaleString()} pcs without discrepancies.`
-                    : `Column totals sum directly to ${(summary.totalWeight ?? matrixTotals.totalWeight).toLocaleString()} kg total dispatch weight.`}
-                </div>
-              </div>
-
-              {/* Product Reconciliation Breakdown */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                <div style={{
-                  display: 'flex',
-                  gap: '12px',
-                  background: '#ffffff',
-                  padding: '8px 14px',
-                  borderRadius: '8px',
-                  border: '1px solid #e2e8f0',
-                  fontSize: '12px'
-                }}>
-                  <span style={{ color: '#2563eb', fontWeight: '700' }}>
-                    MHC: <strong>{matrixViewMode === 'qty' ? `${matrixTotals.mhcQty.toLocaleString()} pcs` : `${matrixTotals.mhcWeight.toLocaleString()} kg`}</strong>
-                  </span>
-                  <span style={{ color: '#cbd5e1' }}>&bull;</span>
-                  <span style={{ color: '#7c3aed', fontWeight: '700' }}>
-                    RCS: <strong>{matrixViewMode === 'qty' ? `${matrixTotals.rcsQty.toLocaleString()} pcs` : `${matrixTotals.rcsWeight.toLocaleString()} kg`}</strong>
-                  </span>
-                  <span style={{ color: '#cbd5e1' }}>&bull;</span>
-                  <span style={{ color: '#059669', fontWeight: '700' }}>
-                    ONGC: <strong>{matrixViewMode === 'qty' ? `${matrixTotals.ongcQty.toLocaleString()} pcs` : `${matrixTotals.ongcWeight.toLocaleString()} kg`}</strong>
-                  </span>
-                  <span style={{ color: '#cbd5e1' }}>&bull;</span>
-                  <span style={{ color: '#d97706', fontWeight: '700' }}>
-                    WGC: <strong>{matrixViewMode === 'qty' ? `${matrixTotals.wgcQty.toLocaleString()} pcs` : `${matrixTotals.wgcWeight.toLocaleString()} kg`}</strong>
-                  </span>
-                  <span style={{ color: '#cbd5e1' }}>&bull;</span>
-                  <span style={{ color: '#db2777', fontWeight: '700' }}>
-                    D MHC: <strong>{matrixViewMode === 'qty' ? `${matrixTotals.dmhcQty.toLocaleString()} pcs` : `${matrixTotals.dmhcWeight.toLocaleString()} kg`}</strong>
-                  </span>
-                </div>
-
-                <div style={{
-                  background: '#0284c7',
-                  color: '#ffffff',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  fontWeight: '900',
-                  fontSize: '13px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}>
-                  <span style={{ opacity: 0.9 }}>TOTAL:</span>
-                  <span>{matrixViewMode === 'qty' ? `${matrixTotals.totalQty.toLocaleString()} pcs` : `${matrixTotals.totalWeight.toLocaleString()} kg`}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeTab === 'matrix' && <DispatchMatrix rows={salesPersonProductWise.map(row => ({ name: row.salesPerson, breakdown: row.breakdown }))} />}
 
       {/* ═══════════════════════════════════════════════════════════════════════════
           TAB 5: TRANSPORTATION & FREIGHT COSTS
@@ -2567,8 +2306,8 @@ export const PlantHeadDispatchAnalytics = () => {
                 height={300}
                 isEmpty={filteredAreaWiseData.length === 0}
                 emptyTitle="No locality delivery records for this timeframe"
-                emptySubtitle="Switch to September 2026 to view destination metrics."
-                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+                emptySubtitle="Select another period to view destination metrics."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: 'all' } })}
               >
                 {({ scale, isMobile, height, width }) => (
                   <ResponsiveContainer
@@ -2589,7 +2328,7 @@ export const PlantHeadDispatchAnalytics = () => {
                         ]}
                         contentStyle={{ borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: `${Math.round(12 * scale)}px` }}
                       />
-                      <Bar dataKey={areaMatrixMode === 'weight' ? 'weight' : 'quantity'} radius={[6, 6, 0, 0]}>
+                      <Bar dataKey={areaMatrixMode === 'weight' ? 'weight' : 'quantity'} radius={[4, 4, 0, 0]}>
                         {filteredAreaWiseData.slice(0, 10).map((entry, index) => (
                           <Cell key={`cell-loc-${index}`} fill={['#0284c7', '#0d9488', '#16a34a', '#ca8a04', '#ea580c', '#9333ea', '#db2777', '#475569'][index % 8]} />
                         ))}
@@ -2614,8 +2353,8 @@ export const PlantHeadDispatchAnalytics = () => {
                 height={300}
                 isEmpty={areaDonutData.length === 0}
                 emptyTitle="No locality distribution recorded"
-                emptySubtitle="Switch to September 2026 to view locality shares."
-                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+                emptySubtitle="Select another period to view locality shares."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: 'all' } })}
               >
                 {({ scale, height, width }) => (
                   <ResponsiveContainer
@@ -2673,8 +2412,8 @@ export const PlantHeadDispatchAnalytics = () => {
                 height={300}
                 isEmpty={filteredAreaWiseData.length === 0}
                 emptyTitle="No product mix recorded per locality"
-                emptySubtitle="Switch to September 2026 to view product stack."
-                onSwitchTimeframe={() => handleMonthChange({ target: { value: '2026-09' } })}
+                emptySubtitle="Select another period to view product stack."
+                onSwitchTimeframe={() => handleMonthChange({ target: { value: 'all' } })}
               >
                 {({ scale, isMobile, height, width }) => (
                   <ResponsiveContainer
@@ -2693,12 +2432,8 @@ export const PlantHeadDispatchAnalytics = () => {
                         contentStyle={{ borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: `${Math.round(12 * scale)}px` }}
                       />
                       <Legend wrapperStyle={{ fontSize: `${Math.max(9, Math.round(11.5 * scale))}px`, paddingTop: '10px' }} />
-                  <Bar dataKey={areaMatrixMode === 'weight' ? 'mhcWeight' : 'mhcQty'} name="MHC" stackId="a" fill={PRODUCT_COLORS.MHC} />
-                  <Bar dataKey={areaMatrixMode === 'weight' ? 'rcsWeight' : 'rcsQty'} name="RCS" stackId="a" fill={PRODUCT_COLORS.RCS} />
-                  <Bar dataKey={areaMatrixMode === 'weight' ? 'ongcWeight' : 'ongcQty'} name="ONGC" stackId="a" fill={PRODUCT_COLORS.ONGC} />
-                  <Bar dataKey={areaMatrixMode === 'weight' ? 'wgcWeight' : 'wgcQty'} name="WGC" stackId="a" fill={PRODUCT_COLORS.WGC} />
-                  <Bar dataKey={areaMatrixMode === 'weight' ? 'dmhcWeight' : 'dmhcQty'} name="D MHC" stackId="a" fill={PRODUCT_COLORS['D MHC']} />
-                </BarChart>
+                                      {productsData.map((product, index) => <Bar key={product.product} name={product.product} dataKey={row => row.productBreakdown?.[product.product]?.[areaMatrixMode === 'weight' ? 'weight' : 'qty'] || 0} stackId="products" fill={PRODUCT_COLORS[product.product] || CAPACITY_COLORS[index % CAPACITY_COLORS.length]} />)}
+</BarChart>
               </ResponsiveContainer>
             )}
           </ResponsiveChartBox>
@@ -2980,211 +2715,10 @@ export const PlantHeadDispatchAnalytics = () => {
             )}
 
             {/* Table 4: Locality × Product Matrix (when areaSubTab === 'product') */}
-            {areaSubTab === 'product' && (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', minWidth: '880px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '10px 12px' }}>Delivery Locality</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>PIN</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#2563eb' }}>MHC ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#7c3aed' }}>RCS ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>ONGC ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#d97706' }}>WGC ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#db2777' }}>D MHC ({areaMatrixMode === 'weight' ? 'kg' : 'pcs'})</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>Total</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>Share %</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredAreaWiseData.map((row, idx) => {
-                      const rowVal = areaMatrixMode === 'weight' ? row.weight : row.quantity;
-                      const shareVal = areaMatrixMode === 'weight' ? row.weightShare : row.qtyShare;
-                      return (
-                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>{row.locality || row.area}</td>
-                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                            <span style={{ fontFamily: 'monospace', fontWeight: '800', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 7px', fontSize: '11px' }}>
-                              {row.pincode || '—'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.mhcWeight.toLocaleString() : row.mhcQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.rcsWeight.toLocaleString() : row.rcsQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.ongcWeight.toLocaleString() : row.ongcQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.wgcWeight.toLocaleString() : row.wgcQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.dmhcWeight.toLocaleString() : row.dmhcQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: '#0f172a' }}>
-                            {rowVal.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: '#0284c7' }}>
-                            {shareVal}%
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                            <button
-                              onClick={() => setSelectedAreaModal(row)}
-                              style={{ padding: '3px 8px', borderRadius: '5px', background: '#0284c7', color: '#fff', border: 'none', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
-                            >
-                              Details →
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1' }}>
-                      <td style={{ padding: '10px 12px', color: '#0f172a' }}>TOTAL</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#2563eb' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.mhcWeight.toLocaleString()} kg` : `${areaTotals.mhcQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#7c3aed' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.rcsWeight.toLocaleString()} kg` : `${areaTotals.rcsQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#059669' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.ongcWeight.toLocaleString()} kg` : `${areaTotals.ongcQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#d97706' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.wgcWeight.toLocaleString()} kg` : `${areaTotals.wgcQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#db2777' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.dmhcWeight.toLocaleString()} kg` : `${areaTotals.dmhcQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.weight.toLocaleString()} kg` : `${areaTotals.quantity.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>
-                        100%
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {areaSubTab === 'product' && <DispatchMatrix rows={filteredAreaWiseData.map(row => ({ name: row.area, breakdown: row.productBreakdown }))} />}
 
             {/* Table 5: Locality × Salesperson Matrix (when areaSubTab === 'salesperson') */}
-            {areaSubTab === 'salesperson' && (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', minWidth: '960px', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '10px 12px' }}>Delivery Locality</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>PIN</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>MTH</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>TL</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>JP</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>RT</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>RS</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>TG</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>GN</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>MK</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>Total</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>Share %</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredAreaWiseData.map((row, idx) => {
-                      const rowVal = areaMatrixMode === 'weight' ? row.weight : row.quantity;
-                      const shareVal = areaMatrixMode === 'weight' ? row.weightShare : row.qtyShare;
-                      return (
-                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '10px 12px', fontWeight: '800', color: '#0f172a' }}>{row.locality || row.area}</td>
-                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                            <span style={{ fontFamily: 'monospace', fontWeight: '800', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 7px', fontSize: '11px' }}>
-                              {row.pincode || '—'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700', color: '#0284c7' }}>
-                            {areaMatrixMode === 'weight' ? row.mthWeight.toLocaleString() : row.mthQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.tlWeight.toLocaleString() : row.tlQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.jpWeight.toLocaleString() : row.jpQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.rtWeight.toLocaleString() : row.rtQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.rsWeight.toLocaleString() : row.rsQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.tgWeight.toLocaleString() : row.tgQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.gnWeight.toLocaleString() : row.gnQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '700' }}>
-                            {areaMatrixMode === 'weight' ? row.mkWeight.toLocaleString() : row.mkQty.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: '#0f172a' }}>
-                            {rowVal.toLocaleString()}
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '900', color: '#0284c7' }}>
-                            {shareVal}%
-                          </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                            <button
-                              onClick={() => setSelectedAreaModal(row)}
-                              style={{ padding: '3px 8px', borderRadius: '5px', background: '#0284c7', color: '#fff', border: 'none', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
-                            >
-                              Details →
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    <tr style={{ background: '#f8fafc', fontWeight: '900', borderTop: '2px solid #cbd5e1' }}>
-                      <td style={{ padding: '10px 12px', color: '#0f172a' }}>TOTAL</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.mthWeight.toLocaleString()} kg` : `${areaTotals.mthQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.tlWeight.toLocaleString()} kg` : `${areaTotals.tlQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.jpWeight.toLocaleString()} kg` : `${areaTotals.jpQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.rtWeight.toLocaleString()} kg` : `${areaTotals.rtQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.rsWeight.toLocaleString()} kg` : `${areaTotals.rsQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.tgWeight.toLocaleString()} kg` : `${areaTotals.tgQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.gnWeight.toLocaleString()} kg` : `${areaTotals.gnQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.mkWeight.toLocaleString()} kg` : `${areaTotals.mkQty.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0f172a' }}>
-                        {areaMatrixMode === 'weight' ? `${areaTotals.weight.toLocaleString()} kg` : `${areaTotals.quantity.toLocaleString()} pcs`}
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0284c7' }}>
-                        100%
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>—</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {areaSubTab === 'salesperson' && <DispatchMatrix rows={filteredAreaWiseData.map(row => ({ name: row.area, breakdown: row.salespeopleBreakdown }))} />}
 
             {/* Reconciliation Box */}
             <div style={{
@@ -3216,7 +2750,7 @@ export const PlantHeadDispatchAnalytics = () => {
                 fontWeight: '800',
                 fontSize: '12px'
               }}>
-                100% KPI Synchronized
+                Recorded totals
               </div>
             </div>
           </div>
@@ -3504,13 +3038,13 @@ export const PlantHeadDispatchAnalytics = () => {
       ═══════════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'remaining' && (() => {
         const pending = analyticsData?.pendingOrders || {
-          readyForDispatchCount: 19,
+          readyForDispatchCount: 0,
           readyForDispatchList: [],
-          inProductionCount: 15,
+          inProductionCount: 0,
           inProductionList: [],
-          draftCount: 8,
-          totalOrdersCount: 186,
-          totalRemainingCount: 42,
+          draftCount: 0,
+          totalOrdersCount: 0,
+          totalRemainingCount: 0,
         };
 
         const readyList = pending.readyForDispatchList || [];
@@ -3532,10 +3066,10 @@ export const PlantHeadDispatchAnalytics = () => {
           );
         }
 
-        const totalFulfilled = (pending.totalOrdersCount || 186) - (pending.totalRemainingCount || 42);
+        const totalFulfilled = pending.fulfilledOrdersCount ?? 0;
         const fulfillmentPct = pending.totalOrdersCount > 0
           ? Math.round((totalFulfilled / pending.totalOrdersCount) * 1000) / 10
-          : 76.9;
+          : 0;
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -3548,7 +3082,7 @@ export const PlantHeadDispatchAnalytics = () => {
                   <FileSpreadsheet size={16} color="#0284c7" />
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '6px 0 2px 0' }}>
-                  {pending.totalOrdersCount || 186} <span style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>orders</span>
+                  {pending.totalOrdersCount ?? 0} <span style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>orders</span>
                 </div>
                 <div style={{ fontSize: '11px', color: '#0369a1', fontWeight: '700' }}>
                   All ERP sales orders in pipeline
@@ -3565,7 +3099,7 @@ export const PlantHeadDispatchAnalytics = () => {
                   {totalFulfilled} <span style={{ fontSize: '13px', fontWeight: '700', color: '#10b981' }}>orders</span>
                 </div>
                 <div style={{ fontSize: '11px', color: '#059669', fontWeight: '700' }}>
-                  {analyticsData?.summary?.totalQuantity ? `${analyticsData.summary.totalQuantity.toLocaleString()} pcs (~${Math.round((analyticsData.summary.totalWeight || 0)/1000)} MT)` : '166 completed shipments'}
+                  {analyticsData?.summary?.totalQuantity ? `${analyticsData.summary.totalQuantity.toLocaleString()} pcs (~${Math.round((analyticsData.summary.totalWeight || 0)/1000)} MT)` : '0 pieces dispatched'}
                 </div>
               </div>
 
@@ -3576,7 +3110,7 @@ export const PlantHeadDispatchAnalytics = () => {
                   <Truck size={16} color="#06b6d4" />
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '6px 0 2px 0' }}>
-                  {pending.readyForDispatchCount || readyList.length || 19} <span style={{ fontSize: '13px', fontWeight: '700', color: '#06b6d4' }}>orders</span>
+                  {pending.readyForDispatchCount ?? readyList.length} <span style={{ fontSize: '13px', fontWeight: '700', color: '#06b6d4' }}>orders</span>
                 </div>
                 <div style={{ fontSize: '11px', color: '#0891b2', fontWeight: '700' }}>
                   Manufactured &amp; awaiting truck loading
@@ -3590,7 +3124,7 @@ export const PlantHeadDispatchAnalytics = () => {
                   <Layers size={16} color="#f59e0b" />
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a', margin: '6px 0 2px 0' }}>
-                  {pending.inProductionCount || prodList.length || 15} <span style={{ fontSize: '13px', fontWeight: '700', color: '#f59e0b' }}>orders</span>
+                  {pending.inProductionCount ?? prodList.length} <span style={{ fontSize: '13px', fontWeight: '700', color: '#f59e0b' }}>orders</span>
                 </div>
                 <div style={{ fontSize: '11px', color: '#b45309', fontWeight: '700' }}>
                   Plant approved in active manufacturing
@@ -3607,7 +3141,7 @@ export const PlantHeadDispatchAnalytics = () => {
                   {fulfillmentPct}%
                 </div>
                 <div style={{ fontSize: '11px', color: '#7c3aed', fontWeight: '700' }}>
-                  {pending.totalRemainingCount || 42} orders remaining to complete
+                  {pending.totalRemainingCount ?? 0} orders remaining to complete
                 </div>
               </div>
             </div>
@@ -3811,7 +3345,7 @@ export const PlantHeadDispatchAnalytics = () => {
             <div style={{ fontSize: '15px', fontWeight: '900', color: '#16a34a', marginTop: '2px' }}>
               {summary.totalTrips || (analyticsData?.dispatchOrders || dispatchOrders).length} Trips
             </div>
-            <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '1px' }}>{transportation?.activeVehiclesCount || 12} Dedicated Fleet</div>
+            <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '1px' }}>{transportation?.activeVehiclesCount ?? 0} Dedicated Fleet</div>
           </div>
 
           <div style={{ border: '1.5px solid #cbd5e1', borderRadius: '6px', padding: '8px 10px', background: '#f8fafc' }}>
@@ -3825,9 +3359,9 @@ export const PlantHeadDispatchAnalytics = () => {
           <div style={{ border: '1.5px solid #cbd5e1', borderRadius: '6px', padding: '8px 10px', background: '#f8fafc' }}>
             <div style={{ fontSize: '9px', fontWeight: '800', color: '#475569', textTransform: 'uppercase' }}>Delivery SLA</div>
             <div style={{ fontSize: '15px', fontWeight: '900', color: '#0369a1', marginTop: '2px' }}>
-              98.4% On-Time
+              {analyticsData?.kpis?.deliverySLA || 'Not available'}
             </div>
-            <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '1px' }}>Zero Transport Claims</div>
+            <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '1px' }}>Based on recorded delivery information</div>
           </div>
         </div>
 
@@ -4028,7 +3562,7 @@ export const PlantHeadDispatchAnalytics = () => {
               <div style={{ borderTop: '1px solid #0f172a', paddingTop: '6px', fontWeight: '800', fontSize: '10.5px' }}>
                 Weighbridge &amp; Security Gate
               </div>
-              <div style={{ fontSize: '9px', color: '#64748b' }}>Tare / Gross Weight Verified</div>
+              <div style={{ fontSize: '9px', color: '#64748b' }}>Recorded dispatch weight</div>
             </div>
             <div>
               <div style={{ height: '40px' }}></div>

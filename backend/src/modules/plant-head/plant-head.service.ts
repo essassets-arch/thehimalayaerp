@@ -1,3 +1,4 @@
+import { dispatchAnalyticsPeriod, dispatchDay, recordedDispatchLocation } from './dispatch-analytics-period';
 import {
   Injectable,
   NotFoundException,
@@ -1961,87 +1962,9 @@ export class PlantHeadService {
     salesPersonFilter?: string,
     productFilter?: string,
   ) {
-    // 1. Determine Date Range
-    let startDate: Date;
-    let endDate: Date;
-    let periodLabel: string;
-
-    const normalizedFilter = (filter || '').trim();
-    const normalizedMonth = (month || '').trim();
-
-    const hasValidCustomDates =
-      Boolean(customStart && customEnd) &&
-      !isNaN(new Date(customStart!).getTime()) &&
-      !isNaN(new Date(customEnd!).getTime());
-
-    if (hasValidCustomDates && (normalizedFilter === 'Custom' || normalizedMonth === 'custom' || !normalizedMonth || normalizedMonth === 'all')) {
-      startDate = new Date(customStart!);
-      startDate.setUTCHours(0, 0, 0, 0);
-      endDate = new Date(customEnd!);
-      endDate.setUTCHours(23, 59, 59, 999);
-      periodLabel = `${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`;
-    } else if (
-      normalizedMonth === 'all' ||
-      normalizedFilter === 'All Time' ||
-      normalizedFilter === 'All-Time Aggregate'
-    ) {
-      startDate = new Date('2020-01-01T00:00:00.000Z');
-      endDate = new Date('2030-12-31T23:59:59.999Z');
-      periodLabel = 'All-Time Aggregate';
-    } else if (
-      normalizedFilter === 'August 2026' ||
-      normalizedFilter === '2026-08' ||
-      normalizedMonth === '2026-08' ||
-      (normalizedMonth === '08' && (year === '2026' || !year)) ||
-      (normalizedMonth.toLowerCase().includes('aug') && (year === '2026' || !year))
-    ) {
-      startDate = new Date('2026-08-01T00:00:00.000Z');
-      endDate = new Date('2026-08-31T23:59:59.999Z');
-      periodLabel = '1–31 August 2026';
-    } else if (
-      normalizedFilter === 'This Month' ||
-      normalizedFilter === 'September 2026' ||
-      normalizedFilter === '2026-09' ||
-      normalizedMonth === '2026-09' ||
-      (normalizedMonth === '09' && (year === '2026' || !year)) ||
-      (normalizedMonth.toLowerCase().includes('sep') && (year === '2026' || !year))
-    ) {
-      startDate = new Date('2026-09-01T00:00:00.000Z');
-      endDate = new Date('2026-09-30T23:59:59.999Z');
-      periodLabel = '1–30 September 2026';
-    } else if (normalizedFilter === 'Last Month') {
-      startDate = new Date('2026-08-01T00:00:00.000Z');
-      endDate = new Date('2026-08-31T23:59:59.999Z');
-      periodLabel = 'August 2026';
-    } else if (normalizedFilter === 'This Quarter') {
-      startDate = new Date('2026-07-01T00:00:00.000Z');
-      endDate = new Date('2026-09-30T23:59:59.999Z');
-      periodLabel = 'Q3 2026 (Jul–Sep)';
-    } else if (normalizedMonth && normalizedMonth !== 'custom' && /^\d{4}-\d{2}$/.test(normalizedMonth)) {
-      const [yStr, mStr] = normalizedMonth.split('-');
-      const y = parseInt(yStr, 10);
-      const m = parseInt(mStr, 10) - 1;
-      startDate = new Date(Date.UTC(y, m, 1, 0, 0, 0));
-      endDate = new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999));
-      periodLabel = normalizedMonth;
-    } else if (normalizedMonth && normalizedMonth !== 'custom' && /^\d{1,2}$/.test(normalizedMonth)) {
-      const y = year ? parseInt(year, 10) : 2026;
-      const m = parseInt(normalizedMonth, 10) - 1;
-      startDate = new Date(Date.UTC(y, m, 1, 0, 0, 0));
-      endDate = new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999));
-      periodLabel = `${y}-${String(m + 1).padStart(2, '0')}`;
-    } else {
-      const range = this.getDateRange(filter, customStart, customEnd);
-      startDate = range.startDate;
-      endDate = range.endDate;
-      periodLabel = filter || 'August 2026';
-    }
-
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      startDate = new Date('2026-08-01T00:00:00.000Z');
-      endDate = new Date('2026-08-31T23:59:59.999Z');
-      periodLabel = '1–31 August 2026';
-    }
+    if (!companyId?.trim()) throw new BadRequestException('Company is required');
+    const { startDate, endDate, periodLabel, isAllTime } = dispatchAnalyticsPeriod(filter, customStart, customEnd, month, year);
+    const dispatchScope = { salesOrder: { customer: { companyId } }, dispatchedAt: { not: null } };
 
     // 2. Query Live Database for Ready, In-Production, Draft & Total Orders, and Dispatches
     const customerCompanyFilter = (typeof companyId === 'string' && companyId.trim().length > 0)
@@ -2060,7 +1983,6 @@ export class PlantHeadService {
           items: { include: { product: true } },
         },
         orderBy: { createdAt: 'desc' },
-        take: 200,
       }),
       this.prisma.salesOrder.findMany({
         where: {
@@ -2073,7 +1995,6 @@ export class PlantHeadService {
           items: { include: { product: true } },
         },
         orderBy: { createdAt: 'desc' },
-        take: 200,
       }),
       this.prisma.salesOrder.count({
         where: {
@@ -2087,8 +2008,8 @@ export class PlantHeadService {
         },
       }),
       this.prisma.dispatch.findMany({
+        where: dispatchScope,
         select: { dispatchedAt: true, createdAt: true },
-        take: 2000,
         orderBy: { createdAt: 'desc' },
       }),
     ]);
@@ -2099,19 +2020,19 @@ export class PlantHeadService {
     const monthsFound = new Set<string>();
     for (const d of allDispatchesSample) {
       const dt = d.dispatchedAt || d.createdAt;
-      if (dt) monthsFound.add(dt.toISOString().slice(0, 7));
+      if (dt) monthsFound.add(dispatchDay(dt).slice(0, 7));
     }
     const discoveredMonths = Array.from(monthsFound).sort().reverse();
 
     const formatPendingOrderItem = (so: any) => {
-      const loc = parseDeliveryLocation(
+      const loc = recordedDispatchLocation(
         so.shippingAddress,
         so.deliveryAddress,
         so.customer?.billingAddress,
       );
       const items = (so.items || []).map((it: any) => ({
         product: it.product?.name || it.productNameSnapshot || 'FRP Product',
-        quantity: Number(it.quantity) || 1,
+        quantity: Number(it.quantity) || 0,
         specifications: it.specifications || {},
       }));
       const totalPcs = items.reduce((s: number, it: any) => s + it.quantity, 0);
@@ -2138,19 +2059,12 @@ export class PlantHeadService {
       inProductionList: plantApprovedOrdersDb.map(formatPendingOrderItem),
       draftCount: draftOrdersCount,
       totalOrdersCount,
+      fulfilledOrdersCount: await this.prisma.salesOrder.count({ where: { customer: { companyId }, status: 'COMPLETED' } }),
       totalRemainingCount: readyOrdersDb.length + plantApprovedOrdersDb.length + draftOrdersCount,
     };
 
-    const isAllTime = startDate.getFullYear() <= 2020 && endDate.getFullYear() >= 2030;
     const dbDispatches = await this.prisma.dispatch.findMany({
-      where: isAllTime
-        ? {}
-        : {
-            OR: [
-              { dispatchedAt: { gte: startDate, lte: endDate } },
-              { createdAt: { gte: startDate, lte: endDate } },
-            ],
-          },
+      where: { ...dispatchScope, ...(isAllTime ? {} : { dispatchedAt: { gte: startDate, lt: endDate } }) },
       include: {
         salesOrder: {
           include: {
@@ -2166,7 +2080,6 @@ export class PlantHeadService {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: 5000,
     });
 
     // 3. Handle Empty State Accurately (Zero Static Fallback)
@@ -2255,7 +2168,7 @@ export class PlantHeadService {
         dispatchOrders: [],
         pendingOrders: pendingOrdersPayload,
         filterOptions: {
-          months: discoveredMonths.length > 0 ? discoveredMonths : ['2026-09', '2026-08'],
+          months: discoveredMonths,
           salesPersons: [],
           products: [],
           areas: [],
@@ -2275,7 +2188,7 @@ export class PlantHeadService {
     const priorCustomerSet = new Set<string>();
     try {
       const priorDispatches = await this.prisma.dispatch.findMany({
-        where: { createdAt: { lt: startDate } },
+        where: { ...dispatchScope, dispatchedAt: { lt: startDate } },
         include: {
           salesOrder: {
             include: {
@@ -2283,7 +2196,6 @@ export class PlantHeadService {
             },
           },
         },
-        take: 10000,
       });
 
       for (const pd of priorDispatches) {
@@ -2293,7 +2205,7 @@ export class PlantHeadService {
         if (name) priorCustomerSet.add(name.trim().toLowerCase());
       }
     } catch (e) {
-      console.warn('[PlantHeadService] Prior dispatches check warning:', e);
+      throw e;
     }
 
     // 5. Dynamic Live Database Aggregation (Multi-Item & Filter Aware)
@@ -2323,6 +2235,7 @@ export class PlantHeadService {
       days: Set<string>;
       topCustomers: Record<string, { weight: number; qty: number }>;
       products: Record<string, { weight: number; qty: number }>;
+      salespeople: Record<string, { weight: number; qty: number }>;
       mhcQty: number; mhcWeight: number;
       rcsQty: number; rcsWeight: number;
       ongcQty: number; ongcWeight: number;
@@ -2347,7 +2260,7 @@ export class PlantHeadService {
     const distinctLocalities = new Map<string, { locality: string; city: string; pincode: string }>();
 
     for (const d of dbDispatches) {
-      const loc = parseDeliveryLocation(
+      const loc = recordedDispatchLocation(
         d.deliveryAddress,
         d.salesOrder?.shippingAddress,
         d.salesOrder?.customer?.billingAddress,
@@ -2355,19 +2268,13 @@ export class PlantHeadService {
       const locKey = `${loc.pincode}-${loc.locality}`;
       distinctLocalities.set(loc.locality, { locality: loc.locality, city: loc.city, pincode: loc.pincode });
 
-      const rawSRef = d.salesOrder?.salesExecutive?.name || 'MTH';
-      let sRef = rawSRef;
-      if (rawSRef.includes('SuperSales 1') || rawSRef.includes('Hussain')) sRef = 'MTH';
-      else if (rawSRef.includes('SuperSales 2') || rawSRef.includes('Taher')) sRef = 'TL';
-      else if (rawSRef.includes('Super Admin')) sRef = 'MTH';
+      const sRef = d.salesOrder?.salesExecutive?.name || 'Not recorded';
       distinctSalesPersons.add(sRef);
 
       const dWeight = Number(d.totalWeight) || 0;
       const dFreight = Number(d.freightAmount) || 0;
-      const dPcs = Number(d.packageCount) || (d.items && d.items.length > 0 ? d.items.reduce((s: number, it: any) => s + (Number(it.quantity) || 1), 0) : 1);
-
-      // Determine product categories present in this dispatch
-      const dItems = (d.items && d.items.length > 0) ? d.items : (d.salesOrder?.items || []);
+      const dItems = d.items || [];
+      const dPcs = dItems.reduce((sum, item) => sum + Number(item.quantity), 0);
       const itemSpecs = dItems.map((it: any) => {
         const itemObj = it.salesOrderItem || it;
         const specs = itemObj.specifications || {};
@@ -2378,7 +2285,8 @@ export class PlantHeadService {
           else if (pName.includes('RCS')) prod = 'RCS';
           else if (pName.includes('ONGC')) prod = 'ONGC';
           else if (pName.includes('WGC')) prod = 'WGC';
-          else prod = 'MHC';
+          else if (pName.includes('MHC')) prod = 'MHC';
+          else prod = itemObj.product?.name || itemObj.productNameSnapshot || 'Not recorded';
         }
         distinctProducts.add(prod);
 
@@ -2391,7 +2299,7 @@ export class PlantHeadService {
           else if (pName.includes('ELD')) cap = 'ELD';
           else if (pName.includes('3T')) cap = '3T';
           else if (pName.includes('F900')) cap = 'F900';
-          else cap = 'LD';
+          else cap = 'Not recorded';
         }
 
         let size = specs.size || '';
@@ -2400,18 +2308,18 @@ export class PlantHeadService {
           else if (pName.includes('900MM') || pName.includes('900 MM')) size = '900 MM';
           else if (pName.includes('1200X900') || pName.includes('1200 × 900')) size = '1200 × 900';
           else if (pName.includes('450X600') || pName.includes('450 × 600')) size = '450 × 600';
-          else size = '600 × 600';
+          else size = 'Not recorded';
         }
 
-        let colour = specs.colour || 'Grey';
-        const itQty = Number(it.quantity) || 1;
+        let colour = specs.colour || specs.color || 'Not recorded';
+        const itQty = Number(it.quantity) || 0;
         return { prod, cap, size, colour, itQty };
       });
 
-      const primaryProd = itemSpecs[0]?.prod || 'MHC';
-      const primaryCap = itemSpecs[0]?.cap || 'LD';
-      const primarySize = itemSpecs[0]?.size || '600 × 600';
-      const primaryColour = itemSpecs[0]?.colour || 'Grey';
+      const primaryProd = (new Set(itemSpecs.map(it => it.prod)).size > 1 ? 'Mixed / unallocated' : itemSpecs[0]?.prod) || 'Not recorded';
+      const primaryCap = (new Set(itemSpecs.map(it => it.cap)).size > 1 ? 'Mixed / unallocated' : itemSpecs[0]?.cap) || 'Not recorded';
+      const primarySize = (new Set(itemSpecs.map(it => it.size)).size > 1 ? 'Mixed / unallocated' : itemSpecs[0]?.size) || 'Not recorded';
+      const primaryColour = (new Set(itemSpecs.map(it => it.colour)).size > 1 ? 'Mixed / unallocated' : itemSpecs[0]?.colour) || 'Not recorded';
 
       // ── Apply User Filters ──
       if (areaFilter && areaFilter !== 'All') {
@@ -2425,7 +2333,7 @@ export class PlantHeadService {
       }
 
       if (salesPersonFilter && salesPersonFilter !== 'All') {
-        if (!sRef.toLowerCase().includes(salesPersonFilter.toLowerCase())) continue;
+        if (sRef.toLowerCase() !== salesPersonFilter.toLowerCase()) continue;
       }
 
       if (productFilter && productFilter !== 'All') {
@@ -2443,9 +2351,7 @@ export class PlantHeadService {
       const cCity = loc.city;
       clientSet.add(cName);
 
-      const dDate = d.dispatchedAt
-        ? new Date(d.dispatchedAt).toISOString().slice(0, 10)
-        : new Date(d.createdAt).toISOString().slice(0, 10);
+      const dDate = dispatchDay(d.dispatchedAt!);
 
       if (!customerMap[cName]) customerMap[cName] = { weight: 0, qty: 0, city: cCity, customerId: cId, firstDate: dDate };
       customerMap[cName].weight += dWeight;
@@ -2463,7 +2369,7 @@ export class PlantHeadService {
       }
 
       // Transporter Aggregation
-      const tName = d.transporterName || 'Fleet Logistics';
+      const tName = d.transporterName || 'Not recorded';
       if (!transporterMap[tName]) {
         transporterMap[tName] = { trips: 0, weight: 0, freight: 0, vehicles: new Set(), routes: new Set() };
       }
@@ -2473,27 +2379,16 @@ export class PlantHeadService {
       if (d.vehicleNumber) transporterMap[tName].vehicles.add(d.vehicleNumber);
       if (loc.locality) transporterMap[tName].routes.add(`${loc.locality} (${loc.city})`);
 
-      // Products, Capacities, Sizes, Colours Aggregation
-      if (itemSpecs.length > 0) {
-        const weightPerItem = dWeight / itemSpecs.length;
-        const qtyPerItem = dPcs / itemSpecs.length;
-        for (const it of itemSpecs) {
-          if (!prodMap[it.prod]) prodMap[it.prod] = { qty: 0, weight: 0 };
-          prodMap[it.prod].qty += Math.round(qtyPerItem);
-          prodMap[it.prod].weight += weightPerItem;
-
-          capMap[it.cap] = (capMap[it.cap] || 0) + weightPerItem;
-          sizeMap[it.size] = (sizeMap[it.size] || 0) + weightPerItem;
-          colMap[it.colour] = (colMap[it.colour] || 0) + weightPerItem;
-        }
-      } else {
-        if (!prodMap[primaryProd]) prodMap[primaryProd] = { qty: 0, weight: 0 };
-        prodMap[primaryProd].qty += dPcs;
-        prodMap[primaryProd].weight += dWeight;
-        capMap[primaryCap] = (capMap[primaryCap] || 0) + dWeight;
-        sizeMap[primarySize] = (sizeMap[primarySize] || 0) + dWeight;
-        colMap[primaryColour] = (colMap[primaryColour] || 0) + dWeight;
+      // Dispatches store total weight, not measured line weights.
+      for (const it of itemSpecs) {
+        if (!prodMap[it.prod]) prodMap[it.prod] = { qty: 0, weight: 0 };
+        prodMap[it.prod].qty += it.itQty;
       }
+      if (!prodMap[primaryProd]) prodMap[primaryProd] = { qty: 0, weight: 0 };
+      prodMap[primaryProd].weight += dWeight;
+      capMap[primaryCap] = (capMap[primaryCap] || 0) + dWeight;
+      sizeMap[primarySize] = (sizeMap[primarySize] || 0) + dWeight;
+      colMap[primaryColour] = (colMap[primaryColour] || 0) + dWeight;
 
       // Sales Reps Aggregation
       if (!salesMap[sRef]) salesMap[sRef] = { weight: 0, qty: 0 };
@@ -2502,7 +2397,10 @@ export class PlantHeadService {
 
       if (!salesProdMap[sRef]) salesProdMap[sRef] = {};
       if (!salesProdMap[sRef][primaryProd]) salesProdMap[sRef][primaryProd] = { qty: 0, weight: 0 };
-      salesProdMap[sRef][primaryProd].qty += dPcs;
+      for (const it of itemSpecs) {
+        if (!salesProdMap[sRef][it.prod]) salesProdMap[sRef][it.prod] = { qty: 0, weight: 0 };
+        salesProdMap[sRef][it.prod].qty += it.itQty;
+      }
       salesProdMap[sRef][primaryProd].weight += dWeight;
 
       // Area Map (Localities + PIN) Aggregation
@@ -2521,6 +2419,7 @@ export class PlantHeadService {
           days: new Set<string>(),
           topCustomers: {},
           products: {},
+          salespeople: {},
           mhcQty: 0, mhcWeight: 0,
           rcsQty: 0, rcsWeight: 0,
           ongcQty: 0, ongcWeight: 0,
@@ -2552,15 +2451,23 @@ export class PlantHeadService {
       // Products for this locality
       if (!areaMap[locKey].products[primaryProd]) areaMap[locKey].products[primaryProd] = { weight: 0, qty: 0 };
       areaMap[locKey].products[primaryProd].weight += dWeight;
-      areaMap[locKey].products[primaryProd].qty += dPcs;
+      for (const it of itemSpecs) {
+        if (!areaMap[locKey].products[it.prod]) areaMap[locKey].products[it.prod] = { qty: 0, weight: 0 };
+        areaMap[locKey].products[it.prod].qty += it.itQty;
+        const key = ({ MHC: 'mhc', RCS: 'rcs', ONGC: 'ongc', WGC: 'wgc', 'D MHC': 'dmhc' } as Record<string, string>)[it.prod];
+        if (key) (areaMap[locKey] as any)[key + 'Qty'] += it.itQty;
+      }
 
       // Product cross-matrix accumulation
-      if (primaryProd === 'MHC') { areaMap[locKey].mhcQty += dPcs; areaMap[locKey].mhcWeight += dWeight; }
-      else if (primaryProd === 'RCS') { areaMap[locKey].rcsQty += dPcs; areaMap[locKey].rcsWeight += dWeight; }
-      else if (primaryProd === 'ONGC') { areaMap[locKey].ongcQty += dPcs; areaMap[locKey].ongcWeight += dWeight; }
-      else if (primaryProd === 'WGC') { areaMap[locKey].wgcQty += dPcs; areaMap[locKey].wgcWeight += dWeight; }
-      else if (primaryProd === 'D MHC') { areaMap[locKey].dmhcQty += dPcs; areaMap[locKey].dmhcWeight += dWeight; }
+      if (primaryProd === 'MHC') { areaMap[locKey].mhcWeight += dWeight; }
+      else if (primaryProd === 'RCS') { areaMap[locKey].rcsWeight += dWeight; }
+      else if (primaryProd === 'ONGC') { areaMap[locKey].ongcWeight += dWeight; }
+      else if (primaryProd === 'WGC') { areaMap[locKey].wgcWeight += dWeight; }
+      else if (primaryProd === 'D MHC') { areaMap[locKey].dmhcWeight += dWeight; }
 
+      if (!areaMap[locKey].salespeople[sRef]) areaMap[locKey].salespeople[sRef] = { weight: 0, qty: 0 };
+      areaMap[locKey].salespeople[sRef].weight += dWeight;
+      areaMap[locKey].salespeople[sRef].qty += dPcs;
       // Sales rep cross-matrix accumulation
       const sRefLower = sRef.toLowerCase();
       if (sRefLower.includes('mth')) { areaMap[locKey].mthQty += dPcs; areaMap[locKey].mthWeight += dWeight; }
@@ -2571,7 +2478,7 @@ export class PlantHeadService {
       else if (sRefLower.includes('tg')) { areaMap[locKey].tgQty += dPcs; areaMap[locKey].tgWeight += dWeight; }
       else if (sRefLower.includes('gn')) { areaMap[locKey].gnQty += dPcs; areaMap[locKey].gnWeight += dWeight; }
       else if (sRefLower.includes('mk')) { areaMap[locKey].mkQty += dPcs; areaMap[locKey].mkWeight += dWeight; }
-      else { areaMap[locKey].mthQty += dPcs; areaMap[locKey].mthWeight += dWeight; }
+
 
       // Macro-Zone Aggregation
       const zName = loc.zone;
@@ -2598,13 +2505,17 @@ export class PlantHeadService {
         city: loc.city,
         zone: loc.zone,
         formattedLocation: loc.formattedLocation,
-        vehicle: d.vehicleNumber || 'GJ01TF0620',
+        vehicle: d.vehicleNumber || 'Not recorded',
         transporter: tName,
-        driver: d.driverName || 'Verified Driver',
+        driver: d.driverName || 'Not recorded',
         freightAmount: dFreight,
         date: dDate,
         status: d.status || 'Delivered',
-        sla: 'On-Time',
+        sla: 'Not available',
+        lrNo: d.lrNumber || 'Not recorded',
+        dispatchCategory: d.dispatchCategory || 'Not recorded',
+        weightRecorded: d.totalWeight != null,
+        freightRecorded: d.freightAmount != null,
       });
     }
 
@@ -2616,7 +2527,7 @@ export class PlantHeadService {
           product === 'MHC' ? 'Manhole Covers' :
           product === 'RCS' ? 'Recessed Covers & Frames' :
           product === 'ONGC' ? 'ONGC Specification Covers' :
-          product === 'WGC' ? 'Water Gully Covers' : 'Double Manhole Covers',
+          product === 'WGC' ? 'Water Gully Covers' : product === 'D MHC' ? 'Double Manhole Covers' : product,
         quantity: val.qty,
         weight: Math.round(val.weight * 100) / 100,
         share: totalWeight > 0 ? Math.round((val.weight / totalWeight) * 1000) / 10 : 0,
@@ -2801,6 +2712,7 @@ export class PlantHeadService {
       return {
         salesPerson,
         name: `${salesPerson} (Sales)`,
+        breakdown: pMap,
         mhcQty: pMap['MHC']?.qty || 0,
         mhcWeight: pMap['MHC']?.weight ? Math.round(pMap['MHC'].weight * 100) / 100 : 0,
         rcsQty: pMap['RCS']?.qty || 0,
@@ -2844,6 +2756,8 @@ export class PlantHeadService {
 
       return {
         area: val.area,
+        productBreakdown: val.products,
+        salespeopleBreakdown: val.salespeople,
         pincode: val.pincode,
         city: val.city,
         zone: val.zone,
@@ -2926,7 +2840,7 @@ export class PlantHeadService {
       weight: d.weight,
       freight: d.freightAmount,
       status: d.status,
-      lrNo: `LR-${88100 + idx}`,
+      lrNo: d.lrNo,
     }));
 
     // 16. Dynamic Key Highlights
@@ -2949,7 +2863,7 @@ export class PlantHeadService {
 
     // Filter options for frontend dropdowns
     const filterOptions = {
-      months: discoveredMonths.length > 0 ? discoveredMonths : ['2026-09', '2026-08'],
+      months: discoveredMonths,
       salesPersons: Array.from(distinctSalesPersons).map(name => {
         const found = salesRefsLive.find(s => s.salesRef === name);
         return { name, share: found ? found.share : 0 };
@@ -2962,7 +2876,12 @@ export class PlantHeadService {
     };
 
     return {
-      hasData: true,
+      hasData: allFilteredDispatches.length > 0,
+      dispatchSources: Object.entries(allFilteredDispatches.reduce((acc, d) => {
+        const category = d.dispatchCategory;
+        acc[category] = (acc[category] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)).map(([category, trips]) => ({ category, trips })),
       summary: {
         period: periodLabel,
         totalQuantity: totalQty,
@@ -3031,7 +2950,7 @@ export class PlantHeadService {
         avgFreightPerTonne: totalWeight > 0 ? Math.round(((totalFreight * 1000) / totalWeight) * 10) / 10 : 0,
         avgFreightPerPiece: totalQty > 0 ? Math.round((totalFreight / totalQty) * 100) / 100 : 0,
         totalTrips: allFilteredDispatches.length,
-        activeVehiclesCount: Object.keys(transporterMap).length,
+        activeVehiclesCount: new Set(allFilteredDispatches.map(d => d.vehicle).filter(v => v !== 'Not recorded')).size,
         avgPayloadPerTrip: allFilteredDispatches.length > 0 ? Math.round((totalWeight / allFilteredDispatches.length) * 100) / 100 : 0,
         transporters: transportersLive,
         vehicleTrips: vehicleTripsLive,
@@ -3041,12 +2960,17 @@ export class PlantHeadService {
         ? `${coloursLive[0].colour} dominates the dispatch profile with ${coloursLive[0].share}% (${(coloursLive[0].weight / 1000).toFixed(1)} tonnes) of total volume.`
         : 'Colour distribution computed live.',
       dataQuality: {
+        missingWeightCount: allFilteredDispatches.filter(d => !d.weightRecorded).length,
+        missingFreightCount: allFilteredDispatches.filter(d => !d.freightRecorded).length,
         standardizedSizes: Array.from(new Set(sizesLive.map(s => s.size))),
         standardizedColours: Array.from(new Set(coloursLive.map(c => c.colour))),
         cleaningProcedures: [
           'Direct live database queries across verified ERP dispatches',
           'Delivery addresses resolved to high-precision postal pincodes and localities',
-          '100% KPI reconciliation with zero hardcoded mock fallbacks',
+          'Both Dispatch 1 and Dispatch 2; dispatched date in Asia/Kolkata',
+          'Mixed item weights remain unallocated; quantities use actual dispatch items',
+          'Product filters select whole shipments containing that product; pending orders are current backlog',
+          'Missing weight and freight are excluded from recorded totals',
         ],
       },
       keyHighlights,
@@ -3057,8 +2981,8 @@ export class PlantHeadService {
       kpis: {
         readyForDispatch: readyForDispatchCount,
         fleetStatus: `${Object.keys(transporterMap).length} Active Carriers`,
-        deliverySLA: '98.8%',
-        avgLeadTime: '1.2 Days',
+        deliverySLA: 'Not available',
+        avgLeadTime: 'Not available',
         totalQuantity: totalQty,
         totalWeight,
         avgWeightPerPiece: totalQty > 0 ? Math.round((totalWeight / totalQty) * 100) / 100 : 0,
@@ -3070,7 +2994,7 @@ export class PlantHeadService {
       dispatchTrends: dailyTrendsLive.slice(0, 4).map((d) => ({
         name: d.day,
         dispatches: d.pcs,
-        deliveryRate: 98.5,
+        deliveryRate: null,
         weight: d.weight,
       })),
       fleetAllocation: transportersLive.slice(0, 4).map((t, i) => ({
