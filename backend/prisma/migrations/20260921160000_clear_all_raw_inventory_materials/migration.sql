@@ -37,7 +37,7 @@ WHERE ("productType" = 'RAW_MATERIAL' OR "type" = 'RAW_MATERIAL' OR "category" I
     UNION
     SELECT DISTINCT "productId" FROM "MaterialRequestItem" WHERE "productId" IS NOT NULL
     UNION
-    SELECT DISTINCT "productId" FROM "OrderItem" WHERE "productId" IS NOT NULL
+    SELECT DISTINCT "productId" FROM "SalesOrderItem" WHERE "productId" IS NOT NULL
   );
 
 -- 5. Soft-delete (deactivate) any remaining referenced RAW_MATERIAL products so they are never loaded
