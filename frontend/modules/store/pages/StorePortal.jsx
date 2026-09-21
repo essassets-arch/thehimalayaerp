@@ -799,15 +799,16 @@ export default function StorePortal() {
       const res = await apiClient.get(`/inventory/material-log/${encodeURIComponent(queryId)}`);
       const data = res?.data?.data || res?.data || null;
       if (data && Array.isArray(data.history)) {
-        // Strict separation: exclude any finished product manufacturing / dispatch events
+        // Strict separation: exclude finished catalog products manufacturing / sales dispatches,
+        // while preserving raw material store releases and issues to production floors.
         data.history = data.history.filter((entry) => {
           const src = String(entry.source || '').toUpperCase();
           const evt = String(entry.movementType || entry.type || '').toUpperCase();
+          if (src.includes('ISSUE') || src.includes('RELEASE') || src.includes('PRODUCTION FLOOR')) return true;
           return (
             !src.includes('DISPATCH') &&
-            !src.includes('PRODUCTION') &&
-            !evt.includes('DISPATCH') &&
-            !evt.includes('PRODUCTION')
+            !src.includes('MANUFACTURING') &&
+            !evt.includes('DISPATCH')
           );
         });
       }
@@ -2567,16 +2568,24 @@ export default function StorePortal() {
                         <div style={{ fontWeight: '800', color: '#0f766e', marginTop: '2px' }}>{selectedLogDetail.material}</div>
                       </div>
                       <div>
-                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>PO Number</span>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>
+                          {selectedLogDetail.type === 'OUT' ? 'Work Order / Req No' : 'PO Number'}
+                        </span>
                         <div style={{ fontWeight: '800', color: '#2563eb', fontFamily: 'monospace', marginTop: '2px' }}>{selectedLogDetail.poNumber || '—'}</div>
                       </div>
                       <div>
-                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>GRN Number</span>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>
+                          {selectedLogDetail.type === 'OUT' ? 'Release Voucher Ref' : 'GRN Number'}
+                        </span>
                         <div style={{ fontWeight: '800', color: '#0f172a', fontFamily: 'monospace', marginTop: '2px' }}>{selectedLogDetail.grnNumber || '—'}</div>
                       </div>
                       <div>
-                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Delivered Quantity</span>
-                        <div style={{ fontWeight: '800', color: '#059669', marginTop: '2px' }}>{selectedLogDetail.quantity} {selectedLogDetail.unit}</div>
+                        <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>
+                          {selectedLogDetail.type === 'OUT' ? 'Issued Quantity' : 'Delivered Quantity'}
+                        </span>
+                        <div style={{ fontWeight: '800', color: selectedLogDetail.type === 'OUT' ? '#dc2626' : '#059669', marginTop: '2px' }}>
+                          {selectedLogDetail.type === 'OUT' ? '-' : '+'}{selectedLogDetail.quantity} {selectedLogDetail.unit}
+                        </div>
                       </div>
                       <div>
                         <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>Previous Stock</span>

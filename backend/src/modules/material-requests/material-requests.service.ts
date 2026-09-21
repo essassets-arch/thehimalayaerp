@@ -313,7 +313,7 @@ export class MaterialRequestsService {
             ...(digits ? [{ publicId: { contains: digits } }] : []),
           ],
         },
-        include: { items: true },
+        include: { items: { include: { product: true } }, requestedBy: true },
       })) ||
       (await this.prisma.materialRequest.findFirst({
         where: {
@@ -323,7 +323,7 @@ export class MaterialRequestsService {
             ...(digits ? [{ publicId: { contains: digits } }] : []),
           ],
         },
-        include: { items: true },
+        include: { items: { include: { product: true } }, requestedBy: true },
       }));
     if (!current) throw new NotFoundException('Material request not found.');
     const itemUpdates = new Map<string, any>(
@@ -333,6 +333,12 @@ export class MaterialRequestsService {
       ]),
     );
     const row = await this.prisma.$transaction(async (db) => {
+      const issuedDeltas: Array<{
+        item: any;
+        deltaQty: number;
+        targetDept: string;
+      }> = [];
+
       for (const item of current.items) {
         const input =
           itemUpdates.get(item.id) || itemUpdates.get(item.productId);
@@ -345,6 +351,28 @@ export class MaterialRequestsService {
           }
           continue;
         }
+
+        const newIssuedQty =
+          input.issuedQty === undefined
+            ? undefined
+            : Number(input.issuedQty);
+        const prevIssuedQty = Number(item.issuedQuantity || 0);
+        const deltaIssued =
+          newIssuedQty !== undefined ? Math.max(0, newIssuedQty - prevIssuedQty) : 0;
+
+        if (deltaIssued > 0) {
+          const itemDept =
+            dto.metadata?.itemDepartments?.[item.id] ||
+            dto.metadata?.department ||
+            dto.metadata?.issuedToDepartment ||
+            'Production';
+          issuedDeltas.push({
+            item,
+            deltaQty: deltaIssued,
+            targetDept: itemDept,
+          });
+        }
+
         await db.materialRequestItem.update({
           where: { id: item.id },
           data: {
@@ -368,6 +396,183 @@ export class MaterialRequestsService {
           },
         });
       }
+
+      // Automatic Inventory Deduction & Official Ledger Logging
+      if (issuedDeltas.length > 0) {
+        let warehouse = await db.warehouse.findFirst({
+          where: {
+            companyId: current.companyId || companyId,
+            ...(current.warehouse ? { OR: [{ id: current.warehouse }, { name: current.warehouse }] } : {}),
+          },
+        });
+        if (!warehouse) {
+          warehouse = await db.warehouse.findFirst({
+            where: { companyId: current.companyId || companyId },
+          });
+        }
+        if (!warehouse) {
+          warehouse = await db.warehouse.create({
+            data: {
+              companyId: current.companyId || companyId,
+              name: 'Main Store',
+            },
+          });
+        }
+
+        const issueRef =
+          dto.metadata?.issueReference ||
+          `ISS-${current.publicId || current.id}-${Date.now().toString().slice(-4)}`;
+        const actorName =
+          dto.metadata?.issuedBy ||
+          (userId
+            ? (
+                await db.user.findUnique({
+                  where: { id: userId },
+                  select: { name: true, email: true },
+                })
+              )?.name
+            : null) ||
+          'Store Manager';
+
+        for (const { item, deltaQty, targetDept } of issuedDeltas) {
+          let rawMaterial = await db.rawMaterial.findFirst({
+            where: {
+              companyId: current.companyId || companyId,
+              OR: [
+                { id: item.productId },
+                { sku: item.product?.sku },
+                ...(item.product?.name
+                  ? [{ name: { equals: item.product.name, mode: 'insensitive' as const } }]
+                  : []),
+              ],
+            },
+          });
+          let product =
+            item.product ||
+            (await db.product.findFirst({
+              where: {
+                companyId: current.companyId || companyId,
+                id: item.productId,
+              },
+            }));
+
+          const targetIds = Array.from(
+            new Set([product?.id, rawMaterial?.id, item.productId].filter(Boolean) as string[]),
+          );
+
+          const prevTxs = await db.inventoryTransaction.findMany({
+            where: {
+              companyId: current.companyId || companyId,
+              OR: [
+                { productId: { in: targetIds } },
+                { rawMaterialId: { in: targetIds } },
+              ],
+            },
+          });
+
+          let balanceBefore = 0;
+          for (const t of prevTxs) {
+            const tType = (t.type || '').toUpperCase().trim();
+            const tQty = Number(t.quantity || 0);
+            if (
+              [
+                'IN',
+                'PURCHASE_RECEIPT',
+                'OPENING_STOCK',
+                'QUICK_STOCK_IN',
+                'STOCK IN',
+                'STOCK_IN',
+                'PURCHASE_DELIVERY',
+                'VERIFY DELIVERY',
+                'VERIFY_DELIVERY',
+              ].includes(tType)
+            ) {
+              balanceBefore += tQty;
+            } else if (
+              [
+                'OUT',
+                'QUICK_STOCK_OUT',
+                'STOCK OUT',
+                'STOCK_OUT',
+                'ISSUE_TO_PRODUCTION',
+                'PRODUCTION_ISSUE',
+              ].includes(tType)
+            ) {
+              balanceBefore -= tQty;
+            } else if (tType === 'ADJUSTMENT') {
+              balanceBefore += tQty;
+            }
+          }
+          const balanceAfter = balanceBefore - deltaQty;
+
+          // Deduct from Inventory (Create InventoryTransaction)
+          const invTx = await db.inventoryTransaction.create({
+            data: {
+              companyId: current.companyId || companyId,
+              warehouseId: warehouse.id,
+              productId: product?.id || item.productId || null,
+              rawMaterialId: rawMaterial?.id || null,
+              type: 'OUT',
+              quantity: deltaQty,
+              referenceId: current.publicId || current.id,
+              referenceType: 'ISSUE_TO_PRODUCTION',
+            },
+          });
+
+          // Record StockHistory
+          try {
+            await db.stockHistory.create({
+              data: {
+                companyId: current.companyId || companyId,
+                productId: product?.id || rawMaterial?.id || item.productId,
+                quantity: deltaQty,
+                event: 'DISPATCH_OUT',
+                actor: actorName,
+                beforeQuantity: balanceBefore,
+                afterQuantity: balanceAfter,
+                beforeAvailableQuantity: balanceBefore,
+                afterAvailableQuantity: balanceAfter,
+                sourceType: 'Issue to Production',
+                sourceId: invTx.id,
+                referenceNumber: current.workOrderNo || current.publicId,
+                remarks: `Material issued to ${targetDept} (Ref: ${issueRef}, Req: ${current.publicId || current.id})`,
+              },
+            });
+          } catch (shErr) {
+            console.warn('[StockHistory Create Note]', shErr);
+          }
+
+          // Record AuditLog
+          try {
+            await db.auditLog.create({
+              data: {
+                companyId: current.companyId || companyId,
+                actorUserId: userId || null,
+                action: 'MATERIAL_ISSUE_TO_PRODUCTION',
+                entityType: 'MaterialRequest',
+                entityId: current.id,
+                before: { balanceBefore },
+                after: {
+                  materialRequestId: current.id,
+                  requestNo: current.publicId,
+                  workOrderNo: current.workOrderNo,
+                  issueReference: issueRef,
+                  targetDepartment: targetDept,
+                  materialName: product?.name || rawMaterial?.name || 'Raw Material',
+                  quantityIssued: deltaQty,
+                  unit: item.unit || product?.unit || rawMaterial?.unit || 'Kg',
+                  balanceBefore,
+                  balanceAfter,
+                  transactionId: invTx.id,
+                },
+              },
+            });
+          } catch (auditErr) {
+            console.warn('[AuditLog Create Note]', auditErr);
+          }
+        }
+      }
+
       return db.materialRequest.update({
         where: { id: current.id },
         data: {
@@ -377,6 +582,14 @@ export class MaterialRequestsService {
             ...(dto.metadata || {}),
             performedById: userId,
             statusUpdatedAt: new Date().toISOString(),
+            ...(issuedDeltas.length > 0
+              ? {
+                  lastIssuedAt: new Date().toISOString(),
+                  lastIssueReference:
+                    dto.metadata?.issueReference ||
+                    `ISS-${current.publicId || current.id}-${Date.now().toString().slice(-4)}`,
+                }
+              : {}),
           },
         },
         include: { items: { include: { product: true } }, requestedBy: true },

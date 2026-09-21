@@ -246,7 +246,14 @@ export class InventoryService {
       ) {
         delta = qty;
       } else if (
-        ['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(typeUpper)
+        [
+          'OUT',
+          'QUICK_STOCK_OUT',
+          'STOCK OUT',
+          'STOCK_OUT',
+          'ISSUE_TO_PRODUCTION',
+          'PRODUCTION_ISSUE',
+        ].includes(typeUpper)
       ) {
         delta = -qty;
       } else if (typeUpper === 'ADJUSTMENT') {
@@ -1477,7 +1484,7 @@ export class InventoryService {
       ),
     );
 
-    const [pos, grns] = await Promise.all([
+    const [pos, grns, materialRequests] = await Promise.all([
       refIds.length > 0
         ? this.prisma.purchaseOrder.findMany({
             where: {
@@ -1509,6 +1516,19 @@ export class InventoryService {
             include: {
               purchaseOrder: { include: { supplier: true } },
             },
+          })
+        : [],
+      refIds.length > 0
+        ? this.prisma.materialRequest.findMany({
+            where: {
+              companyId,
+              OR: [
+                { id: { in: refIds } },
+                { publicId: { in: refIds } },
+                { workOrderNo: { in: refIds } },
+              ],
+            },
+            include: { requestedBy: true },
           })
         : [],
     ]);
@@ -1543,6 +1563,13 @@ export class InventoryService {
           grnsByPoId.get(po.id)!.push(g);
         }
       }
+    }
+
+    const mrMap = new Map<string, any>();
+    for (const mr of materialRequests) {
+      if (mr.id) mrMap.set(mr.id, mr);
+      if (mr.publicId) mrMap.set(mr.publicId, mr);
+      if (mr.workOrderNo) mrMap.set(mr.workOrderNo, mr);
     }
 
     // 5. Look up users for actors
@@ -1580,7 +1607,14 @@ export class InventoryService {
         'VERIFY DELIVERY',
         'VERIFY_DELIVERY',
       ].includes(typeUpper);
-      const isOUT = ['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT'].includes(typeUpper);
+      const isOUT = [
+        'OUT',
+        'QUICK_STOCK_OUT',
+        'STOCK OUT',
+        'STOCK_OUT',
+        'ISSUE_TO_PRODUCTION',
+        'PRODUCTION_ISSUE',
+      ].includes(typeUpper);
 
       const qty = Number(tx.quantity || 0);
       const previousStock = runningBalance;
@@ -1602,8 +1636,15 @@ export class InventoryService {
         typeUpper === 'PURCHASE_DELIVERY' ||
         (tx.referenceId && (tx.referenceId.startsWith('PO-') || tx.referenceId.startsWith('po-')));
 
+      const isIssueToProd =
+        refType === 'ISSUE_TO_PRODUCTION' ||
+        refType === 'Issue to Production' ||
+        typeUpper === 'ISSUE_TO_PRODUCTION' ||
+        (tx.referenceId && (tx.referenceId.startsWith('MR-') || tx.referenceId.startsWith('mr-')));
+
       let source = 'Existing Store transaction';
       if (isVerifyDelivery) source = 'Verify Delivery';
+      else if (isIssueToProd) source = 'Issue to Production';
       else if (refType === 'QUICK_STOCK_IN') source = 'Quick Stock In';
       else if (refType === 'QUICK_STOCK_OUT') source = 'Quick Stock Out';
       else if (refType === 'OPENING_STOCK') source = 'Opening Stock';
@@ -1611,9 +1652,11 @@ export class InventoryService {
       else if (refType === 'ADJUSTMENT' || typeUpper === 'ADJUSTMENT') source = 'Stock Adjustment';
       else if (refType) source = refType;
 
-      // Find PO and GRN details
+      // Find PO, GRN, and Material Request details
       let matchedPo = poMap.get(tx.referenceId || '');
       let matchedGrn = sh?.sourceId ? grnMap.get(sh.sourceId) : null;
+      let matchedMr = mrMap.get(tx.referenceId || '') || mrMap.get(sh?.referenceNumber || '');
+
       if (!matchedGrn && matchedPo) {
         const poGrns = grnsByPoId.get(matchedPo.id) || [];
         if (poGrns.length > 0) {
@@ -1624,7 +1667,7 @@ export class InventoryService {
         matchedPo = poMap.get(matchedGrn.purchaseOrderId) || matchedGrn.purchaseOrder;
       }
 
-      const poNumber =
+      let poNumber =
         matchedPo?.poNumber ||
         matchedPo?.poNo ||
         matchedPo?.publicId ||
@@ -1632,14 +1675,33 @@ export class InventoryService {
         sh?.referenceNumber ||
         '—';
 
-      const grnNumber =
+      let grnNumber =
         matchedGrn?.grnNumber ||
         matchedGrn?.publicId ||
         (sh?.sourceId && sh.sourceId.startsWith('GRN') ? sh.sourceId : null) ||
         '—';
 
+      if (isIssueToProd) {
+        if (matchedMr?.workOrderNo) {
+          poNumber = `WO: ${matchedMr.workOrderNo}`;
+        } else if (matchedMr?.publicId) {
+          poNumber = `Req: ${matchedMr.publicId}`;
+        } else if (tx.referenceId) {
+          poNumber = tx.referenceId;
+        }
+
+        const voucherRef =
+          (matchedMr?.metadata as any)?.lastIssueReference ||
+          (matchedMr?.metadata as any)?.issueReference ||
+          sh?.referenceNumber ||
+          (matchedMr ? matchedMr.publicId : null) ||
+          '—';
+        grnNumber = voucherRef;
+      }
+
       // User / actor
       const actorIdOrName =
+        (isIssueToProd ? ((matchedMr?.metadata as any)?.issuedBy || sh?.actor) : null) ||
         matchedGrn?.snapshot?.confirmedByName ||
         sh?.actor ||
         matchedGrn?.receivedById;
@@ -1657,20 +1719,24 @@ export class InventoryService {
           userMap.set(actorIdOrName, userName);
         }
       }
-      if (!userName) userName = actorIdOrName || 'Store User';
+      if (!userName) userName = actorIdOrName || (isIssueToProd ? 'Store Manager' : 'Store User');
 
-      const challan =
-        matchedGrn?.snapshot?.deliveryChallanNumber ||
-        matchedGrn?.snapshot?.challanNumber ||
-        '—';
+      const challan = isIssueToProd
+        ? (matchedMr?.workOrderNo || '—')
+        : (matchedGrn?.snapshot?.deliveryChallanNumber ||
+          matchedGrn?.snapshot?.challanNumber ||
+          '—');
+      const invoiceNumber = isIssueToProd
+        ? (matchedMr?.publicId || '—')
+        : (matchedGrn?.snapshot?.invoiceNumber || '—');
       const vehicle = matchedGrn?.snapshot?.vehicleNumber || '—';
-      const inspectionNotes =
-        matchedGrn?.snapshot?.remarks ||
-        sh?.remarks ||
-        (tx as any).remarks ||
-        '—';
+      const inspectionNotes = isIssueToProd
+        ? (sh?.remarks || `Material released to ${(matchedMr?.metadata as any)?.issuedToDepartment || (matchedMr?.metadata as any)?.department || 'Production'}`)
+        : (matchedGrn?.snapshot?.remarks ||
+          sh?.remarks ||
+          (tx as any).remarks ||
+          '—');
       const attachments = matchedGrn?.snapshot?.attachments || [];
-      const invoiceNumber = matchedGrn?.snapshot?.invoiceNumber || '—';
 
       historyEntries.push({
         id: tx.id,

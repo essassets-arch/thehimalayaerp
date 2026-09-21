@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import Swal from 'sweetalert2';
+import { useQueryClient } from '@tanstack/react-query';
+import apiClient from '../../api/apiClient';
 import { useAuth } from '../../shared/context/AuthContext';
 import { useMaterialRequests, useUpdateMaterialRequestStatus } from '../../hooks/useMaterialRequests';
 import { ChevronLeft, ChevronRight, PackageCheck, CheckCircle2, Clock, Search, Filter, Layers, FileText, ArrowRight, ShieldCheck, Box, RefreshCw } from 'lucide-react';
@@ -91,8 +93,53 @@ const SAMPLE_RELEASABLE_REQUESTS = [
 
 export default function StoreReleasesView() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: allRequests = [] } = useMaterialRequests();
   const updateStatus = useUpdateMaterialRequestStatus();
+
+  // Track real-time store stock levels
+  const [stockLevels, setStockLevels] = useState({});
+
+  const fetchStockLevels = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/inventory/stock-levels');
+      const data = Array.isArray(res?.data) ? res.data : (res?.data?.data || []);
+      const map = {};
+      data.forEach((s) => {
+        const qty = Number(s.quantity || 0);
+        if (s.productId) map[s.productId] = qty;
+        if (s.rawMaterialId) map[s.rawMaterialId] = qty;
+        if (s.sku) map[String(s.sku).trim().toLowerCase()] = qty;
+        if (s.name) map[String(s.name).trim().toLowerCase()] = qty;
+      });
+      setStockLevels(map);
+    } catch (e) {
+      console.warn('[StoreReleasesView] Stock levels fetch warning:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStockLevels();
+    const handleUpdate = () => {
+      fetchStockLevels();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('inventory-updated', handleUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('inventory-updated', handleUpdate);
+      }
+    };
+  }, [fetchStockLevels]);
+
+  const getItemStock = useCallback((item) => {
+    const pId = item.productId || item.materialId || item.id;
+    if (pId && stockLevels[pId] !== undefined) return stockLevels[pId];
+    const name = String(item.materialName || item.material || '').trim().toLowerCase();
+    if (name && stockLevels[name] !== undefined) return stockLevels[name];
+    return null;
+  }, [stockLevels]);
 
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [rowDepartments, setRowDepartments] = useState({});
@@ -442,8 +489,19 @@ export default function StoreReleasesView() {
               ...(request.metadata?.itemDepartments || {}),
               [item.id]: targetDept
             }
-          }
         });
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('inventory-updated'));
+        }
+        try {
+          queryClient.invalidateQueries({ queryKey: ['material-requests'] });
+          queryClient.invalidateQueries({ queryKey: ['stock-levels'] });
+          queryClient.invalidateQueries({ queryKey: ['raw-inventory'] });
+          queryClient.invalidateQueries({ queryKey: ['inventory'] });
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+        } catch (qErr) {}
+        fetchStockLevels();
       } catch (err) {
         console.warn('[StoreReleasesView] Backend status update note (persisted locally):', err.message);
       }
@@ -595,6 +653,18 @@ export default function StoreReleasesView() {
           console.warn('[StoreReleasesView] Bulk backend update note:', err.message);
         }
       }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('inventory-updated'));
+      }
+      try {
+        queryClient.invalidateQueries({ queryKey: ['material-requests'] });
+        queryClient.invalidateQueries({ queryKey: ['stock-levels'] });
+        queryClient.invalidateQueries({ queryKey: ['raw-inventory'] });
+        queryClient.invalidateQueries({ queryKey: ['inventory'] });
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+      } catch (qErr) {}
+      fetchStockLevels();
 
       // Record all new transactions into Release History ledger
       recordMultipleReleaseTransactions(newTransactions);
@@ -861,7 +931,28 @@ export default function StoreReleasesView() {
                         return (
                           <tr key={itemKey} style={{ borderBottom: '1px solid #F1F5F9' }}>
                             <td data-label="Material" style={{ padding: '14px 18px' }}>
-                              <strong style={{ color: '#0F172A', fontSize: '13.5px' }}>{item.materialName || item.material}</strong>
+                              <strong style={{ color: '#0F172A', fontSize: '13.5px', display: 'block' }}>{item.materialName || item.material}</strong>
+                              {(() => {
+                                const st = getItemStock(item);
+                                if (st !== null) {
+                                  return (
+                                    <span style={{
+                                      display: 'inline-block',
+                                      marginTop: '4px',
+                                      fontSize: '11px',
+                                      fontWeight: '700',
+                                      padding: '1px 7px',
+                                      borderRadius: '4px',
+                                      background: st > 0 ? '#F0FDF4' : '#FEF2F2',
+                                      color: st > 0 ? '#15803D' : '#DC2626',
+                                      border: `1px solid ${st > 0 ? '#BBF7D0' : '#FECACA'}`
+                                    }}>
+                                      Store Stock: {st} {item.unit || 'Units'}
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </td>
                             <td data-label="Approved Qty" style={{ padding: '14px 18px', fontSize: '13px', color: '#475569' }}>
                               {details.approvedQty} {item.unit || 'Units'}
