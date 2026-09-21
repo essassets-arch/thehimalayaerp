@@ -192,6 +192,70 @@ export class PlantHeadController {
     'plant-head.read',
     'planthead.dashboard.read',
   )
+  @Get('analytics/material-wise')
+  async getMaterialWiseAnalytics(
+    @Req() req: Request,
+    @Query('filter') filter?: string,
+    @Query('customStart') customStart?: string,
+    @Query('customEnd') customEnd?: string,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+    @Query('search') search?: string,
+    @Query('movementFilter') movementFilter?: string,
+    @Query('materialId') materialId?: string,
+    @Query('date') date?: string,
+  ) {
+    const companyId =
+      (req as any).user?.['companyId'] ||
+      (req.headers['x-company-id'] as string);
+    return this.plantHeadService.getMaterialWiseAnalytics(
+      companyId,
+      filter,
+      customStart,
+      customEnd,
+      month,
+      year,
+      search,
+      movementFilter,
+      materialId,
+      date,
+    );
+  }
+
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
+  @Get('analytics/material-wise/:materialId/transactions')
+  async getMaterialTransactionHistory(
+    @Req() req: Request,
+    @Param('materialId') materialId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const companyId =
+      (req as any).user?.['companyId'] ||
+      (req.headers['x-company-id'] as string);
+    return this.plantHeadService.getMaterialTransactionHistory(
+      companyId,
+      materialId,
+      page ? parseInt(page, 10) : 1,
+      pageSize ? parseInt(pageSize, 10) : 20,
+      startDate,
+      endDate,
+    );
+  }
+
+  @RequirePermissions(
+    'admin.planthead.read',
+    'planthead.read',
+    'plant-head.read',
+    'planthead.dashboard.read',
+  )
   @Get('analytics/dispatch')
   async getDispatchAnalytics(
     @Req() req: Request,

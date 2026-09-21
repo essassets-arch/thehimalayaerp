@@ -48,6 +48,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import UltraResponsiveChart from '../../../shared/components/UltraResponsiveChart';
+import MaterialWiseAnalysisView from '../components/MaterialWiseAnalysisView';
 
 const PIE_COLORS = [
   '#8B5CF6',
@@ -61,6 +62,28 @@ const PIE_COLORS = [
 ];
 
 export const PlantHeadMaterialAnalytics = () => {
+  // ── Top Tab Navigation State: 'store-ro' | 'material-wise' ──
+  const [activeTab, setActiveTab] = useState('store-ro');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tab = urlParams.get('tab');
+      if (tab === 'material-wise' || tab === 'material') {
+        setActiveTab('material-wise');
+      }
+    }
+  }, []);
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', newTab);
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
+
   // ── Filter State ──
   const [filterMode, setFilterMode] = useState('monthly'); // 'monthly' | 'custom'
   const [selectedMonth, setSelectedMonth] = useState('8'); // August default
@@ -563,10 +586,40 @@ export const PlantHeadMaterialAnalytics = () => {
 
   return (
     <div className="store-ro-dashboard" style={styles.container}>
-      {/* ─────────────────────────────────────────────────────────────
-          SCREEN-ONLY VIEW (Interactive Dashboard)
-      ───────────────────────────────────────────────────────────── */}
-      <div className="screen-only-view">
+      {/* ── TOP PRIMARY TAB NAVIGATION ── */}
+      <div style={styles.topTabBar} className="no-print">
+        <button
+          type="button"
+          id="tab-store-ro"
+          onClick={() => handleTabChange('store-ro')}
+          style={{
+            ...styles.topTabBtn,
+            ...(activeTab === 'store-ro' ? styles.topTabActive : {}),
+          }}
+        >
+          <Layers size={16} />
+          <span>STORE R/O</span>
+        </button>
+        <button
+          type="button"
+          id="tab-material-wise"
+          onClick={() => handleTabChange('material-wise')}
+          style={{
+            ...styles.topTabBtn,
+            ...(activeTab === 'material-wise' ? styles.topTabActive : {}),
+          }}
+        >
+          <BarChart3 size={16} />
+          <span>MATERIAL WISE ANALYSIS</span>
+        </button>
+      </div>
+
+      {activeTab === 'store-ro' ? (
+        <>
+          {/* ─────────────────────────────────────────────────────────────
+              SCREEN-ONLY VIEW (Interactive Dashboard)
+          ───────────────────────────────────────────────────────────── */}
+          <div className="screen-only-view">
         {/* ── 1. HEADER BAR ── */}
         <div style={styles.headerBanner} className="no-print">
           <div style={styles.headerLeft}>
@@ -2128,6 +2181,10 @@ export const PlantHeadMaterialAnalytics = () => {
           </div>
         </div>
       </div>
+        </>
+      ) : (
+        <MaterialWiseAnalysisView />
+      )}
 
       {/* ─────────────────────────────────────────────────────────────
           UNIVERSAL RESPONSIVE CSS & PRINT MEDIA RULES
@@ -2334,6 +2391,41 @@ export const PlantHeadMaterialAnalytics = () => {
 
 // ── Fluid Responsive Inline Style Definitions (Supports 320px to 12K) ──
 const styles = {
+  topTabBar: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    background: '#FFFFFF',
+    padding: '6px',
+    borderRadius: '12px',
+    border: '1.5px solid #E2E8F0',
+    boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04)',
+    width: 'fit-content',
+    maxWidth: '100%',
+    overflowX: 'auto',
+  },
+  topTabBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 18px',
+    borderRadius: '8px',
+    fontSize: 'clamp(12px, 0.85vw, 13px)',
+    fontWeight: '700',
+    color: '#64748B',
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+    letterSpacing: '0.02em',
+    whiteSpace: 'nowrap',
+  },
+  topTabActive: {
+    background: 'linear-gradient(135deg, #0A192F 0%, #1E3A8A 100%)',
+    color: '#FFFFFF',
+    boxShadow: '0 4px 12px rgba(10, 25, 47, 0.25)',
+    fontWeight: '800',
+  },
   container: {
     padding: 'clamp(10px, 1.8vw, 40px)',
     width: '100%',

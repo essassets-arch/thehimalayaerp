@@ -3169,7 +3169,8 @@ export class PlantHeadService {
     const issueTransactions = await this.prisma.inventoryTransaction.findMany({
       where: {
         ...companyWhere,
-        type: { in: ['OUT', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE_TO_PRODUCTION'] },
+        type: 'OUT',
+        referenceType: 'ISSUE_TO_PRODUCTION',
         createdAt: { gte: startDate, lte: endDate },
       },
       include: {
@@ -3580,6 +3581,881 @@ export class PlantHeadService {
       consumptionByItem,
       insights,
       dailyFlow,
+    };
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // ── MATERIAL WISE ANALYSIS (Complete Material Movement & Issue Intelligence) ─
+  // ═════════════════════════════════════════════════════════════════════════════
+  async getMaterialWiseAnalytics(
+    companyId: string,
+    filter?: string,
+    customStart?: string,
+    customEnd?: string,
+    month?: string,
+    year?: string,
+    search?: string,
+    movementFilter?: string,
+    selectedMaterialId?: string,
+    selectedDate?: string,
+  ) {
+    const companyWhere = companyId ? { companyId } : {};
+
+    // 1. Timezone-Aware Date Boundaries (Asia/Kolkata UTC+5:30)
+    const now = new Date();
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+
+    let startDate: Date;
+    let endDate: Date;
+    let periodLabel = '';
+    let targetMonthNum = 8;
+    let targetYear = 2026;
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const formatIstDate = (date: Date): string => {
+      const d = new Date(date.getTime() + istOffsetMs);
+      return `${pad(d.getUTCDate())}-${pad(d.getUTCMonth() + 1)}-${d.getUTCFullYear()}`;
+    };
+
+    if (customStart && customEnd) {
+      const [sY, sM, sD] = customStart.split('-').map(Number);
+      const [eY, eM, eD] = customEnd.split('-').map(Number);
+      startDate = new Date(Date.UTC(sY, sM - 1, sD, 0, 0, 0) - istOffsetMs);
+      endDate = new Date(Date.UTC(eY, eM - 1, eD, 23, 59, 59, 999) - istOffsetMs);
+      periodLabel = `${pad(sD)}-${pad(sM)}-${sY} to ${pad(eD)}-${pad(eM)}-${eY}`;
+      targetYear = sY;
+      targetMonthNum = sM;
+    } else {
+      if (month && year) {
+        targetMonthNum = parseInt(month, 10);
+        targetYear = parseInt(year, 10);
+      } else {
+        targetMonthNum = 8;
+        targetYear = 2026;
+      }
+      startDate = new Date(Date.UTC(targetYear, targetMonthNum - 1, 1, 0, 0, 0) - istOffsetMs);
+      const lastDay = new Date(targetYear, targetMonthNum, 0).getDate();
+      endDate = new Date(Date.UTC(targetYear, targetMonthNum - 1, lastDay, 23, 59, 59, 999) - istOffsetMs);
+
+      const monthNames = [
+        '', 'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+        'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+      ];
+      periodLabel = `${monthNames[targetMonthNum] || 'AUGUST'} ${targetYear}`;
+    }
+
+    // 2. Query Authoritative Deduplicated Material Master & Live Stock Balances
+    const [rawMaterials, rawProducts, allStockBalances] = await Promise.all([
+      this.prisma.rawMaterial.findMany({
+        where: { ...companyWhere, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          category: true,
+          unit: true,
+          minimumStock: true,
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.product.findMany({
+        where: {
+          ...companyWhere,
+          isActive: true,
+          OR: [
+            { productType: { in: ['RAW_MATERIAL', 'HARDWARE'] } },
+            { category: { contains: 'Raw', mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          category: true,
+          unit: true,
+          minimumStock: true,
+          productType: true,
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.inventoryTransaction.groupBy({
+        by: ['productId', 'rawMaterialId', 'type'],
+        _sum: { quantity: true },
+        where: { ...companyWhere },
+      }),
+    ]);
+
+    // Live Stock Map
+    const currentStockMap = new Map<string, number>();
+    for (const row of allStockBalances) {
+      const targetId = row.productId || row.rawMaterialId;
+      if (!targetId) continue;
+      const qty = Number(row._sum.quantity || 0);
+      const typeUpper = (row.type || '').toUpperCase().trim();
+      const current = currentStockMap.get(targetId) || 0;
+      if (['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK IN', 'STOCK_IN'].includes(typeUpper)) {
+        currentStockMap.set(targetId, current + qty);
+      } else if (['OUT', 'QUICK_STOCK_OUT', 'STOCK OUT', 'STOCK_OUT', 'ISSUE_TO_PRODUCTION'].includes(typeUpper)) {
+        currentStockMap.set(targetId, current - qty);
+      }
+    }
+
+    interface NormalizedMaterial {
+      id: string;
+      name: string;
+      sku: string;
+      category: string;
+      unit: string;
+      minimumStock: number;
+      currentStock: number;
+      source: 'RAW_MATERIAL' | 'PRODUCT';
+    }
+
+    const materialCatalogMap = new Map<string, NormalizedMaterial>();
+    const materialIdLookup = new Map<string, string>();
+
+    for (const rm of rawMaterials) {
+      const normKey = (rm.sku || rm.name || rm.id).trim().toLowerCase();
+      const m: NormalizedMaterial = {
+        id: rm.id,
+        name: rm.name,
+        sku: rm.sku || '',
+        category: rm.category || 'Raw Material',
+        unit: rm.unit || 'KG',
+        minimumStock: Number(rm.minimumStock || 0),
+        currentStock: Math.max(0, Math.round((currentStockMap.get(rm.id) || 0) * 100) / 100),
+        source: 'RAW_MATERIAL',
+      };
+      materialCatalogMap.set(normKey, m);
+      materialIdLookup.set(rm.id, rm.id);
+      if (rm.sku) materialIdLookup.set(rm.sku.toLowerCase(), rm.id);
+    }
+
+    for (const p of rawProducts) {
+      const normKey = (p.sku || p.name || p.id).trim().toLowerCase();
+      if (!materialCatalogMap.has(normKey)) {
+        const m: NormalizedMaterial = {
+          id: p.id,
+          name: p.name,
+          sku: p.sku || '',
+          category: p.category || 'Hardware & Material',
+          unit: p.unit || 'KG',
+          minimumStock: Number(p.minimumStock || 0),
+          currentStock: Math.max(0, Math.round((currentStockMap.get(p.id) || 0) * 100) / 100),
+          source: 'PRODUCT',
+        };
+        materialCatalogMap.set(normKey, m);
+        materialIdLookup.set(p.id, p.id);
+      } else {
+        const existing = materialCatalogMap.get(normKey)!;
+        materialIdLookup.set(p.id, existing.id);
+      }
+    }
+
+    // 3. Authoritative Store Issue Query (strictly type=OUT and referenceType=ISSUE_TO_PRODUCTION)
+    const issueTransactions = await this.prisma.inventoryTransaction.findMany({
+      where: {
+        ...companyWhere,
+        type: 'OUT',
+        referenceType: 'ISSUE_TO_PRODUCTION',
+        createdAt: { gte: startDate, lte: endDate },
+      },
+      include: {
+        product: true,
+        rawMaterial: true,
+        warehouse: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Ensure any material referenced in transactions is also included in the catalog
+    for (const tx of issueTransactions) {
+      const targetId = tx.rawMaterialId || tx.productId;
+      const targetName = tx.rawMaterial?.name || tx.product?.name;
+      const targetSku = tx.rawMaterial?.sku || tx.product?.sku || '';
+      const normKey = (targetSku || targetName || targetId || '').trim().toLowerCase();
+      if (normKey && !materialCatalogMap.has(normKey)) {
+        const mId = targetId || tx.id;
+        const m: NormalizedMaterial = {
+          id: mId,
+          name: targetName || 'Store Material Item',
+          sku: targetSku,
+          category: tx.rawMaterial?.category || tx.product?.category || 'Raw Material',
+          unit: tx.rawMaterial?.unit || tx.product?.unit || 'KG',
+          minimumStock: 0,
+          currentStock: Math.max(0, Math.round((currentStockMap.get(mId) || 0) * 100) / 100),
+          source: tx.rawMaterialId ? 'RAW_MATERIAL' : 'PRODUCT',
+        };
+        materialCatalogMap.set(normKey, m);
+        materialIdLookup.set(mId, mId);
+        if (tx.productId) materialIdLookup.set(tx.productId, mId);
+        if (tx.rawMaterialId) materialIdLookup.set(tx.rawMaterialId, mId);
+      }
+    }
+
+    // 4. Aggregations Per Material & Company-Wide Daily Tracking
+    interface MaterialMetrics {
+      materialId: string;
+      materialName: string;
+      materialSku: string;
+      category: string;
+      unit: string;
+      currentStock: number;
+      totalIssueKg: number;
+      issueTransactions: number;
+      issueDates: Set<string>;
+      firstIssueTimestamp: number | null;
+      lastIssueTimestamp: number | null;
+      firstIssueDate: string;
+      lastIssueDate: string;
+      dailyMap: Map<string, { issueKg: number; txCount: number }>;
+    }
+
+    const materialMetricsMap = new Map<string, MaterialMetrics>();
+
+    // Seed ALL materials into metrics map (ensuring 0-issue non-moving items are present)
+    for (const [, mat] of materialCatalogMap.entries()) {
+      materialMetricsMap.set(mat.id, {
+        materialId: mat.id,
+        materialName: mat.name,
+        materialSku: mat.sku,
+        category: mat.category,
+        unit: mat.unit,
+        currentStock: mat.currentStock,
+        totalIssueKg: 0,
+        issueTransactions: 0,
+        issueDates: new Set<string>(),
+        firstIssueTimestamp: null,
+        lastIssueTimestamp: null,
+        firstIssueDate: '-',
+        lastIssueDate: '-',
+        dailyMap: new Map(),
+      });
+    }
+
+    const companyDateMap = new Map<string, {
+      totalIssueKg: number;
+      txCount: number;
+      materials: Map<string, { materialId: string; materialName: string; materialSku: string; unit: string; issueKg: number; txCount: number }>;
+    }>();
+
+    let totalCompanyIssueKg = 0;
+
+    for (const tx of issueTransactions) {
+      const qty = Math.abs(Number(tx.quantity || 0));
+      totalCompanyIssueKg += qty;
+
+      const txTargetId = tx.rawMaterialId || tx.productId || '';
+      const resolvedMasterId = materialIdLookup.get(txTargetId) || txTargetId;
+      const targetName = tx.rawMaterial?.name || tx.product?.name || 'Store Material Item';
+
+      let metric = materialMetricsMap.get(resolvedMasterId);
+      if (!metric) {
+        const found = Array.from(materialMetricsMap.values()).find(
+          m => m.materialName.toLowerCase() === targetName.toLowerCase() ||
+               (m.materialSku && m.materialSku.toLowerCase() === (tx.rawMaterial?.sku || tx.product?.sku || '').toLowerCase())
+        );
+        if (found) {
+          metric = found;
+        } else {
+          metric = {
+            materialId: resolvedMasterId || tx.id,
+            materialName: targetName,
+            materialSku: tx.rawMaterial?.sku || tx.product?.sku || '',
+            category: 'Raw Material',
+            unit: tx.rawMaterial?.unit || tx.product?.unit || 'KG',
+            currentStock: 0,
+            totalIssueKg: 0,
+            issueTransactions: 0,
+            issueDates: new Set<string>(),
+            firstIssueTimestamp: null,
+            lastIssueTimestamp: null,
+            firstIssueDate: '-',
+            lastIssueDate: '-',
+            dailyMap: new Map(),
+          };
+          materialMetricsMap.set(metric.materialId, metric);
+        }
+      }
+
+      metric.totalIssueKg += qty;
+      metric.issueTransactions += 1;
+
+      const dStr = formatIstDate(tx.createdAt);
+      metric.issueDates.add(dStr);
+
+      const txTime = tx.createdAt.getTime();
+      if (metric.firstIssueTimestamp === null || txTime < metric.firstIssueTimestamp) {
+        metric.firstIssueTimestamp = txTime;
+        metric.firstIssueDate = dStr;
+      }
+      if (metric.lastIssueTimestamp === null || txTime > metric.lastIssueTimestamp) {
+        metric.lastIssueTimestamp = txTime;
+        metric.lastIssueDate = dStr;
+      }
+
+      const curDaily = metric.dailyMap.get(dStr) || { issueKg: 0, txCount: 0 };
+      curDaily.issueKg += qty;
+      curDaily.txCount += 1;
+      metric.dailyMap.set(dStr, curDaily);
+
+      // Company Date Aggregation
+      let dayData = companyDateMap.get(dStr);
+      if (!dayData) {
+        dayData = { totalIssueKg: 0, txCount: 0, materials: new Map() };
+        companyDateMap.set(dStr, dayData);
+      }
+      dayData.totalIssueKg += qty;
+      dayData.txCount += 1;
+
+      let dayMat = dayData.materials.get(metric.materialId);
+      if (!dayMat) {
+        dayMat = {
+          materialId: metric.materialId,
+          materialName: metric.materialName,
+          materialSku: metric.materialSku,
+          unit: metric.unit,
+          issueKg: 0,
+          txCount: 0,
+        };
+        dayData.materials.set(metric.materialId, dayMat);
+      }
+      dayMat.issueKg += qty;
+      dayMat.txCount += 1;
+    }
+
+    totalCompanyIssueKg = Math.round(totalCompanyIssueKg * 100) / 100;
+
+    // 5. Transparent Percentile Movement Scoring
+    const allMaterialsList = Array.from(materialMetricsMap.values());
+    const issuedMaterials = allMaterialsList.filter(m => m.totalIssueKg > 0);
+
+    const maxIssueKg = issuedMaterials.reduce((max, m) => Math.max(max, m.totalIssueKg), 0) || 1;
+    const maxTxns = issuedMaterials.reduce((max, m) => Math.max(max, m.issueTransactions), 0) || 1;
+    const maxDays = issuedMaterials.reduce((max, m) => Math.max(max, m.issueDates.size), 0) || 1;
+
+    const scoredList = allMaterialsList.map(m => {
+      const issueDaysCount = m.issueDates.size;
+      let score = 0;
+      if (m.totalIssueKg > 0) {
+        const normQty = m.totalIssueKg / maxIssueKg;
+        const normFreq = m.issueTransactions / maxTxns;
+        const normDays = issueDaysCount / maxDays;
+        score = Math.round(((0.40 * normQty) + (0.30 * normFreq) + (0.30 * normDays)) * 1000) / 10;
+      }
+      const avgKgPerIssue = m.issueTransactions > 0 ? Math.round((m.totalIssueKg / m.issueTransactions) * 100) / 100 : 0;
+      const avgKgPerIssueDay = issueDaysCount > 0 ? Math.round((m.totalIssueKg / issueDaysCount) * 100) / 100 : 0;
+      const pctOfTotal = totalCompanyIssueKg > 0 ? Math.round((m.totalIssueKg / totalCompanyIssueKg) * 10000) / 100 : 0;
+
+      return {
+        materialId: m.materialId,
+        materialName: m.materialName,
+        materialSku: m.materialSku,
+        category: m.category,
+        unit: m.unit,
+        currentStock: m.currentStock,
+        totalIssueKg: Math.round(m.totalIssueKg * 100) / 100,
+        issueTransactions: m.issueTransactions,
+        issueDays: issueDaysCount,
+        avgKgPerIssue,
+        avgKgPerIssueDay,
+        firstIssueDate: m.firstIssueDate,
+        lastIssueDate: m.lastIssueDate,
+        percentageOfTotal: pctOfTotal,
+        movementScore: score,
+        movementClass: 'NON_MOVING' as 'FAST_MOVING' | 'SLOW_MOVING' | 'NON_MOVING',
+        dailyMap: m.dailyMap,
+      };
+    });
+
+    // Percentile ranking: Top 25% of active items with issues = FAST_MOVING
+    const activeScored = scoredList.filter(m => m.totalIssueKg > 0).sort((a, b) => b.movementScore - a.movementScore);
+    const fastCutoffCount = Math.max(1, Math.ceil(activeScored.length * 0.25));
+
+    activeScored.forEach((m, idx) => {
+      if (idx < fastCutoffCount) {
+        m.movementClass = 'FAST_MOVING';
+      } else {
+        m.movementClass = 'SLOW_MOVING';
+      }
+    });
+
+    // Default sort: Total Issue KG descending
+    scoredList.sort((a, b) => {
+      if (b.totalIssueKg !== a.totalIssueKg) return b.totalIssueKg - a.totalIssueKg;
+      if (b.issueTransactions !== a.issueTransactions) return b.issueTransactions - a.issueTransactions;
+      return a.materialName.localeCompare(b.materialName);
+    });
+
+    const finalMaterialTable = scoredList.map((m, idx) => ({
+      sr: idx + 1,
+      materialId: m.materialId,
+      materialName: m.materialName,
+      materialSku: m.materialSku,
+      category: m.category,
+      unit: m.unit,
+      currentStock: m.currentStock,
+      totalIssueKg: m.totalIssueKg,
+      issueTransactions: m.issueTransactions,
+      issueDays: m.issueDays,
+      avgKgPerIssue: m.avgKgPerIssue,
+      avgKgPerIssueDay: m.avgKgPerIssueDay,
+      firstIssueDate: m.firstIssueDate,
+      lastIssueDate: m.lastIssueDate,
+      percentageOfTotal: m.percentageOfTotal,
+      movementScore: m.movementScore,
+      movementClass: m.movementClass,
+    }));
+
+    // 6. Spotlights
+    let mostIssuedMaterial = {
+      materialId: '',
+      name: '-',
+      sku: '-',
+      quantityKg: 0,
+      percentage: 0,
+      issueDays: 0,
+      transactions: 0,
+    };
+    if (activeScored.length > 0) {
+      const maxIssueMat = [...activeScored].sort((a, b) => b.totalIssueKg - a.totalIssueKg)[0];
+      mostIssuedMaterial = {
+        materialId: maxIssueMat.materialId,
+        name: maxIssueMat.materialName,
+        sku: maxIssueMat.materialSku,
+        quantityKg: maxIssueMat.totalIssueKg,
+        percentage: maxIssueMat.percentageOfTotal,
+        issueDays: maxIssueMat.issueDays,
+        transactions: maxIssueMat.issueTransactions,
+      };
+    }
+
+    let mostFrequentlyIssuedMaterial = {
+      materialId: '',
+      name: '-',
+      sku: '-',
+      transactions: 0,
+      issueDays: 0,
+      quantityKg: 0,
+    };
+    if (activeScored.length > 0) {
+      const maxFreqMat = [...activeScored].sort((a, b) => b.issueTransactions - a.issueTransactions)[0];
+      mostFrequentlyIssuedMaterial = {
+        materialId: maxFreqMat.materialId,
+        name: maxFreqMat.materialName,
+        sku: maxFreqMat.materialSku,
+        transactions: maxFreqMat.issueTransactions,
+        issueDays: maxFreqMat.issueDays,
+        quantityKg: maxFreqMat.totalIssueKg,
+      };
+    }
+
+    let highestIssueDay = {
+      date: '-',
+      quantityKg: 0,
+      materialSummary: 'No Store Issues',
+    };
+    if (companyDateMap.size > 0) {
+      let maxDayQty = -1;
+      let maxDayDate = '';
+      for (const [d, info] of companyDateMap.entries()) {
+        if (info.totalIssueKg > maxDayQty) {
+          maxDayQty = info.totalIssueKg;
+          maxDayDate = d;
+        }
+      }
+      const topDayInfo = companyDateMap.get(maxDayDate)!;
+      const topDayMats = Array.from(topDayInfo.materials.values()).sort((a, b) => b.issueKg - a.issueKg);
+      let summary = '';
+      if (topDayMats.length === 1) {
+        summary = `${topDayMats[0].materialName} (${Math.round(topDayMats[0].issueKg * 100) / 100} KG)`;
+      } else if (topDayMats.length > 1) {
+        summary = `${topDayMats[0].materialName} + ${topDayMats.length - 1} more (${Math.round(topDayInfo.totalIssueKg * 100) / 100} KG)`;
+      }
+      highestIssueDay = {
+        date: maxDayDate,
+        quantityKg: Math.round(maxDayQty * 100) / 100,
+        materialSummary: summary,
+      };
+    }
+
+    // 7. Direction 1: Material → Days (Selected Material Daily Issue Analysis)
+    const targetMatId = selectedMaterialId || mostIssuedMaterial.materialId || scoredList[0]?.materialId || '';
+    const selectedMatEntry = scoredList.find(m => m.materialId === targetMatId) || scoredList[0];
+
+    let materialDailyRows: any[] = [];
+    if (selectedMatEntry && selectedMatEntry.dailyMap) {
+      const sortedDates = Array.from(selectedMatEntry.dailyMap.entries()).sort((a, b) => {
+        const [dA, mA, yA] = a[0].split('-').map(Number);
+        const [dB, mB, yB] = b[0].split('-').map(Number);
+        return new Date(yA, mA - 1, dA).getTime() - new Date(yB, mB - 1, dB).getTime();
+      });
+
+      let cum = 0;
+      materialDailyRows = sortedDates.map(([dStr, val]) => {
+        cum += val.issueKg;
+        const pct = selectedMatEntry.totalIssueKg > 0 ? Math.round((val.issueKg / selectedMatEntry.totalIssueKg) * 10000) / 100 : 0;
+        return {
+          date: dStr,
+          issueKg: Math.round(val.issueKg * 100) / 100,
+          issueTransactions: val.txCount,
+          cumulativeIssueKg: Math.round(cum * 100) / 100,
+          percentageOfMaterialTotal: pct,
+        };
+      });
+    }
+
+    // 8. Direction 2: Material → Months (Selected Material 12-Month Historical Analysis)
+    const histMonthStart = new Date(Date.UTC(targetYear - 1, targetMonthNum, 1, 0, 0, 0) - istOffsetMs);
+    const histMonthEnd = endDate;
+
+    const histTxs = targetMatId
+      ? await this.prisma.inventoryTransaction.findMany({
+          where: {
+            ...companyWhere,
+            type: 'OUT',
+            referenceType: 'ISSUE_TO_PRODUCTION',
+            createdAt: { gte: histMonthStart, lte: histMonthEnd },
+            OR: [
+              { productId: targetMatId },
+              { rawMaterialId: targetMatId },
+            ],
+          },
+          select: { quantity: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        })
+      : [];
+
+    // Group into 12 calendar months
+    const monthLabels = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    const monthlyHistoryMap = new Map<string, {
+      monthLabel: string;
+      year: number;
+      monthIndex: number;
+      totalIssueKg: number;
+      issueTransactions: number;
+      datesSet: Set<string>;
+    }>();
+
+    // Initialize the 12 month slots in chronological order
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(targetYear, targetMonthNum - 1 - i, 1);
+      const mIdx = d.getMonth();
+      const yr = d.getFullYear();
+      const key = `${mIdx + 1}-${yr}`;
+      monthlyHistoryMap.set(key, {
+        monthLabel: `${monthLabels[mIdx]} ${yr}`,
+        year: yr,
+        monthIndex: mIdx + 1,
+        totalIssueKg: 0,
+        issueTransactions: 0,
+        datesSet: new Set(),
+      });
+    }
+
+    for (const tx of histTxs) {
+      const txIst = new Date(tx.createdAt.getTime() + istOffsetMs);
+      const mIdx = txIst.getUTCMonth() + 1;
+      const yr = txIst.getUTCFullYear();
+      const key = `${mIdx}-${yr}`;
+      const existing = monthlyHistoryMap.get(key);
+      if (existing) {
+        const q = Math.abs(Number(tx.quantity || 0));
+        existing.totalIssueKg += q;
+        existing.issueTransactions += 1;
+        existing.datesSet.add(`${pad(txIst.getUTCDate())}-${pad(mIdx)}-${yr}`);
+      }
+    }
+
+    let prevMonthKg: number | null = null;
+    let historical12MonthTotalKg = 0;
+    const materialMonthlyRows = Array.from(monthlyHistoryMap.values()).map(m => {
+      const roundedKg = Math.round(m.totalIssueKg * 100) / 100;
+      historical12MonthTotalKg += roundedKg;
+      let pctChange: number | null = null;
+      if (prevMonthKg !== null && prevMonthKg > 0) {
+        pctChange = Math.round(((roundedKg - prevMonthKg) / prevMonthKg) * 1000) / 10;
+      }
+      prevMonthKg = roundedKg;
+      const avgKg = m.issueTransactions > 0 ? Math.round((roundedKg / m.issueTransactions) * 100) / 100 : 0;
+      const status = roundedKg === 0 ? 'NON-MOVING' : (pctChange !== null && pctChange > 20 ? 'HIGH ACCELERATION' : 'ACTIVE');
+
+      return {
+        monthLabel: m.monthLabel,
+        year: m.year,
+        monthIndex: m.monthIndex,
+        totalIssueKg: roundedKg,
+        issueTransactions: m.issueTransactions,
+        issueDays: m.datesSet.size,
+        avgKgPerIssue: avgKg,
+        percentageChangeVsPrev: pctChange,
+        movementStatus: status,
+      };
+    });
+
+    // 9. Direction 3: Day → Materials (Date-Wise Material Issue)
+    const targetDateStr = selectedDate || highestIssueDay.date || (companyDateMap.size > 0 ? Array.from(companyDateMap.keys())[0] : '-');
+    const dayRecord = companyDateMap.get(targetDateStr);
+    let dateWiseMaterials: any[] = [];
+    let selectedDateTotalKg = 0;
+
+    if (dayRecord) {
+      selectedDateTotalKg = Math.round(dayRecord.totalIssueKg * 100) / 100;
+      dateWiseMaterials = Array.from(dayRecord.materials.values())
+        .sort((a, b) => b.issueKg - a.issueKg)
+        .map((item, idx) => {
+          const pct = selectedDateTotalKg > 0 ? Math.round((item.issueKg / selectedDateTotalKg) * 10000) / 100 : 0;
+          return {
+            rank: idx + 1,
+            materialId: item.materialId,
+            materialName: item.materialName,
+            materialSku: item.materialSku,
+            unit: item.unit,
+            issueKg: Math.round(item.issueKg * 100) / 100,
+            transactions: item.txCount,
+            percentageOfDayTotal: pct,
+          };
+        });
+    }
+
+    // 10. Material × Month Matrix (Materials vs Last 6 Months)
+    const matrixMonths: { label: string; key: string; start: Date; end: Date }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(targetYear, targetMonthNum - 1 - i, 1);
+      const mIdx = d.getMonth();
+      const yr = d.getFullYear();
+      const mStart = new Date(Date.UTC(yr, mIdx, 1, 0, 0, 0) - istOffsetMs);
+      const mEnd = new Date(Date.UTC(yr, mIdx, new Date(yr, mIdx + 1, 0).getDate(), 23, 59, 59, 999) - istOffsetMs);
+      matrixMonths.push({
+        label: `${monthLabels[mIdx]} ${yr}`,
+        key: `${mIdx + 1}-${yr}`,
+        start: mStart,
+        end: mEnd,
+      });
+    }
+
+    const sixMonthStart = matrixMonths[0].start;
+    const sixMonthEnd = matrixMonths[matrixMonths.length - 1].end;
+
+    const sixMonthTxs = await this.prisma.inventoryTransaction.findMany({
+      where: {
+        ...companyWhere,
+        type: 'OUT',
+        referenceType: 'ISSUE_TO_PRODUCTION',
+        createdAt: { gte: sixMonthStart, lte: sixMonthEnd },
+      },
+      select: {
+        productId: true,
+        rawMaterialId: true,
+        quantity: true,
+        createdAt: true,
+      },
+    });
+
+    const matrixMaterialMap = new Map<string, {
+      materialId: string;
+      materialName: string;
+      materialSku: string;
+      unit: string;
+      months: Record<string, number>;
+      totalIssueKg: number;
+    }>();
+
+    // Seed issued and top materials into matrix
+    const matrixCandidates = finalMaterialTable.slice(0, 30);
+    for (const cand of matrixCandidates) {
+      const initMonths: Record<string, number> = {};
+      matrixMonths.forEach(m => { initMonths[m.label] = 0; });
+      matrixMaterialMap.set(cand.materialId, {
+        materialId: cand.materialId,
+        materialName: cand.materialName,
+        materialSku: cand.materialSku,
+        unit: cand.unit,
+        months: initMonths,
+        totalIssueKg: 0,
+      });
+    }
+
+    for (const tx of sixMonthTxs) {
+      const txTargetId = tx.rawMaterialId || tx.productId || '';
+      const resolvedMasterId = materialIdLookup.get(txTargetId) || txTargetId;
+      const matRow = matrixMaterialMap.get(resolvedMasterId);
+      if (matRow) {
+        const txIst = new Date(tx.createdAt.getTime() + istOffsetMs);
+        const mKey = `${monthLabels[txIst.getUTCMonth()]} ${txIst.getUTCFullYear()}`;
+        const q = Math.abs(Number(tx.quantity || 0));
+        if (matRow.months[mKey] !== undefined) {
+          matRow.months[mKey] = Math.round((matRow.months[mKey] + q) * 100) / 100;
+          matRow.totalIssueKg = Math.round((matRow.totalIssueKg + q) * 100) / 100;
+        }
+      }
+    }
+
+    const matrixRows = Array.from(matrixMaterialMap.values()).sort((a, b) => b.totalIssueKg - a.totalIssueKg);
+    const matrixColumnTotals: Record<string, number> = { grandTotalKg: 0 };
+    matrixMonths.forEach(m => { matrixColumnTotals[m.label] = 0; });
+    for (const row of matrixRows) {
+      matrixMonths.forEach(m => {
+        matrixColumnTotals[m.label] = Math.round((matrixColumnTotals[m.label] + (row.months[m.label] || 0)) * 100) / 100;
+      });
+      matrixColumnTotals.grandTotalKg = Math.round((matrixColumnTotals.grandTotalKg + row.totalIssueKg) * 100) / 100;
+    }
+
+    // 11. Fast / Slow / Non-Moving Breakdown Groupings
+    const fastMovingMaterials = finalMaterialTable.filter(m => m.movementClass === 'FAST_MOVING');
+    const slowMovingMaterials = finalMaterialTable.filter(m => m.movementClass === 'SLOW_MOVING');
+    const nonMovingMaterials = finalMaterialTable.filter(m => m.movementClass === 'NON_MOVING');
+
+    return {
+      period: {
+        periodLabel,
+        month: targetMonthNum,
+        year: targetYear,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      },
+      kpis: {
+        totalMaterials: finalMaterialTable.length,
+        materialsIssued: issuedMaterials.length,
+        fastMovingCount: fastMovingMaterials.length,
+        slowMovingCount: slowMovingMaterials.length,
+        nonMovingCount: nonMovingMaterials.length,
+        totalIssueKg: totalCompanyIssueKg,
+        totalIssueTransactions: issueTransactions.length,
+        totalIssueDays: companyDateMap.size,
+      },
+      spotlights: {
+        mostIssuedMaterial,
+        mostFrequentlyIssuedMaterial,
+        highestIssueDay,
+      },
+      materials: finalMaterialTable,
+      materialDailyAnalysis: {
+        selectedMaterial: selectedMatEntry ? {
+          materialId: selectedMatEntry.materialId,
+          materialName: selectedMatEntry.materialName,
+          materialSku: selectedMatEntry.materialSku,
+          unit: selectedMatEntry.unit,
+          category: selectedMatEntry.category,
+          movementClass: selectedMatEntry.movementClass,
+          movementScore: selectedMatEntry.movementScore,
+          totalIssueKg: selectedMatEntry.totalIssueKg,
+        } : null,
+        dailyTrend: materialDailyRows,
+      },
+      materialMonthlyAnalysis: {
+        selectedMaterial: selectedMatEntry ? {
+          materialId: selectedMatEntry.materialId,
+          materialName: selectedMatEntry.materialName,
+          materialSku: selectedMatEntry.materialSku,
+          unit: selectedMatEntry.unit,
+        } : null,
+        monthlyTrend: materialMonthlyRows,
+        selectedPeriodTotalKg: selectedMatEntry ? selectedMatEntry.totalIssueKg : 0,
+        historical12MonthTotalKg: Math.round(historical12MonthTotalKg * 100) / 100,
+      },
+      dateWiseMaterialIssue: {
+        selectedDate: targetDateStr,
+        totalDayIssueKg: selectedDateTotalKg,
+        materials: dateWiseMaterials,
+        availableDates: Array.from(companyDateMap.keys()).sort((a, b) => {
+          const [dA, mA, yA] = a.split('-').map(Number);
+          const [dB, mB, yB] = b.split('-').map(Number);
+          return new Date(yA, mA - 1, dA).getTime() - new Date(yB, mB - 1, dB).getTime();
+        }),
+      },
+      materialMonthlyMatrix: {
+        months: matrixMonths.map(m => m.label),
+        rows: matrixRows,
+        columnTotals: matrixColumnTotals,
+      },
+      fastMovingMaterials: fastMovingMaterials.slice(0, 10),
+      slowMovingMaterials: slowMovingMaterials.slice(0, 10),
+      nonMovingMaterials: nonMovingMaterials.slice(0, 10),
+      movementClassificationMethod:
+        'Movement Score: 40% total issue quantity + 30% issue frequency + 30% issue-day frequency. Fast-moving materials are the highest-scoring active materials (top 25th percentile); materials with zero issue are classified as non-moving.',
+    };
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // ── MATERIAL TRANSACTION HISTORY (Paginated Store Issue Audit Trail) ─────────
+  // ═════════════════════════════════════════════════════════════════════════════
+  async getMaterialTransactionHistory(
+    companyId: string,
+    materialId: string,
+    page: number = 1,
+    pageSize: number = 20,
+    startDateStr?: string,
+    endDateStr?: string,
+  ) {
+    const companyWhere = companyId ? { companyId } : {};
+    const skip = (Math.max(1, page) - 1) * pageSize;
+
+    const dateFilter: any = {};
+    if (startDateStr && endDateStr) {
+      dateFilter.createdAt = {
+        gte: new Date(startDateStr),
+        lte: new Date(endDateStr),
+      };
+    }
+
+    const where = {
+      ...companyWhere,
+      type: 'OUT',
+      referenceType: 'ISSUE_TO_PRODUCTION',
+      ...dateFilter,
+      OR: [
+        { productId: materialId },
+        { rawMaterialId: materialId },
+      ],
+    };
+
+    const [total, txs] = await Promise.all([
+      this.prisma.inventoryTransaction.count({ where }),
+      this.prisma.inventoryTransaction.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          product: true,
+          rawMaterial: true,
+          warehouse: true,
+        },
+      }),
+    ]);
+
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const formatIstDate = (date: Date): string => {
+      const d = new Date(date.getTime() + istOffsetMs);
+      return `${pad(d.getUTCDate())}-${pad(d.getUTCMonth() + 1)}-${d.getUTCFullYear()}`;
+    };
+
+    const data = txs.map((t, idx) => ({
+      sr: skip + idx + 1,
+      id: t.id,
+      date: formatIstDate(t.createdAt),
+      dateTime: new Date(t.createdAt.getTime() + istOffsetMs).toISOString().replace('T', ' ').slice(0, 19),
+      materialName: t.rawMaterial?.name || t.product?.name || 'Material Item',
+      materialSku: t.rawMaterial?.sku || t.product?.sku || '-',
+      quantityKg: Math.abs(Number(t.quantity || 0)),
+      unit: t.rawMaterial?.unit || t.product?.unit || 'KG',
+      referenceType: t.referenceType || 'ISSUE_TO_PRODUCTION',
+      referenceNumber: t.referenceId || '-',
+      warehouseName: t.warehouse?.name || 'Central Store',
+    }));
+
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize) || 1,
     };
   }
 
