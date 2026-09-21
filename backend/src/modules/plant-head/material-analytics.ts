@@ -247,20 +247,24 @@ export async function readStoreRoAnalytics(
   const catalog = await loadRawMaterialCatalog(db, companyId);
   const lookup = materialLookup(catalog);
   const materialById = new Map(catalog.map(m => [m.id, m]));
+  const rawMaterialIds = [...lookup.keys()];
 
   // Date filtering clause
   const dateClause = period.isAllTime
     ? {}
     : { createdAt: { gte: period.startDate, lte: period.endDate } };
 
-  // 1. Authoritative STORE ISSUE: InventoryTransaction (type = 'OUT' or production issue types)
-  const issueTransactions: any[] = await db.inventoryTransaction.findMany({
+  // 1. Authoritative STORE ISSUE: InventoryTransaction (type = 'OUT' or production issue types, raw materials only)
+  const issueTransactions: any[] = rawMaterialIds.length === 0 ? [] : await db.inventoryTransaction.findMany({
     where: {
       companyId,
       OR: [
         { type: 'OUT', referenceType: 'ISSUE_TO_PRODUCTION' },
         { type: 'OUT', referenceType: { in: ['PRODUCTION', 'MATERIAL_REQUEST', 'MR', 'STORE_ISSUE', 'RECORDED', 'MANUAL'] } },
         { type: { in: ['PRODUCTION_ISSUE', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE'] } },
+      ],
+      AND: [
+        { OR: [{ rawMaterialId: { in: rawMaterialIds } }, { productId: { in: rawMaterialIds } }] },
       ],
       ...dateClause,
     },
@@ -271,9 +275,10 @@ export async function readStoreRoAnalytics(
     orderBy: { createdAt: 'asc' },
   });
 
-  // 1b. Authoritative STORE ISSUE: MaterialRequestItem (released / issued to production by Store)
-  const mrIssueItems: any[] = await db.materialRequestItem.findMany({
+  // 1b. Authoritative STORE ISSUE: MaterialRequestItem (released / issued to production by Store, raw materials only)
+  const mrIssueItems: any[] = rawMaterialIds.length === 0 ? [] : await db.materialRequestItem.findMany({
     where: {
+      productId: { in: rawMaterialIds },
       materialRequest: {
         companyId,
         status: { notIn: ['REJECTED', 'CANCELLED'] },
@@ -303,9 +308,10 @@ export async function readStoreRoAnalytics(
     orderBy: { materialRequest: { createdAt: 'asc' } },
   });
 
-  // 2. Authoritative STORE RECEIVE: GoodsReceiptNoteItem linked to active GRN
-  const grnItems: any[] = await db.goodsReceiptNoteItem.findMany({
+  // 2. Authoritative STORE RECEIVE: GoodsReceiptNoteItem linked to active GRN (raw materials only)
+  const grnItems: any[] = rawMaterialIds.length === 0 ? [] : await db.goodsReceiptNoteItem.findMany({
     where: {
+      productId: { in: rawMaterialIds },
       goodsReceiptNote: {
         companyId,
         status: { notIn: ['REJECTED', 'CANCELLED'] },
@@ -330,11 +336,14 @@ export async function readStoreRoAnalytics(
     orderBy: { goodsReceiptNote: { receivedAt: 'asc' } },
   });
 
-  // 2b. Authoritative STORE RECEIVE: Direct Stock In / Purchase Receipts in InventoryTransaction
-  const directReceiveTransactions: any[] = await db.inventoryTransaction.findMany({
+  // 2b. Authoritative STORE RECEIVE: Direct Stock In / Purchase Receipts in InventoryTransaction (raw materials only)
+  const directReceiveTransactions: any[] = rawMaterialIds.length === 0 ? [] : await db.inventoryTransaction.findMany({
     where: {
       companyId,
       type: { in: ['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK_IN', 'STOCK IN', 'PURCHASE_DELIVERY'] },
+      AND: [
+        { OR: [{ rawMaterialId: { in: rawMaterialIds } }, { productId: { in: rawMaterialIds } }] },
+      ],
       ...dateClause,
     },
     include: {
@@ -344,9 +353,10 @@ export async function readStoreRoAnalytics(
     orderBy: { createdAt: 'asc' },
   });
 
-  // 3. Authoritative RAW MATERIAL CONSUMPTION: MaterialRequestItem.consumedQuantity
-  const consumptionItems: any[] = await db.materialRequestItem.findMany({
+  // 3. Authoritative RAW MATERIAL CONSUMPTION: MaterialRequestItem.consumedQuantity (raw materials only)
+  const consumptionItems: any[] = rawMaterialIds.length === 0 ? [] : await db.materialRequestItem.findMany({
     where: {
+      productId: { in: rawMaterialIds },
       materialRequest: {
         companyId,
         ...(period.isAllTime
@@ -392,17 +402,19 @@ export async function readStoreRoAnalytics(
   let totalIssueKg = 0;
 
   for (const tx of issueTransactions) {
+    const rawId = tx.rawMaterialId || tx.productId || '';
+    const canonicalId = lookup.get(rawId);
+    if (!canonicalId) continue;
+    const mat = materialById.get(canonicalId);
+    if (!mat) continue;
+
     const qty = Math.abs(Number(tx.quantity || 0));
     totalIssueKg += qty;
 
-    const rawId = tx.rawMaterialId || tx.productId || '';
-    const canonicalId = lookup.get(rawId) || rawId;
-    const mat = materialById.get(canonicalId);
-
-    const materialName = mat?.name || tx.rawMaterial?.name || tx.product?.name || 'Raw Material';
-    const materialSku = mat?.sku || tx.rawMaterial?.sku || tx.product?.sku || 'SKU-NONE';
-    const unit = mat?.unit || tx.rawMaterial?.unit || tx.product?.unit || 'PCS';
-    const category = mat?.category || tx.rawMaterial?.category || tx.product?.category || 'General';
+    const materialName = mat.name;
+    const materialSku = mat.sku;
+    const unit = mat.unit;
+    const category = mat.category;
 
     const existing = issueMap.get(canonicalId) || {
       materialId: canonicalId,
@@ -431,20 +443,22 @@ export async function readStoreRoAnalytics(
     if (mr && (recordedMrRefIds.has(mr.publicId) || recordedMrRefIds.has(mr.id))) {
       continue; // Skip if already captured by InventoryTransaction
     }
+    const rawId = mrItem.productId || '';
+    const canonicalId = lookup.get(rawId);
+    if (!canonicalId) continue;
+    const mat = materialById.get(canonicalId);
+    if (!mat) continue;
+
     const issuedQty = Number(mrItem.issuedQuantity || 0);
     const qty = issuedQty > 0 ? issuedQty : Number(mrItem.quantity || 0);
     if (qty <= 0) continue;
 
     totalIssueKg += qty;
 
-    const rawId = mrItem.productId || '';
-    const canonicalId = lookup.get(rawId) || rawId;
-    const mat = materialById.get(canonicalId);
-
-    const materialName = mat?.name || mrItem.product?.name || (mrItem as any).materialName || (mrItem as any).material || 'Raw Material';
-    const materialSku = mat?.sku || mrItem.product?.sku || 'SKU-NONE';
-    const unit = mat?.unit || mrItem.product?.unit || mrItem.unit || 'PCS';
-    const category = mat?.category || mrItem.product?.category || 'General';
+    const materialName = mat.name;
+    const materialSku = mat.sku;
+    const unit = mat.unit;
+    const category = mat.category;
 
     const existing = issueMap.get(canonicalId) || {
       materialId: canonicalId,
@@ -484,18 +498,21 @@ export async function readStoreRoAnalytics(
   let totalReceiveKg = 0;
 
   for (const item of grnItems) {
+    const rawId = item.productId || '';
+    const canonicalId = lookup.get(rawId);
+    if (!canonicalId) continue;
+    const mat = materialById.get(canonicalId);
+    if (!mat) continue;
+
     const recQty = Number(item.receivedQuantity || 0);
     const accQty = Number(item.acceptedQuantity || 0);
     const qty = recQty > 0 ? recQty : accQty;
     totalReceiveKg += qty;
 
-    const canonicalId = lookup.get(item.productId) || item.productId;
-    const mat = materialById.get(canonicalId);
-
-    const materialName = mat?.name || item.product?.name || 'Material Item';
-    const materialSku = mat?.sku || item.product?.sku || 'SKU-NONE';
-    const unit = mat?.unit || item.product?.unit || 'PCS';
-    const category = mat?.category || item.product?.category || 'General';
+    const materialName = mat.name;
+    const materialSku = mat.sku;
+    const unit = mat.unit;
+    const category = mat.category;
 
     const existing = receiveMap.get(canonicalId) || {
       materialId: canonicalId,
@@ -524,17 +541,19 @@ export async function readStoreRoAnalytics(
     if (tx.referenceId && recordedGrnNumbers.has(tx.referenceId)) {
       continue; // Skip if already captured by GRN Item
     }
+    const rawId = tx.rawMaterialId || tx.productId || '';
+    const canonicalId = lookup.get(rawId);
+    if (!canonicalId) continue;
+    const mat = materialById.get(canonicalId);
+    if (!mat) continue;
+
     const qty = Math.abs(Number(tx.quantity || 0));
     totalReceiveKg += qty;
 
-    const rawId = tx.rawMaterialId || tx.productId || '';
-    const canonicalId = lookup.get(rawId) || rawId;
-    const mat = materialById.get(canonicalId);
-
-    const materialName = mat?.name || tx.rawMaterial?.name || tx.product?.name || 'Material Item';
-    const materialSku = mat?.sku || tx.rawMaterial?.sku || tx.product?.sku || 'SKU-NONE';
-    const unit = mat?.unit || tx.rawMaterial?.unit || tx.product?.unit || 'PCS';
-    const category = mat?.category || tx.rawMaterial?.category || tx.product?.category || 'General';
+    const materialName = mat.name;
+    const materialSku = mat.sku;
+    const unit = mat.unit;
+    const category = mat.category;
 
     const existing = receiveMap.get(canonicalId) || {
       materialId: canonicalId,
@@ -573,16 +592,19 @@ export async function readStoreRoAnalytics(
   let totalConsumptionKg = 0;
 
   for (const item of consumptionItems) {
+    const rawId = item.productId || '';
+    const canonicalId = lookup.get(rawId);
+    if (!canonicalId) continue;
+    const mat = materialById.get(canonicalId);
+    if (!mat) continue;
+
     const qty = Number(item.consumedQuantity || 0);
     totalConsumptionKg += qty;
 
-    const canonicalId = lookup.get(item.productId) || item.productId;
-    const mat = materialById.get(canonicalId);
-
-    const materialName = mat?.name || item.product?.name || 'Consumed Material';
-    const materialSku = mat?.sku || item.product?.sku || 'SKU-NONE';
-    const unit = mat?.unit || item.unit || item.product?.unit || 'PCS';
-    const category = mat?.category || item.product?.category || 'General';
+    const materialName = mat.name;
+    const materialSku = mat.sku;
+    const unit = mat.unit;
+    const category = mat.category;
 
     const existing = consumptionMap.get(canonicalId) || {
       materialId: canonicalId,
@@ -744,8 +766,8 @@ export async function readStoreRoAnalytics(
   const matrixStartDate = new Date(`${matrixYear}-01-01T00:00:00.000+05:30`);
   const matrixEndDate = new Date(`${matrixYear}-12-31T23:59:59.999+05:30`);
 
-  // Query all year's issue, receive, consumption for this matrix
-  const [yearIssues, yearMrIssues, yearReceives, yearDirectReceives, yearConsumptions]: [any[], any[], any[], any[], any[]] = await Promise.all([
+  // Query all year's issue, receive, consumption for this matrix (raw materials only)
+  const [yearIssues, yearMrIssues, yearReceives, yearDirectReceives, yearConsumptions]: [any[], any[], any[], any[], any[]] = rawMaterialIds.length === 0 ? [[], [], [], [], []] : await Promise.all([
     db.inventoryTransaction.findMany({
       where: {
         companyId,
@@ -754,12 +776,16 @@ export async function readStoreRoAnalytics(
           { type: 'OUT', referenceType: { in: ['PRODUCTION', 'MATERIAL_REQUEST', 'MR', 'STORE_ISSUE', 'RECORDED', 'MANUAL'] } },
           { type: { in: ['PRODUCTION_ISSUE', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE'] } },
         ],
+        AND: [
+          { OR: [{ rawMaterialId: { in: rawMaterialIds } }, { productId: { in: rawMaterialIds } }] },
+        ],
         createdAt: { gte: matrixStartDate, lte: matrixEndDate },
       },
       select: { productId: true, rawMaterialId: true, quantity: true, createdAt: true, referenceId: true },
     }),
     db.materialRequestItem.findMany({
       where: {
+        productId: { in: rawMaterialIds },
         materialRequest: {
           companyId,
           status: { notIn: ['REJECTED', 'CANCELLED'] },
@@ -782,6 +808,7 @@ export async function readStoreRoAnalytics(
     }),
     db.goodsReceiptNoteItem.findMany({
       where: {
+        productId: { in: rawMaterialIds },
         goodsReceiptNote: {
           companyId,
           status: { notIn: ['REJECTED', 'CANCELLED'] },
@@ -799,12 +826,16 @@ export async function readStoreRoAnalytics(
       where: {
         companyId,
         type: { in: ['IN', 'PURCHASE_RECEIPT', 'OPENING_STOCK', 'QUICK_STOCK_IN', 'STOCK_IN', 'STOCK IN', 'PURCHASE_DELIVERY'] },
+        AND: [
+          { OR: [{ rawMaterialId: { in: rawMaterialIds } }, { productId: { in: rawMaterialIds } }] },
+        ],
         createdAt: { gte: matrixStartDate, lte: matrixEndDate },
       },
       select: { productId: true, rawMaterialId: true, quantity: true, createdAt: true, referenceId: true },
     }),
     db.materialRequestItem.findMany({
       where: {
+        productId: { in: rawMaterialIds },
         materialRequest: {
           companyId,
           createdAt: { gte: matrixStartDate, lte: matrixEndDate },
@@ -818,7 +849,9 @@ export async function readStoreRoAnalytics(
   // Aggregate matrix by canonical material and month (0-11)
   const matrixIssueMap = new Map<string, number[]>();
   for (const tx of yearIssues) {
-    const cid = lookup.get(tx.rawMaterialId || tx.productId || '') || tx.rawMaterialId || tx.productId || '';
+    const rawId = tx.rawMaterialId || tx.productId || '';
+    const cid = lookup.get(rawId);
+    if (!cid) continue;
     const mIdx = new Date(tx.createdAt.getTime() + IST_OFFSET_MS).getUTCMonth();
     const arr = matrixIssueMap.get(cid) || new Array(12).fill(0);
     arr[mIdx] += Math.abs(Number(tx.quantity || 0));
@@ -833,7 +866,8 @@ export async function readStoreRoAnalytics(
     }
     const q = Number(item.issuedQuantity || item.quantity || 0);
     if (q <= 0) continue;
-    const cid = lookup.get(item.productId) || item.productId;
+    const cid = lookup.get(item.productId);
+    if (!cid) continue;
     const mrDate = mr?.requestDate ? new Date(mr.requestDate) : mr?.createdAt ? new Date(mr.createdAt) : new Date();
     const mIdx = new Date(mrDate.getTime() + IST_OFFSET_MS).getUTCMonth();
     const arr = matrixIssueMap.get(cid) || new Array(12).fill(0);
@@ -843,7 +877,8 @@ export async function readStoreRoAnalytics(
 
   const matrixReceiveMap = new Map<string, number[]>();
   for (const item of yearReceives) {
-    const cid = lookup.get(item.productId) || item.productId;
+    const cid = lookup.get(item.productId);
+    if (!cid) continue;
     const rDate = item.goodsReceiptNote?.receivedAt || item.goodsReceiptNote?.createdAt || new Date();
     const mIdx = new Date(rDate.getTime() + IST_OFFSET_MS).getUTCMonth();
     const qty = Number(item.receivedQuantity || 0) > 0 ? Number(item.receivedQuantity) : Number(item.acceptedQuantity || 0);
@@ -857,7 +892,9 @@ export async function readStoreRoAnalytics(
     if (tx.referenceId && matrixRecordedGrns.has(tx.referenceId)) {
       continue;
     }
-    const cid = lookup.get(tx.rawMaterialId || tx.productId || '') || tx.rawMaterialId || tx.productId || '';
+    const rawId = tx.rawMaterialId || tx.productId || '';
+    const cid = lookup.get(rawId);
+    if (!cid) continue;
     const mIdx = new Date(tx.createdAt.getTime() + IST_OFFSET_MS).getUTCMonth();
     const arr = matrixReceiveMap.get(cid) || new Array(12).fill(0);
     arr[mIdx] += Math.abs(Number(tx.quantity || 0));
@@ -866,7 +903,8 @@ export async function readStoreRoAnalytics(
 
   const matrixConsumptionMap = new Map<string, number[]>();
   for (const item of yearConsumptions) {
-    const cid = lookup.get(item.productId) || item.productId;
+    const cid = lookup.get(item.productId);
+    if (!cid) continue;
     const mIdx = new Date(item.materialRequest.createdAt.getTime() + IST_OFFSET_MS).getUTCMonth();
     const arr = matrixConsumptionMap.get(cid) || new Array(12).fill(0);
     arr[mIdx] += Number(item.consumedQuantity || 0);
@@ -1049,7 +1087,12 @@ async function authoritativeMaterialBalances(
   before?: Date,
 ) {
   const aliases = materialLookup(catalog);
+  const rawMaterialIds = [...aliases.keys()];
   const baseBalances = await rawBalances(db, companyId, catalog, before);
+
+  if (rawMaterialIds.length === 0) {
+    return new Map(catalog.map(m => [m.id, 0]));
+  }
 
   // Check existing reference IDs in InventoryTransaction to avoid double counting
   const existingTxs = await db.inventoryTransaction.findMany({
@@ -1057,14 +1100,18 @@ async function authoritativeMaterialBalances(
       companyId,
       ...(before ? { createdAt: { lt: before } } : {}),
       referenceId: { not: null },
+      AND: [
+        { OR: [{ rawMaterialId: { in: rawMaterialIds } }, { productId: { in: rawMaterialIds } }] },
+      ],
     },
     select: { referenceId: true },
   });
   const recordedRefIds = new Set(existingTxs.map(t => t.referenceId).filter(Boolean));
 
-  // Receipts from GoodsReceiptNoteItem before date
+  // Receipts from GoodsReceiptNoteItem before date (raw materials only)
   const grnItems: any[] = await db.goodsReceiptNoteItem.findMany({
     where: {
+      productId: { in: rawMaterialIds },
       goodsReceiptNote: {
         companyId,
         status: { notIn: ['REJECTED', 'CANCELLED'] },
@@ -1079,9 +1126,10 @@ async function authoritativeMaterialBalances(
     },
   });
 
-  // Issues from MaterialRequestItem before date
+  // Issues from MaterialRequestItem before date (raw materials only)
   const mrItems: any[] = await db.materialRequestItem.findMany({
     where: {
+      productId: { in: rawMaterialIds },
       materialRequest: {
         companyId,
         status: { notIn: ['REJECTED', 'CANCELLED'] },
@@ -1159,6 +1207,7 @@ export async function readMaterialWiseAnalytics(
   const catalog = await loadRawMaterialCatalog(db, companyId);
   const lookup = materialLookup(catalog);
   const materialById = new Map(catalog.map(m => [m.id, m]));
+  const rawMaterialIds = [...lookup.keys()];
 
   const issueByMaterialId = new Map(storeRoData.issueByItem.map(i => [i.materialId, i]));
   const receiveByMaterialId = new Map(storeRoData.receiveByItem.map(r => [r.materialId, r]));
@@ -1470,7 +1519,7 @@ export async function readMaterialWiseAnalytics(
     const dayStart = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - IST_OFFSET_MS);
     const dayEnd = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999) - IST_OFFSET_MS);
 
-    const [dayTxs, dayMrs]: [any[], any[]] = await Promise.all([
+    const [dayTxs, dayMrs]: [any[], any[]] = rawMaterialIds.length === 0 ? [[], []] : await Promise.all([
       db.inventoryTransaction.findMany({
         where: {
           companyId,
@@ -1478,6 +1527,9 @@ export async function readMaterialWiseAnalytics(
             { type: 'OUT', referenceType: 'ISSUE_TO_PRODUCTION' },
             { type: 'OUT', referenceType: { in: ['PRODUCTION', 'MATERIAL_REQUEST', 'MR', 'STORE_ISSUE', 'RECORDED', 'MANUAL'] } },
             { type: { in: ['PRODUCTION_ISSUE', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE'] } },
+          ],
+          AND: [
+            { OR: [{ rawMaterialId: { in: rawMaterialIds } }, { productId: { in: rawMaterialIds } }] },
           ],
           createdAt: { gte: dayStart, lte: dayEnd },
         },
@@ -1488,6 +1540,7 @@ export async function readMaterialWiseAnalytics(
       }),
       db.materialRequestItem.findMany({
         where: {
+          productId: { in: rawMaterialIds },
           materialRequest: {
             companyId,
             OR: [
@@ -1512,14 +1565,18 @@ export async function readMaterialWiseAnalytics(
     let totalDayKg = 0;
 
     for (const tx of dayTxs) {
+      const rawId = tx.rawMaterialId || tx.productId || '';
+      const cid = lookup.get(rawId);
+      if (!cid) continue;
+      const mat = materialById.get(cid);
+      if (!mat) continue;
+
       const qty = Math.abs(Number(tx.quantity || 0));
       totalDayKg += qty;
 
-      const cid = lookup.get(tx.rawMaterialId || tx.productId || '') || tx.rawMaterialId || tx.productId || '';
-      const mat = materialById.get(cid);
-      const mName = mat?.name || tx.rawMaterial?.name || tx.product?.name || 'Raw Material';
-      const mSku = mat?.sku || tx.rawMaterial?.sku || tx.product?.sku || 'SKU';
-      const unit = mat?.unit || tx.rawMaterial?.unit || tx.product?.unit || 'PCS';
+      const mName = mat.name;
+      const mSku = mat.sku;
+      const unit = mat.unit || 'PCS';
 
       const entry = dayMatMap.get(cid) || { materialName: mName, sku: mSku, unit, issueKg: 0, transactions: 0 };
       entry.issueKg += qty;
@@ -1531,15 +1588,19 @@ export async function readMaterialWiseAnalytics(
     for (const mr of dayMrs) {
       const req = mr.materialRequest;
       if (req && (recordedDayTxRefs.has(req.publicId) || recordedDayTxRefs.has(req.id))) continue;
+      const rawId = mr.productId || '';
+      const cid = lookup.get(rawId);
+      if (!cid) continue;
+      const mat = materialById.get(cid);
+      if (!mat) continue;
+
       const qty = Number(mr.issuedQuantity || 0) > 0 ? Number(mr.issuedQuantity) : Number(mr.quantity || 0);
       if (qty <= 0) continue;
 
       totalDayKg += qty;
-      const cid = lookup.get(mr.productId || '') || mr.productId || '';
-      const mat = materialById.get(cid);
-      const mName = mat?.name || mr.product?.name || (mr as any).materialName || 'Raw Material';
-      const mSku = mat?.sku || mr.product?.sku || 'SKU';
-      const unit = mat?.unit || mr.product?.unit || mr.unit || 'PCS';
+      const mName = mat.name;
+      const mSku = mat.sku;
+      const unit = mat.unit || 'PCS';
 
       const entry = dayMatMap.get(cid) || { materialName: mName, sku: mSku, unit, issueKg: 0, transactions: 0 };
       entry.issueKg += qty;
@@ -1641,8 +1702,23 @@ export async function readTransactionAudit(
   }
 
   const catalog = await loadRawMaterialCatalog(db, companyId);
-  const selectedMaterial = materialId ? catalog.find(m => m.id === materialId) : null;
-  const aliases = selectedMaterial ? selectedMaterial.aliases : [];
+  const lookup = materialLookup(catalog);
+  const materialById = new Map(catalog.map(m => [m.id, m]));
+  const rawMaterialIds = catalog.flatMap(m => m.aliases);
+  const selectedMaterial = materialId
+    ? catalog.find(m => m.id === materialId || m.aliases.includes(materialId))
+    : null;
+  const targetIds = selectedMaterial ? selectedMaterial.aliases : rawMaterialIds;
+
+  if (targetIds.length === 0) {
+    return {
+      total: 0,
+      page,
+      pageSize,
+      totalPages: 1,
+      data: [],
+    };
+  }
 
   let dateFilter: any = {};
   if (startDateStr && endDateStr) {
@@ -1658,20 +1734,29 @@ export async function readTransactionAudit(
   if (movementType === 'ALL' || movementType === 'ISSUE') {
     const where: any = {
       companyId,
-      OR: [
-        { type: 'OUT', referenceType: 'ISSUE_TO_PRODUCTION' },
-        { type: 'OUT', referenceType: { in: ['PRODUCTION', 'MATERIAL_REQUEST', 'MR', 'STORE_ISSUE', 'RECORDED', 'MANUAL'] } },
-        { type: { in: ['PRODUCTION_ISSUE', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE'] } },
+      AND: [
+        {
+          OR: [
+            { type: 'OUT', referenceType: 'ISSUE_TO_PRODUCTION' },
+            { type: 'OUT', referenceType: { in: ['PRODUCTION', 'MATERIAL_REQUEST', 'MR', 'STORE_ISSUE', 'RECORDED', 'MANUAL'] } },
+            { type: { in: ['PRODUCTION_ISSUE', 'QUICK_STOCK_OUT', 'STOCK_OUT', 'ISSUE'] } },
+          ],
+        },
+        {
+          OR: [
+            { rawMaterialId: { in: targetIds } },
+            { productId: { in: targetIds } },
+          ],
+        },
       ],
       ...dateFilter,
     };
-    if (aliases.length > 0) {
-      where.OR = [{ rawMaterialId: { in: aliases } }, { productId: { in: aliases } }];
-    }
 
     const mrWhere: any = {
+      productId: { in: targetIds },
       materialRequest: {
         companyId,
+        status: { notIn: ['REJECTED', 'CANCELLED'] },
         ...(startDateStr && endDateStr
           ? {
               OR: [
@@ -1684,12 +1769,9 @@ export async function readTransactionAudit(
       },
       OR: [
         { issuedQuantity: { gt: 0 } },
-        { materialRequest: { status: 'ISSUED_TO_PRODUCTION' } },
+        { status: 'ISSUED_TO_PRODUCTION' },
       ],
     };
-    if (aliases.length > 0) {
-      mrWhere.productId = { in: aliases };
-    }
 
     const [issues, txCount, mrIssues, mrCount]: [any[], number, any[], number] = await Promise.all([
       db.inventoryTransaction.findMany({
@@ -1723,16 +1805,18 @@ export async function readTransactionAudit(
     const recordedMrRefIds = new Set(issues.map(tx => tx.referenceId).filter(Boolean));
 
     issues.forEach(tx => {
+      const cid = lookup.get(tx.rawMaterialId || tx.productId || '');
+      const mat = cid ? materialById.get(cid) : null;
       items.push({
         id: tx.id,
         date: formatIstDate(tx.createdAt),
         timestamp: tx.createdAt.toISOString(),
         category: 'ISSUE',
         movementType: 'Store Issue',
-        materialName: tx.rawMaterial?.name || tx.product?.name || 'Raw Material',
-        sku: tx.rawMaterial?.sku || tx.product?.sku || '-',
+        materialName: mat?.name || tx.rawMaterial?.name || tx.product?.name || 'Raw Material',
+        sku: mat?.sku || tx.rawMaterial?.sku || tx.product?.sku || '-',
         quantity: Math.abs(Number(tx.quantity)),
-        unit: tx.rawMaterial?.unit || tx.product?.unit || 'PCS',
+        unit: mat?.unit || tx.rawMaterial?.unit || tx.product?.unit || 'PCS',
         referenceType: tx.referenceType,
         referenceId: tx.referenceId || '-',
         warehouse: tx.warehouse?.name || 'Central Store',
@@ -1748,16 +1832,18 @@ export async function readTransactionAudit(
       if (qty <= 0) return;
       effectiveMrCount++;
       const dDate = mr?.updatedAt || mr?.requestDate || mr?.createdAt || new Date();
+      const cid = lookup.get(mrItem.productId || '');
+      const mat = cid ? materialById.get(cid) : null;
       items.push({
         id: mrItem.id,
         date: formatIstDate(dDate),
         timestamp: dDate.toISOString(),
         category: 'ISSUE',
         movementType: 'Store Issue',
-        materialName: mrItem.product?.name || (mrItem as any).materialName || 'Raw Material',
-        sku: mrItem.product?.sku || '-',
+        materialName: mat?.name || mrItem.product?.name || (mrItem as any).materialName || 'Raw Material',
+        sku: mat?.sku || mrItem.product?.sku || '-',
         quantity: qty,
-        unit: mrItem.unit || mrItem.product?.unit || 'PCS',
+        unit: mat?.unit || mrItem.unit || mrItem.product?.unit || 'PCS',
         referenceType: 'MATERIAL_REQUEST',
         referenceId: mr?.publicId || mr?.id || '-',
         warehouse: 'Central Store',
@@ -1770,6 +1856,7 @@ export async function readTransactionAudit(
   // 2. Fetch Receipts
   if (movementType === 'ALL' || movementType === 'RECEIVE') {
     const grnWhere: any = {
+      productId: { in: targetIds },
       goodsReceiptNote: {
         companyId,
         status: { notIn: ['REJECTED', 'CANCELLED'] },
@@ -1783,21 +1870,25 @@ export async function readTransactionAudit(
           : {}),
       },
     };
-    if (aliases.length > 0) {
-      grnWhere.productId = { in: aliases };
-    }
 
     const inWhere: any = {
       companyId,
-      OR: [
-        { type: 'IN' },
-        { type: { in: ['STOCK_IN', 'PURCHASE_RECEIPT', 'RECEIPT'] } },
+      AND: [
+        {
+          OR: [
+            { type: 'IN' },
+            { type: { in: ['STOCK_IN', 'PURCHASE_RECEIPT', 'RECEIPT'] } },
+          ],
+        },
+        {
+          OR: [
+            { rawMaterialId: { in: targetIds } },
+            { productId: { in: targetIds } },
+          ],
+        },
       ],
       ...dateFilter,
     };
-    if (aliases.length > 0) {
-      inWhere.OR = [{ rawMaterialId: { in: aliases } }, { productId: { in: aliases } }];
-    }
 
     const [grns, grnCount, inTxs, inCount]: [any[], number, any[], number] = await Promise.all([
       db.goodsReceiptNoteItem.findMany({
@@ -1834,16 +1925,18 @@ export async function readTransactionAudit(
       if (grn && (recordedInRefs.has(grn.grnNumber) || recordedInRefs.has(grn.id))) return;
       const q = Number(g.receivedQuantity) > 0 ? Number(g.receivedQuantity) : Number(g.acceptedQuantity);
       const rDate = grn?.receivedAt || grn?.createdAt || new Date();
+      const cid = lookup.get(g.productId || '');
+      const mat = cid ? materialById.get(cid) : null;
       items.push({
         id: g.id,
         date: formatIstDate(rDate),
         timestamp: rDate.toISOString(),
         category: 'RECEIVE',
         movementType: 'Store Receive',
-        materialName: g.product?.name || 'Material Item',
-        sku: g.product?.sku || '-',
+        materialName: mat?.name || g.product?.name || 'Raw Material',
+        sku: mat?.sku || g.product?.sku || '-',
         quantity: q,
-        unit: g.product?.unit || 'PCS',
+        unit: mat?.unit || g.product?.unit || 'PCS',
         referenceType: 'GRN',
         referenceId: grn?.grnNumber || grn?.id,
         warehouse: grn?.warehouse?.name || 'Store Receiving',
@@ -1852,16 +1945,18 @@ export async function readTransactionAudit(
     });
 
     inTxs.forEach(tx => {
+      const cid = lookup.get(tx.rawMaterialId || tx.productId || '');
+      const mat = cid ? materialById.get(cid) : null;
       items.push({
         id: tx.id,
         date: formatIstDate(tx.createdAt),
         timestamp: tx.createdAt.toISOString(),
         category: 'RECEIVE',
         movementType: 'Store Receive',
-        materialName: tx.rawMaterial?.name || tx.product?.name || 'Raw Material',
-        sku: tx.rawMaterial?.sku || tx.product?.sku || '-',
+        materialName: mat?.name || tx.rawMaterial?.name || tx.product?.name || 'Raw Material',
+        sku: mat?.sku || tx.rawMaterial?.sku || tx.product?.sku || '-',
         quantity: Math.abs(Number(tx.quantity)),
-        unit: tx.rawMaterial?.unit || tx.product?.unit || 'PCS',
+        unit: mat?.unit || tx.rawMaterial?.unit || tx.product?.unit || 'PCS',
         referenceType: tx.referenceType || 'STOCK_IN',
         referenceId: tx.referenceId || '-',
         warehouse: tx.warehouse?.name || 'Central Store',
@@ -1874,8 +1969,10 @@ export async function readTransactionAudit(
   // 3. Fetch Consumption
   if (movementType === 'ALL' || movementType === 'CONSUMPTION') {
     const where: any = {
+      productId: { in: targetIds },
       materialRequest: {
         companyId,
+        status: { notIn: ['REJECTED', 'CANCELLED'] },
         ...(startDateStr && endDateStr
           ? {
               createdAt: {
@@ -1887,9 +1984,6 @@ export async function readTransactionAudit(
       },
       consumedQuantity: { gt: 0 },
     };
-    if (aliases.length > 0) {
-      where.productId = { in: aliases };
-    }
 
     const [mrs, count]: [any[], number] = await Promise.all([
       db.materialRequestItem.findMany({
@@ -1909,16 +2003,18 @@ export async function readTransactionAudit(
     totalCount += count;
     mrs.forEach(mr => {
       const cDate = mr.materialRequest?.createdAt || new Date();
+      const cid = lookup.get(mr.productId || '');
+      const mat = cid ? materialById.get(cid) : null;
       items.push({
         id: mr.id,
         date: formatIstDate(cDate),
         timestamp: cDate.toISOString(),
         category: 'CONSUMPTION',
         movementType: 'Shop Floor Consumption',
-        materialName: mr.product?.name || 'Material Item',
-        sku: mr.product?.sku || '-',
+        materialName: mat?.name || mr.product?.name || 'Raw Material',
+        sku: mat?.sku || mr.product?.sku || '-',
         quantity: Number(mr.consumedQuantity),
-        unit: mr.unit || mr.product?.unit || 'PCS',
+        unit: mat?.unit || mr.unit || mr.product?.unit || 'PCS',
         referenceType: 'MATERIAL_REQUEST',
         referenceId: mr.materialRequest?.publicId || mr.materialRequest?.id,
         warehouse: 'Production Shop Floor',

@@ -54,7 +54,9 @@ export async function loadRawMaterialCatalog(db: Database, companyId: string) {
     if (product) used.add(product.id);
     return make(rm, product);
   });
-  for (const product of products) if (!used.has(product.id)) materials.push(make(null, product));
+  if (raw.length === 0) {
+    for (const product of products) if (!used.has(product.id)) materials.push(make(null, product));
+  }
   return materials.sort((a, b) => (a.sku || a.name).localeCompare(b.sku || b.name));
 }
 

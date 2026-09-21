@@ -353,9 +353,9 @@ export function PlantHeadMaterialAnalytics() {
             <ShieldCheck size={13} />
             HIMALAYA COMPOSITES
           </div>
-          <h1 className={styles.brandTitle}>MATERIAL ANALYTICS</h1>
+          <h1 className={styles.brandTitle}>RAW MATERIAL ANALYTICS</h1>
           <div className={styles.brandSubtitle}>
-            STORE MATERIAL CONTROL | INVENTORY MOVEMENT | PRODUCTION PLANNING
+            STORE RAW INVENTORY CONTROL | RAW MATERIAL MOVEMENT | PRODUCTION ALLOCATION
           </div>
         </div>
 
@@ -662,7 +662,7 @@ export function PlantHeadMaterialAnalytics() {
           onClick={() => handleTabChange('store-ro')}
         >
           <Layers size={16} />
-          STORE R/O
+          STORE R/O (RAW INVENTORY)
         </button>
         <button
           type="button"
@@ -670,7 +670,7 @@ export function PlantHeadMaterialAnalytics() {
           onClick={() => handleTabChange('material-wise')}
         >
           <FileSpreadsheet size={16} />
-          MATERIAL WISE ANALYSIS
+          RAW MATERIAL WISE ANALYSIS
         </button>
       </nav>
 
