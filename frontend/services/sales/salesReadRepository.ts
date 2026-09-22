@@ -24,6 +24,12 @@ export interface SalesOrderItem {
     pendingProductionQty?: number;
     fulfillmentState?: string;
   };
+  specifications?: any;
+  taxRate?: number;
+  taxAmount?: number;
+  discountAmount?: number;
+  raw?: any;
+  _raw?: any;
 }
 
 export interface SalesOrder {
@@ -43,6 +49,12 @@ export interface SalesOrder {
     name: string;
     companyName: string;
     customerCode?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    contactPerson?: string | null;
+    gstin?: string | null;
+    billingAddress?: any;
+    shippingAddress?: any;
   } | null;
 
   items: SalesOrderItem[];
@@ -50,6 +62,23 @@ export interface SalesOrder {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountAmount?: number;
+  freightAmount?: number;
+
+  customerPurchaseOrderNo?: string | null;
+  customerPurchaseOrderDate?: string | null;
+  customerPurchaseOrderFileUrl?: string | null;
+  orderDate?: string | null;
+  deliveryTerms?: string | null;
+  requestedDeliveryDate?: string | null;
+  paymentTerms?: string | null;
+  paymentTermDays?: number | null;
+  paymentDueDate?: string | null;
+  billingAddress?: any;
+  shippingAddress?: any;
+  dispatches?: any[];
+  quotation?: any;
+  sourceQuotation?: any;
 
   orderStatus: string;
   creditStatus: string;
@@ -68,11 +97,14 @@ export interface SalesOrder {
   priority?: string;
   productionLine?: string;
   deliveredAt?: string | null;
+  deliveredDate?: string | null;
   replacementStatus?: string;
   returnStatus?: string;
   remarks?: string;
   createdAt: string;
   updatedAt: string;
+  raw?: any;
+  _raw?: any;
 }
 
 export interface SalesOrderListParams {

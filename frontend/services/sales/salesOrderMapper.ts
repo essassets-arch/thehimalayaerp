@@ -71,6 +71,23 @@ export function normalizeSalesOrder(order: unknown): SalesOrder {
     subtotal: toFiniteNumber(source.subtotal),
     taxAmount: toFiniteNumber(source.taxAmount),
     totalAmount: toFiniteNumber(source.totalAmount),
+    discountAmount: toFiniteNumber(source.discountAmount),
+    freightAmount: toFiniteNumber(source.freightAmount),
+
+    customerPurchaseOrderNo: typeof source.customerPurchaseOrderNo === 'string' ? source.customerPurchaseOrderNo : null,
+    customerPurchaseOrderDate: typeof source.customerPurchaseOrderDate === 'string' ? source.customerPurchaseOrderDate : null,
+    customerPurchaseOrderFileUrl: typeof source.customerPurchaseOrderFileUrl === 'string' ? source.customerPurchaseOrderFileUrl : null,
+    orderDate: typeof source.orderDate === 'string' ? source.orderDate : (typeof source.createdAt === 'string' ? source.createdAt : null),
+    deliveryTerms: typeof source.deliveryTerms === 'string' ? source.deliveryTerms : null,
+    requestedDeliveryDate: typeof source.requestedDeliveryDate === 'string' ? source.requestedDeliveryDate : null,
+    paymentTerms: typeof source.paymentTerms === 'string' ? source.paymentTerms : null,
+    paymentTermDays: source.paymentTermDays !== undefined ? Number(source.paymentTermDays) : null,
+    paymentDueDate: typeof source.paymentDueDate === 'string' ? source.paymentDueDate : null,
+    billingAddress: source.billingAddress || (isRecord(source.customer) ? source.customer.billingAddress : null),
+    shippingAddress: source.shippingAddress || (isRecord(source.customer) ? source.customer.shippingAddress : null),
+    dispatches: Array.isArray(source.dispatches) ? source.dispatches : [],
+    quotation: source.quotation || null,
+    sourceQuotation: source.sourceQuotation || null,
 
     orderStatus: status,
     creditStatus: typeof source.creditStatus === 'string' ? source.creditStatus : 'PENDING',
@@ -92,6 +109,8 @@ export function normalizeSalesOrder(order: unknown): SalesOrder {
 
     createdAt: typeof source.createdAt === 'string' ? source.createdAt : new Date().toISOString(),
     updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt : new Date().toISOString(),
+    raw: source,
+    _raw: source,
   };
 }
 
@@ -100,12 +119,16 @@ export function normalizeSalesOrderItem(item: unknown): SalesOrderItem {
   return {
     id: typeof source.id === 'string' ? source.id : '',
     productId: typeof source.productId === 'string' ? source.productId : '',
-    productName: typeof source.productName === 'string' ? source.productName : '',
-    productCode: typeof source.productCode === 'string' ? source.productCode : null,
+    productName: typeof source.productName === 'string' ? source.productName : (typeof (source as any).productNameSnapshot === 'string' ? (source as any).productNameSnapshot : ''),
+    productCode: typeof source.productCode === 'string' ? source.productCode : (typeof (source as any).productCodeSnapshot === 'string' ? (source as any).productCodeSnapshot : null),
+    specifications: source.specifications || null,
     orderedQuantity: toFiniteNumber(source.orderedQuantity),
     unit: typeof source.unit === 'string' ? source.unit : 'PCS',
     unitPrice: toFiniteNumber(source.unitPrice),
     lineTotal: toFiniteNumber(source.lineTotal),
+    discountAmount: toFiniteNumber(source.discountAmount),
+    taxRate: toFiniteNumber(source.taxRate),
+    taxAmount: toFiniteNumber(source.taxAmount),
     deliveredQuantity: toFiniteNumber(source.deliveredQuantity),
     returnedQuantity: toFiniteNumber(source.returnedQuantity),
     replacedQuantity: toFiniteNumber(source.replacedQuantity),
@@ -121,6 +144,8 @@ export function normalizeSalesOrderItem(item: unknown): SalesOrderItem {
       pendingProductionQty: toFiniteNumber(source.fulfillment.pendingProductionQty),
       fulfillmentState: typeof source.fulfillment.fulfillmentState === 'string' ? source.fulfillment.fulfillmentState : 'PENDING_DECISION',
     } : undefined,
+    raw: source,
+    _raw: source,
   };
 }
 

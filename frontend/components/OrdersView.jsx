@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, Eye, Box, CheckCircle, Truck, PackageCheck, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
+import { Search, Eye, Box, CheckCircle, Truck, PackageCheck, ChevronLeft, ChevronRight, MoreVertical, Download, ChevronDown, FileText, Clipboard } from 'lucide-react';
 import Swal from 'sweetalert2';
 import StatusBadge from '../shared/components/StatusBadge';
 import { useAuth } from '../shared/context/AuthContext';
@@ -11,6 +11,7 @@ import SalesOwnerBadge from './SalesOwnerBadge.jsx';
 import { apiClient } from '../lib/apiClient';
 import { useERPStore } from '@/store/erpStore';
 import styles from './OrdersView.module.css';
+import { exportOrdersToCSV } from '../services/sales/salesExportService';
 
 export default function OrdersView({ 
   orders, 
@@ -51,10 +52,46 @@ export default function OrdersView({
   const [pageSize, setPageSize] = useState(25);
   const [reminderModal, setReminderModal] = useState(null);
   const [sendingOrderId, setSendingOrderId] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [search, filter, pageSize]);
+
+  const handleExportCSV = async (mode = 'summary') => {
+    try {
+      setExporting(true);
+      const targetOrders = filteredOrders && filteredOrders.length > 0 ? filteredOrders : (orders || []);
+      if (!targetOrders || targetOrders.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'No Orders to Export',
+          text: 'There are no order records available matching your current filters.',
+        });
+        return;
+      }
+      const res = await exportOrdersToCSV(targetOrders, {
+        mode,
+        filenamePrefix: filter !== 'All Orders' ? `Orders_${filter.replace(/\s+/g, '_')}` : 'Sales_Orders',
+      });
+      Swal.fire({
+        icon: 'success',
+        title: 'Orders Exported',
+        text: `Successfully exported ${res.count} ${mode === 'item_level' ? 'order line items' : 'orders'} to ${res.filename}!`,
+        timer: 2500,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Export Failed',
+        text: err?.message || 'Failed to export orders to CSV.',
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleSaveReminder = async (formData) => {
     if (!reminderModal) return;
@@ -810,6 +847,115 @@ export default function OrdersView({
               onChange={(e) => setSearch(e.target.value)}
               style={{ color: 'var(--color-text-primary)' }}
             />
+          </div>
+
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              className="btn-small"
+              data-testid="orders-export-csv"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#ffffff',
+                border: '1.5px solid #cbd5e1',
+                color: '#1e293b',
+                fontWeight: '600',
+                padding: '7px 12px',
+                borderRadius: '8px',
+                cursor: exporting ? 'wait' : 'pointer',
+                fontSize: '13px',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                transition: 'all 0.15s ease',
+              }}
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              title="Export orders to CSV"
+              disabled={exporting}
+            >
+              <Download size={14} style={{ color: '#7c3aed' }} />
+              <span>{exporting ? 'Exporting...' : 'Export CSV'}</span>
+              <ChevronDown size={13} style={{ color: '#64748b' }} />
+            </button>
+
+            {showExportMenu && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+                  onClick={() => setShowExportMenu(false)}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 'calc(100% + 6px)',
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.06)',
+                    zIndex: 999,
+                    minWidth: '250px',
+                    padding: '6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => { setShowExportMenu(false); handleExportCSV('summary'); }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: 'transparent',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      color: '#1e293b',
+                      transition: 'background 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <FileText size={16} style={{ color: '#7c3aed', marginTop: '2px', flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '13px' }}>Order Master Summary CSV</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>1 row per order with all 35+ fields & items details</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowExportMenu(false); handleExportCSV('item_level'); }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: 'transparent',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      color: '#1e293b',
+                      transition: 'background 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f1f5f9')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <Clipboard size={16} style={{ color: '#2563eb', marginTop: '2px', flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '13px' }}>Item-Wise Detailed CSV</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>1 row per product item with rates, tax & quantities</div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
