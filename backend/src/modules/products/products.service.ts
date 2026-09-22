@@ -141,6 +141,9 @@ export class ProductsService {
           { sku: { contains: normalizedSearch, mode: 'insensitive' } },
           { name: { contains: normalizedSearch, mode: 'insensitive' } },
           { category: { contains: rawSearch, mode: 'insensitive' } },
+          { hsnCode: { contains: rawSearch, mode: 'insensitive' } },
+          { description: { contains: rawSearch, mode: 'insensitive' } },
+          { brand: { contains: rawSearch, mode: 'insensitive' } },
         ];
 
         if (tokens.length > 1) {
@@ -150,6 +153,9 @@ export class ProductsService {
                 { name: { contains: token, mode: 'insensitive' } },
                 { sku: { contains: token, mode: 'insensitive' } },
                 { category: { contains: token, mode: 'insensitive' } },
+                { hsnCode: { contains: token, mode: 'insensitive' } },
+                { description: { contains: token, mode: 'insensitive' } },
+                { brand: { contains: token, mode: 'insensitive' } },
               ],
             })),
           });
@@ -311,6 +317,9 @@ export class ProductsService {
         { sku: { contains: normalizedSearch, mode: 'insensitive' } },
         { name: { contains: normalizedSearch, mode: 'insensitive' } },
         { category: { contains: rawSearch, mode: 'insensitive' } },
+        { hsnCode: { contains: rawSearch, mode: 'insensitive' } },
+        { description: { contains: rawSearch, mode: 'insensitive' } },
+        { brand: { contains: rawSearch, mode: 'insensitive' } },
       ];
 
       if (tokens.length > 1) {
@@ -320,6 +329,9 @@ export class ProductsService {
               { name: { contains: token, mode: 'insensitive' } },
               { sku: { contains: token, mode: 'insensitive' } },
               { category: { contains: token, mode: 'insensitive' } },
+              { hsnCode: { contains: token, mode: 'insensitive' } },
+              { description: { contains: token, mode: 'insensitive' } },
+              { brand: { contains: token, mode: 'insensitive' } },
             ],
           })),
         });

@@ -2,6 +2,96 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { backendFetch } from '../../lib/backendFetch';
 
 /**
+ * Helper to perform smart multi-field, multi-token fuzzy/exact search with relevance scoring.
+ */
+function smartSearchProducts(items, searchQuery) {
+  if (!searchQuery || !searchQuery.trim()) return items;
+
+  const raw = searchQuery.trim().toLowerCase();
+  const normalized = raw.replace(/[^a-z0-9]/g, '');
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  const scored = [];
+
+  for (const p of items) {
+    const name = (p.display_name || p.product_name || '').toLowerCase();
+    const code = (p.product_code || '').toLowerCase();
+    const brand = (p.brand || p.category || '').toLowerCase();
+    const hsn = (p.hsn_sac_code || '').toLowerCase();
+    const desc = (p.description || '').toLowerCase();
+
+    const normName = name.replace(/[^a-z0-9]/g, '');
+    const normCode = code.replace(/[^a-z0-9]/g, '');
+
+    let score = 0;
+
+    // 1. Exact match (highest priority)
+    if (code === raw || normCode === normalized) {
+      score += 200;
+    } else if (name === raw || normName === normalized) {
+      score += 160;
+    }
+
+    // 2. Starts with query
+    if (code.startsWith(raw) || normCode.startsWith(normalized)) {
+      score += 80;
+    }
+    if (name.startsWith(raw) || normName.startsWith(normalized)) {
+      score += 65;
+    }
+
+    // 3. Substring match
+    if (code.includes(raw)) score += 40;
+    if (name.includes(raw)) score += 35;
+    if (normCode.includes(normalized) && normalized.length >= 2) score += 30;
+    if (normName.includes(normalized) && normalized.length >= 2) score += 25;
+    if (brand.includes(raw)) score += 20;
+    if (hsn.includes(raw)) score += 20;
+    if (desc.includes(raw)) score += 15;
+
+    // 4. Multi-token match: all tokens present across any product attributes
+    if (tokens.length > 1) {
+      const allTokensMatch = tokens.every(t => {
+        const normT = t.replace(/[^a-z0-9]/g, '');
+        return (
+          name.includes(t) ||
+          code.includes(t) ||
+          brand.includes(t) ||
+          hsn.includes(t) ||
+          desc.includes(t) ||
+          (normT && (normName.includes(normT) || normCode.includes(normT)))
+        );
+      });
+      if (allTokensMatch) score += 55;
+    }
+
+    if (score > 0) {
+      scored.push({ product: p, score });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score || (a.product.product_name || '').localeCompare(b.product.product_name || ''));
+  return scored.map(s => s.product);
+}
+
+/**
+ * Highlights matching search tokens in text strings.
+ */
+function highlightMatch(text, q) {
+  if (!text || !q || !q.trim()) return text;
+  const tokens = q.trim().split(/\s+/).filter(Boolean).map(t => t.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'));
+  if (tokens.length === 0) return text;
+  const regex = new RegExp(`(${tokens.join('|')})`, 'gi');
+  const parts = String(text).split(regex);
+  return parts.map((part, i) =>
+    regex.test(part) ? (
+      <mark key={i} style={{ background: '#fef08a', color: '#854d0e', fontWeight: 800, padding: '0 1px', borderRadius: '2px' }}>
+        {part}
+      </mark>
+    ) : part
+  );
+}
+
+/**
  * ProductPicker — Centralized, searchable product selector.
  *
  * Props:
@@ -37,13 +127,27 @@ export default function ProductPicker({
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  const catalogRef = useRef([]);
   const debounceRef = useRef(null);
+  const searchSeqRef = useRef(0);
   const containerRef = useRef(null);
 
-  const handleSetOpen = (isOpen) => {
+  // Monitor mobile viewport state
+  useEffect(() => {
+    const updateViewport = () => {
+      setIsMobile(typeof window !== 'undefined' ? window.innerWidth <= 640 : false);
+    };
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
+
+  const handleSetOpen = useCallback((isOpen) => {
     setOpen(isOpen);
     if (onOpenChange) onOpenChange(isOpen);
-  };
+  }, [onOpenChange]);
 
   // Dispatch badge styling
   const DISPATCH_BADGE = {
@@ -54,65 +158,120 @@ export default function ProductPicker({
     'NONE':       { label: '—',  bg: 'rgba(100,116,139,0.18)', color: '#8893A7' },
   };
 
-  const search = useCallback(async (q) => {
-    setLoading(true);
+  const mapProducts = useCallback((rawList) => {
+    // Filter out internal Hardware and Raw Materials (unless explicitly MANUFACTURING or TRADING)
+    const salesProducts = rawList.filter(p => {
+      const type = (p.productType || p.product_type || '').toUpperCase();
+      const cat = (p.category || p.product_family || '').toLowerCase();
+      if (type === 'HARDWARE' || type === 'RAW_MATERIAL') return false;
+      if (type === 'MANUFACTURING' || type === 'TRADING') return true;
+      if (cat === 'raw material' || cat === 'electric') return false;
+      return true;
+    });
+
+    return salesProducts.map(p => {
+      let cat = p.dispatchCategory || 'NONE';
+      if (cat === 'DISPATCH 1') cat = 'D1';
+      if (cat === 'DISPATCH 2') cat = 'D2';
+      return {
+        id: p.id,
+        public_id: p.publicId || p.id,
+        product_name: p.name || 'Unknown Product',
+        product_code: p.sku || p.publicId || 'N/A',
+        brand: p.brand || p.category || '',
+        category: p.category || p.brand || 'Other',
+        gst_rate: p.gstRate != null ? p.gstRate : 18,
+        hsn_sac_code: p.hsnCode || '',
+        unit_of_measure: p.unit || 'pcs',
+        dispatch_category: cat,
+        selling_price: Number(p.unitPrice || 0),
+        price: Number(p.unitPrice || 0),
+        description: p.description || '',
+        productType: p.productType || 'MANUFACTURING',
+      };
+    });
+  }, []);
+
+  // Fetch full sales catalog once and cache in memory for 0ms instant smart search
+  const fetchCatalog = useCallback(async () => {
+    if (catalogRef.current.length > 0) return catalogRef.current;
     try {
-      const queryParams = new URLSearchParams();
-      queryParams.set('scope', 'sales');
-      if (q) queryParams.set('search', q);
-
-      const response = await backendFetch(`/api/backend/products?${queryParams.toString()}`, { cacheTtlMs: 0 });
+      const response = await backendFetch('/api/backend/products?scope=sales', { cacheTtlMs: 30000 });
       const products = Array.isArray(response) ? response : response?.data || [];
-
-      // Filter out internal Hardware and Raw Materials (unless explicitly MANUFACTURING or TRADING)
-      const salesProducts = products.filter(p => {
-        const type = (p.productType || p.product_type || '').toUpperCase();
-        const cat = (p.category || p.product_family || '').toLowerCase();
-        if (type === 'HARDWARE' || type === 'RAW_MATERIAL') return false;
-        if (type === 'MANUFACTURING' || type === 'TRADING') return true;
-        if (cat === 'raw material' || cat === 'electric') return false;
-        return true;
-      });
-
-      const mappedResults = salesProducts.map(p => {
-        let cat = p.dispatchCategory || 'NONE';
-        if (cat === 'DISPATCH 1') cat = 'D1';
-        if (cat === 'DISPATCH 2') cat = 'D2';
-        return {
-          id: p.id,
-          public_id: p.publicId,
-          product_name: p.name || 'Unknown Product',
-          product_code: p.sku || p.publicId || 'N/A',
-          brand: p.category || '',
-          gst_rate: p.gstRate || 18,
-          hsn_sac_code: p.hsnCode || '',
-          unit_of_measure: p.unit || 'pcs',
-          dispatch_category: cat,
-          selling_price: Number(p.unitPrice || 0),
-          price: Number(p.unitPrice || 0),
-          description: p.description || '',
-          productType: p.productType || 'MANUFACTURING',
-        };
-      });
-
-      setResults(mappedResults);
+      const mapped = mapProducts(products);
+      catalogRef.current = mapped;
+      return mapped;
     } catch {
-      setResults([]);
-    } finally {
-      setLoading(false);
+      return [];
     }
-  }, [categoryId, dispatchCat]);
+  }, [mapProducts]);
+
+  // Combined smart search: 0ms instant client search + debounced backend query
+  const executeSearch = useCallback(async (q) => {
+    const currentSeq = ++searchSeqRef.current;
+
+    // 1. Instant client-side search from loaded catalog
+    if (catalogRef.current.length > 0) {
+      const filtered = smartSearchProducts(catalogRef.current, q);
+      setResults(filtered);
+    }
+
+    // 2. Fetch or update from backend
+    if (catalogRef.current.length === 0 || q.trim().length > 1) {
+      setLoading(true);
+      try {
+        const queryParams = new URLSearchParams();
+        queryParams.set('scope', 'sales');
+        if (q.trim()) queryParams.set('search', q.trim());
+
+        const response = await backendFetch(`/api/backend/products?${queryParams.toString()}`, { cacheTtlMs: 0 });
+        const products = Array.isArray(response) ? response : response?.data || [];
+        const mapped = mapProducts(products);
+
+        // Guard against stale asynchronous responses
+        if (currentSeq === searchSeqRef.current) {
+          if (catalogRef.current.length === 0 && !q.trim()) {
+            catalogRef.current = mapped;
+          } else {
+            // Merge any uniquely returned products into local catalog cache
+            const existingIds = new Set(catalogRef.current.map(p => p.id));
+            mapped.forEach(p => {
+              if (!existingIds.has(p.id)) catalogRef.current.push(p);
+            });
+          }
+          const finalFiltered = smartSearchProducts(catalogRef.current, q);
+          setResults(finalFiltered);
+        }
+      } catch {
+        if (currentSeq === searchSeqRef.current && catalogRef.current.length === 0) {
+          setResults([]);
+        }
+      } finally {
+        if (currentSeq === searchSeqRef.current) {
+          setLoading(false);
+        }
+      }
+    }
+  }, [mapProducts]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.length === 0) {
-      // On empty query, show first 20 products
-      debounceRef.current = setTimeout(() => search(''), 0);
+    if (!query.trim()) {
+      if (catalogRef.current.length > 0) {
+        setResults(catalogRef.current);
+      } else {
+        debounceRef.current = setTimeout(() => executeSearch(''), 0);
+      }
     } else {
-      debounceRef.current = setTimeout(() => search(query), 280);
+      // Run instant filter on existing cache
+      if (catalogRef.current.length > 0) {
+        setResults(smartSearchProducts(catalogRef.current, query));
+      }
+      // Debounce server verification
+      debounceRef.current = setTimeout(() => executeSearch(query), 200);
     }
     return () => clearTimeout(debounceRef.current);
-  }, [query, search]);
+  }, [query, executeSearch]);
 
   // Close on outside click or touch
   useEffect(() => {
@@ -129,7 +288,7 @@ export default function ProductPicker({
       document.removeEventListener('touchstart', handler);
       document.removeEventListener('pointerdown', handler);
     };
-  }, []);
+  }, [handleSetOpen]);
 
   const handleSelect = (product) => {
     onChange && onChange(product);
@@ -145,12 +304,18 @@ export default function ProductPicker({
 
   const handleInputFocus = () => {
     handleSetOpen(true);
-    if (results.length === 0) search(query);
+    if (catalogRef.current.length === 0) {
+      void fetchCatalog().then(items => {
+        setResults(smartSearchProducts(items, query));
+      });
+    } else {
+      setResults(smartSearchProducts(catalogRef.current, query));
+    }
   };
 
-  // Group results by product_family for display
+  // Group results by real category for display with item counts
   const grouped = results.reduce((acc, p) => {
-    const family = p.product_family || p.category_name || 'Other';
+    const family = (p.category || p.brand || p.product_family || 'Standard Products').trim().toUpperCase();
     if (!acc[family]) acc[family] = [];
     acc[family].push(p);
     return acc;
@@ -200,7 +365,7 @@ export default function ProductPicker({
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '9px 12px', borderRadius: '8px', cursor: disabled ? 'not-allowed' : 'pointer',
             background: '#ffffff',
-            border: `1px solid ${error ? '#f87171' : '#DCE5F0'}`,
+            border: `1.5px solid ${error ? '#f87171' : '#DCE5F0'}`,
             transition: 'border-color 0.2s',
             boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
           }}
@@ -258,9 +423,11 @@ export default function ProductPicker({
               onClick={(e) => { e.stopPropagation(); handleSetOpen(false); }}
               style={{
                 position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-                background: '#f1f5f9', border: 'none', borderRadius: '4px', cursor: 'pointer',
-                color: '#64748b', fontSize: '11px', fontWeight: 700, padding: '3px 6px'
+                background: '#f1f5f9', border: 'none', borderRadius: '6px', cursor: 'pointer',
+                color: '#64748b', fontSize: '12px', fontWeight: 800, padding: '4px 8px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}
+              title="Close product list"
             >
               ✕
             </button>
@@ -280,7 +447,7 @@ export default function ProductPicker({
         <div style={{ fontSize: '12px', color: '#f87171', marginTop: '4px' }}>{error}</div>
       )}
 
-      {/* Dropdown */}
+      {/* Dropdown — Responsive center-aligned on mobile, sleek clamped on desktop */}
       {open && !disabled && (
         <div
           className="product-picker-dropdown"
@@ -288,59 +455,83 @@ export default function ProductPicker({
             position: 'absolute',
             top: 'calc(100% + 4px)',
             left: 0,
-            minWidth: '100%',
-            width: 'max(100%, 340px)',
-            maxWidth: 'min(95vw, 600px)',
+            right: isMobile ? 0 : 'auto',
+            width: isMobile ? '100%' : 'max(100%, 360px)',
+            minWidth: isMobile ? '100%' : '100%',
+            maxWidth: isMobile ? '100%' : 'min(95vw, 600px)',
+            boxSizing: 'border-box',
             background: '#ffffff',
             border: '1.5px solid #cbd5e1',
-            borderRadius: '10px',
+            borderRadius: isMobile ? '12px' : '10px',
             zIndex: 2147483647,
-            maxHeight: '300px',
+            maxHeight: isMobile ? 'min(340px, 48vh)' : '320px',
             overflowY: 'auto',
-            boxShadow: '0 20px 50px rgba(15,23,42,0.28), 0 8px 20px rgba(0,0,0,0.12)',
+            boxShadow: '0 16px 40px rgba(15,23,42,0.24), 0 4px 12px rgba(0,0,0,0.08)',
           }}
         >
-          {/* Header with quick hide action */}
+          {/* Header with quick hide action & search count */}
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             padding: '8px 12px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
             position: 'sticky', top: 0, zIndex: 10
           }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Select Product
+            <span style={{
+              fontSize: '11px', fontWeight: 800, color: '#475569',
+              textTransform: 'uppercase', letterSpacing: '0.04em',
+              display: 'flex', alignItems: 'center', gap: '6px'
+            }}>
+              <span>Select Product</span>
+              <span style={{
+                background: '#e2e8f0', color: '#334155', padding: '1px 6px',
+                borderRadius: '10px', fontSize: '10px', fontWeight: 700
+              }}>
+                {results.length}
+              </span>
             </span>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleSetOpen(false); }}
               style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: '11px', fontWeight: 700, color: '#2563eb', padding: '2px 6px'
+                background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '4px',
+                cursor: 'pointer', fontSize: '11px', fontWeight: 700, color: '#1d4ed8',
+                padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px'
               }}
             >
-              ✕ Hide List
+              ✕ Close
             </button>
           </div>
-          {loading && (
-            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-text-secondary, #5E6B82)', fontSize: '13px' }}>
-              Searching…
+
+          {loading && results.length === 0 && (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+              Searching catalog…
             </div>
           )}
+
           {!loading && results.length === 0 && (
-            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-text-secondary, #5E6B82)', fontSize: '13px' }}>
-              No products found{query ? ` for "${query}"` : ''}
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+              <div style={{ fontSize: '20px', marginBottom: '6px' }}>🔍</div>
+              <div style={{ fontWeight: 600, color: '#334155' }}>No products found</div>
+              <div style={{ fontSize: '11.5px', marginTop: '2px', color: '#94a3b8' }}>
+                {query ? `No match for "${query}". Try code, size or category.` : 'Catalog is currently empty.'}
+              </div>
             </div>
           )}
-          {!loading && Object.entries(grouped).map(([family, products]) => (
+
+          {Object.entries(grouped).map(([family, products]) => (
             <div key={family}>
               {/* Group header */}
               <div style={{
                 padding: '6px 12px 4px',
-                fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em',
-                color: 'var(--color-text-secondary, #5E6B82)', textTransform: 'uppercase',
-                borderBottom: '1px solid var(--color-border, #DCE5F0)',
+                fontSize: '10px', fontWeight: 800, letterSpacing: '0.06em',
+                color: '#64748b', textTransform: 'uppercase',
+                background: '#f8fafc',
+                borderBottom: '1px solid #f1f5f9',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
               }}>
-                {family}
+                <span>{family}</span>
+                <span style={{ fontSize: '9.5px', color: '#94a3b8', fontWeight: 700 }}>{products.length}</span>
               </div>
+
               {products.map((p) => (
                 <div
                   key={p.id}
@@ -348,24 +539,39 @@ export default function ProductPicker({
                   onClick={() => handleSelect(p)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '10px',
-                    padding: '9px 12px', cursor: 'pointer',
-                    transition: 'background 0.15s',
-                    borderRadius: '4px',
+                    padding: isMobile ? '10px 12px' : '9px 12px',
+                    cursor: 'pointer',
+                    transition: 'background 0.12s ease',
+                    borderBottom: '1px solid #f8fafc',
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-background, #F5FAFE)'}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
                   {showBadge && badge(p)}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
-                      fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary, #24345C)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      fontSize: '13px', fontWeight: 700, color: '#1e293b',
+                      lineHeight: '1.35', wordBreak: 'break-word'
                     }}>
-                      {p.display_name || p.product_name}
+                      {highlightMatch(p.display_name || p.product_name, query)}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-secondary, #5E6B82)', marginTop: '1px' }}>
-                      {p.product_code} · {p.unit_of_measure} · GST {p.gst_rate}%
-                      {p.hsn_sac_code ? ` · HSN ${p.hsn_sac_code}` : ''}
+                    <div style={{
+                      fontSize: '11px', color: '#64748b', marginTop: '2px',
+                      display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center'
+                    }}>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#334155' }}>
+                        {highlightMatch(p.product_code, query)}
+                      </span>
+                      <span>·</span>
+                      <span>{p.unit_of_measure}</span>
+                      <span>·</span>
+                      <span>GST {p.gst_rate}%</span>
+                      {p.hsn_sac_code && (
+                        <>
+                          <span>·</span>
+                          <span>HSN {highlightMatch(p.hsn_sac_code, query)}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

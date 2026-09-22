@@ -4255,6 +4255,10 @@ textarea {
   }
 
   /* ── LEAD PRODUCT GRID: mobile stack layout ── */
+  .lead-product-selection {
+    padding: 12px 10px !important;
+  }
+
   .lead-product-grid-header {
     display: none !important;
   }
@@ -4262,7 +4266,7 @@ textarea {
   .lead-product-grid {
     grid-template-columns: 1fr 1fr !important;
     gap: 10px !important;
-    padding: 16px !important;
+    padding: 12px 10px !important;
     overflow: visible !important;
     position: relative !important;
   }
@@ -4272,6 +4276,16 @@ textarea {
     overflow: visible !important;
     position: relative !important;
     z-index: 50 !important;
+  }
+
+  /* Ensure product picker dropdown is perfectly centered and full width on mobile with zero overflow */
+  .product-picker-dropdown {
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .lead-product-grid-spec:focus-within {
