@@ -2289,7 +2289,6 @@ export default function ProductionOperationsDashboard({
                     <th>Customer</th>
                     <th>Product Item</th>
                     <th>Target Date</th>
-                    <th>Stage & Machine</th>
                     <th>Progress</th>
                     <th>Floor Duration</th>
                     <th>Actions</th>
@@ -2298,7 +2297,7 @@ export default function ProductionOperationsDashboard({
                 <tbody>
                   {filteredActiveRuns.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="pod-empty-row">
+                      <td colSpan={7} className="pod-empty-row">
                         <CheckCircle2 size={32} color="#10b981" />
                         <b>No active floor runs matching filter</b>
                         <p>All planned work orders have been processed or are in queue.</p>
@@ -2343,10 +2342,6 @@ export default function ProductionOperationsDashboard({
                                 <span className="pod-badge-overdue">Overdue</span>
                               )}
                             </div>
-                          </td>
-                          <td>
-                            <span className="pod-stage-badge">{run.stage || 'In Production'}</span>
-                            <small className="pod-cell-sub">{run.machine || 'Press 1'}</small>
                           </td>
                           <td>
                             <div className="pod-progress-cell">
@@ -2441,9 +2436,6 @@ export default function ProductionOperationsDashboard({
                         <div className="pod-mobile-card-chips">
                           <span className="pod-mobile-chip">
                             Qty: <b>{run.producedQty || 0}</b> / {run.quantity} units
-                          </span>
-                          <span className="pod-mobile-chip">
-                            {run.machine || 'Press 1'}
                           </span>
                           <span className={`pod-mobile-chip ${isOverdue ? 'alert' : ''}`}>
                             Due: {run.targetDate || '—'} {isOverdue && '(Overdue)'}
