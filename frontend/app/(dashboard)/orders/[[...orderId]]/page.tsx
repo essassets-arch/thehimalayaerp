@@ -235,6 +235,15 @@ export default function OrderDetailPage() {
       if (foundOrder && foundOrder.id) {
         setOrder(foundOrder);
 
+        // If arrived via UUID or generic id, cleanly update browser address bar to human-readable orderNumber
+        if (
+          foundOrder.orderNumber &&
+          decodedOrderId !== foundOrder.orderNumber &&
+          typeof window !== "undefined"
+        ) {
+          window.history.replaceState(null, "", `/orders/${foundOrder.orderNumber}`);
+        }
+
         // Fetch related active/past dispatches for this sales order
         try {
           const dispRes = await apiClient.get("/logistics/dispatches?limit=200").catch(() => null);

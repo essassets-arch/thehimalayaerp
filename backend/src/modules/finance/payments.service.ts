@@ -1098,7 +1098,7 @@ export class PaymentsService {
             type: 'ORDER_FULL_PAID',
             title: 'Order Fully Paid',
             message: `Order ${result.orderNumber} is now FULLY PAID. Payment follow-up completed.`,
-            route: '/sales/orders',
+            route: `/orders/${result.orderNumber || result.verifiedPayment.salesOrderId || id}`,
             entityType: 'SalesOrder',
             entityId: result.verifiedPayment.salesOrderId || id,
             priority: NotificationPriority.HIGH,

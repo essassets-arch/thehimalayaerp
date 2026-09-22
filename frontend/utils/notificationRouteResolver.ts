@@ -14,6 +14,12 @@ export interface NotificationLike {
   type?: string | null;
   title?: string | null;
   message?: string | null;
+  orderNumber?: string | null;
+  orderNo?: string | null;
+  salesOrderNumber?: string | null;
+  metadata?: Record<string, any> | null;
+  data?: Record<string, any> | null;
+  details?: Record<string, any> | null;
   [key: string]: any;
 }
 
@@ -21,6 +27,112 @@ export interface UserLike {
   id?: string;
   role?: string | null;
   [key: string]: any;
+}
+
+/**
+ * Extracts a clean, human-readable sales order number from notification fields,
+ * route, or text (message / title).
+ */
+export function extractOrderNumberFromNotification(
+  notification: NotificationLike | null | undefined
+): string | null {
+  if (!notification) return null;
+
+  // 1. Explicit properties
+  const directCandidate =
+    notification.orderNumber ||
+    notification.orderNo ||
+    notification.salesOrderNumber ||
+    notification.metadata?.orderNumber ||
+    notification.metadata?.orderNo ||
+    notification.data?.orderNumber ||
+    notification.data?.orderNo ||
+    notification.details?.orderNumber ||
+    notification.details?.orderNo;
+
+  if (typeof directCandidate === 'string' && directCandidate.trim().length > 2) {
+    return directCandidate.trim();
+  }
+
+  // 2. Parse route if it already points to an order slug (and is not just a UUID)
+  const isUuid = (val: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+  if (notification.route && typeof notification.route === 'string') {
+    const ordersMatch = notification.route.match(/^\/orders\/(.+)$/);
+    if (ordersMatch && ordersMatch[1]) {
+      const slug = decodeURIComponent(ordersMatch[1].trim());
+      if (!isUuid(slug)) {
+        return slug;
+      }
+    }
+    const salesOrdersMatch = notification.route.match(
+      /^\/(?:sales|supersales)\/orders\/(.+)$/
+    );
+    if (salesOrdersMatch && salesOrdersMatch[1]) {
+      const slug = decodeURIComponent(salesOrdersMatch[1].trim());
+      if (!isUuid(slug)) {
+        return slug;
+      }
+    }
+  }
+
+  // 3. Search in message and title
+  const rawText = `${notification.message || ''} ${notification.title || ''}`.trim();
+  if (!rawText) return null;
+
+  const cleanCandidate = (str?: string | null) => {
+    if (!str) return null;
+    let s = str.trim().replace(/^[\(\[\{"'\s]+|[\)\]\}"'\s\.,;:!?]+$/g, '');
+    // Ensure it's not a dispatch or PO or GRN or IND or EXP prefix
+    if (/^(DISP|PO|GRN|IND|EXP)\b/i.test(s)) return null;
+    return s.length >= 3 ? s : null;
+  };
+
+  // Pattern A: Multi-slash company order format (e.g. HCPPL/2627/0170, HCPPL/2627/0169, HCL/2627/001)
+  const slashMatch = rawText.match(
+    /\b([A-Za-z]{2,10}\/\d{2,6}\/\d{2,6}[A-Za-z0-9_-]*)\b/i
+  );
+  if (slashMatch && slashMatch[1]) {
+    const c = cleanCandidate(slashMatch[1]);
+    if (c) return c;
+  }
+
+  // Pattern B: SO- or ORD- prefix (e.g. SO-2026-0099, ORD-1234, SO/2627/10)
+  const soMatch = rawText.match(/\b((?:SO|ORD)[\/\-][A-Za-z0-9\/\-]+)\b/i);
+  if (soMatch && soMatch[1]) {
+    const c = cleanCandidate(soMatch[1]);
+    if (c) return c;
+  }
+
+  // Pattern C: Prefix before dash / em-dash / en-dash: "HCPPL/2627/0169 — Plant Head has accepted..."
+  const prefixMatch = (notification.message || '').match(
+    /^([A-Za-z0-9_\-\/]+)\s*[\u2014\u2013\-\:]\s*(?:Plant Head|Production|Order|Delivery|New|Sales|Customer|Shipment|Dispatch)/i
+  );
+  if (prefixMatch && prefixMatch[1]) {
+    const c = cleanCandidate(prefixMatch[1]);
+    if (c) return c;
+  }
+
+  // Pattern D: "created for <orderNumber>" or "shipment for <orderNumber>" or "dispatch for <orderNumber>"
+  const forMatch = rawText.match(
+    /(?:created for|shipment for|dispatch for|delivery for|order for|sales order|order\s*#|order\s*no\.?)\s*:?\s*([A-Za-z0-9_\-\/]+)/i
+  );
+  if (forMatch && forMatch[1]) {
+    const c = cleanCandidate(forMatch[1]);
+    if (c) return c;
+  }
+
+  // Pattern E: Any 3-segment alphanumeric slash pattern (e.g. ABC/24-25/001)
+  const genericSlashMatch = rawText.match(
+    /\b([A-Za-z0-9_-]{2,12}\/[A-Za-z0-9_-]{2,8}\/[A-Za-z0-9_-]{2,8})\b/
+  );
+  if (genericSlashMatch && genericSlashMatch[1]) {
+    const c = cleanCandidate(genericSlashMatch[1]);
+    if (c) return c;
+  }
+
+  return null;
 }
 
 /**
@@ -49,13 +161,58 @@ export function resolveNotificationRoute(
       userEmail.includes('ravikant')) &&
     !isDispatch2User;
 
-  // 1. If explicit route is provided and valid, adapt if needed and return
-  if (
-    notification.route &&
-    typeof notification.route === 'string' &&
-    notification.route.startsWith('/')
-  ) {
-    let r = notification.route;
+  const entityType = String(notification.entityType || '').trim();
+  const entityId = String(notification.entityId || '').trim();
+  const type = String(notification.type || '').toUpperCase();
+  const moduleName = String(notification.module || '').toUpperCase();
+  const title = String(notification.title || '').toUpperCase();
+  const message = String(notification.message || '').toUpperCase();
+  const explicitRoute = typeof notification.route === 'string' ? notification.route.trim() : '';
+
+  // 1. DYNAMIC ORDER REDIRECTION:
+  // Any order-related notification (e.g. Dispatch Created, Shipment In Transit,
+  // Order Accepted by Plant Head, Order Returned) MUST dynamically route to
+  // the modern universal order lifecycle page: `/orders/{orderNumber}` (e.g. `/orders/HCPPL/2627/0170`),
+  // and NEVER to the outdated `/sales/orders/{uuid}` or `/supersales/orders/{uuid}`.
+  const extractedOrderNumber = extractOrderNumberFromNotification(notification);
+
+  const isLegacySalesOrderRoute =
+    explicitRoute.startsWith('/sales/orders') ||
+    explicitRoute.startsWith('/supersales/orders') ||
+    explicitRoute.startsWith('/orders');
+
+  const isOrderRelatedNotification =
+    Boolean(extractedOrderNumber) ||
+    isLegacySalesOrderRoute ||
+    entityType.toLowerCase() === 'salesorder' ||
+    entityType.toLowerCase() === 'order' ||
+    type.startsWith('SALES_ORDER_') ||
+    type.startsWith('ORDER_') ||
+    type === 'DISPATCH_CREATED' ||
+    type === 'DISPATCH_IN_TRANSIT' ||
+    type === 'DISPATCH_DELIVERED';
+
+  if (isOrderRelatedNotification) {
+    if (extractedOrderNumber) {
+      return `/orders/${extractedOrderNumber}`;
+    }
+
+    if (isLegacySalesOrderRoute) {
+      const match = explicitRoute.match(/^\/(?:sales|supersales)?\/?orders\/(.+)$/);
+      if (match && match[1]) {
+        return `/orders/${match[1].trim()}`;
+      }
+    }
+
+    if (entityId) {
+      return `/orders/${entityId}`;
+    }
+    return '/orders';
+  }
+
+  // 2. If explicit non-sales route is provided and valid, adapt if needed and return
+  if (explicitRoute.startsWith('/')) {
+    let r = explicitRoute;
     // Adapt sales vs supersales if needed
     if (isSuperSales && r.startsWith('/sales/')) {
       r = r.replace('/sales/', '/supersales/');
@@ -71,14 +228,7 @@ export function resolveNotificationRoute(
     return r;
   }
 
-  const entityType = String(notification.entityType || '').trim();
-  const entityId = String(notification.entityId || '').trim();
-  const type = String(notification.type || '').toUpperCase();
-  const moduleName = String(notification.module || '').toUpperCase();
-  const title = String(notification.title || '').toUpperCase();
-  const message = String(notification.message || '').toUpperCase();
-
-  // 2. Sales Orders
+  // 3. Sales Orders fallback (if no explicit route and no extracted order number)
   if (
     entityType.toLowerCase() === 'salesorder' ||
     type.startsWith('SALES_ORDER_') ||
@@ -100,9 +250,9 @@ export function resolveNotificationRoute(
       return '/dispatch/orders';
     }
     if (entityId) {
-      return `${salesBasePath}/orders/${entityId}`;
+      return `/orders/${entityId}`;
     }
-    return `${salesBasePath}/orders`;
+    return '/orders';
   }
 
   // 3. Leads

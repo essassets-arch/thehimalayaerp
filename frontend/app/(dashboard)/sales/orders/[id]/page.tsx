@@ -33,8 +33,20 @@ export default function SalesOrderDetailsPage() {
     }
   });
 
-  if (isLoading) return <div className="p-8 text-center text-gray-500">Loading order details...</div>;
-  if (!order) return <div className="p-8 text-center text-red-500">Order not found.</div>;
+  React.useEffect(() => {
+    if (order?.orderNumber) {
+      router.replace(`/orders/${order.orderNumber}`);
+    } else if (id) {
+      router.replace(`/orders/${id}`);
+    }
+  }, [order?.orderNumber, id, router]);
+
+  return (
+    <div className="p-8 text-center text-gray-500 flex flex-col items-center justify-center min-h-[50vh] gap-3">
+      <div className="w-7 h-7 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      <span className="text-sm font-medium">Redirecting to Order Details...</span>
+    </div>
+  );
 
   const summaryItems: SummaryItem[] = [
     { label: 'Customer', value: order.customer?.companyName },

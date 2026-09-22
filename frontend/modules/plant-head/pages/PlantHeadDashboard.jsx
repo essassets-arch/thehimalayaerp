@@ -12,23 +12,18 @@ import {
   Settings,
   TrendingUp,
   CheckCircle2,
-  AlertTriangle,
   AlertCircle,
   RefreshCw,
   Download,
   Calendar,
   ChevronDown,
   ArrowRight,
-  ExternalLink,
   Layers,
   Wrench,
   Users,
   Activity,
-  FileText,
   Percent,
   X,
-  Sparkles,
-  Info,
   BarChart3,
   PieChart as PieChartIcon,
   Table as TableIcon
@@ -184,10 +179,6 @@ export const PlantHeadDashboard = () => {
   const qc = dashboardData?.quality || {};
   const maint = dashboardData?.maintenance || {};
   const hr = dashboardData?.hr || {};
-  const costing = dashboardData?.costing || {};
-  const safety = dashboardData?.safety || {};
-  const insights = dashboardData?.insights || [];
-  const alerts = dashboardData?.alerts || [];
 
   // Order fulfillment donut data
   const fulfillmentDonutData = useMemo(() => {
@@ -1687,277 +1678,7 @@ export const PlantHeadDashboard = () => {
           </div>
 
         </div>
-
-        {/* ── 7. ROW 5: FINANCIAL, MATERIAL & SAFETY ROW ── */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: '16px',
-          marginBottom: '20px'
-        }}>
-
-          {/* CARD 1: COSTING & PROFITABILITY */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-            <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Costing & Profitability</span>
-            </div>
-            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Material Cost / KG</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Labour Cost / KG</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Total Mfg Cost / KG</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Cost / Price (Avg.)</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Selling Price / Piece (Avg.)</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Gross Margin</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>NOT CONFIGURED</span>
-              </div>
-            </div>
-            <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA' }}>
-              <span style={{ fontSize: '10px', color: PALETTE.slateMuted }}>Costing model not configured in active database</span>
-            </div>
-          </div>
-
-          {/* TABLE 2: MATERIAL CONSUMPTION VS STANDARD */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-            <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Material Consumption vs Standard</span>
-              <button
-                onClick={() => router.push('/plant-head/material-analytics')}
-                style={{ fontSize: '11px', color: PALETTE.blue, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
-              >
-                Detailed Analytics →
-              </button>
-            </div>
-            <div style={{ padding: '24px 16px', textAlign: 'center' }}>
-              <Info size={32} color={PALETTE.slateMuted} style={{ margin: '0 auto 10px' }} />
-              <div style={{ fontSize: '13px', fontWeight: 600, color: PALETTE.slateDark, marginBottom: '4px' }}>
-                BOM Standards Not Configured
-              </div>
-              <p style={{ fontSize: '11px', color: PALETTE.slateMuted, margin: 0, lineHeight: 1.4 }}>
-                Material consumption standards are not defined in the product BOM catalog. Raw material issue movements are actively logged in the Store module.
-              </p>
-            </div>
-          </div>
-
-          {/* CARD 3: SAFETY & EHS */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-            <div style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', padding: '10px 14px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase' }}>Safety & EHS</span>
-            </div>
-            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Total Incidents</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Near Miss Reports</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Safety Training</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>PPE Compliance</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Fire Equipment Audit</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: PALETTE.slateMuted }}>Environmental Compliance</span>
-                <span style={{ fontWeight: 600, color: PALETTE.slateMuted }}>N/A</span>
-              </div>
-            </div>
-            <div style={{ borderTop: '1px solid #F1F5F9', padding: '8px 14px', background: '#FAFAFA' }}>
-              <span style={{ fontSize: '10px', color: PALETTE.slateMuted }}>EHS incident tracking module not configured in database</span>
-            </div>
-          </div>
-
-          {/* TABLE 4: PENDING ORDERS (TOP 5) (PCS) */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-            <div style={{ background: PALETTE.navy, color: '#FFFFFF', padding: '10px 14px', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Pending Orders (Top 5)</span>
-              <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
-                {fmt(ord?.totalPendingPcs)} Pending PCS
-              </span>
-            </div>
-            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: PALETTE.slateMuted, fontSize: '11px', textTransform: 'uppercase' }}>
-                    <th style={{ padding: '8px 12px', width: '24px' }}>#</th>
-                    <th style={{ padding: '8px 12px' }}>Customer / Order</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>Pending PCS</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'right' }}>Target Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(ord?.pendingTop5 || []).map((o) => (
-                    <tr key={o.rank} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '8px 12px', color: PALETTE.slateMuted, fontWeight: 700 }}>{o.rank}</td>
-                      <td style={{ padding: '8px 12px' }}>
-                        <div style={{ fontWeight: 600, color: PALETTE.slateDark }}>{o.customer}</div>
-                        <div style={{ fontSize: '10px', color: PALETTE.slateMuted }}>{o.orderNumber}</div>
-                      </td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: PALETTE.orange }}>
-                        {fmt(o.pendingPcs)}
-                      </td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.slateMuted, fontSize: '11px' }}>
-                        {o.dueDate}
-                      </td>
-                    </tr>
-                  ))}
-                  {(!ord?.pendingTop5 || ord?.pendingTop5.length === 0) && (
-                    <tr>
-                      <td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: PALETTE.slateMuted }}>
-                        No pending sales orders
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: PALETTE.blueLight, fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
-                    <td colSpan={2} style={{ padding: '8px 12px', color: PALETTE.navy }}>Total Pending</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.orange }}>{fmt(ord?.totalPendingPcs)}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: PALETTE.navy }}>PCS</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-
-        </div>
-
-        {/* ── 8. ROW 6: KEY INSIGHTS & ACTIONS ── */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: '16px',
-          marginBottom: '20px'
-        }}>
-
-          {/* KEY INSIGHTS */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <Sparkles size={18} color={PALETTE.navy} />
-              <h3 style={{ fontSize: '13px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase', margin: 0 }}>
-                Key Operational Insights
-              </h3>
-            </div>
-            <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: PALETTE.slate, lineHeight: 1.5 }}>
-              {insights.map((ins, i) => (
-                <li key={i} style={{ fontWeight: 500 }}>{ins}</li>
-              ))}
-              {insights.length === 0 && (
-                <li style={{ color: PALETTE.slateMuted }}>All plant operations operating within normal baseline parameters.</li>
-              )}
-            </ul>
-          </div>
-
-          {/* ALERTS & ACTIONS */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <AlertTriangle size={18} color={PALETTE.orange} />
-              <h3 style={{ fontSize: '13px', fontWeight: 700, color: PALETTE.orange, textTransform: 'uppercase', margin: 0 }}>
-                Alerts & Action Items
-              </h3>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {alerts.map((al, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => al.link && router.push(al.link)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    background: al.severity === 'critical' ? PALETTE.crimsonLight : PALETTE.orangeLight,
-                    border: `1px solid ${al.severity === 'critical' ? PALETTE.crimson : PALETTE.orange}`,
-                    fontSize: '12px',
-                    cursor: al.link ? 'pointer' : 'default'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '10px', color: al.severity === 'critical' ? PALETTE.crimson : PALETTE.orange }}>
-                      [{al.category}]
-                    </span>
-                    <span style={{ color: PALETTE.slateDark, fontWeight: 500 }}>{al.message}</span>
-                  </div>
-                  {al.link && <ExternalLink size={14} color={al.severity === 'critical' ? PALETTE.crimson : PALETTE.orange} />}
-                </div>
-              ))}
-              {alerts.length === 0 && (
-                <div style={{ fontSize: '12px', color: PALETTE.slateMuted, padding: '12px 0' }}>
-                  No active critical plant alerts for the selected period.
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* PLANT HEAD NOTES */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <FileText size={18} color={PALETTE.navy} />
-              <h3 style={{ fontSize: '13px', fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase', margin: 0 }}>
-                Plant Head Notes
-              </h3>
-            </div>
-            <div style={{ padding: '20px 14px', background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '6px', textAlign: 'center' }}>
-              <div style={{ fontSize: '12px', color: PALETTE.slateMuted, marginBottom: '6px' }}>
-                No supervisor shift notes logged for {p.label || 'this period'}.
-              </div>
-              <span style={{ fontSize: '10px', color: '#94A3B8' }}>
-                Shift remarks recorded by Plant Head will automatically display here.
-              </span>
-            </div>
-          </div>
-
-        </div>
-
       </main>
-
-      {/* ── 9. PROFESSIONAL ENTERPRISE FOOTER ── */}
-      <footer style={{
-        background: '#FFFFFF',
-        borderTop: '1px solid #E2E8F0',
-        padding: '16px 24px',
-        fontSize: '11px',
-        color: PALETTE.slateMuted,
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '12px'
-      }}>
-        <div style={{ fontWeight: 700, color: PALETTE.navy, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Himalaya Composites Pvt. Ltd. — Manufacturing Command Center
-        </div>
-        <div style={{ letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>
-          Safety | Quality | People | Process | Sustainability
-        </div>
-        <div>
-          PostgreSQL Database Single Source of Truth
-        </div>
-      </footer>
 
       {/* ── Custom Date Range Modal ── */}
       {showCustomModal && (

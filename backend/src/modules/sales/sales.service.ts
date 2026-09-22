@@ -1337,10 +1337,7 @@ export class SalesService {
             })
             .then((recipient) => {
               if (recipient) {
-                const isSuperSales = recipient.role?.code === 'SUPER_SALES';
-                const route = isSuperSales
-                  ? `/supersales/orders/${order.id}`
-                  : `/sales/orders/${order.id}`;
+                const route = `/orders/${order.orderNumber || order.id}`;
 
                 notificationsService
                   .notifyUser({
@@ -1379,10 +1376,7 @@ export class SalesService {
             })
             .then((recipient) => {
               if (recipient) {
-                const isSuperSales = recipient.role?.code === 'SUPER_SALES';
-                const route = isSuperSales
-                  ? `/supersales/orders/${order.id}`
-                  : `/sales/orders/${order.id}`;
+                const route = `/orders/${order.orderNumber || order.id}`;
 
                 notificationsService
                   .notifyUser({
