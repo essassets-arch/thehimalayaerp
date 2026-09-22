@@ -5,18 +5,41 @@ import { remindersService } from '../services/reminders.service.js';
 
 const getErrorText = (err) => {
   if (!err) return 'Unknown error occurred';
-  if (typeof err === 'string') return err;
+  if (typeof err === 'string') {
+    if (err.includes('[object Object]')) return 'An unexpected error occurred. Please try again.';
+    return err;
+  }
   if (typeof err === 'object') {
     if (err.response?.data?.message) {
       const msg = err.response.data.message;
-      return typeof msg === 'string' ? msg : JSON.stringify(msg);
+      if (typeof msg === 'string') return msg;
+      if (Array.isArray(msg)) return msg.join(', ');
+      return JSON.stringify(msg);
     }
-    if (err.message && typeof err.message === 'string') return err.message;
-    if (err.message && typeof err.message === 'object') {
-      return err.message.message || JSON.stringify(err.message);
+    if (err.response?.data?.error) {
+      const e = err.response.data.error;
+      if (typeof e === 'string') return e;
+      if (e?.message) return typeof e.message === 'string' ? e.message : JSON.stringify(e.message);
     }
-    if (err.error && typeof err.error === 'string') return err.error;
-    if (Array.isArray(err.message)) return err.message.join(', ');
+    if (err.message) {
+      if (typeof err.message === 'string') {
+        if (err.message.includes('[object Object]')) {
+          if (err.meta?.details && Array.isArray(err.meta.details)) return err.meta.details.join(', ');
+          return 'An unexpected error occurred. Please try again.';
+        }
+        return err.message;
+      }
+      if (Array.isArray(err.message)) return err.message.join(', ');
+      if (typeof err.message === 'object') {
+        return err.message.message || JSON.stringify(err.message);
+      }
+    }
+    if (err.error) {
+      if (typeof err.error === 'string') return err.error;
+      if (typeof err.error === 'object' && err.error.message) {
+        return typeof err.error.message === 'string' ? err.error.message : JSON.stringify(err.error.message);
+      }
+    }
     try {
       const str = JSON.stringify(err);
       return str === '{}' ? 'An unexpected error occurred' : str;
@@ -24,7 +47,8 @@ const getErrorText = (err) => {
       return 'An unexpected error occurred';
     }
   }
-  return String(err);
+  const s = String(err);
+  return s.includes('[object Object]') ? 'An unexpected error occurred. Please try again.' : s;
 };
 
 export function useReminders(showToast) {

@@ -81,8 +81,29 @@ export const responseInterceptor = async (res, options = {}) => {
 
   try {
     const envelope = await res.json();
-    errMsg = envelope.message || envelope.error || errMsg;
-    errDetails = envelope.errors || [];
+    if (envelope) {
+      if (typeof envelope === 'string') {
+        errMsg = envelope;
+      } else if (typeof envelope === 'object') {
+        if (envelope.error && typeof envelope.error === 'object') {
+          errMsg = envelope.error.message || envelope.error.code || JSON.stringify(envelope.error);
+          errDetails = envelope.error.details || [];
+        } else if (typeof envelope.error === 'string') {
+          errMsg = envelope.error;
+        } else if (envelope.message) {
+          if (typeof envelope.message === 'string') {
+            errMsg = envelope.message;
+          } else if (Array.isArray(envelope.message)) {
+            errMsg = envelope.message.join('; ');
+          } else if (typeof envelope.message === 'object') {
+            errMsg = envelope.message.message || JSON.stringify(envelope.message);
+          }
+        }
+        if (Array.isArray(envelope.errors)) {
+          errDetails = envelope.errors;
+        }
+      }
+    }
   } catch {
     // ignore parsing errors
   }
@@ -115,9 +136,17 @@ export const responseInterceptor = async (res, options = {}) => {
 };
 
 const mapBackendError = (envelope) => {
-  const code = envelope.errorCode;
-  const msg = envelope.message || envelope.error || 'Operation failed.';
-  const details = envelope.errors || [];
+  const code = envelope.errorCode || envelope.error?.code;
+  let msg = envelope.message;
+  if (!msg && envelope.error) {
+    if (typeof envelope.error === 'string') {
+      msg = envelope.error;
+    } else if (typeof envelope.error === 'object') {
+      msg = envelope.error.message || envelope.error.code || JSON.stringify(envelope.error);
+    }
+  }
+  msg = typeof msg === 'string' ? msg : (Array.isArray(msg) ? msg.join('; ') : 'Operation failed.');
+  const details = envelope.errors || envelope.error?.details || [];
 
   if (String(msg).toLowerCase().includes('not found')) {
     return new NotFoundError(msg);

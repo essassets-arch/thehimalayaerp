@@ -4,7 +4,12 @@
 
 export class ERPError extends Error {
   constructor(message, status = 500, code = 'INTERNAL_ERROR') {
-    super(message);
+    const safeMessage = typeof message === 'string'
+      ? message
+      : (Array.isArray(message)
+          ? message.join('; ')
+          : (message?.message || (typeof message === 'object' ? JSON.stringify(message) : String(message || 'Operation failed'))));
+    super(safeMessage);
     this.name = this.constructor.name;
     this.status = status;
     this.code = code;

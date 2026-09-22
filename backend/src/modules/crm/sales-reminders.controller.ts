@@ -13,6 +13,7 @@ import {
   Body,
   Param,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -160,27 +161,33 @@ export class SalesRemindersController {
       }
 
       let referenceNo = 'N/A';
-      if (r.moduleType === 'Lead' && r.moduleId) {
+      if (r.moduleType === 'Lead' && r.moduleId && !String(r.moduleId).startsWith('MANUAL-')) {
         const lead = await this.prisma.lead.findUnique({
           where: { id: r.moduleId },
-        });
+        }).catch(() => null);
         referenceNo = lead?.leadNumber || 'N/A';
       } else if (
         (r.moduleType === 'Sample' || r.moduleType === 'SampleRequest') &&
-        r.moduleId
+        r.moduleId &&
+        !String(r.moduleId).startsWith('MANUAL-')
       ) {
         const sample = await this.prisma.sampleRequest.findUnique({
           where: { id: r.moduleId },
-        });
+        }).catch(() => null);
         referenceNo = sample?.sampleNumber || 'N/A';
-      } else if (r.moduleType === 'Quotation' && r.moduleId) {
+      } else if (
+        r.moduleType === 'Quotation' &&
+        r.moduleId &&
+        !String(r.moduleId).startsWith('MANUAL-')
+      ) {
         const quote = await this.prisma.quotation.findUnique({
           where: { id: r.moduleId },
-        });
+        }).catch(() => null);
         referenceNo = quote?.quotationNumber || 'N/A';
       } else if (
         (r.moduleType === 'Payment' || r.moduleType === 'SalesOrder') &&
-        r.moduleId
+        r.moduleId &&
+        !String(r.moduleId).startsWith('MANUAL-')
       ) {
         const order = await this.prisma.salesOrder.findFirst({
           where: {
@@ -190,7 +197,7 @@ export class SalesRemindersController {
               { orderNumber: r.moduleId.replace(/^#/, '') },
             ],
           },
-        });
+        }).catch(() => null);
         referenceNo = order?.orderNumber || 'N/A';
       }
 
@@ -347,7 +354,7 @@ export class SalesRemindersController {
     const moduleId = sourceId || dto.moduleId;
 
     if (!moduleId) {
-      throw new Error('moduleId / sourceId is required');
+      throw new BadRequestException('moduleId / sourceId is required');
     }
 
     let reminderDateObj = new Date();
@@ -380,11 +387,27 @@ export class SalesRemindersController {
         userId,
         userRole,
       );
-      const customerName = await getCustomerNameForSource(
-        tx,
-        moduleType,
-        source,
-      );
+      const customerName =
+        dto.customerName ||
+        (await getCustomerNameForSource(tx, moduleType, source)) ||
+        'Client';
+
+      let validLeadId: string | null = null;
+      if (moduleType.toUpperCase() === 'LEAD') {
+        if (source && source.id) {
+          validLeadId = source.id;
+        } else if (moduleId && !String(moduleId).startsWith('MANUAL-')) {
+          try {
+            const leadExists = await tx.lead.findUnique({
+              where: { id: moduleId },
+              select: { id: true },
+            });
+            if (leadExists) validLeadId = leadExists.id;
+          } catch {
+            validLeadId = null;
+          }
+        }
+      }
 
       const reminder = await tx.followUp.create({
         data: {
@@ -402,7 +425,7 @@ export class SalesRemindersController {
           reminderType: dto.reminderType || title || 'Follow-up',
           priority: dto.priority || 'Medium',
           remarks: description || dto.remarks || '',
-          ...(moduleType.toUpperCase() === 'LEAD' ? { leadId: moduleId } : {}),
+          ...(validLeadId ? { leadId: validLeadId } : {}),
         },
       });
 
@@ -561,12 +584,21 @@ export class SalesRemindersController {
         });
       }
       if (!existing) {
+        let validLeadId: string | null = null;
+        try {
+          const leadExists = await tx.lead.findUnique({
+            where: { id },
+            select: { id: true },
+          });
+          if (leadExists) validLeadId = leadExists.id;
+        } catch {}
+
         const created = await tx.followUp.create({
           data: {
             companyId: String(companyId),
             createdById: userId || 'SYSTEM',
             moduleId: id,
-            leadId: id,
+            ...(validLeadId ? { leadId: validLeadId } : {}),
             moduleType: 'Lead',
             status: 'Completed',
             completedAt: new Date(),
@@ -617,12 +649,21 @@ export class SalesRemindersController {
         });
       }
       if (!existing) {
+        let validLeadId: string | null = null;
+        try {
+          const leadExists = await tx.lead.findUnique({
+            where: { id },
+            select: { id: true },
+          });
+          if (leadExists) validLeadId = leadExists.id;
+        } catch {}
+
         const created = await tx.followUp.create({
           data: {
             companyId: String(companyId),
             createdById: userId || 'SYSTEM',
             moduleId: id,
-            leadId: id,
+            ...(validLeadId ? { leadId: validLeadId } : {}),
             moduleType: 'Lead',
             status: 'Dismissed',
             dismissedAt: new Date(),
